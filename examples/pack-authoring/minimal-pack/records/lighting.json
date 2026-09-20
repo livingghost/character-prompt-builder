@@ -1,0 +1,47 @@
+{
+  "kind": "module",
+  "category": "lighting",
+  "records": [
+    {
+      "id": "example-pack-soft-window-rim",
+      "label": "soft window rim",
+      "curation_status": "vocabulary",
+      "category": "lighting",
+      "prompt": "a restrained soft window rim separating the subject from the darker background",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "soft rim light",
+        "window light",
+        "subject separation"
+      ],
+      "search_terms": [
+        {
+          "phrase": "soft window rim",
+          "facet": "lighting",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "soft rim light",
+          "facet": "lighting",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "window light",
+          "facet": "lighting",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "subject separation",
+          "facet": "lighting",
+          "weight": 0.9,
+          "source": "tag"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,498 @@
+{
+  "kind": "module",
+  "category": "lighting",
+  "records": [
+    {
+      "id": "lighting-cool-window",
+      "label": "Cool lateral window light",
+      "category": "lighting",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Shape the face and upper body with cool directional daylight while retaining gentle interior fill and readable local color.",
+      "prompt": "Let cool daylight enter from one side as a broad window source, turn the facial planes with a soft terminator, retain subdued room fill, and place the clearest light accent near the eyes.",
+      "invariants": [
+        "one lateral source defines the primary plane changes",
+        "interior fill preserves identity-bearing shadow detail",
+        "cool illumination remains distinct from the subject's local colors"
+      ],
+      "misreadings_to_avoid": [
+        "uniform blue wash across every surface",
+        "multiple contradictory window directions",
+        "black facial shadows that erase expression"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lighting design",
+      "tags": [
+        "cool window light",
+        "side daylight"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "cool window light",
+          "facet": "lighting",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "window light",
+          "facet": "lighting",
+          "weight": 1.05,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "lighting-dusk-rim",
+      "label": "Soft dusk rim and fill",
+      "category": "lighting",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Separate the subject from a subdued background with a controlled dusk edge light and broad low-contrast frontal fill.",
+      "prompt": "Place a soft dusk rim along the upper silhouette and far shoulder, support the face with broad quiet fill, and let the background transition through muted evening values that preserve the subject's local palette.",
+      "invariants": [
+        "rim light follows the silhouette facing the evening source",
+        "frontal fill keeps facial planes legible",
+        "background values provide calm separation from the body"
+      ],
+      "misreadings_to_avoid": [
+        "continuous neon outline around the entire figure",
+        "rim brighter than every facial focal accent",
+        "flat fill that removes the main form turn"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lighting design",
+      "tags": [
+        "evening edge light",
+        "quiet rim lighting"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "dusk rim light",
+          "facet": "lighting",
+          "weight": 1.15,
+          "source": "author"
+        },
+        {
+          "phrase": "soft rim lighting",
+          "facet": "lighting",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "lighting-overcast-ambient",
+      "label": "Soft overcast ambience",
+      "category": "lighting",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Provide quiet, low-contrast illumination that supports subtle expression, material color, and a reflective environmental mood.",
+      "prompt": "Use a broad overcast source across the scene, model the face through gentle value shifts, keep local colors calm and accurate, and reserve small contrast accents for the eyes and key silhouette breaks.",
+      "invariants": [
+        "illumination remains broad and directionally coherent",
+        "facial structure emerges through subtle plane changes",
+        "small focal accents lead attention through the quiet value range"
+      ],
+      "misreadings_to_avoid": [
+        "featureless flat illumination",
+        "hard theatrical cast shadows",
+        "muddy color caused by identical midtones everywhere"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lighting design",
+      "tags": [
+        "diffuse daylight",
+        "low contrast light"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "overcast light",
+          "facet": "lighting",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "soft ambient light",
+          "facet": "lighting",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "lighting-neutral-bounce",
+      "label": "Neutral key with open bounce",
+      "category": "lighting",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Reveal design, materials, and setting depth with a neutral directional key supported by spacious bounce illumination.",
+      "prompt": "Use one neutral key to describe the principal planes, return open bounce into the shadow side, preserve clear material color, and step the environment into quieter values across foreground, subject, and background layers.",
+      "invariants": [
+        "the key establishes one readable light direction",
+        "bounce illumination retains shadow-side construction",
+        "material colors remain stable enough for design inspection"
+      ],
+      "misreadings_to_avoid": [
+        "clinical flat front lighting",
+        "colored bounce that overwhelms local color",
+        "background illumination stronger than the subject key"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lighting design",
+      "tags": [
+        "neutral illumination",
+        "open shadow fill"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "neutral bounce light",
+          "facet": "lighting",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "clear neutral lighting",
+          "facet": "lighting",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "lighting-golden-hour-warmth",
+      "label": "Golden hour warm low sun",
+      "category": "lighting",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Bathe the scene in warm low-angle sun shortly after sunrise or before sunset: long soft-edged shadows, amber color, and gentle contrast.",
+      "prompt": "Light the scene with golden hour sun: one warm low-angle source near the horizon, long stretched shadows with softened edges, amber-gold color washing lit surfaces, gentle sky fill keeping shadow detail readable, and warm rim glow on hair and fur edges.",
+      "invariants": [
+        "one low warm sun explains every shadow direction",
+        "shadows stretch long and stay soft-edged",
+        "shadow areas keep readable detail from sky fill"
+      ],
+      "misreadings_to_avoid": [
+        "orange color cast flooding shadow areas that face the sky",
+        "short high-noon shadows contradicting the low sun",
+        "flat even light erasing the directional warmth"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lighting design",
+      "tags": [
+        "golden hour",
+        "warm low sun",
+        "sunset light"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "golden hour light",
+          "facet": "lighting",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "warm sunset sun",
+          "facet": "lighting",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "low sun long shadows",
+          "facet": "lighting",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "lighting-three-point-studio",
+      "label": "Three-point studio setup",
+      "category": "lighting",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Shape the subject with the classic key, fill, and back light arrangement for balanced controlled studio presentation.",
+      "prompt": "Light the subject with a three-point studio setup: one key light at roughly forty-five degrees defining the primary planes, a softer fill from the opposite side lifting the shadows while they remain readable, and a back light separating the subject from the background with a clean edge.",
+      "invariants": [
+        "the key light defines one clear primary direction",
+        "fill stays weaker than key so form shading survives",
+        "the back light separates subject from background"
+      ],
+      "misreadings_to_avoid": [
+        "equal key and fill flattening the face",
+        "back light halo bleeding over facial features",
+        "a fourth uncontrolled source contradicting the setup"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lighting design",
+      "tags": [
+        "three-point lighting",
+        "studio setup",
+        "key fill back"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "three point studio setup",
+          "facet": "lighting",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "key fill back light",
+          "facet": "lighting",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "balanced studio lighting",
+          "facet": "lighting",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "lighting-neon-sign-color",
+      "label": "Neon sign colored light",
+      "category": "lighting",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Carve a night subject with saturated colored light from nearby neon signage, with visible sources and matching reflections.",
+      "prompt": "Light the subject with nearby neon signage: one or two saturated sign colors falling from clear directions, colored edge light tracing the silhouette, low ambient darkness between the glows, and reflections on wet or glossy surfaces matching the actual sign colors.",
+      "invariants": [
+        "every colored glow traces to a visible or implied sign",
+        "ambient stays low so the neon carves the form",
+        "reflections repeat the true sign colors"
+      ],
+      "misreadings_to_avoid": [
+        "sourceless rainbow wash over the whole subject",
+        "daylight ambience diluting the neon contrast",
+        "reflection colors contradicting the visible signs"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lighting design",
+      "tags": [
+        "neon light",
+        "colored sign glow",
+        "night neon"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "neon sign lighting",
+          "facet": "lighting",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "colored neon glow",
+          "facet": "lighting",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "night neon color light",
+          "facet": "lighting",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "lighting-candle-fire-glow",
+      "label": "Candle and fire practical glow",
+      "category": "lighting",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Light the subject with a small warm flame source: deep amber color, intimate falloff, and gentle flicker-softened shadows.",
+      "prompt": "Light the scene with a small flame practical such as a candle, lantern, or fireplace: very warm amber-orange light with rapid falloff into darkness, soft dancing shadow edges, an intimate pool of light around the source, and warm underlit or side-lit modeling on the nearest surfaces.",
+      "invariants": [
+        "light falls off quickly with distance from the flame",
+        "color stays deep warm amber near the source",
+        "shadow edges stay soft and slightly irregular"
+      ],
+      "misreadings_to_avoid": [
+        "cold white light contradicting the flame color",
+        "even room-wide brightness erasing the intimate pool",
+        "hard crisp shadows from a supposedly flickering source"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lighting design",
+      "tags": [
+        "candlelight",
+        "firelight",
+        "practical flame"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "candlelight glow",
+          "facet": "lighting",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "warm fire light",
+          "facet": "lighting",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "flame practical lighting",
+          "facet": "lighting",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "lighting-stage-spot-isolation",
+      "label": "Stage spotlight isolation",
+      "category": "lighting",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Isolate the subject in one bright stage beam against surrounding darkness for theatrical focus.",
+      "prompt": "Light the subject with a single stage spotlight: one bright circular beam from above and slightly in front, a visible light pool on the floor, strong falloff into deep surrounding darkness, and crisp theatrical presence with modest haze in the beam when atmosphere suits.",
+      "invariants": [
+        "one beam direction explains highlight and pool",
+        "surroundings stay dark enough to isolate the subject",
+        "the floor pool sits consistent with the beam angle"
+      ],
+      "misreadings_to_avoid": [
+        "ambient stage wash removing the isolation",
+        "multiple contradictory beam pools",
+        "beam glow with no falloff shaping the figure"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lighting design",
+      "tags": [
+        "stage spotlight",
+        "theatrical beam",
+        "spot isolation"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "stage spotlight beam",
+          "facet": "lighting",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "theatrical spot isolation",
+          "facet": "lighting",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "single spotlight dark stage",
+          "facet": "lighting",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "lighting-harsh-noon-sun",
+      "label": "Harsh midday overhead sun",
+      "category": "lighting",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Expose the subject to hard high-noon sun: short dense shadows, crisp edges, and high raw contrast.",
+      "prompt": "Light the scene with harsh midday sun almost overhead: short dense shadows pooling under chin, brows, and feet, crisp hard shadow edges, bright high-contrast lit planes, squint-bright ambient, and honest unfiltered outdoor rawness.",
+      "invariants": [
+        "shadows stay short and directly beneath forms",
+        "shadow edges stay hard and crisp",
+        "contrast stays high while key features keep their detail"
+      ],
+      "misreadings_to_avoid": [
+        "long evening shadows contradicting the high sun",
+        "soft diffuse shading erasing the harshness",
+        "faces lost in unreadable black eye-socket shadows"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lighting design",
+      "tags": [
+        "harsh midday sun",
+        "high noon",
+        "hard overhead light"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "harsh midday sun",
+          "facet": "lighting",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "high noon hard shadows",
+          "facet": "lighting",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "overhead sunlight contrast",
+          "facet": "lighting",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

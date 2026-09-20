@@ -1,0 +1,484 @@
+{
+  "artifact_type": "visual-state-projection",
+  "projection_id": "VSP-SC-WORKSHOP-C01",
+  "character_id": "C01",
+  "state_snapshot_sha256": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398",
+  "scene_context_sha256": "daacecbe962746b4b3a226827b0e48759fa580aa00be4337dcbee4fd71f7bc0c",
+  "resolved_morphology": {
+    "species_profile_ref": {
+      "id": "SMP-workshop-C01",
+      "sha256": "4dc89f20d94c49f973063476269cfb09538137d3478457e9189c8dc5ed0a0f08"
+    },
+    "individual_morphology_ref": {
+      "id": "IMC-C01",
+      "sha256": "e43712663ab4b2bb4c58f6bad5d0215291e0e1f17e94731bee0ccc11b9cdf88f"
+    },
+    "active_form": "baseline",
+    "body_plan": {
+      "species_body_plan": {
+        "symmetry": "Only the explicitly described asymmetries and paired markings are asserted.",
+        "posture_class": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+        "primary_axis": "upright in this scene",
+        "region_map": [
+          {
+            "region_id": "region-carrier",
+            "name": "authored overall form",
+            "parent_region": null,
+            "bilateral": false,
+            "landmarks": [
+              "outer silhouette"
+            ],
+            "continuity_rules": [
+              "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail"
+            ]
+          }
+        ],
+        "support_structure": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+        "locomotion_modes": [
+          "walking as declared in the shot plan"
+        ],
+        "center_of_mass": "Not numerically specified.",
+        "scale_reference": "broad upper torso, compact waist, long forearms, and stable athletic leg length",
+        "topology_invariants": [
+          "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+          "upright ears and one long gray tail with a pale tip"
+        ]
+      },
+      "individual_measurements": {
+        "scale": "broad upper torso, compact waist, long forearms, and stable athletic leg length",
+        "height_or_length": "Not numerically specified.",
+        "mass_or_volume": "broad upper torso, compact waist, long forearms, and stable athletic leg length",
+        "measurement_basis": "authored relative silhouette",
+        "structure_measurements": {}
+      },
+      "life_stage_and_form": {
+        "life_stage": "unspecified",
+        "sex_or_role_morph": "unspecified",
+        "active_form": "baseline",
+        "developmental_notes": []
+      }
+    },
+    "frame_character": {
+      "representation": "declared-structures",
+      "structures": {
+        "body": {
+          "kind": "authored body",
+          "location": "whole visible form",
+          "presence": "present",
+          "geometry": {
+            "form": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+            "proportions": "broad upper torso, compact waist, long forearms, and stable athletic leg length",
+            "face": "long canine muzzle, amber eyes, upright ears, heavy dark brows, and a square cheek structure",
+            "appendages": "upright ears and one long gray tail with a pale tip"
+          }
+        }
+      },
+      "source_confidence": "preset-selected",
+      "frame_character_id": "frame-C01",
+      "overall_form": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+      "coherence_rules": [
+        "Retain the specific authored fixture; do not extrapolate a species-wide skeleton."
+      ],
+      "diagnostic_misreadings": []
+    },
+    "measurement_pass_status": "not-required",
+    "load_bearing_part_measurements": [],
+    "visible_feature_instances": [
+      {
+        "feature_id": "carrier",
+        "species_feature_ref": "carrier",
+        "status": "inherited",
+        "actual_count": 1,
+        "instance_ids": [
+          "carrier.instance"
+        ],
+        "resolved_feature": {
+          "feature_id": "carrier",
+          "feature_kind": "other",
+          "presence": "present",
+          "count": 1,
+          "laterality": "not-applicable",
+          "attachment_site": "region-carrier",
+          "origin_and_termination": "whole authored body extent",
+          "relative_measurements": {
+            "length": "Not numerically specified.",
+            "width": "Not numerically specified.",
+            "thickness": "Not numerically specified.",
+            "spacing": "Not numerically specified.",
+            "body_ratio": "broad upper torso, compact waist, long forearms, and stable athletic leg length",
+            "measurement_basis": "outer silhouette"
+          },
+          "shape": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+          "orientation": "upright in this scene",
+          "color_and_pattern": "charcoal-gray fur, pale muzzle and chest, darker forearms, and one narrow dark stripe above each eye",
+          "surface_or_material": "fur as explicitly described",
+          "internal_structure": null,
+          "articulation": "Only movements written in the example shot plan.",
+          "resting_configuration": "Scene start stance.",
+          "range_of_motion": "Not quantified; no additional capabilities inferred.",
+          "functional_role": "visible individual body",
+          "expression_role": "controlled posture, ears move before the head, careful hand pressure, and restrained breathing under stress",
+          "individual_variation_axes": [
+            "only author-specified proportions and markings"
+          ],
+          "continuity_rules": [
+            "retain the declared count",
+            "retain the declared extent"
+          ],
+          "required_views": [
+            "front bust",
+            "three-quarter bust",
+            "full body"
+          ],
+          "source_confidence": "preset-selected",
+          "notes": [
+            "This feature is the whole authored body, not an inferred organ list."
+          ],
+          "feature_group": "body-region",
+          "count_logic": {
+            "typical": 1,
+            "minimum": 1,
+            "maximum": 1,
+            "allowed_patterns": [
+              "one authored individual body"
+            ],
+            "count_basis": "explicit individual fixture"
+          },
+          "attachment_topology": {
+            "parent_feature_refs": [
+              "region-carrier"
+            ],
+            "attachment_landmarks": [
+              "outer silhouette"
+            ],
+            "attachment_mode": "whole-form carrier",
+            "branching_or_sequence": "No further topology inferred."
+          },
+          "visibility_and_occlusion": {
+            "ordinary_visibility": "exposed portions in the declared shot crop",
+            "common_occlusions": [
+              "clothes and scene objects"
+            ],
+            "minimum_proof_views": [
+              "front bust",
+              "full body"
+            ]
+          },
+          "sensory_or_signal_output": [],
+          "developmental_behavior": {
+            "life_stage_changes": [],
+            "sex_or_role_dimorphism": [],
+            "seasonal_or_environmental_changes": [],
+            "metamorphic_changes": [],
+            "regeneration_or_shedding": []
+          },
+          "cross_feature_dependencies": [],
+          "measurement_constraints": {
+            "minimum": null,
+            "maximum": null,
+            "typical_range": "Not quantified.",
+            "reference_landmarks": [
+              "outer silhouette"
+            ],
+            "scaling_behavior": "scales coherently with the parent body plan"
+          }
+        },
+        "laterality_and_asymmetry": "one small silver clip on the subject-left upper ear rim",
+        "damage_or_modification": "intact",
+        "identity_priority": "signature",
+        "state_boundary": "identity-stable",
+        "mutable_state_paths": [],
+        "allowed_variation": [
+          "approved changes only"
+        ],
+        "continuity_rules": [
+          "retain the declared count",
+          "retain the declared connections"
+        ],
+        "required_views": [
+          "front bust",
+          "three-quarter bust",
+          "full body"
+        ],
+        "source_confidence": "preset-selected",
+        "notes": [],
+        "exact_measurements": {
+          "length": "Not numerically specified.",
+          "width": "Not numerically specified.",
+          "thickness": "Not numerically specified.",
+          "spacing": "Not numerically specified.",
+          "measurement_basis": "outer silhouette",
+          "tolerance": "Preserve the authored proportional description."
+        },
+        "attachment_realization": {
+          "parent_feature_refs": [],
+          "attachment_landmarks": [
+            "outer silhouette"
+          ],
+          "attachment_mode": "whole-form carrier",
+          "individual_offset_or_angle": "No additional offset specified."
+        },
+        "personal_expression_behavior": [],
+        "uncertainties": []
+      }
+    ],
+    "hidden_or_out_of_frame_feature_refs": [],
+    "feature_relationships": [],
+    "surface_and_marking_map": [],
+    "expression_channels": [
+      {
+        "channel_id": "channel-carrier",
+        "species_capability": {
+          "channel_id": "channel-carrier",
+          "carrier_feature_refs": [
+            "carrier"
+          ],
+          "neutral_state": "Current scene baseline, not a universal emotional default.",
+          "active_states": [
+            "controlled posture, ears move before the head, careful hand pressure, and restrained breathing under stress"
+          ],
+          "readable_meanings": [
+            "Only the stated scene interpretation; this channel is not proof of inner feeling."
+          ],
+          "ambiguity_notes": [
+            "interpret the channel together with posture, contact, and scene context"
+          ],
+          "timing_and_range": "Only the authored scene action timing.",
+          "continuity_rules": [
+            "expression changes remain within the physical range of the carrier features"
+          ],
+          "channel_class": "other",
+          "external_tool_refs": [],
+          "signal_dimensions": [
+            "authored signal dimension"
+          ]
+        },
+        "individual_signature": {
+          "channel_id": "channel-carrier",
+          "baseline_bias": "controlled posture, ears move before the head, careful hand pressure, and restrained breathing under stress",
+          "range": "Only authored scene variation.",
+          "individual_tells": [],
+          "suppression_or_masking": "Use the current state and deliberate acting directions.",
+          "continuity_rules": [
+            "Keep the identity and performance vocabulary distinct from transient states."
+          ]
+        }
+      }
+    ],
+    "expression_projection": [
+      {
+        "channel_id": "channel-carrier",
+        "carrier_feature_refs": [
+          "carrier"
+        ],
+        "configuration": "controlled posture, ears move before the head, careful hand pressure, and restrained breathing under stress",
+        "meaning_candidates": [
+          "Only the stated scene interpretation; this channel is not proof of inner feeling."
+        ],
+        "tool_refs": []
+      }
+    ],
+    "communication_and_expression_tools": [],
+    "identity_invariants": [
+      "feature count remains stable",
+      "attachment sites remain stable",
+      "individual color and pattern maps remain stable"
+    ],
+    "inventory_proof": {
+      "declared_visible_count": 1,
+      "declared_hidden_count": 0,
+      "unresolved_count": 0,
+      "count_and_attachment_checks": [
+        "carrier: actual_count=1 and attachment=['outer silhouette']"
+      ]
+    },
+    "current_state_deltas": [],
+    "visible_obligations": [
+      "preserve carrier count, attachment, shape, surface, and declared individual differences"
+    ],
+    "crop_and_occlusion_requirements": [],
+    "uncertainties": []
+  },
+  "visible_identity_features": [
+    {
+      "feature_id": "C01-face",
+      "wording": "amber eyes beneath heavy dark brows, pale long muzzle, and paired narrow brow stripes",
+      "priority": "signature",
+      "source": "anchor-fragment",
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "required_when": [
+        "face-visible",
+        "front",
+        "three-quarter",
+        "profile"
+      ],
+      "omit_when": [
+        "face-occluded"
+      ]
+    },
+    {
+      "feature_id": "C01-left-ear-clip",
+      "wording": "one small silver clip on the subject-left upper ear rim",
+      "priority": "signature",
+      "source": "anchor-fragment",
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "required_when": [
+        "left-ear-visible",
+        "left-profile",
+        "left-three-quarter",
+        "front"
+      ],
+      "omit_when": [
+        "left-ear-occluded"
+      ]
+    }
+  ],
+  "visible_state_deltas": [],
+  "performance_cues": [
+    {
+      "wording": "C01 keeps the left side guarded while maintaining professional composure",
+      "priority": "supporting"
+    },
+    {
+      "wording": "ears respond before the head when P01 is raised",
+      "priority": "supporting"
+    },
+    {
+      "wording": "right hand accepts P01 with careful pressure",
+      "priority": "supporting"
+    }
+  ],
+  "wardrobe_and_accessory_state": [
+    {
+      "path": "/wardrobe_state/outer_layer",
+      "label": "outer_layer",
+      "value": "dark blue mechanic jacket",
+      "wording": "",
+      "priority": "supporting",
+      "carriers": []
+    },
+    {
+      "path": "/wardrobe_state/inner_layer",
+      "label": "inner_layer",
+      "value": "gray fitted shirt",
+      "wording": "",
+      "priority": "supporting",
+      "carriers": []
+    },
+    {
+      "path": "/equipment_state/hands",
+      "label": "hands",
+      "value": "fingerless work gloves",
+      "wording": "",
+      "priority": "supporting",
+      "carriers": []
+    }
+  ],
+  "held_or_visible_props": [],
+  "relationship_blocking_cues": [
+    {
+      "wording": "C01 approaches only to the near edge of the workbench before the handoff",
+      "priority": "supporting"
+    },
+    {
+      "wording": "trust is visible through direct gaze and accepted hand contact",
+      "priority": "supporting"
+    }
+  ],
+  "environmental_body_responses": [
+    {
+      "wording": "late-summer humidity supports rolled sleeves and restrained warmth in breathing",
+      "priority": "supporting"
+    }
+  ],
+  "occluded_or_irrelevant_features": [
+    {
+      "path": "/physical_state/left_side_injury",
+      "label": "left_side_injury",
+      "value": {
+        "mobility_effect": "protects left side and sits carefully",
+        "status": "bandaged beneath clothing",
+        "visibility": "concealed"
+      },
+      "wording": "",
+      "priority": "supporting",
+      "carriers": []
+    }
+  ],
+  "reference_asset_requirements": [
+    {
+      "wording": "front or left three-quarter face reference",
+      "priority": "supporting"
+    },
+    {
+      "wording": "left ear accessory reference",
+      "priority": "supporting"
+    },
+    {
+      "wording": "full-body mechanic wardrobe reference",
+      "priority": "supporting"
+    },
+    {
+      "wording": "right hand detail for pendant contact",
+      "priority": "supporting"
+    }
+  ],
+  "text_anchor_fragments": [
+    {
+      "feature_id": "C01-face",
+      "wording": "amber eyes beneath heavy dark brows, pale long muzzle, and paired narrow brow stripes",
+      "priority": "signature",
+      "source": "anchor-fragment",
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "required_when": [
+        "face-visible",
+        "front",
+        "three-quarter",
+        "profile"
+      ],
+      "omit_when": [
+        "face-occluded"
+      ]
+    },
+    {
+      "feature_id": "C01-left-ear-clip",
+      "wording": "one small silver clip on the subject-left upper ear rim",
+      "priority": "signature",
+      "source": "anchor-fragment",
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "required_when": [
+        "left-ear-visible",
+        "left-profile",
+        "left-three-quarter",
+        "front"
+      ],
+      "omit_when": [
+        "left-ear-occluded"
+      ]
+    }
+  ],
+  "review_dimensions": [
+    "face same-ness",
+    "left ear clip laterality",
+    "guarded left-side posture",
+    "right-hand prop contact"
+  ],
+  "prompt_regeneration_required": true,
+  "projection_sha256": "c3fe4f801ba252c74413f767b81faa11db690fff57e468833f3fd52017fea9e5"
+}

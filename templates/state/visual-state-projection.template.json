@@ -1,0 +1,61 @@
+{
+  "artifact_type": "visual-state-projection",
+  "projection_id": "VSP-SC01-C01",
+  "character_id": "C01",
+  "state_snapshot_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "scene_context_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "visible_identity_features": [],
+  "visible_state_deltas": [],
+  "performance_cues": [],
+  "wardrobe_and_accessory_state": [],
+  "held_or_visible_props": [],
+  "relationship_blocking_cues": [],
+  "environmental_body_responses": [],
+  "occluded_or_irrelevant_features": [],
+  "reference_asset_requirements": [],
+  "text_anchor_fragments": [],
+  "review_dimensions": [],
+  "prompt_regeneration_required": true,
+  "projection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "resolved_morphology": {
+    "species_profile_ref": {
+      "id": "SMP-custom-lineage",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "individual_morphology_ref": {
+      "id": "IMC-C01",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "body_plan": {},
+    "visible_feature_instances": [],
+    "hidden_or_out_of_frame_feature_refs": [],
+    "surface_and_marking_map": [],
+    "expression_channels": [],
+    "communication_and_expression_tools": [],
+    "identity_invariants": [],
+    "current_state_deltas": [],
+    "visible_obligations": [],
+    "crop_and_occlusion_requirements": [],
+    "uncertainties": [],
+    "active_form": "baseline",
+    "feature_relationships": [],
+    "inventory_proof": {
+      "declared_visible_count": 0,
+      "declared_hidden_count": 0,
+      "unresolved_count": 0,
+      "count_and_attachment_checks": []
+    },
+    "expression_projection": [],
+    "frame_character": {
+      "representation": "declared-structures",
+      "structures": {},
+      "source_confidence": "preset-selected",
+      "frame_character_id": "example-declared-frame",
+      "overall_form": "An authored arrangement of volumes or other carriers; declare only the parts this design needs.",
+      "coherence_rules": [],
+      "diagnostic_misreadings": []
+    },
+    "measurement_pass_status": "not-required",
+    "load_bearing_part_measurements": []
+  }
+}

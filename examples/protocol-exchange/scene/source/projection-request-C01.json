@@ -1,0 +1,80 @@
+{
+  "projection_id": "VSP-SC-WORKSHOP-C01",
+  "character_id": "C01",
+  "visible_identity_feature_ids": [
+    "C01-face",
+    "C01-left-ear-clip"
+  ],
+  "visible_state_paths": [],
+  "performance_cues": [
+    {
+      "wording": "C01 keeps the left side guarded while maintaining professional composure",
+      "priority": "supporting"
+    },
+    {
+      "wording": "ears respond before the head when P01 is raised",
+      "priority": "supporting"
+    },
+    {
+      "wording": "right hand accepts P01 with careful pressure",
+      "priority": "supporting"
+    }
+  ],
+  "wardrobe_paths": [
+    "/wardrobe_state/outer_layer",
+    "/wardrobe_state/inner_layer",
+    "/equipment_state/hands"
+  ],
+  "prop_paths": [],
+  "relationship_blocking_cues": [
+    {
+      "wording": "C01 approaches only to the near edge of the workbench before the handoff",
+      "priority": "supporting"
+    },
+    {
+      "wording": "trust is visible through direct gaze and accepted hand contact",
+      "priority": "supporting"
+    }
+  ],
+  "environmental_body_responses": [
+    {
+      "wording": "late-summer humidity supports rolled sleeves and restrained warmth in breathing",
+      "priority": "supporting"
+    }
+  ],
+  "occluded_state_paths": [
+    "/physical_state/left_side_injury"
+  ],
+  "reference_asset_requirements": [
+    {
+      "wording": "front or left three-quarter face reference",
+      "priority": "supporting"
+    },
+    {
+      "wording": "left ear accessory reference",
+      "priority": "supporting"
+    },
+    {
+      "wording": "full-body mechanic wardrobe reference",
+      "priority": "supporting"
+    },
+    {
+      "wording": "right hand detail for pendant contact",
+      "priority": "supporting"
+    }
+  ],
+  "text_anchor_ids": [
+    "C01-face",
+    "C01-left-ear-clip"
+  ],
+  "review_dimensions": [
+    "face same-ness",
+    "left ear clip laterality",
+    "guarded left-side posture",
+    "right-hand prop contact"
+  ],
+  "visible_morphology_feature_ids": [
+    "carrier"
+  ],
+  "occluded_morphology_feature_ids": []
+}

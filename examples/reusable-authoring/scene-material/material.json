@@ -1,0 +1,109 @@
+{
+  "applications": [
+    {
+      "application_id": "response",
+      "definition_ids": [
+        "attention",
+        "expression"
+      ],
+      "kind": "option",
+      "subject_ids": [
+        "subject"
+      ],
+      "text": "A pause may be chosen after attending to the recipient; no exact line or motive is prescribed."
+    }
+  ],
+  "artifact_type": "scene-persona-material",
+  "audience": "authoring",
+  "conditions": [
+    "Only the stated activity and currently supplied recipient information are in scope."
+  ],
+  "constraints": [
+    "Do not infer a human voice or body from this functional model."
+  ],
+  "content_sha256": "47ded1391f47aa70566423ae629decbc692a96dd6aecabf8d9e60a0dc28c916a",
+  "definitions": [
+    {
+      "depends_on": [],
+      "end_line": 2,
+      "excerpt_id": "attention",
+      "reason": "The controlling definition governs expression.",
+      "source_id": "model",
+      "source_sha256": "568809ee54283dc92dd3b742b08dc761d4eca923681a6b0b330484148975cf23",
+      "start_line": 1,
+      "subject_ids": [
+        "subject"
+      ],
+      "text": "# Controlling definition\nAttend to the recipient before choosing a response.\n",
+      "text_sha256": "751267ad70a01cb939dc34c9173b83dfb784e84f92108be97fe923006a0a179f"
+    },
+    {
+      "depends_on": [
+        "attention"
+      ],
+      "end_line": 4,
+      "excerpt_id": "expression",
+      "reason": "Do not replace a contextual response with a stock emotion.",
+      "source_id": "model",
+      "source_sha256": "568809ee54283dc92dd3b742b08dc761d4eca923681a6b0b330484148975cf23",
+      "start_line": 3,
+      "subject_ids": [
+        "subject"
+      ],
+      "text": "# Expression\nA pause is an available response, not automatically distress.\n",
+      "text_sha256": "41d87a97129105701e528e623654f2b694d77e557ea04e8073c230462c3698d7"
+    }
+  ],
+  "interactions": [],
+  "material_id": "prepared-activity",
+  "purpose": "Demonstrate persistent definitions and scoped applications without a mandatory story pattern.",
+  "reopen_when": [
+    "The recipient, information, purpose or original model changes."
+  ],
+  "review": {
+    "basis": "Software/data-flow demonstration only.",
+    "by": "constructed-example-author",
+    "decision": "ready",
+    "limitations": [
+      "This is not evidence of artistic suitability; read real full Personas when preparing actual work."
+    ]
+  },
+  "scene_id": "activity",
+  "scene_source_id": "scene",
+  "source_set_sha256": "39eff5dfe5590d88d67297a024f6707a1bc141f92ecd44514fe6c16e0954e140",
+  "sources": [
+    {
+      "bytes": 253,
+      "path": "originals/subject.md",
+      "reading_basis": "Constructed example: the complete short source is shown; not evidence of real-agent reading.",
+      "role": "functional",
+      "sha256": "568809ee54283dc92dd3b742b08dc761d4eca923681a6b0b330484148975cf23",
+      "source_id": "model",
+      "subject_ids": [
+        "subject"
+      ]
+    },
+    {
+      "bytes": 159,
+      "path": "originals/scene.md",
+      "reading_basis": "Constructed example: the complete short source is shown; not evidence of real-agent reading.",
+      "role": "scene",
+      "sha256": "7a0158e5af8805bdbf93835eeb32d7f2647f2fd5ded6457087ae27e21cebb7c7",
+      "source_id": "scene",
+      "subject_ids": []
+    }
+  ],
+  "subjects": [
+    {
+      "model": "functional",
+      "portrayal_basis": "Use this small declared response model; do not presume human psychology.",
+      "source_ids": [
+        "model"
+      ],
+      "subject_id": "subject"
+    }
+  ],
+  "unknowns": [
+    "The recipient and final response are intentionally unspecified."
+  ]
+}

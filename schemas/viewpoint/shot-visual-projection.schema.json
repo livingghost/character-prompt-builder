@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "shot-visual-projection.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "shot_id",
+    "scene_id",
+    "scene_context_sha256",
+    "camera_spec_sha256",
+    "viewpoint_profile_id",
+    "state_snapshot_sha256_by_character",
+    "visible_identity_obligations",
+    "visible_state_obligations",
+    "wardrobe_and_inventory_obligations",
+    "relationship_and_performance",
+    "environment_and_lighting",
+    "occluded_or_unavailable",
+    "reference_requirements",
+    "projection_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "shot-visual-projection"
+    },
+    "shot_id": {
+      "type": "string"
+    },
+    "scene_id": {
+      "type": "string"
+    },
+    "scene_context_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "camera_spec_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "viewpoint_profile_id": {
+      "type": "string"
+    },
+    "state_snapshot_sha256_by_character": {
+      "type": "object"
+    },
+    "visible_identity_obligations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "visible_state_obligations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "wardrobe_and_inventory_obligations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "relationship_and_performance": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "environment_and_lighting": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "occluded_or_unavailable": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reference_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "projection_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

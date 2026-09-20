@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "shot-continuity-ledger.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "scene_id",
+    "scene_plan_sha256",
+    "shot_entries",
+    "transition_entries",
+    "unresolved_continuity",
+    "ledger_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "shot-continuity-ledger"
+    },
+    "scene_id": {
+      "type": "string"
+    },
+    "scene_plan_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "shot_entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "shot_id",
+          "camera_spec_sha256",
+          "start_anchor",
+          "end_anchor",
+          "screen_direction",
+          "axis_side",
+          "visible_subjects",
+          "prop_ownership",
+          "state_snapshot_sha256_by_character"
+        ],
+        "properties": {
+          "shot_id": {
+            "type": "string"
+          },
+          "camera_spec_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "start_anchor": {
+            "type": "string"
+          },
+          "end_anchor": {
+            "type": "string"
+          },
+          "screen_direction": {
+            "type": "string"
+          },
+          "axis_side": {
+            "type": "string"
+          },
+          "visible_subjects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "prop_ownership": {
+            "type": "object"
+          },
+          "state_snapshot_sha256_by_character": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "transition_entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition_id",
+          "transition_sha256",
+          "from_shot",
+          "to_shot",
+          "continuity_requirements"
+        ],
+        "properties": {
+          "transition_id": {
+            "type": "string"
+          },
+          "transition_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "from_shot": {
+            "type": "string"
+          },
+          "to_shot": {
+            "type": "string"
+          },
+          "continuity_requirements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "unresolved_continuity": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ledger_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

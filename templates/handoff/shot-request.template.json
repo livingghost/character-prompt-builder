@@ -1,0 +1,61 @@
+{
+  "artifact_type": "shot-request",
+  "request_id": "SR-SC01-SH01",
+  "scene_id": "SC01",
+  "shot_id": "SC01-SH01",
+  "deliverable": "start-frame",
+  "species_profile_sha256_by_character": {
+    "C01": "0000000000000000000000000000000000000000000000000000000000000000",
+    "C02": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "individual_morphology_sha256_by_character": {
+    "C01": "0000000000000000000000000000000000000000000000000000000000000000",
+    "C02": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "identity_contract_sha256_by_character": {
+    "C01": "0000000000000000000000000000000000000000000000000000000000000000",
+    "C02": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "state_snapshot_sha256_by_character": {
+    "C01": "0000000000000000000000000000000000000000000000000000000000000000",
+    "C02": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "scene_context_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "camera_spec_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "shot_projection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "scene_plot_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "narrative_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "viewpoint_profile_id": "external-character-aligned-third-person",
+  "visible_identity_obligations": [
+    "C01 face",
+    "C02 face"
+  ],
+  "visible_state_obligations": [
+    "C01 guarded posture"
+  ],
+  "selected_reference_candidates": [
+    "C01-front",
+    "C02-front"
+  ],
+  "required_output": {
+    "prompt_language": "English",
+    "aspect_ratio": "16:9",
+    "camera_and_crop": "wide external character-aligned shot at chest height",
+    "style_family_policy": "use the approved series style family without averaging",
+    "state_lineage_required": true
+  },
+  "request_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "visible_morphology_feature_refs_by_character": {
+    "C01": [
+      "head.eye.pair",
+      "head.ear.pair",
+      "head.muzzle",
+      "tail.primary"
+    ],
+    "C02": [
+      "head.eye.pair",
+      "head.ear.pair",
+      "head.muzzle"
+    ]
+  }
+}

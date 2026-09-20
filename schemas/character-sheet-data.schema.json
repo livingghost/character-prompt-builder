@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "character-prompt-builder-character-sheet-data.schema.json",
+  "title": "Character Prompt Builder Character Sheet Sidecar",
+  "description": "Safe JSON ledger shared by the optional Character Sheet editor and the deterministic raster renderer.",
+  "type": "object",
+  "required": [
+    "sheet_status",
+    "fields",
+    "tables",
+    "slots"
+  ],
+  "properties": {
+    "sheet_status": {
+      "enum": [
+        "draft",
+        "identity-ready",
+        "reference-ready"
+      ]
+    },
+    "fields": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9._-]*$"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "tables": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "row_id",
+            "values"
+          ],
+          "properties": {
+            "row_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*\\.[0-9]{2,}$"
+            },
+            "values": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "slots": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9._-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "image_path",
+          "generation_package"
+        ],
+        "properties": {
+          "image_path": {
+            "type": "string"
+          },
+          "generation_package": {
+            "type": "string"
+          },
+          "image_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "generation_package_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "fill_policy": {
+            "enum": [
+              "auto",
+              "fill",
+              "keep",
+              "skip"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

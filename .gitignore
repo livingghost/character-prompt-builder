@@ -1,0 +1,20 @@
+# The bundled commons pack is tracked; user-owned and third-party packs are not.
+/packs/*
+!/packs/commons/
+!/packs/commons/**
+
+/catalog/
+
+# Generated local state, caches, reports, and release outputs.
+/dist/
+/.validation-*
+/.tmp-*
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+validation-report.json
+preset-authoring-audit.json
+style-family-audit.json
+sparse-discovery-report.json
+/cpb-output/

@@ -1,0 +1,26 @@
+{
+  "claims": [
+    {
+      "claim_id": "available-response",
+      "conflicts_with": [],
+      "epistemic_status": "source-statement",
+      "evidence": [
+        {
+          "end_line": 4,
+          "source_id": "primary",
+          "start_line": 3
+        }
+      ],
+      "proposed_use": "Review as an input to portrayal; do not adopt automatically.",
+      "subject_ids": [
+        "subject"
+      ],
+      "text": "The provided document permits a pause without declaring distress."
+    }
+  ],
+  "index_sha256": "c7b4841d699fa94f8c3d3517aee2549df9f358ddb4a9fb800764ef65d7c6a4e8",
+  "proposal_id": "extraction-candidates",
+  "unresolved": [
+    "No final scene response has been selected."
+  ]
+}

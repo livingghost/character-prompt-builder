@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "region_map_id",
+    "source_ref_id",
+    "source_sha256",
+    "coordinate_space",
+    "regions",
+    "canonical_record_refs",
+    "notes",
+    "semantic_region_map_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "semantic-region-map"
+    },
+    "region_map_id": {
+      "type": "string"
+    },
+    "source_ref_id": {
+      "type": "string"
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "coordinate_space": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "regions": {
+      "type": "array",
+      "items": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "region_id",
+          "class",
+          "svg_element_refs"
+        ],
+        "properties": {
+          "region_id": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string"
+          },
+          "laterality": {
+            "type": "string"
+          },
+          "svg_element_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "canonical_record_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "semantic_region_map_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

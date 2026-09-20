@@ -1,0 +1,36 @@
+{
+  "artifact_type": "shot-visual-projection",
+  "shot_id": "SC01-SH01",
+  "scene_id": "SC01",
+  "scene_context_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "camera_spec_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "viewpoint_profile_id": "external-character-aligned-third-person",
+  "state_snapshot_sha256_by_character": {
+    "C01": "0000000000000000000000000000000000000000000000000000000000000000",
+    "C02": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "visible_identity_obligations": [
+    "C01 face and jacket",
+    "C02 face and apron"
+  ],
+  "visible_state_obligations": [
+    "C01 protects the injured side"
+  ],
+  "wardrobe_and_inventory_obligations": [
+    "C02 holds P01 in the right hand"
+  ],
+  "relationship_and_performance": [
+    "C01 watches C02 with guarded trust"
+  ],
+  "environment_and_lighting": [
+    "workshop window light remains frame-left"
+  ],
+  "occluded_or_unavailable": [
+    "C01 concealed bandage remains covered"
+  ],
+  "reference_requirements": [
+    "C01 front three-quarter",
+    "C02 front three-quarter"
+  ],
+  "projection_sha256": "b0f364f8bfaa1577433e5e8bd5e488cec049266c09fca3fb9f0ba129fae01462"
+}

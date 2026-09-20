@@ -1,0 +1,97 @@
+{
+  "artifact_type": "reference-use-plan",
+  "plan_id": "RUP-example",
+  "target_model": null,
+  "transport_mode": "prompt-artifacts",
+  "selected_records": [
+    {
+      "record_id": "example-outfit-record",
+      "intended_influence": "outfit"
+    }
+  ],
+  "reference_items": [
+    {
+      "precedence": 0,
+      "semantic_role": "outfit-faithful-archival-vector-1",
+      "layer": "A",
+      "canonical_record_id": "example-outfit-record",
+      "intended_influence": "outfit",
+      "asset_id": "example-outfit-asset",
+      "artifact_id": "faithful-archival-vector",
+      "technical_role": "faithful-archival-vector",
+      "source": {
+        "kind": "pack-artifact",
+        "pack_id": "01a00500-0000-7000-8000-000000000001",
+        "asset_id": "example-outfit-asset",
+        "artifact_id": "faithful-archival-vector",
+        "resolved_path": "references/reference.svg",
+        "media_type": "image/svg+xml",
+        "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "authority": {
+        "controls": [
+          "garment and wearable construction",
+          "garment material class",
+          "garment local color",
+          "wearable placement and layering"
+        ],
+        "must_not_control": [
+          "scene-conditioned presentation outside the declared intended influence",
+          "character identity, species, anatomy, permanent markings, hair or fur identity, gaze, expression, and transient body state",
+          "source pose, camera, environment, and lighting",
+          "source pose, camera, crop, environment, lighting, and temporary state unless independently authorized"
+        ]
+      },
+      "preamble": "Use this faithful-archival-vector only for outfit: garment and wearable construction; garment material class; garment local color; wearable placement and layering. It must not control scene-conditioned presentation outside the declared intended influence; character identity, species, anatomy, permanent markings, hair or fur identity, gaze, expression, and transient body state; source pose, camera, environment, and lighting; source pose, camera, crop, environment, lighting, and temporary state unless independently authorized."
+    }
+  ],
+  "surface_lighting_plan": {
+    "artifact_type": "surface-lighting-plan",
+    "plan_id": "SLP-example",
+    "source_lighting_mode": "replace",
+    "source_evidence_roles": [],
+    "light_sources": [
+      {
+        "light_id": "key",
+        "direction": "upper-left front",
+        "apparent_size": "large softbox",
+        "color": "neutral daylight",
+        "relative_intensity": "primary",
+        "softness": "soft"
+      }
+    ],
+    "shadow_topology": {
+      "form_shadow": "use target-scene form-shadow organization",
+      "cast_shadow": "use target-scene cast-shadow relationships",
+      "contact_shadow": "use target-scene contact shadows at actual support and overlap points",
+      "ambient_occlusion": "use target-scene restrained ambient occlusion at joints and contact seams",
+      "edge_hardness": "use target-scene shadow-edge hierarchy",
+      "hue_shift": "use target-scene shadow hue relationships",
+      "occluder_receiver_rules": []
+    },
+    "highlight_response": {
+      "broad_sheen": "use target-scene broad sheen by material",
+      "hard_specular": "use target-scene hard specular marks by material",
+      "rim_light": "use target-scene rim-light behavior only where declared",
+      "lobe_width": "use target-scene highlight-lobe width by material",
+      "edge_character": "use target-scene highlight-edge character",
+      "reflection_tint": "use target-scene reflection tint",
+      "protected_highlight_islands": []
+    },
+    "material_responses": [
+      {
+        "material": "garment textile",
+        "roughness": "matte",
+        "specular_strength": "low",
+        "highlight_shape": "broad and soft",
+        "wetness": "dry",
+        "anisotropy": "none"
+      }
+    ],
+    "unresolved_decisions": [],
+    "surface_lighting_plan_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "surface_lighting_plan_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "zero_reference_reason": null,
+  "reference_use_plan_sha256": "6a8ed91ad9a92dd980c3704df2834befe629843f3faf09ea6bac19d259145469"
+}

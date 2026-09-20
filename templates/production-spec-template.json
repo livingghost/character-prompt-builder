@@ -1,0 +1,117 @@
+{
+  "source_brief": "",
+  "target_model": "",
+  "creative_latitude": "directed",
+  "image_promise": "",
+  "art_direction": {
+    "center_of_appeal": "",
+    "subject_relationship": "",
+    "composition_and_visual_hierarchy": "",
+    "medium_family": "",
+    "shape_and_rhythm": "",
+    "surface_and_tactility": "",
+    "color_and_light": "",
+    "detail_hierarchy": ""
+  },
+  "state_context": {
+    "mode": "stateless",
+    "state_lineage_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "scene_context_ref": null,
+    "notes": []
+  },
+  "subjects": [],
+  "scene": {
+    "environment": "",
+    "support_and_contact": "",
+    "depth_order": [],
+    "atmosphere": ""
+  },
+  "camera": {
+    "shot_type": "medium portrait",
+    "shot_scale": "waist-up",
+    "distance_class": "medium-close",
+    "subject_relative_distance": {
+      "basis": "visible-torso-heights",
+      "minimum": 1.3,
+      "maximum": 1.7
+    },
+    "camera_height": {
+      "reference_landmark": "lower sternum",
+      "offset": "camera center sits near the lower sternum and points gently upward"
+    },
+    "pitch_degrees": 6,
+    "yaw_degrees": 0,
+    "roll_degrees": 0,
+    "lens_or_perspective": "natural portrait perspective with mild foreground enlargement",
+    "lens_equivalent_mm": {
+      "minimum": 45,
+      "maximum": 60
+    },
+    "projection_behavior": "natural-portrait",
+    "frame_occupancy": {
+      "subject_height_percent": {
+        "minimum": 92,
+        "maximum": 96
+      },
+      "subject_width_percent": {
+        "minimum": 95,
+        "maximum": 105
+      }
+    },
+    "framing_and_crop": "tight waist-up portrait with the ears, face, shoulders, active hands, and belt line held inside the frame",
+    "coverage_landmarks": {
+      "top": "small clearance above the ear tips",
+      "bottom": "belt line and upper hips",
+      "left": "outer contour of the subject-left upper arm",
+      "right": "outer contour of the subject-right upper arm"
+    },
+    "nearest_form": "the foreground forearm or hand, with only mild scale enlargement",
+    "perspective_scale_change": "foreground hands and forearms enlarge slightly while the head, muzzle, chest, and waist retain stable identity ratios",
+    "required_visible_elements": [
+      "complete ear tips",
+      "complete face",
+      "both shoulders",
+      "active hand geometry",
+      "declared neckline or collar",
+      "declared belt or lower crop anchor"
+    ],
+    "allowed_offscreen_elements": [
+      "lower legs",
+      "feet",
+      "most of the tail"
+    ],
+    "focal_sequence": [
+      "eyes and face",
+      "active hands and torso overlap",
+      "identity accessories",
+      "background separation"
+    ],
+    "stability_invariants": [
+      "shot scale remains waist-up",
+      "bottom crop remains at the belt line",
+      "camera does not move close enough to exaggerate the muzzle or chest",
+      "camera does not pull back into a full-body view"
+    ]
+  },
+  "lighting": {
+    "key_light": "",
+    "fill_or_ambient": "",
+    "rim_or_accent": "",
+    "shadow_character": "",
+    "color_relationship": ""
+  },
+  "visual_language": {
+    "aesthetic_core": "",
+    "style_family": "",
+    "domain_realizations": {},
+    "render_profile": "",
+    "aesthetic_touches": []
+  },
+  "constraints": {
+    "user_anchors": [],
+    "purposeful_additions": [],
+    "consequential_assumptions": [],
+    "construction_invariants": []
+  },
+  "selected_preset_ids": []
+}

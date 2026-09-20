@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "source-extraction-proposal.schema.json",
+  "type": "object",
+  "properties": {
+    "artifact_type": {
+      "const": "source-extraction-proposal"
+    },
+    "proposal_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "index_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "enum": [
+              "primary-source",
+              "external-reference"
+            ]
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "utf-8-sig",
+              "utf-16",
+              "utf-16-le",
+              "utf-16-be",
+              "cp932",
+              "shift_jis"
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "line_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "stored_path": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "source_id",
+          "path",
+          "role",
+          "encoding",
+          "sha256",
+          "bytes",
+          "line_count",
+          "stored_path"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "subject_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "epistemic_status": {
+            "enum": [
+              "source-statement",
+              "attributed-report",
+              "observation",
+              "inference",
+              "unknown"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "proposed_use": {
+            "type": "string",
+            "minLength": 1
+          },
+          "conflicts_with": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "start_line": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "end_line": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "source_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "quote_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "source_id",
+                "start_line",
+                "end_line",
+                "source_sha256",
+                "quote",
+                "quote_sha256"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "claim_id",
+          "subject_ids",
+          "epistemic_status",
+          "text",
+          "proposed_use",
+          "conflicts_with",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 0
+    },
+    "canon_adopted": {
+      "const": false
+    },
+    "content_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "artifact_type",
+    "proposal_id",
+    "index_sha256",
+    "documents",
+    "claims",
+    "unresolved",
+    "canon_adopted",
+    "content_sha256"
+  ],
+  "additionalProperties": false
+}

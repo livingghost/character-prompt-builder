@@ -1,0 +1,52 @@
+{
+  "artifact_type": "shot-request",
+  "request_id": "REQ-SC-WORKSHOP-01-SH04",
+  "scene_id": "SC-WORKSHOP-01",
+  "shot_id": "SC-WORKSHOP-01-SH04",
+  "deliverable": "boundary-frame",
+  "species_profile_sha256_by_character": {
+    "C01": "4dc89f20d94c49f973063476269cfb09538137d3478457e9189c8dc5ed0a0f08",
+    "C02": "ac85f8b1b243e1e10eda1cfcb58f17d4717f1be8173ada938050f4996f35b6dc"
+  },
+  "individual_morphology_sha256_by_character": {
+    "C01": "e43712663ab4b2bb4c58f6bad5d0215291e0e1f17e94731bee0ccc11b9cdf88f",
+    "C02": "e2588fc7f8509a7feb68d562882d5f5b2e89131911b117507786f7f669d271d0"
+  },
+  "visible_morphology_feature_refs_by_character": {
+    "C01": [
+      "carrier"
+    ],
+    "C02": [
+      "carrier"
+    ]
+  },
+  "identity_contract_sha256_by_character": {
+    "C01": "24e5cd147b43e6be52a67efde6c6addf89038f48f9831cab515c7c22baba749d",
+    "C02": "cacb2bf8b419882978ce7fc6d57d3c35e6ae39005a802ac8c46b33c6476116d0"
+  },
+  "state_snapshot_sha256_by_character": {
+    "C01": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398",
+    "C02": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+  },
+  "scene_context_sha256": "daacecbe962746b4b3a226827b0e48759fa580aa00be4337dcbee4fd71f7bc0c",
+  "camera_spec_sha256": "381126dbd0a9d801afac68208f97dd6e43ae97a33a85227eac363ad62f8aba45",
+  "shot_projection_sha256": "80d1446abe286459298408c09d1b4ec7134a27eac476b028e8f110b748928935",
+  "viewpoint_profile_id": "embodied-first-person",
+  "visible_identity_obligations": [
+    "C01 right hand, glove, wrist proportions, and fur colors remain consistent with approved references",
+    "green eyes, short cream fox muzzle, dark ear tips, and round brass spectacles"
+  ],
+  "visible_state_obligations": [
+    "P01 is visibly supported in C01 right hand as the planned post-handoff state",
+    "C01 concealed left-side injury affects posture but remains covered"
+  ],
+  "selected_reference_candidates": [],
+  "required_output": {
+    "prompt_language": "English",
+    "aspect_ratio": "16:9",
+    "camera_and_crop": "first-person hand and object close view, C01 eye position facing across the workbench, slight look down toward the handoff",
+    "style_family_policy": "Use the approved series style family as one coherent finish grammar and keep it stable across all shots.",
+    "state_lineage_required": true
+  },
+  "request_sha256": "a8e512cb63977030fc7875d6f4e9960d303329f34e872e8eb80d42789ad7c8bb"
+}

@@ -1,0 +1,16 @@
+{
+  "representation": "declared-structures",
+  "structures": {
+    "rim-projection": {
+      "kind": "formed ceramic wedge",
+      "location": "on the outer rim of the declared carrier",
+      "presence": "present",
+      "geometry": {
+        "length": "one carrier thickness",
+        "section": "triangular with a rounded tip"
+      }
+    }
+  },
+  "source_confidence": "preset-selected",
+  "continuity_rules": []
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "terminal-growth-contract.schema.json",
+  "title": "Terminal Growth Contract",
+  "description": "Record only author-declared structures. Kinds, locations and geometry properties are open vocabulary; explicit relationships and authority constraints are validated.",
+  "type": "object",
+  "required": [
+    "representation",
+    "structures",
+    "source_confidence",
+    "continuity_rules"
+  ],
+  "properties": {
+    "representation": {
+      "const": "declared-structures"
+    },
+    "structures": {
+      "$ref": "declared-structures.schema.json"
+    },
+    "source_confidence": {
+      "enum": [
+        "explicit-user",
+        "reference-clear",
+        "reference-approximate",
+        "preset-selected",
+        "user-confirmed"
+      ]
+    },
+    "continuity_rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

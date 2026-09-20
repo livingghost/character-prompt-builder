@@ -1,0 +1,262 @@
+{
+  "format": "character-prompt-builder-prompt-writing-guide",
+  "name": "Image Prompt Writing Guide",
+  "description": "English prompt construction, attention syntax, model-facing transport, and controlled comparison guidance. A section that names dialects applies only to those model families; a section without them applies to every target. The Skill-using agent applies only the rules supported by the active model record and interface.",
+  "sections": [
+    {
+      "id": "model-facing-language",
+      "title": "Model-facing language and vocabulary",
+      "rules": [
+        "Render the model-facing prompt in English unless the active model record or interface provides better evidence for another language.",
+        "When a term has weak effect, first test a clearer model-legible phrase and its placement. Consider a different model only when the requested concept remains intact and the current model lacks the needed vocabulary or behavior.",
+        "Vocabulary lookup supplies options. The agent chooses, combines, rewrites, weights, or ignores them according to the request and active interface.",
+        "The public tag databases behind a model's training corpora are a usable pre-generation check on vocabulary: they show whether a candidate term exists as a real tag, how common it is, and what its canonical spelling is. Treat presence as the useful signal and volume as weak evidence only. Observed behavior does not follow volume monotonically: a distinctive, unambiguous term can bind decisively while barely represented, and a term of moderate volume can fail when the concept it names is a subtle contact or relation the model renders as a nearby generic instead.",
+        "Check a candidate term against every corpus the active model was trained on, not just the most familiar one. Corpora disagree: a term one database has retired or never carried can be a high-volume canonical tag in another, and a spelling that looks authoritative in one is often an alias in the other. Concluding that a term is dead from a single database will strip working vocabulary, particularly for subject domains that one corpus specializes in.",
+        "When a term underperforms, try its canonical counterpart before abandoning it. Databases publish alias mappings from common spellings to the canonical tag, and a model trained across corpora usually understands both, so the alias pair is a cheap A/B rather than a rewrite.",
+        "Role and identity assignment between multiple subjects does not bind through word adjacency. Naming which subject fills which role next to that subject's description can leave the rendition unchanged, so treat per-subject role control as unavailable in plain tag text and use staging, separate generations, or regional conditioning instead.",
+        "A vocabulary resource legitimately mixes two registers: canonical tags the corpora carry, and descriptive phrasing the text encoder understands as language. Absence from a tag database is not evidence that a descriptive phrase is broken, so do not prune vocabulary on that basis alone.",
+        "Where a subject domain has more than one tag dialect, the dialects are interchangeable for correctness but not for style: the count-plus-anthro form, the male-plus-furry form, and the kemono spelling all render a correct anthro subject, and the kemono spelling shifts facial styling rounder and flatter. Choose the dialect for the styling it carries.",
+        "Treat a checkpoint version change as a target change. Sibling releases of one merge differ at the same seed in default build mass, negative adherence, and prop and scenery conventions, so re-verify per version rather than assuming family behaviour, and disclose the change.",
+        "A model record's recommended_parameters are the checkpoint author's values and take precedence. This baseline covers a checkpoint in these families whose author gives none."
+      ]
+    },
+    {
+      "id": "tag-prompt-construction",
+      "title": "Tag prompt construction",
+      "rules": [
+        "For a Stable Diffusion or other tag-oriented rendition, use concise terms separated by a comma followed by one space.",
+        "Place the highest-priority load-bearing terms first. A practical order is the active model's recommended quality block, subject count and identity, body and stable appearance, expression and action, camera and framing, environment and lighting, then finish.",
+        "Do not copy a generic quality stack when the active model record provides a reviewed positive recommendation. Preserve the requested image concept rather than replacing it with boilerplate.",
+        "Anchor position outranks total tag count. Place every load-bearing anchor inside the first chunk of the rendition; generic identity or scenery restatement appended at the tail changes little and is wasted budget, while filler placed ahead of the anchors can displace them out of the strongest window.",
+        "Before delivery, re-read each compact tag for a second model-legible sense. A region word can name gear, such as muzzle reading as a restraint device instead of the snout, and a directional body word can name a camera view, such as back pulling the render to a rear view. When a surface form collides with another sense, choose vocabulary that carries only the intended sense, such as coat-structure terms like countershading for body color zones.",
+        "The quality block is budget, not free insurance. On a long rendition its leading tokens can push load-bearing scene tags past the strong window, and quality-tagged training data skews toward simple-background character shots, so a starved environment plus a quality block can lose to the same prompt without one. Treat the block as optional and place content-critical blocks ahead of it when the rendition runs near capacity.",
+        "Character-attribute mass competes with the environment the same way a quality block does. A cluster of heavy build or physique tags pulls the character-focus slice, whose training data favors plain backgrounds, and can blank a fully specified scene while a lean-build cluster of identical length renders it. When both a strong physique and a real environment are wanted, verify the background survived and give the environment its own protected position.",
+        "Every tag names something the model will try to show, and the rule runs both ways. A region colour or region detail tag forces that region visible and can strip what covers it, so on a clothed subject tag only the exposed regions and let the garment tags carry the rest; equally, naming a garment, prop, or effect pulls it into frame even when the pose or crop should have hidden it.",
+        "To lock a colour the model does not expect, bind it to each region separately (body, arms, hands, tail, ears) rather than stating it once, and for a natural two-tone front name the coat-structure term plus the colour of the small feature that would otherwise default. The recipe transfers to another integument by swapping the material noun, scales for fur.",
+        "When the first chunk is over capacity, trim implied and redundant tags rather than demoting a block out of it. A body-build or other identity anchor is not safe trim: removing one visibly changes the subject.",
+        "A content slice the prompt engages brings its own conventions, and they tax everything else: a strongly represented slice can flip a colour stated only once back to the default, pull texture through a negative that names it, relocate a late-placed environment toward that slice's typical setting, and swap a named prop for the slice's own. Engage such a slice with the identity and environment blocks early and with scoped negatives. This is not confined to explicit work; a bare-torso subject with no adult vocabulary at all can still carry the slice's artifacts."
+      ]
+    },
+    {
+      "id": "tag-grammar",
+      "title": "Tag prompt grammar",
+      "rules": [
+        "On a checkpoint trained on booru tags, write tags in lowercase unless the tag itself carries capitals. How a tag of more than one word is spelled is the family's own convention, which the prompt-dialects resource states per family: read it rather than assuming one form.",
+        "Commas are required. A run of adjectives without commas (sleeveless striped collared shirt) is read as one unknown tag; write sleeveless, striped shirt, collared shirt.",
+        "Escape a literal parenthesis, bracket, or colon inside a tag with a backslash. Unescaped, a bracket is read as attention syntax by Automatic1111-style parsers and a colon is read as a weight separator, and either changes the emphasis of everything around it.",
+        "Adjust emphasis by reordering or by one explicit weight rather than by repeating a tag. Repetition spends budget and does not add control in proportion to the count.",
+        "Prefixing detailed to a named element (detailed eyes, detailed fluffy fur, detailed background) draws render attention to that element. Spend it on the one or two elements the plot leans on; on every element it means nothing.",
+        "Weighted syntax is a parser feature, not a model feature. Plain ComfyUI, Diffusers, and a web form without a prompt parser read (term:1.2) as literal text, so on those surfaces carry the priority by position instead.",
+        "The blocks a rendition is built from, and the order they go in, belong to the family. Read them from the active record's dialect rather than carrying an order across families. With more than one figure, repeat the figure and pose blocks once per figure, each in its own chunk that restates that figure's count tag, and keep interaction tags in the count block so that the pairing reads before either figure is described.",
+        "A rating term and a period term each act on the families that carry them, and the terms differ between families. Take both sets from the active record's dialect, use at most one of each, and never carry a term from one family's set into another's.",
+        "A term the family never learned spends budget and acts on nothing. The dialect names those terms for the families where they are known; check a candidate against the corpora the dialect lists before sending it."
+      ]
+    },
+    {
+      "id": "illustrious-noobai-dialect",
+      "title": "The Illustrious and NoobAI dialect",
+      "dialects": [
+        "illustrious-noobai"
+      ],
+      "rules": [
+        "Illustrious is trained on Danbooru tags alone. The e621 dialect (muscular_anthro, the e621 body-build and species terms) acts only on NoobAI-family checkpoints that add that corpus.",
+        "Rating tags act on Illustrious and NoobAI checkpoints: general, sensitive, questionable, and explicit steer the register of the whole image. Use one per prompt, in the quality block.",
+        "The rating general was introduced in 2022 and matches a thin slice of the corpus. For an all-ages image it is usually better left out than forced; sensitive, questionable, and explicit carry their full weight.",
+        "Period tags act on Illustrious and NoobAI checkpoints: newest, recent, mid, early, and oldest bias the render toward the drawing conventions of a slice of the training corpus by upload year (NoobAI documents them as 2021 onward, 2018 to 2020, 2015 to 2017, 2011 to 2014, and 2005 to 2010). newest is the usual choice for a current look, oldest is a deliberate retro finish, and the other period words in a negative push the render away from those slices.",
+        "Score-band tags such as score_9 belong to Pony-family checkpoints and are literal noise on Illustrious and NoobAI. Use the family's own quality block instead.",
+        "Terms that are not booru tags (4k, 8k, hdr, high quality, detailed on its own) have no learned meaning on Illustrious and act only on prose-trained models. A tag with fewer than about 100 posts in the corpus usually has no learned effect either, and a character whose design changed is drawn as the design that dominates the corpus.",
+        "Resolution marks describe the corpus post's pixel size, not render quality: highres is 1600x1200 and up, absurdres 3200x2400 and up, incredibly absurdres above 10000 pixels. Their only pull is toward large finished uploads, so use at most one, or none.",
+        "The checkpoint family's own documented order puts the count first and quality plus period last: count, character name, rating, general tags, artist, quality, period. Both that order and the block order above put the count first. Pick one order for a project and keep it between runs, so that a change in the output comes from a change in content.",
+        "An artist tag acts only for an artist with a large body of posts, about 100 and up. At reduced weight, such as (artist:0.5), it lends a flavor rather than the whole style; a medium tag such as (traditional media:0.5) behaves the same way."
+      ]
+    },
+    {
+      "id": "anima-dialect",
+      "title": "The Anima dialect",
+      "dialects": [
+        "anima"
+      ],
+      "rules": [
+        "Anima pairs a Qwen-series text encoder and VAE with a Danbooru tag vocabulary, so the tag register is the booru one while the sampling behaviour is not the SDXL lineage's. Use the Qwen VAE the family names; another VAE shifts colour and detail.",
+        "Anima carries both registers at once: the booru quality terms and the Pony score bands act together, and the working block is masterpiece, best quality, score_9, score_8, score_7, very aesthetic, highres, absurdres, newest. Both corpus size marks are used here rather than at most one.",
+        "Write a multi-word tag with spaces on Anima, not underscores. The score terms keep their underscores.",
+        "An artist tag needs an at sign in front of it on Anima. Without it the tag does not bind.",
+        "An explicit weight wants a higher value on Anima than on the SDXL lineage, about 1.2 to 1.4. Raise only the tags that carry the request; a high weight on everything flattens the difference it was meant to make.",
+        "Anima takes a year term beside the period term, written as year 2025 or year 2024, which narrows the period further than newest alone.",
+        "Anima's rating terms are safe, sensitive, nsfw, and explicit. The Danbooru set that the Illustrious family uses does not apply here.",
+        "Anima's block order ends with a plain-language line for what the tags cannot carry. Use it for a relation or a staging the tag vocabulary has no term for, and keep the tags carrying everything they can."
+      ]
+    },
+    {
+      "id": "illustrious-noobai-sampling",
+      "title": "Sampling baseline for the Illustrious and NoobAI dialect",
+      "rules": [
+        "Start from Euler a. The DPM++ family tends to leave residual noise on these checkpoints at ordinary step counts.",
+        "Keep guidance between 3 and 5, with 4.5 as the working point; above 6 the colors saturate and the prompt becomes hard to steer. A distilled or LCM variant wants 4 to 8, with 6 as the working point.",
+        "About 20 steps is the working point. Raise it only when a LoRA's own page asks for it.",
+        "Generate at a trained bucket: 1024x1024, 1024x1536, 832x1216, or 768x1344. Reach a larger delivery size with a second pass, either hires fix at 1.5x with denoise 0.4 to 0.5 over a plain nearest-exact resample of the first pass (about 16 hires steps in a ComfyUI-style graph, about 40 in a Diffusers pipeline), or an upscaler pass on the accepted image. A hires factor of 2 and above breaks composition on these checkpoints.",
+        "SDXL-lineage sizes: keep about one megapixel with both sides multiples of 8, and prefer the trained buckets, which are multiples of 64: 1024x1024, 896x1152, 1152x896, 832x1216, 1216x832, 768x1344, 1344x768, 640x1536, 1536x640. For another ratio, width is 1024 times the square root of the ratio and height is 1048576 divided by the width, both rounded down to a multiple of 8 (2:3 gives 832x1248, 16:9 gives 1360x768).",
+        "A v-prediction checkpoint needs a pipeline that supports v-prediction; Automatic1111 does not, so run the eps variant there."
+      ],
+      "dialects": [
+        "illustrious-noobai"
+      ]
+    },
+    {
+      "id": "anima-sampling",
+      "title": "Sampling baseline for the Anima dialect",
+      "dialects": [
+        "anima"
+      ],
+      "rules": [
+        "Start from Euler a, with er_sde as the other choice the family names, and the normal scheduler.",
+        "About 30 steps is the working point, and guidance between 4 and 6 with 5 as the working point.",
+        "Generate around 1280 pixels square, which is the size this family was trained at, and take another ratio at that same pixel count rather than at the SDXL lineage's one megapixel."
+      ]
+    },
+    {
+      "id": "subject-count-and-scene-situation",
+      "title": "Subject count and scene situation",
+      "rules": [
+        "State the subject count explicitly in every rendition with a count tag such as solo, 1boy, 1girl, duo, or group. Treat one character as the default: when the request names no additional people, write solo plus the matching count tag near the front of the prompt, because tag-oriented models otherwise drift toward duplicated subjects or unwanted pairings.",
+        "Give every rendition a concrete situation block: a named place instead of a bare indoors or outdoors, a time-of-day or light cue, and at most a few visible anchor props. A prompt that names no environment lets the model fall back to its default blank studio background.",
+        "Keep the situation block inside the visible frame. Name only background and props the chosen crop can actually show, and spend no budget on scenery the framing excludes.",
+        "Two characters in one tag prompt cross-contaminate: species, colour, and identity bleed between them. For two characters that must each stay themselves, render them separately and compose, or use regional conditioning; tag text alone will not hold them apart.",
+        "Under multi-tag pressure a species drifts toward a neighbouring one, particularly on a side view. Reinforce the species block with its own weight and colour tags and put the rival species in the negative when the drift is known.",
+        "State every anthro construction detail the frame will show. Foot posture, pad, and tuft terms each bind their own zone, and left unstated the render falls back to a human-leaning default; the species tag does not imply them."
+      ]
+    },
+    {
+      "id": "framing-and-crop-control",
+      "title": "Framing and crop control",
+      "rules": [
+        "Make framing an explicit decision on every rendition, in both directions. A single character on a tall portrait canvas silently defaults to a full-body render, so a close crop must be forced, and a requested full body should be an affirmative choice, not the model's fallback.",
+        "Force a crop with three supports together: place the framing tag immediately after subject identity with explicit weight where the parser supports it, such as (upper body:1.2) or (face close-up:1.3); add crop-state tags such as cropped torso or head out of frame only when the crop should visibly cut the body at the frame edge; and add full body to the negative prompt.",
+        "On a blank or near-empty background a crop can dissolve the body into the background instead of cutting it at the frame edge. Anchor the bottom of the frame with a visible surface or prop the body meets, such as a chair, bed, floor shadow, or table edge, or use a hard crop-state tag for an intentional cut.",
+        "Match the canvas to the framing. Prefer a squarer or landscape canvas for face and upper-body crops and a tall portrait canvas for full body, and omit leg and feet detail from the prompt when the framing excludes them. For an explicit full body, weight it, such as (full body:1.2), keep the head-to-feet span inside the canvas, and drop crop-state tags so they cannot fight the framing.",
+        "State the requested framing in the delivered plan or provenance so the choice, and any weight used to enforce it, stays visible and reversible in later edits.",
+        "State the facing explicitly: facing viewer, front view, from behind, looking back. Left unstated, the scene's own prior decides it.",
+        "The zoom ladder from an extreme close-up to a wide establishing shot works when the framing tag leads. At part magnification carry that region's own identity tags, or the details that fill the frame snap to defaults.",
+        "Naming a plain background binds decisively and also tightens the crop toward a portrait, because the plain-background and close-character slices overlap. Restate the intended framing whenever a background term is used as a deliberate control.",
+        "A bare plain-background tag loses to scene bias on a figure the model would rather place somewhere. The standing-figure sheet needs the sheet construction together: the sheet term and the background term both weighted, a view tag, full body, and standing. The alternative is to render in a scene that suits the character and remove the ground afterward with a background-removal pass, which keeps the model's own rendering rather than the flat sheet slice.",
+        "Do not ask a tag prompt for an orthographic view from directly above or below. A weighted from-above with the floor named returns a look-down of roughly fifty degrees and a weighted from-below roughly thirty, and the bird's-eye and worm's-eye terms return the same angles or draw the animal in their name.",
+        "A sheet term in the positive makes the model paint sheet furniture: panels, pseudo-text, and swatches. Keep it out and let a renderer own the sheet layout."
+      ]
+    },
+    {
+      "id": "expression-and-performance",
+      "title": "Expression and performance",
+      "rules": [
+        "Give every character rendition an explicit performance decision: an expression plus the visible appendage and posture cues that agree with it, such as eyes, mouth, ears, shoulders, tail, and hands. A prompt that leaves expression unstated renders the model's neutral default face, and the omission is easy to miss in review because nothing looks broken.",
+        "A single bare expression tag is weaker than a small coordinated cluster naming one consistent state across eyes, mouth, and posture. Pull the cluster from the activated production knowledge when a matching cue record exists instead of improvising one word.",
+        "Expression tags obey the same anchor-position rule as every other instruction: placed at the tail of a long rendition they lose to the established composition, so put the performance block with the front composition-critical tags.",
+        "For two or more characters, short affectionate or postural phrases naming who does what to whom bind reliably, including across species. Named positions and support geometry do not: a strongly conventionalized action pulls its own camera and staging, overriding a described arrangement. Use the target vocabulary's own position terms rather than descriptive sentences, and re-check the camera afterward."
+      ]
+    },
+    {
+      "id": "prompt-budget-and-visible-scope",
+      "title": "Prompt budget and visible scope",
+      "rules": [
+        "Do not treat 75 tokens as a universal limit. Prompt capacity and chunking depend on the active encoder, model, workflow, and interface: an Automatic1111-style parser chunks past 75 tokens, while a plain ComfyUI or Diffusers pipeline and a web form without a prompt parser truncate there unless an extension chunks for them. Keep the rendition concise and protect high-priority terms from truncation or dilution.",
+        "Do not spend limited prompt budget on off-frame details unless they are continuity anchors, reference-authority constraints, or needed to prevent a wrong visible inference.",
+        "When an off-frame garment or body-detail tag degrades visible anatomy and is not load-bearing for the current frame, omit it from the model-facing rendition while retaining it in the underlying identity or scene state.",
+        "Where the active parser supports BREAK chunk separation, a block isolated after BREAK renders at full strength even at the tail of a long rendition, so an environment block placed there survives front-matter pressure that would otherwise starve it. Restate the subject-count gate in every chunk that depicts the subject: count tags do not carry across BREAK, and an ungated chunk can spawn extra figures.",
+        "When a scene needs more than one window holds, split it into passes: render the base, then inpaint each region with a prompt for that region only (its eye color, expression, or garment), not the whole scene again."
+      ]
+    },
+    {
+      "id": "attention-weighting",
+      "title": "Attention weighting",
+      "rules": [
+        "Use attention syntax only when the active parser supports the demonstrated grammar. Parentheses and square brackets are not portable across all image interfaces.",
+        "Use weighting sparingly to express a genuine priority. Do not use extreme weights to compensate for contradictory anatomy, camera, action, or reference authority.",
+        "Nested emphasis compounds when the parser applies the same multiplier at each level. Explicit numeric weights state the requested multiplier directly.",
+        "An explicit numeric weight binds only where the colon and number sit immediately before the closing parenthesis. Inside a longer group, a term written as term:0.9 followed by a comma is not weighted: the number is consumed as literal prompt text, and the leftover colon and digit tokens sit inside the host phrase and can cancel its meaning entirely rather than leaving it at plain group emphasis.",
+        "Malformed weights fail silently and never in the requested direction: a weight that fails to bind leaves the term at full emphasis, or knocks the term out through the leftover junk tokens beside it. After composing, re-check every numeric weight against the binding rule instead of trusting visual inspection of the prompt string.",
+        "Emphasis grammars are dialect-bound. Curly-brace emphasis is NovelAI-native; Automatic1111-style parsers do not read braces as emphasis and may treat them as literal text or wildcard syntax. When moving a prompt between dialects, convert the emphasis instead of carrying the source syntax.",
+        "AND between two prompt fragments is composable conditioning in Automatic1111-style parsers: each side is encoded separately and the results are combined, which lets two competing colors or materials share one region (blue fire AND red fire) instead of one absorbing the other. It is parser syntax, not model vocabulary: plain ComfyUI, Diffusers, and web forms read AND as a literal word.",
+        "Down-weighting the only tag that carries an axis does not attenuate the axis smoothly; the axis can collapse to the model default instead, the way a halved sole environment anchor yields the default background rather than a dimmer scene. To soften an axis, name the intermediate state at full weight instead of down-weighting the lone anchor.",
+        "Square-bracket de-emphasis is weak against an attribute the model already expects and perturbs unrelated late tags. Triple-nested parentheses do raise an attribute as asked but drag its home slice along, which can strip a late-position garment. Prefer an explicit numeric weight, and re-anchor late garments after boosting a body attribute."
+      ],
+      "examples": [
+        {
+          "syntax": "(term)",
+          "effect": "Approximately 1.1x emphasis in parsers that implement Automatic1111-style attention syntax."
+        },
+        {
+          "syntax": "((term))",
+          "effect": "Approximately 1.21x emphasis when two nested pairs each apply about 1.1x."
+        },
+        {
+          "syntax": "[term]",
+          "effect": "Approximately 1/1.1x emphasis, about 0.91x, in compatible parsers."
+        },
+        {
+          "syntax": "(term:1.5)",
+          "effect": "Explicit 1.5x attention in compatible parsers."
+        },
+        {
+          "syntax": "(term:0.25)",
+          "effect": "Explicit 0.25x attention, or one quarter of the unweighted level, in compatible parsers.",
+          "note": "This is 0.25, not 1 divided by 0.25."
+        },
+        {
+          "syntax": "(term:0.9, other term)",
+          "effect": "No weight binds to term. The number is consumed as literal text inside the group, and the leftover colon and digit tokens can cancel the host phrase outright, so a reduction written this way becomes an increase or a dropout, never the requested reduction."
+        },
+        {
+          "syntax": "{term}",
+          "effect": "About 1.05x emphasis in NovelAI's native parser only. Automatic1111-style parsers do not read braces as emphasis."
+        }
+      ]
+    },
+    {
+      "id": "lora-strength",
+      "title": "LoRA strength",
+      "rules": [
+        "Use the active model or LoRA record's reviewed strength recommendation when one exists.",
+        "When no better recommendation exists, 0.7 to 0.8 is a practical initial trial range rather than a universal default. Tune against under-activation, overbaking, identity drift, and unwanted style replacement.",
+        "When comparing strengths, change one LoRA weight at a time and keep the remaining generation conditions constant.",
+        "An image-to-image seed image below a strength of about 0.7 keeps its garments against undress tags, so a seed image sets pose and finish, not the dress tier. A named garment tag also outranks an undress state tag: remove the garment tag to change the dress tier, and expect a state tag to invent a garment when none is named.",
+        "Some subject and build combinations resist a garment because the checkpoint prefers the undressed or fantasy-garb reading. Escalate the levers together rather than one at a time: garment tags at the head of the prompt, garment weight raised, guidance one step higher, and image-to-image from an accepted still of the same character at moderate strength. Expect colour drift and stray marks at high garment weight, and watch for garment words that sit in a gendered cluster and flip the subject with them."
+      ]
+    },
+    {
+      "id": "negative-prompts-and-embeddings",
+      "title": "Negative prompts and embeddings",
+      "rules": [
+        "The active adapter and model record own negative transport. Use a separate negative field only when the interface exposes and supports it; otherwise follow the adapter's integrated or native-subset contract.",
+        "A Textual Inversion embedding is a selected model resource, not a universal replacement for a reviewed negative prompt. Use its exact activation token and weight only when the active workflow supports it.",
+        "Do not infer that a model family needs no negative handling merely from its name. Follow the exact active workflow record.",
+        "Review any reused negative block as four separable strata before adoption: the active family's reviewed quality terms, deliberately weighted content gates, corrections scoped to an observed failure, and residue carried from other model families or abandoned workflows. Keep the first three intentional and drop the residue.",
+        "Do not carry family-bound control tokens across checkpoint families. Rating or score-band tags act only on checkpoints trained with that vocabulary, and a Textual Inversion activation token whose embedding is not loaded is consumed as meaningless literal text instead of acting as a negative.",
+        "Check the negative against the requested subject before delivery. A negative term that names the requested subject class or a load-bearing positive attribute fights the request itself; remove it or rescope it to the concrete failure it was meant to block.",
+        "Deduplicate the negative. Repeating a term or piling near-synonyms does not add suppression in proportion to the count and spends budget that dilutes every remaining term.",
+        "Position in the negative works as it does in the positive. Put the exclusion this scene actually needs ahead of the reusable block, so that it sits in the strongest window rather than behind a wall of generic defect terms.",
+        "Keep the negative short. Past about thirty terms it turns unpredictable, and a more exact positive does more than a longer negative. Reliable corpus-level negatives on booru-trained checkpoints: monochrome, greyscale, multiple views, text, watermark, signature, translation request, comic, 4koma, 2koma.",
+        "A weighted negative does not brake anything the positive explicitly asks for: a garment named in the positive survives the same term at high weight in the negative. Weighted negatives work against uninstructed drift, where they do help; with a colour stated only once, naming the drift colours in the negative restores it.",
+        "Negative the drift itself, not its neighbour. Putting a neighbouring colour in the negative pushes the wanted colour away from it: orange in the negative turns amber eyes blue.",
+        "Content tier lives in the positive. A weighted negative content gate is insurance against uninstructed drift, not a brake on what the positive commands."
+      ]
+    },
+    {
+      "id": "controlled-term-comparison",
+      "title": "Controlled term comparison",
+      "rules": [
+        "When evaluating one term, hold the checkpoint or model, LoRA set and weights, seed, sampler, scheduler, steps, guidance value, dimensions, base prompt, negative transport, and references constant.",
+        "Change one term, one weight, or one placement at a time so the observed difference has a clear cause.",
+        "When placement sensitivity is under review, compare the same term near the beginning and near the end without changing any other condition.",
+        "A controlled comparison measures one active setup. Do not promote a single result into a universal model rule.",
+        "Treat sampler, scheduler, steps, guidance, dimensions, seed, model hash, and similar values in a prompt example as reproducibility metadata for that example, not as universal defaults."
+      ]
+    },
+    {
+      "id": "webui-editing-shortcut",
+      "title": "Compatible WebUI editing shortcut",
+      "rules": [
+        "In editors that implement the Automatic1111-style shortcut, select a term and use Ctrl+Up or Ctrl+Down to change its explicit attention weight by 0.1.",
+        "This is an editor convenience, not portable model-facing syntax. Do not describe it as available unless the active interface supports it."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "artifact_type": "reference-semantic-region-map",
+  "region_map_id": "SR-template",
+  "source_ref_id": "SRC-template",
+  "regions": [],
+  "notes": [],
+  "semantic_region_map_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

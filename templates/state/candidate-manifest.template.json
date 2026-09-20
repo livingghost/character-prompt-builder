@@ -1,0 +1,10 @@
+{
+  "artifact_type": "candidate-manifest",
+  "manifest_id": "CM-RB-C01",
+  "bundle_plan_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "character_id": "C01",
+  "identity_contract_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "candidates": [],
+  "inspection_status": "pending",
+  "candidate_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

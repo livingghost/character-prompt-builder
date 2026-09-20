@@ -1,0 +1,16 @@
+{
+  "artifact_type": "relationship-projection",
+  "relationship_projection_id": "RP-SC01-C01-C02",
+  "scene_context_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "participants": [
+    "C01",
+    "C02"
+  ],
+  "distance": {},
+  "facing": {},
+  "gaze": {},
+  "contact": {},
+  "public_private_mask": {},
+  "review_dimensions": [],
+  "relationship_projection_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

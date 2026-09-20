@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "appearance-variant-contract.schema.json",
+  "title": "Appearance Variant Contract",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "contract_id",
+    "character_id",
+    "variant_id",
+    "parent_identity_contract_sha256",
+    "variant_class",
+    "appearance_definition",
+    "canon_status"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "appearance-variant-contract"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "variant_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "parent_identity_contract_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "variant_class": {
+      "enum": [
+        "wardrobe",
+        "accessory-state",
+        "grooming",
+        "makeup-or-paint",
+        "disguise",
+        "ceremonial",
+        "condition-specific"
+      ]
+    },
+    "appearance_definition": {
+      "type": "object"
+    },
+    "allowed_state_overrides": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "reference_coverage_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "canon_status": {
+      "enum": [
+        "proposed",
+        "approved",
+        "superseded"
+      ]
+    },
+    "approval": {
+      "type": "object"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "growth_geometry": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "growth-geometry.schema.json"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

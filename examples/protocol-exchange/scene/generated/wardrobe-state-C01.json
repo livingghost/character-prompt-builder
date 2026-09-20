@@ -1,0 +1,45 @@
+{
+  "artifact_type": "wardrobe-state",
+  "wardrobe_state_id": "WARD-C01-10",
+  "character_id": "C01",
+  "outfit_variant_id": "C01-workshop",
+  "layers": [
+    {
+      "item_id": "C01-outer",
+      "state": "worn",
+      "closure": "closed",
+      "fastener_state": "secure",
+      "layer_order": 2,
+      "condition": {
+        "description": "dark blue mechanic jacket"
+      },
+      "pocket_contents": []
+    },
+    {
+      "item_id": "C01-inner",
+      "state": "worn",
+      "closure": "closed",
+      "fastener_state": "none",
+      "layer_order": 1,
+      "condition": {
+        "description": "gray fitted shirt"
+      },
+      "pocket_contents": []
+    },
+    {
+      "item_id": "C01-equipment",
+      "state": "worn",
+      "closure": "n/a",
+      "fastener_state": "secure",
+      "layer_order": 3,
+      "condition": {
+        "hands": "fingerless work gloves"
+      },
+      "pocket_contents": []
+    }
+  ],
+  "condition": {
+    "summary": "dry and intact"
+  },
+  "wardrobe_state_sha256": "b631f0da3950460bc4b138f64cdb9f4d8afad49437736876b1ef058a584c325a"
+}

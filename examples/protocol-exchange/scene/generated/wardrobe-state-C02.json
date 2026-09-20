@@ -1,0 +1,45 @@
+{
+  "artifact_type": "wardrobe-state",
+  "wardrobe_state_id": "WARD-C02-10",
+  "character_id": "C02",
+  "outfit_variant_id": "C02-workshop",
+  "layers": [
+    {
+      "item_id": "C02-outer",
+      "state": "worn",
+      "closure": "closed",
+      "fastener_state": "secure",
+      "layer_order": 2,
+      "condition": {
+        "description": "cream archive vest"
+      },
+      "pocket_contents": []
+    },
+    {
+      "item_id": "C02-inner",
+      "state": "worn",
+      "closure": "closed",
+      "fastener_state": "none",
+      "layer_order": 1,
+      "condition": {
+        "description": "white rolled-sleeve shirt"
+      },
+      "pocket_contents": []
+    },
+    {
+      "item_id": "C02-equipment",
+      "state": "worn",
+      "closure": "n/a",
+      "fastener_state": "secure",
+      "layer_order": 3,
+      "condition": {
+        "face": "round brass spectacles"
+      },
+      "pocket_contents": []
+    }
+  ],
+  "condition": {
+    "summary": "intact"
+  },
+  "wardrobe_state_sha256": "edf505dcba4b5a6fe1bf7da62730e0a21b4743d23a6335f9770d3d45893f680e"
+}

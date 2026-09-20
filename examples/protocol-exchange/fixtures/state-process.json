@@ -1,0 +1,22 @@
+{
+  "artifact_type": "state-process",
+  "process_id": "PROC-C01-01",
+  "timeline_id": "main",
+  "entity_type": "character",
+  "entity_id": "C01",
+  "path": "/physical_state/example",
+  "process_type": "healing",
+  "started_order": 0,
+  "effective_until_order": null,
+  "milestones": [
+    {
+      "offset": 0,
+      "state": "initial",
+      "label": "initial milestone"
+    }
+  ],
+  "interruption_policy": "supersedable-by-event",
+  "canon_status": "proposed",
+  "evidence": [],
+  "notes": []
+}

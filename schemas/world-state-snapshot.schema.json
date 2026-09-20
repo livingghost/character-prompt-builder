@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "world-state-snapshot.schema.json",
+  "title": "World State Snapshot",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "snapshot_id",
+    "timeline_id",
+    "scene_context_id",
+    "story_order",
+    "story_time",
+    "entities",
+    "applied_event_ids",
+    "applied_process_milestones",
+    "world_state_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "world-state-snapshot"
+    },
+    "snapshot_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "timeline_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "scene_context_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "story_order": {
+      "type": "integer"
+    },
+    "story_time": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entities": {
+      "type": "object",
+      "required": [
+        "characters",
+        "relationships",
+        "environments",
+        "props",
+        "world"
+      ],
+      "properties": {
+        "characters": {
+          "type": "object"
+        },
+        "relationships": {
+          "type": "object"
+        },
+        "environments": {
+          "type": "object"
+        },
+        "props": {
+          "type": "object"
+        },
+        "world": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "applied_event_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "applied_process_milestones": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "uncertainties": {
+      "type": "array"
+    },
+    "world_state_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

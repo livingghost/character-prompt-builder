@@ -1,0 +1,235 @@
+{
+  "artifact_type": "character-state-schema",
+  "state_schema_id": "CSS-C01",
+  "character_id": "C01",
+  "identity_contract_sha256": "e370d88f96b68014de7e8ca5ed1f3dd0b74255b9c4e1051ac8d7ebc2d844e655",
+  "state_paths": [
+    {
+      "path": "/physical_state/left_ear_tip",
+      "state_domain": "physical",
+      "value_type": "string",
+      "allowed_persistence": [
+        "persistent-until-superseded"
+      ],
+      "default_value": "intact",
+      "visual_translation": {
+        "notched": "show one healed triangular notch at the outer upper ear tip"
+      },
+      "prompt_relevance": "always-when-visible",
+      "notes": ""
+    },
+    {
+      "path": "/physical_state/wound_stage",
+      "state_domain": "physical",
+      "value_type": "string",
+      "allowed_persistence": [
+        "progressive"
+      ],
+      "default_value": "none",
+      "visual_translation": {
+        "closed_with_swelling": "closed narrow wound with mild swelling, no active bleeding"
+      },
+      "prompt_relevance": "conditional",
+      "notes": ""
+    },
+    {
+      "path": "/appearance_state/grooming/fur_wetness/brow",
+      "state_domain": "appearance",
+      "value_type": "string",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared"
+      ],
+      "default_value": "dry",
+      "visual_translation": {
+        "damp": "show temporary damp fur around the brow without changing the permanent brow wedges, facial markings, or cranial-fur map"
+      },
+      "prompt_relevance": "conditional",
+      "notes": "This path owns temporary brow-fur wetness; it is not identity or an Appearance Variant."
+    },
+    {
+      "path": "/appearance_state/grooming/fur_wetness/paws",
+      "state_domain": "appearance",
+      "value_type": "string",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared"
+      ],
+      "default_value": "dry",
+      "visual_translation": {
+        "damp": "show temporary damp fur around the paws without changing digit count, claw geometry, or permanent limb-fur coverage"
+      },
+      "prompt_relevance": "conditional",
+      "notes": "This path owns temporary paw-fur wetness; it is not identity or an Appearance Variant."
+    },
+    {
+      "path": "/appearance_state/grooming/claws/dirt",
+      "state_domain": "appearance",
+      "value_type": "string",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared"
+      ],
+      "default_value": "clean",
+      "visual_translation": {
+        "dirty": "show temporary surface dirt on the claws without changing permanent claw color, shape, length, or finish"
+      },
+      "prompt_relevance": "conditional",
+      "notes": "This path owns removable claw dirt."
+    },
+    {
+      "path": "/appearance_state/grooming/claws/polish_condition",
+      "state_domain": "appearance",
+      "value_type": "string",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared"
+      ],
+      "default_value": "none",
+      "visual_translation": {
+        "intact": "show the claw polish declared by the approved Appearance Variant Contract as intact",
+        "chipped": "show localized chips in the claw polish declared by the approved Appearance Variant Contract"
+      },
+      "prompt_relevance": "conditional",
+      "notes": "A value other than none requires an approved Appearance Variant Contract that owns the declared polish color, decoration, and finish paths."
+    },
+    {
+      "path": "/emotional_state/felt_state",
+      "state_domain": "emotion",
+      "value_type": "object",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared"
+      ],
+      "default_value": {},
+      "visual_translation": {},
+      "prompt_relevance": "conditional",
+      "notes": ""
+    },
+    {
+      "path": "/emotional_state/expressed_state",
+      "state_domain": "emotion",
+      "value_type": "object",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared"
+      ],
+      "default_value": {},
+      "visual_translation": {},
+      "prompt_relevance": "conditional",
+      "notes": ""
+    },
+    {
+      "path": "/performance_state/physiological_cues",
+      "state_domain": "performance",
+      "value_type": "array",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared"
+      ],
+      "default_value": [],
+      "visual_translation": {},
+      "prompt_relevance": "conditional",
+      "notes": ""
+    },
+    {
+      "path": "/wardrobe_state/layers",
+      "state_domain": "wardrobe",
+      "value_type": "array",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared",
+        "persistent-until-superseded"
+      ],
+      "default_value": [],
+      "visual_translation": {},
+      "prompt_relevance": "conditional",
+      "notes": ""
+    }
+  ],
+  "initial_state": {
+    "physical_state": {
+      "left_ear_tip": "intact",
+      "wound_stage": "none"
+    },
+    "appearance_state": {
+      "grooming": {
+        "fur_wetness": {
+          "brow": "dry",
+          "paws": "dry"
+        },
+        "claws": {
+          "dirt": "clean",
+          "polish_condition": "none"
+        }
+      }
+    },
+    "wardrobe_state": {
+      "layers": [
+        {
+          "item_id": "shirt-01",
+          "state": "worn",
+          "closure": "closed"
+        }
+      ],
+      "condition": {
+        "wetness": "dry"
+      }
+    },
+    "equipment_state": {},
+    "inventory_state": {
+      "items": [
+        "P01"
+      ]
+    },
+    "emotional_state": {
+      "felt_state": {
+        "emotion": "neutral",
+        "intensity": 0.1
+      },
+      "expressed_state": {
+        "emotion": "calm",
+        "intensity": 0.2
+      }
+    },
+    "performance_state": {
+      "physiological_cues": []
+    },
+    "knowledge_state": {},
+    "social_role_state": {
+      "role": "field-agent"
+    },
+    "character_specific_state": {}
+  },
+  "state_machines": [],
+  "environment_adaptation_rules": [
+    {
+      "rule_id": "ENV-hot-humid-wolf",
+      "when": [
+        {
+          "path": "/temperature_c",
+          "operator": "greater-or-equal",
+          "value": 28
+        },
+        {
+          "path": "/humidity_percent",
+          "operator": "greater-or-equal",
+          "value": 75
+        }
+      ],
+      "proposal": {
+        "wardrobe_delta": [
+          "open the top closure or roll sleeves when the approved dress code allows"
+        ],
+        "performance_delta": [
+          "light sweat at temples",
+          "slightly heavier breathing"
+        ],
+        "visual_reason": "heat and humidity acting on a thick-furred subject",
+        "requires_human_approval": true
+      }
+    }
+  ],
+  "projection_rules": [],
+  "notes": []
+}

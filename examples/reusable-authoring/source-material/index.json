@@ -1,0 +1,34 @@
+{
+  "artifact_type": "source-material-index",
+  "canon_adopted": false,
+  "content_sha256": "c7b4841d699fa94f8c3d3517aee2549df9f358ddb4a9fb800764ef65d7c6a4e8",
+  "documents": [
+    {
+      "bytes": 253,
+      "encoding": "utf-8",
+      "line_count": 6,
+      "path": "originals/subject.md",
+      "role": "primary-source",
+      "sha256": "568809ee54283dc92dd3b742b08dc761d4eca923681a6b0b330484148975cf23",
+      "source_id": "primary",
+      "stored_path": "sources/568809ee54283dc92dd3b742b08dc761d4eca923681a6b0b330484148975cf23.bin"
+    }
+  ],
+  "material_id": "original-material",
+  "purpose": "Retain original bytes independently of proposed interpretation.",
+  "segments": [
+    {
+      "completion": "unknown",
+      "end_line": 4,
+      "label": "An authored analysis span, not an inferred chapter.",
+      "segment_id": "opening",
+      "source_id": "primary",
+      "source_sha256": "568809ee54283dc92dd3b742b08dc761d4eca923681a6b0b330484148975cf23",
+      "start_line": 1,
+      "text_sha256": "f7c80420f2544ad0cc866d4fd7aa8aa6a816d75f93dcf2f849cd9e2fc79bfb00"
+    }
+  ],
+  "unresolved": [
+    "No claim is made about the completion of a larger work."
+  ]
+}

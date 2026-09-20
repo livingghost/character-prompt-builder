@@ -1,0 +1,36 @@
+{
+  "artifact_type": "viewpoint-profile",
+  "profile_id": "over-the-shoulder",
+  "label": "Over-the-shoulder",
+  "profile_family": "external",
+  "camera_ownership": "external_camera",
+  "default_knowledge_scope": "character_restricted",
+  "default_point_of_audition": "objective_mix",
+  "camera_rules": [
+    "Keep the camera outside the aligned character with a readable shoulder, head edge, hand, or body mass in foreground.",
+    "Maintain the aligned character as the attention anchor while keeping the facing subject readable.",
+    "Use foreground occlusion deliberately and preserve limb ownership."
+  ],
+  "continuity_rules": [
+    "Preserve eyeline height and target across reverse coverage.",
+    "Keep foreground anatomy attached to the aligned character.",
+    "Carry prop ownership and contact geometry through the cut."
+  ],
+  "review_dimensions": [
+    "foreground anatomy",
+    "eyeline match",
+    "facing subject performance",
+    "prop contact"
+  ],
+  "permitted_movement_types": [
+    "locked",
+    "pan",
+    "tilt",
+    "track",
+    "dolly",
+    "arc",
+    "handheld-follow"
+  ],
+  "knowledge_policy": "Apply the declared focalization and do not reveal information outside its scope unless the shot plan records a deliberate change.",
+  "profile_sha256": "ce3c59b03a7bac8305c0432306fd95a2bd972f66a1328010184bf48675467eb7"
+}

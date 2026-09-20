@@ -1,0 +1,44 @@
+{
+  "task_id": "COPY_THE_OPEN_TASK_UUID",
+  "route": "development",
+  "features": [],
+  "sources": [
+    {
+      "id": "brief",
+      "path": "brief.md",
+      "role": "world",
+      "disposition": "applied",
+      "locator": "Name the applicable section.",
+      "reason": "State why this source governs this deliverable."
+    }
+  ],
+  "delivery": {
+    "path": "delivery.txt",
+    "transport": "authored-rendition",
+    "translation_notes": "Author only the intended consumer-facing instructions."
+  },
+  "criteria": [
+    {
+      "id": "purpose",
+      "strength": "hard",
+      "text": "Replace with an observable requirement.",
+      "evidence": "artifact"
+    }
+  ],
+  "world_views": [],
+  "moment_views": [],
+  "direction": {
+    "purpose": "State this deliverable's actual use.",
+    "intended_effect": "State the intended effect, not an observed result.",
+    "basis": [
+      "brief"
+    ],
+    "decisions": [],
+    "action_slice": null,
+    "limitations": []
+  },
+  "authority": "authority.json",
+  "artifact": "text",
+  "execution": "authored",
+  "scene_materials": []
+}

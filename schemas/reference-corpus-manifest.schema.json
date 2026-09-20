@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "corpus_id",
+    "source_file_count",
+    "unique_source_count",
+    "evidence_bundle_count",
+    "canonical_evidence_count",
+    "excluded_noncanonical_count",
+    "coverage_policy",
+    "entries",
+    "notes",
+    "reference_corpus_manifest_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "reference-corpus-manifest"
+    },
+    "corpus_id": {
+      "type": "string"
+    },
+    "source_file_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unique_source_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "evidence_bundle_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "canonical_evidence_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "excluded_noncanonical_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "coverage_policy": {
+      "type": "string"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source_ref_id",
+          "source_sha256",
+          "source_media_type",
+          "source_dimensions",
+          "disposition",
+          "evidence_relation",
+          "canonical_record_ids",
+          "visual_authority_ref",
+          "visual_evidence_bundle_ref"
+        ],
+        "properties": {
+          "source_ref_id": {
+            "type": "string"
+          },
+          "source_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "source_media_type": {
+            "type": "string"
+          },
+          "source_dimensions": {
+            "type": "object",
+            "required": [
+              "width",
+              "height"
+            ],
+            "properties": {
+              "width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "disposition": {
+            "enum": [
+              "canonical-preset-evidence",
+              "excluded-noncanonical-artifact",
+              "reference-evidence"
+            ]
+          },
+          "evidence_relation": {
+            "type": "string"
+          },
+          "canonical_record_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "semantic_summary": {
+            "type": "string"
+          },
+          "visual_authority_ref": {
+            "type": "object",
+            "required": [
+              "id",
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "visual_evidence_bundle_ref": {
+            "type": "object",
+            "required": [
+              "id",
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reference_corpus_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

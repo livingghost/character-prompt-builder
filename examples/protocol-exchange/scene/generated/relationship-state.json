@@ -1,0 +1,27 @@
+{
+  "artifact_type": "relationship-state",
+  "relationship_id": "REL-C01-C02",
+  "timeline_id": "main",
+  "story_order": 10,
+  "from": "C01",
+  "to": "C02",
+  "bond_type": [
+    "trusted colleagues"
+  ],
+  "trust": "high",
+  "affinity": "warm",
+  "intimacy": "moderate",
+  "conflict": "low",
+  "authority": "peer",
+  "obligation": [
+    "protect the recovered artifact"
+  ],
+  "contact_boundary": "brief hand contact is accepted",
+  "public_mask": "professional",
+  "private_behavior": "direct concern",
+  "shared_knowledge": [
+    "P01 belongs to the archive"
+  ],
+  "last_major_event": "EV-C01-INJURY",
+  "relationship_state_sha256": "b76fbd0a65e9a566c542b4d851376c4fc825564a7c796d15d2727f242f512177"
+}

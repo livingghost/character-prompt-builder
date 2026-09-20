@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible repository or submission-boundary defect
+labels: [bug]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed problem
+      description: Include the exact file and text. Remove secrets and private media.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected observable behavior
+      description: State what file, field mapping, submitted text, or validation result should differ.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Include commands and repository version. For generator behavior, include the exact submission and all variants.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence state
+      description: Say whether this is documentation-grounded, not run, or an observed real run.
+    validations:
+      required: true

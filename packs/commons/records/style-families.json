@@ -1,0 +1,189 @@
+{
+  "kind": "style-family",
+  "records": [
+    {
+      "id": "style-family-clear-portrait",
+      "label": "Clear portrait illustration",
+      "category": "concrete-style-family",
+      "curation_status": "vocabulary",
+      "record_role": "discovery-vocabulary",
+      "medium_family": "2D anime character illustration",
+      "base_render_profile_id": "profile-clear-2d-illustration",
+      "compatible_render_profile_ids": [
+        "profile-clear-2d-illustration"
+      ],
+      "style_promise": "Clean character-focused shapes, calm tonal grouping, and selective finish around the face.",
+      "integration_prompt": "Use a clear portrait illustration treatment with confident contours, compact values, stable local color, and concentrated finish around identity-bearing facial features.",
+      "domain_overlays": {
+        "human": {},
+        "anthropomorphic-animal": {},
+        "animal": {},
+        "creature": {},
+        "hybrid": {},
+        "robot": {}
+      },
+      "negative": [
+        "uniform detail density"
+      ],
+      "negative_terms": [
+        "uniform detail density"
+      ],
+      "best_for": [
+        "close portraits"
+      ],
+      "tags": [
+        "calm graphic finish",
+        "face-focused art"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "clear portrait style",
+          "facet": "style",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "style-family-sculpted-presence",
+      "label": "Sculpted presence illustration",
+      "category": "concrete-style-family",
+      "curation_status": "vocabulary",
+      "record_role": "discovery-vocabulary",
+      "medium_family": "2D anime character illustration",
+      "base_render_profile_id": "profile-clear-2d-illustration",
+      "compatible_render_profile_ids": [
+        "profile-clear-2d-illustration"
+      ],
+      "style_promise": "Broad connected form masses, controlled perspective, and restrained edge light for grounded physical presence.",
+      "integration_prompt": "Use broad connected volumes, clear overlap, moderate perspective emphasis, and a controlled edge-light hierarchy to give the character grounded illustrated weight.",
+      "domain_overlays": {
+        "human": {},
+        "anthropomorphic-animal": {},
+        "animal": {},
+        "creature": {},
+        "hybrid": {},
+        "robot": {}
+      },
+      "negative": [
+        "disconnected inflated forms"
+      ],
+      "negative_terms": [
+        "disconnected inflated forms"
+      ],
+      "best_for": [
+        "low-angle character studies"
+      ],
+      "tags": [
+        "grounded volume",
+        "physical scale"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "sculpted character presence",
+          "facet": "style",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "style-family-quiet-editorial",
+      "label": "Quiet editorial illustration",
+      "category": "concrete-style-family",
+      "curation_status": "vocabulary",
+      "record_role": "discovery-vocabulary",
+      "medium_family": "2D anime character illustration",
+      "base_render_profile_id": "profile-clear-2d-illustration",
+      "compatible_render_profile_ids": [
+        "profile-clear-2d-illustration"
+      ],
+      "style_promise": "Off-center balance, gentle value transitions, and sparse contextual detail for reflective portrait storytelling.",
+      "integration_prompt": "Use quiet off-center balance, generous open space, gentle value transitions, and a small number of precise contextual accents to support reflective character storytelling.",
+      "domain_overlays": {
+        "human": {},
+        "anthropomorphic-animal": {},
+        "animal": {},
+        "creature": {},
+        "hybrid": {},
+        "robot": {}
+      },
+      "negative": [
+        "competing background accents"
+      ],
+      "negative_terms": [
+        "competing background accents"
+      ],
+      "best_for": [
+        "reserved profile portraits"
+      ],
+      "tags": [
+        "open-space composition",
+        "reflective character art"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "quiet editorial portrait",
+          "facet": "style",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "style-family-environmental-illustration",
+      "label": "Layered environmental illustration",
+      "category": "concrete-style-family",
+      "curation_status": "vocabulary",
+      "record_role": "discovery-vocabulary",
+      "medium_family": "2D anime character illustration",
+      "base_render_profile_id": "profile-clear-2d-illustration",
+      "compatible_render_profile_ids": [
+        "profile-clear-2d-illustration"
+      ],
+      "style_promise": "Readable character design integrated with foreground, middle-ground, and background cues at descending detail levels.",
+      "integration_prompt": "Build a readable character focal layer inside a simple three-stage environment, using overlap, value separation, and descending detail density to establish place and depth.",
+      "domain_overlays": {
+        "human": {},
+        "anthropomorphic-animal": {},
+        "animal": {},
+        "creature": {},
+        "hybrid": {},
+        "robot": {}
+      },
+      "negative": [
+        "background detail competing with the subject"
+      ],
+      "negative_terms": [
+        "background detail competing with the subject"
+      ],
+      "best_for": [
+        "character-in-setting views"
+      ],
+      "tags": [
+        "layered setting",
+        "contextual character art"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "environmental character illustration",
+          "facet": "style",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

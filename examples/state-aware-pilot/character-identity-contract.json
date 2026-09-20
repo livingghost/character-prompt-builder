@@ -1,0 +1,892 @@
+{
+  "artifact_type": "character-identity-contract",
+  "contract_id": "CIC-C01",
+  "character_id": "C01",
+  "domain": "anthropomorphic-animal",
+  "canon_status": "approved",
+  "stable_identity": {
+    "species_or_base_form": "a tall anthropomorphic gray wolf with a humanoid body plan",
+    "body_plan": "broad shoulders, deep chest, digitigrade legs, five-fingered hands, long tail",
+    "proportions": "head slightly compact against a large upper torso; long forearms; narrow waist",
+    "head_and_face": "upright triangular ears, long but compact muzzle, heavy brows, cyan eyes",
+    "surfaces_and_markings": "cool gray fur, pale muzzle and chest, charcoal cheek wedges and forearm markings",
+    "appendages": "two upright ears and one long gray tail with a dark tip",
+    "asymmetry_rules": "one cyan stud on the subject-left upper ear rim; the opposite ear has no stud",
+    "identity_accessories": "small cyan stud earring is identity-level; clothing and carried items are scene state",
+    "performance_vocabulary": "ears react before the head; tension appears first in the left hand and shoulders",
+    "growth_geometry": {
+      "representation": "declared-structures",
+      "structures": {
+        "scalp-fibers": {
+          "kind": "head hair",
+          "location": "scalp",
+          "presence": "absent",
+          "geometry": {},
+          "continuity_rules": [
+            "human-like head hair is explicitly not part of this identity",
+            "cranial fur remains part of the regional fur map",
+            "raised or wet cranial fur remains scene-specific character state"
+          ]
+        },
+        "facial-fibers": {
+          "kind": "facial hair",
+          "location": "facial surface",
+          "presence": "absent",
+          "geometry": {},
+          "continuity_rules": [
+            "muzzle and cheek fur remain surface anatomy rather than human facial hair",
+            "temporary jaw shadow does not become a beard"
+          ]
+        },
+        "brow-wedges": {
+          "kind": "eyebrows",
+          "location": "above the eyes",
+          "presence": "present",
+          "geometry": {
+            "shape": "thick angular charcoal brow wedges",
+            "thickness": "heavy",
+            "arch": "low forceful arch",
+            "spacing": "stable wide inter-brow spacing",
+            "color": "charcoal",
+            "asymmetry": "expression may tilt one brow while the stable wedge shapes remain"
+          },
+          "continuity_rules": [
+            "brow wedges remain separate from eye markings",
+            "expression changes angle rather than base thickness"
+          ]
+        },
+        "eye-edge-fibers": {
+          "kind": "eyelashes",
+          "location": "eye edges",
+          "presence": "present",
+          "geometry": {
+            "upper_density": "minimal",
+            "lower_density": "absent",
+            "length": "short",
+            "curl": "none",
+            "color": "charcoal",
+            "style_intensity": "natural canine-adapted eye edge"
+          },
+          "continuity_rules": [
+            "lash treatment remains subordinate to the cyan eyes",
+            "eyeliner-like shadow does not become extra lashes"
+          ]
+        },
+        "mane-neck-shoulders": {
+          "kind": "none",
+          "location": "neck and shoulder mane zone",
+          "presence": "absent",
+          "geometry": {},
+          "continuity_rules": [
+            "the character has no separate mane structure",
+            "the cheek and neck ruff does not expand into a shoulder mane"
+          ]
+        },
+        "ruff-cheeks-neck": {
+          "kind": "fur",
+          "location": "lower cheeks, jaw sides, and upper neck",
+          "presence": "present",
+          "geometry": {
+            "boundary_and_extent": "dense cheek fur begins below the eye line, follows both jaw sides, and tapers into the upper neck before the shoulders",
+            "length": "medium, longer than the short cranial and muzzle fur",
+            "density": "dense and full without obscuring the jaw attachment",
+            "direction": "sweeps outward from the cheeks and then downward along the neck",
+            "texture": "dense short-to-medium coarse wolf fur grouped into broad readable tufts",
+            "color": "cool gray with the pale muzzle transition remaining separate",
+            "silhouette_role": "broadens the lower face and creates a stable cheek-to-neck taper"
+          },
+          "continuity_rules": [
+            "ruff boundary and cheek-to-neck taper remain stable across views",
+            "temporary wetness or raised fur changes state but not permanent ruff extent"
+          ]
+        },
+        "fur-body-limbs": {
+          "kind": "fur",
+          "location": "torso, arms, hands, legs, and feet outside the separately declared chest and marking zones",
+          "presence": "present",
+          "geometry": {
+            "boundary_and_extent": "continuous biological fur covers the body and limbs up to the claw bases while preserving garment and accessory boundaries",
+            "length": "short to medium, slightly fuller at joints and outer forearms",
+            "density": "dense and even over the body plan",
+            "direction": "follows local anatomy from torso outward along each limb",
+            "texture": "dense wolf fur with broad grouped tufts rather than human body hair",
+            "color": "cool gray with pale chest and charcoal forearm zones owned by the marking map",
+            "silhouette_role": "rounds muscular landmarks without changing the declared body proportions"
+          },
+          "continuity_rules": [
+            "fur remains continuous at anatomical joints and separate from clothing",
+            "temporary wetness, sweat, compression, or disorder remains scene-specific state",
+            "temporary paw-fur dampness is owned by /appearance_state/grooming/fur_wetness/paws and never changes permanent limb-fur density or extent"
+          ]
+        },
+        "fur-head-muzzle": {
+          "kind": "fur",
+          "location": "cranial surface, ears, brows, cheeks outside the ruff, and muzzle",
+          "presence": "present",
+          "geometry": {
+            "boundary_and_extent": "short cranial and muzzle fur follows the ear bases, brow wedges, cheek markings, nose boundary, and mouth edge",
+            "length": "short on the muzzle and crown, slightly longer around the cheek transition",
+            "density": "dense with clear facial landmark visibility",
+            "direction": "radiates from the crown and muzzle bridge toward the cheek and neck transitions",
+            "texture": "short dense wolf fur with restrained tufting",
+            "color": "cool gray, pale muzzle, and charcoal brow and cheek zones as declared by the marking map",
+            "silhouette_role": "preserves the compact canine head while keeping ears, muzzle, and jaw readable"
+          },
+          "continuity_rules": [
+            "cranial fur does not become human-like head hair",
+            "facial markings and ruff boundaries remain stable through expression and pose",
+            "temporary brow-fur dampness is owned by /appearance_state/grooming/fur_wetness/brow and never changes the permanent brow wedges or cranial-fur map"
+          ]
+        },
+        "fur-tail": {
+          "kind": "fur",
+          "location": "entire tail from the tail base to the terminal tip",
+          "presence": "present",
+          "geometry": {
+            "boundary_and_extent": "continuous fur follows the full tail with a stable dark terminal zone",
+            "length": "medium and slightly fuller than torso fur",
+            "density": "dense with a readable outer contour",
+            "direction": "flows from tail base toward the tip",
+            "texture": "dense directional wolf fur",
+            "color": "cool gray with a stable dark tip",
+            "silhouette_role": "creates the approved long tapered tail contour"
+          },
+          "continuity_rules": [
+            "tail fur direction follows the tail axis without changing tail anatomy",
+            "the dark tip boundary and overall tail silhouette remain stable"
+          ]
+        },
+        "terminal-tips": {
+          "kind": "claws",
+          "location": "declared distal structures",
+          "presence": "present",
+          "geometry": {
+            "digit_system": "claws",
+            "visible_digit_count": "five fingered hands when fully visible; hidden digits remain unknown",
+            "length_relative_to_terminal_digit": "exposed claw length is about one sixth of the terminal digit length",
+            "free_edge_length": "short exposed point beyond each fingertip",
+            "shape": "broad tapered canine claws with rounded triangular points",
+            "taper_and_curvature": "gentle downward curve with modest taper",
+            "thickness": "sturdy claw plate",
+            "color_and_value": "dark charcoal",
+            "finish": "low satin",
+            "cuticle_or_base_transition": "claw base emerges cleanly from the terminal digit fur",
+            "per_digit_variation": "thumb claw is slightly broader while remaining in the same family",
+            "damage_or_missing_segments": "intact unless a state event declares damage",
+            "decoration": "unspecified"
+          },
+          "continuity_rules": [
+            "each visible claw belongs to one declared digit",
+            "claw length remains proportionate to the terminal digit",
+            "camera foreshortening does not change the stable shape family",
+            "claw dirt is current appearance state; polish color, decoration, or finish changes require an approved Appearance Variant Contract"
+          ]
+        }
+      },
+      "source_confidence": "user-confirmed",
+      "grooming_state": [],
+      "identity_lock_fields": [
+        "human-like head hair remains absent",
+        "no separate mane structure",
+        "dense medium cheek and upper-neck ruff with a stable cheek-to-neck taper",
+        "regional cranial, body, limb, and tail fur boundaries, direction, texture, color, and silhouette roles",
+        "thick angular charcoal brow wedges",
+        "minimal canine-adapted lashes",
+        "short canine claw shape; color and finish follow the declared variant fields"
+      ],
+      "variant_fields": [
+        "/stable_identity/growth_geometry/structures/terminal-tips/geometry/color_and_value",
+        "/stable_identity/growth_geometry/structures/terminal-tips/geometry/decoration",
+        "/stable_identity/growth_geometry/structures/terminal-tips/geometry/finish"
+      ]
+    },
+    "frame_character": {
+      "representation": "declared-structures",
+      "structures": {
+        "surface-padding": {
+          "kind": "soft tissue volume",
+          "location": "declared padded surfaces",
+          "presence": "present",
+          "geometry": {
+            "amount": "moderate, with dense fur and flesh rounding the landmarks",
+            "distribution": "full cheeks, broad jaw, neck, shoulders, torso, and joints",
+            "surface_carrier": "flesh under dense short-to-medium fur",
+            "landmark_visibility": "major landmarks remain readable but never protrude as sharp ridges"
+          }
+        },
+        "facial-volume": {
+          "kind": "facial volume",
+          "location": "declared facial regions",
+          "presence": "present",
+          "geometry": {
+            "cheek_mass": "full rounded canine cheek mass from eye line to broad jaw",
+            "cheekbone_ridge": "submerged beneath fur and soft tissue",
+            "jaw_corner": "broad with a smooth rounded turn",
+            "hollowing": "no gaunt or carved cheek hollows",
+            "plane_transition": "large rounded planes with restrained soft transitions"
+          }
+        },
+        "body-volume": {
+          "kind": "body volume",
+          "location": "declared body regions",
+          "presence": "present",
+          "geometry": {
+            "joint_surface": "broad rounded joint surfaces",
+            "landmark_prominence": "moderate landmarks under dense fur and muscular mass",
+            "muscle_handoffs": "clear but rounded handoffs between shoulder, arm, chest, and forearm",
+            "mass_rounding": "large interlocking rounded volumes",
+            "face_body_coherence": "the broad rounded facial frame matches the broad rounded body frame"
+          }
+        },
+        "frame-envelope": {
+          "kind": "overall mass and surface",
+          "location": "entire declared form",
+          "presence": "present",
+          "geometry": {
+            "frame_mass": "thick-boned",
+            "surface_character": "rounded-solid"
+          }
+        }
+      },
+      "source_confidence": "preset-selected",
+      "frame_character_id": "example-frame-thick-boned-rounded-solid",
+      "overall_form": "thick-boned; rounded-solid",
+      "coherence_rules": [
+        "face and body use one declared frame character",
+        "muscularity and body weight do not create an unapproved chiseled or gaunt face"
+      ],
+      "diagnostic_misreadings": [
+        "protruding cheekbone ridge",
+        "fine angular face on the broad body",
+        "craggy hollow cheek planes"
+      ]
+    }
+  },
+  "distinctive_details": [],
+  "anchor_fragments": [
+    {
+      "anchor_id": "I01",
+      "priority": "signature",
+      "wording": "one small cyan stud on the subject-left upper ear rim",
+      "required_when": [
+        "left-ear",
+        "left-profile",
+        "left-three-quarter"
+      ],
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "omit_when": [
+        "left-ear-occluded"
+      ]
+    },
+    {
+      "anchor_id": "I02",
+      "priority": "signature",
+      "wording": "electric-cyan eyes beneath thick charcoal brows",
+      "required_when": [
+        "face",
+        "front",
+        "three-quarter",
+        "profile"
+      ],
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "omit_when": [
+        "eyes-occluded"
+      ]
+    },
+    {
+      "anchor_id": "I03",
+      "priority": "supporting",
+      "wording": "paired charcoal cheek wedges on pale cheek fur",
+      "required_when": [
+        "face",
+        "front",
+        "three-quarter"
+      ],
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "omit_when": [
+        "cheeks-occluded"
+      ]
+    }
+  ],
+  "coverage_requirements": [
+    {
+      "requirement_id": "CR-left-ear-stud",
+      "feature_refs": [
+        "I01"
+      ],
+      "acceptable_views": [
+        "left-ear",
+        "left-profile",
+        "left-three-quarter"
+      ],
+      "priority": "signature",
+      "notes": "must show attachment position"
+    },
+    {
+      "requirement_id": "CR-face-eyes",
+      "feature_refs": [
+        "I02",
+        "I03"
+      ],
+      "acceptable_views": [
+        "face-front",
+        "left-three-quarter",
+        "right-three-quarter"
+      ],
+      "priority": "signature",
+      "notes": "must show eye color and cheek markings"
+    },
+    {
+      "requirement_id": "CR-rear-tail",
+      "feature_refs": [],
+      "acceptable_views": [
+        "rear",
+        "tail-base",
+        "body-rear"
+      ],
+      "priority": "supporting",
+      "notes": "must show tail attachment"
+    }
+  ],
+  "approval": {
+    "approved_by": "user",
+    "reference": "pilot canon"
+  },
+  "notes": [],
+  "species_morphology_profile_ref": {
+    "id": "SMP-anthro-gray-wolf",
+    "sha256": "5595549bce6c181e0a4bd7f63084ad0aa0d160e8eb4eda8d7f7ef6be849f69a5"
+  },
+  "individual_morphology_contract_ref": {
+    "id": "IMC-C01",
+    "sha256": "3eab5c9b13162ae58008f06f79154dbbc560b8fa09ec8eb288a367dda7f075b5"
+  },
+  "visual_authority_ref": null,
+  "reference_views": {
+    "front-full": {
+      "view": "front",
+      "framing": "full-body",
+      "coverage_tokens": [
+        "body-front",
+        "face-front",
+        "front",
+        "full-body",
+        "symmetry"
+      ],
+      "camera": {
+        "shot_type": "front full-body identity reference",
+        "shot_scale": "full-body",
+        "distance_class": "medium-long",
+        "subject_relative_distance": {
+          "basis": "full-body-heights",
+          "minimum": 1.6,
+          "maximum": 2.4
+        },
+        "human_scale_distance_equivalent_m": {
+          "minimum": 3.5,
+          "maximum": 6.5
+        },
+        "camera_height": {
+          "reference_landmark": "mid-torso",
+          "offset": "camera center stays level with the declared landmark for neutral measurement"
+        },
+        "pitch_degrees": 0,
+        "yaw_degrees": 0,
+        "roll_degrees": 0,
+        "lens_or_perspective": "neutral low-distortion reference perspective",
+        "lens_equivalent_mm": {
+          "minimum": 70,
+          "maximum": 105
+        },
+        "projection_behavior": "orthographic-reference",
+        "frame_occupancy": {
+          "subject_height_percent": {
+            "minimum": 78,
+            "maximum": 92
+          },
+          "subject_width_percent": {
+            "minimum": 35,
+            "maximum": 75
+          }
+        },
+        "framing_and_crop": "unobstructed front full-body reference framing",
+        "coverage_landmarks": {
+          "top": "clearance above the highest visible head feature",
+          "bottom": "complete feet or lowest support-contact point",
+          "left": "clearance beyond the subject-left visible contour",
+          "right": "clearance beyond the subject-right visible contour"
+        },
+        "eye_line_position": {
+          "vertical_percent_from_top": {
+            "minimum": 22,
+            "maximum": 38
+          },
+          "horizontal_percent_from_left": {
+            "minimum": 35,
+            "maximum": 65
+          }
+        },
+        "nearest_form": "the declared reference subject or identity detail",
+        "perspective_scale_change": "minimal scale change across the measured subject",
+        "required_visible_elements": [
+          "complete head silhouette",
+          "complete torso and appendage attachments",
+          "both hands or forepaws when anatomically present",
+          "complete legs and feet or hind paws"
+        ],
+        "allowed_offscreen_elements": [],
+        "focal_sequence": [
+          "declared identity coverage",
+          "attachment and proportion landmarks",
+          "surface, marking, hair, mane, and ruff boundaries when present"
+        ],
+        "stability_invariants": [
+          "camera remains level and low-distortion",
+          "declared shot scale and crop do not drift",
+          "subject proportions remain measurable across the frame",
+          "no scene storytelling obscures identity coverage"
+        ]
+      }
+    },
+    "rear-full": {
+      "view": "rear",
+      "framing": "full-body",
+      "coverage_tokens": [
+        "back-markings",
+        "body-rear",
+        "full-body",
+        "rear",
+        "tail-base"
+      ],
+      "camera": {
+        "shot_type": "rear full-body identity reference",
+        "shot_scale": "full-body",
+        "distance_class": "medium-long",
+        "subject_relative_distance": {
+          "basis": "full-body-heights",
+          "minimum": 1.6,
+          "maximum": 2.4
+        },
+        "human_scale_distance_equivalent_m": {
+          "minimum": 3.5,
+          "maximum": 6.5
+        },
+        "camera_height": {
+          "reference_landmark": "mid-torso",
+          "offset": "camera center stays level with the declared landmark for neutral measurement"
+        },
+        "pitch_degrees": 0,
+        "yaw_degrees": 0,
+        "roll_degrees": 0,
+        "lens_or_perspective": "neutral low-distortion reference perspective",
+        "lens_equivalent_mm": {
+          "minimum": 70,
+          "maximum": 105
+        },
+        "projection_behavior": "orthographic-reference",
+        "frame_occupancy": {
+          "subject_height_percent": {
+            "minimum": 78,
+            "maximum": 92
+          },
+          "subject_width_percent": {
+            "minimum": 35,
+            "maximum": 75
+          }
+        },
+        "framing_and_crop": "unobstructed rear full-body reference framing",
+        "coverage_landmarks": {
+          "top": "clearance above the highest visible head feature",
+          "bottom": "complete feet or lowest support-contact point",
+          "left": "clearance beyond the subject-left visible contour",
+          "right": "clearance beyond the subject-right visible contour"
+        },
+        "eye_line_position": null,
+        "nearest_form": "the declared reference subject or identity detail",
+        "perspective_scale_change": "minimal scale change across the measured subject",
+        "required_visible_elements": [
+          "complete head silhouette",
+          "complete torso and appendage attachments",
+          "both hands or forepaws when anatomically present",
+          "complete legs and feet or hind paws"
+        ],
+        "allowed_offscreen_elements": [],
+        "focal_sequence": [
+          "declared identity coverage",
+          "attachment and proportion landmarks",
+          "surface, marking, hair, mane, and ruff boundaries when present"
+        ],
+        "stability_invariants": [
+          "camera remains level and low-distortion",
+          "declared shot scale and crop do not drift",
+          "subject proportions remain measurable across the frame",
+          "no scene storytelling obscures identity coverage"
+        ]
+      }
+    },
+    "left-three-quarter-bust": {
+      "view": "left-three-quarter",
+      "framing": "bust",
+      "coverage_tokens": [
+        "face",
+        "left-cheek",
+        "left-ear",
+        "left-three-quarter",
+        "torso-front"
+      ],
+      "camera": {
+        "shot_type": "left-three-quarter bust identity reference",
+        "shot_scale": "chest-up",
+        "distance_class": "medium-close",
+        "subject_relative_distance": {
+          "basis": "visible-torso-heights",
+          "minimum": 1.4,
+          "maximum": 2.0
+        },
+        "human_scale_distance_equivalent_m": {
+          "minimum": 1.5,
+          "maximum": 2.5
+        },
+        "camera_height": {
+          "reference_landmark": "upper sternum",
+          "offset": "camera center stays level with the declared landmark for neutral measurement"
+        },
+        "pitch_degrees": 0,
+        "yaw_degrees": 0,
+        "roll_degrees": 0,
+        "lens_or_perspective": "neutral low-distortion reference perspective",
+        "lens_equivalent_mm": {
+          "minimum": 60,
+          "maximum": 90
+        },
+        "projection_behavior": "orthographic-reference",
+        "frame_occupancy": {
+          "subject_height_percent": {
+            "minimum": 72,
+            "maximum": 92
+          },
+          "subject_width_percent": {
+            "minimum": 50,
+            "maximum": 85
+          }
+        },
+        "framing_and_crop": "unobstructed left-three-quarter bust reference framing",
+        "coverage_landmarks": {
+          "top": "clearance above the highest visible head feature",
+          "bottom": "lower chest or upper waist",
+          "left": "clearance beyond the subject-left visible contour",
+          "right": "clearance beyond the subject-right visible contour"
+        },
+        "eye_line_position": {
+          "vertical_percent_from_top": {
+            "minimum": 22,
+            "maximum": 38
+          },
+          "horizontal_percent_from_left": {
+            "minimum": 35,
+            "maximum": 65
+          }
+        },
+        "nearest_form": "the declared reference subject or identity detail",
+        "perspective_scale_change": "minimal scale change across the measured subject",
+        "required_visible_elements": [
+          "complete head silhouette",
+          "face and both shoulder attachments",
+          "visible asymmetry and identity accessories for this side"
+        ],
+        "allowed_offscreen_elements": [
+          "lower torso",
+          "legs and feet",
+          "lower tail extent"
+        ],
+        "focal_sequence": [
+          "declared identity coverage",
+          "attachment and proportion landmarks",
+          "surface, marking, hair, mane, and ruff boundaries when present"
+        ],
+        "stability_invariants": [
+          "camera remains level and low-distortion",
+          "declared shot scale and crop do not drift",
+          "subject proportions remain measurable across the frame",
+          "no scene storytelling obscures identity coverage"
+        ]
+      }
+    },
+    "right-three-quarter-bust": {
+      "view": "right-three-quarter",
+      "framing": "bust",
+      "coverage_tokens": [
+        "face",
+        "right-cheek",
+        "right-ear",
+        "right-three-quarter",
+        "torso-front"
+      ],
+      "camera": {
+        "shot_type": "right-three-quarter bust identity reference",
+        "shot_scale": "chest-up",
+        "distance_class": "medium-close",
+        "subject_relative_distance": {
+          "basis": "visible-torso-heights",
+          "minimum": 1.4,
+          "maximum": 2.0
+        },
+        "human_scale_distance_equivalent_m": {
+          "minimum": 1.5,
+          "maximum": 2.5
+        },
+        "camera_height": {
+          "reference_landmark": "upper sternum",
+          "offset": "camera center stays level with the declared landmark for neutral measurement"
+        },
+        "pitch_degrees": 0,
+        "yaw_degrees": 0,
+        "roll_degrees": 0,
+        "lens_or_perspective": "neutral low-distortion reference perspective",
+        "lens_equivalent_mm": {
+          "minimum": 60,
+          "maximum": 90
+        },
+        "projection_behavior": "orthographic-reference",
+        "frame_occupancy": {
+          "subject_height_percent": {
+            "minimum": 72,
+            "maximum": 92
+          },
+          "subject_width_percent": {
+            "minimum": 50,
+            "maximum": 85
+          }
+        },
+        "framing_and_crop": "unobstructed right-three-quarter bust reference framing",
+        "coverage_landmarks": {
+          "top": "clearance above the highest visible head feature",
+          "bottom": "lower chest or upper waist",
+          "left": "clearance beyond the subject-left visible contour",
+          "right": "clearance beyond the subject-right visible contour"
+        },
+        "eye_line_position": {
+          "vertical_percent_from_top": {
+            "minimum": 22,
+            "maximum": 38
+          },
+          "horizontal_percent_from_left": {
+            "minimum": 35,
+            "maximum": 65
+          }
+        },
+        "nearest_form": "the declared reference subject or identity detail",
+        "perspective_scale_change": "minimal scale change across the measured subject",
+        "required_visible_elements": [
+          "complete head silhouette",
+          "face and both shoulder attachments",
+          "visible asymmetry and identity accessories for this side"
+        ],
+        "allowed_offscreen_elements": [
+          "lower torso",
+          "legs and feet",
+          "lower tail extent"
+        ],
+        "focal_sequence": [
+          "declared identity coverage",
+          "attachment and proportion landmarks",
+          "surface, marking, hair, mane, and ruff boundaries when present"
+        ],
+        "stability_invariants": [
+          "camera remains level and low-distortion",
+          "declared shot scale and crop do not drift",
+          "subject proportions remain measurable across the frame",
+          "no scene storytelling obscures identity coverage"
+        ]
+      }
+    },
+    "left-profile-head": {
+      "view": "left-profile",
+      "framing": "head-and-shoulders",
+      "coverage_tokens": [
+        "jaw-profile",
+        "left-accessory",
+        "left-ear",
+        "left-profile",
+        "nose-profile"
+      ],
+      "camera": {
+        "shot_type": "left-profile head-and-shoulders identity reference",
+        "shot_scale": "head-and-shoulders",
+        "distance_class": "close",
+        "subject_relative_distance": {
+          "basis": "head-heights",
+          "minimum": 1.5,
+          "maximum": 2.2
+        },
+        "human_scale_distance_equivalent_m": {
+          "minimum": 1.0,
+          "maximum": 1.8
+        },
+        "camera_height": {
+          "reference_landmark": "eye line or equivalent sensory landmark",
+          "offset": "camera center stays level with the declared landmark for neutral measurement"
+        },
+        "pitch_degrees": 0,
+        "yaw_degrees": 0,
+        "roll_degrees": 0,
+        "lens_or_perspective": "neutral low-distortion reference perspective",
+        "lens_equivalent_mm": {
+          "minimum": 70,
+          "maximum": 105
+        },
+        "projection_behavior": "orthographic-reference",
+        "frame_occupancy": {
+          "subject_height_percent": {
+            "minimum": 72,
+            "maximum": 90
+          },
+          "subject_width_percent": {
+            "minimum": 50,
+            "maximum": 82
+          }
+        },
+        "framing_and_crop": "unobstructed left-profile head-and-shoulders reference framing",
+        "coverage_landmarks": {
+          "top": "clearance above the highest visible head feature",
+          "bottom": "upper shoulder line",
+          "left": "clearance beyond the subject-left visible contour",
+          "right": "clearance beyond the subject-right visible contour"
+        },
+        "eye_line_position": {
+          "vertical_percent_from_top": {
+            "minimum": 22,
+            "maximum": 38
+          },
+          "horizontal_percent_from_left": {
+            "minimum": 35,
+            "maximum": 65
+          }
+        },
+        "nearest_form": "the declared reference subject or identity detail",
+        "perspective_scale_change": "minimal scale change across the measured subject",
+        "required_visible_elements": [
+          "complete head silhouette",
+          "profile of the face or muzzle",
+          "ear, horn, crest, mane, ruff, and head-hair boundaries when present"
+        ],
+        "allowed_offscreen_elements": [
+          "torso below the upper shoulder line",
+          "limbs",
+          "lower appendages"
+        ],
+        "focal_sequence": [
+          "declared identity coverage",
+          "attachment and proportion landmarks",
+          "surface, marking, hair, mane, and ruff boundaries when present"
+        ],
+        "stability_invariants": [
+          "camera remains level and low-distortion",
+          "declared shot scale and crop do not drift",
+          "subject proportions remain measurable across the frame",
+          "no scene storytelling obscures identity coverage"
+        ]
+      }
+    },
+    "right-profile-head": {
+      "view": "right-profile",
+      "framing": "head-and-shoulders",
+      "coverage_tokens": [
+        "jaw-profile",
+        "nose-profile",
+        "right-accessory",
+        "right-ear",
+        "right-profile"
+      ],
+      "camera": {
+        "shot_type": "right-profile head-and-shoulders identity reference",
+        "shot_scale": "head-and-shoulders",
+        "distance_class": "close",
+        "subject_relative_distance": {
+          "basis": "head-heights",
+          "minimum": 1.5,
+          "maximum": 2.2
+        },
+        "human_scale_distance_equivalent_m": {
+          "minimum": 1.0,
+          "maximum": 1.8
+        },
+        "camera_height": {
+          "reference_landmark": "eye line or equivalent sensory landmark",
+          "offset": "camera center stays level with the declared landmark for neutral measurement"
+        },
+        "pitch_degrees": 0,
+        "yaw_degrees": 0,
+        "roll_degrees": 0,
+        "lens_or_perspective": "neutral low-distortion reference perspective",
+        "lens_equivalent_mm": {
+          "minimum": 70,
+          "maximum": 105
+        },
+        "projection_behavior": "orthographic-reference",
+        "frame_occupancy": {
+          "subject_height_percent": {
+            "minimum": 72,
+            "maximum": 90
+          },
+          "subject_width_percent": {
+            "minimum": 50,
+            "maximum": 82
+          }
+        },
+        "framing_and_crop": "unobstructed right-profile head-and-shoulders reference framing",
+        "coverage_landmarks": {
+          "top": "clearance above the highest visible head feature",
+          "bottom": "upper shoulder line",
+          "left": "clearance beyond the subject-left visible contour",
+          "right": "clearance beyond the subject-right visible contour"
+        },
+        "eye_line_position": {
+          "vertical_percent_from_top": {
+            "minimum": 22,
+            "maximum": 38
+          },
+          "horizontal_percent_from_left": {
+            "minimum": 35,
+            "maximum": 65
+          }
+        },
+        "nearest_form": "the declared reference subject or identity detail",
+        "perspective_scale_change": "minimal scale change across the measured subject",
+        "required_visible_elements": [
+          "complete head silhouette",
+          "profile of the face or muzzle",
+          "ear, horn, crest, mane, ruff, and head-hair boundaries when present"
+        ],
+        "allowed_offscreen_elements": [
+          "torso below the upper shoulder line",
+          "limbs",
+          "lower appendages"
+        ],
+        "focal_sequence": [
+          "declared identity coverage",
+          "attachment and proportion landmarks",
+          "surface, marking, hair, mane, and ruff boundaries when present"
+        ],
+        "stability_invariants": [
+          "camera remains level and low-distortion",
+          "declared shot scale and crop do not drift",
+          "subject proportions remain measurable across the frame",
+          "no scene storytelling obscures identity coverage"
+        ]
+      }
+    }
+  }
+}

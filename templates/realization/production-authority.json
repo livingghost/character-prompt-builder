@@ -1,0 +1,10 @@
+{
+  "task_id": "COPY_THE_OPEN_TASK_UUID",
+  "issuer": "IDENTIFY_THE_ACTUAL_AUTHORITY",
+  "evidence": {
+    "path": "actual-instruction.md",
+    "locator": "Locate the actual instruction or approval."
+  },
+  "grants": [],
+  "stop_conditions": []
+}

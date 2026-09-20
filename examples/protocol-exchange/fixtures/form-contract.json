@@ -1,0 +1,15 @@
+{
+  "artifact_type": "form-contract",
+  "contract_id": "FORM-C01",
+  "character_id": "C01",
+  "form_id": "FORM-C01-01",
+  "parent_identity_contract_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "translation_rules": {},
+  "silhouette_and_topology": {},
+  "surface_system": {},
+  "appendage_changes": {},
+  "reference_coverage_requirements": [],
+  "canon_status": "proposed",
+  "approval": {},
+  "notes": []
+}

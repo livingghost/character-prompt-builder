@@ -1,0 +1,110 @@
+{
+  "artifact_type": "scene-context-snapshot",
+  "scene_context_id": "SC-WORKSHOP-01",
+  "timeline_id": "main",
+  "story_order_start": 10,
+  "story_order_end": 11,
+  "story_time_start": "story:EP01-SC03-start",
+  "story_time_end": "story:EP01-SC03-end",
+  "location_snapshot": {
+    "location_id": "LOC-WORKSHOP",
+    "layout": "C01 enters from frame-left doorway, C02 stands behind the central workbench, rain window is frame-left, work lamps are frame-right"
+  },
+  "environment_snapshot": {
+    "location_id": "LOC-WORKSHOP",
+    "season": "late summer",
+    "time_of_day": "late afternoon",
+    "weather": "light rain outside",
+    "temperature_c": 27,
+    "humidity_percent": 72,
+    "wind": "still indoors",
+    "precipitation": "rain on exterior windows",
+    "water_exposure": "none indoors",
+    "light_context": [
+      "warm work lamps frame-right",
+      "cool rain window frame-left"
+    ],
+    "culture_context_refs": [
+      "urban guild workshop"
+    ],
+    "dress_norms": [
+      "practical layered work clothing"
+    ],
+    "surface_conditions": [
+      "dry wooden floor",
+      "metal workbench"
+    ],
+    "approved_adaptation_rules": [
+      "sleeves may be rolled for heat if already part of approved wardrobe"
+    ],
+    "uncertainties": []
+  },
+  "active_character_snapshots": [
+    {
+      "character_id": "C01",
+      "snapshot_id": "C01-main-10",
+      "state_snapshot_sha256": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398"
+    },
+    {
+      "character_id": "C02",
+      "snapshot_id": "C02-main-10",
+      "state_snapshot_sha256": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+    }
+  ],
+  "relationship_snapshots": [
+    {
+      "relationship_id": "REL-C01-C02",
+      "state": {
+        "from": "C01",
+        "to": "C02",
+        "bond_type": [
+          "trusted colleagues"
+        ],
+        "trust": "high",
+        "affinity": "warm",
+        "intimacy": "moderate",
+        "conflict": "low",
+        "authority": "peer",
+        "obligation": [
+          "protect the recovered artifact"
+        ],
+        "contact_boundary": "brief hand contact is accepted",
+        "public_mask": "professional",
+        "private_behavior": "direct concern",
+        "shared_knowledge": [
+          "P01 belongs to the archive"
+        ]
+      }
+    }
+  ],
+  "prop_and_inventory_bindings": [
+    {
+      "prop_id": "P01",
+      "state": {
+        "name": "damaged silver pendant",
+        "ownership": "archive",
+        "possessed_by": "C02",
+        "carried_by": "C02",
+        "equipped_to": null,
+        "condition": "cracked glass and bent silver rim",
+        "location": "C02 right hand"
+      }
+    }
+  ],
+  "social_context": {
+    "privacy": "private workshop",
+    "task": "inspect and return the damaged pendant"
+  },
+  "viewer_disclosure_state": {
+    "C01_left_side_injury": "not visually revealed",
+    "P01_damage": "visible from SH03 onward"
+  },
+  "planned_events": [
+    {
+      "event_id": "EV-TRANSFER-P01",
+      "status": "proposed",
+      "role": "planned visible handoff"
+    }
+  ],
+  "context_snapshot_sha256": "daacecbe962746b4b3a226827b0e48759fa580aa00be4337dcbee4fd71f7bc0c"
+}

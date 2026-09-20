@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scene-context-snapshot.schema.json",
+  "title": "Scene Context Snapshot",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "scene_context_id",
+    "timeline_id",
+    "story_order_start",
+    "story_order_end",
+    "story_time_start",
+    "story_time_end",
+    "active_character_snapshots",
+    "relationship_snapshots",
+    "environment_snapshot",
+    "prop_and_inventory_bindings",
+    "social_context",
+    "viewer_disclosure_state",
+    "planned_events",
+    "context_snapshot_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "scene-context-snapshot"
+    },
+    "scene_context_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "timeline_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "story_order_start": {
+      "type": "integer"
+    },
+    "story_order_end": {
+      "type": "integer"
+    },
+    "story_time_start": {
+      "type": "string",
+      "minLength": 1
+    },
+    "story_time_end": {
+      "type": "string",
+      "minLength": 1
+    },
+    "location_snapshot": {
+      "type": "object"
+    },
+    "environment_snapshot": {
+      "type": "object"
+    },
+    "active_character_snapshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "character_id",
+          "snapshot_id",
+          "state_snapshot_sha256"
+        ],
+        "properties": {
+          "character_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "state_snapshot_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "relationship_snapshots": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "prop_and_inventory_bindings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "social_context": {
+      "type": "object"
+    },
+    "viewer_disclosure_state": {
+      "type": "object"
+    },
+    "planned_events": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "context_snapshot_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

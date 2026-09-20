@@ -1,0 +1,29 @@
+{
+  "scene_context_id": "SC-EP03-01",
+  "timeline_id": "main",
+  "story_order_start": 25,
+  "story_order_end": 27,
+  "story_time_start": "story:EP03-SC01",
+  "story_time_end": "story:EP03-SC01-end",
+  "active_character_ids": [
+    "C01"
+  ],
+  "relationship_ids": [
+    "REL-C01-C02"
+  ],
+  "environment_id": "LOC01",
+  "prop_ids": [
+    "P01"
+  ],
+  "location_snapshot": {
+    "location_id": "LOC01",
+    "room": "field office"
+  },
+  "social_context": {
+    "setting": "private conversation after public duty"
+  },
+  "viewer_disclosure_state": {
+    "left_ear_injury": "not yet explicitly discussed but visible if ear is shown"
+  },
+  "planned_events": []
+}

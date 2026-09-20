@@ -1,0 +1,19 @@
+{
+  "representation": "declared-structures",
+  "structures": {
+    "envelope": {
+      "kind": "fluid shell",
+      "location": "around the declared center",
+      "presence": "present",
+      "geometry": {
+        "thickness": "one tenth of the outer radius",
+        "surface": "continuous and free of fixed facial or skeletal landmarks"
+      }
+    }
+  },
+  "source_confidence": "explicit-user",
+  "frame_character_id": "fluid-envelope",
+  "overall_form": "A connected, deformable fluid envelope surrounding a hollow center.",
+  "coherence_rules": [],
+  "diagnostic_misreadings": []
+}

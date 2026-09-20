@@ -1,0 +1,50 @@
+{
+  "artifact_type": "character-identity-contract",
+  "contract_id": "CIC-C01",
+  "character_id": "C01",
+  "domain": "anthropomorphic-animal",
+  "canon_status": "proposed",
+  "stable_identity": {
+    "species_or_base_form": "",
+    "body_plan": "",
+    "proportions": "",
+    "surfaces_and_markings": "",
+    "appendages": "",
+    "asymmetry_rules": "",
+    "identity_accessories": "",
+    "performance_vocabulary": "",
+    "growth_geometry": {
+      "representation": "declared-structures",
+      "structures": {},
+      "source_confidence": "preset-selected",
+      "grooming_state": [],
+      "identity_lock_fields": [],
+      "variant_fields": []
+    },
+    "frame_character": {
+      "representation": "declared-structures",
+      "structures": {},
+      "source_confidence": "preset-selected",
+      "frame_character_id": "example-declared-frame",
+      "overall_form": "An authored arrangement of volumes or other carriers; declare only the parts this design needs.",
+      "coherence_rules": [],
+      "diagnostic_misreadings": []
+    },
+    "structure_notes": {}
+  },
+  "distinctive_details": [],
+  "anchor_fragments": [],
+  "coverage_requirements": [],
+  "state_schema_ref": null,
+  "source_provenance": [],
+  "notes": [],
+  "species_morphology_profile_ref": {
+    "id": "SMP-custom-lineage",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "individual_morphology_contract_ref": {
+    "id": "IMC-C01",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "visual_authority_ref": null
+}

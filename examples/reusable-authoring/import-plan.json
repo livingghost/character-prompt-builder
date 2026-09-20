@@ -1,0 +1,26 @@
+{
+  "documents": [
+    {
+      "encoding": "utf-8",
+      "path": "originals/subject.md",
+      "role": "primary-source",
+      "sha256": "568809ee54283dc92dd3b742b08dc761d4eca923681a6b0b330484148975cf23",
+      "source_id": "primary"
+    }
+  ],
+  "material_id": "original-material",
+  "purpose": "Retain original bytes independently of proposed interpretation.",
+  "segments": [
+    {
+      "completion": "unknown",
+      "end_line": 4,
+      "label": "An authored analysis span, not an inferred chapter.",
+      "segment_id": "opening",
+      "source_id": "primary",
+      "start_line": 1
+    }
+  ],
+  "unresolved": [
+    "No claim is made about the completion of a larger work."
+  ]
+}

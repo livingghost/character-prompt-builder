@@ -1,0 +1,168 @@
+{
+  "kind": "module",
+  "category": "coat-palette",
+  "records": [
+    {
+      "id": "coat-palette-blue",
+      "label": "Cool blue coat palette",
+      "category": "coat-palette",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Define blue as the subject's local coat color while preserving form readability across illuminated, midtone, and shadow regions.",
+      "prompt": "Render the coat with a cool blue local-color family, using lighter blue on exposed planes, a clear middle blue through the main mass, and deeper blue in occlusion while keeping markings intentionally separated.",
+      "invariants": [
+        "blue remains the local coat identity across changes in illumination",
+        "value steps preserve anatomical form and silhouette readability",
+        "secondary markings remain distinguishable from lighting color"
+      ],
+      "misreadings_to_avoid": [
+        "neutral coat lit only by blue light",
+        "single flat blue value across every plane",
+        "unplanned cyan highlights that replace the coat palette"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "coat local color",
+      "tags": [
+        "blue fur",
+        "cool coat color"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid"
+      ],
+      "search_terms": [
+        {
+          "phrase": "blue",
+          "facet": "coat_palette",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "blue fur",
+          "facet": "coat_palette",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "blue coat",
+          "facet": "coat_palette",
+          "weight": 1.15,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "coat-palette-brown",
+      "label": "Natural brown coat palette",
+      "category": "coat-palette",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Define a natural warm brown as the subject's local coat color while preserving form readability across illuminated, midtone, and shadow regions.",
+      "prompt": "Render the coat with a natural warm brown local-color family, using lighter tan-brown on exposed planes, a clear middle brown through the main mass, and deeper umber in occlusion while keeping markings intentionally separated.",
+      "invariants": [
+        "brown remains the local coat identity across changes in illumination",
+        "value steps preserve anatomical form and silhouette readability",
+        "secondary markings remain distinguishable from lighting color"
+      ],
+      "misreadings_to_avoid": [
+        "neutral coat lit only by warm light",
+        "single flat brown value across every plane",
+        "unplanned orange highlights that replace the coat palette"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "coat local color",
+      "tags": [
+        "brown fur",
+        "natural coat color"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid"
+      ],
+      "search_terms": [
+        {
+          "phrase": "brown",
+          "facet": "coat_palette",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "brown fur",
+          "facet": "coat_palette",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "brown coat",
+          "facet": "coat_palette",
+          "weight": 1.15,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "coat-palette-agouti",
+      "label": "Agouti ticked coat palette",
+      "category": "coat-palette",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Define a banded agouti coat in which each hair carries alternating light and dark bands, producing a grizzled natural surface that shifts tone with the light.",
+      "prompt": "Render the coat as agouti ticking: alternating light and dark bands along each hair produce a grizzled, shifting surface that lightens on exposed planes and deepens in occlusion, with markings layered over the ticking deliberately.",
+      "invariants": [
+        "the surface reads as banded ticking, with each hair carrying its own light and dark segments",
+        "overall value still follows form and illumination",
+        "markings remain distinguishable from the ticked ground"
+      ],
+      "misreadings_to_avoid": [
+        "flat single-value brown that loses the banding",
+        "noise-like speckle disconnected from hair direction",
+        "ticking that reads as dirt or texture overlay"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "coat local color",
+      "tags": [
+        "agouti fur",
+        "ticked coat"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid"
+      ],
+      "search_terms": [
+        {
+          "phrase": "agouti",
+          "facet": "coat_palette",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "ticked coat",
+          "facet": "coat_palette",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "grizzled fur",
+          "facet": "coat_palette",
+          "weight": 0.9,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

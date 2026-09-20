@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "character-prompt-builder-prompt-writing-guide.schema.json",
+  "title": "Character Prompt Builder Prompt Writing Guide",
+  "description": "Pack-owned prompt construction knowledge read and applied by the Skill-using agent after target-interface selection.",
+  "type": "object",
+  "required": [
+    "format",
+    "name",
+    "description",
+    "sections"
+  ],
+  "properties": {
+    "format": {
+      "const": "character-prompt-builder-prompt-writing-guide"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/section"
+      }
+    }
+  },
+  "$defs": {
+    "section": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "rules"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "dialects": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "The model families this section applies to, by their ids in the prompt-dialects resource. A section without this key applies to every target.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          }
+        },
+        "examples": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/example"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "example": {
+      "type": "object",
+      "required": [
+        "syntax",
+        "effect"
+      ],
+      "properties": {
+        "syntax": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effect": {
+          "type": "string",
+          "minLength": 1
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

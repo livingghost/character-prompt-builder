@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "asset-render-specification.schema.json",
+  "title": "Asset Render Specification",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "render_spec_id",
+    "asset_id",
+    "character_id",
+    "purpose",
+    "view",
+    "framing",
+    "species_profile_sha256",
+    "individual_morphology_sha256",
+    "identity_contract_sha256",
+    "style_family_id",
+    "target_model",
+    "coverage_requirement_ids",
+    "art_direction",
+    "subject_resolution",
+    "scene",
+    "camera",
+    "lighting",
+    "prompt_scaffold",
+    "visual_authority_sha256",
+    "visual_evidence_bundle_sha256",
+    "render_spec_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "asset-render-specification"
+    },
+    "render_spec_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "asset_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "view": {
+      "type": "string",
+      "minLength": 1
+    },
+    "framing": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identity_contract_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "era_contract_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "appearance_variant_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "state_snapshot_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "visual_state_projection_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "style_family_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "coverage_requirement_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "art_direction": {
+      "type": "object"
+    },
+    "subject_resolution": {
+      "type": "object"
+    },
+    "scene": {
+      "type": "object"
+    },
+    "camera": {
+      "$ref": "camera-framing-contract.schema.json"
+    },
+    "lighting": {
+      "type": "object"
+    },
+    "prompt_scaffold": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selected_preset_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "render_spec_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "species_profile_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "individual_morphology_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "visual_authority_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "visual_evidence_bundle_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

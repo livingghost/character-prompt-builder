@@ -1,0 +1,298 @@
+{
+  "artifact_type": "world-realization-plan",
+  "plan_id": "EXAMPLE",
+  "status": "draft",
+  "basis": "Synthetic authored demonstration, not creator approval.",
+  "sources": [
+    {
+      "source_id": "BASE",
+      "path": "base.json",
+      "sha256": "bf0fc46114e6c5c2cb8cb84ce7802fd79b8d46984e5589f9b407cb3c97a6a04b"
+    },
+    {
+      "source_id": "EVENTS",
+      "path": "events.jsonl",
+      "sha256": "ce103038ec0595c31956f5450e7b449a653219b4f0bfc9b6656f9a07d3701958"
+    },
+    {
+      "source_id": "PROCESSES",
+      "path": "processes.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "source_id": "WORLD",
+      "path": "world.md",
+      "sha256": "c271d06dcf042afc46a529e47e2463f2a6b5616fa51f5760176ae44149691fc9"
+    },
+    {
+      "source_id": "INTENT",
+      "path": "intent.md",
+      "sha256": "38089e56903bc49e996fd911ffd432b6f2c4af056b88a92f189dabb9a3c2c8b3"
+    }
+  ],
+  "timelines": [
+    {
+      "timeline_id": "main",
+      "base_source": "BASE",
+      "events_source": "EVENTS",
+      "processes_source": "PROCESSES",
+      "base_provenance": [
+        {
+          "pointer": "/props/LAMP",
+          "evidence": [
+            {
+              "source_id": "WORLD",
+              "locator": "World decisions / fixture conditions",
+              "basis": "author-decision"
+            }
+          ]
+        },
+        {
+          "pointer": "/environments/ROOM",
+          "evidence": [
+            {
+              "source_id": "WORLD",
+              "locator": "World decisions / fixture conditions",
+              "basis": "author-decision"
+            }
+          ]
+        },
+        {
+          "pointer": "/world",
+          "evidence": [
+            {
+              "source_id": "WORLD",
+              "locator": "World decisions / fixture conditions",
+              "basis": "author-decision"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "units": [
+    {
+      "unit_id": "AFTER",
+      "medium": "prose",
+      "timeline_id": "main",
+      "scene_context_id": "ROOM",
+      "opening": {
+        "story_order": 10,
+        "story_time": "story:10"
+      },
+      "closing": {
+        "story_order": 12,
+        "story_time": "story:12"
+      },
+      "portrayal_sources": [
+        "WORLD"
+      ],
+      "intent_refs": [
+        {
+          "source_id": "INTENT",
+          "intent_id": "i-lamp"
+        }
+      ],
+      "reference_queries": [
+        {
+          "query_id": "SHELL",
+          "at": "opening",
+          "entity_pointer": "/props/LAMP",
+          "role": "shell-construction",
+          "facets": [
+            "/props/LAMP/appearance/shell"
+          ]
+        },
+        {
+          "query_id": "SIGNAL",
+          "at": "opening",
+          "entity_pointer": "/props/LAMP",
+          "role": "signal-state",
+          "facets": [
+            "/props/LAMP/appearance/signal"
+          ]
+        }
+      ],
+      "views": [
+        {
+          "view_id": "WRITER",
+          "recipient": "scoped-prose-writer",
+          "purpose": "Describe only the currently supplied visible conditions.",
+          "state_fields": [
+            {
+              "at": "opening",
+              "pointer": "/props/LAMP/appearance/shell"
+            },
+            {
+              "at": "opening",
+              "pointer": "/props/LAMP/appearance/signal"
+            }
+          ],
+          "reference_query_ids": [
+            "SHELL"
+          ],
+          "instructions": [
+            "Keep the shell recognizable; describe the current signal without inventing a cause or a person."
+          ]
+        }
+      ],
+      "review_note": "No actual output has been evaluated. This fixture tests state and export structure only."
+    },
+    {
+      "unit_id": "BEFORE",
+      "medium": "prose",
+      "timeline_id": "main",
+      "scene_context_id": "ROOM",
+      "opening": {
+        "story_order": 0,
+        "story_time": "story:0"
+      },
+      "closing": {
+        "story_order": 0,
+        "story_time": "story:0"
+      },
+      "portrayal_sources": [
+        "WORLD"
+      ],
+      "intent_refs": [
+        {
+          "source_id": "INTENT",
+          "intent_id": "i-lamp"
+        }
+      ],
+      "reference_queries": [
+        {
+          "query_id": "SHELL",
+          "at": "opening",
+          "entity_pointer": "/props/LAMP",
+          "role": "shell-construction",
+          "facets": [
+            "/props/LAMP/appearance/shell"
+          ]
+        },
+        {
+          "query_id": "SIGNAL",
+          "at": "opening",
+          "entity_pointer": "/props/LAMP",
+          "role": "signal-state",
+          "facets": [
+            "/props/LAMP/appearance/signal"
+          ]
+        }
+      ],
+      "views": [
+        {
+          "view_id": "WRITER",
+          "recipient": "scoped-prose-writer",
+          "purpose": "Describe only the currently supplied visible conditions.",
+          "state_fields": [
+            {
+              "at": "opening",
+              "pointer": "/props/LAMP/appearance/shell"
+            },
+            {
+              "at": "opening",
+              "pointer": "/props/LAMP/appearance/signal"
+            }
+          ],
+          "reference_query_ids": [
+            "SHELL"
+          ],
+          "instructions": [
+            "Keep the shell recognizable; describe the current signal without inventing a cause or a person."
+          ]
+        }
+      ],
+      "review_note": "No actual output has been evaluated. This fixture tests state and export structure only."
+    },
+    {
+      "unit_id": "RETURN",
+      "medium": "prose",
+      "timeline_id": "main",
+      "scene_context_id": "ROOM",
+      "opening": {
+        "story_order": 12,
+        "story_time": "story:12"
+      },
+      "closing": {
+        "story_order": 12,
+        "story_time": "story:12"
+      },
+      "portrayal_sources": [
+        "WORLD"
+      ],
+      "intent_refs": [
+        {
+          "source_id": "INTENT",
+          "intent_id": "i-lamp"
+        }
+      ],
+      "reference_queries": [
+        {
+          "query_id": "SHELL",
+          "at": "opening",
+          "entity_pointer": "/props/LAMP",
+          "role": "shell-construction",
+          "facets": [
+            "/props/LAMP/appearance/shell"
+          ]
+        },
+        {
+          "query_id": "SIGNAL",
+          "at": "opening",
+          "entity_pointer": "/props/LAMP",
+          "role": "signal-state",
+          "facets": [
+            "/props/LAMP/appearance/signal"
+          ]
+        }
+      ],
+      "views": [
+        {
+          "view_id": "WRITER",
+          "recipient": "scoped-prose-writer",
+          "purpose": "Describe only the currently supplied visible conditions.",
+          "state_fields": [
+            {
+              "at": "opening",
+              "pointer": "/props/LAMP/appearance/shell"
+            },
+            {
+              "at": "opening",
+              "pointer": "/props/LAMP/appearance/signal"
+            }
+          ],
+          "reference_query_ids": [
+            "SHELL"
+          ],
+          "instructions": [
+            "Keep the shell recognizable; describe the current signal without inventing a cause or a person."
+          ]
+        }
+      ],
+      "review_note": "No actual output has been evaluated. This fixture tests state and export structure only."
+    }
+  ],
+  "links": [
+    {
+      "from_unit": "AFTER",
+      "to_unit": "RETURN",
+      "relation": "continuous",
+      "basis": "Same unchanged emitted signal at connected boundaries.",
+      "assertions": [
+        {
+          "from_pointer": "/props/LAMP/appearance/signal",
+          "to_pointer": "/props/LAMP/appearance/signal",
+          "comparison": "equal"
+        }
+      ]
+    },
+    {
+      "from_unit": "BEFORE",
+      "to_unit": "AFTER",
+      "relation": "ellipsis",
+      "basis": "Explicit time omission; no inferred image adjacency.",
+      "assertions": []
+    }
+  ]
+}

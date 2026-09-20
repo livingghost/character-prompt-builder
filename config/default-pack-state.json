@@ -1,0 +1,20 @@
+{
+  "pack_roots": [],
+  "enabled_packs": [
+    "01a0043b-2250-720d-87b7-f1e6fd7ed230"
+  ],
+  "resource_providers": {
+    "archetype-policy": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+    "body-language-coverage": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+    "catalog-policy": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+    "discovery-lanes": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+    "negative-policy": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+    "project-defaults": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+    "prompt-vocabulary": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+    "prompt-writing-guide": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+    "style-family-taxonomy": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+    "service-profiles": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+    "artist-index": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+    "prompt-dialects": "01a0043b-2250-720d-87b7-f1e6fd7ed230"
+  }
+}

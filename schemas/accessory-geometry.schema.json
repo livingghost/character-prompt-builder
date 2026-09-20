@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "accessory-geometry.schema.json",
+  "title": "Accessory Geometry Contract",
+  "type": "object",
+  "required": [
+    "accessory_id",
+    "item_class",
+    "count",
+    "laterality_or_site",
+    "body_landmarks",
+    "support_and_fastening",
+    "orientation",
+    "relative_dimensions",
+    "repeated_elements",
+    "shape_and_construction",
+    "material_and_finish",
+    "color",
+    "layer_order",
+    "body_and_garment_clearance",
+    "contact_and_pose_response",
+    "articulation_and_mobility",
+    "visibility_and_occlusion",
+    "continuity_rules",
+    "diagnostic_misreadings",
+    "source_confidence"
+  ],
+  "properties": {
+    "accessory_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "item_class": {
+      "type": "string",
+      "minLength": 1
+    },
+    "count": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "laterality_or_site": {
+      "type": "string",
+      "minLength": 1
+    },
+    "body_landmarks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "support_and_fastening": {
+      "type": "string",
+      "minLength": 1
+    },
+    "orientation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "relative_dimensions": {
+      "type": "object",
+      "required": [
+        "length",
+        "width",
+        "thickness",
+        "diameter_or_span",
+        "measurement_basis"
+      ],
+      "properties": {
+        "length": {
+          "type": "string",
+          "minLength": 1
+        },
+        "width": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thickness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "diameter_or_span": {
+          "type": "string",
+          "minLength": 1
+        },
+        "measurement_basis": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "repeated_elements": {
+      "type": "object",
+      "required": [
+        "unit_size",
+        "spacing",
+        "count_logic"
+      ],
+      "properties": {
+        "unit_size": {
+          "type": "string",
+          "minLength": 1
+        },
+        "spacing": {
+          "type": "string",
+          "minLength": 1
+        },
+        "count_logic": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "shape_and_construction": {
+      "type": "string",
+      "minLength": 1
+    },
+    "material_and_finish": {
+      "type": "string",
+      "minLength": 1
+    },
+    "color": {
+      "type": "string",
+      "minLength": 1
+    },
+    "layer_order": {
+      "type": "string",
+      "minLength": 1
+    },
+    "body_and_garment_clearance": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contact_and_pose_response": {
+      "type": "string",
+      "minLength": 1
+    },
+    "articulation_and_mobility": {
+      "type": "string",
+      "minLength": 1
+    },
+    "visibility_and_occlusion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "continuity_rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 2,
+      "uniqueItems": true
+    },
+    "diagnostic_misreadings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 3,
+      "uniqueItems": true
+    },
+    "source_confidence": {
+      "enum": [
+        "explicit-user",
+        "reference-clear",
+        "reference-approximate",
+        "preset-selected",
+        "user-confirmed"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,70 @@
+{
+  "artifact_type": "shot-camera-spec",
+  "shot_id": "SC01-SH01",
+  "scene_id": "SC01",
+  "order_index": 1,
+  "viewpoint_profile_id": "external-character-aligned-third-person",
+  "profile_family": "external",
+  "camera_ownership": "external_camera",
+  "camera_owner_character_id": null,
+  "knowledge_scope": "character_restricted",
+  "focal_character_ids": [
+    "C01"
+  ],
+  "point_of_audition": "objective_mix",
+  "audition_character_id": null,
+  "coverage_role": "establishing master",
+  "camera_position": "outside the workshop doorway, facing the workbench from frame-left",
+  "shot_scale": "wide",
+  "camera_height": "chest height",
+  "angle": "level three-quarter angle",
+  "lens_behavior": "moderate perspective with stable subject scale",
+  "movement": {
+    "type": "locked",
+    "cause": "establish the room and the two-character relationship",
+    "start_relation": "camera is outside the doorway on the established axis side",
+    "path": "remain fixed while the characters occupy the workbench",
+    "speed_and_amplitude": "no travel, natural minor stability only",
+    "subject_relation": "both characters remain visible with C01 nearest frame-left",
+    "occlusion_risk": "doorframe may cover only a small edge of the scene",
+    "landing_composition": "both characters and the damaged pendant remain readable around the workbench"
+  },
+  "screen_direction": "C01 faces screen-right toward C02",
+  "axis_side": "camera remains on the doorway side of the C01 to C02 axis",
+  "eyeline_relation": "C01 and C02 eyelines meet across the workbench",
+  "visible_subjects": [
+    "C01",
+    "C02"
+  ],
+  "visible_body_regions": {
+    "C01": [
+      "full body"
+    ],
+    "C02": [
+      "full body"
+    ]
+  },
+  "prop_ownership": {
+    "P01": "C02 right hand"
+  },
+  "state_snapshot_sha256_by_character": {
+    "C01": "0000000000000000000000000000000000000000000000000000000000000000",
+    "C02": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "start_anchor": "workshop doorway, both characters separated by the workbench",
+  "end_anchor": "C02 raises the pendant while C01 remains still",
+  "knowledge_visibility": [
+    "Only the damaged pendant and visible guarded posture are revealed."
+  ],
+  "accepted_variation": [
+    "minor hand spacing",
+    "small background tool variation"
+  ],
+  "review_dimensions": [
+    "axis continuity",
+    "character identity",
+    "prop ownership",
+    "screen direction"
+  ],
+  "camera_spec_sha256": "06263d796045be956816a06f551d0e4c5fd175a7660c8bc3d1d3006b3b72aba4"
+}

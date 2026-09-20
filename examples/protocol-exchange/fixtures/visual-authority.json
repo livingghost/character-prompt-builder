@@ -1,0 +1,20 @@
+{
+  "artifact_type": "visual-authority",
+  "authority_id": "VA-neutral-starter",
+  "source_ref_id": "SRC-neutral-starter",
+  "mode": "text-only",
+  "authority_scope": "template-only-no-authority",
+  "source_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "source_media_type": "application/octet-stream",
+  "source_dimensions": {
+    "width": 1,
+    "height": 1
+  },
+  "archival_vector": null,
+  "canonical_record_refs": [],
+  "notes": [
+    "Template values have no authority; replace the source identity, dimensions, media type, hashes, and record bindings only after reviewing real evidence.",
+    "A completed source-derived artifact may assert authority only for the reviewed source used at derivation time."
+  ],
+  "visual_authority_sha256": "a81a1d584cae53065f5c8fc34660d43c39eb366d42e6cdb1a22ad72149735dc3"
+}

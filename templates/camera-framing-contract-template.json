@@ -1,0 +1,57 @@
+{
+  "shot_type": "whole declared structure reference",
+  "shot_scale": "custom",
+  "distance_class": "medium",
+  "subject_relative_distance": {
+    "basis": "subject-widths",
+    "minimum": 1.5,
+    "maximum": 2.5
+  },
+  "camera_height": {
+    "reference_landmark": "center of the declared subject extent",
+    "offset": "level with the authored center"
+  },
+  "pitch_degrees": 6,
+  "yaw_degrees": 0,
+  "roll_degrees": 0,
+  "lens_or_perspective": "moderate perspective with controlled foreground enlargement",
+  "lens_equivalent_mm": {
+    "minimum": 45,
+    "maximum": 60
+  },
+  "projection_behavior": "custom",
+  "frame_occupancy": {
+    "subject_height_percent": {
+      "minimum": 75,
+      "maximum": 90
+    },
+    "subject_width_percent": {
+      "minimum": 75,
+      "maximum": 90
+    }
+  },
+  "framing_and_crop": "Complete declared outer contour with margin",
+  "coverage_landmarks": {
+    "top": "declared outer contour plus margin",
+    "bottom": "declared outer contour plus margin",
+    "left": "declared outer contour plus margin",
+    "right": "declared outer contour plus margin"
+  },
+  "nearest_form": "the nearest declared structure",
+  "perspective_scale_change": "Preserve authored size relationships under the selected projection; do not add implied anatomy.",
+  "required_visible_elements": [
+    "the authored silhouette",
+    "declared connections"
+  ],
+  "allowed_offscreen_elements": [],
+  "focal_sequence": [
+    "overall contour",
+    "declared connections"
+  ],
+  "stability_invariants": [
+    "preserve the declared contour",
+    "keep authored scale relationships",
+    "do not invent anatomy or unrequested reference views"
+  ],
+  "reference_landmark_position": null
+}

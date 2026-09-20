@@ -1,0 +1,15 @@
+{
+  "artifact_type": "era-contract",
+  "contract_id": "ERA-C01",
+  "character_id": "C01",
+  "era_id": "ERA-C01-01",
+  "parent_identity_contract_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "effective_from": "story:",
+  "effective_order": 0,
+  "approved_changes": {},
+  "retained_identity_features": [],
+  "reference_coverage_requirements": [],
+  "canon_status": "proposed",
+  "approval": {},
+  "notes": []
+}

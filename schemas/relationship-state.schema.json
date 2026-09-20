@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "relationship-state.schema.json",
+  "title": "Relationship State",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "relationship_id",
+    "timeline_id",
+    "story_order",
+    "from",
+    "to",
+    "bond_type",
+    "trust",
+    "affinity",
+    "intimacy",
+    "conflict",
+    "authority",
+    "contact_boundary",
+    "public_mask",
+    "private_behavior",
+    "relationship_state_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "relationship-state"
+    },
+    "relationship_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "timeline_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "story_order": {
+      "type": "integer"
+    },
+    "from": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "to": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "bond_type": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "trust": {},
+    "affinity": {},
+    "intimacy": {},
+    "conflict": {},
+    "authority": {},
+    "obligation": {
+      "type": "array"
+    },
+    "contact_boundary": {},
+    "public_mask": {},
+    "private_behavior": {},
+    "shared_knowledge": {
+      "type": "array"
+    },
+    "last_major_event": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relationship_state_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

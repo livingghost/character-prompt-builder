@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reference-selection.schema.json",
+  "title": "State-aware Reference Selection",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "selection_id",
+    "identity_contract_sha256",
+    "era_contract_sha256",
+    "appearance_variant_sha256",
+    "state_snapshot_sha256",
+    "story_order",
+    "required_state_features",
+    "selected_references",
+    "unresolved_requirements",
+    "selection_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "reference-selection"
+    },
+    "selection_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identity_contract_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "era_contract_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "appearance_variant_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "state_snapshot_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "story_order": {
+      "type": "integer"
+    },
+    "required_state_features": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "selected_references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "binding_id",
+          "role",
+          "source",
+          "covers",
+          "intended_influence",
+          "review_dimensions",
+          "unsupported_or_occluded_state",
+          "unsupported_assumptions"
+        ],
+        "properties": {
+          "binding_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "role": {
+            "$ref": "prepared-generation-reference.schema.json#/$defs/role-slug"
+          },
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "prepared-generation-reference.schema.json#/$defs/pack-artifact-source"
+              },
+              {
+                "$ref": "prepared-generation-reference.schema.json#/$defs/supplied-file-source"
+              }
+            ]
+          },
+          "covers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "intended_influence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "reference-use-plan.schema.json#/$defs/intended-influence"
+            },
+            "uniqueItems": true
+          },
+          "review_dimensions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "unsupported_or_occluded_state": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "unsupported_assumptions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "unresolved_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "selection_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

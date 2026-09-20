@@ -1,0 +1,21 @@
+{
+  "artifact_type": "prepared-reference-set",
+  "set_id": "PRS-no-media-fixture",
+  "transport_mode": "none",
+  "target_model": null,
+  "reference_selection": null,
+  "reference_selection_sha256": null,
+  "reference_use_plan": null,
+  "reference_use_plan_sha256": null,
+  "surface_lighting_plan_sha256": null,
+  "zero_reference_reason": {
+    "code": "user-declined-visual-references",
+    "record_ids": [],
+    "detail": "Synthetic conformance sample; no reference or user decision is asserted."
+  },
+  "reference_preamble": "",
+  "prompt_artifacts": [],
+  "selected_references": [],
+  "single_board": null,
+  "prepared_reference_set_sha256": "194bf429edb0b2372b3917d270a00d33ccb5f86c58135208b1a3c76688c675fb"
+}

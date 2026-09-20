@@ -1,0 +1,39 @@
+[
+  {
+    "artifact_type": "state-process",
+    "process_id": "PROC-C01-WOUND-01",
+    "timeline_id": "main",
+    "entity_type": "character",
+    "entity_id": "C01",
+    "path": "/physical_state/wound_stage",
+    "process_type": "healing",
+    "started_order": 10,
+    "effective_until_order": 50,
+    "milestones": [
+      {
+        "offset": 0,
+        "state": "fresh_wound",
+        "label": "initial injury"
+      },
+      {
+        "offset": 5,
+        "state": "closed_with_swelling",
+        "label": "closed wound"
+      },
+      {
+        "offset": 20,
+        "state": "pink_healing_scar",
+        "label": "healing scar"
+      }
+    ],
+    "interruption_policy": "supersedable-by-event",
+    "canon_status": "approved",
+    "evidence": [
+      {
+        "type": "approved-world-rule",
+        "reference": "normal healing timeline"
+      }
+    ],
+    "notes": []
+  }
+]

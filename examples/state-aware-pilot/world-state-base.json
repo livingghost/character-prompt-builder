@@ -1,0 +1,117 @@
+{
+  "characters": {
+    "C01": {
+      "physical_state": {
+        "left_ear_tip": "intact",
+        "wound_stage": "none"
+      },
+      "appearance_state": {
+        "grooming": {
+          "fur_wetness": {
+            "brow": "dry",
+            "paws": "dry"
+          },
+          "claws": {
+            "dirt": "clean",
+            "polish_condition": "none"
+          }
+        }
+      },
+      "wardrobe_state": {
+        "layers": [
+          {
+            "item_id": "shirt-01",
+            "state": "worn",
+            "closure": "closed"
+          }
+        ],
+        "condition": {
+          "wetness": "dry"
+        }
+      },
+      "equipment_state": {},
+      "inventory_state": {
+        "items": [
+          "P01"
+        ]
+      },
+      "emotional_state": {
+        "felt_state": {
+          "emotion": "neutral",
+          "intensity": 0.1
+        },
+        "expressed_state": {
+          "emotion": "calm",
+          "intensity": 0.2
+        }
+      },
+      "performance_state": {
+        "physiological_cues": []
+      },
+      "knowledge_state": {},
+      "social_role_state": {
+        "role": "field-agent"
+      },
+      "character_specific_state": {}
+    },
+    "C02": {
+      "physical_state": {},
+      "appearance_state": {},
+      "wardrobe_state": {},
+      "equipment_state": {},
+      "inventory_state": {
+        "items": []
+      },
+      "emotional_state": {},
+      "performance_state": {},
+      "knowledge_state": {},
+      "social_role_state": {},
+      "character_specific_state": {}
+    }
+  },
+  "relationships": {
+    "REL-C01-C02": {
+      "from": "C01",
+      "to": "C02",
+      "trust": "high",
+      "affinity": "warm",
+      "intimacy": "private-close",
+      "contact_boundary": "mutual-nonsexual-affection-allowed",
+      "public_mask": "formal",
+      "private_behavior": "physically-relaxed"
+    }
+  },
+  "environments": {
+    "LOC01": {
+      "season": "summer",
+      "time_of_day": "afternoon",
+      "weather": "clear",
+      "temperature_c": 31,
+      "humidity_percent": 84,
+      "wind": "light",
+      "precipitation": "none",
+      "water_exposure": "none",
+      "light_context": [
+        "warm window light"
+      ],
+      "culture_context_refs": [
+        "WORLD-LOCALE-01"
+      ],
+      "dress_norms": [
+        "field office casual"
+      ],
+      "surface_conditions": [
+        "warm wood floor"
+      ]
+    }
+  },
+  "props": {
+    "P01": {
+      "name": "silver pendant",
+      "ownership": "C01",
+      "possessed_by": "C01",
+      "state": "carried"
+    }
+  },
+  "world": {}
+}

@@ -1,0 +1,231 @@
+{
+  "collection": "portrayal-principles",
+  "scope": "Reusable authoring heuristics; no exhaustive taxonomy, default character, required genre or artistic score.",
+  "records": [
+    {
+      "id": "persistence",
+      "name": "Recognition through persistence",
+      "tags": [
+        "constancy",
+        "steady",
+        "restraint",
+        "recurrence"
+      ],
+      "recognition_logic": "Recognition comes from what remains available across changing circumstances, not from frozen surface detail.",
+      "held_dimensions": "Choose the specific stance, relation, principle, spatial logic or expressive organization that carries recognition.",
+      "variation_envelope": "Allow other emotions, details, tasks, weather and forms to vary. Do not treat every visible change as identity loss.",
+      "activation_questions": [
+        "What should remain perceptible when the surrounding condition changes?",
+        "What would be a material departure rather than an ordinary variation?"
+      ],
+      "temporal_shape": "A recurrence or held quality across the relevant span; no minimum count or invariant pose.",
+      "channel_translation": "A speaker can keep unhurried turn-taking while changing content; a place can keep its approach geometry under different light.",
+      "world_constraints": "Use only established capacities, information, materials, cultural meanings and adopted exceptions. An unpersonified subject needs no feelings or speech.",
+      "misuses": [
+        "Equating constancy with emotional emptiness.",
+        "Repeating the same line, frame or pose as the only proof."
+      ],
+      "example": "An invented guide remains deliberate in both welcome and refusal; the wording and emotion differ.",
+      "counterexample": "Every disagreement produces frantic gestures despite an adopted aim of composure.",
+      "adoption_instruction": "Select only for a relevant aim. Bind this ID to a scoped authorial intent and instantiate held/changed dimensions, conditions, timing, channels and exceptions in the owning subject or world record. Selection is a proposal, not adoption.",
+      "source_basis": "CPB-authored design pattern. Not a FilmWorld taxonomy, psychological finding or proven image-prompt phrase."
+    },
+    {
+      "id": "designed-contrast",
+      "name": "Recognition through designed contrast",
+      "tags": [
+        "switch",
+        "contrast",
+        "mode",
+        "transition"
+      ],
+      "recognition_logic": "The relationship between distinct modes, including their switch, carries identity; neither mode is inherently the true self.",
+      "held_dimensions": "Specify the thread that connects the modes and the creator aim served by their coexistence.",
+      "variation_envelope": "Specify which channels change, which hold, and any permitted incomplete or delayed switch.",
+      "activation_questions": [
+        "Which condition makes the switch meaningful?",
+        "Does the ordinary mode have enough presence for the contrast to be legible?"
+      ],
+      "temporal_shape": "Preparation, trigger, transition, duration and aftermath as applicable; not a compulsory three-step reset.",
+      "channel_translation": "Informal speech may become precise without lowering pitch; an ordinary landscape may be reframed ceremonially without changing its facts.",
+      "world_constraints": "Use only established capacities, information, materials, cultural meanings and adopted exceptions. An unpersonified subject needs no feelings or speech.",
+      "misuses": [
+        "Making every scene the exceptional mode.",
+        "Declaring the ordinary mode fake without evidence or a design decision."
+      ],
+      "example": "A playful operator stops improvising when a responsibility is explicitly accepted; both modes remain theirs.",
+      "counterexample": "Only the serious mode is ever written, so the designed contrast never appears.",
+      "adoption_instruction": "Select only for a relevant aim. Bind this ID to a scoped authorial intent and instantiate held/changed dimensions, conditions, timing, channels and exceptions in the owning subject or world record. Selection is a proposal, not adoption.",
+      "source_basis": "CPB-authored design pattern. Not a FilmWorld taxonomy, psychological finding or proven image-prompt phrase."
+    },
+    {
+      "id": "gradual-change",
+      "name": "Recognition through gradual change",
+      "tags": [
+        "process",
+        "aging",
+        "weathering",
+        "continuity"
+      ],
+      "recognition_logic": "Continuity is traced through a grounded transformation rather than identical snapshots.",
+      "held_dimensions": "Name the identity and causal or formal relation that remains traceable.",
+      "variation_envelope": "Describe admissible change without inventing unobserved intermediate states.",
+      "activation_questions": [
+        "What changes, over which domain of time or process?",
+        "Which transitions have evidence or an adopted design basis?"
+      ],
+      "temporal_shape": "Continuous description, authored milestones, intervals or explicit uncertainty. The deterministic resolver executes only declared discrete milestones.",
+      "channel_translation": "Diction, movement, surface, spatial relations or sound can evolve at different rates; no mandatory synchronized change.",
+      "world_constraints": "Use only established capacities, information, materials, cultural meanings and adopted exceptions. An unpersonified subject needs no feelings or speech.",
+      "misuses": [
+        "Treating gradual change as random drift.",
+        "Claiming interpolated values without an authored rule and supported tool."
+      ],
+      "example": "A fictional structure retains its distinctive opening while repairs and weathering alter surrounding surfaces.",
+      "counterexample": "A different structure is substituted between scenes and called aging without a supported connection.",
+      "adoption_instruction": "Select only for a relevant aim. Bind this ID to a scoped authorial intent and instantiate held/changed dimensions, conditions, timing, channels and exceptions in the owning subject or world record. Selection is a proposal, not adoption.",
+      "source_basis": "CPB-authored design pattern. Not a FilmWorld taxonomy, psychological finding or proven image-prompt phrase."
+    },
+    {
+      "id": "contextual-expression",
+      "name": "Recognition across contextual expression",
+      "tags": [
+        "register",
+        "audience",
+        "relationship",
+        "context"
+      ],
+      "recognition_logic": "Different manifestations under different conditions express a coherent subject without requiring one universal surface style.",
+      "held_dimensions": "Choose the relevant values, priorities, recognition anchors or expression logic.",
+      "variation_envelope": "Define changes caused by addressee, audience, role, task or culture separately from lasting redesign.",
+      "activation_questions": [
+        "Which context is actually active?",
+        "How are overlapping conditions resolved for this subject?"
+      ],
+      "temporal_shape": "Entry, overlap, switch, hold and return can be explicit or subtle; relation to narrative order is recorded.",
+      "channel_translation": "Forms of address, syntax, pauses and posture may vary independently. Do not equate intimacy with dropped politeness.",
+      "world_constraints": "Use only established capacities, information, materials, cultural meanings and adopted exceptions. An unpersonified subject needs no feelings or speech.",
+      "misuses": [
+        "One universal hierarchy of emotion, status and closeness.",
+        "A separate unrelated personality for each audience."
+      ],
+      "example": "An invented teacher uses different examples with different listeners but retains the same way of checking understanding.",
+      "counterexample": "The speaker gains information from another scene merely because the audience already knows it.",
+      "adoption_instruction": "Select only for a relevant aim. Bind this ID to a scoped authorial intent and instantiate held/changed dimensions, conditions, timing, channels and exceptions in the owning subject or world record. Selection is a proposal, not adoption.",
+      "source_basis": "CPB-authored design pattern. Not a FilmWorld taxonomy, psychological finding or proven image-prompt phrase."
+    },
+    {
+      "id": "channel-lag",
+      "name": "Recognition through asynchronous expression",
+      "tags": [
+        "lag",
+        "body",
+        "voice",
+        "aftermath",
+        "suppression"
+      ],
+      "recognition_logic": "Timing differences between expression channels can carry a recognizable pattern without making the body a truth detector.",
+      "held_dimensions": "Bind the lag or held response to the scoped portrayal aim, not a universal emotion code.",
+      "variation_envelope": "Channels can agree, conflict, remain hidden or show no change; specify available anatomy or signals.",
+      "activation_questions": [
+        "Which channel changes first and under what condition?",
+        "What is observable, and what is only an interpretation?"
+      ],
+      "temporal_shape": "Onset, delayed response, hold, release or residual state; scene boundaries do not reset it automatically.",
+      "channel_translation": "Speech may recover before posture, or motion may stop before an answer. Use medium-specific evidence, not an inferred diagnosis.",
+      "world_constraints": "Use only established capacities, information, materials, cultural meanings and adopted exceptions. An unpersonified subject needs no feelings or speech.",
+      "misuses": [
+        "Every denial is contradicted by an honest body.",
+        "Adding ear or tail signals from a species name."
+      ],
+      "example": "A fictional subject resumes ordinary replies while keeping the workpiece firmly held until an explicit resolution.",
+      "counterexample": "A single ambiguous gesture is treated as proof of the subject's concealed intention.",
+      "adoption_instruction": "Select only for a relevant aim. Bind this ID to a scoped authorial intent and instantiate held/changed dimensions, conditions, timing, channels and exceptions in the owning subject or world record. Selection is a proposal, not adoption.",
+      "source_basis": "CPB-authored design pattern. Not a FilmWorld taxonomy, psychological finding or proven image-prompt phrase."
+    },
+    {
+      "id": "disclosure",
+      "name": "Recognition revised by disclosure",
+      "tags": [
+        "knowledge",
+        "reveal",
+        "viewpoint",
+        "reinterpretation"
+      ],
+      "recognition_logic": "A viewer or subject changes their understanding while the underlying condition may be unchanged.",
+      "held_dimensions": "Record the actual fact separately from who knows it and when it is presented.",
+      "variation_envelope": "Interpretation can change without a state mutation; different viewpoints can remain in disagreement.",
+      "activation_questions": [
+        "Did the world change, or did someone learn something?",
+        "Who may receive the information in this unit?"
+      ],
+      "temporal_shape": "Reveal order need not match occurrence order. Do not push later knowledge into an earlier state.",
+      "channel_translation": "Wording, framing, omission or sound can revise interpretation; none automatically changes factual identity.",
+      "world_constraints": "Use only established capacities, information, materials, cultural meanings and adopted exceptions. An unpersonified subject needs no feelings or speech.",
+      "misuses": [
+        "Treating disclosure as a physical transformation.",
+        "Exporting author-only answers with a label that says hidden."
+      ],
+      "example": "A repeated object is revealed to have had a different purpose all along; its earlier placement remains unchanged.",
+      "counterexample": "Earlier characters act on the newly revealed purpose without ever having learned it.",
+      "adoption_instruction": "Select only for a relevant aim. Bind this ID to a scoped authorial intent and instantiate held/changed dimensions, conditions, timing, channels and exceptions in the owning subject or world record. Selection is a proposal, not adoption.",
+      "source_basis": "CPB-authored design pattern. Not a FilmWorld taxonomy, psychological finding or proven image-prompt phrase."
+    },
+    {
+      "id": "scoped-rupture",
+      "name": "A scoped rupture against an established pattern",
+      "tags": [
+        "rupture",
+        "departure",
+        "exception",
+        "aftermath"
+      ],
+      "recognition_logic": "An intentional departure gains meaning from a scoped established pattern and an explicit creative aim.",
+      "held_dimensions": "Specify what remains and what is disrupted; a stable center itself may be the object of disruption.",
+      "variation_envelope": "Separate local break, enduring change, disclosure and editorial redesign.",
+      "activation_questions": [
+        "Why use the departure here?",
+        "What does the audience see, and what aftermath is shown or withheld?"
+      ],
+      "temporal_shape": "No compulsory restoration, healing or growth. Record the adopted aftermath or its intentional non-resolution.",
+      "channel_translation": "Select the actual changed dimensions; maximum expressiveness is not a requirement.",
+      "world_constraints": "Use only established capacities, information, materials, cultural meanings and adopted exceptions. An unpersonified subject needs no feelings or speech.",
+      "misuses": [
+        "Calling accidental inconsistency a planned exception afterward.",
+        "Forcing a world event to represent an editorial correction."
+      ],
+      "example": "An otherwise repeated spatial motif is deliberately interrupted once, with an authored scope and review basis.",
+      "counterexample": "Every unexplained difference is excused as another rupture without an owning decision.",
+      "adoption_instruction": "Select only for a relevant aim. Bind this ID to a scoped authorial intent and instantiate held/changed dimensions, conditions, timing, channels and exceptions in the owning subject or world record. Selection is a proposal, not adoption.",
+      "source_basis": "CPB-authored design pattern. Not a FilmWorld taxonomy, psychological finding or proven image-prompt phrase."
+    },
+    {
+      "id": "indeterminacy",
+      "name": "Recognition with deliberate indeterminacy",
+      "tags": [
+        "ambiguity",
+        "uncertainty",
+        "unstable",
+        "multiple"
+      ],
+      "recognition_logic": "A work may preserve boundaries of interpretation rather than settle one definitive identity.",
+      "held_dimensions": "Specify what is established and which questions must remain open.",
+      "variation_envelope": "Allow multiple supported possibilities without averaging incompatible alternatives into one fact.",
+      "activation_questions": [
+        "Which uncertainty is purposeful rather than an unexamined gap?",
+        "What output would prematurely settle it?"
+      ],
+      "temporal_shape": "May remain unresolved across the whole work; no compulsory reveal or dominant timeline.",
+      "channel_translation": "Use omission, contradictory testimony or bounded ambiguity as adopted. Do not fabricate certainty to fill a template.",
+      "world_constraints": "Use only established capacities, information, materials, cultural meanings and adopted exceptions. An unpersonified subject needs no feelings or speech.",
+      "misuses": [
+        "Treating every missing field as intentional ambiguity.",
+        "Inventing one canonical answer and leaking it downstream."
+      ],
+      "example": "Two accounts of a fictional place remain unresolved; each account has a named viewpoint and known scope.",
+      "counterexample": "The compiler silently chooses the first account as the true history.",
+      "adoption_instruction": "Select only for a relevant aim. Bind this ID to a scoped authorial intent and instantiate held/changed dimensions, conditions, timing, channels and exceptions in the owning subject or world record. Selection is a proposal, not adoption.",
+      "source_basis": "CPB-authored design pattern. Not a FilmWorld taxonomy, psychological finding or proven image-prompt phrase."
+    }
+  ]
+}

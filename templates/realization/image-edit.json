@@ -1,0 +1,32 @@
+{
+  "input_sha256": "REPLACE_WITH_PREPARED_INPUT_SHA256",
+  "source": {
+    "path": "art/source.png",
+    "sha256": "REPLACE_WITH_SOURCE_SHA256"
+  },
+  "operations": [
+    {
+      "operation": "crop",
+      "box": [
+        0,
+        0,
+        64,
+        64
+      ]
+    },
+    {
+      "operation": "resize",
+      "width": 128,
+      "height": 128
+    }
+  ],
+  "output": "art/edited.png",
+  "targets": [
+    "delivery"
+  ],
+  "repair": null,
+  "reason": "Replace with the declared reason for this realization.",
+  "limitations": [
+    "No automatic assessment of artistic or identity fidelity."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "artifact_type": "state-lineage",
+  "mode": "state-aware",
+  "species_profile_sha256": "5595549bce6c181e0a4bd7f63084ad0aa0d160e8eb4eda8d7f7ef6be849f69a5",
+  "individual_morphology_sha256": "3eab5c9b13162ae58008f06f79154dbbc560b8fa09ec8eb288a367dda7f075b5",
+  "identity_contract_sha256": "e370d88f96b68014de7e8ca5ed1f3dd0b74255b9c4e1051ac8d7ebc2d844e655",
+  "era_contract_sha256": null,
+  "form_contract_sha256": null,
+  "appearance_variant_sha256": null,
+  "state_snapshot_sha256": "9c791e0ff39a81f7d6954fbb3caaad6436db7f91ad33c1ae0101c4915e53b672",
+  "scene_context_sha256": "4e3b658cee42efba40fc9feb72e49027bc84690dd5bdc244756e2704fb51419d",
+  "visual_projection_sha256": "cb1adf6e57d95aa28b1b960b4097871f08ca76e22297b67238e0d7fac2fe8c39",
+  "asset_render_spec_sha256": "f9fa7effeb1f7a6975d2760a77a076f75201a1483fdfc2d9b978b44756573195",
+  "visual_authority_sha256": null,
+  "visual_evidence_bundle_sha256": null,
+  "lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99"
+}

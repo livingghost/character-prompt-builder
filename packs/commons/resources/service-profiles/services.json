@@ -1,0 +1,93 @@
+{
+  "services": {
+    "runware": {
+      "label": "Runware",
+      "documentation": "https://runware.ai/docs",
+      "observed_at": "2026-09-07",
+      "source": "the service's API documentation and parameter schemas",
+      "endpoint": {
+        "base_url": "https://api.runware.ai/v1",
+        "method": "POST"
+      },
+      "auth": {
+        "scheme": "bearer",
+        "header": "Authorization",
+        "env_var": "RUNWARE_API_KEY",
+        "note": "The key is read from the environment or a local credential store at run time; it is never written into a record, a spec, or a run file."
+      },
+      "envelope": {
+        "request": "A JSON array of task objects. Each task carries taskType and a client-generated taskUUID, and the task's own parameters at the top level of the object.",
+        "response": "An object with data (one entry per finished task, carrying the taskUUID) or errors (one entry per refused task with code, message, parameter, documentation, and taskUUID). A submission can be refused per task while the request itself succeeds."
+      },
+      "operations": {
+        "imageInference": {
+          "purpose": "still generation, including image-to-image",
+          "input": "model, positivePrompt, negativePrompt, width, height, steps, CFGScale, scheduler, seed, and optionally seedImage (an uploaded image id) with strength",
+          "returns": "imageURL per task"
+        },
+        "videoInference": {
+          "purpose": "clip generation",
+          "input": "model, positivePrompt, duration, width and height (or a resolution preset), and the input mode's media keys (frameImages, referenceImages) as uploaded image ids; deliveryMethod async",
+          "returns": "videoURL per task once finished"
+        },
+        "imageUpload": {
+          "purpose": "register a local image for use as a seed image, frame image, or reference",
+          "input": "image as a data URI (base64) with its MIME type",
+          "returns": "imageUUID (also seen as mediaUUID)",
+          "note": "Uploads can be cached locally by content hash; the same bytes need not be uploaded twice."
+        },
+        "getResponse": {
+          "purpose": "poll an asynchronous task",
+          "input": "taskUUID",
+          "returns": "the task's data entry when finished, with videoURL or imageURL; a status of processing otherwise"
+        },
+        "mediaStorage": {
+          "purpose": "store media of any kind (video, audio, image) for later use as a reference video or audio",
+          "input": "operation upload with media as a data URI; operation delete with the media id",
+          "returns": "mediaUUID",
+          "note": "imageUpload is the image-only path; a video sent through it is not an upload route. The task type list the service returns on an invalid taskType is the authoritative inventory of operations."
+        },
+        "imageUpscale": {
+          "purpose": "enlarge one image with an upscaler model",
+          "input": "model, inputs.image (an uploaded image id, URL, or data URI), upscaleFactor, and the model's settings; outputType, outputFormat, and outputQuality as for imageInference",
+          "returns": "imageURL per task"
+        }
+      },
+      "delivery": {
+        "video": {
+          "mode": "deliveryMethod async",
+          "poll": "getResponse by taskUUID at an interval of about ten seconds; a five-second clip returns in two to three minutes",
+          "terminal": "videoURL present in the data entry",
+          "note": "A task refused at submission (an error entry in the submission response) answers processing when polled afterwards and never finishes. Read the submission response before polling."
+        },
+        "image": {
+          "mode": "synchronous by default",
+          "poll": "none",
+          "terminal": "imageURL in the submission response"
+        }
+      },
+      "errors": {
+        "shape": "errors[] entries with code, message, parameter, and where the service offers it a documentation URL and the taskUUID",
+        "observed_codes": {
+          "invalidVideoDurationInteger": "duration outside the model's integer band; the band itself is a fact of the model's offering, not of the service",
+          "invalidTaskType": "an unknown taskType; the response lists every supported task type",
+          "unsupportedIpAdapterModel": "the adapter's architecture does not match the checkpoint's registered architecture string; the response names both"
+        }
+      },
+      "limits": {
+        "batch": {
+          "value": "several tasks in one request are accepted; this suite's projects send one task per request"
+        },
+        "upload_formats": {
+          "value": [
+            "image/png",
+            "image/jpeg"
+          ]
+        },
+        "adapter_compatibility": {
+          "value": "Adapter compatibility (IP-Adapter, ControlNet, LoRA) is checked against the architecture string the checkpoint was registered with, not against its weights. An uploaded checkpoint registered under a fine-tune family name can be refused adapters that the same weights accept when registered as the base family. The allowed architecture strings for a checkpoint upload are exactlyai_image, flux1d, flux1s, fluxkontextdev, illustrious, noobai, pony, sd1x, sdxl, sdxllightning, sdxlturbo, z_image, z_image_turbo; the documentation does not say what the string changes at inference. One lineage rendered identically under noobai, sdxl, and illustrious registrations."
+        }
+      }
+    }
+  }
+}

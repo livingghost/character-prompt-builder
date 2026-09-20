@@ -1,0 +1,10 @@
+{
+  "brief": "",
+  "target_model": "gpt-image-2.5-flare",
+  "interaction_mode": "balanced",
+  "creative_latitude": "directed",
+  "requested_medium": null,
+  "aspect_ratio": null,
+  "explicit_exclusions": [],
+  "series_context": null
+}

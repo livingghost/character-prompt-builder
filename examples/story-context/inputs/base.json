@@ -1,0 +1,43 @@
+{
+  "characters": {
+    "A": {
+      "mood": "tense",
+      "knows_signal": false,
+      "physical_state": {
+        "condition": "resting"
+      }
+    },
+    "B": {
+      "knows_signal": false,
+      "belief": "the signal has not arrived"
+    }
+  },
+  "relationships": {},
+  "environments": {
+    "SPACE": {
+      "light": "soft"
+    }
+  },
+  "props": {},
+  "world": {
+    "signal": true,
+    "work_streams": {
+      "one": {
+        "status": "pending"
+      },
+      "two": {
+        "status": "pending"
+      }
+    },
+    "commitments": {
+      "reply": {
+        "status": "unresolved"
+      }
+    },
+    "items": [
+      "A",
+      "B",
+      "C"
+    ]
+  }
+}

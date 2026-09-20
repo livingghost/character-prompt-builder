@@ -1,0 +1,19 @@
+{
+  "projection_id": "VSP-SC01-C01",
+  "character_id": "C01",
+  "visible_identity_feature_ids": [],
+  "visible_state_paths": [],
+  "performance_cues": [],
+  "wardrobe_paths": [],
+  "prop_paths": [],
+  "relationship_blocking_cues": [],
+  "environmental_body_responses": [],
+  "occluded_state_paths": [],
+  "reference_asset_requirements": [],
+  "text_anchor_ids": [],
+  "review_dimensions": [],
+  "visible_morphology_feature_ids": [],
+  "morphology_state_paths": [],
+  "occluded_morphology_feature_ids": [],
+  "morphology_visibility_obligations": []
+}

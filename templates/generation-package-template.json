@@ -1,0 +1,160 @@
+{
+  "status": "template",
+  "model": "gpt-image-2.5-flare",
+  "source_brief": "",
+  "creative_intent": {
+    "image_promise": "",
+    "chosen_direction": "",
+    "medium_family": "",
+    "purposeful_additions": [],
+    "aesthetic_core": "",
+    "domain_realizations": {},
+    "render_profile": "",
+    "selected_preset_ids": [],
+    "style_family": "",
+    "production_spec_sha256": "",
+    "state_lineage_sha256": ""
+  },
+  "production_spec": {},
+  "production_spec_sha256": "",
+  "prepared_reference_set": {
+    "artifact_type": "prepared-reference-set",
+    "set_id": "PRS-template",
+    "transport_mode": "none",
+    "target_model": null,
+    "reference_selection": null,
+    "reference_selection_sha256": null,
+    "reference_use_plan": null,
+    "reference_use_plan_sha256": null,
+    "surface_lighting_plan_sha256": null,
+    "zero_reference_reason": {
+      "code": "no-canonical-record-selected",
+      "record_ids": [],
+      "detail": "No canonical record was selected for visual-reference activation."
+    },
+    "reference_preamble": "",
+    "prompt_artifacts": [],
+    "selected_references": [],
+    "single_board": null,
+    "prepared_reference_set_sha256": ""
+  },
+  "prepared_reference_set_sha256": "",
+  "generation_payload": {
+    "prompt": "",
+    "negative_prompt": "",
+    "native_negative": "",
+    "transports": {
+      "separate": {
+        "available": true,
+        "channel": "prompt_plus_negative_fields",
+        "method": "verbatim-separate-fields",
+        "prompt": "",
+        "negative": "",
+        "prompt_sha256": "",
+        "negative_sha256": ""
+      },
+      "integrated": {
+        "available": false,
+        "channel": "single_prompt_field",
+        "method": "unavailable",
+        "text": "",
+        "sha256": ""
+      },
+      "native_subset": {
+        "available": false,
+        "channel": "prompt_plus_native_negative",
+        "method": "unavailable",
+        "prompt": "",
+        "negative": "",
+        "prompt_sha256": "",
+        "negative_sha256": ""
+      },
+      "paste_instructions": {
+        "single_prompt_field": "",
+        "prompt_plus_negative_fields": "",
+        "prompt_plus_native_negative": ""
+      }
+    },
+    "negative_transport": {
+      "mode": "integrated-critical",
+      "channel": "single_prompt_field",
+      "instruction": "",
+      "critical_avoidance_integrated": true,
+      "send_full_negative_verbatim": false,
+      "send_native_negative_verbatim": false
+    },
+    "parameters": {},
+    "service": null,
+    "prompt_sha256": "",
+    "negative_prompt_sha256": "",
+    "native_negative_sha256": "",
+    "negative_provenance": {
+      "activated_sources": [],
+      "diagnostic_sources_retained": [],
+      "semantic_exclusions_user_supplied": [],
+      "affirmative_translations": {}
+    },
+    "prompt_recommendations": {
+      "resolved_model_id": "gpt-image-2.5-flare",
+      "merge_mode": "advisory-only",
+      "positive": {
+        "declared": false,
+        "applied": false,
+        "mode": "advisory-only",
+        "reason": "not-declared",
+        "recommended_text": ""
+      },
+      "negative": {
+        "declared": false,
+        "applied": false,
+        "mode": "advisory-only",
+        "reason": "not-declared",
+        "recommended_text": ""
+      },
+      "integrated": null,
+      "negative_preset": "",
+      "sources": []
+    },
+    "prompt_recommendations_sha256": ""
+  },
+  "generation_contract": {
+    "forward_verified_prompt_transport": true,
+    "forward_verified_negative_transport": true,
+    "forward_ordered_reference_transports": true,
+    "do_not_reconstruct_from_chat": true,
+    "negative_transport_mode": "integrated-critical",
+    "prompt_sha256": "",
+    "negative_prompt_sha256": "",
+    "native_negative_sha256": "",
+    "production_spec_sha256": "",
+    "negative_transport_instruction": "",
+    "state_lineage_sha256": "",
+    "prepared_reference_set_sha256": "",
+    "generation_input_sha256": "",
+    "prompt_recommendations_sha256": "",
+    "retrieval_record_sha256": ""
+  },
+  "state_lineage": {
+    "artifact_type": "state-lineage",
+    "mode": "stateless",
+    "species_profile_sha256": null,
+    "individual_morphology_sha256": null,
+    "identity_contract_sha256": null,
+    "era_contract_sha256": null,
+    "form_contract_sha256": null,
+    "appearance_variant_sha256": null,
+    "state_snapshot_sha256": null,
+    "scene_context_sha256": null,
+    "visual_projection_sha256": null,
+    "asset_render_spec_sha256": null,
+    "visual_authority_sha256": null,
+    "visual_evidence_bundle_sha256": null,
+    "lineage_sha256": ""
+  },
+  "state_lineage_sha256": "",
+  "generation_input_sha256": "",
+  "composition_prompt": "",
+  "retrieval_record": {},
+  "retrieval_record_sha256": "",
+  "production_binding": null
+}

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "appearance-adaptation-proposal.schema.json",
+  "title": "Environment-driven Appearance Adaptation Proposal",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "proposal_id",
+    "character_id",
+    "environment_snapshot_sha256",
+    "matched_rule_ids",
+    "proposals",
+    "approval_required",
+    "status",
+    "proposal_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "appearance-adaptation-proposal"
+    },
+    "proposal_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "environment_snapshot_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "matched_rule_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "proposals": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "approval_required": {
+      "const": true
+    },
+    "status": {
+      "enum": [
+        "proposed",
+        "approved",
+        "rejected"
+      ]
+    },
+    "proposal_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

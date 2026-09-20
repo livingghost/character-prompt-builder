@@ -1,0 +1,422 @@
+{
+  "kind": "module",
+  "category": "photography-style",
+  "records": [
+    {
+      "id": "photography-style-cinematic-still",
+      "label": "Cinematic film still",
+      "category": "photography-style",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Frame the subject as one still from a high-budget film: shallow focus, moody grade, widescreen feel, and restrained film grain.",
+      "prompt": "Compose the image as a cinematic film still: shallow depth of field isolating the subject, a gentle vignette, moody controlled color grading, widescreen cinematic framing, soft film grain, and high-budget production polish.",
+      "invariants": [
+        "one selective focus plane carries the subject",
+        "the grade stays coherent across the whole frame",
+        "grain stays fine and photographic"
+      ],
+      "misreadings_to_avoid": [
+        "flat even video lighting erasing the mood",
+        "oversaturated punchy contrast replacing the grade",
+        "sharp deep focus contradicting the cinematic look"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "photographic finish",
+      "tags": [
+        "cinematic still",
+        "film look",
+        "movie frame"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "cinematic film still",
+          "facet": "photography-style",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "cinematic photograph",
+          "facet": "photography-style",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "movie still look",
+          "facet": "photography-style",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "photography-style-analog-film",
+      "label": "Analog film photograph",
+      "category": "photography-style",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Give the frame a faded analog film character: desaturated color response, visible grain, vignette, and vintage stock artifacts.",
+      "prompt": "Render the image as an analog film photograph: gently faded desaturated color, visible organic grain, a soft corner vignette, slight vintage color shift, and the warm imperfect character of a 35mm print.",
+      "invariants": [
+        "color response stays gently faded while the hues stay identifiable",
+        "grain stays organic and even",
+        "the vignette stays soft and peripheral"
+      ],
+      "misreadings_to_avoid": [
+        "digital cleanliness erasing the film character",
+        "heavy sepia wash replacing subtle fading",
+        "artificial scratch overlays reading as damage"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "photographic finish",
+      "tags": [
+        "analog film",
+        "35mm look",
+        "vintage photo"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "analog film photo",
+          "facet": "photography-style",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "35mm film look",
+          "facet": "photography-style",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "vintage film photograph",
+          "facet": "photography-style",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "photography-style-film-noir",
+      "label": "Film noir monochrome",
+      "category": "photography-style",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Stage the frame as 1940s film noir: hard monochrome contrast, dramatic slatted shadows, and mystery-forward staging.",
+      "prompt": "Render the image as film noir: high-contrast monochrome, hard directional light carving dramatic shadows, venetian-blind or window-slat shadow patterns where natural, deep blacks with selective bright accents, and a mysterious 1940s cinematic mood.",
+      "invariants": [
+        "monochrome value design carries the whole image",
+        "one hard key light explains every shadow",
+        "blacks stay deep while the subject stays readable within them"
+      ],
+      "misreadings_to_avoid": [
+        "gray low-contrast mush instead of hard noir contrast",
+        "color leaking into the monochrome design",
+        "flat frontal light erasing the dramatic shadows"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "photographic finish",
+      "tags": [
+        "film noir",
+        "monochrome drama",
+        "1940s style"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "film noir style",
+          "facet": "photography-style",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "noir lighting monochrome",
+          "facet": "photography-style",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "hard shadow noir",
+          "facet": "photography-style",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "photography-style-long-exposure",
+      "label": "Long exposure motion streaks",
+      "category": "photography-style",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Hold the still elements sharp while moving elements streak into smooth luminous trails.",
+      "prompt": "Render the image as a long-exposure photograph: stationary elements tack sharp, moving elements drawn into smooth directional streaks and light trails, a dreamlike ghosting on semi-still motion, and coherent streak direction across the frame.",
+      "invariants": [
+        "static elements stay sharp as the anchor",
+        "every streak follows one coherent motion direction",
+        "trails stay smooth and luminous"
+      ],
+      "misreadings_to_avoid": [
+        "global blur destroying the sharp anchor",
+        "jittery broken streaks reading as camera shake",
+        "streaks contradicting the scene's motion directions"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "photographic finish",
+      "tags": [
+        "long exposure",
+        "light trails",
+        "motion streaks"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "long exposure photo",
+          "facet": "photography-style",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "light trail streaks",
+          "facet": "photography-style",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "motion blur exposure",
+          "facet": "photography-style",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "photography-style-tilt-shift-miniature",
+      "label": "Tilt-shift miniature effect",
+      "category": "photography-style",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Make the scene read as a tiny model through a narrow sharp band and strong defocus above and below it.",
+      "prompt": "Render the scene with a tilt-shift miniature effect: one narrow horizontal band of sharp focus on the subject, strong smooth defocus above and below, slightly boosted color saturation, and a high vantage that supports the toy-model illusion.",
+      "invariants": [
+        "exactly one sharp focus band crosses the frame",
+        "defocus grows smoothly away from the band",
+        "the camera stays elevated above the scene"
+      ],
+      "misreadings_to_avoid": [
+        "full-frame sharpness erasing the miniature read",
+        "defocus bands at contradictory angles",
+        "eye-level camera defeating the model illusion"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "photographic finish",
+      "tags": [
+        "tilt-shift",
+        "miniature effect",
+        "selective focus band"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "tilt-shift miniature",
+          "facet": "photography-style",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "miniature model effect",
+          "facet": "photography-style",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "selective focus band",
+          "facet": "photography-style",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "photography-style-neon-noir",
+      "label": "Neon noir night street",
+      "category": "photography-style",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Stage a dark rainy night scene carved by saturated neon signage, wet reflections, and low ambient light.",
+      "prompt": "Render the image as neon noir: a dark low-ambient night scene lit mainly by saturated neon signs, wet streets and surfaces mirroring the colored light, high contrast between glow and shadow, and a moody rain-washed atmosphere.",
+      "invariants": [
+        "neon sources explain every strong color in the frame",
+        "wet surfaces mirror the actual sign colors",
+        "ambient light stays low so the neon carves the scene"
+      ],
+      "misreadings_to_avoid": [
+        "daylight ambience flattening the neon contrast",
+        "colored glow with no visible source",
+        "dry surfaces ignoring the rain-washed mood"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "photographic finish",
+      "tags": [
+        "neon noir",
+        "night street neon",
+        "rainy cyberpunk street"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "neon noir street",
+          "facet": "photography-style",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "rainy neon night",
+          "facet": "photography-style",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "neon sign reflections",
+          "facet": "photography-style",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "photography-style-product-studio",
+      "label": "Clean studio product presentation",
+      "category": "photography-style",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Present the subject as a commercial product shot: seamless backdrop, controlled soft lighting, and edge-defining reflections.",
+      "prompt": "Render the image as a clean studio product photograph: a seamless single-color backdrop, large soft key light with gentle fill, a subtle ground reflection or soft contact shadow anchoring the subject, crisp edge definition, and even commercial polish.",
+      "invariants": [
+        "the backdrop stays seamless and uncluttered",
+        "one soft key plus fill explains the lighting",
+        "the subject stays anchored by shadow or reflection"
+      ],
+      "misreadings_to_avoid": [
+        "environmental props leaking into the seamless set",
+        "harsh mixed shadows from contradictory sources",
+        "floating subject with no ground contact cue"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "photographic finish",
+      "tags": [
+        "product shot",
+        "studio commercial",
+        "seamless backdrop"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "studio product shot",
+          "facet": "photography-style",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "commercial product photography",
+          "facet": "photography-style",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "seamless backdrop presentation",
+          "facet": "photography-style",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "photography-style-knolling-flat-lay",
+      "label": "Knolling flat lay arrangement",
+      "category": "photography-style",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Arrange items in a tidy top-down grid: parallel alignment, even spacing, and organized flat-lay clarity.",
+      "prompt": "Compose the image as a knolling flat lay: a directly top-down camera over items arranged in a neat parallel grid, even spacing between every object, a clean uniform surface beneath, and soft even shadowless lighting.",
+      "invariants": [
+        "the camera looks straight down",
+        "items align parallel or at right angles",
+        "spacing stays even and deliberate"
+      ],
+      "misreadings_to_avoid": [
+        "perspective tilt breaking the top-down grid",
+        "overlapping items destroying the knolling order",
+        "hard shadows crowding the arrangement"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "photographic finish",
+      "tags": [
+        "knolling",
+        "flat lay",
+        "top-down arrangement"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "knolling flat lay",
+          "facet": "photography-style",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "top-down arrangement photo",
+          "facet": "photography-style",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "organized grid layout",
+          "facet": "photography-style",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

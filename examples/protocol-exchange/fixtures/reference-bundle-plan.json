@@ -1,0 +1,53 @@
+{
+  "artifact_type": "reference-bundle-plan",
+  "bundle_id": "RB-C01",
+  "character_id": "C01",
+  "species_profile_sha256": "5595549bce6c181e0a4bd7f63084ad0aa0d160e8eb4eda8d7f7ef6be849f69a5",
+  "individual_morphology_sha256": "3eab5c9b13162ae58008f06f79154dbbc560b8fa09ec8eb288a367dda7f075b5",
+  "identity_contract_sha256": "e370d88f96b68014de7e8ca5ed1f3dd0b74255b9c4e1051ac8d7ebc2d844e655",
+  "era_contract_sha256": null,
+  "appearance_variant_sha256": null,
+  "visual_authority_sha256": null,
+  "visual_evidence_bundle_sha256": null,
+  "style_family_id": "style-family-clear-portrait",
+  "coverage_policy": "core-coverage",
+  "assets": [
+    {
+      "asset_id": "C01-A01",
+      "purpose": "left-three-quarter-bust",
+      "render_spec_file": "C01-A01-left-three-quarter-bust.render-spec.json",
+      "render_spec_sha256": "722044966cc8b8aab7e53e54560da17d5cbef20f62c2fc26e2657fa3c26e4282",
+      "coverage_requirement_ids": [
+        "CR-left-ear-stud",
+        "CR-face-eyes"
+      ]
+    },
+    {
+      "asset_id": "C01-A02",
+      "purpose": "rear-full",
+      "render_spec_file": "C01-A02-rear-full.render-spec.json",
+      "render_spec_sha256": "70bbe1034e578ef377a08a9a7208dc7634bb1369a4e2c464f7c8aca2cd028ad1",
+      "coverage_requirement_ids": [
+        "CR-rear-tail"
+      ]
+    }
+  ],
+  "coverage_matrix": {
+    "CR-left-ear-stud": [
+      "C01-A01"
+    ],
+    "CR-face-eyes": [
+      "C01-A01"
+    ],
+    "CR-rear-tail": [
+      "C01-A02"
+    ]
+  },
+  "unresolved_requirements": [],
+  "generated_by": "synthetic-fixture-author",
+  "notes": [
+    "The plan is generation intent, not approved canon.",
+    "Actual images require direct inspection and a separate candidate manifest before adoption."
+  ],
+  "bundle_plan_sha256": "058948c00ccfeda86182c371abe0e168110a560fc399c3ee714f90c2cf54f5e6"
+}

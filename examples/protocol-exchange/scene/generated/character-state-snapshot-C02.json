@@ -1,0 +1,55 @@
+{
+  "artifact_type": "state-snapshot",
+  "snapshot_id": "C02-main-10",
+  "character_id": "C02",
+  "timeline_id": "main",
+  "scene_context_id": "SC-WORKSHOP-01",
+  "story_order": 10,
+  "story_time": "story:EP01-SC03-start",
+  "species_profile_sha256": "ac85f8b1b243e1e10eda1cfcb58f17d4717f1be8173ada938050f4996f35b6dc",
+  "individual_morphology_sha256": "e2588fc7f8509a7feb68d562882d5f5b2e89131911b117507786f7f669d271d0",
+  "identity_contract_sha256": "cacb2bf8b419882978ce7fc6d57d3c35e6ae39005a802ac8c46b33c6476116d0",
+  "era_contract_sha256": null,
+  "form_contract_sha256": null,
+  "appearance_variant_sha256": null,
+  "applied_event_ids": [
+    "EV-C01-INJURY"
+  ],
+  "applied_process_milestones": [],
+  "physical_state": {},
+  "appearance_state": {
+    "cleanliness": "clean"
+  },
+  "wardrobe_state": {
+    "outer_layer": "cream archive vest",
+    "inner_layer": "white rolled-sleeve shirt",
+    "condition": "intact"
+  },
+  "equipment_state": {
+    "face": "round brass spectacles"
+  },
+  "inventory_state": {
+    "items": [
+      "P01"
+    ]
+  },
+  "emotional_state": {
+    "felt": "worried",
+    "expressed": "gentle focus",
+    "masked": "none",
+    "physiological": "steady breath"
+  },
+  "performance_state": {
+    "posture": "careful forward lean",
+    "gaze": "toward C01"
+  },
+  "knowledge_state": {
+    "knows_pendant_damage": true
+  },
+  "social_role_state": {
+    "role": "archive conservator"
+  },
+  "character_specific_state": {},
+  "uncertainties": [],
+  "state_snapshot_sha256": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+}

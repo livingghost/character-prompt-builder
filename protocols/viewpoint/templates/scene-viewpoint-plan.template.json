@@ -1,0 +1,23 @@
+{
+  "artifact_type": "scene-viewpoint-plan",
+  "scene_id": "SC01",
+  "story_order": 1,
+  "default_viewpoint_profile_id": "external-character-aligned-third-person",
+  "default_knowledge_scope": "character_restricted",
+  "default_focal_character_id": "C01",
+  "default_point_of_audition": "objective_mix",
+  "coverage_strategy": "motivated sparse coverage",
+  "axis_of_action": "C01 to C02 across the workbench",
+  "shots": [
+    {
+      "shot_id": "SC01-SH01",
+      "order_index": 1,
+      "coverage_role": "establishing master",
+      "viewpoint_profile_id": "external-character-aligned-third-person",
+      "camera_spec_file": "shots/SC01-SH01.json"
+    }
+  ],
+  "transition_ids": [],
+  "knowledge_policy": "Keep the camera aligned with C01 knowledge unless a shot explicitly changes focalization.",
+  "scene_plan_sha256": "618e1a9c15dd4e47be14fa03e5f34c330c19073e99ce8df83171db491b1cac92"
+}

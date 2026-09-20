@@ -1,0 +1,26 @@
+{
+  "artifact_type": "appearance-adaptation-proposal",
+  "proposal_id": "ADAPT-EP03-SC01-C01",
+  "character_id": "C01",
+  "environment_snapshot_sha256": "23b58ae644bb5364b6c5cfc92ca617acff31f4938b041cb7eb7f1e81c65529bc",
+  "matched_rule_ids": [
+    "ENV-hot-humid-wolf"
+  ],
+  "proposals": [
+    {
+      "wardrobe_delta": [
+        "open the top closure or roll sleeves when the approved dress code allows"
+      ],
+      "performance_delta": [
+        "light sweat at temples",
+        "slightly heavier breathing"
+      ],
+      "visual_reason": "heat and humidity acting on a thick-furred subject",
+      "requires_human_approval": true,
+      "rule_id": "ENV-hot-humid-wolf"
+    }
+  ],
+  "approval_required": true,
+  "status": "proposed",
+  "proposal_sha256": "ac77ca96f83a09cc1d36a7642ad17e140e788f0eeffc9d7d0adf7813f27e6ad1"
+}

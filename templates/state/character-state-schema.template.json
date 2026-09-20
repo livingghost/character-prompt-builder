@@ -1,0 +1,12 @@
+{
+  "artifact_type": "character-state-schema",
+  "state_schema_id": "CSS-C01",
+  "character_id": "C01",
+  "identity_contract_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "state_paths": [],
+  "initial_state": {},
+  "state_machines": [],
+  "environment_adaptation_rules": [],
+  "projection_rules": [],
+  "notes": []
+}

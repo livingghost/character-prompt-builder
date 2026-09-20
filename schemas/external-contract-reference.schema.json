@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "external-contract-reference.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "reference_id",
+    "contract_profile",
+    "origin_capability_sha256",
+    "payload_artifact_type",
+    "payload_artifact_id",
+    "payload_sha256",
+    "required_features",
+    "optional_features",
+    "interpretation_status",
+    "adoption_status",
+    "valid_story_range",
+    "reference_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "external-contract-reference"
+    },
+    "reference_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contract_profile": {
+      "type": "string",
+      "minLength": 1
+    },
+    "origin_capability_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "payload_artifact_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload_artifact_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "required_features": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "optional_features": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "interpretation_status": {
+      "enum": [
+        "understood",
+        "partially-understood",
+        "preserved-opaque"
+      ]
+    },
+    "adoption_status": {
+      "enum": [
+        "pending",
+        "adopted",
+        "rejected",
+        "superseded"
+      ]
+    },
+    "valid_story_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1
+        },
+        "until": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "reference_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

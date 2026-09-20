@@ -1,0 +1,18 @@
+{
+  "artifact_type": "scene-context-snapshot",
+  "scene_context_id": "SC-01",
+  "timeline_id": "main",
+  "story_order_start": 0,
+  "story_order_end": 0,
+  "story_time_start": "story:",
+  "story_time_end": "story:",
+  "location_snapshot": {},
+  "environment_snapshot": {},
+  "active_character_snapshots": [],
+  "relationship_snapshots": [],
+  "prop_and_inventory_bindings": [],
+  "social_context": {},
+  "viewer_disclosure_state": {},
+  "planned_events": [],
+  "context_snapshot_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "shot-camera-spec.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "shot_id",
+    "scene_id",
+    "order_index",
+    "viewpoint_profile_id",
+    "profile_family",
+    "camera_ownership",
+    "knowledge_scope",
+    "point_of_audition",
+    "coverage_role",
+    "camera_position",
+    "shot_scale",
+    "camera_height",
+    "angle",
+    "lens_behavior",
+    "movement",
+    "screen_direction",
+    "axis_side",
+    "eyeline_relation",
+    "visible_subjects",
+    "visible_body_regions",
+    "start_anchor",
+    "end_anchor",
+    "review_dimensions",
+    "camera_spec_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "shot-camera-spec"
+    },
+    "shot_id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9-]+$"
+    },
+    "scene_id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9-]+$"
+    },
+    "order_index": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "viewpoint_profile_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "profile_family": {
+      "enum": [
+        "external",
+        "embodied-first-person",
+        "device-first-person",
+        "fixed-diegetic"
+      ]
+    },
+    "camera_ownership": {
+      "enum": [
+        "external_camera",
+        "character_body",
+        "held_device",
+        "worn_device",
+        "fixed_diegetic_camera",
+        "vehicle_or_machine_sensor"
+      ]
+    },
+    "camera_owner_character_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "knowledge_scope": {
+      "enum": [
+        "objective",
+        "character_restricted",
+        "shared_restricted",
+        "omniscient"
+      ]
+    },
+    "focal_character_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "point_of_audition": {
+      "enum": [
+        "objective_mix",
+        "character_subjective",
+        "remote_or_device_audio"
+      ]
+    },
+    "audition_character_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "coverage_role": {
+      "type": "string",
+      "minLength": 3
+    },
+    "camera_position": {
+      "type": "string",
+      "minLength": 8
+    },
+    "shot_scale": {
+      "type": "string",
+      "minLength": 3
+    },
+    "camera_height": {
+      "type": "string",
+      "minLength": 3
+    },
+    "angle": {
+      "type": "string",
+      "minLength": 3
+    },
+    "lens_behavior": {
+      "type": "string",
+      "minLength": 8
+    },
+    "movement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "cause",
+        "start_relation",
+        "path",
+        "speed_and_amplitude",
+        "subject_relation",
+        "occlusion_risk",
+        "landing_composition"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 3
+        },
+        "cause": {
+          "type": "string",
+          "minLength": 8
+        },
+        "start_relation": {
+          "type": "string",
+          "minLength": 8
+        },
+        "path": {
+          "type": "string",
+          "minLength": 8
+        },
+        "speed_and_amplitude": {
+          "type": "string",
+          "minLength": 5
+        },
+        "subject_relation": {
+          "type": "string",
+          "minLength": 8
+        },
+        "occlusion_risk": {
+          "type": "string",
+          "minLength": 5
+        },
+        "landing_composition": {
+          "type": "string",
+          "minLength": 8
+        }
+      }
+    },
+    "screen_direction": {
+      "type": "string",
+      "minLength": 3
+    },
+    "axis_side": {
+      "type": "string",
+      "minLength": 3
+    },
+    "eyeline_relation": {
+      "type": "string",
+      "minLength": 8
+    },
+    "visible_subjects": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "visible_body_regions": {
+      "type": "object"
+    },
+    "prop_ownership": {
+      "type": "object"
+    },
+    "state_snapshot_sha256_by_character": {
+      "type": "object"
+    },
+    "start_anchor": {
+      "type": "string",
+      "minLength": 8
+    },
+    "end_anchor": {
+      "type": "string",
+      "minLength": 8
+    },
+    "knowledge_visibility": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "accepted_variation": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "review_dimensions": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "camera_spec_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

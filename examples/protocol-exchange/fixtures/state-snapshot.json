@@ -1,0 +1,59 @@
+{
+  "artifact_type": "state-snapshot",
+  "snapshot_id": "C01-main-10",
+  "character_id": "C01",
+  "timeline_id": "main",
+  "scene_context_id": "SC-WORKSHOP-01",
+  "story_order": 10,
+  "story_time": "story:EP01-SC03-start",
+  "species_profile_sha256": "4dc89f20d94c49f973063476269cfb09538137d3478457e9189c8dc5ed0a0f08",
+  "individual_morphology_sha256": "e43712663ab4b2bb4c58f6bad5d0215291e0e1f17e94731bee0ccc11b9cdf88f",
+  "identity_contract_sha256": "24e5cd147b43e6be52a67efde6c6addf89038f48f9831cab515c7c22baba749d",
+  "era_contract_sha256": null,
+  "form_contract_sha256": null,
+  "appearance_variant_sha256": null,
+  "applied_event_ids": [
+    "EV-C01-INJURY"
+  ],
+  "applied_process_milestones": [],
+  "physical_state": {
+    "left_side_injury": {
+      "mobility_effect": "protects left side and sits carefully",
+      "status": "bandaged beneath clothing",
+      "visibility": "concealed"
+    }
+  },
+  "appearance_state": {
+    "cleanliness": "workshop clean"
+  },
+  "wardrobe_state": {
+    "outer_layer": "dark blue mechanic jacket",
+    "inner_layer": "gray fitted shirt",
+    "condition": "dry and intact"
+  },
+  "equipment_state": {
+    "hands": "fingerless work gloves"
+  },
+  "inventory_state": {
+    "items": []
+  },
+  "emotional_state": {
+    "felt": "concerned",
+    "expressed": "controlled",
+    "masked": "professional calm",
+    "physiological": "slightly shallow breath"
+  },
+  "performance_state": {
+    "posture": "balanced",
+    "gaze": "toward C02"
+  },
+  "knowledge_state": {
+    "knows_pendant_damage": false
+  },
+  "social_role_state": {
+    "role": "workshop mechanic"
+  },
+  "character_specific_state": {},
+  "uncertainties": [],
+  "state_snapshot_sha256": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398"
+}

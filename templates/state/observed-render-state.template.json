@@ -1,0 +1,14 @@
+{
+  "artifact_type": "observed-render-state",
+  "observation_id": "OBS-RUN01",
+  "run_id": "RUN01",
+  "expected_state_snapshot_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "expected_visual_projection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "observed_state": {},
+  "state_match_status": "unresolved",
+  "time_range": "frame-or-time-range",
+  "evidence_files": [],
+  "canonized": false,
+  "routing_recommendation": "none",
+  "observation_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

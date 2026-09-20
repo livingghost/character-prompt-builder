@@ -1,0 +1,18 @@
+{
+  "scene_context_id": "SC-01",
+  "timeline_id": "main",
+  "story_order_start": 0,
+  "story_order_end": 0,
+  "story_time_start": "story:",
+  "story_time_end": "story:",
+  "active_character_ids": [
+    "C01"
+  ],
+  "relationship_ids": [],
+  "environment_id": null,
+  "prop_ids": [],
+  "location_snapshot": {},
+  "social_context": {},
+  "viewer_disclosure_state": {},
+  "planned_events": []
+}

@@ -1,0 +1,76 @@
+{
+  "artifact_type": "scene-context-snapshot",
+  "scene_context_id": "SC-EP03-01",
+  "timeline_id": "main",
+  "story_order_start": 25,
+  "story_order_end": 27,
+  "story_time_start": "story:EP03-SC01",
+  "story_time_end": "story:EP03-SC01-end",
+  "location_snapshot": {
+    "location_id": "LOC01",
+    "room": "field office"
+  },
+  "environment_snapshot": {
+    "season": "summer",
+    "time_of_day": "afternoon",
+    "weather": "clear",
+    "temperature_c": 31,
+    "humidity_percent": 84,
+    "wind": "light",
+    "precipitation": "none",
+    "water_exposure": "none",
+    "light_context": [
+      "warm window light"
+    ],
+    "culture_context_refs": [
+      "WORLD-LOCALE-01"
+    ],
+    "dress_norms": [
+      "field office casual"
+    ],
+    "surface_conditions": [
+      "warm wood floor"
+    ]
+  },
+  "active_character_snapshots": [
+    {
+      "character_id": "C01",
+      "snapshot_id": "C01-main-25",
+      "state_snapshot_sha256": "9c791e0ff39a81f7d6954fbb3caaad6436db7f91ad33c1ae0101c4915e53b672"
+    }
+  ],
+  "relationship_snapshots": [
+    {
+      "relationship_id": "REL-C01-C02",
+      "state": {
+        "from": "C01",
+        "to": "C02",
+        "trust": "high",
+        "affinity": "warm",
+        "intimacy": "private-close",
+        "contact_boundary": "mutual-nonsexual-affection-allowed",
+        "public_mask": "formal",
+        "private_behavior": "physically-relaxed"
+      }
+    }
+  ],
+  "prop_and_inventory_bindings": [
+    {
+      "prop_id": "P01",
+      "state": {
+        "name": "silver pendant",
+        "ownership": "C01",
+        "possessed_by": "C02",
+        "state": "carried"
+      }
+    }
+  ],
+  "social_context": {
+    "setting": "private conversation after public duty"
+  },
+  "viewer_disclosure_state": {
+    "left_ear_injury": "not yet explicitly discussed but visible if ear is shown"
+  },
+  "planned_events": [],
+  "context_snapshot_sha256": "4e3b658cee42efba40fc9feb72e49027bc84690dd5bdc244756e2704fb51419d"
+}

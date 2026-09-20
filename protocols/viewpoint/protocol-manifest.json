@@ -1,0 +1,24 @@
+{
+  "protocol": "viewpoint",
+  "artifact_types": [
+    "scene-viewpoint-plan",
+    "shot-camera-spec",
+    "shot-continuity-ledger",
+    "shot-request",
+    "shot-visual-projection",
+    "viewpoint-profile",
+    "viewpoint-transition"
+  ],
+  "supporting_schemas": [],
+  "ownership": "Assigned by the project; application identity does not confer authority.",
+  "registry": "../contract-manifest.json",
+  "profile_files": [
+    "profiles/embodied-first-person.json",
+    "profiles/external-character-aligned-third-person.json",
+    "profiles/external-objective-third-person.json",
+    "profiles/external-omniscient-third-person.json",
+    "profiles/fixed-diegetic-observer.json",
+    "profiles/held-device-first-person.json",
+    "profiles/over-the-shoulder.json"
+  ]
+}

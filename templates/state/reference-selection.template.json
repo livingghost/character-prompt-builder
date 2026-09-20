@@ -1,0 +1,13 @@
+{
+  "artifact_type": "reference-selection",
+  "selection_id": "SEL-C01-SC01",
+  "identity_contract_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "era_contract_sha256": null,
+  "appearance_variant_sha256": null,
+  "state_snapshot_sha256": null,
+  "story_order": 0,
+  "required_state_features": [],
+  "selected_references": [],
+  "unresolved_requirements": [],
+  "selection_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

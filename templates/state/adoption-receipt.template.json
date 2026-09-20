@@ -1,0 +1,11 @@
+{
+  "artifact_type": "adoption-receipt",
+  "receipt_id": "AR-C01",
+  "issued_by": "adoption-receipt-issuer",
+  "issued_at": "1970-01-01T00:00:00Z",
+  "candidate_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "character_id": "C01",
+  "adoptions": [],
+  "asset_registry_updates": [],
+  "adoption_receipt_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

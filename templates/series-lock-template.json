@@ -1,0 +1,58 @@
+{
+  "series_promise": "The recurring visual and emotional quality that should remain recognizable across the series.",
+  "identity_authority": {
+    "character_id": "",
+    "identity_contract_ref": {
+      "id": "",
+      "sha256": ""
+    },
+    "era_contract_ref": null,
+    "form_contract_ref": null,
+    "appearance_variant_ref": null,
+    "current_state_snapshot_ref": null,
+    "current_visual_projection_ref": null
+  },
+  "character_lock": {
+    "subject_domain": "",
+    "species_or_base_form": "",
+    "head_and_face": "",
+    "eyes": "",
+    "body_proportions": "",
+    "surface": "",
+    "palette": "",
+    "distinctive_details": [],
+    "asymmetry_rules": "",
+    "appendages": "",
+    "identity_level_accessories": "",
+    "stable_performance_vocabulary": ""
+  },
+  "current_state_summary": {
+    "story_time": "",
+    "era_and_form": "",
+    "visible_physical_state": "",
+    "expressed_and_masked_emotion": "",
+    "wardrobe_layers_and_condition": "",
+    "equipped_carried_or_transferred_items": "",
+    "relationship_blocking": "",
+    "environmental_body_response": "",
+    "occluded_or_undisclosed_state": ""
+  },
+  "rendering_lock": {
+    "medium_family": "",
+    "style_family": "",
+    "line_or_edge_behavior": "",
+    "shape_and_color_logic": "",
+    "shadow_system": "",
+    "surface_treatment": "",
+    "palette_behavior": ""
+  },
+  "scene_variables": {
+    "moment_or_action": "",
+    "pose": "",
+    "expression": "",
+    "environment": "",
+    "camera": "",
+    "lighting": ""
+  },
+  "rule": "The Character Identity Contract is the stable identity authority. Approved state events and derived snapshots own temporal truth. This lock is a rebuildable operational view: preserve the referenced identity, era, form, appearance, state, and visual projection; change scene variables only through a coherent scene-specific Production Specification. Never promote an accidental render detail or scene-local condition to stable identity through this file."
+}

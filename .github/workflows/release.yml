@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions: {}
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUTF8: "1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install release rendering prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libcairo2 fonts-noto-cjk ffmpeg
+          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
+
+      - name: Install tested release dependencies
+        run: python -m pip install -r requirements-tested.txt
+
+      - name: Validate exact tested dependencies
+        run: python scripts/check_dependencies.py --tested
+
+      - name: Validate product identity, documentation and process evidence
+        shell: bash
+        run: |
+          python scripts/release_contract.py --tag "$GITHUB_REF_NAME"
+          python scripts/release_management_smoke_test.py
+          python scripts/readme_smoke_test.py
+          python scripts/agent_evaluation_smoke_test.py
+          python scripts/resource_handling_smoke_test.py
+
+      - name: Build validated release files
+        shell: bash
+        run: |
+          python scripts/package.py --reports-dir "$RUNNER_TEMP/reports"
+
+      - name: Upload validated release files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-files
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download validated release files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-files
+          path: release-files
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: gh release create "$GITHUB_REF_NAME" release-files/* --verify-tag --generate-notes

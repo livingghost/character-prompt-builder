@@ -1,0 +1,14 @@
+### Intent steady
+- **status**: adopted
+- **basis**: Synthetic portrayal decision for this fixture.
+- **subject_scope**: Synthetic portrayal decision for this fixture.
+- **portrayal_aim**: Synthetic portrayal decision for this fixture.
+- **recognition_anchors**: Synthetic portrayal decision for this fixture.
+- **variation_envelope**: Synthetic portrayal decision for this fixture.
+- **contrast_and_cadence**: Synthetic portrayal decision for this fixture.
+- **departure_policy**: Synthetic portrayal decision for this fixture.
+- **world_and_subject_dependencies**: Synthetic portrayal decision for this fixture.
+- **priority_and_conflicts**: Synthetic portrayal decision for this fixture.
+- **information_boundary**: Synthetic portrayal decision for this fixture.
+- **realization_links**: Synthetic portrayal decision for this fixture.
+- **review_basis**: Synthetic portrayal decision for this fixture.

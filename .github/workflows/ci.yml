@@ -1,0 +1,294 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # Keep validate.py's "no development artifact" guarantee satisfied: the check
+  # steps below must not leave scripts/__pycache__ behind.
+  PYTHONDONTWRITEBYTECODE: "1"
+  # The scripts emit JSON with ensure_ascii=False; force UTF-8 stdout so the
+  # Windows runner does not fail on its default ANSI code page.
+  PYTHONUTF8: "1"
+
+jobs:
+  checks:
+    name: Checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      # CairoSVG loads the native Cairo runtime through cffi. The pip wheel does
+      # not carry it and the Windows runner image does not ship it, so install it
+      # from the preinstalled MSYS2 tree. Stage the DLLs in a directory of their
+      # own: putting mingw64/bin itself on PATH shadows the tool-cache python.exe.
+      - name: Install the Cairo runtime
+        if: runner.os == 'Windows'
+        run: |
+          C:/msys64/usr/bin/pacman -Sy --noconfirm --needed mingw-w64-x86_64-cairo
+          test -f /c/msys64/mingw64/bin/libcairo-2.dll
+          CAIRO_DIR="$(cygpath -u "$RUNNER_TEMP")/cairo-runtime"
+          mkdir -p "$CAIRO_DIR"
+          cp /c/msys64/mingw64/bin/*.dll "$CAIRO_DIR/"
+          cygpath -w "$CAIRO_DIR" >> "$GITHUB_PATH"
+
+      # The Character Sheet gate renders CJK design text through resolved
+      # font files. The Windows image ships Meiryo, Malgun Gothic and
+      # Microsoft YaHei; the Linux image ships no CJK font and the raster
+      # layer fails closed without one. The resolver's known paths match the
+      # apt layout of the fonts-noto-cjk package.
+      - name: Install the CJK fonts
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
+          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc
+
+      - name: Install tested release dependencies
+        run: python -m pip install -r requirements-tested.txt
+
+      - name: Validate exact tested dependencies
+        run: python scripts/check_dependencies.py --tested
+
+      - name: Validate product identity, documentation and process evidence
+        shell: bash
+        run: |
+          python scripts/release_contract.py
+          python scripts/release_management_smoke_test.py
+          python scripts/readme_smoke_test.py
+          python scripts/agent_evaluation_smoke_test.py
+          python scripts/resource_handling_smoke_test.py
+
+      - name: Rebuild generated metadata
+        run: python scripts/rebuild_metadata.py
+
+      - name: Rebuild canonical pilot
+        run: python examples/state-aware-pilot/build_example.py
+
+      - name: Verify generated artifacts are committed and reproducible
+        run: git diff --exit-code
+
+      - name: Validate state protocol
+        run: python scripts/validate_state_protocol.py .
+
+      - name: Validate integration contracts
+        run: python scripts/validate_integration.py
+
+      - name: Validate protocol exchange conformance
+        run: python scripts/protocol_contract_smoke_test.py
+
+      - name: Validate visual-reference activation
+        run: python scripts/reference_runtime_smoke_test.py
+
+      - name: Validate reference-runtime CLI contract
+        run: python scripts/reference_runtime_cli_contract_test.py
+
+      - name: Validate routed documentation contract
+        run: python scripts/documentation_contract_smoke_test.py
+
+      - name: Validate persona-led narrative workflow
+        run: python scripts/persona_workflow_smoke_test.py
+      - name: Validate contextual voice and performance authoring
+        run: python scripts/character_performance_smoke_test.py
+      - name: Validate authorial intent and identity bindings
+        run: python scripts/authorial_intent_smoke_test.py
+
+      - name: Validate artifact-bearing execution routes and production
+        run: |
+          python scripts/execution_routes.py validate
+          python scripts/production_workflow_smoke_test.py
+          python scripts/scene_material_smoke_test.py
+          python scripts/reimplementation_smoke_test.py
+          python scripts/world_realization_smoke_test.py
+          python scripts/story_context_smoke_test.py
+          python scripts/world_coherence_smoke_test.py
+
+      - name: Validate batch generation plans
+        run: python scripts/batch_plan_smoke_test.py
+
+      - name: Validate Generation Package construction
+        run: python scripts/generation_payload_smoke_test.py
+
+      - name: Validate state-aware generation
+        run: python scripts/state_generation_smoke_test.py
+
+      - name: Validate growth authority and dispatch recovery
+        run: |
+          python scripts/growth_resolution_smoke_test.py
+          python scripts/structure_neutrality_smoke_test.py
+          python scripts/dispatch_recovery_smoke_test.py
+          python scripts/feature_workflow_smoke_test.py
+          python scripts/dispatch_smoke_test.py
+          python scripts/studio_smoke_test.py
+
+      - name: Audit default-pack authoring conformance
+        run: python scripts/audit_preset_quality.py . --state-file "${{ runner.temp }}/cpb-audit/pack-state.json" --cache-dir "${{ runner.temp }}/cpb-audit/cache" --managed-root "${{ runner.temp }}/cpb-audit/managed"
+
+      - name: Validate repository structure and contracts
+        run: python scripts/validate.py .
+
+  package:
+    name: Package (${{ matrix.os }})
+    needs: checks
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      # CairoSVG loads the native Cairo runtime through cffi. The pip wheel does
+      # not carry it and the Windows runner image does not ship it, so install it
+      # from the preinstalled MSYS2 tree. Stage the DLLs in a directory of their
+      # own: putting mingw64/bin itself on PATH shadows the tool-cache python.exe.
+      - name: Install the Cairo runtime
+        if: runner.os == 'Windows'
+        run: |
+          C:/msys64/usr/bin/pacman -Sy --noconfirm --needed mingw-w64-x86_64-cairo
+          test -f /c/msys64/mingw64/bin/libcairo-2.dll
+          CAIRO_DIR="$(cygpath -u "$RUNNER_TEMP")/cairo-runtime"
+          mkdir -p "$CAIRO_DIR"
+          cp /c/msys64/mingw64/bin/*.dll "$CAIRO_DIR/"
+          cygpath -w "$CAIRO_DIR" >> "$GITHUB_PATH"
+
+      # The Character Sheet gate renders CJK design text through resolved
+      # font files. The Windows image ships Meiryo, Malgun Gothic and
+      # Microsoft YaHei; the Linux image ships no CJK font and the raster
+      # layer fails closed without one. The resolver's known paths match the
+      # apt layout of the fonts-noto-cjk package.
+      - name: Install the CJK fonts
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
+          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc
+
+      - name: Install tested release dependencies
+        run: python -m pip install -r requirements-tested.txt
+
+      - name: Validate exact tested dependencies
+        run: python scripts/check_dependencies.py --tested
+
+      - name: Validate product identity, documentation and process evidence
+        shell: bash
+        run: |
+          python scripts/release_contract.py
+          python scripts/release_management_smoke_test.py
+          python scripts/readme_smoke_test.py
+          python scripts/agent_evaluation_smoke_test.py
+          python scripts/resource_handling_smoke_test.py
+
+      - name: Build and validate release archive
+        run: |
+          python scripts/package.py --reports-dir "$RUNNER_TEMP/reports"
+          OUT=$(python -c 'import sys; sys.path.insert(0, "scripts"); from package_metadata import RELEASE_OUTPUT; print(RELEASE_OUTPUT)')
+          cat "$OUT.sha256"
+          cp "$RUNNER_TEMP/reports/archive-check.json" dist/archive-check.json
+          python -c 'import json; print("content_sha256", json.load(open("dist/archive-check.json"))["content_sha256"])'
+
+      - name: Upload platform archive for reproducibility comparison
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-${{ matrix.os }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+            dist/archive-check.json
+          if-no-files-found: error
+          retention-days: 2
+
+  package-consistency:
+    name: Compare release archives across operating systems
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Linux archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package-ubuntu-latest
+          path: package-linux
+
+      - name: Download Windows archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package-windows-latest
+          path: package-windows
+
+      - name: Require matching archive content
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          def load(root):
+              base = Path(root)
+              archive = next(base.glob("*.zip"))
+              check = json.loads((base / "archive-check.json").read_text(encoding="utf-8"))
+              return archive.read_bytes(), check["content_sha256"]
+
+          linux_bytes, linux_content = load("package-linux")
+          windows_bytes, windows_content = load("package-windows")
+
+          failures = []
+          # Member names plus decompressed bytes. This is the portable identity:
+          # it survives a differing deflate implementation.
+          if linux_content != windows_content:
+              failures.append(
+                  f"content digests differ: linux={linux_content} windows={windows_content}"
+              )
+          # Raw bytes additionally cover member metadata such as permission bits
+          # and create_system. Both runners pin the same Python, so this must
+          # hold too; if only this check fails, suspect the zlib build rather
+          # than the archive contents.
+          if linux_bytes != windows_bytes:
+              failures.append(
+                  "raw archive bytes differ: "
+                  f"linux={hashlib.sha256(linux_bytes).hexdigest()} "
+                  f"windows={hashlib.sha256(windows_bytes).hexdigest()}"
+              )
+          if failures:
+              raise SystemExit("; ".join(failures))
+          print("content_sha256", linux_content)
+          print("archive_sha256", hashlib.sha256(linux_bytes).hexdigest())
+          PY

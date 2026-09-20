@@ -1,0 +1,21 @@
+{
+  "artifact_type": "prepared-reference-set",
+  "set_id": "PRS-template",
+  "transport_mode": "none",
+  "target_model": null,
+  "reference_selection": null,
+  "reference_selection_sha256": null,
+  "reference_use_plan": null,
+  "reference_use_plan_sha256": null,
+  "surface_lighting_plan_sha256": null,
+  "zero_reference_reason": {
+    "code": "no-canonical-record-selected",
+    "record_ids": [],
+    "detail": "No canonical record was selected for visual-reference activation."
+  },
+  "reference_preamble": "",
+  "prompt_artifacts": [],
+  "selected_references": [],
+  "single_board": null,
+  "prepared_reference_set_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

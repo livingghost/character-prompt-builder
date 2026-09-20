@@ -1,0 +1,356 @@
+{
+  "kind": "module",
+  "category": "composition",
+  "records": [
+    {
+      "id": "composition-close-portrait",
+      "label": "Face-led close portrait",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Organize a close portrait around the face while giving the shoulders, silhouette, and background enough space to support identity and mood.",
+      "prompt": "Compose a close portrait where the face forms the primary focal mass, the shoulders create a stable lower shape, the eyes receive the finest contrast, and the surrounding space supports a clear silhouette.",
+      "invariants": [
+        "the face owns the first focal read",
+        "the crop includes enough shoulder structure to ground the head",
+        "background contrast protects the outer silhouette"
+      ],
+      "misreadings_to_avoid": [
+        "accidental crop through key facial landmarks",
+        "empty torso area competing with the face",
+        "background detail carrying stronger contrast than the eyes"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "composition and focal hierarchy",
+      "tags": [
+        "close portrait",
+        "face priority"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "close portrait",
+          "facet": "composition",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "close composition",
+          "facet": "composition",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "composition-gaze-space",
+      "label": "Gaze-directed breathing room",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Use open space and directional balance to make an off-center portrait feel intentional while clarifying where the subject's attention extends.",
+      "prompt": "Place the subject off center and reserve a calm field of space along the gaze direction, balancing the head and shoulder mass with one restrained environmental cue and a simple value gradient.",
+      "invariants": [
+        "open space aligns with the subject's directional attention",
+        "the displaced subject remains visually anchored",
+        "secondary environment shapes stay quieter than the face"
+      ],
+      "misreadings_to_avoid": [
+        "arbitrary empty half of the frame",
+        "subject pressed against the frame edge",
+        "background object placed as a competing focal point"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "composition and directional balance",
+      "tags": [
+        "negative space",
+        "off-center portrait"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "breathing room",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author"
+        },
+        {
+          "phrase": "open portrait space",
+          "facet": "composition",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "composition-rule-of-thirds-placement",
+      "label": "Rule-of-thirds subject placement",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Place the subject and key features on third-lines and their intersections for balanced off-center energy.",
+      "prompt": "Compose on the rule of thirds: place the subject's center of interest near one vertical third-line, set the eyes or focal feature near an upper intersection, keep the horizon or major horizontal on one of the third lines, and leave the remaining space open for balance.",
+      "invariants": [
+        "the main subject sits off-center on a third-line",
+        "the strongest feature lands near an intersection",
+        "horizontals sit clear of the frame center"
+      ],
+      "misreadings_to_avoid": [
+        "dead-center placement erasing the off-center balance",
+        "subject drifting into the frame corner past the third",
+        "a second competing subject on the opposite third"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "composition design",
+      "tags": [
+        "rule of thirds",
+        "off-center placement",
+        "thirds grid"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "rule of thirds placement",
+          "facet": "composition",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "off-center subject balance",
+          "facet": "composition",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "thirds grid composition",
+          "facet": "composition",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "composition-central-symmetry",
+      "label": "Central symmetry formal balance",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Center the subject on a symmetric axis with mirrored surroundings for formal, iconic weight.",
+      "prompt": "Compose with central symmetry: the subject centered on a vertical axis, environment elements mirrored or balanced left and right, a frontal or perfectly aligned viewpoint, and deliberate formal stillness that gives the frame iconic weight.",
+      "invariants": [
+        "one clear symmetry axis passes through the subject",
+        "left and right visual weight stays balanced",
+        "the viewpoint aligns square to the axis"
+      ],
+      "misreadings_to_avoid": [
+        "casual off-axis tilt breaking the formality",
+        "one heavy side element unbalancing the mirror",
+        "symmetric background with a randomly offset subject"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "composition design",
+      "tags": [
+        "central symmetry",
+        "formal balance",
+        "iconic center"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "central symmetry composition",
+          "facet": "composition",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "mirrored formal balance",
+          "facet": "composition",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "centered iconic framing",
+          "facet": "composition",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "composition-negative-space-isolation",
+      "label": "Negative space isolation",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Surround a small or off-set subject with deliberate empty space for calm, scale, or solitude.",
+      "prompt": "Compose with dominant negative space: the subject occupies a modest portion of the frame, a large calm empty field of sky, wall, water, or ground surrounds it, the emptiness stays visually quiet and uncluttered, and the subject placement makes the space feel intentional.",
+      "invariants": [
+        "empty space dominates the frame area",
+        "the empty field stays quiet and even, keeping attention on the subject",
+        "subject placement makes the emptiness read as deliberate"
+      ],
+      "misreadings_to_avoid": [
+        "clutter creeping into the empty field",
+        "subject scaled so large the space disappears",
+        "empty area filled with texture that shouts for attention"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "composition design",
+      "tags": [
+        "negative space",
+        "minimal isolation",
+        "empty surround"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "negative space composition",
+          "facet": "composition",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "isolated subject empty space",
+          "facet": "composition",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "minimalist breathing room",
+          "facet": "composition",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "composition-frame-within-frame",
+      "label": "Frame within a frame",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Nest the subject inside an interior frame such as a doorway, window, or arch to add depth and focus.",
+      "prompt": "Compose with a frame within the frame: an interior border such as a doorway, window, arch, mirror, or foliage gap encloses the subject, the inner frame reads darker or lighter than the subject zone for separation, and the nesting adds one clear extra depth plane.",
+      "invariants": [
+        "one interior frame clearly encloses the subject",
+        "inner frame value separates from the subject zone",
+        "the nesting adds a readable depth plane"
+      ],
+      "misreadings_to_avoid": [
+        "the inner frame cropping key features arbitrarily",
+        "frame edges merging into the subject silhouette",
+        "multiple competing inner frames confusing focus"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "composition design",
+      "tags": [
+        "frame within frame",
+        "doorway framing",
+        "nested framing"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "frame within a frame",
+          "facet": "composition",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "doorway window framing",
+          "facet": "composition",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "nested depth framing",
+          "facet": "composition",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "composition-diagonal-flow",
+      "label": "Diagonal flow energy",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Organize major lines and the subject axis along diagonals so the frame reads dynamic and directed.",
+      "prompt": "Compose on diagonal flow: tilt the subject's main axis or action line diagonally across the frame, align supporting environment lines to reinforce that diagonal, let the eye enter at one corner and travel toward the opposite region, and keep verticals and horizontals subordinate.",
+      "invariants": [
+        "one dominant diagonal organizes the frame",
+        "supporting lines run with the diagonal and reinforce it",
+        "the eye path travels corner to corner"
+      ],
+      "misreadings_to_avoid": [
+        "a level static grid neutralizing the diagonal",
+        "two crossing diagonals cancelling the flow",
+        "the subject axis fighting the environment lines"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "composition design",
+      "tags": [
+        "diagonal composition",
+        "dynamic flow",
+        "corner-to-corner energy"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "diagonal flow composition",
+          "facet": "composition",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "dynamic diagonal lines",
+          "facet": "composition",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "corner to corner movement",
+          "facet": "composition",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

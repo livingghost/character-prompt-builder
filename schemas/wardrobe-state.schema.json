@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "wardrobe-state.schema.json",
+  "title": "Wardrobe State",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "wardrobe_state_id",
+    "character_id",
+    "outfit_variant_id",
+    "layers",
+    "condition",
+    "wardrobe_state_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "wardrobe-state"
+    },
+    "wardrobe_state_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "outfit_variant_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "item_id",
+          "state"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "state": {
+            "enum": [
+              "worn",
+              "carried",
+              "removed",
+              "stored"
+            ]
+          },
+          "closure": {},
+          "fastener_state": {},
+          "layer_order": {
+            "type": "integer"
+          },
+          "condition": {
+            "type": "object"
+          },
+          "pocket_contents": {
+            "type": "array"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "condition": {
+      "type": "object"
+    },
+    "wardrobe_state_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

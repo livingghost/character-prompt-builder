@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Character Sheet Data Editor</title>
+<style>
+:root{
+  --ink:#26221c;--muted:#6b6458;--line:#c9c2b6;--paper:#f5f2ec;--panel:#fffdf9;
+  --field:#ffffff;--core:#b3261e;--rec:#9a6500;--ok:#1b7f4d;--focus:#2f6f8f;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 system-ui,"Segoe UI",sans-serif;padding:24px}
+button,input,textarea,select{font:inherit;color:inherit}
+.sheet{max-width:1240px;margin:0 auto;background:var(--panel);border:1px solid var(--line);padding:28px 32px 36px}
+h1{font-size:22px;margin:0 0 2px}
+h2{font-size:15px;letter-spacing:.06em;text-transform:uppercase;border-bottom:2px solid var(--ink);padding-bottom:4px;margin:28px 0 12px}
+.sub,.note,.profile-note{color:var(--muted)}
+.sub{font-size:12px;margin-bottom:10px}.note{font-size:12px}.profile-note{font-size:11px;margin-top:7px}
+#banner{position:sticky;top:0;z-index:10;padding:10px 14px;font-weight:700;border:2px solid;margin-bottom:14px;background:#fff}
+#banner.bad{color:var(--core);border-color:var(--core)}#banner.warn{color:var(--rec);border-color:var(--rec)}#banner.ok{color:var(--ok);border-color:var(--ok)}
+#banner small{display:block;font-weight:400;font-size:11px;color:var(--muted)}
+.workflow{border:2px solid var(--ink);background:#f0f5f7;padding:14px 16px;margin-bottom:14px}
+.workflow strong{letter-spacing:.08em}.workflow p{margin:7px 0}.workflow ol{margin:8px 0 6px 20px;padding:0}
+.workflow .workflow-command{display:block;white-space:normal;background:#fff;border:1px solid var(--line);padding:7px 9px;margin-top:7px;font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace}
+.workflow .not-for-scenes{border-top:1px solid var(--line);padding-top:8px;margin-top:8px}.workflow .profile-note code{font:11px ui-monospace,SFMono-Regular,Consolas,monospace}
+.editor-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);background:#f8f5ef;padding:10px;margin:0 0 20px}
+.editor-actions button{padding:7px 11px;border:1px solid var(--ink);background:#fff;cursor:pointer;border-radius:3px}
+.editor-actions button.primary{background:var(--ink);color:#fff}.editor-actions button.danger{border-color:var(--core);color:var(--core)}
+.editor-actions button:disabled{opacity:.55;cursor:not-allowed}
+.editor-status,.structure-status{font-size:11px;padding:5px 8px;border:1px solid var(--line);background:#fff}
+.editor-status.dirty{border-color:var(--rec);color:var(--rec);font-weight:700}.structure-status.ok{border-color:var(--ok);color:var(--ok)}.structure-status.bad{border-color:var(--core);color:var(--core);font-weight:700}
+.grid{display:grid;gap:14px}.grid>*{min-width:0}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.hdr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
+.kv label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:block;margin:8px 0 3px;font-weight:700}
+.field-control,.table-input,.table-textarea,.table-select,.path-input,.fill-policy select{
+  width:100%;border:1px solid var(--line);background:var(--field);padding:7px 8px;border-radius:2px;min-width:0;
+}
+.field-control:focus,.table-input:focus,.table-textarea:focus,.table-select:focus,.path-input:focus,.fill-policy select:focus{outline:2px solid var(--focus);outline-offset:1px;border-color:var(--focus)}
+.field-input{min-height:36px}.field-textarea{display:block;min-height:72px;resize:vertical;line-height:1.45}.field-textarea.tall{min-height:112px}
+[data-identity-required].identity-missing{border:2px dashed var(--core);background:#fff8f5}
+[data-rec].recommended-empty{border:1px dashed var(--rec)}
+.model-brief{border:2px solid var(--core);background:#fff8f5;padding:0 14px 14px;margin:18px 0}.model-brief h2{color:var(--core);border-color:var(--core);margin-top:14px}
+.binding-help{border:1px solid var(--line);background:#faf8f3;padding:8px 10px;margin:12px 0}.binding-help summary{cursor:pointer;font-weight:700}.binding-help p{margin:7px 0}.binding-help code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace}
+.table-scroll{width:100%;max-width:100%;min-width:0;overflow-x:auto;border:1px solid var(--line);background:#fff;overscroll-behavior-inline:contain}
+table{width:100%;min-width:760px;border-collapse:collapse;font-size:13px;background:#fff}
+#axes{min-width:620px}
+th,td{border:1px solid var(--line);padding:6px;text-align:left;vertical-align:top}th{background:#efeadf;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.table-scroll table th:first-child,.table-scroll table td:first-child{border-left:0}.table-scroll table th:last-child,.table-scroll table td:last-child{border-right:0}.table-scroll table tr:first-child th{border-top:0}.table-scroll table tr:last-child td{border-bottom:0}
+.table-input{min-height:34px}.table-textarea{display:block;min-height:62px;resize:vertical;line-height:1.35}.table-select{min-width:132px}
+.row-actions{width:86px;min-width:86px;text-align:center;white-space:nowrap}.remove-row{border:1px solid #8d554f;background:#fff;color:#7b2f28;padding:5px 8px;border-radius:3px;cursor:pointer;font-size:11px}.remove-row:disabled{border-color:var(--line);color:var(--muted);cursor:not-allowed;background:#f5f2ec}
+.row-tools{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 2px}.add{font:12px system-ui;padding:5px 11px;border:1px solid var(--ink);background:#fff;cursor:pointer;border-radius:3px}.add:disabled{opacity:.55;cursor:not-allowed}.row-help{font-size:11px;color:var(--muted)}
+.swatch-control{display:grid;grid-template-columns:30px minmax(92px,1fr);gap:6px;align-items:center}.sw{width:30px;height:26px;border:1px solid var(--line);display:block;background:repeating-linear-gradient(45deg,#eee,#eee 4px,#fff 4px,#fff 8px)}input.hex{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;text-transform:uppercase}
+.slot{border:1px solid var(--line);background:#fff;padding:9px;text-align:center;min-width:0}.slot img{max-width:100%;max-height:340px;display:block;margin:0 auto}.slot img[hidden]{display:none}
+.slot.miss-core{border:2px dashed var(--core)}.slot.miss-rec{border:2px dashed var(--rec)}.slot.policy-skip{background:#efede8;opacity:.85}.slot.policy-fill{box-shadow:inset 0 0 0 2px #6d8d35}.slot.policy-keep{box-shadow:inset 0 0 0 2px #47739b}.slot.policy-error{border:2px dashed var(--core)}
+.slot .cap{font-size:12px;margin-top:6px}.panel-code{display:inline-block;margin-right:5px;font:700 10px ui-monospace,SFMono-Regular,Consolas,monospace;padding:1px 4px;border:1px solid currentColor;border-radius:2px}
+.tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;padding:1px 6px;border-radius:3px;vertical-align:middle}.tag.core{background:var(--core);color:#fff}.tag.rec{background:var(--rec);color:#fff}.tag.cond{background:#8a8172;color:#fff}.tag.opt{background:#d8d2c6;color:#3f3a31}
+.slot-preview-empty{min-height:64px;display:flex;align-items:center;justify-content:center;background:#f4f1eb;color:#8b8377;font-size:11px;border:1px dashed var(--line);margin-bottom:6px;padding:8px}.slot-preview-empty[data-state="recorded"]{background:#eef2f5;color:#5b6770}.slot-preview-empty[data-state="blocked"]{background:#fff1ef;color:var(--core);border-color:var(--core)}.slot.has-preview .slot-preview-empty{display:none}
+.prov{display:grid;gap:6px;margin-top:7px;text-align:left}.prov-row{display:grid;gap:2px}.prov-row span{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}.path-input{font:10px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace;padding:5px 6px}
+.fill-policy{margin-top:7px;padding-top:6px;border-top:1px solid var(--line);text-align:left;font-size:11px}.fill-policy label{display:block;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}.fill-policy select{margin-top:3px;padding:5px;font-size:11px}
+.policy-summary{font-weight:700}
+@media (max-width:980px){body{padding:12px}.sheet{padding:20px}.hdr{grid-template-columns:repeat(2,minmax(0,1fr))}.g3,.g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){body{padding:0}.sheet{border:0;padding:14px}.hdr,.g2,.g3,.g4{grid-template-columns:1fr}.editor-actions{position:static}.slot{padding:8px}h2{margin-top:24px}}
+@media print{body{padding:0}.sheet{max-width:none;border:0}.workflow,.editor-actions,.binding-help,.row-tools,.row-actions,.fill-policy,.prov{display:none!important}#banner{position:static}.table-scroll{overflow:visible;border:0}table{min-width:0}.slot{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="sheet">
+<div class="warn" id="banner">DRAFT</div>
+<div class="workflow"><strong>REUSABLE JSON EDITOR - NOT A PER-CHARACTER HTML DOCUMENT</strong><p>Use this page when a recurring character is first defined or when its stable canon is revised. Do not edit the HTML source for each character. Enter data in the page and save it by exporting sheet-data.json.</p><ol><li>For a new character, start blank. For an existing character, import its sheet-data.json before editing.</li><li>Enter stable identity facts only. Do not put the current scene, camera, one-off pose, lighting, damage, dirt, or other transient state here.</li><li>Export sheet-data.json into one folder dedicated to that character. Browser edits are not saved anywhere until export.</li><li>Run the renderer on that folder. The renderer reads JSON plus a layout profile and creates the renderer-owned PNG composition base, edit mask, layout, and exact panel-only requests. It does not screenshot or rasterize this HTML page.</li><li>For a maskless model, send only each declared panel prompt and its accepted identity references, then compose the artwork-only result files into the renderer-owned base. Never send the full sheet as a reference image and call that a masked edit. A full-sheet request is allowed only for an interface that actually applies the pixel edit mask.</li><li>Harvest the returned sheet as candidates, explicitly accept only approved panel crops, and render the accepted panels as a later identity reference board.</li></ol><code class="workflow-command">python scripts/render_character_sheet.py &lt;character-sheet-folder&gt; --mode scaffold --out &lt;character-sheet-folder&gt;/model-fill</code><p class="not-for-scenes">Do not reopen or rewrite this editor for every new image. Reopen it only when the character canon, the requested sheet panels, or an accepted reference artifact changes. Pose and scene instructions belong in the current generation prompt.</p><p class="profile-note"><b>Panel-set scope:</b> the renderer profile named in <code>field.sheet_layout_profile</code> is authoritative; blank uses the domain-neutral <code>general</code> profile. Panel letters are profile-local and are intentionally replaced by stable slot ids in this editor. Imported and profile-resolved slots receive controls automatically. Bundled profile panels are starters, never a closed list or a maximum; undeclared anatomy is never generated.</p></div><div class="editor-actions"><input accept="application/json" hidden="" id="sheetImport" type="file"/><button data-action="import" type="button">Import sheet-data.json</button><button class="primary" data-action="export" type="button">Export sheet-data.json</button><button class="danger" data-action="reset" type="button">Reset editor</button><span class="editor-status" id="editorStatus">No unsaved edits</span><span class="structure-status" id="structureStatus">Checking form structure...</span></div>
+<div class="hdr">
+<div class="kv">
+<label for="field-identity-name">Name</label><input aria-label="Name" class="field-control field-input" data-field-id="identity.name" data-identity-required="" id="field-identity-name" type="text" value=""/>
+<label for="field-identity-species_domain">Species / Domain</label><input aria-label="Species / Domain" class="field-control field-input" data-field-id="identity.species_domain" data-identity-required="" id="field-identity-species_domain" type="text" value=""/>
+<label for="field-field-pronouns">Pronouns</label><input aria-label="Pronouns" class="field-control field-input" data-field-id="field.pronouns" id="field-field-pronouns" type="text" value=""/>
+<label for="field-field-kind_baseline_sheet_or_self">Kind / baseline sheet (or "self")</label><input aria-label='Kind / baseline sheet (or "self")' class="field-control field-input" data-field-id="field.kind_baseline_sheet_or_self" id="field-field-kind_baseline_sheet_or_self" type="text" value=""/>
+<label for="field-field-form_of_spine_sheet_or_self">Form of (spine sheet, or "self")</label><input aria-label='Form of (spine sheet, or "self")' class="field-control field-input" data-field-id="field.form_of_spine_sheet_or_self" data-rec="" id="field-field-form_of_spine_sheet_or_self" type="text" value=""/>
+<label for="field-field-form_id_display_name">Form id / display name</label><input aria-label="Form id / display name" class="field-control field-input" data-field-id="field.form_id_display_name" id="field-field-form_id_display_name" type="text" value=""/>
+<label for="field-field-sheet_layout_profile">Layout profile (render scaffold design)</label><input aria-label="Layout profile (render scaffold design)" class="field-control field-input" data-field-id="field.sheet_layout_profile" data-rec="" id="field-field-sheet_layout_profile" placeholder="general" type="text" value=""/><span class="note">Which render profile draws this character's scaffold: a bundled id (<code>general</code>, <code>humanoid</code>, <code>anthro</code>) or a path to this character's own authored profile JSON with exactly the frames this individual needs. Blank uses the domain-neutral <code>general</code> profile and never assumes humanoid anatomy.</span><label for="field-field-sheet_coverage_exceptions">Coverage exceptions (deliberate omissions)</label><textarea aria-label="Coverage exceptions (deliberate omissions)" class="field-control field-textarea" data-field-id="field.sheet_coverage_exceptions" id="field-field-sheet_coverage_exceptions" rows="3"></textarea><span class="note">The renderer refuses to draw a scaffold while declared content or the minimum sheet floor has no frame. Supply exactly one substantive justification line per reported gap; each line is paired with that gap in <code>render-package.json</code>. Leave blank while every declared item still needs a panel.</span>
+</div>
+<div class="kv">
+<label for="field-field-height_against_a_stated_measure">Height (against a stated measure)</label><input aria-label="Height (against a stated measure)" class="field-control field-input" data-field-id="field.height_against_a_stated_measure" data-rec="" id="field-field-height_against_a_stated_measure" type="text" value=""/>
+<label for="field-field-build_register">Build register</label><input aria-label="Build register" class="field-control field-input" data-field-id="field.build_register" data-rec="" id="field-field-build_register" type="text" value=""/>
+<label for="field-field-key_ratios_load_bearing">Key ratios (load-bearing)</label><input aria-label="Key ratios (load-bearing)" class="field-control field-input" data-field-id="field.key_ratios_load_bearing" id="field-field-key_ratios_load_bearing" type="text" value=""/>
+</div>
+<div class="kv">
+<label for="field-field-notes">Notes</label><textarea aria-label="Notes" class="field-control field-textarea tall" data-field-id="field.notes" id="field-field-notes" rows="5"></textarea>
+</div>
+</div><p class="profile-note">Accepted artifact paths are editable for manual correction, but the normal acceptance script should write them. Changing a path clears its imported hash on export.</p>
+<section class="model-brief">
+<h2>Model-fill brief</h2>
+<div class="sub">These fields define what the image model must draw before any accepted reference exists. Separate the unobstructed base form from the dressed, covered, shelled, or equipped form so both can be compared direction by direction.</div>
+<div class="grid g2">
+<div class="kv"><label for="field-field-model_fill_visual_design_brief">First-fill visual design brief</label><textarea aria-label="First-fill visual design brief" class="field-control field-textarea tall" data-field-id="field.model_fill_visual_design_brief" data-rec="" id="field-field-model_fill_visual_design_brief" rows="5"></textarea><div class="note">Describe the stable visible design: silhouette, anatomy, face, materials, markings, palette behavior, and signature items. Do not describe the current scene.</div></div>
+<div class="kv"><label for="field-field-reference_sheet_visual_finish">Reference-sheet visual finish</label><textarea aria-label="Reference-sheet visual finish" class="field-control field-textarea tall" data-field-id="field.reference_sheet_visual_finish" data-rec="" id="field-field-reference_sheet_visual_finish" placeholder="Example: clean production character sheet, plain panel interiors, even neutral lighting, no scenery" rows="5"></textarea><div class="note">Rendering treatment for the sheet itself. Later scene prompts remain authoritative for pose, expression, camera, environment, and lighting.</div></div>
+</div>
+<div class="grid g2" style="margin-top:10px">
+<div class="kv"><label for="field-field-base_form_visual_description">Base form / uncovered configuration</label><textarea aria-label="Base form / uncovered configuration" class="field-control field-textarea tall" data-field-id="field.base_form_visual_description" data-rec="" id="field-field-base_form_visual_description" rows="5"></textarea><div class="note">State exactly what every profile-declared unobstructed view must show when removable clothing, coverings, equipment, and carried items are absent. For a person or anthro this can be the unclothed body; for a machine, construct, swarm, or other entity it is the underlying chassis, topology, or canonical configuration. Declare body covering, component count, connection pattern, sex features when relevant, and anything that must not be invented.</div></div>
+<div class="kv"><label for="field-field-dressed_equipped_form_visual_description">Dressed / covered / equipped configuration</label><textarea aria-label="Dressed / covered / equipped configuration" class="field-control field-textarea tall" data-field-id="field.dressed_equipped_form_visual_description" id="field-field-dressed_equipped_form_visual_description" rows="5"></textarea><div class="note">Describe the primary visible state applied over the same base form: silhouette, layer order, fastenings, openings, footwear, tail or appendage accommodation, shells, modules, and fixed carried equipment. Leave blank only when no distinct dressed, covered, shelled, or equipped state exists.</div></div>
+</div>
+</section>
+<div class="note" style="margin-top:8px">Name and Species / Domain establish selectable identity. Blank text is unresolved; a dash means not applicable. Image generation is controlled separately by each panel's <b>Model-fill policy</b>: Auto uses declared sheet data, Generate forces a new candidate, Keep protects an accepted image, and Skip excludes the panel.</div><details class="binding-help"><summary>Binding metadata (authoritative identity scope)</summary><p>The <code>binding</code> value is forwarded to image generation and reference-board selection. Fixed facts are preserved at their declared scope; variable facts remain variable and are excluded from the identity-only board.</p><ul><li><code>kind-fixed</code> - inherited from the referenced kind</li><li><code>character-fixed</code> - shared across this character's forms</li><li><code>individual-fixed</code> - fixed on this individual or form sheet</li><li><code>variable</code> - allowed to vary only under the written rule</li></ul></details>
+<h2>Character core - the inner canon</h2>
+<div class="sub">Appearance is the translation of these facts; every visual choice below should trace back to something here.</div>
+<div class="grid g2">
+<div class="kv">
+<label for="field-field-personality_and_motivational_structure">Personality and motivational structure</label><textarea aria-label="Personality and motivational structure" class="field-control field-textarea" data-field-id="field.personality_and_motivational_structure" data-rec="" id="field-field-personality_and_motivational_structure" rows="3"></textarea>
+<label for="field-field-counter_element_or_weakness">Counter-element or weakness</label><textarea aria-label="Counter-element or weakness" class="field-control field-textarea" data-field-id="field.counter_element_or_weakness" data-rec="" id="field-field-counter_element_or_weakness" rows="3"></textarea>
+<label for="field-field-role_world_and_standing">Role, world, and standing</label><textarea aria-label="Role, world, and standing" class="field-control field-textarea" data-field-id="field.role_world_and_standing" data-rec="" id="field-field-role_world_and_standing" rows="3"></textarea>
+</div>
+<div class="kv">
+<label for="field-field-design_themes_and_organizing_principles">Design themes and organizing principles</label><textarea aria-label="Design themes and organizing principles" class="field-control field-textarea" data-field-id="field.design_themes_and_organizing_principles" data-rec="" id="field-field-design_themes_and_organizing_principles" rows="3"></textarea>
+<label for="field-field-motifs_derived_from_the_theme_and_where_they_appear">Motifs derived from the theme (and where they appear)</label><textarea aria-label="Motifs derived from the theme (and where they appear)" class="field-control field-textarea tall" data-field-id="field.motifs_derived_from_the_theme_and_where_they_appear" data-rec="" id="field-field-motifs_derived_from_the_theme_and_where_they_appear" rows="5"></textarea>
+<label for="field-field-unseen_settings_never_drawn_still_binding">Unseen settings (never drawn, still binding)</label><textarea aria-label="Unseen settings (never drawn, still binding)" class="field-control field-textarea tall" data-field-id="field.unseen_settings_never_drawn_still_binding" id="field-field-unseen_settings_never_drawn_still_binding" rows="5"></textarea>
+</div>
+</div>
+<div class="sub" style="margin-top:10px">Declare however many visual identity axes this particular character needs. Axis names are author-defined, not anatomy-defined. Non-exhaustive examples include silhouette or topology, surface or material language, habitual configuration, motion or formation language, signaling, and worn or deployed assemblies. Examples are guidance only and are never inserted as character data.</div>
+<div class="table-scroll"><table data-export-table="" id="axes" style="margin-top:10px">
+<tbody>
+<tr><th style="width:28%">Visual identity axis</th><th>What the declared choices communicate</th><th style="width:14%">Binding</th><th class="row-actions">Actions</th></tr>
+<tr data-row-id="axes.01"><td data-column-id="axis"><input aria-label="axes: Visual identity axis" autocomplete="off" class="table-input" data-column-id="axis" type="text" value=""/></td><td data-column-id="choices_expression"><textarea aria-label="axes: What the declared choices communicate" class="table-textarea" data-column-id="choices_expression" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="axes: Binding" class="binding-select table-select" data-column-id="binding"><option value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+</tbody>
+</table></div><template data-row-template="axes"><tr><td data-column-id="axis"><input aria-label="axes: Visual identity axis" autocomplete="off" class="table-input" data-column-id="axis" type="text" value=""/></td><td data-column-id="choices_expression"><textarea aria-label="axes: What the declared choices communicate" class="table-textarea" data-column-id="choices_expression" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="axes: Binding" class="binding-select table-select" data-column-id="binding"><option selected="" value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="axes" type="button">Add row</button><span class="row-help">Name axes according to the actual entity; there is no fixed category list or row total.</span></div>
+<div class="grid g2" style="margin-top:10px">
+<div class="kv"><label for="field-field-signature_poses_and_mannerisms_described">Signature poses and mannerisms (described)</label><textarea aria-label="Signature poses and mannerisms (described)" class="field-control field-textarea tall" data-field-id="field.signature_poses_and_mannerisms_described" data-rec="" id="field-field-signature_poses_and_mannerisms_described" rows="5"></textarea>
+<label for="field-field-relationships_and_stance_toward_others">Relationships and stance toward others</label><textarea aria-label="Relationships and stance toward others" class="field-control field-textarea tall" data-field-id="field.relationships_and_stance_toward_others" id="field-field-relationships_and_stance_toward_others" rows="5"></textarea></div>
+</div>
+<h2>Forms and transformations</h2>
+<div class="sub">For characters that change shape, configuration, or name on a trigger. This sheet acts as the spine; every registered form gets its own complete sheet in a subfolder, with its own profile-defined views, states, marks, parts, outfits, and accepted evidence. The registry points to each full sheet; each linked sheet declares its own form id and a reverse path to this spine. Leave the registry empty for a single-form character.</div>
+<div class="grid g2"><div class="kv"><label for="field-field-form_id">Current form id (on a linked form sheet)</label><input aria-label="Current form id" class="field-control field-input" data-field-id="field.form_id" id="field-field-form_id" type="text" value=""/><div class="note">On each linked form sheet, this must exactly match the semantic form id in the spine registry. Leave blank on the spine itself.</div></div><div class="kv"><label for="field-field-form_spine_path">Spine sheet path (on a linked form sheet)</label><input aria-label="Spine sheet path" class="field-control field-input" data-field-id="field.form_spine_path" id="field-field-form_spine_path" type="text" value=""/><div class="note">Safe relative path from this form folder back to the spine sheet-data.json, for example ../../sheet-data.json.</div></div></div>
+<div class="table-scroll"><table data-export-table="" id="formreg">
+<tbody>
+<tr><th style="width:10%">Form id</th><th style="width:16%">Display name</th><th style="width:14%">Kind ref</th><th style="width:22%">Trigger and transition rule</th><th>What persists through the change</th><th style="width:14%">Sheet path</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="formreg.01"><td data-column-id="form_id"><input aria-label="formreg: Form id" autocomplete="off" class="table-input" data-column-id="form_id" type="text" value=""/></td><td data-column-id="display_name"><input aria-label="formreg: Display name" autocomplete="off" class="table-input" data-column-id="display_name" type="text" value=""/></td><td data-column-id="kind_ref"><input aria-label="formreg: Kind ref" autocomplete="off" class="table-input" data-column-id="kind_ref" type="text" value=""/></td><td data-column-id="trigger_transition"><textarea aria-label="formreg: Trigger and transition rule" class="table-textarea" data-column-id="trigger_transition" rows="2"></textarea></td><td data-column-id="persists"><textarea aria-label="formreg: What persists through the change" class="table-textarea" data-column-id="persists" rows="2"></textarea></td><td data-column-id="sheet_path"><input aria-label="formreg: Sheet path" autocomplete="off" class="table-input" data-column-id="sheet_path" type="text" value=""/></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+</tbody>
+</table></div><template data-row-template="formreg"><tr class=""><td data-column-id="form_id"><input aria-label="formreg: Form id" autocomplete="off" class="table-input" data-column-id="form_id" type="text" value=""/></td><td data-column-id="display_name"><input aria-label="formreg: Display name" autocomplete="off" class="table-input" data-column-id="display_name" type="text" value=""/></td><td data-column-id="kind_ref"><input aria-label="formreg: Kind ref" autocomplete="off" class="table-input" data-column-id="kind_ref" type="text" value=""/></td><td data-column-id="trigger_transition"><textarea aria-label="formreg: Trigger and transition rule" class="table-textarea" data-column-id="trigger_transition" rows="2"></textarea></td><td data-column-id="persists"><textarea aria-label="formreg: What persists through the change" class="table-textarea" data-column-id="persists" rows="2"></textarea></td><td data-column-id="sheet_path"><input aria-label="formreg: Sheet path" autocomplete="off" class="table-input" data-column-id="sheet_path" type="text" value=""/></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="formreg" type="button">Add row</button></div>
+<div class="table-scroll"><table data-export-table="" id="invariants" style="margin-top:10px">
+<tbody>
+<tr><th style="width:22%">Cross-form invariant</th><th style="width:30%">Value</th><th style="width:14%">Binding</th><th>Where it shows in each form</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="invariants.01"><td data-column-id="invariant"><textarea aria-label="invariants: Cross-form invariant" class="table-textarea" data-column-id="invariant" rows="2"></textarea></td><td data-column-id="value"><textarea aria-label="invariants: Value" class="table-textarea" data-column-id="value" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="invariants: Binding" class="binding-select table-select" data-column-id="binding"><option value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td data-column-id="visible_expression"><textarea aria-label="invariants: Where it shows in each form" class="table-textarea" data-column-id="visible_expression" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+</tbody>
+</table></div><template data-row-template="invariants"><tr class=""><td data-column-id="invariant"><textarea aria-label="invariants: Cross-form invariant" class="table-textarea" data-column-id="invariant" rows="2"></textarea></td><td data-column-id="value"><textarea aria-label="invariants: Value" class="table-textarea" data-column-id="value" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="invariants: Binding" class="binding-select table-select" data-column-id="binding"><option selected="" value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td data-column-id="visible_expression"><textarea aria-label="invariants: Where it shows in each form" class="table-textarea" data-column-id="visible_expression" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="invariants" type="button">Add row</button></div>
+<div class="kv" style="margin-top:8px"><label for="field-field-per_form_character_deltas_personality_or_stance_shifts_that_are_canon_in_a_given">Per-form character deltas (personality or stance shifts that are canon in a given form)</label><textarea aria-label="Per-form character deltas (personality or stance shifts that are canon in a given form)" class="field-control field-textarea tall" data-field-id="field.per_form_character_deltas_personality_or_stance_shifts_that_are_canon_in_a_given" id="field-field-per_form_character_deltas_personality_or_stance_shifts_that_are_canon_in_a_given" rows="5"></textarea></div>
+<h2>Body language - how states wear the body</h2>
+<div class="sub">Write one visually distinct full-body state per row. The baseline row is how this identity habitually stands, orients, forms, or moves; each further row maps a state, situation, or relationship to posture, gesture, orientation, and the channels this kind actually has. Every substantive row becomes one separate POSE / BODY LANGUAGE panel in the rendered PNG, with no fixed total or upper count. A dash leaves a cell open to the moment.</div>
+<div class="table-scroll"><table data-export-table="" id="bodylang">
+<tbody>
+<tr><th style="width:16%">State / situation</th><th style="width:22%">Posture and stance</th><th style="width:24%">Gesture and mannerism</th><th style="width:22%">Kind channels (tail, ears, plating...)</th><th>Distance and orientation</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="bodylang.01"><td data-column-id="state"><input aria-label="bodylang: State or situation" autocomplete="off" class="table-input" data-column-id="state" type="text" value=""/></td><td data-column-id="posture"><textarea aria-label="bodylang: Posture and stance" class="table-textarea" data-column-id="posture" rows="2"></textarea></td><td data-column-id="gesture"><textarea aria-label="bodylang: Gesture and mannerism" class="table-textarea" data-column-id="gesture" rows="2"></textarea></td><td data-column-id="kind_channels"><textarea aria-label="bodylang: Declared entity-specific channels" class="table-textarea" data-column-id="kind_channels" rows="2"></textarea></td><td data-column-id="distance_orientation"><textarea aria-label="bodylang: Distance and orientation" class="table-textarea" data-column-id="distance_orientation" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+
+</tbody>
+</table></div><template data-row-template="bodylang"><tr class=""><td data-column-id="state"><input aria-label="bodylang: State or situation" autocomplete="off" class="table-input" data-column-id="state" type="text" value=""/></td><td data-column-id="posture"><textarea aria-label="bodylang: Posture and stance" class="table-textarea" data-column-id="posture" rows="2"></textarea></td><td data-column-id="gesture"><textarea aria-label="bodylang: Gesture and mannerism" class="table-textarea" data-column-id="gesture" rows="2"></textarea></td><td data-column-id="kind_channels"><textarea aria-label="bodylang: Declared entity-specific channels" class="table-textarea" data-column-id="kind_channels" rows="2"></textarea></td><td data-column-id="distance_orientation"><textarea aria-label="bodylang: Distance and orientation" class="table-textarea" data-column-id="distance_orientation" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="bodylang" type="button">Add row</button><span class="row-help">Every substantive row declares a rendered state panel. Humanoids may use posture and gesture; other entities may use orientation, formation, lighting, appendages, plating, component spacing, or other declared channels.</span></div>
+<div class="slots" id="bodylangPanelEditors"></div>
+<h2>Part states - one part, several configurations</h2>
+<div class="sub">Write one row per configuration a part takes on screen: a tail carried high, ears pinned, a crest raised. Each substantive row becomes one PART STATE panel showing that part alone in that state, drawn from its identity panel.</div>
+<div class="table-scroll"><table data-export-table="" id="partstates">
+<tbody>
+<tr><th style="width:14%">Part</th><th style="width:14%">State</th><th style="width:40%">Configuration and geometry</th><th>What it communicates</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="partstates.01"><td data-column-id="part"><input aria-label="partstates: Part" autocomplete="off" class="table-input" data-column-id="part" type="text" value=""/></td><td data-column-id="state"><input aria-label="partstates: State" autocomplete="off" class="table-input" data-column-id="state" type="text" value=""/></td><td data-column-id="configuration"><textarea aria-label="partstates: Configuration and geometry" class="table-textarea" data-column-id="configuration" rows="2"></textarea></td><td data-column-id="read"><textarea aria-label="partstates: What it communicates" class="table-textarea" data-column-id="read" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+
+</tbody>
+</table></div><template data-row-template="partstates"><tr class=""><td data-column-id="part"><input aria-label="partstates: Part" autocomplete="off" class="table-input" data-column-id="part" type="text" value=""/></td><td data-column-id="state"><input aria-label="partstates: State" autocomplete="off" class="table-input" data-column-id="state" type="text" value=""/></td><td data-column-id="configuration"><textarea aria-label="partstates: Configuration and geometry" class="table-textarea" data-column-id="configuration" rows="2"></textarea></td><td data-column-id="read"><textarea aria-label="partstates: What it communicates" class="table-textarea" data-column-id="read" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="partstates" type="button">Add row</button><span class="row-help">Every substantive row declares a rendered part-state panel; the part keeps the construction of its identity panel and only the declared configuration changes.</span></div>
+<div class="slots" id="partstatePanelEditors"></div>
+<h2>Range of motion - how far the body goes</h2>
+<div class="sub">Write one row per region whose reach matters on screen: shoulders, spine, ears, jaw, tail. Each substantive row becomes one RANGE OF MOTION panel showing the region at both extremes side by side.</div>
+<div class="table-scroll"><table data-export-table="" id="motion">
+<tbody>
+<tr><th style="width:14%">Region</th><th style="width:30%">Extremes to draw</th><th style="width:30%">What the body cannot do</th><th>Must prove</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="motion.01"><td data-column-id="region"><input aria-label="motion: Region" autocomplete="off" class="table-input" data-column-id="region" type="text" value=""/></td><td data-column-id="range"><textarea aria-label="motion: Extremes to draw" class="table-textarea" data-column-id="range" rows="2"></textarea></td><td data-column-id="limit"><textarea aria-label="motion: What the body cannot do" class="table-textarea" data-column-id="limit" rows="2"></textarea></td><td data-column-id="must_prove"><textarea aria-label="motion: Must prove" class="table-textarea" data-column-id="must_prove" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+
+</tbody>
+</table></div><template data-row-template="motion"><tr class=""><td data-column-id="region"><input aria-label="motion: Region" autocomplete="off" class="table-input" data-column-id="region" type="text" value=""/></td><td data-column-id="range"><textarea aria-label="motion: Extremes to draw" class="table-textarea" data-column-id="range" rows="2"></textarea></td><td data-column-id="limit"><textarea aria-label="motion: What the body cannot do" class="table-textarea" data-column-id="limit" rows="2"></textarea></td><td data-column-id="must_prove"><textarea aria-label="motion: Must prove" class="table-textarea" data-column-id="must_prove" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="motion" type="button">Add row</button><span class="row-help">Every substantive row declares a rendered range panel; the limit says what the body cannot do, so a scene never asks for it.</span></div>
+<div class="slots" id="motionPanelEditors"></div>
+<h2>Action poses - the body in motion</h2>
+<div class="sub">Write one row per action and phase: a leap mid-air, a strike at contact, a landing. Each substantive row becomes one ACTION POSE panel of the complete figure committed to that motion.</div>
+<div class="table-scroll"><table data-export-table="" id="actions">
+<tbody>
+<tr><th style="width:14%">Action</th><th style="width:14%">Phase</th><th style="width:40%">Weight, spine, and limbs</th><th>Kind channels (tail, ears, claws...)</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="actions.01"><td data-column-id="action"><input aria-label="actions: Action" autocomplete="off" class="table-input" data-column-id="action" type="text" value=""/></td><td data-column-id="phase"><input aria-label="actions: Phase" autocomplete="off" class="table-input" data-column-id="phase" type="text" value=""/></td><td data-column-id="mechanics"><textarea aria-label="actions: Weight, spine, and limbs" class="table-textarea" data-column-id="mechanics" rows="2"></textarea></td><td data-column-id="kind_channels"><textarea aria-label="actions: Kind channels (tail, ears, claws...)" class="table-textarea" data-column-id="kind_channels" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+
+</tbody>
+</table></div><template data-row-template="actions"><tr class=""><td data-column-id="action"><input aria-label="actions: Action" autocomplete="off" class="table-input" data-column-id="action" type="text" value=""/></td><td data-column-id="phase"><input aria-label="actions: Phase" autocomplete="off" class="table-input" data-column-id="phase" type="text" value=""/></td><td data-column-id="mechanics"><textarea aria-label="actions: Weight, spine, and limbs" class="table-textarea" data-column-id="mechanics" rows="2"></textarea></td><td data-column-id="kind_channels"><textarea aria-label="actions: Kind channels (tail, ears, claws...)" class="table-textarea" data-column-id="kind_channels" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="actions" type="button">Add row</button><span class="row-help">Every substantive row declares a rendered action panel; mechanics carry weight, spine, and limbs, and kind channels carry what this kind adds.</span></div>
+<div class="slots" id="actionPanelEditors"></div>
+<h2>Everyday gestures - habits and small business</h2>
+<div class="sub">Write one row per habit the character does without thinking: grooming, eating, sitting, waiting. Each substantive row becomes one GESTURE panel of the complete figure in that moment, with its prop when declared.</div>
+<div class="table-scroll"><table data-export-table="" id="gestures">
+<tbody>
+<tr><th style="width:16%">Gesture</th><th style="width:24%">When and where</th><th style="width:36%">What the body does</th><th>Props involved</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="gestures.01"><td data-column-id="gesture"><input aria-label="gestures: Gesture" autocomplete="off" class="table-input" data-column-id="gesture" type="text" value=""/></td><td data-column-id="context"><textarea aria-label="gestures: When and where" class="table-textarea" data-column-id="context" rows="2"></textarea></td><td data-column-id="body"><textarea aria-label="gestures: What the body does" class="table-textarea" data-column-id="body" rows="2"></textarea></td><td data-column-id="props"><textarea aria-label="gestures: Props involved" class="table-textarea" data-column-id="props" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+
+</tbody>
+</table></div><template data-row-template="gestures"><tr class=""><td data-column-id="gesture"><input aria-label="gestures: Gesture" autocomplete="off" class="table-input" data-column-id="gesture" type="text" value=""/></td><td data-column-id="context"><textarea aria-label="gestures: When and where" class="table-textarea" data-column-id="context" rows="2"></textarea></td><td data-column-id="body"><textarea aria-label="gestures: What the body does" class="table-textarea" data-column-id="body" rows="2"></textarea></td><td data-column-id="props"><textarea aria-label="gestures: Props involved" class="table-textarea" data-column-id="props" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="gestures" type="button">Add row</button><span class="row-help">Every substantive row declares a rendered gesture panel; props named here are drawn at their declared scale and nowhere else invented.</span></div>
+<div class="slots" id="gesturePanelEditors"></div>
+<h2>Full-body views</h2>
+<div class="sub">The rendered sheet compares the same base / uncovered configuration through the complete canonical view set declared by the selected profile. The bundled starters include primary, two independent lateral or orthogonal surfaces, and opposite views, but a profile may declare any number and kind of views, including top, bottom, internal, deployed, formation, extended, or other topology-revealing states. Keep scale, structure, lighting, and identity fixed wherever comparison requires it; never infer one side by mirroring another.</div>
+<div class="table-scroll"><table data-export-table="" id="views">
+<tbody>
+<tr><th style="width:14%">View id</th><th style="width:20%">View / orientation / configuration</th><th>Exact view specification</th><th>What this view must prove</th><th class="row-actions">Actions</th></tr>
+<tr data-row-id="views.01"><td data-column-id="view_id"><input aria-label="views: View id" autocomplete="off" class="table-input" data-column-id="view_id" type="text" value=""/></td><td data-column-id="label"><input aria-label="views: View, orientation, or configuration" autocomplete="off" class="table-input" data-column-id="label" type="text" value=""/></td><td data-column-id="specification"><textarea aria-label="views: Exact view specification" class="table-textarea" data-column-id="specification" rows="2"></textarea></td><td data-column-id="must_prove"><textarea aria-label="views: What this view must prove" class="table-textarea" data-column-id="must_prove" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+</tbody>
+</table></div><template data-row-template="views"><tr><td data-column-id="view_id"><input aria-label="views: View id" autocomplete="off" class="table-input" data-column-id="view_id" type="text" value=""/></td><td data-column-id="label"><input aria-label="views: View, orientation, or configuration" autocomplete="off" class="table-input" data-column-id="label" type="text" value=""/></td><td data-column-id="specification"><textarea aria-label="views: Exact view specification" class="table-textarea" data-column-id="specification" rows="2"></textarea></td><td data-column-id="must_prove"><textarea aria-label="views: What this view must prove" class="table-textarea" data-column-id="must_prove" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="views" type="button">Add row</button><span class="row-help">Every substantive view row is rendered for the base configuration and repeated for every declared outfit, covering, shell, or equipment state. Names and count are author-defined.</span></div>
+<div class="slots" id="viewPanelEditors"></div>
+<div class="profile-note">Substantive rows above override the profile's starter view set. When the table is blank, the selected profile supplies its authored starter views. The renderer, not this HTML, assigns actual panel slots, and imported sidecars expose those resolved artifacts.</div>
+<h2>Outfits</h2>
+<div class="sub">Every declared outfit, covering, shell, or equipment state receives the selected profile's complete outfit view set. Additional rows repeat that whole set rather than collapsing to one variant image. The profile decides the view names and count; this applies to clothing and to non-humanoid coverings, shells, modules, carried assemblies, deployed configurations, and other declared states. Fixed rows must also state what stays identical across applicable panels and exactly when the state or its components may be out of view.</div>
+<div class="profile-note">Accepted-image controls for additional outfit view groups appear after importing a rendered sidecar; the outfit table, not a fixed set of HTML cards, determines how many states exist.</div>
+<div class="table-scroll"><table data-export-table="" id="outfits">
+<tbody>
+<tr><th style="width:16%">Outfit / state</th><th>Description (silhouette, layers, construction)</th><th style="width:12%">Notes</th><th>Continuity rule</th><th>Applicability / visibility rule</th><th style="width:10%">Binding</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="outfits.01"><td data-column-id="outfit"><input aria-label="outfits: Outfit or state" autocomplete="off" class="table-input" data-column-id="outfit" type="text" value=""/></td><td data-column-id="description"><textarea aria-label="outfits: Description, silhouette, layers, and construction" class="table-textarea" data-column-id="description" rows="2"></textarea></td><td data-column-id="notes"><input aria-label="outfits: Notes" autocomplete="off" class="table-input" data-column-id="notes" type="text" value=""/></td><td data-column-id="continuity_rule"><textarea aria-label="outfits: Continuity rule across applicable panels" class="table-textarea" data-column-id="continuity_rule" rows="2"></textarea></td><td data-column-id="visibility_rule"><textarea aria-label="outfits: Applicability or visibility rule" class="table-textarea" data-column-id="visibility_rule" placeholder="state where it applies and the only reasons it may not be visible" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="outfits: Binding" class="binding-select table-select" data-column-id="binding"><option value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+</tbody>
+</table></div><template data-row-template="outfits"><tr class=""><td data-column-id="outfit"><input aria-label="outfits: Outfit or state" autocomplete="off" class="table-input" data-column-id="outfit" type="text" value=""/></td><td data-column-id="description"><textarea aria-label="outfits: Description, silhouette, layers, and construction" class="table-textarea" data-column-id="description" rows="2"></textarea></td><td data-column-id="notes"><input aria-label="outfits: Notes" autocomplete="off" class="table-input" data-column-id="notes" type="text" value=""/></td><td data-column-id="continuity_rule"><textarea aria-label="outfits: Continuity rule across applicable panels" class="table-textarea" data-column-id="continuity_rule" rows="2"></textarea></td><td data-column-id="visibility_rule"><textarea aria-label="outfits: Applicability or visibility rule" class="table-textarea" data-column-id="visibility_rule" placeholder="state where it applies and the only reasons it may not be visible" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="outfits: Binding" class="binding-select table-select" data-column-id="binding"><option selected="" value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="outfits" type="button">Add row</button><span class="row-help">Every declared row receives the profile-defined complete view group. A fixed row must declare continuity and when it applies or may be hidden.</span></div>
+<div class="slots" id="outfitPanelEditors"></div>
+<h2>Additional identity evidence views</h2>
+<div class="sub">Add any further view or configuration needed to prove a declaration's visual identity. This is not item-specific and has no fixed direction set: it may reference a part, mark, item, outfit, expression, body-language state, or another visual table row. Use it for reverse sides, top or underside, open or deployed states, internal arrangements, formation changes, matched comparisons, or any other view that must not be guessed from one image.</div>
+<div class="table-scroll"><table data-export-table="" id="evidence">
+<tbody>
+<tr><th style="width:12%">Subject table</th><th style="width:15%">Subject row id</th><th style="width:12%">View id</th><th style="width:18%">Orientation / configuration</th><th>Exact visual specification</th><th>What this evidence must prove</th><th class="row-actions">Actions</th></tr>
+<tr data-row-id="evidence.01"><td data-column-id="subject_table"><input aria-label="evidence: Subject table" autocomplete="off" class="table-input" data-column-id="subject_table" placeholder="parts / marks / items / outfits / ..." type="text" value=""/></td><td data-column-id="subject_row_id"><input aria-label="evidence: Subject row id" autocomplete="off" class="table-input" data-column-id="subject_row_id" placeholder="parts.01" type="text" value=""/></td><td data-column-id="view_id"><input aria-label="evidence: View id" autocomplete="off" class="table-input" data-column-id="view_id" type="text" value=""/></td><td data-column-id="orientation_configuration"><textarea aria-label="evidence: Orientation or configuration" class="table-textarea" data-column-id="orientation_configuration" rows="2"></textarea></td><td data-column-id="specification"><textarea aria-label="evidence: Exact visual specification" class="table-textarea" data-column-id="specification" rows="2"></textarea></td><td data-column-id="must_prove"><textarea aria-label="evidence: What this evidence must prove" class="table-textarea" data-column-id="must_prove" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+</tbody>
+</table></div><template data-row-template="evidence"><tr><td data-column-id="subject_table"><input aria-label="evidence: Subject table" autocomplete="off" class="table-input" data-column-id="subject_table" placeholder="parts / marks / items / outfits / ..." type="text" value=""/></td><td data-column-id="subject_row_id"><input aria-label="evidence: Subject row id" autocomplete="off" class="table-input" data-column-id="subject_row_id" placeholder="parts.01" type="text" value=""/></td><td data-column-id="view_id"><input aria-label="evidence: View id" autocomplete="off" class="table-input" data-column-id="view_id" type="text" value=""/></td><td data-column-id="orientation_configuration"><textarea aria-label="evidence: Orientation or configuration" class="table-textarea" data-column-id="orientation_configuration" rows="2"></textarea></td><td data-column-id="specification"><textarea aria-label="evidence: Exact visual specification" class="table-textarea" data-column-id="specification" rows="2"></textarea></td><td data-column-id="must_prove"><textarea aria-label="evidence: What this evidence must prove" class="table-textarea" data-column-id="must_prove" rows="2"></textarea></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="evidence" type="button">Add row</button><span class="row-help">Each complete row creates one independent image-evidence panel linked to the referenced declaration. Add as many views as that subject actually requires.</span></div>
+<div class="slots" id="evidencePanelEditors"></div>
+<h2>Signature marks - the fixed identity</h2>
+<div class="sub">When declared, landmark-anchored marks may include tattoos, scars, birthmarks or mole patterns, heterochromia, named pattern events, notches, or chipped plates. For every mark, declare its side in Laterality. If it is unilateral or otherwise asymmetric, Counterpart rule must also state what the corresponding opposite side has instead, including explicitly “no mark”, “intact”, or the different feature. For a fixed mark, Visibility / occlusion rule states every orientation or panel condition where the anchor must show the same mark and the only conditions that may hide it. This provides positive and negative visual evidence and prevents accidental mirroring or intermittent disappearance.</div>
+<div class="table-scroll"><table data-export-table="" id="marks">
+<tbody>
+<tr><th style="width:6%">Id</th><th style="width:14%">Landmark anchor</th><th>Shape and path</th><th style="width:9%">Laterality</th><th style="width:16%">Opposite side / counterpart rule</th><th style="width:14%">Continuity rule</th><th style="width:17%">Visibility / occlusion rule</th><th style="width:10%">Binding</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="marks.01"><td data-column-id="mark_id" data-mark=""><input aria-label="marks: Id" autocomplete="off" class="table-input" data-column-id="mark_id" data-mark="" type="text" value=""/></td><td data-column-id="landmark_anchor"><textarea aria-label="marks: Landmark anchor" class="table-textarea" data-column-id="landmark_anchor" rows="2"></textarea></td><td data-column-id="shape_path"><textarea aria-label="marks: Shape and path" class="table-textarea" data-column-id="shape_path" rows="2"></textarea></td><td data-column-id="laterality"><input aria-label="marks: Laterality" autocomplete="off" class="table-input" data-column-id="laterality" placeholder="left only / bilateral / midline" type="text" value=""/></td><td data-column-id="counterpart_rule"><textarea aria-label="marks: Opposite side or counterpart rule" class="table-textarea" data-column-id="counterpart_rule" placeholder="right shoulder has no tattoo" rows="2"></textarea></td><td data-column-id="continuity_rule"><textarea aria-label="marks: Continuity rule" class="table-textarea" data-column-id="continuity_rule" rows="2"></textarea></td><td data-column-id="visibility_rule"><textarea aria-label="marks: Visibility or occlusion rule" class="table-textarea" data-column-id="visibility_rule" placeholder="must appear whenever the anchor is visible; may disappear only when..." rows="2"></textarea></td><td data-column-id="binding"><select aria-label="marks: Binding" class="binding-select table-select" data-column-id="binding"><option value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+
+
+</tbody>
+</table></div><template data-row-template="marks"><tr class=""><td data-column-id="mark_id" data-mark=""><input aria-label="marks: Id" autocomplete="off" class="table-input" data-column-id="mark_id" data-mark="" type="text" value=""/></td><td data-column-id="landmark_anchor"><textarea aria-label="marks: Landmark anchor" class="table-textarea" data-column-id="landmark_anchor" rows="2"></textarea></td><td data-column-id="shape_path"><textarea aria-label="marks: Shape and path" class="table-textarea" data-column-id="shape_path" rows="2"></textarea></td><td data-column-id="laterality"><input aria-label="marks: Laterality" autocomplete="off" class="table-input" data-column-id="laterality" placeholder="left only / bilateral / midline" type="text" value=""/></td><td data-column-id="counterpart_rule"><textarea aria-label="marks: Opposite side or counterpart rule" class="table-textarea" data-column-id="counterpart_rule" placeholder="right shoulder has no tattoo" rows="2"></textarea></td><td data-column-id="continuity_rule"><textarea aria-label="marks: Continuity rule" class="table-textarea" data-column-id="continuity_rule" rows="2"></textarea></td><td data-column-id="visibility_rule"><textarea aria-label="marks: Visibility or occlusion rule" class="table-textarea" data-column-id="visibility_rule" placeholder="must appear whenever the anchor is visible; may disappear only when..." rows="2"></textarea></td><td data-column-id="binding"><select aria-label="marks: Binding" class="binding-select table-select" data-column-id="binding"><option selected="" value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="marks" type="button">Add row</button><span class="row-help">Use one row per mark. Unilateral marks require both the feature-side declaration and an explicit opposite-side / counterpart rule; fixed marks also require a visibility / occlusion rule covering every applicable panel. The rendered detail compares both sides rather than showing an isolated crop.</span></div>
+<div class="slots" id="markPanelEditors"></div>
+<div class="profile-note">Mark and part comparison panels are resolved from their table row ids by the selected profile. Importing rendered data adds accepted-image controls for the exact resolved slots.</div>
+<div class="profile-note">Model-facing panels are defined by the selected layout profile; editing this HTML alone does not add another rendered panel.</div>
+<h2>Kind overrides - deliberate violations of the baseline</h2>
+<div class="sub">Where this individual breaks the kind on purpose: the wingless one, the off-color one, the machine that breathes. A dash if there are none.</div>
+<div class="table-scroll"><table data-export-table="" id="overrides">
+<tbody>
+<tr><th style="width:18%">Attribute</th><th style="width:23%">The kind baseline says</th><th style="width:23%">This individual instead</th><th>Why it matters</th><th style="width:13%">Binding</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="overrides.01"><td data-column-id="attribute"><textarea aria-label="overrides: Attribute" class="table-textarea" data-column-id="attribute" rows="2"></textarea></td><td data-column-id="baseline"><textarea aria-label="overrides: The kind baseline says" class="table-textarea" data-column-id="baseline" rows="2"></textarea></td><td data-column-id="override"><textarea aria-label="overrides: This individual instead" class="table-textarea" data-column-id="override" rows="2"></textarea></td><td data-column-id="reason"><textarea aria-label="overrides: Why it matters" class="table-textarea" data-column-id="reason" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="overrides: Binding" class="binding-select table-select" data-column-id="binding"><option value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+</tbody>
+</table></div><template data-row-template="overrides"><tr class=""><td data-column-id="attribute"><textarea aria-label="overrides: Attribute" class="table-textarea" data-column-id="attribute" rows="2"></textarea></td><td data-column-id="baseline"><textarea aria-label="overrides: The kind baseline says" class="table-textarea" data-column-id="baseline" rows="2"></textarea></td><td data-column-id="override"><textarea aria-label="overrides: This individual instead" class="table-textarea" data-column-id="override" rows="2"></textarea></td><td data-column-id="reason"><textarea aria-label="overrides: Why it matters" class="table-textarea" data-column-id="reason" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="overrides: Binding" class="binding-select table-select" data-column-id="binding"><option selected="" value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="overrides" type="button">Add row</button></div>
+<h2>Color key</h2>
+<div class="sub">When colors are fixed, record one row for every identity-bearing region, component, material, signal, or other color target this character actually declares. Non-exhaustive examples include skin, fur, a nose, eyes, a beak, claws, scales, markings, plating, cables, lights, and accessories; none is assumed or treated as a complete list. When the production style uses stepped shading, base, shadow, and highlight may be recorded per row. Leave the table blank or use a dash when palette decisions remain intentionally open to the generation model.</div>
+<div class="table-scroll"><table data-export-table="" id="colors">
+<tbody>
+<tr><th>Region / component / material / signal</th><th>Base</th><th>Shadow</th><th>Highlight</th><th>Applicability / visibility rule</th><th style="width:12%">Binding</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="colors.01"><td data-column-id="zone" data-zone=""><input aria-label="colors: Region, component, material, or signal" autocomplete="off" class="table-input" data-column-id="zone" data-zone="" type="text" value=""/></td><td data-column-id="base"><div class="swatch-control"><span class="sw"></span><input aria-label="colors: Base" autocomplete="off" class="hex table-input" data-column-id="base" data-zonebase="" inputmode="text" maxlength="7" placeholder="#RRGGBB" spellcheck="false" type="text"/></div></td><td data-column-id="shadow"><div class="swatch-control"><span class="sw"></span><input aria-label="colors: Shadow" autocomplete="off" class="hex table-input" data-column-id="shadow" inputmode="text" maxlength="7" placeholder="#RRGGBB" spellcheck="false" type="text"/></div></td><td data-column-id="highlight"><div class="swatch-control"><span class="sw"></span><input aria-label="colors: Highlight" autocomplete="off" class="hex table-input" data-column-id="highlight" inputmode="text" maxlength="7" placeholder="#RRGGBB" spellcheck="false" type="text"/></div></td><td data-column-id="visibility_rule"><textarea aria-label="colors: Applicability or visibility rule" class="table-textarea" data-column-id="visibility_rule" placeholder="where the target color must appear and the only reasons it may not be visible" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="colors: Binding" class="binding-select table-select" data-column-id="binding"><option value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+
+
+</tbody>
+</table></div><template data-row-template="colors"><tr class=""><td data-column-id="zone" data-zone=""><input aria-label="colors: Region, component, material, or signal" autocomplete="off" class="table-input" data-column-id="zone" data-zone="" type="text" value=""/></td><td data-column-id="base"><div class="swatch-control"><span class="sw"></span><input aria-label="colors: Base" autocomplete="off" class="hex table-input" data-column-id="base" data-zonebase="" inputmode="text" maxlength="7" placeholder="#RRGGBB" spellcheck="false" type="text" value=""/></div></td><td data-column-id="shadow"><div class="swatch-control"><span class="sw"></span><input aria-label="colors: Shadow" autocomplete="off" class="hex table-input" data-column-id="shadow" inputmode="text" maxlength="7" placeholder="#RRGGBB" spellcheck="false" type="text" value=""/></div></td><td data-column-id="highlight"><div class="swatch-control"><span class="sw"></span><input aria-label="colors: Highlight" autocomplete="off" class="hex table-input" data-column-id="highlight" inputmode="text" maxlength="7" placeholder="#RRGGBB" spellcheck="false" type="text" value=""/></div></td><td data-column-id="visibility_rule"><textarea aria-label="colors: Applicability or visibility rule" class="table-textarea" data-column-id="visibility_rule" placeholder="where the target color must appear and the only reasons it may not be visible" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="colors: Binding" class="binding-select table-select" data-column-id="binding"><option selected="" value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="colors" type="button">Add row</button></div>
+<h2>Per-part attributes and paired counterparts</h2>
+<div class="sub">Declare every identity-bearing part or component this particular character needs; the editor assumes no anatomy, body plan, or component inventory. Paired or spatially opposed elements need separate rows or an explicit shared rule. Non-exhaustive examples include paired sensory organs, limbs or appendages, armor, ports, modules, markings, and repeated units. For any asymmetric row, Counterpart rule states what is present or absent at the corresponding position. Fixed rows also state what must remain identical and when the part may legitimately be hidden.</div>
+<div class="table-scroll"><table data-export-table="" id="parts">
+<tbody>
+<tr><th style="width:13%">Part</th><th>Attribute (state, color, length)</th><th style="width:10%">Laterality / symmetry</th><th>Opposite side / counterpart rule</th><th>Continuity rule</th><th>Applicability / visibility rule</th><th style="width:9%">Binding</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="parts.01"><td data-column-id="part"><input aria-label="parts: Part or component" autocomplete="off" class="table-input" data-column-id="part" type="text" value=""/></td><td data-column-id="attribute" data-rec=""><textarea aria-label="parts: Attribute, state, color, dimension, or relation" class="table-textarea" data-column-id="attribute" data-rec="" rows="2"></textarea></td><td data-column-id="laterality"><input aria-label="parts: Laterality, topology, or symmetry" autocomplete="off" class="table-input" data-column-id="laterality" placeholder="declare its actual position or symmetry rule" type="text" value=""/></td><td data-column-id="counterpart_rule"><textarea aria-label="parts: Opposite or corresponding position rule" class="table-textarea" data-column-id="counterpart_rule" placeholder="state what the corresponding position has, including absence" rows="2"></textarea></td><td data-column-id="continuity_rule"><textarea aria-label="parts: Continuity rule across applicable panels" class="table-textarea" data-column-id="continuity_rule" rows="2"></textarea></td><td data-column-id="visibility_rule"><textarea aria-label="parts: Applicability or visibility rule" class="table-textarea" data-column-id="visibility_rule" placeholder="where it must appear and the only reasons it may be hidden" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="parts: Binding" class="binding-select table-select" data-column-id="binding"><option value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+
+</tbody>
+</table></div><template data-row-template="parts"><tr class=""><td data-column-id="part"><input aria-label="parts: Part or component" autocomplete="off" class="table-input" data-column-id="part" type="text" value=""/></td><td data-column-id="attribute" data-rec=""><textarea aria-label="parts: Attribute, state, color, dimension, or relation" class="table-textarea" data-column-id="attribute" data-rec="" rows="2"></textarea></td><td data-column-id="laterality"><input aria-label="parts: Laterality, topology, or symmetry" autocomplete="off" class="table-input" data-column-id="laterality" placeholder="declare its actual position or symmetry rule" type="text" value=""/></td><td data-column-id="counterpart_rule"><textarea aria-label="parts: Opposite or corresponding position rule" class="table-textarea" data-column-id="counterpart_rule" placeholder="state what the corresponding position has, including absence" rows="2"></textarea></td><td data-column-id="continuity_rule"><textarea aria-label="parts: Continuity rule across applicable panels" class="table-textarea" data-column-id="continuity_rule" rows="2"></textarea></td><td data-column-id="visibility_rule"><textarea aria-label="parts: Applicability or visibility rule" class="table-textarea" data-column-id="visibility_rule" placeholder="where it must appear and the only reasons it may be hidden" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="parts: Binding" class="binding-select table-select" data-column-id="binding"><option selected="" value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="parts" type="button">Add row</button><span class="row-help">Use separate position rows when their attributes differ. A fixed row must describe its counterpart, continuity, and the only conditions under which it may be hidden.</span></div>
+<div class="slots" id="partPanelEditors"></div>
+<h2>Rule-governed texture - the declared variance</h2>
+<div class="sub">The pattern field that may re-roll between images (bulk stripes, spots, freckles, prints, panel seams). State its rules: zones, counts, flow, symmetry - or a dash if the design has no such field.</div>
+<textarea aria-label="field.free_01" class="field-control field-textarea tall" data-field-id="field.free_01" id="field-field-free_01" rows="5"></textarea>
+<h2>Items and belongings</h2>
+<div class="sub">Each identity-bearing carried, worn, docked, or accompanying item is drawn separately. Declare its visible construction rather than relying on its name or purpose: silhouette, proportions, materials, colors, fixed marks, scale, placement, and attachment all belong to the same row and its image evidence. Fixed rows also define what stays identical across orientations and when the item is applicable, visible, detached, or physically occluded.</div>
+<div><div class="table-scroll"><table data-export-table="" id="items"><tbody><tr><th style="width:12%">Item / assembly</th><th>Visual identity</th><th>Scale, placement, and attachment</th><th>Role / use rule</th><th>Continuity rule</th><th>Applicability / visibility rule</th><th style="width:9%">Binding</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="items.01"><td data-column-id="item"><input aria-label="items: Item or assembly" autocomplete="off" class="table-input" data-column-id="item" type="text" value=""/></td><td data-column-id="visual_identity"><textarea aria-label="items: Visual identity" class="table-textarea" data-column-id="visual_identity" rows="2"></textarea></td><td data-column-id="scale_attachment"><textarea aria-label="items: Scale, placement, and attachment" class="table-textarea" data-column-id="scale_attachment" rows="2"></textarea></td><td data-column-id="role_rule"><textarea aria-label="items: Role or use rule" class="table-textarea" data-column-id="role_rule" rows="2"></textarea></td><td data-column-id="continuity_rule"><textarea aria-label="items: Continuity rule across orientations and panels" class="table-textarea" data-column-id="continuity_rule" rows="2"></textarea></td><td data-column-id="visibility_rule"><textarea aria-label="items: Applicability or visibility rule" class="table-textarea" data-column-id="visibility_rule" placeholder="where it must appear and the only reasons it may not be visible" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="items: Binding" class="binding-select table-select" data-column-id="binding"><option value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+</tbody></table></div><template data-row-template="items"><tr class=""><td data-column-id="item"><input aria-label="items: Item or assembly" autocomplete="off" class="table-input" data-column-id="item" type="text" value=""/></td><td data-column-id="visual_identity"><textarea aria-label="items: Visual identity" class="table-textarea" data-column-id="visual_identity" rows="2"></textarea></td><td data-column-id="scale_attachment"><textarea aria-label="items: Scale, placement, and attachment" class="table-textarea" data-column-id="scale_attachment" rows="2"></textarea></td><td data-column-id="role_rule"><textarea aria-label="items: Role or use rule" class="table-textarea" data-column-id="role_rule" rows="2"></textarea></td><td data-column-id="continuity_rule"><textarea aria-label="items: Continuity rule across orientations and panels" class="table-textarea" data-column-id="continuity_rule" rows="2"></textarea></td><td data-column-id="visibility_rule"><textarea aria-label="items: Applicability or visibility rule" class="table-textarea" data-column-id="visibility_rule" placeholder="where it must appear and the only reasons it may not be visible" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="items: Binding" class="binding-select table-select" data-column-id="binding"><option selected="" value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="items" type="button">Add row</button></div></div>
+<div class="slots" id="itemPanelEditors"></div>
+<h2>Expressions</h2>
+<div class="sub">Write a visually distinct communicated state in each substantive row while keeping the same focal structure, proportions, fixed markings, and palette. Every substantive row receives a panel, with no fixed total. Use only channels the kind actually has, such as face, gaze, appendages, lights, topology, component spacing, or other declared signals.</div>
+<div class="kv"><label for="field-field-character_specific_expression_described">Character-specific expression, described</label><textarea aria-label="Character-specific expression, described" class="field-control field-textarea" data-field-id="field.character_specific_expression_described" data-rec="" id="field-field-character_specific_expression_described" rows="3"></textarea></div>
+<div class="sub">Declared expression variants: one row per communicated state the sheet should draw as its own panel. The field above is an optional general identity note; table rows are the authoritative panel declarations. For kinds with expressive appendages or non-facial signal channels, state those channels per row.</div>
+<div class="table-scroll"><table data-export-table="" id="expressions">
+<tbody>
+<tr><th style="width:16%">Communicated state</th><th style="width:22%">Overall read</th><th>Declared channel states</th><th style="width:22%">Identity cues that remain fixed</th><th>Notes</th><th style="width:10%">Binding</th><th class="row-actions">Actions</th></tr>
+<tr class="" data-row-id="expressions.01"><td data-column-id="state"><input aria-label="expressions: Communicated state" autocomplete="off" class="table-input" data-column-id="state" type="text" value=""/></td><td data-column-id="overall_read"><textarea aria-label="expressions: Overall read" class="table-textarea" data-column-id="overall_read" rows="2"></textarea></td><td data-column-id="channel_states"><textarea aria-label="expressions: Declared channel states" class="table-textarea" data-column-id="channel_states" placeholder="name only channels this entity actually has" rows="2"></textarea></td><td data-column-id="fixed_identity_cues"><textarea aria-label="expressions: Identity cues that remain fixed" class="table-textarea" data-column-id="fixed_identity_cues" rows="2"></textarea></td><td data-column-id="notes"><textarea aria-label="expressions: Notes" class="table-textarea" data-column-id="notes" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="expressions: Binding" class="binding-select table-select" data-column-id="binding"><option value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr>
+</tbody>
+</table></div><template data-row-template="expressions"><tr class=""><td data-column-id="state"><input aria-label="expressions: Communicated state" autocomplete="off" class="table-input" data-column-id="state" type="text" value=""/></td><td data-column-id="overall_read"><textarea aria-label="expressions: Overall read" class="table-textarea" data-column-id="overall_read" rows="2"></textarea></td><td data-column-id="channel_states"><textarea aria-label="expressions: Declared channel states" class="table-textarea" data-column-id="channel_states" placeholder="name only channels this entity actually has" rows="2"></textarea></td><td data-column-id="fixed_identity_cues"><textarea aria-label="expressions: Identity cues that remain fixed" class="table-textarea" data-column-id="fixed_identity_cues" rows="2"></textarea></td><td data-column-id="notes"><textarea aria-label="expressions: Notes" class="table-textarea" data-column-id="notes" rows="2"></textarea></td><td data-column-id="binding"><select aria-label="expressions: Binding" class="binding-select table-select" data-column-id="binding"><option selected="" value="">(blank)</option><option value="kind-fixed">kind-fixed</option><option value="character-fixed">character-fixed</option><option value="individual-fixed">individual-fixed</option><option value="variable">variable</option></select></td><td class="row-actions"><button class="remove-row" data-remove-row="" type="button">Remove</button></td></tr></template>
+<div class="row-tools"><button class="add" data-add-row="expressions" type="button">Add row</button><span class="row-help">Every substantive row becomes a separate communicated-state comparison panel; there is no required total or maximum.</span></div>
+<div class="slots" id="expressionPanelEditors"></div>
+</div>
+
+<script>
+const PLACEHOLDERS=new Set(['','-','unknown','tbd','n/a','not applicable','unspecified']);
+const FILL_POLICIES=new Set(['auto','fill','keep','skip']);
+const BINDING_VALUES=new Set(['','kind-fixed','character-fixed','individual-fixed','variable']);
+const SLOT_EDITOR_KEYS=new Set(['image_path','generation_package','fill_policy']);
+const SIDECAR_KEYS=new Set(['sheet_status','fields','tables','slots']);
+const SHEET_STATUSES=new Set(['draft','identity-ready','reference-ready']);
+const TABLE_COLUMNS={
+  axes:['axis','choices_expression','binding'],
+  views:['view_id','label','specification','must_prove'],
+  evidence:['subject_table','subject_row_id','view_id','orientation_configuration','specification','must_prove'],
+  formreg:['form_id','display_name','kind_ref','trigger_transition','persists','sheet_path'],
+  invariants:['invariant','value','binding','visible_expression'],
+  bodylang:['state','posture','gesture','kind_channels','distance_orientation'],
+  partstates:['part','state','configuration','read'],
+  motion:['region','range','limit','must_prove'],
+  actions:['action','phase','mechanics','kind_channels'],
+  gestures:['gesture','context','body','props'],
+  marks:['mark_id','landmark_anchor','shape_path','laterality','counterpart_rule','continuity_rule','visibility_rule','binding'],
+  overrides:['attribute','baseline','override','reason','binding'],
+  colors:['zone','base','shadow','highlight','visibility_rule','binding'],
+  parts:['part','attribute','laterality','counterpart_rule','continuity_rule','visibility_rule','binding'],
+  items:['item','visual_identity','scale_attachment','role_rule','continuity_rule','visibility_rule','binding'],
+  expressions:['state','overall_read','channel_states','fixed_identity_cues','notes','binding'],
+  outfits:['outfit','description','notes','continuity_rule','visibility_rule','binding']
+};
+const TABLE_SUBSTANTIVE_COLUMNS={
+  axes:['axis','choices_expression'],
+  views:['view_id','label','specification','must_prove'],
+  evidence:['subject_table','subject_row_id','view_id','orientation_configuration','specification','must_prove'],
+  formreg:['form_id','display_name','kind_ref','trigger_transition','persists','sheet_path'],
+  invariants:['invariant','value','visible_expression'],
+  bodylang:['state','posture','gesture','kind_channels','distance_orientation'],
+  partstates:['part','state','configuration','read'],
+  motion:['region','range','limit','must_prove'],
+  actions:['action','phase','mechanics','kind_channels'],
+  gestures:['gesture','context','body','props'],
+  marks:['mark_id','landmark_anchor','shape_path','laterality','counterpart_rule','continuity_rule','visibility_rule'],
+  overrides:['attribute','baseline','override','reason'],
+  colors:['zone','base','shadow','highlight','visibility_rule'],
+  parts:['attribute','laterality','counterpart_rule','continuity_rule','visibility_rule'],
+  items:['item','visual_identity','scale_attachment','role_rule','continuity_rule','visibility_rule'],
+  expressions:['state','overall_read','channel_states','fixed_identity_cues','notes'],
+  outfits:['outfit','description','notes','continuity_rule','visibility_rule']
+};
+const INITIAL_TABLE_BODIES=new Map([...document.querySelectorAll('table[data-export-table]')].map(table=>[table.id,table.tBodies[0].innerHTML]));
+let dirty=false;
+let structuralErrors=[];
+let passthrough={fields:{},tables:{},slots:{},rowValues:{},slotValues:{}};
+
+function controlValue(el){return el?.matches?.('input,textarea,select')?String(el.value||'').trim():String(el?.textContent||'').trim()}
+function setControlValue(target,value){
+  const v=String(value??'');
+  if(!target)return;
+  if(target.tagName==='SELECT'){
+    if(![...target.options].some(option=>option.value===v)){const option=document.createElement('option');option.value=v;option.textContent=v;target.appendChild(option)}
+    target.value=v;
+  }else if(target.matches('input,textarea'))target.value=v;
+  else target.textContent=v;
+  if(target.tagName==='TEXTAREA')autoSize(target);
+}
+function resetControl(target){setControlValue(target,target?.dataset?.default||'')}
+function meaningful(value){return !PLACEHOLDERS.has(String(value||'').trim().toLowerCase())}
+function meaningfulIdentity(el){return meaningful(controlValue(el))}
+function setDirty(value=true){
+  dirty=Boolean(value);
+  const status=document.getElementById('editorStatus');
+  if(status){status.textContent=dirty?'Unsaved edits - export JSON':'No unsaved edits';status.classList.toggle('dirty',dirty)}
+}
+function autoSize(textarea){if(!textarea||textarea.tagName!=='TEXTAREA')return;textarea.style.height='auto';textarea.style.height=Math.max(textarea.scrollHeight,48)+'px'}
+function hexOk(value){return /^#([0-9a-fA-F]{6})$/.test(String(value||'').trim())}
+function nextId(prefix,values){let max=0;for(const value of values){const match=String(value||'').match(/\.(\d+)$/);if(match)max=Math.max(max,Number(match[1]))}return prefix+'.'+String(max+1).padStart(2,'0')}
+function safeRelativePath(value){
+  const path=String(value||'').trim();
+  if(!meaningful(path)||path.includes('\\')||path.startsWith('/')||/^[A-Za-z][A-Za-z0-9+.-]*:/.test(path))return false;
+  return path.split('/').every(part=>part&&part!=='.'&&part!=='..');
+}
+
+function getFillPolicy(slot){const value=slot.querySelector('[data-fill-policy]')?.value;return FILL_POLICIES.has(value)?value:'auto'}
+function setFillPolicy(slot,value){const select=slot.querySelector('[data-fill-policy]');if(select)select.value=FILL_POLICIES.has(value)?value:'auto'}
+function pathControl(slot,kind){return slot.querySelector('[data-slot-path="'+kind+'"]')}
+function setPreviewMessage(slot,message,state=''){const placeholder=slot.querySelector('.slot-preview-empty');if(placeholder){placeholder.textContent=message;placeholder.dataset.state=state}}
+function setSlotImagePath(slot,value,{imported=false}={}){
+  const path=String(value||'').trim();
+  const input=pathControl(slot,'image');if(input)input.value=path;
+  slot.dataset.imagePath=path;if(imported)slot.dataset.importedImagePath=path;
+  const image=slot.querySelector('img');slot.classList.remove('has-preview','preview-unavailable');
+  setPreviewMessage(slot,path?'Accepted path recorded; loading preview...':'No accepted image',path?'recorded':'');
+  if(!image)return;image.hidden=true;image.removeAttribute('src');image.onload=null;image.onerror=null;
+  if(!path)return;
+  if(!safeRelativePath(path)){slot.classList.add('preview-unavailable');setPreviewMessage(slot,'Accepted path recorded; preview blocked because the path is not a safe relative path.','blocked');return}
+  image.onload=()=>{image.hidden=false;slot.classList.add('has-preview');slot.classList.remove('preview-unavailable')};
+  image.onerror=()=>{image.hidden=true;slot.classList.remove('has-preview');slot.classList.add('preview-unavailable');setPreviewMessage(slot,'Accepted path recorded; preview unavailable from this editor location.','recorded')};
+  image.src=path;
+}
+function setSlotPackagePath(slot,value,{imported=false}={}){const path=String(value||'').trim();const input=pathControl(slot,'package');if(input)input.value=path;slot.dataset.packagePath=path;if(imported)slot.dataset.importedPackagePath=path}
+function syncSlotPathFromInput(input){const slot=input.closest('.slot[data-slot-id]');if(!slot)return;if(input.dataset.slotPath==='image')setSlotImagePath(slot,input.value);else setSlotPackagePath(slot,input.value)}
+function slotState(slot){return {imagePath:controlValue(pathControl(slot,'image')),packagePath:controlValue(pathControl(slot,'package')),fillPolicy:getFillPolicy(slot)}}
+function normalizeSlotPanelCode(slot){
+  slot.dataset.panelCode='';
+  const code=slot.querySelector('.panel-code');if(code)code.textContent='PROFILE';
+  const label=slot.querySelector('.fill-policy label');if(label)label.textContent='Model-fill policy';
+}
+function dynamicSlotHost(){
+  let host=document.getElementById('resolvedSlotEditors');if(host)return host.querySelector('.slots');
+  host=document.createElement('section');host.id='resolvedSlotEditors';
+  const heading=document.createElement('h2');heading.textContent='Rendered and imported panel artifacts';host.appendChild(heading);
+  const note=document.createElement('p');note.className='note';note.textContent='This profile-only artifact section starts empty. Visual declaration rows expose their own row-linked controls beside their tables. Importing sheet data adds any further slots resolved by its render profile and accepted artifacts.';host.appendChild(note);
+  const grid=document.createElement('div');grid.className='slots';host.appendChild(grid);
+  document.querySelector('.sheet')?.appendChild(host);return grid;
+}
+function ensureSlotEditor(slotId,label='Imported rendered slot',tier='cond',{host=null,declared=false}={}){
+  const existing=document.querySelector('.slot[data-slot-id="'+CSS.escape(slotId)+'"]');if(existing){if(host&&existing.parentElement!==host)host.appendChild(existing);if(declared)existing.dataset.declaredSlotEditor='true';const cap=existing.querySelector('.cap');if(cap)cap.childNodes.forEach(node=>{if(node.nodeType===Node.TEXT_NODE)node.textContent=' '+label+' '});normalizeSlotPanelCode(existing);return existing}
+  const slot=document.createElement('div');slot.className='slot';slot.dataset.slotId=slotId;slot.dataset.tier=tier;slot.dataset.imagePath='';slot.dataset.packagePath='';
+  slot.dataset.dynamicSlotEditor='true';if(declared)slot.dataset.declaredSlotEditor='true';
+  const image=document.createElement('img');image.alt='Accepted image preview';image.hidden=true;slot.appendChild(image);
+  const empty=document.createElement('div');empty.className='slot-preview-empty';empty.textContent='No accepted image';slot.appendChild(empty);
+  const cap=document.createElement('div');cap.className='cap';const code=document.createElement('span');code.className='panel-code';code.textContent='PROFILE';cap.append(code,document.createTextNode(' '+label+' '));const tag=document.createElement('span');tag.className='tag '+tier;tag.textContent=tier==='rec'?'RECOMMENDED':'IF DECLARED';cap.appendChild(tag);slot.appendChild(cap);
+  const prov=document.createElement('div');prov.className='prov';
+  for(const [kind,title] of [['image','Accepted image path'],['package','Generation package path']]){const row=document.createElement('label');row.className='prov-row';const text=document.createElement('span');text.textContent=title;const input=document.createElement('input');input.className='path-input';input.dataset.slotPath=kind;input.autocomplete='off';input.spellcheck=false;input.type='text';input.setAttribute('aria-label',slotId+': '+title);row.append(text,input);prov.appendChild(row)}slot.appendChild(prov);
+  const fill=document.createElement('div');fill.className='fill-policy';const fillLabel=document.createElement('label');fillLabel.textContent='Model-fill policy';const select=document.createElement('select');select.dataset.fillPolicy='';select.setAttribute('aria-label',slotId+': model-fill policy');for(const [value,text] of [['auto','Auto - derive from declared data'],['fill','Generate / replace'],['keep','Keep accepted image'],['skip','Skip / leave blank']]){const option=document.createElement('option');option.value=value;option.textContent=text;if(value==='auto')option.selected=true;select.appendChild(option)}fill.append(fillLabel,select);slot.appendChild(fill);
+  (host||dynamicSlotHost()).appendChild(slot);return slot;
+}
+
+function syncDeclaredPanelSlotEditors(){
+  const viewHost=document.getElementById('viewPanelEditors'),outfitHost=document.getElementById('outfitPanelEditors');if(!viewHost||!outfitHost)return;
+  const desired=new Set();const viewRows=[...document.querySelectorAll('#views tbody tr[data-row-id]')];const outfitRows=[...document.querySelectorAll('#outfits tbody tr[data-row-id]')].filter(row=>rowIsSubstantive('outfits',rowValues(row)));
+  for(const viewRow of viewRows){
+    const viewLabel=controlValue(cellTarget(viewRow,'label'))||controlValue(cellTarget(viewRow,'view_id'))||viewRow.dataset.rowId;
+    const baseSlot='view.base.'+viewRow.dataset.rowId;desired.add(baseSlot);ensureSlotEditor(baseSlot,'Base view: '+viewLabel,'core',{host:viewHost,declared:true});
+    for(const outfitRow of outfitRows){const outfitLabel=controlValue(cellTarget(outfitRow,'outfit'))||outfitRow.dataset.rowId;const outfitSlot='view.outfit.'+outfitRow.dataset.rowId+'.'+viewRow.dataset.rowId;desired.add(outfitSlot);ensureSlotEditor(outfitSlot,outfitLabel+' / '+viewLabel,'cond',{host:outfitHost,declared:true})}
+  }
+  const rowPanelSpecs=[
+    {tableId:'bodylang',hostId:'bodylangPanelEditors',labelColumn:'state',fallback:'Body-language state',tier:'cond'},
+    {tableId:'partstates',hostId:'partstatePanelEditors',labelColumn:'state',fallback:'Part state',tier:'cond'},
+    {tableId:'motion',hostId:'motionPanelEditors',labelColumn:'region',fallback:'Range of motion',tier:'cond'},
+    {tableId:'actions',hostId:'actionPanelEditors',labelColumn:'action',fallback:'Action pose',tier:'cond'},
+    {tableId:'gestures',hostId:'gesturePanelEditors',labelColumn:'gesture',fallback:'Everyday gesture',tier:'cond'},
+    {tableId:'marks',hostId:'markPanelEditors',labelColumn:'mark_id',fallback:'Mark comparison',tier:'cond'},
+    {tableId:'parts',hostId:'partPanelEditors',labelColumn:'part',fallback:'Part / component comparison',tier:'cond'},
+    {tableId:'items',hostId:'itemPanelEditors',labelColumn:'item',fallback:'Item identity study',tier:'cond'},
+    {tableId:'expressions',hostId:'expressionPanelEditors',labelColumn:'state',fallback:'Communicated state',tier:'cond'},
+    {tableId:'evidence',hostId:'evidencePanelEditors',labelColumn:'view_id',fallback:'Additional identity evidence',tier:'cond'}
+  ];
+  for(const spec of rowPanelSpecs){
+    const host=document.getElementById(spec.hostId);if(!host)continue;
+    const rows=[...document.querySelectorAll('#'+CSS.escape(spec.tableId)+' tbody tr[data-row-id]')];
+    for(const row of rows){
+      const slotId='row.'+spec.tableId+'.'+row.dataset.rowId;
+      const label=controlValue(cellTarget(row,spec.labelColumn))||spec.fallback+': '+row.dataset.rowId;
+      desired.add(slotId);ensureSlotEditor(slotId,label,spec.tier,{host,declared:true});
+    }
+  }
+  for(const slot of document.querySelectorAll('.slot[data-declared-slot-editor="true"]'))if(!desired.has(slot.dataset.slotId))slot.remove();
+}
+
+function cellTarget(row,column){return row.querySelector('td[data-column-id="'+CSS.escape(column)+'"] [data-column-id="'+CSS.escape(column)+'"]')}
+function rowValues(row){
+  const table=row.closest('table');const values={};
+  for(const column of TABLE_COLUMNS[table.id]||[]){const value=controlValue(cellTarget(row,column));if(value!=='')values[column]=value}
+  return values;
+}
+function setRowValues(row,values){for(const [column,value] of Object.entries(values||{})){const target=cellTarget(row,column);if(target)setControlValue(target,String(value))}}
+function rowIsSubstantive(tableId,values){const columns=TABLE_SUBSTANTIVE_COLUMNS[tableId]||Object.keys(values).filter(key=>key!=='binding');return columns.some(key=>String(values[key]??'').trim()!=='')}
+
+function addRow(tableId,{rowId='',values={},focus=true,markDirty=true}={}){
+  const table=document.getElementById(tableId);const template=document.querySelector('template[data-row-template="'+CSS.escape(tableId)+'"]');
+  if(!table||!template)return null;
+  const row=template.content.firstElementChild.cloneNode(true);
+  const ids=[...table.tBodies[0].querySelectorAll('tr[data-row-id]')].map(item=>item.dataset.rowId);
+  row.dataset.rowId=rowId||nextId(tableId,ids);
+  table.tBodies[0].appendChild(row);setRowValues(row,values);
+  row.querySelectorAll('textarea').forEach(autoSize);
+  refresh();if(markDirty)setDirty();
+  if(focus){const first=row.querySelector('input:not([disabled]),textarea:not([disabled]),select:not([disabled])');first?.focus()}
+  return row;
+}
+function removeRow(button){
+  const row=button.closest('tr[data-row-id]');if(!row||row.dataset.rowFixed==='true')return;
+  const table=row.closest('table');const rowId=row.dataset.rowId;row.remove();
+  if(passthrough.rowValues?.[table.id])delete passthrough.rowValues[table.id][rowId];
+  refresh();setDirty();
+}
+function restoreInitialTable(tableId){const table=document.getElementById(tableId);if(table&&INITIAL_TABLE_BODIES.has(tableId)){table.tBodies[0].innerHTML=INITIAL_TABLE_BODIES.get(tableId);table.querySelectorAll('textarea').forEach(autoSize)}}
+
+function readiness(){
+  const required=[...document.querySelectorAll('[data-identity-required]')];const missing=required.filter(el=>!meaningfulIdentity(el));
+  const primary=document.querySelector('.slot[data-slot-id="canon.primary"]');const state=primary?slotState(primary):{imagePath:'',packagePath:''};
+  if(missing.length)return {status:'draft',missing:missing.map(el=>el.dataset.fieldId),primary:state};
+  if(meaningful(state.imagePath)&&meaningful(state.packagePath))return {status:'reference-ready',missing:[],primary:state};
+  return {status:'identity-ready',missing:[],primary:state};
+}
+function auditStructure(){
+  const issues=[];const fieldIds=[...document.querySelectorAll('[data-field-id]')].map(el=>el.dataset.fieldId);
+  const duplicateFields=fieldIds.filter((value,index,array)=>array.indexOf(value)!==index);if(duplicateFields.length)issues.push('duplicate field ids: '+[...new Set(duplicateFields)].join(', '));
+  for(const [tableId,columns] of Object.entries(TABLE_COLUMNS)){
+    const table=document.getElementById(tableId);if(!table){issues.push('missing table '+tableId);continue}
+    if(document.querySelectorAll('[data-add-row="'+CSS.escape(tableId)+'"]').length!==1)issues.push(tableId+': expected exactly one Add button');
+    if(!document.querySelector('template[data-row-template="'+CSS.escape(tableId)+'"]'))issues.push(tableId+': missing row template');
+    for(const row of table.tBodies[0].querySelectorAll('tr[data-row-id]')){
+      for(const column of columns){const target=cellTarget(row,column);if(!target||!target.matches('input,textarea,select'))issues.push(tableId+'/'+row.dataset.rowId+'/'+column+': missing input control')}
+    }
+  }
+  for(const slot of document.querySelectorAll('.slot[data-slot-id]')){
+    const sid=slot.dataset.slotId;
+    if(!pathControl(slot,'image'))issues.push(sid+': missing image path input');
+    if(!pathControl(slot,'package'))issues.push(sid+': missing package path input');
+    if(!slot.querySelector('[data-fill-policy]'))issues.push(sid+': missing fill-policy select');
+  }
+  structuralErrors=issues;
+  const status=document.getElementById('structureStatus');const exportButton=document.querySelector('[data-action="export"]');
+  if(status){status.textContent=issues.length?'Form structure error: '+issues.length:'Form structure OK - '+fieldIds.length+' fields, '+document.querySelectorAll('table[data-export-table] tbody td[data-column-id]').length+' data cells';status.classList.toggle('ok',!issues.length);status.classList.toggle('bad',Boolean(issues.length));status.title=issues.join('\n')}
+  if(exportButton)exportButton.disabled=Boolean(issues.length);
+  return issues;
+}
+function refresh(){
+  syncDeclaredPanelSlotEditors();
+  document.querySelectorAll('textarea').forEach(autoSize);
+  document.querySelectorAll('input.hex').forEach(input=>{const sw=input.closest('.swatch-control')?.querySelector('.sw')||input.parentElement.querySelector('.sw');if(sw)sw.style.background=hexOk(input.value)?input.value:'repeating-linear-gradient(45deg,#eee,#eee 4px,#fff 4px,#fff 8px)'});
+  document.querySelectorAll('[data-identity-required]').forEach(el=>el.classList.toggle('identity-missing',!meaningfulIdentity(el)));
+  document.querySelectorAll('[data-rec]').forEach(el=>el.classList.toggle('recommended-empty',!controlValue(el)));
+  const result=readiness(),banner=document.getElementById('banner');const policies={auto:0,fill:0,keep:0,skip:0};
+  document.querySelectorAll('.slot[data-slot-id]').forEach(slot=>policies[getFillPolicy(slot)]++);
+  const summary='<span class="policy-summary">Panel policies: '+policies.auto+' auto | '+policies.fill+' generate | '+policies.keep+' keep | '+policies.skip+' skip.</span>';
+  if(structuralErrors.length){banner.className='bad';banner.innerHTML='EDITOR STRUCTURE ERROR | export is disabled.<small>'+structuralErrors.join(' | ')+'</small>'}
+  else if(result.status==='draft'){banner.className='warn';banner.innerHTML='DRAFT | Name and Species / Domain are not both defined.<small>'+summary+' This page edits JSON; it is not the model-facing sheet.</small>'}
+  else if(result.status==='identity-ready'){banner.className='ok';banner.innerHTML='IDENTITY READY | export JSON and render a scaffold.<small>'+summary+' No accepted canonical image/package pair is registered yet.</small>'}
+  else{banner.className='ok';banner.innerHTML='REFERENCE READY | accepted canonical image provenance is recorded.<small>'+summary+' Use the rendered reference board for later scenes; do not send this HTML.</small>'}
+  document.querySelectorAll('.slot[data-slot-id]').forEach(slot=>{const state=slotState(slot);slot.classList.toggle('miss-rec',slot.dataset.tier==='rec'&&!state.imagePath&&state.fillPolicy!=='skip');slot.classList.toggle('miss-core',slot.dataset.slotId==='canon.primary'&&state.fillPolicy!=='skip'&&!state.imagePath);slot.classList.toggle('policy-fill',state.fillPolicy==='fill');slot.classList.toggle('policy-keep',state.fillPolicy==='keep');slot.classList.toggle('policy-skip',state.fillPolicy==='skip');slot.classList.toggle('policy-error',state.fillPolicy==='keep'&&!state.imagePath)});
+}
+
+function exportTable(table){
+  const rows=[];
+  for(const row of table.tBodies[0].querySelectorAll('tr[data-row-id]')){
+    const current=rowValues(row);const extras=passthrough.rowValues?.[table.id]?.[row.dataset.rowId]||{};const values={...extras,...current};
+    for(const key of TABLE_COLUMNS[table.id]||[]){if(!(key in current))delete values[key]}
+    if(rowIsSubstantive(table.id,values)||Object.keys(extras).length)rows.push({row_id:row.dataset.rowId,values});
+  }
+  return rows;
+}
+function validateEditor(){
+  const structure=auditStructure();if(structure.length)throw new Error('The editor structure is incomplete: '+structure.join('; '));
+  const invalidHex=[...document.querySelectorAll('input.hex')].filter(input=>input.value.trim()&&!hexOk(input.value));if(invalidHex.length)throw new Error('Color codes must use #RRGGBB.');
+  const invalidBindings=[...document.querySelectorAll('select.table-select[data-column-id="binding"]')].filter(select=>!BINDING_VALUES.has(select.value));if(invalidBindings.length)throw new Error('Binding must be blank, kind-fixed, character-fixed, individual-fixed, or variable.');
+  const rowIds=[...document.querySelectorAll('table[data-export-table] tr[data-row-id]')].map(row=>row.dataset.rowId);const duplicates=rowIds.filter((value,index,array)=>array.indexOf(value)!==index);if(duplicates.length)throw new Error('Duplicate row_id values: '+[...new Set(duplicates)].join(', '));
+  const invalidKeep=[...document.querySelectorAll('.slot[data-slot-id]')].filter(slot=>getFillPolicy(slot)==='keep'&&!slotState(slot).imagePath);if(invalidKeep.length)throw new Error('Keep accepted image requires an accepted image_path: '+invalidKeep.map(slot=>slot.dataset.slotId).join(', '));
+  const invalidPaths=[];for(const slot of document.querySelectorAll('.slot[data-slot-id]')){const state=slotState(slot);for(const [label,path] of [['image_path',state.imagePath],['generation_package',state.packagePath]])if(path&&!safeRelativePath(path))invalidPaths.push(slot.dataset.slotId+'.'+label)}
+  if(invalidPaths.length)throw new Error('Accepted artifact paths must be safe relative paths inside the character folder: '+invalidPaths.join(', '));
+}
+function buildExportData(){
+  validateEditor();const result=readiness();const fields={...passthrough.fields};
+  for(const el of document.querySelectorAll('[data-field-id]')){const key=el.dataset.fieldId,value=controlValue(el);if(value!=='')fields[key]=value;else delete fields[key]}
+  const tables={...passthrough.tables};for(const table of document.querySelectorAll('table[data-export-table]'))tables[table.id]=exportTable(table);
+  const slots={...passthrough.slots};
+  for(const slot of document.querySelectorAll('.slot[data-slot-id]')){
+    const slotId=slot.dataset.slotId;
+    if(Object.prototype.hasOwnProperty.call(passthrough.slots,slotId))continue;
+    const state=slotState(slot);const extras={...(passthrough.slotValues[slotId]||{})};
+    if(!state.imagePath||state.imagePath!==(slot.dataset.importedImagePath||''))delete extras.image_sha256;
+    if(!state.packagePath||state.packagePath!==(slot.dataset.importedPackagePath||''))delete extras.generation_package_sha256;
+    if(!state.imagePath&&!state.packagePath&&state.fillPolicy==='auto'&&!Object.keys(extras).length){delete slots[slotId];continue}
+    slots[slotId]={...extras,image_path:state.imagePath,generation_package:state.packagePath,fill_policy:state.fillPolicy};
+  }
+  return {sheet_status:result.status,fields,tables,slots};
+}
+async function exportData(){
+  try{const data=buildExportData();const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});const anchor=document.createElement('a');anchor.href=URL.createObjectURL(blob);anchor.download='sheet-data.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(anchor.href),1000);setDirty(false)}catch(error){alert(error.message)}
+}
+function resetEditor({confirmFirst=true}={}){
+  if(confirmFirst&&dirty&&!window.confirm('Discard current edits and restore the blank editor?'))return false;
+  for(const el of document.querySelectorAll('[data-field-id]'))resetControl(el);
+  for(const tableId of Object.keys(TABLE_COLUMNS))restoreInitialTable(tableId);
+  for(const slot of document.querySelectorAll('.slot[data-dynamic-slot-editor="true"]'))slot.remove();
+  for(const slot of document.querySelectorAll('.slot[data-slot-id]')){setSlotImagePath(slot,'',{imported:true});setSlotPackagePath(slot,'',{imported:true});setFillPolicy(slot,'auto')}
+  passthrough={fields:{},tables:{},slots:{},rowValues:{},slotValues:{}};auditStructure();refresh();setDirty(false);return true;
+}
+function importTable(tableId,rows){
+  const table=document.getElementById(tableId);if(!table||!Array.isArray(rows))return;
+  const known=new Set(TABLE_COLUMNS[tableId]||[]);passthrough.rowValues[tableId]={};
+  // The column header row lives inside the tbody, so wipe only the data rows;
+  // clearing the whole tbody would delete the header on every re-import.
+  for(const row of [...table.tBodies[0].querySelectorAll('tr[data-row-id]')])row.remove();
+  for(const raw of rows){
+    if(!raw||typeof raw.row_id!=='string'||!raw.values||typeof raw.values!=='object'||Array.isArray(raw.values))continue;
+    const values=raw.values;
+    const row=addRow(tableId,{rowId:raw.row_id,focus:false,markDirty:false});if(!row)continue;
+    const extras={};for(const [key,value] of Object.entries(values)){if(known.has(key)){const target=cellTarget(row,key);if(target)setControlValue(target,String(value))}else extras[key]=String(value)}
+    if(Object.keys(extras).length)passthrough.rowValues[tableId][raw.row_id]=extras;
+  }
+  if(!rows.length)restoreInitialTable(tableId);
+}
+function importData(data){
+  const unknownKeys=data&&typeof data==='object'&&!Array.isArray(data)?Object.keys(data).filter(key=>!SIDECAR_KEYS.has(key)):[];
+  if(!data||typeof data!=='object'||Array.isArray(data)||unknownKeys.length||!SHEET_STATUSES.has(data.sheet_status)||!data.fields||typeof data.fields!=='object'||Array.isArray(data.fields)||!data.tables||typeof data.tables!=='object'||Array.isArray(data.tables)||!data.slots||typeof data.slots!=='object'||Array.isArray(data.slots))throw new Error('Unsupported or malformed sheet-data.json');
+  resetEditor({confirmFirst:false});
+  for(const [key,value] of Object.entries(data.fields)){const el=document.querySelector('[data-field-id="'+CSS.escape(key)+'"]');if(el)setControlValue(el,String(value));else passthrough.fields[key]=String(value)}
+  for(const [tableId,rows] of Object.entries(data.tables)){if(document.getElementById(tableId))importTable(tableId,rows);else passthrough.tables[tableId]=rows}
+  for(const [slotId,raw] of Object.entries(data.slots)){
+    if(!raw||typeof raw!=='object'||Array.isArray(raw)){passthrough.slots[slotId]=raw;continue}
+    const slot=ensureSlotEditor(slotId);
+    const extras={};for(const [key,value] of Object.entries(raw)){if(!SLOT_EDITOR_KEYS.has(key))extras[key]=value}
+    if(Object.keys(extras).length)passthrough.slotValues[slotId]=extras;
+    setSlotImagePath(slot,typeof raw.image_path==='string'?raw.image_path:'',{imported:true});setSlotPackagePath(slot,typeof raw.generation_package==='string'?raw.generation_package:'',{imported:true});setFillPolicy(slot,typeof raw.fill_policy==='string'?raw.fill_policy:'auto');
+  }
+  auditStructure();refresh();setDirty(false);
+}
+
+function initialize(){
+  dynamicSlotHost();
+  document.querySelectorAll('.slot[data-slot-id]').forEach(normalizeSlotPanelCode);
+  for(const slot of document.querySelectorAll('.slot[data-slot-id]')){setSlotImagePath(slot,slot.dataset.imagePath||'',{imported:true});setSlotPackagePath(slot,slot.dataset.packagePath||'',{imported:true})}
+  document.querySelectorAll('textarea').forEach(autoSize);auditStructure();refresh();setDirty(false);
+}
+
+document.addEventListener('click',event=>{
+  const add=event.target.closest('[data-add-row]');
+  if(add){event.preventDefault();if(add.dataset.locked==='1')return;add.dataset.locked='1';add.disabled=true;addRow(add.dataset.addRow);setTimeout(()=>{add.disabled=false;delete add.dataset.locked},300);return}
+  const remove=event.target.closest('[data-remove-row]');if(remove){event.preventDefault();removeRow(remove);return}
+  const action=event.target.closest('[data-action]');if(!action)return;
+  if(action.dataset.action==='import')document.getElementById('sheetImport').click();
+  else if(action.dataset.action==='export')exportData();
+  else if(action.dataset.action==='reset')resetEditor();
+});
+document.addEventListener('input',event=>{if(event.target.matches('[data-slot-path]'))syncSlotPathFromInput(event.target);if(event.target.closest('.sheet')){if(event.target.tagName==='TEXTAREA')autoSize(event.target);setDirty();refresh()}});
+document.addEventListener('change',event=>{if(event.target.closest('.sheet')){setDirty();refresh()}});
+document.getElementById('sheetImport').addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;try{importData(JSON.parse(await file.text()))}catch(error){alert(error.message)}finally{event.target.value=''}});
+window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}});
+initialize();
+</script></body>
+</html>

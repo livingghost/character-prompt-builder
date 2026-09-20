@@ -1,0 +1,181 @@
+{
+  "artifact_type": "character-identity-contract",
+  "contract_id": "CIC-C01",
+  "character_id": "C01",
+  "domain": "anthropomorphic-animal",
+  "canon_status": "approved",
+  "stable_identity": {
+    "species_or_base_form": "anthropomorphic gray wolf mechanic",
+    "body_plan": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+    "proportions": "broad upper torso, compact waist, long forearms, and stable athletic leg length",
+    "head_and_face": "long canine muzzle, amber eyes, upright ears, heavy dark brows, and a square cheek structure",
+    "surfaces_and_markings": "charcoal-gray fur, pale muzzle and chest, darker forearms, and one narrow dark stripe above each eye",
+    "appendages": "upright ears and one long gray tail with a pale tip",
+    "asymmetry_rules": "one small silver clip on the subject-left upper ear rim",
+    "identity_accessories": "subject-left ear clip is an identity accessory; work gloves and jacket are wardrobe rather than identity",
+    "performance_vocabulary": "controlled posture, ears move before the head, careful hand pressure, and restrained breathing under stress",
+    "frame_character": {
+      "representation": "declared-structures",
+      "structures": {
+        "body": {
+          "kind": "authored body",
+          "location": "whole visible form",
+          "presence": "present",
+          "geometry": {
+            "form": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+            "proportions": "broad upper torso, compact waist, long forearms, and stable athletic leg length",
+            "face": "long canine muzzle, amber eyes, upright ears, heavy dark brows, and a square cheek structure",
+            "appendages": "upright ears and one long gray tail with a pale tip"
+          }
+        }
+      },
+      "source_confidence": "preset-selected",
+      "frame_character_id": "frame-C01",
+      "overall_form": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+      "coherence_rules": [
+        "Retain the specific authored fixture; do not extrapolate a species-wide skeleton."
+      ],
+      "diagnostic_misreadings": []
+    },
+    "growth_geometry": {
+      "representation": "declared-structures",
+      "structures": {
+        "fur": {
+          "kind": "fur",
+          "location": "authored body surface",
+          "presence": "present",
+          "geometry": {
+            "color_and_pattern": "charcoal-gray fur, pale muzzle and chest, darker forearms, and one narrow dark stripe above each eye"
+          }
+        }
+      },
+      "source_confidence": "preset-selected",
+      "grooming_state": [],
+      "identity_lock_fields": [
+        "structures.fur.geometry.color_and_pattern"
+      ],
+      "variant_fields": []
+    },
+    "structure_notes": {
+      "body": "long canine muzzle, amber eyes, upright ears, heavy dark brows, and a square cheek structure"
+    }
+  },
+  "distinctive_details": [],
+  "anchor_fragments": [
+    {
+      "anchor_id": "C01-face",
+      "priority": "signature",
+      "wording": "amber eyes beneath heavy dark brows, pale long muzzle, and paired narrow brow stripes",
+      "required_when": [
+        "face-visible",
+        "front",
+        "three-quarter",
+        "profile"
+      ],
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "omit_when": [
+        "face-occluded"
+      ]
+    },
+    {
+      "anchor_id": "C01-left-ear-clip",
+      "priority": "signature",
+      "wording": "one small silver clip on the subject-left upper ear rim",
+      "required_when": [
+        "left-ear-visible",
+        "left-profile",
+        "left-three-quarter",
+        "front"
+      ],
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "omit_when": [
+        "left-ear-occluded"
+      ]
+    },
+    {
+      "anchor_id": "C01-tail-tip",
+      "priority": "supporting",
+      "wording": "one long gray tail with a pale tip",
+      "required_when": [
+        "tail-visible",
+        "full-body",
+        "rear"
+      ],
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "omit_when": [
+        "tail-occluded"
+      ]
+    }
+  ],
+  "coverage_requirements": [
+    {
+      "requirement_id": "CR-C01-FACE",
+      "feature_refs": [
+        "C01-face"
+      ],
+      "acceptable_views": [
+        "front bust",
+        "left three-quarter bust",
+        "right three-quarter bust"
+      ],
+      "priority": "signature",
+      "notes": "Face and brow stripes must be readable."
+    },
+    {
+      "requirement_id": "CR-C01-LEFT-EAR",
+      "feature_refs": [
+        "C01-left-ear-clip"
+      ],
+      "acceptable_views": [
+        "left profile head",
+        "left three-quarter bust",
+        "front bust"
+      ],
+      "priority": "signature",
+      "notes": "Laterality must remain subject-left."
+    },
+    {
+      "requirement_id": "CR-C01-TAIL",
+      "feature_refs": [
+        "C01-tail-tip"
+      ],
+      "acceptable_views": [
+        "rear full body",
+        "lateral full body"
+      ],
+      "priority": "supporting",
+      "notes": "Tail attachment and pale tip must be visible."
+    }
+  ],
+  "state_schema_ref": null,
+  "source_provenance": [
+    {
+      "type": "approved series design",
+      "reference": "workshop pilot brief"
+    }
+  ],
+  "notes": [
+    "Stable identity is independent from the current side injury and workshop wardrobe."
+  ],
+  "species_morphology_profile_ref": {
+    "id": "SMP-workshop-C01",
+    "sha256": "4dc89f20d94c49f973063476269cfb09538137d3478457e9189c8dc5ed0a0f08"
+  },
+  "individual_morphology_contract_ref": {
+    "id": "IMC-C01",
+    "sha256": "e43712663ab4b2bb4c58f6bad5d0215291e0e1f17e94731bee0ccc11b9cdf88f"
+  },
+  "visual_authority_ref": null
+}

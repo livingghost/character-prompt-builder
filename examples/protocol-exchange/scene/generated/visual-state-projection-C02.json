@@ -1,0 +1,434 @@
+{
+  "artifact_type": "visual-state-projection",
+  "projection_id": "VSP-SC-WORKSHOP-C02",
+  "character_id": "C02",
+  "state_snapshot_sha256": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58",
+  "scene_context_sha256": "daacecbe962746b4b3a226827b0e48759fa580aa00be4337dcbee4fd71f7bc0c",
+  "resolved_morphology": {
+    "species_profile_ref": {
+      "id": "SMP-workshop-C02",
+      "sha256": "ac85f8b1b243e1e10eda1cfcb58f17d4717f1be8173ada938050f4996f35b6dc"
+    },
+    "individual_morphology_ref": {
+      "id": "IMC-C02",
+      "sha256": "e2588fc7f8509a7feb68d562882d5f5b2e89131911b117507786f7f669d271d0"
+    },
+    "active_form": "baseline",
+    "body_plan": {
+      "species_body_plan": {
+        "symmetry": "Only the explicitly described asymmetries and paired markings are asserted.",
+        "posture_class": "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+        "primary_axis": "upright in this scene",
+        "region_map": [
+          {
+            "region_id": "region-carrier",
+            "name": "authored overall form",
+            "parent_region": null,
+            "bilateral": false,
+            "landmarks": [
+              "outer silhouette"
+            ],
+            "continuity_rules": [
+              "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail"
+            ]
+          }
+        ],
+        "support_structure": "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+        "locomotion_modes": [
+          "walking as declared in the shot plan"
+        ],
+        "center_of_mass": "Not numerically specified.",
+        "scale_reference": "medium height, narrow shoulders, long neck, and fine hands suited to delicate objects",
+        "topology_invariants": [
+          "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+          "tall ears and one full russet tail with white tip"
+        ]
+      },
+      "individual_measurements": {
+        "scale": "medium height, narrow shoulders, long neck, and fine hands suited to delicate objects",
+        "height_or_length": "Not numerically specified.",
+        "mass_or_volume": "medium height, narrow shoulders, long neck, and fine hands suited to delicate objects",
+        "measurement_basis": "authored relative silhouette",
+        "structure_measurements": {}
+      },
+      "life_stage_and_form": {
+        "life_stage": "unspecified",
+        "sex_or_role_morph": "unspecified",
+        "active_form": "baseline",
+        "developmental_notes": []
+      }
+    },
+    "frame_character": {
+      "representation": "declared-structures",
+      "structures": {
+        "body": {
+          "kind": "authored body",
+          "location": "whole visible form",
+          "presence": "present",
+          "geometry": {
+            "form": "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+            "proportions": "medium height, narrow shoulders, long neck, and fine hands suited to delicate objects",
+            "face": "short fox muzzle, green eyes, tall ears, and a narrow jaw",
+            "appendages": "tall ears and one full russet tail with white tip"
+          }
+        }
+      },
+      "source_confidence": "preset-selected",
+      "frame_character_id": "frame-C02",
+      "overall_form": "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+      "coherence_rules": [
+        "Retain the specific authored fixture; do not extrapolate a species-wide skeleton."
+      ],
+      "diagnostic_misreadings": []
+    },
+    "measurement_pass_status": "not-required",
+    "load_bearing_part_measurements": [],
+    "visible_feature_instances": [
+      {
+        "feature_id": "carrier",
+        "species_feature_ref": "carrier",
+        "status": "inherited",
+        "actual_count": 1,
+        "instance_ids": [
+          "carrier.instance"
+        ],
+        "resolved_feature": {
+          "feature_id": "carrier",
+          "feature_kind": "other",
+          "presence": "present",
+          "count": 1,
+          "laterality": "not-applicable",
+          "attachment_site": "region-carrier",
+          "origin_and_termination": "whole authored body extent",
+          "relative_measurements": {
+            "length": "Not numerically specified.",
+            "width": "Not numerically specified.",
+            "thickness": "Not numerically specified.",
+            "spacing": "Not numerically specified.",
+            "body_ratio": "medium height, narrow shoulders, long neck, and fine hands suited to delicate objects",
+            "measurement_basis": "outer silhouette"
+          },
+          "shape": "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+          "orientation": "upright in this scene",
+          "color_and_pattern": "russet fur, cream muzzle and throat, dark ear tips, dark forearms, and white tail tip",
+          "surface_or_material": "fur as explicitly described",
+          "internal_structure": null,
+          "articulation": "Only movements written in the example shot plan.",
+          "resting_configuration": "Scene start stance.",
+          "range_of_motion": "Not quantified; no additional capabilities inferred.",
+          "functional_role": "visible individual body",
+          "expression_role": "precise eye focus, careful two-finger object handling, small ear turns, and gentle measured speech",
+          "individual_variation_axes": [
+            "only author-specified proportions and markings"
+          ],
+          "continuity_rules": [
+            "retain the declared count",
+            "retain the declared extent"
+          ],
+          "required_views": [
+            "front bust",
+            "three-quarter bust",
+            "full body"
+          ],
+          "source_confidence": "preset-selected",
+          "notes": [
+            "This feature is the whole authored body, not an inferred organ list."
+          ],
+          "feature_group": "body-region",
+          "count_logic": {
+            "typical": 1,
+            "minimum": 1,
+            "maximum": 1,
+            "allowed_patterns": [
+              "one authored individual body"
+            ],
+            "count_basis": "explicit individual fixture"
+          },
+          "attachment_topology": {
+            "parent_feature_refs": [
+              "region-carrier"
+            ],
+            "attachment_landmarks": [
+              "outer silhouette"
+            ],
+            "attachment_mode": "whole-form carrier",
+            "branching_or_sequence": "No further topology inferred."
+          },
+          "visibility_and_occlusion": {
+            "ordinary_visibility": "exposed portions in the declared shot crop",
+            "common_occlusions": [
+              "clothes and scene objects"
+            ],
+            "minimum_proof_views": [
+              "front bust",
+              "full body"
+            ]
+          },
+          "sensory_or_signal_output": [],
+          "developmental_behavior": {
+            "life_stage_changes": [],
+            "sex_or_role_dimorphism": [],
+            "seasonal_or_environmental_changes": [],
+            "metamorphic_changes": [],
+            "regeneration_or_shedding": []
+          },
+          "cross_feature_dependencies": [],
+          "measurement_constraints": {
+            "minimum": null,
+            "maximum": null,
+            "typical_range": "Not quantified.",
+            "reference_landmarks": [
+              "outer silhouette"
+            ],
+            "scaling_behavior": "scales coherently with the parent body plan"
+          }
+        },
+        "laterality_and_asymmetry": "no permanent left-right accessory asymmetry",
+        "damage_or_modification": "intact",
+        "identity_priority": "signature",
+        "state_boundary": "identity-stable",
+        "mutable_state_paths": [],
+        "allowed_variation": [
+          "approved changes only"
+        ],
+        "continuity_rules": [
+          "retain the declared count",
+          "retain the declared connections"
+        ],
+        "required_views": [
+          "front bust",
+          "three-quarter bust",
+          "full body"
+        ],
+        "source_confidence": "preset-selected",
+        "notes": [],
+        "exact_measurements": {
+          "length": "Not numerically specified.",
+          "width": "Not numerically specified.",
+          "thickness": "Not numerically specified.",
+          "spacing": "Not numerically specified.",
+          "measurement_basis": "outer silhouette",
+          "tolerance": "Preserve the authored proportional description."
+        },
+        "attachment_realization": {
+          "parent_feature_refs": [],
+          "attachment_landmarks": [
+            "outer silhouette"
+          ],
+          "attachment_mode": "whole-form carrier",
+          "individual_offset_or_angle": "No additional offset specified."
+        },
+        "personal_expression_behavior": [],
+        "uncertainties": []
+      }
+    ],
+    "hidden_or_out_of_frame_feature_refs": [],
+    "feature_relationships": [],
+    "surface_and_marking_map": [],
+    "expression_channels": [
+      {
+        "channel_id": "channel-carrier",
+        "species_capability": {
+          "channel_id": "channel-carrier",
+          "carrier_feature_refs": [
+            "carrier"
+          ],
+          "neutral_state": "Current scene baseline, not a universal emotional default.",
+          "active_states": [
+            "precise eye focus, careful two-finger object handling, small ear turns, and gentle measured speech"
+          ],
+          "readable_meanings": [
+            "Only the stated scene interpretation; this channel is not proof of inner feeling."
+          ],
+          "ambiguity_notes": [
+            "interpret the channel together with posture, contact, and scene context"
+          ],
+          "timing_and_range": "Only the authored scene action timing.",
+          "continuity_rules": [
+            "expression changes remain within the physical range of the carrier features"
+          ],
+          "channel_class": "other",
+          "external_tool_refs": [],
+          "signal_dimensions": [
+            "authored signal dimension"
+          ]
+        },
+        "individual_signature": {
+          "channel_id": "channel-carrier",
+          "baseline_bias": "precise eye focus, careful two-finger object handling, small ear turns, and gentle measured speech",
+          "range": "Only authored scene variation.",
+          "individual_tells": [],
+          "suppression_or_masking": "Use the current state and deliberate acting directions.",
+          "continuity_rules": [
+            "Keep the identity and performance vocabulary distinct from transient states."
+          ]
+        }
+      }
+    ],
+    "expression_projection": [
+      {
+        "channel_id": "channel-carrier",
+        "carrier_feature_refs": [
+          "carrier"
+        ],
+        "configuration": "precise eye focus, careful two-finger object handling, small ear turns, and gentle measured speech",
+        "meaning_candidates": [
+          "Only the stated scene interpretation; this channel is not proof of inner feeling."
+        ],
+        "tool_refs": []
+      }
+    ],
+    "communication_and_expression_tools": [],
+    "identity_invariants": [
+      "feature count remains stable",
+      "attachment sites remain stable",
+      "individual color and pattern maps remain stable"
+    ],
+    "inventory_proof": {
+      "declared_visible_count": 1,
+      "declared_hidden_count": 0,
+      "unresolved_count": 0,
+      "count_and_attachment_checks": [
+        "carrier: actual_count=1 and attachment=['outer silhouette']"
+      ]
+    },
+    "current_state_deltas": [],
+    "visible_obligations": [
+      "preserve carrier count, attachment, shape, surface, and declared individual differences"
+    ],
+    "crop_and_occlusion_requirements": [],
+    "uncertainties": []
+  },
+  "visible_identity_features": [
+    {
+      "feature_id": "C02-face",
+      "wording": "green eyes, short cream fox muzzle, dark ear tips, and round brass spectacles",
+      "priority": "signature",
+      "source": "anchor-fragment",
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "required_when": [
+        "face-visible",
+        "front",
+        "three-quarter",
+        "profile"
+      ],
+      "omit_when": [
+        "face-occluded"
+      ]
+    }
+  ],
+  "visible_state_deltas": [],
+  "performance_cues": [
+    {
+      "wording": "C02 raises P01 carefully with the right hand and watches C01 reaction",
+      "priority": "supporting"
+    },
+    {
+      "wording": "ears make a small concerned turn before the object is offered",
+      "priority": "supporting"
+    }
+  ],
+  "wardrobe_and_accessory_state": [
+    {
+      "path": "/wardrobe_state/outer_layer",
+      "label": "outer_layer",
+      "value": "cream archive vest",
+      "wording": "",
+      "priority": "supporting",
+      "carriers": []
+    },
+    {
+      "path": "/wardrobe_state/inner_layer",
+      "label": "inner_layer",
+      "value": "white rolled-sleeve shirt",
+      "wording": "",
+      "priority": "supporting",
+      "carriers": []
+    },
+    {
+      "path": "/equipment_state/face",
+      "label": "face",
+      "value": "round brass spectacles",
+      "wording": "",
+      "priority": "supporting",
+      "carriers": []
+    }
+  ],
+  "held_or_visible_props": [
+    {
+      "path": "/inventory_state/items",
+      "label": "items",
+      "value": [
+        "P01"
+      ],
+      "wording": "",
+      "priority": "supporting",
+      "carriers": []
+    }
+  ],
+  "relationship_blocking_cues": [
+    {
+      "wording": "C02 remains across the workbench until the handoff",
+      "priority": "supporting"
+    },
+    {
+      "wording": "gentle concern is visible without crossing the contact boundary early",
+      "priority": "supporting"
+    }
+  ],
+  "environmental_body_responses": [
+    {
+      "wording": "warm indoor air permits rolled sleeves already present in the approved wardrobe",
+      "priority": "supporting"
+    }
+  ],
+  "occluded_or_irrelevant_features": [],
+  "reference_asset_requirements": [
+    {
+      "wording": "front or right three-quarter face reference",
+      "priority": "supporting"
+    },
+    {
+      "wording": "spectacles reference",
+      "priority": "supporting"
+    },
+    {
+      "wording": "right hand detail for pendant handling",
+      "priority": "supporting"
+    }
+  ],
+  "text_anchor_fragments": [
+    {
+      "feature_id": "C02-face",
+      "wording": "green eyes, short cream fox muzzle, dark ear tips, and round brass spectacles",
+      "priority": "signature",
+      "source": "anchor-fragment",
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "required_when": [
+        "face-visible",
+        "front",
+        "three-quarter",
+        "profile"
+      ],
+      "omit_when": [
+        "face-occluded"
+      ]
+    }
+  ],
+  "review_dimensions": [
+    "face same-ness",
+    "spectacle continuity",
+    "right-hand prop ownership",
+    "gentle performance"
+  ],
+  "prompt_regeneration_required": true,
+  "projection_sha256": "f8d678e6078d910fb2722b1403b59b54279ff333c488eb202dc3c9823c40c2c7"
+}

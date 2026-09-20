@@ -1,0 +1,141 @@
+{
+  "artifact_type": "world-state-snapshot",
+  "snapshot_id": "WORLD-main-25",
+  "timeline_id": "main",
+  "scene_context_id": "SC-EP03-01",
+  "story_order": 25,
+  "story_time": "story:EP03-SC01",
+  "entities": {
+    "characters": {
+      "C01": {
+        "physical_state": {
+          "left_ear_tip": "notched",
+          "wound_stage": "closed_with_swelling"
+        },
+        "appearance_state": {
+          "grooming": {
+            "fur_wetness": {
+              "brow": "dry",
+              "paws": "dry"
+            },
+            "claws": {
+              "dirt": "clean",
+              "polish_condition": "none"
+            }
+          }
+        },
+        "wardrobe_state": {
+          "layers": [
+            {
+              "item_id": "shirt-01",
+              "state": "worn",
+              "closure": "closed"
+            }
+          ],
+          "condition": {
+            "wetness": "dry"
+          }
+        },
+        "equipment_state": {},
+        "inventory_state": {
+          "items": []
+        },
+        "emotional_state": {
+          "felt_state": {
+            "emotion": "fear",
+            "intensity": 0.7
+          },
+          "expressed_state": {
+            "emotion": "calm",
+            "intensity": 0.4,
+            "masking_strategy": "professional-composure"
+          }
+        },
+        "performance_state": {
+          "physiological_cues": [
+            "shallow breath",
+            "slight sweat",
+            "left hand tension"
+          ]
+        },
+        "knowledge_state": {},
+        "social_role_state": {
+          "role": "field-agent"
+        },
+        "character_specific_state": {}
+      },
+      "C02": {
+        "physical_state": {},
+        "appearance_state": {},
+        "wardrobe_state": {},
+        "equipment_state": {},
+        "inventory_state": {
+          "items": [
+            "P01"
+          ]
+        },
+        "emotional_state": {},
+        "performance_state": {},
+        "knowledge_state": {},
+        "social_role_state": {},
+        "character_specific_state": {}
+      }
+    },
+    "relationships": {
+      "REL-C01-C02": {
+        "from": "C01",
+        "to": "C02",
+        "trust": "high",
+        "affinity": "warm",
+        "intimacy": "private-close",
+        "contact_boundary": "mutual-nonsexual-affection-allowed",
+        "public_mask": "formal",
+        "private_behavior": "physically-relaxed"
+      }
+    },
+    "environments": {
+      "LOC01": {
+        "season": "summer",
+        "time_of_day": "afternoon",
+        "weather": "clear",
+        "temperature_c": 31,
+        "humidity_percent": 84,
+        "wind": "light",
+        "precipitation": "none",
+        "water_exposure": "none",
+        "light_context": [
+          "warm window light"
+        ],
+        "culture_context_refs": [
+          "WORLD-LOCALE-01"
+        ],
+        "dress_norms": [
+          "field office casual"
+        ],
+        "surface_conditions": [
+          "warm wood floor"
+        ]
+      }
+    },
+    "props": {
+      "P01": {
+        "name": "silver pendant",
+        "ownership": "C01",
+        "possessed_by": "C02",
+        "state": "carried"
+      }
+    },
+    "world": {}
+  },
+  "applied_event_ids": [
+    "EV-C01-001",
+    "EV-C01-002",
+    "EV-TRANSFER-003"
+  ],
+  "applied_process_milestones": [
+    "PROC-C01-WOUND-01@epoch-initial:offset-0",
+    "PROC-C01-WOUND-01@epoch-initial:offset-5"
+  ],
+  "uncertainties": [],
+  "world_state_sha256": "23b5ae825426b2411b0c6701d9b11aedbe895149a3001bd9e6f508fd38401fa3"
+}

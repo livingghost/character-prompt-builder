@@ -1,0 +1,24 @@
+{
+  "artifact_type": "external-contract-reference",
+  "reference_id": "EXT-C01-IDENTITY",
+  "contract_profile": "visual-contract-package",
+  "origin_capability_sha256": "2cb33de6192c8e0cdde67812611123fcdd422e4789e0c01213d8a254a0396fc5",
+  "payload_artifact_type": "character-identity-contract",
+  "payload_artifact_id": "CIC-C01",
+  "payload_sha256": "6b3a2911ea2aaf712ca0a13733cec6aba0a7be4b63f0605c6f3651ab24482ec8",
+  "required_features": [
+    "hash-bound-payload",
+    "producer-provenance"
+  ],
+  "optional_features": [
+    "frame-character",
+    "part-measurements"
+  ],
+  "interpretation_status": "preserved-opaque",
+  "adoption_status": "pending",
+  "valid_story_range": {
+    "from": "SCENE-START",
+    "until": null
+  },
+  "reference_sha256": "6bae88bd892c907a9f9c9cd8a9a2cc41f6306f47c2d3c4d84e0845be74f2c664"
+}

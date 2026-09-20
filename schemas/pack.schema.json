@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "character-prompt-builder-pack.schema.json",
+  "title": "Character Prompt Builder Pack Manifest",
+  "description": "The authored manifest for one independently distributed Character Prompt Builder content pack.",
+  "type": "object",
+  "required": [
+    "pack_id",
+    "name",
+    "release",
+    "content",
+    "capabilities",
+    "dependencies",
+    "optional_dependencies",
+    "replaces",
+    "license"
+  ],
+  "properties": {
+    "pack_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "release": {
+      "$ref": "#/$defs/calver"
+    },
+    "content": {
+      "type": "object",
+      "required": [
+        "record_globs",
+        "resource_globs",
+        "resource_bindings"
+      ],
+      "properties": {
+        "record_globs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "resource_globs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "resource_bindings": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "pack_id"
+        ],
+        "properties": {
+          "pack_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "optional_dependencies": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "pack_id"
+        ],
+        "properties": {
+          "pack_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "replaces": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "record_id",
+          "from_pack"
+        ],
+        "properties": {
+          "record_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9._-]*$"
+          },
+          "from_pack": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "calver": {
+      "type": "string",
+      "pattern": "^(?:(?:[0-9]{3}[1-9]|[0-9]{2}[1-9][0-9]|[0-9][1-9][0-9]{2}|[1-9][0-9]{3})\\.(?:(?:01|03|05|07|08|10|12)\\.(?:0[1-9]|[12][0-9]|3[01])|(?:04|06|09|11)\\.(?:0[1-9]|[12][0-9]|30)|02\\.(?:0[1-9]|1[0-9]|2[0-8]))|(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:0[48]|[2468][048]|[13579][26])00)\\.02\\.29)\\.[1-9][0-9]*$"
+    }
+  },
+  "additionalProperties": false
+}

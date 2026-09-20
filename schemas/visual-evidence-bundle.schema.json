@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "bundle_id",
+    "source_ref_id",
+    "source_sha256",
+    "source_dimensions",
+    "visual_authority_ref",
+    "layers",
+    "representation",
+    "artifacts",
+    "canonical_record_refs",
+    "notes",
+    "visual_evidence_bundle_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "visual-evidence-bundle"
+    },
+    "bundle_id": {
+      "type": "string"
+    },
+    "source_ref_id": {
+      "type": "string"
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_dimensions": {
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "visual_authority_ref": {
+      "type": "object",
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "layers": {
+      "type": "object",
+      "required": [
+        "A",
+        "B",
+        "C"
+      ],
+      "properties": {
+        "A": {
+          "type": "string"
+        },
+        "B": {
+          "type": "string"
+        },
+        "C": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "representation": {
+      "const": "native-dimension-compact-perceptual-path-vector"
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "items": {
+        "type": "object",
+        "required": [
+          "artifact_id",
+          "role",
+          "path",
+          "media_type",
+          "sha256"
+        ],
+        "properties": {
+          "artifact_id": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "faithful-archival-vector",
+              "vectorization-result",
+              "semantic-region-map",
+              "subject-mask",
+              "structural-line-tone",
+              "color-audit",
+              "saturation-rescue",
+              "specular-audit",
+              "palette-probes",
+              "audit-extraction-set",
+              "runtime-attachment-build"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "canonical_record_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "disposition": {
+      "type": "string"
+    },
+    "evidence_relation": {
+      "type": "string"
+    },
+    "semantic_summary": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "visual_evidence_bundle_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

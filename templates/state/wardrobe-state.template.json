@@ -1,0 +1,9 @@
+{
+  "artifact_type": "wardrobe-state",
+  "wardrobe_state_id": "WARD-C01-01",
+  "character_id": "C01",
+  "outfit_variant_id": null,
+  "layers": [],
+  "condition": {},
+  "wardrobe_state_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

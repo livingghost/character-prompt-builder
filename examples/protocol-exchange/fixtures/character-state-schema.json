@@ -1,0 +1,215 @@
+{
+  "artifact_type": "character-state-schema",
+  "state_schema_id": "CSS-C01",
+  "character_id": "C01",
+  "identity_contract_sha256": "24e5cd147b43e6be52a67efde6c6addf89038f48f9831cab515c7c22baba749d",
+  "state_paths": [
+    {
+      "path": "/physical_state/left_side_injury",
+      "state_domain": "physical",
+      "value_type": "object",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared",
+        "persistent-until-superseded"
+      ],
+      "default_value": null,
+      "visual_translation": {
+        "policy": "project only when visible or behaviorally relevant"
+      },
+      "prompt_relevance": "conditional",
+      "notes": "Example path for deterministic state resolution."
+    },
+    {
+      "path": "/wardrobe_state/outer_layer",
+      "state_domain": "wardrobe",
+      "value_type": "string",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared",
+        "persistent-until-superseded"
+      ],
+      "default_value": null,
+      "visual_translation": {
+        "policy": "project only when visible or behaviorally relevant"
+      },
+      "prompt_relevance": "always-when-visible",
+      "notes": "Example path for deterministic state resolution."
+    },
+    {
+      "path": "/wardrobe_state/inner_layer",
+      "state_domain": "wardrobe",
+      "value_type": "string",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared",
+        "persistent-until-superseded"
+      ],
+      "default_value": null,
+      "visual_translation": {
+        "policy": "project only when visible or behaviorally relevant"
+      },
+      "prompt_relevance": "always-when-visible",
+      "notes": "Example path for deterministic state resolution."
+    },
+    {
+      "path": "/inventory_state/items",
+      "state_domain": "inventory",
+      "value_type": "array",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared",
+        "persistent-until-superseded"
+      ],
+      "default_value": null,
+      "visual_translation": {
+        "policy": "project only when visible or behaviorally relevant"
+      },
+      "prompt_relevance": "conditional",
+      "notes": "Example path for deterministic state resolution."
+    },
+    {
+      "path": "/emotional_state/felt",
+      "state_domain": "emotion",
+      "value_type": "string",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared",
+        "persistent-until-superseded"
+      ],
+      "default_value": null,
+      "visual_translation": {
+        "policy": "project only when visible or behaviorally relevant"
+      },
+      "prompt_relevance": "never-direct",
+      "notes": "Example path for deterministic state resolution."
+    },
+    {
+      "path": "/emotional_state/expressed",
+      "state_domain": "emotion",
+      "value_type": "string",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared",
+        "persistent-until-superseded"
+      ],
+      "default_value": null,
+      "visual_translation": {
+        "policy": "project only when visible or behaviorally relevant"
+      },
+      "prompt_relevance": "conditional",
+      "notes": "Example path for deterministic state resolution."
+    },
+    {
+      "path": "/emotional_state/masked",
+      "state_domain": "emotion",
+      "value_type": "string",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared",
+        "persistent-until-superseded"
+      ],
+      "default_value": null,
+      "visual_translation": {
+        "policy": "project only when visible or behaviorally relevant"
+      },
+      "prompt_relevance": "conditional",
+      "notes": "Example path for deterministic state resolution."
+    },
+    {
+      "path": "/emotional_state/physiological",
+      "state_domain": "emotion",
+      "value_type": "string",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared",
+        "persistent-until-superseded"
+      ],
+      "default_value": null,
+      "visual_translation": {
+        "policy": "project only when visible or behaviorally relevant"
+      },
+      "prompt_relevance": "conditional",
+      "notes": "Example path for deterministic state resolution."
+    },
+    {
+      "path": "/performance_state/posture",
+      "state_domain": "performance",
+      "value_type": "string",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared",
+        "persistent-until-superseded"
+      ],
+      "default_value": null,
+      "visual_translation": {
+        "policy": "project only when visible or behaviorally relevant"
+      },
+      "prompt_relevance": "conditional",
+      "notes": "Example path for deterministic state resolution."
+    },
+    {
+      "path": "/knowledge_state/knows_pendant_damage",
+      "state_domain": "knowledge",
+      "value_type": "boolean",
+      "allowed_persistence": [
+        "scene-local",
+        "temporary-until-cleared",
+        "persistent-until-superseded"
+      ],
+      "default_value": null,
+      "visual_translation": {
+        "policy": "project only when visible or behaviorally relevant"
+      },
+      "prompt_relevance": "never-direct",
+      "notes": "Example path for deterministic state resolution."
+    }
+  ],
+  "initial_state": {
+    "physical_state": {
+      "left_side_injury": {
+        "status": "none",
+        "visibility": "none",
+        "mobility_effect": "none"
+      }
+    },
+    "appearance_state": {
+      "cleanliness": "workshop clean"
+    },
+    "wardrobe_state": {
+      "outer_layer": "dark blue mechanic jacket",
+      "inner_layer": "gray fitted shirt",
+      "condition": "dry and intact"
+    },
+    "equipment_state": {
+      "hands": "fingerless work gloves"
+    },
+    "inventory_state": {
+      "items": []
+    },
+    "emotional_state": {
+      "felt": "concerned",
+      "expressed": "controlled",
+      "masked": "professional calm",
+      "physiological": "slightly shallow breath"
+    },
+    "performance_state": {
+      "posture": "balanced",
+      "gaze": "toward C02"
+    },
+    "knowledge_state": {
+      "knows_pendant_damage": false
+    },
+    "social_role_state": {
+      "role": "workshop mechanic"
+    },
+    "character_specific_state": {},
+    "uncertainties": []
+  },
+  "state_machines": [],
+  "environment_adaptation_rules": [],
+  "projection_rules": [],
+  "notes": [
+    "The example keeps hidden injury state separate from visible performance cues."
+  ]
+}

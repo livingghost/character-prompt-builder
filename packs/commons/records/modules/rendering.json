@@ -1,0 +1,315 @@
+{
+  "kind": "module",
+  "category": "rendering",
+  "records": [
+    {
+      "id": "rendering-pbr-material-response",
+      "label": "Physically based material response",
+      "category": "rendering",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Give every surface a physically coherent response so metal, skin, fabric, glass, and plastic separate through roughness, reflectivity, and light penetration, each reading as its own material at the surface.",
+      "prompt": "Render each material with a physically based response: distinct roughness per surface, metallic reflection only on metal, soft subsurface warmth on skin and translucent parts, and highlights whose size and sharpness follow the light source and surface smoothness.",
+      "invariants": [
+        "each named material keeps one coherent roughness and reflectivity",
+        "highlight sharpness follows surface smoothness",
+        "subsurface response appears only on translucent materials"
+      ],
+      "misreadings_to_avoid": [
+        "uniform plastic gloss across every surface",
+        "metallic sheen on skin or cloth",
+        "texture noise replacing material response"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "material rendering",
+      "tags": [
+        "pbr",
+        "material response",
+        "physically based"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "pbr material response",
+          "facet": "rendering",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "physically based rendering",
+          "facet": "rendering",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "realistic material separation",
+          "facet": "rendering",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "rendering-clay-render-medium",
+      "label": "Matte clay render medium",
+      "category": "rendering",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Present the subject as a uniform matte clay-like 3D render that emphasizes form, silhouette, and lighting over surface texture and color detail.",
+      "prompt": "Render the subject as a matte clay-style 3D model: one soft uniform surface with gentle ambient occlusion in crevices, rounded edge highlights, minimal texture, and lighting that reads the form through smooth value transitions.",
+      "invariants": [
+        "one matte surface family covers the subject",
+        "ambient occlusion stays in contact areas and crevices",
+        "form reads through value on a smooth matte surface"
+      ],
+      "misreadings_to_avoid": [
+        "glossy plastic highlights",
+        "painted color detail breaking the clay read",
+        "photographic skin texture"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "render medium",
+      "tags": [
+        "clay render",
+        "matte 3d",
+        "sculpt look"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "clay render",
+          "facet": "rendering",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "matte sculpt look",
+          "facet": "rendering",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "rendering-stylized-3d-character",
+      "label": "Stylized appealing 3D character render",
+      "category": "rendering",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Render the character as an appealing stylized 3D model with rounded simplified forms, soft edge highlights, and clean color separation, with surface detail kept at a simplified stylized level.",
+      "prompt": "Render the subject as an appealing stylized 3D character: rounded simplified volumes, smooth clean surfacing with soft bevel highlights, large readable eyes, gentle color gradients per surface, and soft studio-style lighting that keeps every form legible.",
+      "invariants": [
+        "forms stay rounded and simplified at a stylized level of anatomy",
+        "each surface keeps one clean material family",
+        "lighting stays soft and shape-describing"
+      ],
+      "misreadings_to_avoid": [
+        "photoreal pores or skin texture breaking the stylization",
+        "hard CGI plastic gloss over every surface",
+        "noisy micro-detail crowding the simplified forms"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "render medium",
+      "tags": [
+        "stylized 3d",
+        "appealing character render",
+        "soft 3d"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "stylized 3d character",
+          "facet": "rendering",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "appealing 3d render",
+          "facet": "rendering",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "cartoon 3d character",
+          "facet": "rendering",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "rendering-isometric-diorama",
+      "label": "Isometric diorama render",
+      "category": "rendering",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Present the scene as a crisp isometric diorama: parallel projection, miniature-set framing, and clean edge definition.",
+      "prompt": "Render the scene as an isometric diorama in parallel projection: edges holding constant spacing across the frame, a compact staged set floating on a simple ground, crisp clean edges, vibrant flat-leaning color, and even soft lighting that keeps every plane readable.",
+      "invariants": [
+        "parallel projection with receding edges staying parallel",
+        "the whole set fits inside the frame as one staged miniature",
+        "edges stay crisp and unbroken"
+      ],
+      "misreadings_to_avoid": [
+        "perspective convergence creeping into the projection",
+        "photographic depth of field blurring the set",
+        "clutter extending past the diorama boundary"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "render medium",
+      "tags": [
+        "isometric",
+        "diorama",
+        "parallel projection"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "isometric diorama",
+          "facet": "rendering",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "isometric render",
+          "facet": "rendering",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "miniature set render",
+          "facet": "rendering",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "rendering-claymation-sculpt",
+      "label": "Claymation sculpted medium",
+      "category": "rendering",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Render the subject as a handmade stop-motion clay sculpture with visible sculpting softness and charming seams; distinct from the smooth digital matte clay-render medium.",
+      "prompt": "Render the subject as a handmade claymation sculpture: soft rounded clay forms with subtle fingerprint and tool softness, matte plasticine surface, slightly imperfect charming seams, centered staged composition, and warm even lighting.",
+      "invariants": [
+        "surfaces read as matte moldable clay",
+        "forms stay rounded with handmade softness",
+        "imperfections stay charming and small, reading as handmade"
+      ],
+      "misreadings_to_avoid": [
+        "glossy plastic sheen replacing clay matte",
+        "photoreal texture overriding the sculpted look",
+        "crisp digital edges erasing the handmade feel"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "render medium",
+      "tags": [
+        "claymation",
+        "plasticine",
+        "stop motion look"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "claymation style",
+          "facet": "rendering",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "clay sculpture look",
+          "facet": "rendering",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "plasticine character",
+          "facet": "rendering",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ],
+      "distinct_from": [
+        "rendering-clay-render-medium"
+      ]
+    },
+    {
+      "id": "rendering-papercraft-layered",
+      "label": "Layered papercraft medium",
+      "category": "rendering",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Build the image from cut paper layers: stacked flat shapes, visible layer depth, and clean die-cut edges.",
+      "prompt": "Render the subject as layered papercraft: flat cut-paper shapes stacked with visible depth between layers, clean sharp cut edges, gentle contact shadows between sheets, and a limited harmonious paper palette.",
+      "invariants": [
+        "every shape reads as flat cut paper",
+        "layer order stays consistent with depth",
+        "cut edges stay clean and deliberate"
+      ],
+      "misreadings_to_avoid": [
+        "painterly gradients inside a single sheet",
+        "photoreal texture breaking the paper illusion",
+        "layers merging without shadow separation"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "render medium",
+      "tags": [
+        "papercraft",
+        "papercut",
+        "layered paper"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "layered papercut art",
+          "facet": "rendering",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "papercraft style",
+          "facet": "rendering",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "cut paper illustration",
+          "facet": "rendering",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

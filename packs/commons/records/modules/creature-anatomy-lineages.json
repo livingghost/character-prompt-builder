@@ -1,0 +1,1369 @@
+{
+  "kind": "module",
+  "category": "creature-anatomy",
+  "records": [
+    {
+      "id": "creature-anatomy-anthro-canine-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro canine lineage anatomy",
+      "visual_function": "Propose a readable canid muzzle, ear, pad, and tail relationship for an upright subject, leaving build, coat length, markings, and personal traits to the author's declaration.",
+      "prompt": "Anthropomorphic canine lineage (dog, wolf, fox, jackal, coyote): full-body fur with a dense neck ruff, upright triangular canine ears, a long tapered muzzle with a broad nose, paw pads on both hands and feet, a keen sense of smell, and a large fluffy tail. Draw tail motion as an exaggerated emotion amplifier: a big fast wag for joy and high drive, a small hesitant sway for uncertain expectation.",
+      "invariants": [
+        "the muzzle, nose, and triangular ear relationship reads as one canid head structure",
+        "paw pads appear on both the hand and the foot surfaces wherever those surfaces show",
+        "the tail reads as one continuous mass with the surrounding coat"
+      ],
+      "misreadings_to_avoid": [
+        "a feline short muzzle and flat nose on a canid head",
+        "a human face wearing decorative canine ears",
+        "a tail drawn as a separate accessory instead of continuous coat"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "canine anthro",
+        "wolf anthro",
+        "fox anthro",
+        "paw pads",
+        "fluffy tail"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro canine lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "canine anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "wolf anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "fox anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "paw pads",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "fluffy tail",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "dog wolf fox jackal coyote anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "canine muzzle ruff and paw pads",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-feline-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro feline lineage anatomy",
+      "visual_function": "Propose a feline muzzle, ear, pupil, and claw relationship for an upright subject, leaving build, coat, markings, and temperament to the author's declaration.",
+      "prompt": "Anthropomorphic feline lineage (cat, lion, tiger, leopard, hyena): a shorter muzzle with a flat feline nose, large forward ears, vertical-slit pupils over luminous night-adapted eyes, a lean athletic build, retractable claws, a slender tail, and calm reserved facial affect with quiet body language. Purring and an upright tail signal calm contentment.",
+      "invariants": [
+        "the short muzzle and flat nose plane stay one feline head structure",
+        "the slit pupil reads as the same eye structure across lighting levels",
+        "retractable claws stay consistent with the hand and foot construction across views"
+      ],
+      "misreadings_to_avoid": [
+        "a canid long tapered muzzle on a feline head",
+        "purring or an upright tail read as excitement",
+        "claws drawn as fixed talons that cannot retract"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "feline anthro",
+        "cat anthro",
+        "tiger anthro",
+        "slit pupils"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro feline lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "feline anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "cat anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "tiger anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "slit pupils",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "cat lion tiger leopard hyena anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "feline calm affect and upright tail",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-ursine-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro ursine lineage anatomy",
+      "visual_function": "Propose a heavy ursine torso, ear, muzzle, and claw relationship for an upright subject, leaving exact mass, coat length, and markings to the author's declaration.",
+      "prompt": "Anthropomorphic bear lineage: the largest builds among anthro lineages, a broad heavy torso, short rounded ears, a short wide muzzle, thick plush fur, sharp heavy claws, and a stubby vestigial tail. Keep proportions massive and grounded; the tail is too short to emote.",
+      "invariants": [
+        "the broad torso and the short limbs carry one grounded mass",
+        "short rounded ears and the short wide muzzle stay one ursine head structure",
+        "the stubby tail keeps its scale against the declared build"
+      ],
+      "misreadings_to_avoid": [
+        "a canid long tapered muzzle on an ursine head",
+        "a long expressive tail added to a stubby-tailed build",
+        "a lean athletic frame standing in for the declared massive build"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "bear anthro",
+        "large build anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro ursine lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "bear anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "large build anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "bear panda polar anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "big rounded ears and stubby tail",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-bovine-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro bovine lineage anatomy",
+      "visual_function": "Propose a bovine muzzle, horn seat, hoof, and tail-tuft relationship for an upright subject, leaving build, coat, markings, and sex characteristics to the author's declaration.",
+      "prompt": "Anthropomorphic bovine lineage (cow, bull): short smooth fur, small sideways-facing ears, a broad rectangular muzzle, hooved feet, and a thin tail with a tail tuft. Male horns thicken and keep growing with virility. Female characters have prominent udder or lactation anatomy, and rare male characters may share the same lactation trait.",
+      "invariants": [
+        "the broad rectangular muzzle and the sideways ear set stay one bovine head structure",
+        "horns seat on the skull at a stated angle that survives pose and crop",
+        "cloven hooves carry the stance through the same leg structure on every limb"
+      ],
+      "misreadings_to_avoid": [
+        "an equine long muzzle on a bovine head",
+        "horns floating clear of the skull surface",
+        "a species convention standing in for the character's declared anatomy"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "bovine anthro",
+        "cow anthro",
+        "bull anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro bovine lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "bovine anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "cow anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "bull anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "cow bull anthro anatomy with horns and hooves",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "bovine tail tuft and sideways ears",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-equine-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro equine lineage anatomy",
+      "visual_function": "Propose an equine muzzle, mane, ear, and hoof relationship for an upright subject, leaving build, coat, markings, and sex characteristics to the author's declaration.",
+      "prompt": "Anthropomorphic equine lineage (horse, zebra, donkey): a very long muzzle, a short fine coat with a mane along the neck, upright horse ears, hooved feet, long powerful legs, and a tall athletic build. Stallion-equivalent male characters are exceptionally large in genitalia.",
+      "invariants": [
+        "the long muzzle and the upright horse ears stay one equine head structure",
+        "the neck mane keeps a stated boundary against the short body coat",
+        "hooved feet carry the stance through the same leg structure on every limb"
+      ],
+      "misreadings_to_avoid": [
+        "a bovine rectangular muzzle on an equine head",
+        "a mane floating clear of the neck it grows from",
+        "digitigrade paws replacing the declared hooves"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "equine anthro",
+        "horse anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro equine lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "equine anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "horse anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "horse zebra donkey anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "long muzzle mane and hooves",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-horned-ungulate-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro horned ungulate lineage anatomy",
+      "visual_function": "Propose a horned ungulate eye placement, horn seat, and hoof relationship for an upright subject, leaving horn carriage, coat, build, and markings to the author's declaration.",
+      "prompt": "Anthropomorphic horned ungulate lineage (deer, sheep, reindeer, goat): hooved feet, side-set alert eyes, short tails, and male antlers or horns; deer antlers branch and shed seasonally while sheep carry a curled spiral horn pair. Where the declaration is silent, seat the antlers or horns on a male head and leave a female head bare; the character's own declaration settles who carries them.",
+      "invariants": [
+        "side-set eyes and the horn or antler bases stay in one skull structure",
+        "branching antlers and spiral horns keep distinct forms with distinct attachments",
+        "the short tail keeps its scale against the declared build"
+      ],
+      "misreadings_to_avoid": [
+        "antler branching pasted onto a spiral horn base",
+        "forward-set predator eye placement on an ungulate skull",
+        "horns attached through an invented socket that ignores the skull plate"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "deer anthro",
+        "sheep anthro",
+        "goat anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro horned ungulate lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "deer anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "sheep anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "goat anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "deer sheep reindeer goat anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "antlers curl horns and hooves",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-lagomorph-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro lagomorph lineage anatomy",
+      "visual_function": "Propose a lagomorph ear, tail, hind-leg, and nose relationship for an upright subject, leaving build, coat, markings, and temperament to the author's declaration.",
+      "prompt": "Anthropomorphic lagomorph lineage (rabbit, hare): big long ears that rotate with mood, a round puff tail, strong hind legs, and a small split nose. The nose twitches rapidly when the character is stressed or angry; both ears raised together read as attention.",
+      "invariants": [
+        "the long ears rotate from one base structure on the skull",
+        "the split nose and the upper lip stay one lagomorph face structure",
+        "the strong hind legs and the round puff tail carry one stance"
+      ],
+      "misreadings_to_avoid": [
+        "ears drawn as a detached headband accessory",
+        "a long tapered tail replacing the round puff tail",
+        "a human face carrying decorative rabbit ears"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "rabbit anthro",
+        "bunny anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro lagomorph lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "rabbit anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "bunny anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "rabbit hare anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "long ears round tail and nose twitch",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-elephant-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro elephant lineage anatomy",
+      "visual_function": "Propose an elephant trunk, ear, tusk, and limb relationship for an upright subject, leaving build, hide tone, markings, and tusk carriage to the author's declaration.",
+      "prompt": "Anthropomorphic elephant lineage: nearly hairless grey skin, big flat ears, a dexterous trunk serving as an upper lip and hand, tusks, thick pillar limbs, and a thin tail. Mammoth variants are the only hairy members.",
+      "invariants": [
+        "the trunk works as both an upper lip and a hand from one facial attachment",
+        "the big flat ears stay attached along one continuous skull line",
+        "the pillar limbs carry the declared mass through every visible foot"
+      ],
+      "misreadings_to_avoid": [
+        "a trunk drawn as a hose separate from the face",
+        "tusks emerging from the lip instead of the skull",
+        "a slender build standing in for the declared heavy frame"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "elephant anthro",
+        "mammoth anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro elephant lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "elephant anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "mammoth anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "elephant mammoth anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "trunk flat ears and tusks",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-rhino-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro rhino lineage anatomy",
+      "visual_function": "Propose a rhinoceros hide, nasal horn, and ear relationship for an upright subject, leaving build, hide tone, markings, and horn scale to the author's declaration.",
+      "prompt": "Anthropomorphic rhinoceros lineage: hairless thick grey hide with plated folds, two nasal horns on the muzzle, small rounded ears, and a heavy sturdy build. Keep the tail short-haired and the ears small and close to the head.",
+      "invariants": [
+        "the plated hide folds follow the body masses they wrap",
+        "the two nasal horns sit on one muzzle line with a stated size relation",
+        "the small rounded ears stay in scale with the heavy head"
+      ],
+      "misreadings_to_avoid": [
+        "long tail fur added to a hairless hide",
+        "long external ears added to a rhinoceros head",
+        "a single horn standing in for the declared pair"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "rhino anthro",
+        "rhinoceros anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro rhino lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "rhino anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "rhinoceros anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "rhinoceros anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "thick hide twin nasal horns",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-avian-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro avian lineage anatomy",
+      "visual_function": "Propose an avian feather coat, beak, talon, and wing-hand relationship for an upright subject, leaving plumage pattern, palette, build, and flight to the author's declaration.",
+      "prompt": "Anthropomorphic avian lineage: a full feather coat over head, torso, and limbs, ear openings held flush under the head feathers, a beak, and taloned legs. The hands are wing-shaped arms that keep a working human grasp, and the lineage proposes a grounded character whose flight the author's declaration settles. Alarm or surprise raises and fluffs the body feathers. The lineage offers a normal mammalian form or a cloaca as the genital type, and the author's declaration settles which.",
+      "invariants": [
+        "the feather coat keeps one continuous tract direction across head, torso, and limbs",
+        "the beak keeps one structure from its base to its tip",
+        "taloned legs carry the standing weight through a credible ankle line"
+      ],
+      "misreadings_to_avoid": [
+        "fur texture drawn over a declared feather coat",
+        "external mammalian ear flaps added to a feathered skull",
+        "true flight wings replacing the hands where no flight was declared"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "avian anthro",
+        "bird anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro avian lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "avian anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "bird anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "bird anthro anatomy with beak and talons",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "wing-shaped hands and feather fluff",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-owl-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro owl lineage anatomy",
+      "visual_function": "Propose an owl facial disc, fixed-eye, and neck-rotation relationship for an upright subject, leaving plumage pattern, palette, and build to the author's declaration.",
+      "prompt": "Anthropomorphic owl lineage: the avian base plus a flat feathered facial disc, large forward-facing eyeballs fixed in their sockets, and a neck that rotates up to 270 degrees. Show looking around as head rotation carried by that neck.",
+      "invariants": [
+        "the facial disc reads as one flat feathered plane framing both eyes",
+        "the eyes keep one fixed orientation inside the skull while the head turns",
+        "neck rotation stays within a credible 270 degree range from one spine line"
+      ],
+      "misreadings_to_avoid": [
+        "eyeballs rolling in the socket instead of head rotation",
+        "a rounded mammalian face replacing the flat facial disc",
+        "a head turned past the range the neck structure allows"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "owl anthro",
+        "owl facial disc"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro owl lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "owl anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "owl facial disc",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "owl anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "facial disc fixed eyes and neck rotation",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-dragon-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro dragon lineage anatomy",
+      "visual_function": "Propose a draconic scale, horn, tail, and claw relationship for an upright subject, leaving build, scale palette, markings, and horn form to the author's declaration.",
+      "prompt": "Anthropomorphic dragon lineage: scaled hide, small sideways-facing ears, a big heavy tail that thumps against the floor when the character strikes it in emphasis or excitement, forehead horns, and clawed hands. Male genitalia are slit-sheathed and the sheath movement is audible.",
+      "invariants": [
+        "the scaled hide follows the body masses it wraps across every view",
+        "forehead horns seat on the skull at a stated angle",
+        "the heavy tail carries its own mass from a continuous spine line"
+      ],
+      "misreadings_to_avoid": [
+        "fur texture drawn over a declared scaled hide",
+        "horns floating clear of the skull surface",
+        "a slender whip tail standing in for the declared heavy tail"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "dragon anthro",
+        "scaled anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro dragon lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "dragon anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "scaled anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "dragon anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "scales forehead horns and heavy thumping tail",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-reptilian-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro reptilian lineage anatomy",
+      "visual_function": "Propose a reptilian scale covering, ear, tail, and snout relationship for an upright subject, leaving build, scale palette, and markings to the author's declaration.",
+      "prompt": "Anthropomorphic reptilian lineage (lizard, crocodile): a continuous scale covering, ear openings held flush in the skull, a long tail that thumps to express emotion, and slit-type genitalia. Crocodile variants keep a heavy scaled snout and a ridged back.",
+      "invariants": [
+        "the scale covering keeps one grain direction across the body masses",
+        "the ear openings stay flush within the skull surface",
+        "the long tail carries its mass from a continuous spine line"
+      ],
+      "misreadings_to_avoid": [
+        "fur texture drawn over a declared scale covering",
+        "external mammalian ear flaps added to a reptilian head",
+        "a short stubby tail standing in for the declared long tail"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "lizard anthro",
+        "crocodile anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro reptilian lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "lizard anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "crocodile anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "lizard crocodile anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "scaled earless and thumping tail",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-orca-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro orca lineage anatomy",
+      "visual_function": "Propose an orca skin, eye patch, dorsal ridge, and fluke relationship for an upright subject, leaving build, patch shape, and markings to the author's declaration.",
+      "prompt": "Anthropomorphic orca (killer whale) lineage: smooth rubbery skin in black and white, a white eye patch behind each eye, a low dorsal ridge on the back, ear openings held flush in the skin, and a two-fluke tail. The flukes wag from side to side to express happiness or excitement. Genitalia are held in a slit.",
+      "invariants": [
+        "the black and white boundary follows one continuous path around the body",
+        "the white eye patch keeps one stated position behind each eye",
+        "the two flukes move as one tail mass from a continuous spine line"
+      ],
+      "misreadings_to_avoid": [
+        "fur or hair drawn over declared smooth rubbery skin",
+        "external mammalian ear flaps added to an orca head",
+        "a single-lobe tail standing in for the declared two-fluke tail"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "orca anthro",
+        "killer whale anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro orca lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "orca anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "killer whale anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "orca anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "eye patch dorsal ridge and fluke wag",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-shark-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro shark lineage anatomy",
+      "visual_function": "Propose a shark skin, tooth, dorsal ridge, and gill relationship for an upright subject, leaving build, skin palette, and markings to the author's declaration.",
+      "prompt": "Anthropomorphic shark lineage: smooth skin, jagged sharp teeth in a long mouth, a dorsal ridge, gill slits, and slit-type genitalia; some species add a second set of genitalia. Keep the teeth visibly serrated whenever the mouth shows.",
+      "invariants": [
+        "the serrated teeth keep one row structure wherever the mouth opens",
+        "the gill slits keep one stated count and spacing across views",
+        "the dorsal ridge follows one continuous back line"
+      ],
+      "misreadings_to_avoid": [
+        "flat even teeth standing in for the declared serrated row",
+        "gill slits shifting count or position between images",
+        "fur texture drawn over declared smooth skin"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "shark anthro",
+        "gill slits"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro shark lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "shark anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "gill slits",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "shark anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "serrated teeth dorsal ridge and gills",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-tanuki-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro tanuki lineage anatomy",
+      "visual_function": "Propose a tanuki eye mask, ear, pad, and tail relationship for an upright subject, leaving build, coat length, and palette to the author's declaration.",
+      "prompt": "Anthropomorphic tanuki and raccoon lineage: a black eye mask across the face, round upright ears, paw pads on hands and feet, a chubby soft build, and a thick stubby tail. Keep the mask markings as fixed fur coloration that belongs to the coat.",
+      "invariants": [
+        "the eye mask keeps one boundary path against the surrounding coat",
+        "paw pads appear on both the hand and the foot surfaces wherever those surfaces show",
+        "the thick stubby tail keeps its scale against the declared build"
+      ],
+      "misreadings_to_avoid": [
+        "the eye mask read as eyewear laid over the face",
+        "a long slender tail standing in for the declared thick stubby tail",
+        "a lean frame standing in for the declared chubby build"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "tanuki anthro",
+        "raccoon anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro tanuki lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "tanuki anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "raccoon anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "tanuki raccoon anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "eye mask chubby build and stubby tail",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-testudine-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro turtle lineage anatomy",
+      "visual_function": "Propose a testudine shell, skin, snout, and tail relationship for an upright subject, leaving shell pattern, build, and palette to the author's declaration.",
+      "prompt": "Anthropomorphic turtle lineage: a shell covering the back and chest, scaled or plain skin, ear openings held flush in the skull, a beaked or blunt snout, and a tiny tail. Genitalia are held in a slit.",
+      "invariants": [
+        "the carapace and the plastron read as one shell structure around the torso",
+        "the shell boundary meets the limbs and the neck at a stated opening",
+        "the beaked or blunt snout stays one testudine head structure"
+      ],
+      "misreadings_to_avoid": [
+        "a shell worn as a detachable backpack",
+        "fur texture drawn over declared scaled or plain skin",
+        "external mammalian ear flaps added to a testudine head"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "turtle anthro",
+        "tortoise anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro turtle lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "turtle anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "tortoise anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "turtle tortoise anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "shell and tiny tail",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-rodent-lineage",
+      "category": "creature-anatomy",
+      "label": "anthro rodent lineage anatomy",
+      "visual_function": "Propose a rodent incisor, ear, and tail relationship for an upright subject, leaving build, coat, markings, and tail form to the author's declaration.",
+      "prompt": "Anthropomorphic rodent lineage (mouse, rat, squirrel): small builds, strong front incisors, round thin ears, and varied tails from a thin mouse tail to a bushy squirrel tail; squirrels carry a back stripe. Draw the incisor teeth whenever the mouth opens.",
+      "invariants": [
+        "the front incisors stay one pair structure wherever the mouth opens",
+        "the round thin ears keep one attachment line on the skull",
+        "the declared tail form keeps one continuous mass from the spine"
+      ],
+      "misreadings_to_avoid": [
+        "a bushy squirrel tail attached to a declared thin mouse tail",
+        "flat even teeth standing in for the declared incisors",
+        "a heavy build standing in for the declared small frame"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "mouse anthro",
+        "squirrel anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro rodent lineage anatomy",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "mouse anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "squirrel anthro",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "mouse rat squirrel anthro anatomy",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "small build incisors and varied tails",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-secondary-puberty",
+      "category": "creature-anatomy",
+      "label": "anthro secondary puberty dimorphism",
+      "visual_function": "Propose the adult dimorphism range anthro lineages make available, leaving each character's build, height, and proportion to the author's declaration.",
+      "prompt": "Anthro characters pass a second puberty that makes adults more dimorphic than humans: male characters gain broader shoulders, thicker builds, and extra height, while female characters gain a fuller chest and wider hips. Both sexes keep strong musculature as a species trait, so female characters also read visibly strong.",
+      "invariants": [
+        "shoulder width, chest, and hip relationships stay one coherent adult build",
+        "declared musculature reads on the surface it belongs to across views",
+        "height relationships stay consistent across every image of one character"
+      ],
+      "misreadings_to_avoid": [
+        "a human proportion range standing in for the declared anthro dimorphism",
+        "muscle mass appearing and disappearing between images of one character",
+        "a sex convention overriding the character's declared build"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "anthro dimorphism",
+        "broad shoulders",
+        "fuller hips"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro secondary puberty dimorphism",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "anthro dimorphism",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "broad shoulders",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "fuller hips",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "anthro second puberty",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "male broad shoulders female fuller chest and hips",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "creature-anatomy-anthro-genital-types",
+      "category": "creature-anatomy",
+      "label": "anthro genital types by lineage",
+      "visual_function": "Propose the genital type each anthro lineage conventionally carries, leaving the type this character carries, and its presence in frame, to the author's declaration and the approved plot.",
+      "prompt": "Each anthro lineage proposes a genital type: mammalian lineages a mammalian form, with feline and dragon equivalents carrying a slit sheath (the dragon sheath moves audibly); avian lineages either a normal mammalian form or a cloaca; reptilian, marine (orca, shark), and turtle lineages a slit; shark species may carry dual genitalia. The author's declaration settles the type for this character and holds it consistent across images.",
+      "invariants": [
+        "the declared genital type governs the drawn anatomy wherever the two meet",
+        "the settled type stays consistent across every image of one character",
+        "presence in frame follows the approved plot"
+      ],
+      "misreadings_to_avoid": [
+        "a lineage convention overriding an explicit author declaration",
+        "the drawn type changing between images of one character",
+        "explicit anatomy appearing in frame where the plot never called for it"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "anatomy consistency",
+        "cloaca",
+        "sheath"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "applies_to": "lineage anatomy grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "anthro genital types by lineage",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "anatomy consistency",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "cloaca",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "sheath",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "anthro genital types",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "cloaca slit or sheath by lineage",
+          "facet": "species",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    }
+  ]
+}

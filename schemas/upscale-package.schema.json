@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "character-prompt-builder-upscale-package.schema.json",
+  "title": "Character Prompt Builder Upscale Package",
+  "description": "A committed image-to-image upscale operation, its exact bytes, settings, and post-pass identity audit.",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "status",
+    "package_id",
+    "upscaler_model",
+    "upscaler_record_sha256",
+    "source_image",
+    "output_image",
+    "scale_factor",
+    "settings",
+    "guidance_prompt",
+    "post_upscale_identity_audit",
+    "upscale_package_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "upscale-package"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "review-required"
+      ]
+    },
+    "package_id": {
+      "type": "string",
+      "pattern": "^UPK-[a-f0-9]{16}$"
+    },
+    "upscaler_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "upscaler_record_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "source_image": {
+      "$ref": "#/$defs/image"
+    },
+    "output_image": {
+      "$ref": "#/$defs/image"
+    },
+    "scale_factor": {
+      "type": "number",
+      "minimum": 1.000001
+    },
+    "settings": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    },
+    "guidance_prompt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "post_upscale_identity_audit": {
+      "type": "object",
+      "required": [
+        "required",
+        "status",
+        "notes"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "not-required",
+            "pending",
+            "passed",
+            "failed"
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "upscale_package_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "dimensions": {
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "image": {
+      "type": "object",
+      "required": [
+        "path",
+        "media_type",
+        "sha256",
+        "dimensions"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_type": {
+          "enum": [
+            "image/png",
+            "image/jpeg",
+            "image/webp"
+          ]
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "dimensions": {
+          "$ref": "#/$defs/dimensions"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

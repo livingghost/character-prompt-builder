@@ -1,0 +1,71 @@
+{
+  "kind": "profile",
+  "records": [
+    {
+      "id": "profile-clear-2d-illustration",
+      "label": "Clear 2D character illustration",
+      "curation_status": "curated",
+      "record_role": "rendering-grammar",
+      "medium_family": "2D anime character illustration",
+      "visual_intent": "A polished, readable character image with controlled line hierarchy, simple value grouping, stable local color, and selective finish around identity-bearing features.",
+      "linework": "Use clean contour decisions with heavier structural accents and lighter interior lines, concentrating precision around the face, hands, silhouette breaks, and important costume construction.",
+      "shape_language": "Build the image from large readable masses, then describe anatomy, covering, clothing, and props through deliberate medium and small shape families.",
+      "value_structure": "Organize the subject into a small number of clearly separated value groups, reserving the strongest local contrast for the main focal area.",
+      "color_logic": "Keep local colors identifiable through light and shadow, use one dominant temperature relationship, and repeat accents sparingly across focal and supporting regions.",
+      "surface_policy": "Describe each surface through shape, edge, value, and highlight behavior appropriate to its material while maintaining one unified illustration finish.",
+      "lighting_response": "Translate the selected light into coherent plane changes, readable cast shadows, controlled reflected fill, and a limited hierarchy of highlights.",
+      "background_policy": "Use a simple environment or graphic field that supports silhouette, depth, and atmosphere at a lower detail density than the character.",
+      "detail_hierarchy": "Finish the eyes, face, distinctive identity features, meaningful hand or prop contact, and primary silhouette before adding restrained secondary texture.",
+      "rendering": "Create a clear polished 2D character illustration with decisive silhouette shapes and a compact value plan. Draw the main contours with confident varied weight, using stronger accents at overlaps, contact points, and focal features. Construct the face, body, covering, clothing, and objects as connected forms whose internal lines support volume and design. Keep local colors stable across the selected lighting, group shadows into readable families, and place reflected fill where it clarifies important construction. Concentrate edge precision, small contrast, and surface accents around the eyes, facial structure, permanent identity features, and meaningful interactions. Let supporting regions simplify progressively. Treat the background as a quieter depth structure that frames the subject and reinforces the chosen atmosphere. Use highlights selectively according to material and plane orientation. Preserve a unified illustration finish across anatomy, fabric, natural covering, rigid objects, and effects while allowing each surface to retain its own tactile behavior.",
+      "prompt": "Create a clear polished 2D character illustration with decisive silhouette shapes and a compact value plan. Draw the main contours with confident varied weight, using stronger accents at overlaps, contact points, and focal features. Construct the face, body, covering, clothing, and objects as connected forms whose internal lines support volume and design. Keep local colors stable across the selected lighting, group shadows into readable families, and place reflected fill where it clarifies important construction. Concentrate edge precision, small contrast, and surface accents around the eyes, facial structure, permanent identity features, and meaningful interactions. Let supporting regions simplify progressively. Treat the background as a quieter depth structure that frames the subject and reinforces the chosen atmosphere. Use highlights selectively according to material and plane orientation. Preserve a unified illustration finish across anatomy, fabric, natural covering, rigid objects, and effects while allowing each surface to retain its own tactile behavior.",
+      "negative": [
+        "photorealistic skin texture",
+        "uncontrolled line noise",
+        "fragmented shadow patches",
+        "uniform detail density",
+        "conflicting light directions"
+      ],
+      "negative_terms": [
+        "photorealistic skin texture",
+        "uncontrolled line noise",
+        "fragmented shadow patches",
+        "uniform detail density",
+        "conflicting light directions"
+      ],
+      "negative_policy": {
+        "scope": "medium-drift-and-rendering-failure"
+      },
+      "best_for": [
+        "single-character portraits",
+        "small character groups",
+        "general narrative illustration"
+      ],
+      "avoid_for": [
+        "strict photographic matching",
+        "technical drafting"
+      ],
+      "domain_neutrality": "The grammar describes line, shape, value, color, light, material response, and detail allocation independently of any one anatomy or subject category.",
+      "tags": [
+        "polished character art",
+        "readable cel rendering"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "clear character illustration",
+          "facet": "style",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "polished 2d character art",
+          "facet": "style",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "activated_sources": [
+    "style-family:polished-soft-cel",
+    "state-integrity:left-right",
+    "state-integrity:prop-ownership"
+  ],
+  "diagnostic_sources_retained": [],
+  "semantic_exclusions_user_supplied": [],
+  "affirmative_translations": {
+    "state-integrity:left-right": "stable left-right identity",
+    "state-integrity:prop-ownership": "the wolf's neck and shirt remain visibly free of that pendant"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "default_render_profile": "profile-clear-2d-illustration",
+  "default_creative_latitude": "directed",
+  "default_interaction_mode": "balanced",
+  "art_direction_definition": {
+    "center_of_appeal": "the primary visual reason the image should hold attention",
+    "viewer_or_environment_relationship": "how the subject relates to the viewer, another subject, and the surrounding space",
+    "composition_and_visual_hierarchy": "the framing, depth, focal order, silhouette, and distribution of visual weight",
+    "medium_family": "one deliberate rendering medium selected for the image",
+    "shape_and_rhythm": "the major masses, directional accents, repetitions, and negative spaces that organize the design",
+    "surface_and_tactility": "the material behavior of anatomy, covering, clothing, objects, and environment",
+    "color_and_light": "a coherent local-color hierarchy joined to one lighting idea",
+    "detail_hierarchy": "the planned concentration of edge precision, texture, and finish"
+  },
+  "creative_policy": {
+    "art_direction_before_preset_search": true,
+    "art_direction_contains_aesthetic_judgment": true,
+    "sparse_brief_discovery_before_final_direction": true,
+    "preset_names_or_ids_required_for_discovery": false,
+    "direction_cards_for_open_axes": true,
+    "explicit_identity_anchors_remain_fixed": true
+  },
+  "medium_policy": {
+    "single_medium_family_by_default": true,
+    "hybrid_requires_explicit_request": true,
+    "explicit_user_medium_overrides_default": true
+  },
+  "default_domain_realization_by_domain": {
+    "human": "domain-realization-human-baseline",
+    "anthropomorphic-animal": "domain-realization-anthropomorphic-animal-baseline",
+    "animal": "domain-realization-animal-baseline",
+    "creature": "domain-realization-creature-baseline",
+    "hybrid": "domain-realization-hybrid-baseline",
+    "robot": "domain-realization-robot-baseline"
+  },
+  "negative_policy_file": "cpb-resource:negative-policy",
+  "default_style_family": null,
+  "style_family_policy": {
+    "style_family_is_optional_concrete_grammar": true,
+    "selected_style_family_is_primary_visual_grammar": true,
+    "linked_render_profile_supplies_medium_envelope_and_negative_boundary": true,
+    "do_not_append_two_complete_grammars": true
+  },
+  "production_specification_policy": {
+    "available_for_every_request": true,
+    "detail_depth_matches_brief_complexity": true,
+    "final_prompt_is_natural_language": true
+  },
+  "notes": [
+    "The default pack supplies a compact starting vocabulary; the agent remains responsible for semantic interpretation and art direction.",
+    "Scene-conditioned presentation may change while permanent identity traits remain stable.",
+    "Preset IDs are inspection handles, not required user vocabulary."
+  ]
+}

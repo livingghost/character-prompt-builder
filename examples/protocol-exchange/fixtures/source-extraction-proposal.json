@@ -1,0 +1,44 @@
+{
+  "artifact_type": "source-extraction-proposal",
+  "canon_adopted": false,
+  "claims": [
+    {
+      "claim_id": "available-response",
+      "conflicts_with": [],
+      "epistemic_status": "source-statement",
+      "evidence": [
+        {
+          "end_line": 4,
+          "quote": "# Expression\nA pause is an available response, not automatically distress.\n",
+          "quote_sha256": "41d87a97129105701e528e623654f2b694d77e557ea04e8073c230462c3698d7",
+          "source_id": "primary",
+          "source_sha256": "568809ee54283dc92dd3b742b08dc761d4eca923681a6b0b330484148975cf23",
+          "start_line": 3
+        }
+      ],
+      "proposed_use": "Review as an input to portrayal; do not adopt automatically.",
+      "subject_ids": [
+        "subject"
+      ],
+      "text": "The provided document permits a pause without declaring distress."
+    }
+  ],
+  "content_sha256": "bf96dbae77d75bcd9339bfbd45fec9bb1521f7282553f59dea249049e922a6a3",
+  "documents": [
+    {
+      "bytes": 253,
+      "encoding": "utf-8",
+      "line_count": 6,
+      "path": "originals/subject.md",
+      "role": "primary-source",
+      "sha256": "568809ee54283dc92dd3b742b08dc761d4eca923681a6b0b330484148975cf23",
+      "source_id": "primary",
+      "stored_path": "sources/568809ee54283dc92dd3b742b08dc761d4eca923681a6b0b330484148975cf23.bin"
+    }
+  ],
+  "index_sha256": "c7b4841d699fa94f8c3d3517aee2549df9f358ddb4a9fb800764ef65d7c6a4e8",
+  "proposal_id": "extraction-candidates",
+  "unresolved": [
+    "No final scene response has been selected."
+  ]
+}

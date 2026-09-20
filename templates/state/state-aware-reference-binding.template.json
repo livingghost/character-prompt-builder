@@ -1,0 +1,35 @@
+{
+  "artifact_type": "state-aware-reference-binding",
+  "binding_id": "BIND-C01-A01",
+  "role": "character-identity",
+  "source": {
+    "kind": "supplied-file",
+    "reference_id": "c01-a01",
+    "resolved_path": "references/adopted-reference.png",
+    "media_type": "image/png",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "character_id": "C01",
+  "identity_contract_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "era_contract_sha256": null,
+  "appearance_variant_sha256": null,
+  "state_snapshot_sha256": null,
+  "effective_story_range": {
+    "from_order": 0,
+    "to_order": null
+  },
+  "visibly_supported_state": [],
+  "unsupported_or_occluded_state": [],
+  "intended_influence": [
+    "identity",
+    "surface-finish"
+  ],
+  "unsupported_assumptions": [
+    "scene_placement",
+    "camera_path"
+  ],
+  "review_dimensions": [],
+  "fallback_if_unstable": "build a composite start frame or regenerate a state-correct derivative",
+  "superseded_for_future_scenes": false,
+  "binding_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

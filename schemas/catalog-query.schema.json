@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "character-prompt-builder-catalog-query.schema.json",
+  "title": "Character Prompt Builder Canonical Catalog Query",
+  "description": "A canonical-English retrieval request prepared by the calling agent. User-language text is retained only as opaque source metadata; canonical_query and anchors use concise English catalog wording.",
+  "type": "object",
+  "required": [],
+  "properties": {
+    "canonical_query": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[\\x00-\\x7F]+$"
+    },
+    "domain": {
+      "enum": [
+        "human",
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid",
+        "robot",
+        "shared"
+      ]
+    },
+    "anchors": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[\\x00-\\x7F]+$"
+          },
+          {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[\\x00-\\x7F]+$"
+            }
+          }
+        ]
+      }
+    },
+    "source_brief": {
+      "type": "string"
+    },
+    "source_language": {
+      "type": "string",
+      "minLength": 1
+    },
+    "unresolved_terms": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "canonical_query"
+      ]
+    },
+    {
+      "required": [
+        "anchors"
+      ],
+      "properties": {
+        "anchors": {
+          "minProperties": 1
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

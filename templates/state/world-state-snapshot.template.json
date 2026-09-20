@@ -1,0 +1,19 @@
+{
+  "artifact_type": "world-state-snapshot",
+  "snapshot_id": "WORLD-main-0",
+  "timeline_id": "main",
+  "scene_context_id": "SC-0001",
+  "story_order": 0,
+  "story_time": "story:",
+  "entities": {
+    "characters": {},
+    "relationships": {},
+    "environments": {},
+    "props": {},
+    "world": {}
+  },
+  "applied_event_ids": [],
+  "applied_process_milestones": [],
+  "uncertainties": [],
+  "world_state_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

@@ -1,0 +1,22 @@
+{
+  "artifact_type": "viewpoint-transition",
+  "transition_id": "VT-WORKSHOP-04",
+  "scene_id": "SC-WORKSHOP-01",
+  "from_shot": "SC-WORKSHOP-01-SH04",
+  "to_shot": "SC-WORKSHOP-01-SH05",
+  "from_profile": "embodied-first-person",
+  "to_profile": "external-character-aligned-third-person",
+  "trigger": "C02 hand withdraws and C01 breath catches once",
+  "bridge_type": "sound-bridge",
+  "changes_camera_ownership": true,
+  "changes_knowledge_scope": false,
+  "changes_point_of_audition": true,
+  "knowledge_change": "none",
+  "state_change_event_ids": [],
+  "continuity_requirements": [
+    "P01 remains in C01 right hand",
+    "C01 posture continues to protect the left side",
+    "C02 remains across the workbench"
+  ],
+  "transition_sha256": "4d4ad068007045f47af4cbe4af75312ca1bf058ca810575bfac7ef91be44aa10"
+}

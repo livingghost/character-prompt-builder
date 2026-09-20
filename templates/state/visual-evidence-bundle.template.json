@@ -1,0 +1,109 @@
+{
+  "artifact_type": "visual-evidence-bundle",
+  "bundle_id": "VE-neutral-starter",
+  "source_ref_id": "SRC-neutral-starter",
+  "source_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "source_dimensions": {
+    "width": 1,
+    "height": 1
+  },
+  "visual_authority_ref": {
+    "id": "VA-neutral-starter",
+    "sha256": "099435e8aa6e721fe5ff7912cf19b844efa44f8f545c1dbfad42eedd4f0c9453"
+  },
+  "layers": {
+    "A": "native-dimension compact perceptual archival vector",
+    "B": "audit extraction set",
+    "C": "disposable runtime attachment build recipes"
+  },
+  "representation": "native-dimension-compact-perceptual-path-vector",
+  "artifacts": [
+    {
+      "artifact_id": "faithful-archival-vector",
+      "role": "faithful-archival-vector",
+      "path": "derived-visual/faithful-archival.svg",
+      "media_type": "image/svg+xml",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "artifact_id": "vectorization-result",
+      "role": "vectorization-result",
+      "path": "derived-visual/vectorization-result.json",
+      "media_type": "application/json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "artifact_id": "semantic-regions",
+      "role": "semantic-region-map",
+      "path": "derived-visual/semantic-regions.json",
+      "media_type": "application/json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "artifact_id": "subject-mask",
+      "role": "subject-mask",
+      "path": "derived-visual/subject-mask.svg",
+      "media_type": "image/svg+xml",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "artifact_id": "structural-line-tone",
+      "role": "structural-line-tone",
+      "path": "derived-visual/structural-line-tone.svg",
+      "media_type": "image/svg+xml",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "artifact_id": "color-audit",
+      "role": "color-audit",
+      "path": "derived-visual/color-audit.svg",
+      "media_type": "image/svg+xml",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "artifact_id": "saturation-rescue",
+      "role": "saturation-rescue",
+      "path": "derived-visual/saturation-rescue.svg",
+      "media_type": "image/svg+xml",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "artifact_id": "specular-audit",
+      "role": "specular-audit",
+      "path": "derived-visual/specular-audit.svg",
+      "media_type": "image/svg+xml",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "artifact_id": "palette-probes",
+      "role": "palette-probes",
+      "path": "derived-visual/palette-probes.json",
+      "media_type": "application/json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "artifact_id": "audit-extraction-set",
+      "role": "audit-extraction-set",
+      "path": "derived-visual/audit-extraction-set.json",
+      "media_type": "application/json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "artifact_id": "runtime-attachment-build",
+      "role": "runtime-attachment-build",
+      "path": "derived-visual/runtime-attachment-build.json",
+      "media_type": "application/json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "canonical_record_refs": [],
+  "disposition": "unbound-template",
+  "evidence_relation": "none-until-reviewed-evidence-is-supplied",
+  "semantic_summary": "Placeholder only; replace with a reviewed source-specific summary before use.",
+  "notes": [
+    "Template values have no authority; replace every source identity, dimension, path, media type, hash, semantic summary, and record binding after reviewing real evidence.",
+    "Set canonical_record_refs only after explicitly adopting a reviewed active-pack record for the supplied evidence.",
+    "A completed bundle contains all three visual-evidence layers in one portable package."
+  ],
+  "visual_evidence_bundle_sha256": "2fbae515dfa8217b871271272ca2082268374cdeea307b0948e4c6996c425144"
+}

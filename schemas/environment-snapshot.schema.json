@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "environment-snapshot.schema.json",
+  "title": "Environment Snapshot",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "environment_snapshot_id",
+    "location_id",
+    "timeline_id",
+    "story_order",
+    "season",
+    "time_of_day",
+    "weather",
+    "temperature_c",
+    "humidity_percent",
+    "wind",
+    "precipitation",
+    "water_exposure",
+    "light_context",
+    "culture_context_refs",
+    "dress_norms",
+    "surface_conditions",
+    "environment_snapshot_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "environment-snapshot"
+    },
+    "environment_snapshot_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "location_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "timeline_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "story_order": {
+      "type": "integer"
+    },
+    "season": {},
+    "time_of_day": {},
+    "weather": {},
+    "temperature_c": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "humidity_percent": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 100
+    },
+    "wind": {},
+    "precipitation": {},
+    "water_exposure": {},
+    "light_context": {
+      "type": "array"
+    },
+    "culture_context_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "dress_norms": {
+      "type": "array"
+    },
+    "surface_conditions": {
+      "type": "array"
+    },
+    "approved_adaptation_rules": {
+      "type": "array"
+    },
+    "uncertainties": {
+      "type": "array"
+    },
+    "environment_snapshot_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

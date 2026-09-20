@@ -1,0 +1,429 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "world-realization-plan.schema.json",
+  "title": "World Realization Plan - local authoring coordination",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "plan_id",
+    "status",
+    "basis",
+    "sources",
+    "timelines",
+    "units",
+    "links"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "world-realization-plan"
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "reviewed"
+      ]
+    },
+    "basis": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source_id",
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "timelines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "timeline_id",
+          "base_source",
+          "events_source",
+          "processes_source",
+          "base_provenance"
+        ],
+        "properties": {
+          "timeline_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "base_source": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "events_source": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "processes_source": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "base_provenance": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "pointer",
+                "evidence"
+              ],
+              "properties": {
+                "pointer": {
+                  "type": "string",
+                  "pattern": "^/"
+                },
+                "evidence": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "source_id",
+                      "locator",
+                      "basis"
+                    ],
+                    "properties": {
+                      "source_id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+                      },
+                      "locator": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "basis": {
+                        "enum": [
+                          "source-explicit",
+                          "author-decision",
+                          "inference",
+                          "observation"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "minItems": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "minItems": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "units": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "unit_id",
+          "medium",
+          "timeline_id",
+          "scene_context_id",
+          "opening",
+          "closing",
+          "portrayal_sources",
+          "intent_refs",
+          "reference_queries",
+          "views",
+          "review_note"
+        ],
+        "properties": {
+          "unit_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "medium": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timeline_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "scene_context_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "opening": {
+            "type": "object",
+            "required": [
+              "story_order",
+              "story_time"
+            ],
+            "properties": {
+              "story_order": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "story_time": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "closing": {
+            "type": "object",
+            "required": [
+              "story_order",
+              "story_time"
+            ],
+            "properties": {
+              "story_order": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "story_time": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "portrayal_sources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+            },
+            "minItems": 0
+          },
+          "intent_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "source_id",
+                "intent_id"
+              ],
+              "properties": {
+                "source_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+                },
+                "intent_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                }
+              },
+              "additionalProperties": false
+            },
+            "minItems": 0
+          },
+          "reference_queries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "query_id",
+                "at",
+                "entity_pointer",
+                "role",
+                "facets"
+              ],
+              "properties": {
+                "query_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+                },
+                "at": {
+                  "enum": [
+                    "opening",
+                    "closing"
+                  ]
+                },
+                "entity_pointer": {
+                  "type": "string",
+                  "pattern": "^/"
+                },
+                "role": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "facets": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^/"
+                  },
+                  "minItems": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "minItems": 0
+          },
+          "views": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "view_id",
+                "recipient",
+                "purpose",
+                "state_fields",
+                "reference_query_ids",
+                "instructions"
+              ],
+              "properties": {
+                "view_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+                },
+                "recipient": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "purpose": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "state_fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "pointer"
+                    ],
+                    "properties": {
+                      "at": {
+                        "enum": [
+                          "opening",
+                          "closing"
+                        ]
+                      },
+                      "pointer": {
+                        "type": "string",
+                        "pattern": "^/"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "minItems": 0
+                },
+                "reference_query_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+                  },
+                  "minItems": 0
+                },
+                "instructions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "minItems": 0
+          },
+          "review_note": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "from_unit",
+          "to_unit",
+          "relation",
+          "basis",
+          "assertions"
+        ],
+        "properties": {
+          "from_unit": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "to_unit": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "relation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "basis": {
+            "type": "string",
+            "minLength": 1
+          },
+          "assertions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "from_pointer",
+                "to_pointer",
+                "comparison"
+              ],
+              "properties": {
+                "from_pointer": {
+                  "type": "string",
+                  "pattern": "^/"
+                },
+                "to_pointer": {
+                  "type": "string",
+                  "pattern": "^/"
+                },
+                "comparison": {
+                  "enum": [
+                    "equal",
+                    "different"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "minItems": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 0
+    }
+  },
+  "additionalProperties": false
+}

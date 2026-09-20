@@ -1,0 +1,15 @@
+{
+  "artifact_type": "narrative",
+  "series_id": "{{SERIES_ID}}",
+  "timeline_id": null,
+  "medium": "mixed",
+  "themes": [],
+  "characters": [],
+  "arcs": [],
+  "chapters": [],
+  "promises": [],
+  "questions": [],
+  "knowledge": [],
+  "relationships": [],
+  "acts": []
+}

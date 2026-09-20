@@ -1,0 +1,36 @@
+{
+  "artifact_type": "viewpoint-profile",
+  "profile_id": "held-device-first-person",
+  "label": "Held device first person",
+  "profile_family": "device-first-person",
+  "camera_ownership": "held_device",
+  "default_knowledge_scope": "character_restricted",
+  "default_point_of_audition": "remote_or_device_audio",
+  "camera_rules": [
+    "Define the device, operator, grip, optics, and mounting or holding method.",
+    "Camera faults and motion follow the declared device rather than human vision.",
+    "Keep operator limbs and device occlusion consistent when visible."
+  ],
+  "continuity_rules": [
+    "Preserve device orientation and ownership.",
+    "Use only optics and motion available to the declared device.",
+    "Separate device audio from character subjective hearing when they differ."
+  ],
+  "review_dimensions": [
+    "device identity",
+    "operator ownership",
+    "optical behavior",
+    "device audio"
+  ],
+  "permitted_movement_types": [
+    "held",
+    "pan",
+    "tilt",
+    "walk",
+    "step",
+    "handheld-follow",
+    "device-zoom"
+  ],
+  "knowledge_policy": "Apply the declared focalization and do not reveal information outside its scope unless the shot plan records a deliberate change.",
+  "profile_sha256": "98f6aabf2397691a6c4e2d4f17af1015e762360e918a12e81f4e6345c711149b"
+}

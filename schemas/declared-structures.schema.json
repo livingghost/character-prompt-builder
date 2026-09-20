@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "declared-structures.schema.json",
+  "title": "Author-declared structure map",
+  "description": "Stable IDs name only authored structures. An empty map is no declaration, not universal absence. Positions, kinds and geometry properties are open vocabulary. References and acyclic containment/override relations are checked by the runtime.",
+  "type": "object",
+  "propertyNames": {
+    "type": "string",
+    "minLength": 1,
+    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+  },
+  "additionalProperties": {
+    "type": "object",
+    "required": [
+      "kind",
+      "location",
+      "presence",
+      "geometry"
+    ],
+    "properties": {
+      "kind": {
+        "type": "string",
+        "minLength": 1
+      },
+      "location": {
+        "type": "string",
+        "minLength": 1
+      },
+      "presence": {
+        "enum": [
+          "present",
+          "partial",
+          "absent",
+          "unknown"
+        ]
+      },
+      "geometry": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "minLength": 1
+        },
+        "additionalProperties": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "parent_id": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "attachment_ids": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+        },
+        "uniqueItems": true
+      },
+      "overrides": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "structure_id",
+            "properties"
+          ],
+          "properties": {
+            "structure_id": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            },
+            "properties": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "continuity_rules": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uniqueItems": true
+      }
+    },
+    "additionalProperties": false,
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "presence": {
+              "enum": [
+                "present",
+                "partial"
+              ]
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "geometry": {
+              "minProperties": 1
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "presence": {
+              "enum": [
+                "absent",
+                "unknown"
+              ]
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "geometry": {
+              "maxProperties": 0
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "artifact_type": "viewpoint-profile",
+  "profile_id": "fixed-diegetic-observer",
+  "label": "Fixed diegetic observer",
+  "profile_family": "fixed-diegetic",
+  "camera_ownership": "fixed_diegetic_camera",
+  "default_knowledge_scope": "objective",
+  "default_point_of_audition": "remote_or_device_audio",
+  "camera_rules": [
+    "Define the in-world camera location, mount, field of view, obstruction, and recording properties.",
+    "Keep motion within the declared mount or mechanical range.",
+    "Treat the image as a story-world recording rather than a free external camera."
+  ],
+  "continuity_rules": [
+    "Preserve mount position and field of view across time.",
+    "Keep obstructions and device artifacts spatially stable.",
+    "Record who can access or know the recorded information."
+  ],
+  "review_dimensions": [
+    "mount geometry",
+    "field of view",
+    "recording artifacts",
+    "knowledge access"
+  ],
+  "permitted_movement_types": [
+    "locked",
+    "mechanical-pan",
+    "mechanical-tilt"
+  ],
+  "knowledge_policy": "Apply the declared focalization and do not reveal information outside its scope unless the shot plan records a deliberate change.",
+  "profile_sha256": "82dbce913d3ac2c66b23531f43bfa0426bc7dace7dbc5aaee0300e6f2be14fdb"
+}

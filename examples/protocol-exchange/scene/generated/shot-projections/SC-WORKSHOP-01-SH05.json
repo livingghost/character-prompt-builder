@@ -1,0 +1,45 @@
+{
+  "artifact_type": "shot-visual-projection",
+  "shot_id": "SC-WORKSHOP-01-SH05",
+  "scene_id": "SC-WORKSHOP-01",
+  "scene_context_sha256": "daacecbe962746b4b3a226827b0e48759fa580aa00be4337dcbee4fd71f7bc0c",
+  "camera_spec_sha256": "c5788a955772faa75941f2cf5891f9455dafe0be4d3df1abeb96e1fee2fc4e67",
+  "viewpoint_profile_id": "external-character-aligned-third-person",
+  "state_snapshot_sha256_by_character": {
+    "C01": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398",
+    "C02": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+  },
+  "visible_identity_obligations": [
+    "amber eyes beneath heavy dark brows, pale long muzzle, and paired narrow brow stripes",
+    "one small silver clip on the subject-left upper ear rim",
+    "green eyes, short cream fox muzzle, dark ear tips, and round brass spectacles"
+  ],
+  "visible_state_obligations": [
+    "P01 is visibly supported in C01 right hand as the planned post-handoff state",
+    "C01 concealed left-side injury affects posture but remains covered"
+  ],
+  "wardrobe_and_inventory_obligations": [
+    "C01 dark mechanic jacket and fingerless gloves remain stable",
+    "C02 cream vest, rolled white sleeves, and brass spectacles remain stable"
+  ],
+  "relationship_and_performance": [
+    "trusted colleagues maintain cautious distance across the workbench",
+    "C01 masks concern with professional control",
+    "C02 handles P01 gently and watches C01 reaction"
+  ],
+  "environment_and_lighting": [
+    "cool rain window remains frame-left",
+    "warm work lamps remain frame-right",
+    "humid workshop air and dry interior surfaces remain consistent"
+  ],
+  "occluded_or_unavailable": [
+    "C01 bandage and injury remain under clothing",
+    "unseen rear markings are not inferred"
+  ],
+  "reference_requirements": [
+    "angle-matched C01 identity reference when C01 face is visible",
+    "angle-matched C02 identity and spectacles reference",
+    "hand detail reference for the handoff shot"
+  ],
+  "projection_sha256": "fa94d92d5bd628b4a2452d8aa775ef298dc3adf8406daaf963646b551ecc364f"
+}

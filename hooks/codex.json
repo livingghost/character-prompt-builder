@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/scripts/session_entry_points.py\" || python \"${PLUGIN_ROOT}/scripts/session_entry_points.py\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

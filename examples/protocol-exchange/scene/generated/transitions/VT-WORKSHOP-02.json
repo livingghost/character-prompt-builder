@@ -1,0 +1,22 @@
+{
+  "artifact_type": "viewpoint-transition",
+  "transition_id": "VT-WORKSHOP-02",
+  "scene_id": "SC-WORKSHOP-01",
+  "from_shot": "SC-WORKSHOP-01-SH02",
+  "to_shot": "SC-WORKSHOP-01-SH03",
+  "from_profile": "external-character-aligned-third-person",
+  "to_profile": "over-the-shoulder",
+  "trigger": "C01 gaze lands on P01 as C02 raises it",
+  "bridge_type": "eyeline-cut",
+  "changes_camera_ownership": false,
+  "changes_knowledge_scope": false,
+  "changes_point_of_audition": false,
+  "knowledge_change": "C01 learns the visible extent of P01 damage",
+  "state_change_event_ids": [],
+  "continuity_requirements": [
+    "P01 remains in C02 right hand",
+    "axis side remains unchanged",
+    "C01 shoulder foreground aligns with the prior position"
+  ],
+  "transition_sha256": "88414c7d03131c6815e4cadd32c4ddebc1d1217747b3d0d38236ef454930c2ce"
+}

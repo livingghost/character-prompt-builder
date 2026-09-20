@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "inventory-state.schema.json",
+  "title": "Inventory State",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "inventory_state_id",
+    "owner_id",
+    "items",
+    "inventory_state_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "inventory-state"
+    },
+    "inventory_state_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "owner_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "item_id",
+          "owned_by",
+          "possessed_by",
+          "state"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "owned_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "possessed_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "carried_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "equipped_to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stored_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "enum": [
+              "available",
+              "carried",
+              "equipped",
+              "stored",
+              "consumed",
+              "lost",
+              "damaged",
+              "repaired",
+              "transferred"
+            ]
+          },
+          "condition": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "inventory_state_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

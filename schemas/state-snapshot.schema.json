@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "state-snapshot.schema.json",
+  "title": "Resolved Character State Snapshot",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "snapshot_id",
+    "character_id",
+    "timeline_id",
+    "scene_context_id",
+    "story_order",
+    "story_time",
+    "species_profile_sha256",
+    "individual_morphology_sha256",
+    "identity_contract_sha256",
+    "applied_event_ids",
+    "physical_state",
+    "appearance_state",
+    "wardrobe_state",
+    "equipment_state",
+    "inventory_state",
+    "emotional_state",
+    "performance_state",
+    "knowledge_state",
+    "social_role_state",
+    "character_specific_state",
+    "uncertainties",
+    "state_snapshot_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "state-snapshot"
+    },
+    "snapshot_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "timeline_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "scene_context_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "story_order": {
+      "type": "integer"
+    },
+    "story_time": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identity_contract_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "era_contract_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "form_contract_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "appearance_variant_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "applied_event_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "applied_process_milestones": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "physical_state": {
+      "type": "object"
+    },
+    "appearance_state": {
+      "type": "object"
+    },
+    "wardrobe_state": {
+      "type": "object"
+    },
+    "equipment_state": {
+      "type": "object"
+    },
+    "inventory_state": {
+      "type": "object"
+    },
+    "emotional_state": {
+      "type": "object"
+    },
+    "performance_state": {
+      "type": "object"
+    },
+    "knowledge_state": {
+      "type": "object"
+    },
+    "social_role_state": {
+      "type": "object"
+    },
+    "character_specific_state": {
+      "type": "object"
+    },
+    "uncertainties": {
+      "type": "array"
+    },
+    "state_snapshot_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "species_profile_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "individual_morphology_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

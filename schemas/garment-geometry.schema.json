@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "garment-geometry.schema.json",
+  "title": "Garment Geometry Contract",
+  "description": "Record only author-declared structures. Kinds, locations and geometry properties are open vocabulary; explicit relationships and authority constraints are validated.",
+  "type": "object",
+  "required": [
+    "representation",
+    "structures",
+    "source_confidence",
+    "garment_id",
+    "garment_class",
+    "coverage",
+    "continuity_rules"
+  ],
+  "properties": {
+    "representation": {
+      "const": "declared-structures"
+    },
+    "structures": {
+      "$ref": "declared-structures.schema.json"
+    },
+    "source_confidence": {
+      "enum": [
+        "explicit-user",
+        "reference-clear",
+        "reference-approximate",
+        "preset-selected",
+        "user-confirmed"
+      ]
+    },
+    "garment_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "garment_class": {
+      "type": "string",
+      "minLength": 1
+    },
+    "coverage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "continuity_rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,49 @@
+{
+  "prompt-only-minimal": {
+    "route": "prompt-only",
+    "features": []
+  },
+  "prompt-only-anthropomorphic": {
+    "route": "prompt-only",
+    "features": [
+      "subject-domain"
+    ]
+  },
+  "prompt-only-with-selected-reference": {
+    "route": "prompt-only",
+    "features": [
+      "references"
+    ]
+  },
+  "persona-development": {
+    "route": "development",
+    "features": [
+      "persona",
+      "authorial-intent"
+    ]
+  },
+  "performance": {
+    "route": "performance",
+    "features": []
+  },
+  "world-realization": {
+    "route": "world-realization",
+    "features": []
+  },
+  "generation": {
+    "route": "generation",
+    "features": [
+      "unlisted-interface"
+    ]
+  },
+  "revision-review-resume": {
+    "route": "revise",
+    "features": []
+  },
+  "performance-reuse": {
+    "route": "performance",
+    "features": [
+      "scene-persona"
+    ]
+  }
+}

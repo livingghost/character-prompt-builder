@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prepared-generation-reference.schema.json",
+  "title": "Prepared Generation Reference",
+  "description": "One ordered, fully resolved reference input prepared for exact generator transport.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/generic-prepared-reference"
+    },
+    {
+      "$ref": "#/$defs/state-scoped-prepared-reference"
+    }
+  ],
+  "$defs": {
+    "generic-prepared-reference": {
+      "type": "object",
+      "required": [
+        "role",
+        "source",
+        "transport",
+        "authority"
+      ],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/role-slug"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pack-artifact-source"
+            },
+            {
+              "$ref": "#/$defs/supplied-file-source"
+            }
+          ]
+        },
+        "transport": {
+          "$ref": "#/$defs/transport"
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        }
+      },
+      "additionalProperties": false
+    },
+    "state-scoped-prepared-reference": {
+      "type": "object",
+      "required": [
+        "binding_id",
+        "role",
+        "source",
+        "transport",
+        "authority",
+        "covers",
+        "intended_influence",
+        "review_dimensions",
+        "unsupported_or_occluded_state",
+        "unsupported_assumptions"
+      ],
+      "properties": {
+        "binding_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+        },
+        "role": {
+          "$ref": "#/$defs/role-slug"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/pack-artifact-source"
+            },
+            {
+              "$ref": "#/$defs/supplied-file-source"
+            }
+          ]
+        },
+        "transport": {
+          "$ref": "#/$defs/transport"
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "covers": {
+          "$ref": "#/$defs/non-empty-string-set"
+        },
+        "intended_influence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "reference-use-plan.schema.json#/$defs/intended-influence"
+          },
+          "uniqueItems": true
+        },
+        "review_dimensions": {
+          "$ref": "#/$defs/non-empty-string-set"
+        },
+        "unsupported_or_occluded_state": {
+          "$ref": "#/$defs/non-empty-string-set"
+        },
+        "unsupported_assumptions": {
+          "$ref": "#/$defs/non-empty-string-set"
+        }
+      },
+      "additionalProperties": false
+    },
+    "non-empty-string-set": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "controls",
+        "must_not_control"
+      ],
+      "properties": {
+        "controls": {
+          "$ref": "#/$defs/required-non-empty-string-set"
+        },
+        "must_not_control": {
+          "$ref": "#/$defs/required-non-empty-string-set"
+        }
+      },
+      "additionalProperties": false
+    },
+    "required-non-empty-string-set": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "role-slug": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "uuidv7": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+    },
+    "calver": {
+      "type": "string",
+      "pattern": "^(?:(?:[0-9]{3}[1-9]|[0-9]{2}[1-9][0-9]|[0-9][1-9][0-9]{2}|[1-9][0-9]{3})\\.(?:(?:01|03|05|07|08|10|12)\\.(?:0[1-9]|[12][0-9]|3[01])|(?:04|06|09|11)\\.(?:0[1-9]|[12][0-9]|30)|02\\.(?:0[1-9]|1[0-9]|2[0-8]))|(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:0[48]|[2468][048]|[13579][26])00)\\.02\\.29)\\.[1-9][0-9]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resolved-path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "media-type": {
+      "type": "string",
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*$"
+    },
+    "pack-artifact-source": {
+      "type": "object",
+      "required": [
+        "kind",
+        "pack_id",
+        "asset_id",
+        "artifact_id",
+        "resolved_path",
+        "media_type",
+        "sha256"
+      ],
+      "properties": {
+        "kind": {
+          "const": "pack-artifact"
+        },
+        "pack_id": {
+          "$ref": "#/$defs/uuidv7"
+        },
+        "asset_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "artifact_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "resolved_path": {
+          "$ref": "#/$defs/resolved-path"
+        },
+        "media_type": {
+          "$ref": "#/$defs/media-type"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "supplied-file-source": {
+      "type": "object",
+      "required": [
+        "kind",
+        "reference_id",
+        "resolved_path",
+        "media_type",
+        "sha256"
+      ],
+      "properties": {
+        "kind": {
+          "const": "supplied-file"
+        },
+        "reference_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "resolved_path": {
+          "$ref": "#/$defs/resolved-path"
+        },
+        "media_type": {
+          "$ref": "#/$defs/media-type"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "transport": {
+      "type": "object",
+      "required": [
+        "resolved_path",
+        "media_type",
+        "sha256",
+        "derivation"
+      ],
+      "properties": {
+        "resolved_path": {
+          "$ref": "#/$defs/resolved-path"
+        },
+        "media_type": {
+          "$ref": "#/$defs/media-type"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "derivation": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/direct-derivation"
+            },
+            {
+              "$ref": "#/$defs/svg-rasterization-derivation"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "direct-derivation": {
+      "type": "object",
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "const": "direct"
+        }
+      },
+      "additionalProperties": false
+    },
+    "svg-rasterization-derivation": {
+      "type": "object",
+      "required": [
+        "mode",
+        "renderer_id",
+        "renderer_release",
+        "source_sha256",
+        "output_dimensions",
+        "max_side"
+      ],
+      "properties": {
+        "mode": {
+          "const": "svg-rasterization"
+        },
+        "renderer_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "renderer_release": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "output_dimensions": {
+          "type": "object",
+          "required": [
+            "width",
+            "height"
+          ],
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "max_side": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,169 @@
+{
+  "artifact_type": "story-context-query",
+  "query_id": "moment.demo",
+  "sources": [
+    {
+      "source_id": "BASE",
+      "path": "base.json",
+      "sha256": "bb82335777b20160496dad61dbc2b4a093e01611248f38cb368502c503c7c391"
+    },
+    {
+      "source_id": "EVENTS",
+      "path": "events.jsonl",
+      "sha256": "d9dbb983733f783376c0bbba304c35b794a127837ce8727e587c35b982d3d65e"
+    },
+    {
+      "source_id": "PROCESSES",
+      "path": "processes.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "source_id": "COVERAGE",
+      "path": "coverage.json",
+      "sha256": "fc2a6332a0ffdcb7416017296838d663902686dd1fb9794eb9798150a47cd5e5"
+    },
+    {
+      "source_id": "DESIGN",
+      "path": "design.md",
+      "sha256": "bd7bd100e1dcb889a7e202aaaed140ba32fc01e41a1d369484e0b4c7486c0a40"
+    },
+    {
+      "source_id": "PERSONA",
+      "path": "persona.md",
+      "sha256": "b963cad2ec3b3dce52b75cf1c16bec722aad41354249b0755aa7f1494271bd36"
+    },
+    {
+      "source_id": "INTENT",
+      "path": "intent.md",
+      "sha256": "36a615eb1542d8a89056519f35d431e6ec1f6066a287c095996d9e0787948315"
+    }
+  ],
+  "timeline": {
+    "timeline_id": "main",
+    "base_source": "BASE",
+    "events_source": "EVENTS",
+    "processes_source": "PROCESSES",
+    "base_provenance": [
+      {
+        "pointer": "/characters/A",
+        "evidence": [
+          {
+            "source_id": "DESIGN",
+            "locator": "Test premise",
+            "basis": "author-decision"
+          }
+        ]
+      },
+      {
+        "pointer": "/characters/B",
+        "evidence": [
+          {
+            "source_id": "DESIGN",
+            "locator": "Test premise",
+            "basis": "author-decision"
+          }
+        ]
+      },
+      {
+        "pointer": "/environments/SPACE",
+        "evidence": [
+          {
+            "source_id": "DESIGN",
+            "locator": "Test premise",
+            "basis": "author-decision"
+          }
+        ]
+      },
+      {
+        "pointer": "/world",
+        "evidence": [
+          {
+            "source_id": "DESIGN",
+            "locator": "Test premise",
+            "basis": "author-decision"
+          }
+        ]
+      }
+    ]
+  },
+  "at": {
+    "story_order": 15,
+    "story_time": "between the declared changes"
+  },
+  "coverage_source_id": "COVERAGE",
+  "scene_context_ids": [
+    "CTX:work.room"
+  ],
+  "indexes": [
+    {
+      "index_id": "work",
+      "scene_context_id": null,
+      "pointer": "/world/work_streams",
+      "group_by": "/status"
+    }
+  ],
+  "requirements": [
+    {
+      "requirement_id": "active",
+      "scene_context_id": "CTX:work.room",
+      "pointer": "/world/work_streams/one/status",
+      "test": "equals",
+      "value": "active",
+      "purpose": "This view depicts the activity before completion."
+    }
+  ],
+  "author_bindings": [
+    {
+      "binding_id": "voice",
+      "role": "persona epoch",
+      "source_id": "PERSONA",
+      "selector": {
+        "kind": "section",
+        "heading": "## Earlier period"
+      },
+      "start_order": 0,
+      "end_order": 20,
+      "scene_context_ids": []
+    },
+    {
+      "binding_id": "intent",
+      "role": "portrayal intent",
+      "source_id": "INTENT",
+      "selector": {
+        "kind": "intent",
+        "intent_id": "steady"
+      },
+      "start_order": 0,
+      "end_order": null,
+      "scene_context_ids": []
+    }
+  ],
+  "views": [
+    {
+      "view_id": "depiction.main",
+      "recipient": "writer",
+      "purpose": "A bounded moment portrayal",
+      "scene_context_id": "CTX:work.room",
+      "fields": [
+        "/characters/A/mood",
+        "/characters/A/attention",
+        "/environments/SPACE/light"
+      ],
+      "requirement_ids": [
+        "active"
+      ],
+      "guidance": [
+        {
+          "binding_ids": [
+            "voice",
+            "intent"
+          ],
+          "instruction": "Keep the response concise; show the pause without making the character evasive."
+        }
+      ],
+      "instructions": [
+        "Depict the selected moment, not a new event."
+      ]
+    }
+  ]
+}

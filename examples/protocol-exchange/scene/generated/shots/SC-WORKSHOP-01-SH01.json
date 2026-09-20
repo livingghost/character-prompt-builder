@@ -1,0 +1,70 @@
+{
+  "artifact_type": "shot-camera-spec",
+  "scene_id": "SC-WORKSHOP-01",
+  "state_snapshot_sha256_by_character": {
+    "C01": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398",
+    "C02": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+  },
+  "shot_id": "SC-WORKSHOP-01-SH01",
+  "order_index": 1,
+  "viewpoint_profile_id": "external-character-aligned-third-person",
+  "profile_family": "external",
+  "camera_ownership": "external_camera",
+  "camera_owner_character_id": null,
+  "knowledge_scope": "character_restricted",
+  "focal_character_ids": [
+    "C01"
+  ],
+  "point_of_audition": "objective_mix",
+  "audition_character_id": null,
+  "coverage_role": "establishing master",
+  "camera_position": "outside the frame-left workshop doorway, looking toward the central workbench",
+  "shot_scale": "wide full-body two-shot",
+  "camera_height": "chest height",
+  "angle": "level three-quarter angle",
+  "lens_behavior": "moderate perspective that keeps both characters and the workbench readable",
+  "movement": {
+    "type": "locked",
+    "cause": "establish geography, relationship distance, and the concealed injury performance",
+    "start_relation": "doorway frame-left, C01 nearest and C02 beyond the workbench",
+    "path": "remain fixed through the opening hold",
+    "speed_and_amplitude": "no travel, minor natural stability only",
+    "subject_relation": "C01 enters the near left area while C02 remains behind the workbench",
+    "occlusion_risk": "doorframe may cover a narrow background edge only",
+    "landing_composition": "both characters and P01 are readable with the workbench between them"
+  },
+  "screen_direction": "C01 faces and moves screen-right toward C02",
+  "axis_side": "doorway side of the C01 to C02 axis",
+  "eyeline_relation": "C01 and C02 eyelines meet across the workbench",
+  "visible_subjects": [
+    "C01",
+    "C02"
+  ],
+  "visible_body_regions": {
+    "C01": [
+      "full body"
+    ],
+    "C02": [
+      "full body"
+    ]
+  },
+  "prop_ownership": {
+    "P01": "C02 right hand"
+  },
+  "start_anchor": "C01 at frame-left doorway, C02 behind the workbench with P01 low in the right hand",
+  "end_anchor": "C01 stops at the near workbench edge as C02 begins to raise P01",
+  "knowledge_visibility": [
+    "The audience sees that P01 is damaged but not the concealed bandage."
+  ],
+  "accepted_variation": [
+    "minor tool arrangement",
+    "small tail movement"
+  ],
+  "review_dimensions": [
+    "axis continuity",
+    "identity",
+    "prop ownership",
+    "injury concealment"
+  ],
+  "camera_spec_sha256": "292ecd54f91d869c95688adfc1370277fc87b9aabf8315429c247721ccb777dd"
+}

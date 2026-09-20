@@ -1,0 +1,346 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scene-persona-plan.schema.json",
+  "type": "object",
+  "properties": {
+    "material_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scene_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scene_source_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "conditions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 0
+    },
+    "subjects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "subject_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model": {
+            "enum": [
+              "persona",
+              "functional",
+              "unresolved"
+            ]
+          },
+          "source_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "portrayal_basis": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "subject_id",
+          "model",
+          "source_ids",
+          "portrayal_basis"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "subject_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "reading_basis": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "source_id",
+          "path",
+          "role",
+          "subject_ids",
+          "sha256",
+          "reading_basis"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "excerpts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "excerpt_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "start_line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "end_line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "subject_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "excerpt_id",
+          "source_id",
+          "start_line",
+          "end_line",
+          "subject_ids",
+          "depends_on",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "applications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "application_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "subject_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "definition_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "kind": {
+            "enum": [
+              "interpretation",
+              "option",
+              "unresolved"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "application_id",
+          "subject_ids",
+          "definition_ids",
+          "kind",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "interactions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "interaction_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "subject_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "definition_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "interaction_id",
+          "subject_ids",
+          "definition_ids",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 0
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 0
+    },
+    "reopen_when": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "review": {
+      "type": "object",
+      "properties": {
+        "by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision": {
+          "enum": [
+            "ready",
+            "needs-review"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "by",
+        "decision",
+        "basis",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "max_document_bytes": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "material_id",
+    "scene_id",
+    "scene_source_id",
+    "purpose",
+    "conditions",
+    "subjects",
+    "sources",
+    "excerpts",
+    "applications",
+    "interactions",
+    "constraints",
+    "unknowns",
+    "reopen_when",
+    "review"
+  ],
+  "additionalProperties": false
+}

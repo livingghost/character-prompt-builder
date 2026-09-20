@@ -1,0 +1,548 @@
+{
+  "count": 21,
+  "principles": [
+    "A family is justified by recurring line, form, value, highlight, color, surface, background, and detail behavior across materially different scenes.",
+    "Species, body build, pose, camera, relationship, season, temporary wetness, and one environment are not sufficient family evidence by themselves.",
+    "Scene-specific attributes are excluded from the family grammar and remain in scenes, modules, lighting, effects, or domain overlays."
+  ],
+  "families": [
+    {
+      "family_id": "style-family-bold-flat-cartoon",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-clean-rounded-flat-cel",
+      "boundary": "More elastic caricature, thicker graphic contour, and bolder expression shapes; clean rounded flat cel keeps anatomy and support geometry calmer.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-charcoal-monumental-flat-cel",
+      "status": "new",
+      "evidence_basis": [
+        "close overheated chest-contact, front torso, and side-torso portraits with plain gray, blue, and pastel fields",
+        "seated body display, open-robe seated, and reclining flirt scenes that preserve the same charcoal three-value massing and sparse highlight behavior",
+        "standing back three-quarter and raised-arm profile views that retain jagged silhouette grouping, quiet interiors, and minimal background treatment"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "source-specific white face mask or facial marking",
+        "heat, blush, sweat, steam, robe, heart icon, and any single pose or camera choice"
+      ],
+      "nearest_family": "style-family-clean-rounded-flat-cel",
+      "boundary": "Charcoal monumental flat cel uses a repeatable near-monochrome charcoal palette, paper-like matte grain, more aggressive angular silhouette grouping, body-dominant close crops, and sparse linear moisture accents. Clean rounded flat cel permits broader clean local-color palettes, calmer rounded edges, clearer support geometry, and less persistent monumental mass exaggeration.",
+      "review_notes": "Added after ten materially different references showed the same finish across close, seated, standing, back-view, robe, and reclining situations. The source-specific mask and all temporary heat cues were removed from the canonical family grammar."
+    },
+    {
+      "family_id": "style-family-clean-expressive-casual-webcomic",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-clean-rounded-flat-cel",
+      "boundary": "Allows more expression marks, blush, sweat, clothing acting, and everyday context while retaining economical cel rendering.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-clean-rounded-flat-cel",
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "status": "revised-and-generalized",
+      "evidence_basis": [
+        "minimal couch-lounge references with flat local color, one compact shadow family, and broad readable masses",
+        "dark bed-side reclining references with sparse pink accents and support geometry carried by overlap rather than modeling",
+        "oblique overhead bed references with the same concise contour, flat rounded anatomy, and simplified bedding fields",
+        "flat graphic embrace references that preserve face and hand clarity while reducing interior rendering"
+      ],
+      "excluded_scene_attributes": [
+        "lounge furniture as a mandatory prop",
+        "reclining as a mandatory pose",
+        "bed or couch as a mandatory environment"
+      ],
+      "nearest_family": "style-family-clean-expressive-casual-webcomic",
+      "boundary": "Prioritizes broad flat rounded masses and support silhouettes with fewer expressive interior marks; the casual webcomic family allows more facial acting, clothing description, and everyday contextual detail.",
+      "review_notes": "Keeps lounge furniture and its contact geometry in scenes and contact modules rather than the transferable finish grammar."
+    },
+    {
+      "family_id": "style-family-commercial-athletic-action-cel",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-graphic-accent-cutout-action-cel",
+      "boundary": "Keeps commercial sport lighting, uniform construction, court or field depth, and realistic action chains rather than abstract accent fields.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-distressed-editorial-campaign-cel",
+      "status": "new",
+      "evidence_basis": [
+        "supplied distressed strength-campaign poster with a monumental hard-cel figure, dry-brush headline, attribute panels, footer marks, and limited navy ochre teal print color",
+        "existing neon and electric body-poster references that repeat figure-first print separation, bounded grain, poster keylines, and large geometric fields across different scenes",
+        "existing commercial athletic campaign references that repeat monumental cel anatomy, hard shadow planes, clear equipment construction, and promotional hierarchy",
+        "cross-application of the editorial text-zone module to profile, workwear, tactical, and lifestyle subjects while retaining the same line, value, palette, texture, and page hierarchy"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "wolf identity and coat palette",
+        "specific motivational slogan or language",
+        "exact logos badges barcode and harness",
+        "single athletic or tactical role"
+      ],
+      "nearest_family": "style-family-neon-screenprint-poster",
+      "boundary": "Uses restrained limited-print color, faceted hard-cel form, dry-brush wear, headline hierarchy, information panels, and footer registration as the page grammar; neon screenprint centers fluorescent registration colors and nightlife or liquid-poster energy.",
+      "review_notes": "Added after the newest campaign reference completed a reusable editorial hierarchy already supported by body-poster, print-texture, commercial-athletic, and information-zone records in the existing corpus."
+    },
+    {
+      "family_id": "style-family-electric-workstation-cutout-soft-cel",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-neon-screenprint-poster",
+      "boundary": "Combines soft-cel body modeling with monitor/window bounce and sticker-like separation; neon screenprint is more ink- and registration-led.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-fantasy-line-wash-sheet",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-matte-character-design",
+      "boundary": "Line and translucent wash remain primary and paper reserve stays visible; matte character design uses denser opaque shape blocking.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-gilded-cyan-sigil-gothic-cel",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-ornate-arcane-splash",
+      "boundary": "Centers cyan identity sigils, gold ornament attachment, wing roots, and warm sanctuary contrast rather than free spell-effect choreography.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-graphic-accent-cutout-action-cel",
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "status": "revised-and-generalized",
+      "evidence_basis": [
+        "orange ruined-doorway and flooded-alley action references with hard matte planes and pale cutout separation",
+        "side-profile character reference framed by broad flame-ribbon accents and warm rim versus cool fill",
+        "twisting flex and raised-knee reference on a flat orange field with black cutout shards",
+        "forward-lunge harness reference using red diagonal action slashes around two near-camera arms"
+      ],
+      "excluded_scene_attributes": [
+        "orange as a mandatory accent color",
+        "ruined city as a mandatory environment",
+        "puddles, tactical clothing, or smoke as mandatory props"
+      ],
+      "nearest_family": "style-family-graphic-cinematic-cel",
+      "boundary": "Uses flatter matte body planes, stronger cutout separation, and one repeated graphic accent system as the movement carrier; graphic cinematic cel permits more environmental depth, lighting atmosphere, and blended cinematic modeling.",
+      "review_notes": "Generalizes the former orange-ruin family so flame ribbons, slashes, shards, bursts, and flat color fields are interchangeable scene effects rather than anatomy or environment locks."
+    },
+    {
+      "family_id": "style-family-graphic-cinematic-cel",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-graphic-accent-cutout-action-cel",
+      "boundary": "Keeps cinematic depth, light atmosphere, and layered environment; the accent-cutout family is flatter and effect-led.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-hard-specular-gloss-cel",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-sculpted-rounded-luminous-soft-cel",
+      "boundary": "Uses flat local color, hard cel shadows, and broad painted high-value highlight patches as one shape-led polished system; sculpted rounded luminous soft cel uses broader light falloff, softer value transitions, and stronger environmental bounce.",
+      "review_notes": "Re-authored as one coherent painted hard-specular family after an audit found mixed soft-sheen and flat-highlight instructions in the same record."
+    },
+    {
+      "family_id": "style-family-luminous-festival-waterscape-soft-cel",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-sculpted-rounded-luminous-soft-cel",
+      "boundary": "Makes panoramic water reflections, lantern fields, robe drape, and festival depth inseparable from the finish grammar.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-matte-character-design",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-fantasy-line-wash-sheet",
+      "boundary": "Uses opaque matte planes and costume hierarchy rather than paper-white wash and sketch-led construction.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-neon-screenprint-poster",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-graphic-cinematic-cel",
+      "boundary": "Uses fluorescent registration colors, halftone, and print-field construction as primary grammar rather than cinematic lighting depth.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-ornate-arcane-splash",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-gilded-cyan-sigil-gothic-cel",
+      "boundary": "Centers spell-effect orchestration and ornate game-splash flow; the gothic family centers monumental sigil-bearing body and sanctuary architecture.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-polished-soft-cel-portrait",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-sculpted-rounded-luminous-soft-cel",
+      "boundary": "Prioritizes refined face, clothing, and portrait polish with more moderate mass exaggeration and narrower body highlights.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-quiet-seasonal-veranda-cel",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-clean-expressive-casual-webcomic",
+      "boundary": "Makes shade-to-garden depth, architecture, and seasonal airflow cues part of the coherent finish rather than generic everyday context.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-regal-blue-nocturne-key-visual",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-gilded-cyan-sigil-gothic-cel",
+      "boundary": "Uses cool ceremonial architecture, restrained silver ornament, and quiet authority rather than cyan emissive sigils and warm gothic spectacle.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    },
+    {
+      "family_id": "style-family-sculpted-rounded-luminous-soft-cel",
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "status": "revised-and-generalized",
+      "evidence_basis": [
+        "high-key swimmers and beach physique portraits with rounded connected masses and broad painted highlights",
+        "bed-supported reclining portraits using the same one-shadow plus restrained-soft-turning grammar",
+        "adult size-contrast embrace references with luminous bounce, crisp faces, and broad sheltering body arcs",
+        "bright aquatic and lifestyle references that preserve the same contour, value, and highlight hierarchy across different environments"
+      ],
+      "excluded_scene_attributes": [
+        "summer as a mandatory season",
+        "beach or water as a mandatory environment",
+        "bedroom or embrace as a mandatory relationship scene"
+      ],
+      "nearest_family": "style-family-polished-soft-cel-portrait",
+      "boundary": "Uses more monumental rounded connected masses, wider painted highlight bands, and stronger environmental bounce; polished soft-cel portrait remains more face- and wardrobe-led with less sculptural body emphasis.",
+      "review_notes": "Retains only the transferable finish grammar. Relationship, support, bedding, and season remain scene or module knowledge."
+    },
+    {
+      "family_id": "style-family-smoldering-nocturne-painterly",
+      "status": "retained",
+      "evidence_basis": [
+        "existing curated cross-reference corpus and canonical family record"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-graphic-cinematic-cel",
+      "boundary": "Uses painterly atmospheric edges, smoke, and broad nocturnal shadow fields rather than crisp cel separation throughout.",
+      "review_notes": "Retained after comparison with the newly supplied reference cluster."
+    }
+  ],
+  "deferred_candidates": [
+    {
+      "candidate_id": "style-family-polished-urban-apparel-portrait-cel",
+      "label": "Polished urban-apparel portrait cel",
+      "decision": "deferred-not-canonical",
+      "available_evidence": [
+        "multiple fitted black T-shirt and tank-top upper-body portraits",
+        "multiple contemporary jacket, blazer, chain, and dog-tag portraits",
+        "multiple simplified station, nightlife, office, bedroom, and cafe support backgrounds"
+      ],
+      "nearest_family": "style-family-polished-soft-cel-portrait",
+      "evidence_gap": "The recurring line, value, highlight, and surface grammar remains materially identical to the existing polished soft-cel portrait family. Contemporary apparel and urban support backgrounds are reusable content layers, yet they do not establish two independent finish rules that separate a new family.",
+      "reconsideration_condition": "Reconsider after at least three cross-scene references show a repeatable line, value, highlight, or background-rendering system that transfers beyond contemporary apparel content and remains visibly distinct from polished soft-cel portrait treatment."
+    }
+  ]
+}

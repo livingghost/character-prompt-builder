@@ -1,0 +1,20 @@
+{
+  "artifact_type": "inventory-state",
+  "inventory_state_id": "INV-C02-10",
+  "owner_id": "C02",
+  "items": [
+    {
+      "item_id": "P01",
+      "owned_by": "archive",
+      "possessed_by": "C02",
+      "carried_by": "C02",
+      "equipped_to": null,
+      "stored_at": null,
+      "state": "damaged",
+      "condition": {
+        "description": "cracked glass and bent silver rim"
+      }
+    }
+  ],
+  "inventory_state_sha256": "e71c828221b8418117f8f397e5b3c299283e46ad9756ebe975e515755aeaee35"
+}

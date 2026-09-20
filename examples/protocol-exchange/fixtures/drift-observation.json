@@ -1,0 +1,18 @@
+{
+  "artifact_type": "drift-observation",
+  "observation_id": "DRIFT-RUN01",
+  "run_id": "RUN01",
+  "asset_or_clip_id": "ASSET-OR-CLIP-01",
+  "expected_state_snapshot_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "expected_visual_projection_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "symptom": "Describe the directly observed visible or audible drift in the preserved output.",
+  "time_range": null,
+  "evidence": [
+    {}
+  ],
+  "scope": {},
+  "recommended_owner": "human-canon",
+  "proposed_mitigation": "Describe the smallest scoped production change that can be tested in the next exact submission.",
+  "canon_change_proposed": false,
+  "drift_observation_sha256": "1628c67ebc5417822e52f135194e1688b14d41099f7a23467e50cc86cea2d296"
+}

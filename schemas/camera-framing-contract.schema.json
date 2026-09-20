@@ -1,0 +1,374 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "camera-framing-contract.schema.json",
+  "title": "Camera Framing Contract",
+  "type": "object",
+  "required": [
+    "shot_type",
+    "shot_scale",
+    "distance_class",
+    "subject_relative_distance",
+    "camera_height",
+    "pitch_degrees",
+    "yaw_degrees",
+    "roll_degrees",
+    "lens_or_perspective",
+    "lens_equivalent_mm",
+    "projection_behavior",
+    "frame_occupancy",
+    "framing_and_crop",
+    "coverage_landmarks",
+    "nearest_form",
+    "perspective_scale_change",
+    "required_visible_elements",
+    "allowed_offscreen_elements",
+    "focal_sequence",
+    "stability_invariants"
+  ],
+  "properties": {
+    "shot_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "shot_scale": {
+      "enum": [
+        "extreme-close-up",
+        "close-up",
+        "head-and-shoulders",
+        "chest-up",
+        "waist-up",
+        "upper-thigh",
+        "three-quarter",
+        "near-full-body",
+        "full-body",
+        "wide-environmental",
+        "reference-sheet",
+        "custom"
+      ]
+    },
+    "distance_class": {
+      "enum": [
+        "contact-close",
+        "very-close",
+        "close",
+        "medium-close",
+        "medium",
+        "medium-long",
+        "long",
+        "custom"
+      ]
+    },
+    "subject_relative_distance": {
+      "type": "object",
+      "required": [
+        "basis",
+        "minimum",
+        "maximum"
+      ],
+      "properties": {
+        "basis": {
+          "enum": [
+            "head-heights",
+            "visible-torso-heights",
+            "full-body-heights",
+            "subject-widths",
+            "metres",
+            "custom"
+          ]
+        },
+        "minimum": {
+          "type": "number",
+          "minimum": 0
+        },
+        "maximum": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "human_scale_distance_equivalent_m": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "minimum",
+            "maximum"
+          ],
+          "properties": {
+            "minimum": {
+              "type": "number",
+              "minimum": 0
+            },
+            "maximum": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "camera_height": {
+      "type": "object",
+      "required": [
+        "reference_landmark",
+        "offset"
+      ],
+      "properties": {
+        "reference_landmark": {
+          "type": "string",
+          "minLength": 1
+        },
+        "offset": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "pitch_degrees": {
+      "type": "number",
+      "minimum": -90,
+      "maximum": 90
+    },
+    "yaw_degrees": {
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180
+    },
+    "roll_degrees": {
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180
+    },
+    "lens_or_perspective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lens_equivalent_mm": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "minimum",
+            "maximum"
+          ],
+          "properties": {
+            "minimum": {
+              "type": "number",
+              "minimum": 1
+            },
+            "maximum": {
+              "type": "number",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "projection_behavior": {
+      "enum": [
+        "orthographic-reference",
+        "compressed-telephoto",
+        "natural-portrait",
+        "mild-wide",
+        "wide",
+        "fisheye",
+        "custom"
+      ]
+    },
+    "frame_occupancy": {
+      "type": "object",
+      "required": [
+        "subject_height_percent",
+        "subject_width_percent"
+      ],
+      "properties": {
+        "subject_height_percent": {
+          "type": "object",
+          "required": [
+            "minimum",
+            "maximum"
+          ],
+          "properties": {
+            "minimum": {
+              "type": "number",
+              "minimum": 0
+            },
+            "maximum": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "subject_width_percent": {
+          "type": "object",
+          "required": [
+            "minimum",
+            "maximum"
+          ],
+          "properties": {
+            "minimum": {
+              "type": "number",
+              "minimum": 0
+            },
+            "maximum": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "framing_and_crop": {
+      "type": "string",
+      "minLength": 1
+    },
+    "coverage_landmarks": {
+      "type": "object",
+      "required": [
+        "top",
+        "bottom",
+        "left",
+        "right"
+      ],
+      "properties": {
+        "top": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bottom": {
+          "type": "string",
+          "minLength": 1
+        },
+        "left": {
+          "type": "string",
+          "minLength": 1
+        },
+        "right": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "eye_line_position": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "vertical_percent_from_top",
+            "horizontal_percent_from_left"
+          ],
+          "properties": {
+            "vertical_percent_from_top": {
+              "type": "object",
+              "required": [
+                "minimum",
+                "maximum"
+              ],
+              "properties": {
+                "minimum": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "maximum": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              },
+              "additionalProperties": false
+            },
+            "horizontal_percent_from_left": {
+              "type": "object",
+              "required": [
+                "minimum",
+                "maximum"
+              ],
+              "properties": {
+                "minimum": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "maximum": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "nearest_form": {
+      "type": "string",
+      "minLength": 1
+    },
+    "perspective_scale_change": {
+      "type": "string",
+      "minLength": 1
+    },
+    "required_visible_elements": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "allowed_offscreen_elements": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "focal_sequence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "stability_invariants": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 3,
+      "uniqueItems": true
+    },
+    "reference_landmark_position": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Optional authored landmark position; does not imply eyes or a head."
+    }
+  },
+  "additionalProperties": false
+}

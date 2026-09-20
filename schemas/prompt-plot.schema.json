@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prompt-plot.schema.json",
+  "title": "Prompt Plot",
+  "description": "The story one image tells, and what that story puts in the frame. Every derived statement names the story beat it comes from, so the picture's content is traceable rather than invented. Carries no target or model: the plot is settled and approved before an interface is chosen.",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "story",
+    "derived"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "prompt-plot"
+    },
+    "approved": {
+      "type": "object",
+      "description": "Present once the plot has been shown to the person who owns the brief and accepted. Generation-ready packaging requires it.",
+      "required": [
+        "by",
+        "at",
+        "content_sha256"
+      ],
+      "properties": {
+        "by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "at": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]+)?Z$",
+          "description": "RFC3339 UTC, as adoption-receipt spells issued_at."
+        },
+        "note": {
+          "type": "string"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "sha256 of the plot with its approved block removed, so the approval names the content it approved."
+        }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "description": "Where this plot came from, when it came from somewhere. A plot written from a brief has no source and the brief is its root. A plot written from an upstream artifact, such as an approved scene plot, names that artifact and the content hash it was approved under, so one image carries one approval chain rather than two that do not mention each other.",
+      "required": [
+        "artifact_type",
+        "id",
+        "content_sha256"
+      ],
+      "properties": {
+        "artifact_type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What the upstream artifact is, in its own vocabulary, such as scene-plot."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "How the upstream artifact names itself, such as a scene id."
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "The hash the upstream artifact was approved under."
+        },
+        "shot_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Which shot of the upstream artifact this plot covers, where it plans several."
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "story": {
+      "type": "array",
+      "minItems": 1,
+      "description": "What happens in and around this image.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "beat",
+          "visibility"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "beat": {
+            "type": "string",
+            "minLength": 1
+          },
+          "visibility": {
+            "enum": [
+              "visible",
+              "context"
+            ],
+            "description": "visible: this beat puts something in the frame. context: it is true of the moment but the frame does not show it."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "derived": {
+      "type": "array",
+      "minItems": 1,
+      "description": "What the story puts in the frame. One entry per statement.",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "statement"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "shows",
+              "placement",
+              "composition",
+              "must_preserve",
+              "free"
+            ],
+            "description": "shows: what is in frame. placement: who or what is where. composition: how the frame is arranged. must_preserve: what cannot change. free: what the story does not fix."
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "from": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Story ids this statement follows from. Required for every kind except free, which is what the story leaves open."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

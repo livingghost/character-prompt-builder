@@ -1,0 +1,29 @@
+{
+  "artifact_type": "shot-continuity-ledger",
+  "scene_id": "SC01",
+  "scene_plan_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "shot_entries": [
+    {
+      "shot_id": "SC01-SH01",
+      "camera_spec_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "start_anchor": "start",
+      "end_anchor": "end",
+      "screen_direction": "left to right",
+      "axis_side": "doorway side",
+      "visible_subjects": [
+        "C01",
+        "C02"
+      ],
+      "prop_ownership": {
+        "P01": "C02"
+      },
+      "state_snapshot_sha256_by_character": {
+        "C01": "0000000000000000000000000000000000000000000000000000000000000000",
+        "C02": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  ],
+  "transition_entries": [],
+  "unresolved_continuity": [],
+  "ledger_sha256": "918a387a116061dd5baba33863419d2efb9a1474260377cb18b750080ec692b7"
+}

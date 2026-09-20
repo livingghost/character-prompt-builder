@@ -1,0 +1,225 @@
+{
+  "artifact_type": "individual-morphology-contract",
+  "contract_id": "IMC-C01",
+  "character_id": "C01",
+  "domain": "creature",
+  "species_profile_ref": {
+    "id": "SMP-custom-lineage",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "individual_measurements": {
+    "scale": "author-declared scale with no human-size default",
+    "height_or_length": "record total standing height, body length, or equivalent primary measure",
+    "mass_or_volume": "record relative mass or volume distribution",
+    "measurement_basis": "named boundaries or declared units",
+    "structure_measurements": {}
+  },
+  "feature_realizations": [
+    {
+      "feature_id": "carrier",
+      "species_feature_ref": "carrier",
+      "status": "inherited",
+      "actual_count": 1,
+      "instance_ids": [
+        "carrier.instance"
+      ],
+      "resolved_feature": {
+        "feature_id": "carrier",
+        "feature_kind": "other",
+        "presence": "present",
+        "count": 1,
+        "laterality": "not-applicable",
+        "attachment_site": "region-carrier",
+        "origin_and_termination": "author-declared extent",
+        "relative_measurements": {
+          "length": "author-declared measure or explicit inapplicability",
+          "width": "author-declared measure or explicit inapplicability",
+          "thickness": "author-declared measure or explicit inapplicability",
+          "spacing": "author-declared measure or explicit inapplicability",
+          "body_ratio": "author-declared measure or explicit inapplicability",
+          "measurement_basis": "named carrier boundaries"
+        },
+        "shape": "author-declared shape",
+        "orientation": "author-declared orientation",
+        "color_and_pattern": "author-declared appearance",
+        "surface_or_material": "author-declared material or other carrier",
+        "internal_structure": null,
+        "articulation": "author-declared deformation or articulation, if any",
+        "resting_configuration": "author-declared baseline",
+        "range_of_motion": "author-declared allowed changes",
+        "functional_role": "author-declared role",
+        "expression_role": "author-declared signaling or no signaling",
+        "individual_variation_axes": [
+          "authored dimensions"
+        ],
+        "continuity_rules": [
+          "retain the declared count",
+          "retain the declared extent"
+        ],
+        "required_views": [
+          "authored coverage view"
+        ],
+        "source_confidence": "preset-selected",
+        "notes": [],
+        "feature_group": "body-region",
+        "count_logic": {
+          "typical": 1,
+          "minimum": 1,
+          "maximum": 1,
+          "allowed_patterns": [
+            "one carrier in this illustrative starting declaration"
+          ],
+          "count_basis": "authored declaration, not a category default"
+        },
+        "attachment_topology": {
+          "parent_feature_refs": [
+            "region-carrier"
+          ],
+          "attachment_landmarks": [
+            "author-named boundary"
+          ],
+          "attachment_mode": "authored connection",
+          "branching_or_sequence": "authored ordering if applicable"
+        },
+        "visibility_and_occlusion": {
+          "ordinary_visibility": "where the carrier is exposed",
+          "common_occlusions": [
+            "authored occluders or crop"
+          ],
+          "minimum_proof_views": [
+            "authored coverage view"
+          ]
+        },
+        "sensory_or_signal_output": [],
+        "developmental_behavior": {
+          "life_stage_changes": [],
+          "sex_or_role_dimorphism": [],
+          "seasonal_or_environmental_changes": [],
+          "metamorphic_changes": [],
+          "regeneration_or_shedding": []
+        },
+        "cross_feature_dependencies": [],
+        "measurement_constraints": {
+          "minimum": null,
+          "maximum": null,
+          "typical_range": "defined by the selected species profile",
+          "reference_landmarks": [
+            "author-named carrier boundaries"
+          ],
+          "scaling_behavior": "scales coherently with the parent body plan"
+        }
+      },
+      "laterality_and_asymmetry": "author-declared with no symmetry default",
+      "damage_or_modification": "intact",
+      "identity_priority": "signature",
+      "state_boundary": "identity-stable",
+      "mutable_state_paths": [],
+      "allowed_variation": [
+        "approved changes only"
+      ],
+      "continuity_rules": [
+        "retain the declared count",
+        "retain the declared connections"
+      ],
+      "required_views": [
+        "authored coverage view"
+      ],
+      "source_confidence": "preset-selected",
+      "notes": [],
+      "exact_measurements": {
+        "length": "declared in the individual contract",
+        "width": "declared in the individual contract",
+        "thickness": "declared in the individual contract",
+        "spacing": "declared in the individual contract",
+        "measurement_basis": "named body landmarks",
+        "tolerance": "stable within the approved identity tolerance"
+      },
+      "attachment_realization": {
+        "parent_feature_refs": [],
+        "attachment_landmarks": [
+          "declared attachment landmark"
+        ],
+        "attachment_mode": "matches the species profile",
+        "individual_offset_or_angle": "none unless declared"
+      },
+      "personal_expression_behavior": [],
+      "uncertainties": []
+    }
+  ],
+  "surface_and_marking_map": [],
+  "individual_expression_signature": [
+    {
+      "channel_id": "channel-carrier",
+      "baseline_bias": "declare the character's neutral attention and resting expression",
+      "range": "declare ordinary and extreme range",
+      "individual_tells": [],
+      "suppression_or_masking": "declare how the character hides or redirects this channel",
+      "continuity_rules": [
+        "individual tells remain recognizable across scenes"
+      ]
+    }
+  ],
+  "asymmetry_and_variants": [],
+  "identity_invariants": [
+    "feature count remains stable",
+    "attachment sites remain stable",
+    "individual color and pattern maps remain stable"
+  ],
+  "approved_variation_fields": [
+    "current expression",
+    "temporary wetness",
+    "scene-local deformation within physical range"
+  ],
+  "state_boundaries": [
+    "identity-stable morphology stays in this contract",
+    "long-term age change belongs to an Era Contract",
+    "topology change belongs to a Form Contract",
+    "temporary condition belongs to State Snapshot"
+  ],
+  "coverage_requirements": [
+    {
+      "requirement_id": "coverage-carrier",
+      "feature_refs": [
+        "carrier"
+      ],
+      "acceptable_views": [
+        "authored coverage view"
+      ],
+      "priority": "signature",
+      "notes": "prove only the declared structure"
+    }
+  ],
+  "source_provenance": [],
+  "canon_status": "proposed",
+  "notes": [
+    "Replace this illustrative carrier realization with the approved design; it is not inferred anatomy."
+  ],
+  "individual_morphology_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "communication_and_expression_tool_realizations": [],
+  "mutable_state_paths": [],
+  "life_stage_and_form": {
+    "life_stage": "unspecified",
+    "sex_or_role_morph": "unspecified",
+    "active_form": "baseline",
+    "developmental_notes": []
+  },
+  "inventory_completeness": {
+    "species_features_reviewed": 1,
+    "individual_features_resolved": 1,
+    "explicit_absences": [],
+    "unresolved_count": 0
+  },
+  "feature_relationship_realizations": [],
+  "individual_differential_diagnosis": [],
+  "unresolved_features": [],
+  "frame_character": {
+    "representation": "declared-structures",
+    "structures": {},
+    "source_confidence": "preset-selected",
+    "frame_character_id": "example-declared-frame",
+    "overall_form": "An authored arrangement of volumes or other carriers; declare only the parts this design needs.",
+    "coherence_rules": [],
+    "diagnostic_misreadings": []
+  },
+  "load_bearing_part_measurements": []
+}

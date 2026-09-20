@@ -1,0 +1,255 @@
+{
+  "artifact_type": "species-morphology-profile",
+  "profile_id": "SMP-custom-lineage",
+  "canonical_name": "custom original lineage",
+  "aliases": [],
+  "domain": "creature",
+  "reality_status": "custom-original",
+  "species_scope": "custom-lineage",
+  "taxonomy_or_origin": {
+    "family_or_clade": "original authored lineage",
+    "lineage_notes": "define one coherent visual lineage before individual variation",
+    "structural_ancestors_or_influences": []
+  },
+  "body_plan": {
+    "symmetry": "author-declared; no default symmetry",
+    "posture_class": "author-declared support or free arrangement",
+    "primary_axis": "author-declared axes, if any",
+    "region_map": [
+      {
+        "region_id": "region-carrier",
+        "name": "authored carrier extent",
+        "parent_region": null,
+        "bilateral": false,
+        "landmarks": [
+          "author-named boundary"
+        ],
+        "continuity_rules": [
+          "retain the declared boundary"
+        ]
+      }
+    ],
+    "support_structure": "authored carrier and support relationships",
+    "locomotion_modes": [
+      "authored movement or explicitly stationary"
+    ],
+    "center_of_mass": "authored mass distribution where applicable",
+    "scale_reference": "authored dimensions with a stated measurement basis",
+    "topology_invariants": [
+      "declared region identities remain stable",
+      "only authored connections are permitted"
+    ]
+  },
+  "standard_features": [
+    {
+      "feature_id": "carrier",
+      "feature_kind": "other",
+      "presence": "present",
+      "count": 1,
+      "laterality": "not-applicable",
+      "attachment_site": "region-carrier",
+      "origin_and_termination": "author-declared extent",
+      "relative_measurements": {
+        "length": "author-declared measure or explicit inapplicability",
+        "width": "author-declared measure or explicit inapplicability",
+        "thickness": "author-declared measure or explicit inapplicability",
+        "spacing": "author-declared measure or explicit inapplicability",
+        "body_ratio": "author-declared measure or explicit inapplicability",
+        "measurement_basis": "named carrier boundaries"
+      },
+      "shape": "author-declared shape",
+      "orientation": "author-declared orientation",
+      "color_and_pattern": "author-declared appearance",
+      "surface_or_material": "author-declared material or other carrier",
+      "internal_structure": null,
+      "articulation": "author-declared deformation or articulation, if any",
+      "resting_configuration": "author-declared baseline",
+      "range_of_motion": "author-declared allowed changes",
+      "functional_role": "author-declared role",
+      "expression_role": "author-declared signaling or no signaling",
+      "individual_variation_axes": [
+        "authored dimensions"
+      ],
+      "continuity_rules": [
+        "retain the declared count",
+        "retain the declared extent"
+      ],
+      "required_views": [
+        "authored coverage view"
+      ],
+      "source_confidence": "preset-selected",
+      "notes": [],
+      "feature_group": "body-region",
+      "count_logic": {
+        "typical": 1,
+        "minimum": 1,
+        "maximum": 1,
+        "allowed_patterns": [
+          "one carrier in this illustrative starting declaration"
+        ],
+        "count_basis": "authored declaration, not a category default"
+      },
+      "attachment_topology": {
+        "parent_feature_refs": [
+          "region-carrier"
+        ],
+        "attachment_landmarks": [
+          "author-named boundary"
+        ],
+        "attachment_mode": "authored connection",
+        "branching_or_sequence": "authored ordering if applicable"
+      },
+      "visibility_and_occlusion": {
+        "ordinary_visibility": "where the carrier is exposed",
+        "common_occlusions": [
+          "authored occluders or crop"
+        ],
+        "minimum_proof_views": [
+          "authored coverage view"
+        ]
+      },
+      "sensory_or_signal_output": [],
+      "developmental_behavior": {
+        "life_stage_changes": [],
+        "sex_or_role_dimorphism": [],
+        "seasonal_or_environmental_changes": [],
+        "metamorphic_changes": [],
+        "regeneration_or_shedding": []
+      },
+      "cross_feature_dependencies": [],
+      "measurement_constraints": {
+        "minimum": null,
+        "maximum": null,
+        "typical_range": "defined by the selected species profile",
+        "reference_landmarks": [
+          "author-named carrier boundaries"
+        ],
+        "scaling_behavior": "scales coherently with the parent body plan"
+      }
+    }
+  ],
+  "surface_systems": [
+    {
+      "surface_id": "surface-primary",
+      "regions": [
+        "region-carrier"
+      ],
+      "material_type": "declare skin, fur, scales, feathers, chitin, mineral, plant, metal, energy, or another system",
+      "base_color_logic": "declare region-specific base colors",
+      "pattern_topology": "declare exact pattern routes, repetition, and symmetry",
+      "texture_and_relief": "declare smoothness, pile, plate relief, pore scale, or other tactile cues",
+      "thickness_or_density": "declare surface thickness or density relative to body scale",
+      "light_and_wetness_response": "declare highlight width, translucency, absorption, wetness, and emissive response",
+      "damage_response": "declare how wear, wounds, breaks, shedding, or repair appear",
+      "continuity_rules": [
+        "surface follows the declared carrier",
+        "authored pattern relations remain stable"
+      ]
+    }
+  ],
+  "expression_system": [
+    {
+      "channel_id": "channel-carrier",
+      "carrier_feature_refs": [
+        "carrier"
+      ],
+      "neutral_state": "authored baseline",
+      "active_states": [
+        "authored signal"
+      ],
+      "readable_meanings": [
+        "authored meaning"
+      ],
+      "ambiguity_notes": [
+        "interpret the channel together with posture, contact, and scene context"
+      ],
+      "timing_and_range": "declare ordinary and extreme timing ranges",
+      "continuity_rules": [
+        "expression changes remain within the physical range of the carrier features"
+      ],
+      "channel_class": "other",
+      "external_tool_refs": [],
+      "signal_dimensions": [
+        "authored signal dimension"
+      ]
+    }
+  ],
+  "individual_variation_model": {
+    "species_invariants": [
+      "body plan remains coherent",
+      "feature count and attachment remain within declared limits"
+    ],
+    "common_variation_axes": [
+      "size",
+      "proportion",
+      "color",
+      "pattern",
+      "feature length",
+      "feature thickness"
+    ],
+    "age_related_variation": [],
+    "seasonal_or_environmental_variation": [],
+    "rare_valid_variants": [],
+    "state_boundaries": [
+      "species profile owns lineage-wide possibilities",
+      "individual contract owns one character realization",
+      "temporary state never rewrites species topology"
+    ]
+  },
+  "near_species_differences": [],
+  "coverage_requirements": [
+    {
+      "requirement_id": "coverage-carrier",
+      "feature_refs": [
+        "carrier"
+      ],
+      "acceptable_views": [
+        "authored coverage view"
+      ],
+      "priority": "signature",
+      "notes": "select actual views that prove the declared extent and connections"
+    }
+  ],
+  "canon_status": "proposed",
+  "source_provenance": [],
+  "notes": [
+    "A replaceable carrier example, not a required body plan. Replace its declarations before canon approval."
+  ],
+  "species_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "communication_and_expression_tools": [],
+  "inventory_completeness": {
+    "reviewed_feature_groups": [
+      "body-region"
+    ],
+    "explicitly_absent_or_inapplicable": [],
+    "unresolved_feature_questions": [],
+    "completeness_status": "provisional"
+  },
+  "developmental_and_population_variation": {
+    "life_stages": [],
+    "sex_or_role_dimorphism": [],
+    "polymorphisms": [],
+    "metamorphic_or_form_changes": [],
+    "population_or_regional_variation": [],
+    "heritable_anomalies": []
+  },
+  "feature_relationships": [],
+  "functional_capabilities": [],
+  "invalid_generalizations": [
+    "Do not infer an undeclared limb, organ, tail, wing, tentacle, or sensory system from a broad creature label."
+  ],
+  "frame_character_model": {
+    "default": {
+      "representation": "declared-structures",
+      "structures": {},
+      "source_confidence": "preset-selected",
+      "frame_character_id": "example-declared-frame",
+      "overall_form": "An authored arrangement of volumes or other carriers; declare only the parts this design needs.",
+      "coherence_rules": [],
+      "diagnostic_misreadings": []
+    },
+    "allowed_individual_variants": [],
+    "inheritance_rule": "individual contracts inherit the default unless an owner-approved variant is declared",
+    "structure_coherence_rule": "All declared components follow the approved overall form without inferred anatomy."
+  }
+}

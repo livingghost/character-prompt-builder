@@ -1,0 +1,28 @@
+{
+  "artifact_type": "upscale-package",
+  "status": "review-required",
+  "package_id": "UPK-0000000000000000",
+  "upscaler_model": "replace-with-active-upscaler-id",
+  "upscaler_record_sha256": "",
+  "source_image": {
+    "path": "source.png",
+    "media_type": "image/png",
+    "sha256": "",
+    "dimensions": {"width": 1, "height": 1}
+  },
+  "output_image": {
+    "path": "output.png",
+    "media_type": "image/png",
+    "sha256": "",
+    "dimensions": {"width": 2, "height": 2}
+  },
+  "scale_factor": 2,
+  "settings": {},
+  "guidance_prompt": null,
+  "post_upscale_identity_audit": {
+    "required": false,
+    "status": "not-required",
+    "notes": []
+  },
+  "upscale_package_sha256": ""
+}

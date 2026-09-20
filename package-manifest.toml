@@ -1,0 +1,72 @@
+[package]
+name = "character-prompt-builder"
+version = "2026.09.20.1"
+version_scheme = "YYYY.MM.DD.N"
+release_timezone = "UTC"
+license = "GPL-3.0-only"
+description = "Turn a short character idea, a detailed production brief, or an approved recurring-character state into a coherent image-generation package: prompts, scoped negative prompts, and canonical reference material; send it to the service the model record names, and keep every generated image in a studio beside the request that produced it."
+
+[dependencies]
+python = ">=3.11"
+core_requirements = "requirements-core.txt"
+visual_requirements = "requirements-visual.txt"
+requirements = "requirements.txt"
+tested_requirements = "requirements-tested.txt"
+pyproject = "pyproject.toml"
+
+[documentation]
+readme = "README.md"
+contributing = "CONTRIBUTING.md"
+license_file = "LICENSE"
+changelog = "CHANGELOG.md"
+
+[release]
+output = "dist/character-prompt-builder-2026.09.20.1.zip"
+include = [
+  ".gitignore",
+  ".agents",
+  ".claude-plugin",
+  ".codex-plugin",
+  "SKILL.md",
+  "AGENTS.md",
+  "CLAUDE.md",
+  "README.md",
+  "hosts",
+  "CONTRIBUTING.md",
+  "LICENSE",
+  "CHANGELOG.md",
+  "DEPENDENCIES.md",
+  "PACKS.md",
+  "VISUAL-CORPUS.md",
+  "package-manifest.toml",
+  "pyproject.toml",
+  "requirements-core.txt",
+  "requirements-visual.txt",
+  "requirements.txt",
+  "requirements-tested.txt",
+  "agents",
+  "config",
+  "hooks",
+  "examples/pack-authoring",
+  "examples/feature-walkthrough",
+  "examples/declared-structures",
+  "examples/authorial-intent",
+  "examples/world-realization",
+  "examples/story-context",
+  "examples/production-execution",
+  "examples/reusable-authoring",
+  "examples/protocol-exchange",
+  "examples/state-aware-pilot",
+  "packs/commons",
+  "references",
+  "schemas",
+  "protocols",
+  "scripts",
+  "templates",
+]
+exclude_names = [
+  "__pycache__",
+  ".DS_Store",
+  ".pytest_cache",
+  ".mypy_cache",
+]

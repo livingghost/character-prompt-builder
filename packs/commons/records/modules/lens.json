@@ -1,0 +1,104 @@
+{
+  "kind": "module",
+  "category": "lens",
+  "records": [
+    {
+      "id": "lens-portrait-telephoto-compression",
+      "label": "Portrait telephoto compression",
+      "category": "lens",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Flatten facial and body depth with a long portrait lens so features stay proportionate and the background compresses close behind the subject.",
+      "prompt": "Use a long portrait lens look: flattened perspective with minimal feature distortion, the background drawn visually closer and softly defocused, and the subject cleanly separated from it.",
+      "invariants": [
+        "the face and limbs keep even proportions with minimal foreshortening",
+        "background planes compress toward the subject",
+        "subject-background separation stays readable"
+      ],
+      "misreadings_to_avoid": [
+        "fisheye curvature",
+        "enlarged near features",
+        "deep sharp background contradicting the compression"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lens behavior",
+      "tags": [
+        "telephoto",
+        "85mm look",
+        "portrait lens"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "telephoto compression",
+          "facet": "camera",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "portrait lens look",
+          "facet": "camera",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "85mm portrait",
+          "facet": "camera",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "lens-wide-angle-proximity-stretch",
+      "label": "Wide-angle proximity stretch",
+      "category": "lens",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Use a close wide lens so near forms enlarge dramatically while the face stays recognizable, adding depth energy to reaches, props, and foreshortened limbs.",
+      "prompt": "Use a close wide-angle perspective: the nearest hand, prop, or knee enlarges with clear perspective stretch, lines rush toward the background, and the head stays at a stable readable scale.",
+      "invariants": [
+        "one enlargement gradient from near to far",
+        "the identity zone keeps stable proportions",
+        "straight environment lines converge consistently"
+      ],
+      "misreadings_to_avoid": [
+        "balloon distortion of the whole body",
+        "conflicting vanishing directions",
+        "near enlargement without any depth cue behind it"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "lens behavior",
+      "tags": [
+        "wide angle",
+        "foreshortening",
+        "proximity stretch"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "wide angle proximity stretch",
+          "facet": "camera",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "foreshortened reach",
+          "facet": "camera",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

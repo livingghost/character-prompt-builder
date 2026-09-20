@@ -1,0 +1,46 @@
+{
+  "artifact_type": "state-event",
+  "event_id": "EV-TEMP-0001",
+  "timeline_id": "main",
+  "event_scope": "physical-state",
+  "targets": [
+    "C01"
+  ],
+  "effective_order": 10,
+  "effective_from": "story:EP01-SC03",
+  "recorded_at": "1970-01-01T00:00:00Z",
+  "disclosed_at": null,
+  "occurrence": "offscreen",
+  "canon_status": "proposed",
+  "atomic": false,
+  "cause": {
+    "type": "story-event",
+    "reference": "temporary-state-reference"
+  },
+  "preconditions": [
+    {
+      "entity_type": "character",
+      "entity_id": "C01",
+      "path": "/physical_state/example",
+      "operator": "not-exists"
+    }
+  ],
+  "changes": [
+    {
+      "entity_type": "character",
+      "entity_id": "C01",
+      "path": "/physical_state/example",
+      "operation": "set",
+      "value": "example-state",
+      "persistence": "temporary-until-cleared",
+      "visual_priority": "supporting",
+      "clear_event_id": "EV-CLEAR-0001",
+      "effective_until_order": 20
+    }
+  ],
+  "evidence": [],
+  "supersedes_event_ids": [],
+  "notes": [
+    "The clearing event must be a strictly later approved event on the same timeline with a state mutation for the same entity and path. The per-change expiry is exclusive."
+  ]
+}

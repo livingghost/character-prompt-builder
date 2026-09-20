@@ -1,0 +1,32 @@
+name: Feature request
+description: Propose an observable production or submission improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Concrete problem
+      description: Describe the current real file, field, text, evidence, or render-observation problem.
+    validations:
+      required: true
+  - type: textarea
+    id: difference
+    attributes:
+      label: Observable before/after difference
+      description: State exactly what changes in the submission package or review procedure.
+    validations:
+      required: true
+  - type: textarea
+    id: contrast
+    attributes:
+      label: Minimal contrast pair
+      description: Show two cases that require different submissions. Explain why a prose label alone is insufficient.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Link official current documentation for surface facts, or attach a real run record for behavior claims.
+    validations:
+      required: false

@@ -1,0 +1,968 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "species-morphology-profile.schema.json",
+  "title": "Species Morphology Profile",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "profile_id",
+    "canonical_name",
+    "domain",
+    "reality_status",
+    "species_scope",
+    "taxonomy_or_origin",
+    "body_plan",
+    "frame_character_model",
+    "standard_features",
+    "surface_systems",
+    "expression_system",
+    "communication_and_expression_tools",
+    "individual_variation_model",
+    "near_species_differences",
+    "coverage_requirements",
+    "canon_status",
+    "species_profile_sha256",
+    "inventory_completeness",
+    "developmental_and_population_variation",
+    "feature_relationships",
+    "functional_capabilities",
+    "invalid_generalizations"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "species-morphology-profile"
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "canonical_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "domain": {
+      "enum": [
+        "human",
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid",
+        "robot"
+      ]
+    },
+    "reality_status": {
+      "enum": [
+        "real",
+        "extinct",
+        "mythic",
+        "fictional-established",
+        "custom-original",
+        "synthetic"
+      ]
+    },
+    "species_scope": {
+      "enum": [
+        "species",
+        "subspecies",
+        "breed",
+        "family-scaffold",
+        "custom-lineage",
+        "chassis-class"
+      ]
+    },
+    "taxonomy_or_origin": {
+      "type": "object",
+      "required": [
+        "family_or_clade",
+        "lineage_notes",
+        "structural_ancestors_or_influences"
+      ],
+      "properties": {
+        "family_or_clade": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lineage_notes": {
+          "type": "string",
+          "minLength": 1
+        },
+        "structural_ancestors_or_influences": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "body_plan": {
+      "type": "object",
+      "required": [
+        "symmetry",
+        "posture_class",
+        "primary_axis",
+        "region_map",
+        "support_structure",
+        "locomotion_modes",
+        "center_of_mass",
+        "scale_reference",
+        "topology_invariants"
+      ],
+      "properties": {
+        "symmetry": {
+          "type": "string",
+          "minLength": 1
+        },
+        "posture_class": {
+          "type": "string",
+          "minLength": 1
+        },
+        "primary_axis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "region_map": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "region_id",
+              "name",
+              "parent_region",
+              "bilateral",
+              "landmarks",
+              "continuity_rules"
+            ],
+            "properties": {
+              "region_id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parent_region": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "bilateral": {
+                "type": "boolean"
+              },
+              "landmarks": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "continuity_rules": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "support_structure": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locomotion_modes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "center_of_mass": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scale_reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "topology_invariants": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 2,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "standard_features": {
+      "type": "array",
+      "items": {
+        "$ref": "morphology-feature.schema.json"
+      },
+      "minItems": 1
+    },
+    "surface_systems": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "surface_id",
+          "regions",
+          "material_type",
+          "base_color_logic",
+          "pattern_topology",
+          "texture_and_relief",
+          "thickness_or_density",
+          "light_and_wetness_response",
+          "damage_response",
+          "continuity_rules"
+        ],
+        "properties": {
+          "surface_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "regions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "material_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "base_color_logic": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pattern_topology": {
+            "type": "string",
+            "minLength": 1
+          },
+          "texture_and_relief": {
+            "type": "string",
+            "minLength": 1
+          },
+          "thickness_or_density": {
+            "type": "string",
+            "minLength": 1
+          },
+          "light_and_wetness_response": {
+            "type": "string",
+            "minLength": 1
+          },
+          "damage_response": {
+            "type": "string",
+            "minLength": 1
+          },
+          "continuity_rules": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 2,
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "expression_system": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "signal_dimensions",
+          "external_tool_refs",
+          "channel_class",
+          "carrier_feature_refs",
+          "neutral_state",
+          "active_states",
+          "readable_meanings",
+          "ambiguity_notes",
+          "timing_and_range",
+          "continuity_rules"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "carrier_feature_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "neutral_state": {
+            "type": "string",
+            "minLength": 1
+          },
+          "active_states": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "readable_meanings": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "ambiguity_notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "timing_and_range": {
+            "type": "string",
+            "minLength": 1
+          },
+          "continuity_rules": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "channel_class": {
+            "enum": [
+              "facial",
+              "ocular",
+              "aural",
+              "oral",
+              "postural",
+              "limb",
+              "digit",
+              "tail",
+              "wing",
+              "tentacle",
+              "surface-color",
+              "bioluminescent",
+              "fluid",
+              "thermal",
+              "acoustic",
+              "mechanical",
+              "energy",
+              "tool-mediated",
+              "other"
+            ]
+          },
+          "external_tool_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "signal_dimensions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "individual_variation_model": {
+      "type": "object",
+      "required": [
+        "species_invariants",
+        "common_variation_axes",
+        "age_related_variation",
+        "seasonal_or_environmental_variation",
+        "rare_valid_variants",
+        "state_boundaries"
+      ],
+      "properties": {
+        "species_invariants": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 2,
+          "uniqueItems": true
+        },
+        "common_variation_axes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "age_related_variation": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "seasonal_or_environmental_variation": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "rare_valid_variants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "state_boundaries": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "near_species_differences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "compared_with",
+          "shared_features",
+          "diagnostic_differences",
+          "most_reliable_views",
+          "common_confusions",
+          "correction_guidance"
+        ],
+        "properties": {
+          "compared_with": {
+            "type": "string",
+            "minLength": 1
+          },
+          "shared_features": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "diagnostic_differences": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "most_reliable_views": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "common_confusions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "correction_guidance": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "coverage_requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "requirement_id",
+          "feature_refs",
+          "acceptable_views",
+          "priority"
+        ],
+        "properties": {
+          "requirement_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "feature_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "acceptable_views": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "priority": {
+            "enum": [
+              "signature",
+              "supporting",
+              "optional"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "canon_status": {
+      "enum": [
+        "proposed",
+        "approved",
+        "superseded"
+      ]
+    },
+    "source_provenance": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "species_profile_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "communication_and_expression_tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "tool_id",
+          "tool_class",
+          "species_relationship",
+          "appearance",
+          "attachment_or_use",
+          "signal_states",
+          "readable_meanings",
+          "individual_variation_axes",
+          "continuity_rules",
+          "required_views"
+        ],
+        "properties": {
+          "tool_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "tool_class": {
+            "enum": [
+              "wearable",
+              "held",
+              "integrated-interface",
+              "display-surface",
+              "acoustic-device",
+              "chemical-signal-aid",
+              "cultural-prop",
+              "assistive-device",
+              "other"
+            ]
+          },
+          "species_relationship": {
+            "enum": [
+              "required",
+              "common",
+              "optional",
+              "culture-dependent",
+              "profession-dependent",
+              "individual-only"
+            ]
+          },
+          "appearance": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attachment_or_use": {
+            "type": "string",
+            "minLength": 1
+          },
+          "signal_states": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "readable_meanings": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "individual_variation_axes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "continuity_rules": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "required_views": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "inventory_completeness": {
+      "type": "object",
+      "required": [
+        "reviewed_feature_groups",
+        "explicitly_absent_or_inapplicable",
+        "unresolved_feature_questions",
+        "completeness_status"
+      ],
+      "properties": {
+        "reviewed_feature_groups": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "explicitly_absent_or_inapplicable": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "feature_kind",
+              "reason"
+            ],
+            "properties": {
+              "feature_kind": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "unresolved_feature_questions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "completeness_status": {
+          "enum": [
+            "provisional",
+            "usable",
+            "reference-complete",
+            "user-confirmed"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "developmental_and_population_variation": {
+      "type": "object",
+      "required": [
+        "life_stages",
+        "sex_or_role_dimorphism",
+        "polymorphisms",
+        "metamorphic_or_form_changes",
+        "population_or_regional_variation",
+        "heritable_anomalies"
+      ],
+      "properties": {
+        "life_stages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "sex_or_role_dimorphism": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "polymorphisms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "metamorphic_or_form_changes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "population_or_regional_variation": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "heritable_anomalies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "feature_relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "relationship_id",
+          "feature_refs",
+          "relationship_type",
+          "rule"
+        ],
+        "properties": {
+          "relationship_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "feature_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 2,
+            "uniqueItems": true
+          },
+          "relationship_type": {
+            "enum": [
+              "attachment",
+              "count-dependency",
+              "scale-coupling",
+              "motion-coupling",
+              "surface-continuity",
+              "functional-dependency",
+              "signal-coupling",
+              "developmental-dependency",
+              "other"
+            ]
+          },
+          "rule": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "functional_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "capability_id",
+          "carrier_feature_refs",
+          "physical_requirements",
+          "limits",
+          "visible_evidence"
+        ],
+        "properties": {
+          "capability_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "carrier_feature_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "physical_requirements": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "limits": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "visible_evidence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "invalid_generalizations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "frame_character_model": {
+      "type": "object",
+      "required": [
+        "default",
+        "allowed_individual_variants",
+        "inheritance_rule"
+      ],
+      "properties": {
+        "default": {
+          "$ref": "frame-character.schema.json"
+        },
+        "allowed_individual_variants": {
+          "type": "array",
+          "items": {
+            "$ref": "frame-character.schema.json"
+          }
+        },
+        "inheritance_rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "structure_coherence_rule": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

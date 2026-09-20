@@ -1,0 +1,15 @@
+{
+  "artifact_type": "appearance-variant-contract",
+  "contract_id": "AV-C01",
+  "character_id": "C01",
+  "variant_id": "A01",
+  "parent_identity_contract_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "variant_class": "wardrobe",
+  "appearance_definition": {},
+  "allowed_state_overrides": [],
+  "reference_coverage_requirements": [],
+  "canon_status": "proposed",
+  "approval": {},
+  "notes": [],
+  "growth_geometry": null
+}

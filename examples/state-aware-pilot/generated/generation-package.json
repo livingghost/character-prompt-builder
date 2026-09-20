@@ -1,0 +1,2853 @@
+{
+  "status": "ready",
+  "model": "gpt-image-2.5-flare",
+  "source_brief": "State-aware field-office scene after an offscreen ear injury and a prop transfer.",
+  "creative_intent": {
+    "image_promise": "A polished close office portrait in which a familiar wolf maintains professional composure while subtle physical cues reveal fear, and every visible identity and state change matches the canonical timeline.",
+    "chosen_direction": "polished state-aware office tension portrait",
+    "medium_family": "cinematic 2D soft-cel anime illustration",
+    "purposeful_additions": [
+      "approved heat-response cues"
+    ],
+    "aesthetic_core": null,
+    "style_family": "style-family-clear-portrait",
+    "domain_realizations": {
+      "anthropomorphic-animal": "domain-realization-anthropomorphic-animal-baseline"
+    },
+    "render_profile": "profile-clear-2d-illustration",
+    "selected_preset_ids": [
+      "style-family-clear-portrait",
+      "domain-realization-anthropomorphic-animal-baseline",
+      "profile-clear-2d-illustration"
+    ],
+    "production_spec_sha256": "3c74d567085c332a1bb719f9eab52c33829959bed1f97c58f004bd27edf317d8",
+    "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99"
+  },
+  "production_spec": {
+    "source_brief": "State-aware field-office scene after an offscreen ear injury and a prop transfer.",
+    "target_model": "gpt-image-2.5-flare",
+    "creative_latitude": "directed",
+    "image_promise": "A polished close office portrait in which a familiar wolf maintains professional composure while subtle physical cues reveal fear, and every visible identity and state change matches the canonical timeline.",
+    "art_direction": {
+      "center_of_appeal": "controlled public composure with visible private tension",
+      "subject_relationship": "C01 is close to C02 but holds formal body language",
+      "composition_and_visual_hierarchy": "face and left ear first, tense left hand second, warm field office third",
+      "medium_family": "cinematic 2D soft-cel anime illustration",
+      "shape_and_rhythm": "broad stable torso with small asymmetrical tension cues",
+      "surface_and_tactility": "clean thick fur, dry office shirt, small heat-related moisture accents",
+      "color_and_light": "warm window key with cool interior shadow separation",
+      "detail_hierarchy": "eyes, left ear stud and notch, cheek markings, left hand, shirt closure"
+    },
+    "state_context": {
+      "mode": "state-aware",
+      "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
+      "scene_context_ref": {
+        "id": "SC-EP03-01",
+        "sha256": "4e3b658cee42efba40fc9feb72e49027bc84690dd5bdc244756e2704fb51419d"
+      },
+      "notes": [
+        "Compiled from approved state events at story order 25."
+      ]
+    },
+    "subjects": [
+      {
+        "id": "C01",
+        "domain": "anthropomorphic-animal",
+        "species_morphology_profile_ref": {
+          "id": "SMP-anthro-gray-wolf",
+          "sha256": "5595549bce6c181e0a4bd7f63084ad0aa0d160e8eb4eda8d7f7ef6be849f69a5"
+        },
+        "individual_morphology_contract_ref": {
+          "id": "IMC-C01",
+          "sha256": "3eab5c9b13162ae58008f06f79154dbbc560b8fa09ec8eb288a367dda7f075b5"
+        },
+        "identity_contract_ref": {
+          "id": "CIC-C01",
+          "sha256": "e370d88f96b68014de7e8ca5ed1f3dd0b74255b9c4e1051ac8d7ebc2d844e655"
+        },
+        "resolved_morphology": {
+          "species_profile_ref": {
+            "id": "SMP-anthro-gray-wolf",
+            "sha256": "5595549bce6c181e0a4bd7f63084ad0aa0d160e8eb4eda8d7f7ef6be849f69a5"
+          },
+          "individual_morphology_ref": {
+            "id": "IMC-C01",
+            "sha256": "3eab5c9b13162ae58008f06f79154dbbc560b8fa09ec8eb288a367dda7f075b5"
+          },
+          "active_form": "baseline anthropomorphic gray wolf form",
+          "body_plan": {
+            "species_body_plan": {
+              "symmetry": "bilateral with a centerline head, torso, muzzle, nose, spine, pelvis, and tail",
+              "posture_class": "upright digitigrade anthropomorphic",
+              "primary_axis": "head to pelvis vertical body axis with rear-projecting tail",
+              "region_map": [
+                {
+                  "region_id": "region-head",
+                  "name": "head and sensory cluster",
+                  "parent_region": null,
+                  "bilateral": false,
+                  "landmarks": [
+                    "brow line",
+                    "orbital pair",
+                    "ear bases",
+                    "muzzle base",
+                    "jaw hinge",
+                    "neck attachment"
+                  ],
+                  "continuity_rules": [
+                    "eyes, ears, muzzle, nose, mouth, and jaw remain attached to named head landmarks"
+                  ]
+                },
+                {
+                  "region_id": "region-torso",
+                  "name": "upright torso and pelvic support",
+                  "parent_region": null,
+                  "bilateral": false,
+                  "landmarks": [
+                    "neck base",
+                    "shoulder sockets",
+                    "sternum",
+                    "waist",
+                    "pelvic sockets",
+                    "tail base"
+                  ],
+                  "continuity_rules": [
+                    "arms, legs, neck, and tail retain declared attachment sites"
+                  ]
+                }
+              ],
+              "support_structure": "biological skeleton with upright humanoid shoulder and pelvic girdles, canine skull, digitigrade lower limbs, and articulated tail",
+              "locomotion_modes": [
+                "upright walk",
+                "run",
+                "crouch",
+                "kneel",
+                "sit",
+                "jump"
+              ],
+              "center_of_mass": "central torso above pelvis, adjusted by digitigrade stance and tail balance",
+              "scale_reference": "human-scale adult with body ratios measured against head length and torso height",
+              "topology_invariants": [
+                "one head and one torso remain connected by one neck",
+                "two arms and two legs remain bilateral",
+                "two ears, two eyes, one muzzle, one nose, and one tail retain stable count and attachment"
+              ]
+            },
+            "individual_measurements": {
+              "scale": "tall human-scale adult",
+              "height_or_length": "about 1.25 ordinary adult human heights in the approved series scale",
+              "mass_or_volume": "large upper-torso mass with a narrow waist and stable digitigrade lower-body support",
+              "measurement_basis": "head width, visible torso height, shoulder sockets, pelvis, wrists, hocks, and tail base",
+              "structure_measurements": {
+                "head-relative-height": "slightly compact head against a large upper torso",
+                "appendage-proportions": "long forearms; thighs and lower legs preserve upright digitigrade balance; tail reaches below knees in relaxed hang",
+                "transverse-width": "very broad shoulders, about 2.8 head widths across at neutral stance"
+              }
+            },
+            "life_stage_and_form": {
+              "life_stage": "adult",
+              "sex_or_role_morph": "adult masculine presentation without topology change",
+              "active_form": "baseline anthropomorphic gray wolf form",
+              "developmental_notes": [
+                "all measurements and surface rules describe the approved adult baseline"
+              ]
+            }
+          },
+          "frame_character": {
+            "representation": "declared-structures",
+            "structures": {
+              "surface-padding": {
+                "kind": "soft tissue volume",
+                "location": "declared padded surfaces",
+                "presence": "present",
+                "geometry": {
+                  "amount": "moderate, with dense fur and flesh rounding the landmarks",
+                  "distribution": "full cheeks, broad jaw, neck, shoulders, torso, and joints",
+                  "surface_carrier": "flesh under dense short-to-medium fur",
+                  "landmark_visibility": "major landmarks remain readable but never protrude as sharp ridges"
+                }
+              },
+              "facial-volume": {
+                "kind": "facial volume",
+                "location": "declared facial regions",
+                "presence": "present",
+                "geometry": {
+                  "cheek_mass": "full rounded canine cheek mass from eye line to broad jaw",
+                  "cheekbone_ridge": "submerged beneath fur and soft tissue",
+                  "jaw_corner": "broad with a smooth rounded turn",
+                  "hollowing": "no gaunt or carved cheek hollows",
+                  "plane_transition": "large rounded planes with restrained soft transitions"
+                }
+              },
+              "body-volume": {
+                "kind": "body volume",
+                "location": "declared body regions",
+                "presence": "present",
+                "geometry": {
+                  "joint_surface": "broad rounded joint surfaces",
+                  "landmark_prominence": "moderate landmarks under dense fur and muscular mass",
+                  "muscle_handoffs": "clear but rounded handoffs between shoulder, arm, chest, and forearm",
+                  "mass_rounding": "large interlocking rounded volumes",
+                  "face_body_coherence": "the broad rounded facial frame matches the broad rounded body frame"
+                }
+              },
+              "frame-envelope": {
+                "kind": "overall mass and surface",
+                "location": "entire declared form",
+                "presence": "present",
+                "geometry": {
+                  "frame_mass": "thick-boned",
+                  "surface_character": "rounded-solid"
+                }
+              }
+            },
+            "source_confidence": "preset-selected",
+            "frame_character_id": "example-frame-thick-boned-rounded-solid",
+            "overall_form": "thick-boned; rounded-solid",
+            "coherence_rules": [
+              "face and body use one declared frame character",
+              "muscularity and body weight do not create an unapproved chiseled or gaunt face"
+            ],
+            "diagnostic_misreadings": [
+              "protruding cheekbone ridge",
+              "fine angular face on the broad body",
+              "craggy hollow cheek planes"
+            ]
+          },
+          "measurement_pass_status": "complete",
+          "load_bearing_part_measurements": [
+            {
+              "measurement_id": "measure-head-muzzle-length",
+              "target_ref": "head.muzzle",
+              "target_class": "anatomy",
+              "dimension": "length",
+              "relation": "medium-long canine muzzle, about two fifths of visible head depth",
+              "basis": "muzzle tip to muzzle base against occiput to muzzle tip",
+              "tolerance": "within the approved identity tolerance across three-quarter and profile views",
+              "source_confidence": "reference-approximate",
+              "load_bearing_reason": "muzzle length separates the intended canine identity from feline, bear-like, or short-muzzle drift",
+              "continuity_rule": "retain the declared forward projection through pose, expression, and camera changes"
+            },
+            {
+              "measurement_id": "measure-left-ear-stud-size",
+              "target_ref": "accessory.cyan-ear-stud",
+              "target_class": "accessory",
+              "dimension": "diameter",
+              "relation": "about one tenth of subject-left ear height",
+              "basis": "stud face diameter against the visible ear height",
+              "tolerance": "small enough to remain a stud and large enough to survive the intended crop",
+              "source_confidence": "reference-approximate",
+              "load_bearing_reason": "the single cyan stud is a signature identity accessory with side and scale requirements",
+              "continuity_rule": "keep one stud on the subject-left upper ear rim at the declared scale"
+            },
+            {
+              "measurement_id": "measure-left-ear-notch-coverage",
+              "target_ref": "head.ear.subject-left.tip-notch",
+              "target_class": "anatomy",
+              "dimension": "coverage",
+              "relation": "one healed triangular notch occupies a small minority of the outer upper ear tip",
+              "basis": "notch span against total subject-left ear perimeter",
+              "tolerance": "recognizable in left three-quarter and left-profile views without consuming the full tip",
+              "source_confidence": "reference-approximate",
+              "load_bearing_reason": "the healed notch is a stable asymmetric identity feature",
+              "continuity_rule": "preserve the notch on subject-left only and never mirror or duplicate it"
+            }
+          ],
+          "visible_feature_instances": [
+            {
+              "feature_id": "head.eye.pair",
+              "species_feature_ref": "head.eye.pair",
+              "status": "overridden",
+              "actual_count": 2,
+              "instance_ids": [
+                "head.eye.pair.left",
+                "head.eye.pair.right"
+              ],
+              "resolved_feature": {
+                "feature_id": "head.eye.pair",
+                "feature_kind": "eye",
+                "feature_group": "sensory-system",
+                "presence": "present",
+                "count": 2,
+                "count_logic": {
+                  "typical": 2,
+                  "minimum": 2,
+                  "maximum": 2,
+                  "allowed_patterns": [
+                    "exact stable species count"
+                  ],
+                  "count_basis": "species body plan"
+                },
+                "laterality": "bilateral",
+                "attachment_site": "left and right orbital regions",
+                "attachment_topology": {
+                  "parent_feature_refs": [
+                    "region-head"
+                  ],
+                  "attachment_landmarks": [
+                    "left orbit",
+                    "right orbit"
+                  ],
+                  "attachment_mode": "integrated biological attachment",
+                  "branching_or_sequence": "each instance follows the declared bilateral or centerline sequence"
+                },
+                "origin_and_termination": "originates and terminates at left and right orbital regions",
+                "relative_measurements": {
+                  "length": "medium almond opening",
+                  "width": "one eye width per side",
+                  "thickness": "shallow globe depth",
+                  "spacing": "about one eye width between inner corners",
+                  "body_ratio": "scaled to head width",
+                  "measurement_basis": "named head, torso, or limb landmarks"
+                },
+                "shape": "almond-shaped with stable upper lid angle",
+                "orientation": "forward with slight outward angle",
+                "color_and_pattern": "electric-cyan irises beneath thick charcoal brow wedges; stable pale sclera and dark pupils",
+                "surface_or_material": "wet biological eye surface",
+                "internal_structure": null,
+                "articulation": "independent gaze and lid motion",
+                "resting_configuration": "neutral forward attention",
+                "range_of_motion": "full gaze range with controlled lid compression",
+                "functional_role": "vision and attention",
+                "expression_role": "gaze, lid angle, pupil response, and asymmetry communicate attention and emotion",
+                "individual_variation_axes": [
+                  "iris tone",
+                  "lid angle",
+                  "eye size"
+                ],
+                "continuity_rules": [
+                  "head.eye.pair count remains 2",
+                  "head.eye.pair attachment remains at left and right orbital regions",
+                  "head.eye.pair shape and proportions remain coherent across views"
+                ],
+                "visibility_and_occlusion": {
+                  "ordinary_visibility": "visible in direct unobstructed views",
+                  "common_occlusions": [
+                    "crop",
+                    "pose",
+                    "clothing",
+                    "equipment",
+                    "fur overlap"
+                  ],
+                  "minimum_proof_views": [
+                    "front head view",
+                    "left three-quarter head view",
+                    "right three-quarter head view"
+                  ]
+                },
+                "sensory_or_signal_output": [
+                  {
+                    "signal_type": "ocular attention",
+                    "physical_carrier": "iris, pupil, lids, and gaze direction",
+                    "controllable_dimensions": [
+                      "direction",
+                      "lid aperture",
+                      "pupil size",
+                      "timing"
+                    ],
+                    "readable_meanings": [
+                      "attention",
+                      "fear",
+                      "trust",
+                      "challenge",
+                      "fatigue"
+                    ],
+                    "ambiguities": [
+                      "lighting changes pupil size; read with posture and scene context"
+                    ]
+                  }
+                ],
+                "required_views": [
+                  "front head view",
+                  "left three-quarter head view",
+                  "right three-quarter head view"
+                ],
+                "source_confidence": "user-confirmed",
+                "notes": [],
+                "developmental_behavior": {
+                  "life_stage_changes": [],
+                  "sex_or_role_dimorphism": [],
+                  "seasonal_or_environmental_changes": [],
+                  "metamorphic_changes": [],
+                  "regeneration_or_shedding": []
+                },
+                "cross_feature_dependencies": [],
+                "measurement_constraints": {
+                  "minimum": null,
+                  "maximum": null,
+                  "typical_range": "stable around medium almond opening and one eye width per side",
+                  "reference_landmarks": [
+                    "named head, torso, or limb landmarks"
+                  ],
+                  "scaling_behavior": "scales with the parent body region while preserving the declared species ratios"
+                }
+              },
+              "laterality_and_asymmetry": "bilateral proportions remain coherent with approved minor expression asymmetry",
+              "damage_or_modification": "intact",
+              "identity_priority": "signature",
+              "state_boundary": "identity-stable",
+              "mutable_state_paths": [],
+              "allowed_variation": [
+                "expression and pose within physical range",
+                "temporary wetness and lighting response"
+              ],
+              "continuity_rules": [
+                "head.eye.pair count remains 2",
+                "head.eye.pair attachment remains at left and right orbital regions",
+                "head.eye.pair shape and proportions remain coherent across views"
+              ],
+              "required_views": [
+                "front head view",
+                "left three-quarter head view",
+                "right three-quarter head view"
+              ],
+              "source_confidence": "user-confirmed",
+              "notes": [],
+              "exact_measurements": {
+                "length": "almond-shaped with stable upper lid angle",
+                "width": "declared species-relative width",
+                "thickness": "declared species-relative thickness",
+                "spacing": "declared species-relative spacing",
+                "measurement_basis": "the individual measurements and named species landmarks",
+                "tolerance": "minor perspective change only; stable identity proportions do not drift"
+              },
+              "attachment_realization": {
+                "parent_feature_refs": [],
+                "attachment_landmarks": [
+                  "matches the species profile attachment site"
+                ],
+                "attachment_mode": "integrated biological attachment",
+                "individual_offset_or_angle": "matches the approved individual reference views"
+              },
+              "personal_expression_behavior": [],
+              "uncertainties": []
+            },
+            {
+              "feature_id": "head.ear.pair",
+              "species_feature_ref": "head.ear.pair",
+              "status": "overridden",
+              "actual_count": 2,
+              "instance_ids": [
+                "head.ear.pair.left",
+                "head.ear.pair.right"
+              ],
+              "resolved_feature": {
+                "feature_id": "head.ear.pair",
+                "feature_kind": "ear-or-auditory-organ",
+                "feature_group": "sensory-system",
+                "presence": "present",
+                "count": 2,
+                "count_logic": {
+                  "typical": 2,
+                  "minimum": 2,
+                  "maximum": 2,
+                  "allowed_patterns": [
+                    "exact stable species count"
+                  ],
+                  "count_basis": "species body plan"
+                },
+                "laterality": "bilateral",
+                "attachment_site": "upper left and right skull",
+                "attachment_topology": {
+                  "parent_feature_refs": [
+                    "region-head"
+                  ],
+                  "attachment_landmarks": [
+                    "upper left skull",
+                    "upper right skull"
+                  ],
+                  "attachment_mode": "integrated biological attachment",
+                  "branching_or_sequence": "each instance follows the declared bilateral or centerline sequence"
+                },
+                "origin_and_termination": "originates and terminates at upper left and right skull",
+                "relative_measurements": {
+                  "length": "about half the head height",
+                  "width": "broad triangular base",
+                  "thickness": "thin flexible pinna",
+                  "spacing": "wide upper-skull spacing",
+                  "body_ratio": "scaled to head height",
+                  "measurement_basis": "named head, torso, or limb landmarks"
+                },
+                "shape": "upright pointed wolf ears; subject-left outer upper tip may carry the approved healed triangular notch after the event",
+                "orientation": "high-set and forward-readable",
+                "color_and_pattern": "cool gray outer fur and pale inner fur; subject-left upper ear rim carries one cyan stud",
+                "surface_or_material": "furred flexible pinna",
+                "internal_structure": null,
+                "articulation": "independent rotation and partial flattening",
+                "resting_configuration": "upright with slight outward cant",
+                "range_of_motion": "rotation, backward flattening, lateral splay, and small asymmetry",
+                "functional_role": "hearing and directional attention",
+                "expression_role": "ear angle, tension, and timing communicate alertness, hesitation, fear, trust, and irritation",
+                "individual_variation_axes": [
+                  "height",
+                  "base width",
+                  "tip angle",
+                  "inner color"
+                ],
+                "continuity_rules": [
+                  "head.ear.pair count remains 2",
+                  "head.ear.pair attachment remains at upper left and right skull",
+                  "head.ear.pair shape and proportions remain coherent across views"
+                ],
+                "visibility_and_occlusion": {
+                  "ordinary_visibility": "visible in direct unobstructed views",
+                  "common_occlusions": [
+                    "crop",
+                    "pose",
+                    "clothing",
+                    "equipment",
+                    "fur overlap"
+                  ],
+                  "minimum_proof_views": [
+                    "front head view",
+                    "left profile head view",
+                    "right profile head view"
+                  ]
+                },
+                "sensory_or_signal_output": [
+                  {
+                    "signal_type": "ear posture",
+                    "physical_carrier": "pinna angle and tension",
+                    "controllable_dimensions": [
+                      "rotation",
+                      "flattening",
+                      "splay",
+                      "asymmetry",
+                      "timing"
+                    ],
+                    "readable_meanings": [
+                      "alertness",
+                      "fear",
+                      "uncertainty",
+                      "relaxation",
+                      "irritation"
+                    ],
+                    "ambiguities": [
+                      "wind and sound direction can change ear angle"
+                    ]
+                  }
+                ],
+                "required_views": [
+                  "front head view",
+                  "left profile head view",
+                  "right profile head view"
+                ],
+                "source_confidence": "user-confirmed",
+                "notes": [],
+                "developmental_behavior": {
+                  "life_stage_changes": [],
+                  "sex_or_role_dimorphism": [],
+                  "seasonal_or_environmental_changes": [],
+                  "metamorphic_changes": [],
+                  "regeneration_or_shedding": []
+                },
+                "cross_feature_dependencies": [],
+                "measurement_constraints": {
+                  "minimum": null,
+                  "maximum": null,
+                  "typical_range": "stable around about half the head height and broad triangular base",
+                  "reference_landmarks": [
+                    "named head, torso, or limb landmarks"
+                  ],
+                  "scaling_behavior": "scales with the parent body region while preserving the declared species ratios"
+                }
+              },
+              "laterality_and_asymmetry": "subject-left ear carries the cyan stud; all other paired features are bilaterally coherent",
+              "damage_or_modification": "subject-left outer upper ear tip can carry the approved healed triangular notch at story order 25",
+              "identity_priority": "signature",
+              "state_boundary": "identity-stable",
+              "mutable_state_paths": [
+                "/physical_state/left_ear_tip",
+                "/physical_state/wound_stage"
+              ],
+              "allowed_variation": [
+                "expression and pose within physical range",
+                "temporary wetness and lighting response"
+              ],
+              "continuity_rules": [
+                "head.ear.pair count remains 2",
+                "head.ear.pair attachment remains at upper left and right skull",
+                "head.ear.pair shape and proportions remain coherent across views"
+              ],
+              "required_views": [
+                "front head view",
+                "left profile head view",
+                "right profile head view"
+              ],
+              "source_confidence": "user-confirmed",
+              "notes": [],
+              "exact_measurements": {
+                "length": "upright pointed wolf ears; subject-left outer upper tip may carry the approved healed triangular notch after the event",
+                "width": "declared species-relative width",
+                "thickness": "declared species-relative thickness",
+                "spacing": "declared species-relative spacing",
+                "measurement_basis": "the individual measurements and named species landmarks",
+                "tolerance": "minor perspective change only; stable identity proportions do not drift"
+              },
+              "attachment_realization": {
+                "parent_feature_refs": [],
+                "attachment_landmarks": [
+                  "matches the species profile attachment site"
+                ],
+                "attachment_mode": "integrated biological attachment",
+                "individual_offset_or_angle": "matches the approved individual reference views"
+              },
+              "personal_expression_behavior": [],
+              "uncertainties": []
+            },
+            {
+              "feature_id": "head.muzzle",
+              "species_feature_ref": "head.muzzle",
+              "status": "overridden",
+              "actual_count": 1,
+              "instance_ids": [
+                "head.muzzle.01"
+              ],
+              "resolved_feature": {
+                "feature_id": "head.muzzle",
+                "feature_kind": "mouth-or-beak",
+                "feature_group": "feeding-system",
+                "presence": "present",
+                "count": 1,
+                "count_logic": {
+                  "typical": 1,
+                  "minimum": 1,
+                  "maximum": 1,
+                  "allowed_patterns": [
+                    "exact stable species count"
+                  ],
+                  "count_basis": "species body plan"
+                },
+                "laterality": "centerline",
+                "attachment_site": "lower front of head",
+                "attachment_topology": {
+                  "parent_feature_refs": [
+                    "region-head"
+                  ],
+                  "attachment_landmarks": [
+                    "nasal bridge",
+                    "cheek transition",
+                    "jaw hinge"
+                  ],
+                  "attachment_mode": "integrated biological attachment",
+                  "branching_or_sequence": "each instance follows the declared bilateral or centerline sequence"
+                },
+                "origin_and_termination": "originates and terminates at lower front of head",
+                "relative_measurements": {
+                  "length": "long but compact canine reach, shorter than a realistic wolf and clearly longer than a large-feline muzzle",
+                  "width": "broad at the cheek transition and narrower at nose",
+                  "thickness": "deep canine muzzle",
+                  "spacing": "centered below eyes",
+                  "body_ratio": "about one third of head length",
+                  "measurement_basis": "named head, torso, or limb landmarks"
+                },
+                "shape": "forward-projecting tapered canine muzzle",
+                "orientation": "forward along head axis",
+                "color_and_pattern": "pale muzzle bordered by paired charcoal cheek wedges",
+                "surface_or_material": "short dense fur over biological muzzle",
+                "internal_structure": null,
+                "articulation": "jaw opens below the fixed upper muzzle",
+                "resting_configuration": "closed relaxed mouth line",
+                "range_of_motion": "jaw opening, lip curl, cheek compression, and tongue extension",
+                "functional_role": "breathing, feeding, speech, and scent sampling",
+                "expression_role": "mouth line, lip tension, jaw aperture, tongue, and fang display support expression",
+                "individual_variation_axes": [
+                  "reach",
+                  "depth",
+                  "taper",
+                  "mouth width"
+                ],
+                "continuity_rules": [
+                  "head.muzzle count remains 1",
+                  "head.muzzle attachment remains at lower front of head",
+                  "head.muzzle shape and proportions remain coherent across views"
+                ],
+                "visibility_and_occlusion": {
+                  "ordinary_visibility": "visible in direct unobstructed views",
+                  "common_occlusions": [
+                    "crop",
+                    "pose",
+                    "clothing",
+                    "equipment",
+                    "fur overlap"
+                  ],
+                  "minimum_proof_views": [
+                    "left profile head view",
+                    "right profile head view",
+                    "front head view"
+                  ]
+                },
+                "sensory_or_signal_output": [],
+                "required_views": [
+                  "left profile head view",
+                  "right profile head view",
+                  "front head view"
+                ],
+                "source_confidence": "user-confirmed",
+                "notes": [],
+                "developmental_behavior": {
+                  "life_stage_changes": [],
+                  "sex_or_role_dimorphism": [],
+                  "seasonal_or_environmental_changes": [],
+                  "metamorphic_changes": [],
+                  "regeneration_or_shedding": []
+                },
+                "cross_feature_dependencies": [],
+                "measurement_constraints": {
+                  "minimum": null,
+                  "maximum": null,
+                  "typical_range": "stable around long but compact reach and broad at the cheek transition and narrower at nose",
+                  "reference_landmarks": [
+                    "named head, torso, or limb landmarks"
+                  ],
+                  "scaling_behavior": "scales with the parent body region while preserving the declared species ratios"
+                }
+              },
+              "laterality_and_asymmetry": "bilateral proportions remain coherent with approved minor expression asymmetry",
+              "damage_or_modification": "intact",
+              "identity_priority": "signature",
+              "state_boundary": "identity-stable",
+              "mutable_state_paths": [],
+              "allowed_variation": [
+                "expression and pose within physical range",
+                "temporary wetness and lighting response"
+              ],
+              "continuity_rules": [
+                "head.muzzle count remains 1",
+                "head.muzzle attachment remains at lower front of head",
+                "head.muzzle shape and proportions remain coherent across views"
+              ],
+              "required_views": [
+                "left profile head view",
+                "right profile head view",
+                "front head view"
+              ],
+              "source_confidence": "user-confirmed",
+              "notes": [],
+              "exact_measurements": {
+                "length": "forward-projecting tapered canine muzzle",
+                "width": "declared species-relative width",
+                "thickness": "declared species-relative thickness",
+                "spacing": "declared species-relative spacing",
+                "measurement_basis": "the individual measurements and named species landmarks",
+                "tolerance": "minor perspective change only; stable identity proportions do not drift"
+              },
+              "attachment_realization": {
+                "parent_feature_refs": [],
+                "attachment_landmarks": [
+                  "matches the species profile attachment site"
+                ],
+                "attachment_mode": "integrated biological attachment",
+                "individual_offset_or_angle": "matches the approved individual reference views"
+              },
+              "personal_expression_behavior": [],
+              "uncertainties": []
+            },
+            {
+              "feature_id": "head.nose",
+              "species_feature_ref": "head.nose",
+              "status": "overridden",
+              "actual_count": 1,
+              "instance_ids": [
+                "head.nose.01"
+              ],
+              "resolved_feature": {
+                "feature_id": "head.nose",
+                "feature_kind": "nose-or-olfactory-organ",
+                "feature_group": "sensory-system",
+                "presence": "present",
+                "count": 1,
+                "count_logic": {
+                  "typical": 1,
+                  "minimum": 1,
+                  "maximum": 1,
+                  "allowed_patterns": [
+                    "exact stable species count"
+                  ],
+                  "count_basis": "species body plan"
+                },
+                "laterality": "centerline",
+                "attachment_site": "terminal front of muzzle",
+                "attachment_topology": {
+                  "parent_feature_refs": [
+                    "head.muzzle"
+                  ],
+                  "attachment_landmarks": [
+                    "muzzle terminal plane"
+                  ],
+                  "attachment_mode": "integrated biological attachment",
+                  "branching_or_sequence": "each instance follows the declared bilateral or centerline sequence"
+                },
+                "origin_and_termination": "originates and terminates at terminal front of muzzle",
+                "relative_measurements": {
+                  "length": "short terminal pad",
+                  "width": "wider than tall",
+                  "thickness": "thick rounded volume",
+                  "spacing": "centered on muzzle",
+                  "body_ratio": "about half the muzzle width",
+                  "measurement_basis": "named head, torso, or limb landmarks"
+                },
+                "shape": "rounded triangular canine nose pad",
+                "orientation": "forward-facing with visible lower edge",
+                "color_and_pattern": "charcoal black with one narrow soft-cel highlight",
+                "surface_or_material": "smooth moist nose pad",
+                "internal_structure": null,
+                "articulation": "fixed pad with subtle nostril and skin motion",
+                "resting_configuration": "neutral relaxed nostrils",
+                "range_of_motion": "minor nostril flare and breathing motion",
+                "functional_role": "olfaction and breathing",
+                "expression_role": "nostril flare and moisture support exertion and attention cues",
+                "individual_variation_axes": [],
+                "continuity_rules": [
+                  "head.nose count remains 1",
+                  "head.nose attachment remains at terminal front of muzzle",
+                  "head.nose shape and proportions remain coherent across views"
+                ],
+                "visibility_and_occlusion": {
+                  "ordinary_visibility": "visible in direct unobstructed views",
+                  "common_occlusions": [
+                    "crop",
+                    "pose",
+                    "clothing",
+                    "equipment",
+                    "fur overlap"
+                  ],
+                  "minimum_proof_views": [
+                    "front head view",
+                    "profile head view"
+                  ]
+                },
+                "sensory_or_signal_output": [],
+                "required_views": [
+                  "front head view",
+                  "profile head view"
+                ],
+                "source_confidence": "user-confirmed",
+                "notes": [],
+                "developmental_behavior": {
+                  "life_stage_changes": [],
+                  "sex_or_role_dimorphism": [],
+                  "seasonal_or_environmental_changes": [],
+                  "metamorphic_changes": [],
+                  "regeneration_or_shedding": []
+                },
+                "cross_feature_dependencies": [],
+                "measurement_constraints": {
+                  "minimum": null,
+                  "maximum": null,
+                  "typical_range": "stable around short terminal pad and wider than tall",
+                  "reference_landmarks": [
+                    "named head, torso, or limb landmarks"
+                  ],
+                  "scaling_behavior": "scales with the parent body region while preserving the declared species ratios"
+                }
+              },
+              "laterality_and_asymmetry": "bilateral proportions remain coherent with approved minor expression asymmetry",
+              "damage_or_modification": "intact",
+              "identity_priority": "supporting",
+              "state_boundary": "identity-stable",
+              "mutable_state_paths": [],
+              "allowed_variation": [
+                "expression and pose within physical range",
+                "temporary wetness and lighting response"
+              ],
+              "continuity_rules": [
+                "head.nose count remains 1",
+                "head.nose attachment remains at terminal front of muzzle",
+                "head.nose shape and proportions remain coherent across views"
+              ],
+              "required_views": [
+                "front head view",
+                "profile head view"
+              ],
+              "source_confidence": "user-confirmed",
+              "notes": [],
+              "exact_measurements": {
+                "length": "rounded triangular canine nose pad",
+                "width": "declared species-relative width",
+                "thickness": "declared species-relative thickness",
+                "spacing": "declared species-relative spacing",
+                "measurement_basis": "the individual measurements and named species landmarks",
+                "tolerance": "minor perspective change only; stable identity proportions do not drift"
+              },
+              "attachment_realization": {
+                "parent_feature_refs": [],
+                "attachment_landmarks": [
+                  "matches the species profile attachment site"
+                ],
+                "attachment_mode": "integrated biological attachment",
+                "individual_offset_or_angle": "matches the approved individual reference views"
+              },
+              "personal_expression_behavior": [],
+              "uncertainties": []
+            },
+            {
+              "feature_id": "limb.arm.pair",
+              "species_feature_ref": "limb.arm.pair",
+              "status": "overridden",
+              "actual_count": 2,
+              "instance_ids": [
+                "limb.arm.pair.left",
+                "limb.arm.pair.right"
+              ],
+              "resolved_feature": {
+                "feature_id": "limb.arm.pair",
+                "feature_kind": "limb",
+                "feature_group": "limb-system",
+                "presence": "present",
+                "count": 2,
+                "count_logic": {
+                  "typical": 2,
+                  "minimum": 2,
+                  "maximum": 2,
+                  "allowed_patterns": [
+                    "exact stable species count"
+                  ],
+                  "count_basis": "species body plan"
+                },
+                "laterality": "bilateral",
+                "attachment_site": "left and right shoulder girdle",
+                "attachment_topology": {
+                  "parent_feature_refs": [
+                    "region-torso"
+                  ],
+                  "attachment_landmarks": [
+                    "left shoulder socket",
+                    "right shoulder socket"
+                  ],
+                  "attachment_mode": "integrated biological attachment",
+                  "branching_or_sequence": "each instance follows the declared bilateral or centerline sequence"
+                },
+                "origin_and_termination": "originates and terminates at left and right shoulder girdle",
+                "relative_measurements": {
+                  "length": "long upper limb from shoulder to wrist",
+                  "width": "large muscular circumference",
+                  "thickness": "thick upper arm and forearm",
+                  "spacing": "shoulder-width separation",
+                  "body_ratio": "long forearms against broad upper torso",
+                  "measurement_basis": "named head, torso, or limb landmarks"
+                },
+                "shape": "humanoid arm with clear upper arm, elbow, forearm, and wrist",
+                "orientation": "hangs beside torso in neutral pose",
+                "color_and_pattern": "cool gray fur with charcoal forearm markings",
+                "surface_or_material": "fur over biological limb",
+                "internal_structure": null,
+                "articulation": "ball shoulder, hinge elbow, rotating forearm, articulated wrist",
+                "resting_configuration": "arms relaxed at sides",
+                "range_of_motion": "full humanoid reach within broad muscular mass",
+                "functional_role": "manipulation, support, and gesture",
+                "expression_role": "shoulder set, elbow angle, forearm rotation, and hand tension carry emotion and intent",
+                "individual_variation_axes": [
+                  "length",
+                  "muscle mass",
+                  "marking route"
+                ],
+                "continuity_rules": [
+                  "limb.arm.pair count remains 2",
+                  "limb.arm.pair attachment remains at left and right shoulder girdle",
+                  "limb.arm.pair shape and proportions remain coherent across views"
+                ],
+                "visibility_and_occlusion": {
+                  "ordinary_visibility": "visible in direct unobstructed views",
+                  "common_occlusions": [
+                    "crop",
+                    "pose",
+                    "clothing",
+                    "equipment",
+                    "fur overlap"
+                  ],
+                  "minimum_proof_views": [
+                    "front full view",
+                    "rear full view",
+                    "three-quarter full view"
+                  ]
+                },
+                "sensory_or_signal_output": [],
+                "required_views": [
+                  "front full view",
+                  "rear full view",
+                  "three-quarter full view"
+                ],
+                "source_confidence": "user-confirmed",
+                "notes": [],
+                "developmental_behavior": {
+                  "life_stage_changes": [],
+                  "sex_or_role_dimorphism": [],
+                  "seasonal_or_environmental_changes": [],
+                  "metamorphic_changes": [],
+                  "regeneration_or_shedding": []
+                },
+                "cross_feature_dependencies": [],
+                "measurement_constraints": {
+                  "minimum": null,
+                  "maximum": null,
+                  "typical_range": "stable around long upper limb from shoulder to wrist and large muscular circumference",
+                  "reference_landmarks": [
+                    "named head, torso, or limb landmarks"
+                  ],
+                  "scaling_behavior": "scales with the parent body region while preserving the declared species ratios"
+                }
+              },
+              "laterality_and_asymmetry": "bilateral proportions remain coherent with approved minor expression asymmetry",
+              "damage_or_modification": "intact",
+              "identity_priority": "supporting",
+              "state_boundary": "identity-stable",
+              "mutable_state_paths": [],
+              "allowed_variation": [
+                "expression and pose within physical range",
+                "temporary wetness and lighting response"
+              ],
+              "continuity_rules": [
+                "limb.arm.pair count remains 2",
+                "limb.arm.pair attachment remains at left and right shoulder girdle",
+                "limb.arm.pair shape and proportions remain coherent across views"
+              ],
+              "required_views": [
+                "front full view",
+                "rear full view",
+                "three-quarter full view"
+              ],
+              "source_confidence": "user-confirmed",
+              "notes": [],
+              "exact_measurements": {
+                "length": "humanoid arm with clear upper arm, elbow, forearm, and wrist",
+                "width": "declared species-relative width",
+                "thickness": "declared species-relative thickness",
+                "spacing": "declared species-relative spacing",
+                "measurement_basis": "the individual measurements and named species landmarks",
+                "tolerance": "minor perspective change only; stable identity proportions do not drift"
+              },
+              "attachment_realization": {
+                "parent_feature_refs": [],
+                "attachment_landmarks": [
+                  "matches the species profile attachment site"
+                ],
+                "attachment_mode": "integrated biological attachment",
+                "individual_offset_or_angle": "matches the approved individual reference views"
+              },
+              "personal_expression_behavior": [],
+              "uncertainties": []
+            },
+            {
+              "feature_id": "limb.hand.pair",
+              "species_feature_ref": "limb.hand.pair",
+              "status": "overridden",
+              "actual_count": 2,
+              "instance_ids": [
+                "limb.hand.pair.left",
+                "limb.hand.pair.right"
+              ],
+              "resolved_feature": {
+                "feature_id": "limb.hand.pair",
+                "feature_kind": "hand-or-paw",
+                "feature_group": "manipulation-system",
+                "presence": "present",
+                "count": 2,
+                "count_logic": {
+                  "typical": 2,
+                  "minimum": 2,
+                  "maximum": 2,
+                  "allowed_patterns": [
+                    "exact stable species count"
+                  ],
+                  "count_basis": "species body plan"
+                },
+                "laterality": "bilateral",
+                "attachment_site": "terminal ends of the forearms",
+                "attachment_topology": {
+                  "parent_feature_refs": [
+                    "limb.arm.pair"
+                  ],
+                  "attachment_landmarks": [
+                    "left wrist",
+                    "right wrist"
+                  ],
+                  "attachment_mode": "integrated biological attachment",
+                  "branching_or_sequence": "each instance follows the declared bilateral or centerline sequence"
+                },
+                "origin_and_termination": "originates and terminates at terminal ends of the forearms",
+                "relative_measurements": {
+                  "length": "palm and digits proportionate to forearm",
+                  "width": "broad palm with five digits",
+                  "thickness": "thick padded palm and finger bases",
+                  "spacing": "paired at arm ends",
+                  "body_ratio": "about one quarter of forearm length",
+                  "measurement_basis": "named head, torso, or limb landmarks"
+                },
+                "shape": "five-fingered humanoid hand with canine claw terminals",
+                "orientation": "palms face inward in neutral pose",
+                "color_and_pattern": "cool gray fur, pale palm-side transitions, dark claws",
+                "surface_or_material": "furred biological hand with paw-pad cues",
+                "internal_structure": null,
+                "articulation": "five articulated digits including opposed thumb",
+                "resting_configuration": "open relaxed hand",
+                "range_of_motion": "grip, spread, curl, point, wave, and support",
+                "functional_role": "fine manipulation and support",
+                "expression_role": "finger spread, grip pressure, wrist angle, and pad exposure communicate confidence, fear, care, or warning",
+                "individual_variation_axes": [
+                  "palm breadth",
+                  "digit length",
+                  "claw length"
+                ],
+                "continuity_rules": [
+                  "limb.hand.pair count remains 2",
+                  "limb.hand.pair attachment remains at terminal ends of the forearms",
+                  "limb.hand.pair shape and proportions remain coherent across views"
+                ],
+                "visibility_and_occlusion": {
+                  "ordinary_visibility": "visible in direct unobstructed views",
+                  "common_occlusions": [
+                    "crop",
+                    "pose",
+                    "clothing",
+                    "equipment",
+                    "fur overlap"
+                  ],
+                  "minimum_proof_views": [
+                    "hands closeup",
+                    "front full view",
+                    "contact pose view"
+                  ]
+                },
+                "sensory_or_signal_output": [],
+                "required_views": [
+                  "hands closeup",
+                  "front full view",
+                  "contact pose view"
+                ],
+                "source_confidence": "user-confirmed",
+                "notes": [],
+                "developmental_behavior": {
+                  "life_stage_changes": [],
+                  "sex_or_role_dimorphism": [],
+                  "seasonal_or_environmental_changes": [],
+                  "metamorphic_changes": [],
+                  "regeneration_or_shedding": []
+                },
+                "cross_feature_dependencies": [],
+                "measurement_constraints": {
+                  "minimum": null,
+                  "maximum": null,
+                  "typical_range": "stable around palm and digits proportionate to forearm and broad palm with five digits",
+                  "reference_landmarks": [
+                    "named head, torso, or limb landmarks"
+                  ],
+                  "scaling_behavior": "scales with the parent body region while preserving the declared species ratios"
+                }
+              },
+              "laterality_and_asymmetry": "bilateral proportions remain coherent with approved minor expression asymmetry",
+              "damage_or_modification": "intact",
+              "identity_priority": "supporting",
+              "state_boundary": "identity-stable",
+              "mutable_state_paths": [],
+              "allowed_variation": [
+                "expression and pose within physical range",
+                "temporary wetness and lighting response"
+              ],
+              "continuity_rules": [
+                "limb.hand.pair count remains 2",
+                "limb.hand.pair attachment remains at terminal ends of the forearms",
+                "limb.hand.pair shape and proportions remain coherent across views"
+              ],
+              "required_views": [
+                "hands closeup",
+                "front full view",
+                "contact pose view"
+              ],
+              "source_confidence": "user-confirmed",
+              "notes": [],
+              "exact_measurements": {
+                "length": "five-fingered humanoid hand with canine claw terminals",
+                "width": "declared species-relative width",
+                "thickness": "declared species-relative thickness",
+                "spacing": "declared species-relative spacing",
+                "measurement_basis": "the individual measurements and named species landmarks",
+                "tolerance": "minor perspective change only; stable identity proportions do not drift"
+              },
+              "attachment_realization": {
+                "parent_feature_refs": [],
+                "attachment_landmarks": [
+                  "matches the species profile attachment site"
+                ],
+                "attachment_mode": "integrated biological attachment",
+                "individual_offset_or_angle": "matches the approved individual reference views"
+              },
+              "personal_expression_behavior": [],
+              "uncertainties": []
+            }
+          ],
+          "hidden_or_out_of_frame_feature_refs": [
+            "limb.leg.pair",
+            "appendage.tail.primary"
+          ],
+          "feature_relationships": [
+            {
+              "relationship_id": "REL-head-sensory-cluster",
+              "feature_instance_refs": [
+                "head.eye.pair",
+                "head.ear.pair",
+                "head.muzzle",
+                "head.nose"
+              ],
+              "resolved_rule": "the subject keeps the approved eye spacing, ear bases, muzzle depth, and nose position across all views"
+            },
+            {
+              "relationship_id": "REL-hand-digit-claw",
+              "feature_instance_refs": [
+                "limb.arm.pair",
+                "limb.hand.pair"
+              ],
+              "resolved_rule": "each visible hand keeps five digits and one short dark claw per terminal digit"
+            },
+            {
+              "relationship_id": "REL-tail-pelvis",
+              "feature_instance_refs": [
+                "appendage.tail.primary",
+                "limb.leg.pair"
+              ],
+              "resolved_rule": "the one tail remains attached to the posterior pelvic centerline with the approved base angle"
+            }
+          ],
+          "surface_and_marking_map": [
+            {
+              "map_id": "map-coat-primary",
+              "regions": [
+                "region-head",
+                "region-torso",
+                "limb.arm.pair",
+                "limb.hand.pair",
+                "limb.leg.pair",
+                "appendage.tail.primary"
+              ],
+              "base_color": "cool blue-gray fur",
+              "secondary_colors": [
+                "pale muzzle",
+                "pale chest",
+                "charcoal cheek wedges",
+                "charcoal forearm markings",
+                "dark tail tip"
+              ],
+              "pattern_topology": "paired cheek wedges mirror across the face; forearm markings follow the declared limb surfaces; tail tip forms one continuous terminal zone",
+              "edge_behavior": "marking edges are crisp enough for soft-cel identity and follow fur direction",
+              "orientation": "patterns remain anchored to subject-relative anatomy",
+              "symmetry": "paired face and forearm markings are bilaterally related; ear stud and later notch are subject-left asymmetries",
+              "continuity_rules": [
+                "colors remain stable across lighting",
+                "marking routes stay attached to anatomy",
+                "left-right asymmetries do not swap"
+              ],
+              "source_confidence": "user-confirmed"
+            }
+          ],
+          "expression_channels": [
+            {
+              "channel_id": "channel-ears",
+              "species_capability": {
+                "channel_id": "channel-ears",
+                "channel_class": "aural",
+                "external_tool_refs": [],
+                "signal_dimensions": [
+                  "rotation",
+                  "flattening",
+                  "splay",
+                  "asymmetry",
+                  "timing"
+                ],
+                "carrier_feature_refs": [
+                  "head.ear.pair"
+                ],
+                "neutral_state": "upright and slightly outward",
+                "active_states": [
+                  "forward alert",
+                  "backward tension",
+                  "flattened fear",
+                  "lateral uncertainty",
+                  "relaxed asymmetry"
+                ],
+                "readable_meanings": [
+                  "attention",
+                  "fear",
+                  "hesitation",
+                  "irritation",
+                  "relaxation"
+                ],
+                "ambiguity_notes": [
+                  "sound direction and wind can move ears without emotional intent"
+                ],
+                "timing_and_range": "ears may react before head and shoulders",
+                "continuity_rules": [
+                  "ear bases remain fixed and only pinna angle changes"
+                ]
+              },
+              "individual_signature": {
+                "channel_id": "channel-ears",
+                "baseline_bias": "upright attentive ears",
+                "range": "forward attention, slight lateral uncertainty, backward tension, and partial flattening",
+                "individual_tells": [
+                  "ears react before the head"
+                ],
+                "suppression_or_masking": "one ear may turn toward a concern while the face remains composed",
+                "continuity_rules": [
+                  "ear bases remain fixed",
+                  "subject-left earring remains on the upper rim when visible"
+                ]
+              }
+            },
+            {
+              "channel_id": "channel-eyes",
+              "species_capability": {
+                "channel_id": "channel-eyes",
+                "channel_class": "ocular",
+                "external_tool_refs": [],
+                "signal_dimensions": [
+                  "gaze direction",
+                  "lid aperture",
+                  "brow relation",
+                  "pupil response",
+                  "timing"
+                ],
+                "carrier_feature_refs": [
+                  "head.eye.pair"
+                ],
+                "neutral_state": "focused but relaxed forward attention",
+                "active_states": [
+                  "averted",
+                  "narrowed",
+                  "wide",
+                  "half-lidded",
+                  "asymmetric"
+                ],
+                "readable_meanings": [
+                  "attention",
+                  "fear",
+                  "trust",
+                  "challenge",
+                  "fatigue",
+                  "affection"
+                ],
+                "ambiguity_notes": [
+                  "light can change pupil size; half-lidded eyes require mouth, posture, and context"
+                ],
+                "timing_and_range": "fast saccades and lid changes within biological range",
+                "continuity_rules": [
+                  "orbital placement stays fixed while expression changes lids and gaze"
+                ]
+              },
+              "individual_signature": {
+                "channel_id": "channel-eyes",
+                "baseline_bias": "controlled focused gaze beneath heavy brows",
+                "range": "neutral focus through narrow challenge, aversion, fear widening, and soft trust",
+                "individual_tells": [
+                  "brief gaze aversion before head movement",
+                  "brow tension holds longer than lid change"
+                ],
+                "suppression_or_masking": "professional composure narrows the lids while hand and breath cues leak fear",
+                "continuity_rules": [
+                  "cyan eye color and orbital placement remain stable",
+                  "expression changes lids and gaze rather than base eye shape"
+                ]
+              }
+            },
+            {
+              "channel_id": "channel-mouth",
+              "species_capability": {
+                "channel_id": "channel-mouth",
+                "channel_class": "oral",
+                "external_tool_refs": [],
+                "signal_dimensions": [
+                  "mouth corner",
+                  "jaw aperture",
+                  "lip tension",
+                  "tongue",
+                  "fang exposure",
+                  "breath"
+                ],
+                "carrier_feature_refs": [
+                  "head.muzzle",
+                  "head.nose"
+                ],
+                "neutral_state": "closed relaxed mouth",
+                "active_states": [
+                  "smile",
+                  "grimace",
+                  "open breath",
+                  "snarl",
+                  "tongue display"
+                ],
+                "readable_meanings": [
+                  "friendliness",
+                  "strain",
+                  "threat",
+                  "playfulness",
+                  "sensuality",
+                  "fatigue"
+                ],
+                "ambiguity_notes": [
+                  "panting and heat can mimic emotional mouth opening"
+                ],
+                "timing_and_range": "jaw, lips, tongue, and breath coordinate within physical limits",
+                "continuity_rules": [
+                  "muzzle shape stays stable while soft tissue and jaw articulate"
+                ]
+              },
+              "individual_signature": null
+            },
+            {
+              "channel_id": "channel-posture-hands",
+              "species_capability": {
+                "channel_id": "channel-posture-hands",
+                "channel_class": "postural",
+                "external_tool_refs": [],
+                "signal_dimensions": [
+                  "shoulder elevation",
+                  "spine angle",
+                  "arm openness",
+                  "hand tension",
+                  "weight distribution"
+                ],
+                "carrier_feature_refs": [
+                  "limb.arm.pair",
+                  "limb.hand.pair",
+                  "limb.leg.pair"
+                ],
+                "neutral_state": "balanced upright posture with relaxed hands",
+                "active_states": [
+                  "braced",
+                  "withdrawn",
+                  "expanded",
+                  "crouched",
+                  "protective",
+                  "inviting"
+                ],
+                "readable_meanings": [
+                  "authority",
+                  "fear",
+                  "care",
+                  "fatigue",
+                  "readiness",
+                  "openness"
+                ],
+                "ambiguity_notes": [
+                  "task mechanics can dominate posture"
+                ],
+                "timing_and_range": "whole-body changes lag facial and ear cues",
+                "continuity_rules": [
+                  "all gestures preserve joint chains and support"
+                ]
+              },
+              "individual_signature": {
+                "channel_id": "channel-posture-hands",
+                "baseline_bias": "broad stable shoulders and relaxed open hands",
+                "range": "expanded authority, braced tension, protective enclosure, cautious withdrawal",
+                "individual_tells": [
+                  "tension appears first in the left hand and shoulders"
+                ],
+                "suppression_or_masking": "formal torso stays steady while finger curl and wrist pressure reveal fear",
+                "continuity_rules": [
+                  "joint chains and support contacts remain coherent"
+                ]
+              }
+            },
+            {
+              "channel_id": "channel-tail",
+              "species_capability": {
+                "channel_id": "channel-tail",
+                "channel_class": "tail",
+                "external_tool_refs": [],
+                "signal_dimensions": [
+                  "height",
+                  "curve",
+                  "sweep",
+                  "speed",
+                  "tip motion"
+                ],
+                "carrier_feature_refs": [
+                  "appendage.tail.primary"
+                ],
+                "neutral_state": "relaxed downward curve",
+                "active_states": [
+                  "raised confidence",
+                  "tucked fear",
+                  "slow affection sweep",
+                  "sharp irritated lash",
+                  "tip-only restraint"
+                ],
+                "readable_meanings": [
+                  "confidence",
+                  "fear",
+                  "affection",
+                  "irritation",
+                  "balance"
+                ],
+                "ambiguity_notes": [
+                  "locomotion and balance can move the tail"
+                ],
+                "timing_and_range": "large sweeps are slower than facial cues and tip motion can isolate",
+                "continuity_rules": [
+                  "tail remains attached at the pelvis and preserves length and tip markings"
+                ]
+              },
+              "individual_signature": null
+            }
+          ],
+          "expression_projection": [
+            {
+              "channel_id": "channel-ears",
+              "carrier_feature_refs": [
+                "head.ear.pair"
+              ],
+              "configuration": "upright attentive ears",
+              "meaning_candidates": [
+                "attention",
+                "fear",
+                "hesitation",
+                "irritation",
+                "relaxation"
+              ],
+              "tool_refs": []
+            },
+            {
+              "channel_id": "channel-eyes",
+              "carrier_feature_refs": [
+                "head.eye.pair"
+              ],
+              "configuration": "controlled focused gaze beneath heavy brows",
+              "meaning_candidates": [
+                "attention",
+                "fear",
+                "trust",
+                "challenge",
+                "fatigue",
+                "affection"
+              ],
+              "tool_refs": []
+            },
+            {
+              "channel_id": "channel-mouth",
+              "carrier_feature_refs": [
+                "head.muzzle",
+                "head.nose"
+              ],
+              "configuration": "closed relaxed mouth",
+              "meaning_candidates": [
+                "friendliness",
+                "strain",
+                "threat",
+                "playfulness",
+                "sensuality",
+                "fatigue"
+              ],
+              "tool_refs": []
+            },
+            {
+              "channel_id": "channel-posture-hands",
+              "carrier_feature_refs": [
+                "limb.arm.pair",
+                "limb.hand.pair",
+                "limb.leg.pair"
+              ],
+              "configuration": "broad stable shoulders and relaxed open hands",
+              "meaning_candidates": [
+                "authority",
+                "fear",
+                "care",
+                "fatigue",
+                "readiness",
+                "openness"
+              ],
+              "tool_refs": []
+            },
+            {
+              "channel_id": "channel-tail",
+              "carrier_feature_refs": [
+                "appendage.tail.primary"
+              ],
+              "configuration": "relaxed downward curve",
+              "meaning_candidates": [
+                "confidence",
+                "fear",
+                "affection",
+                "irritation",
+                "balance"
+              ],
+              "tool_refs": []
+            }
+          ],
+          "communication_and_expression_tools": [],
+          "identity_invariants": [
+            "anthropomorphic canine body plan remains upright and digitigrade",
+            "feature counts and attachment sites remain stable",
+            "electric-cyan eyes remain paired",
+            "subject-left ear stud remains on the upper rim when visible",
+            "cool gray, pale, and charcoal marking topology remains stable",
+            "one long tail remains attached at the rear pelvic centerline"
+          ],
+          "inventory_proof": {
+            "declared_visible_count": 6,
+            "declared_hidden_count": 2,
+            "unresolved_count": 0,
+            "count_and_attachment_checks": [
+              "head.eye.pair: actual_count=2 and attachment=['matches the species profile attachment site']",
+              "head.ear.pair: actual_count=2 and attachment=['matches the species profile attachment site']",
+              "head.muzzle: actual_count=1 and attachment=['matches the species profile attachment site']",
+              "head.nose: actual_count=1 and attachment=['matches the species profile attachment site']",
+              "limb.arm.pair: actual_count=2 and attachment=['matches the species profile attachment site']",
+              "limb.hand.pair: actual_count=2 and attachment=['matches the species profile attachment site']"
+            ]
+          },
+          "current_state_deltas": [
+            {
+              "path": "/physical_state/left_ear_tip",
+              "label": "subject-left ear tip state",
+              "value": "notched",
+              "wording": "one healed triangular notch on the outer upper subject-left ear tip",
+              "priority": "signature",
+              "carriers": [
+                "reference-media",
+                "text",
+                "review"
+              ]
+            }
+          ],
+          "visible_obligations": [
+            "show both eyes, both ear bases, the full muzzle and nose, both shoulders, the braced left hand, and the second hand",
+            "preserve subject-left ear asymmetry and do not mirror it",
+            "preserve head.eye.pair count, attachment, shape, surface, and declared individual differences",
+            "preserve head.ear.pair count, attachment, shape, surface, and declared individual differences",
+            "preserve head.muzzle count, attachment, shape, surface, and declared individual differences",
+            "preserve head.nose count, attachment, shape, surface, and declared individual differences",
+            "preserve limb.arm.pair count, attachment, shape, surface, and declared individual differences",
+            "preserve limb.hand.pair count, attachment, shape, surface, and declared individual differences"
+          ],
+          "crop_and_occlusion_requirements": [
+            "legs and tail continue outside the medium-close crop rather than terminating",
+            "the subject-left ear tip and desk-braced hand remain visible"
+          ],
+          "uncertainties": []
+        },
+        "frame_character": {
+          "representation": "declared-structures",
+          "structures": {
+            "surface-padding": {
+              "kind": "soft tissue volume",
+              "location": "declared padded surfaces",
+              "presence": "present",
+              "geometry": {
+                "amount": "moderate, with dense fur and flesh rounding the landmarks",
+                "distribution": "full cheeks, broad jaw, neck, shoulders, torso, and joints",
+                "surface_carrier": "flesh under dense short-to-medium fur",
+                "landmark_visibility": "major landmarks remain readable but never protrude as sharp ridges"
+              }
+            },
+            "facial-volume": {
+              "kind": "facial volume",
+              "location": "declared facial regions",
+              "presence": "present",
+              "geometry": {
+                "cheek_mass": "full rounded canine cheek mass from eye line to broad jaw",
+                "cheekbone_ridge": "submerged beneath fur and soft tissue",
+                "jaw_corner": "broad with a smooth rounded turn",
+                "hollowing": "no gaunt or carved cheek hollows",
+                "plane_transition": "large rounded planes with restrained soft transitions"
+              }
+            },
+            "body-volume": {
+              "kind": "body volume",
+              "location": "declared body regions",
+              "presence": "present",
+              "geometry": {
+                "joint_surface": "broad rounded joint surfaces",
+                "landmark_prominence": "moderate landmarks under dense fur and muscular mass",
+                "muscle_handoffs": "clear but rounded handoffs between shoulder, arm, chest, and forearm",
+                "mass_rounding": "large interlocking rounded volumes",
+                "face_body_coherence": "the broad rounded facial frame matches the broad rounded body frame"
+              }
+            },
+            "frame-envelope": {
+              "kind": "overall mass and surface",
+              "location": "entire declared form",
+              "presence": "present",
+              "geometry": {
+                "frame_mass": "thick-boned",
+                "surface_character": "rounded-solid"
+              }
+            }
+          },
+          "source_confidence": "preset-selected",
+          "frame_character_id": "example-frame-thick-boned-rounded-solid",
+          "overall_form": "thick-boned; rounded-solid",
+          "coherence_rules": [
+            "face and body use one declared frame character",
+            "muscularity and body weight do not create an unapproved chiseled or gaunt face"
+          ],
+          "diagnostic_misreadings": [
+            "protruding cheekbone ridge",
+            "fine angular face on the broad body",
+            "craggy hollow cheek planes"
+          ]
+        },
+        "load_bearing_part_measurements": [
+          {
+            "measurement_id": "measure-head-muzzle-length",
+            "target_ref": "head.muzzle",
+            "target_class": "anatomy",
+            "dimension": "length",
+            "relation": "medium-long canine muzzle, about two fifths of visible head depth",
+            "basis": "muzzle tip to muzzle base against occiput to muzzle tip",
+            "tolerance": "within the approved identity tolerance across three-quarter and profile views",
+            "source_confidence": "reference-approximate",
+            "load_bearing_reason": "muzzle length separates the intended canine identity from feline, bear-like, or short-muzzle drift",
+            "continuity_rule": "retain the declared forward projection through pose, expression, and camera changes"
+          },
+          {
+            "measurement_id": "measure-left-ear-stud-size",
+            "target_ref": "accessory.cyan-ear-stud",
+            "target_class": "accessory",
+            "dimension": "diameter",
+            "relation": "about one tenth of subject-left ear height",
+            "basis": "stud face diameter against the visible ear height",
+            "tolerance": "small enough to remain a stud and large enough to survive the intended crop",
+            "source_confidence": "reference-approximate",
+            "load_bearing_reason": "the single cyan stud is a signature identity accessory with side and scale requirements",
+            "continuity_rule": "keep one stud on the subject-left upper ear rim at the declared scale"
+          },
+          {
+            "measurement_id": "measure-left-ear-notch-coverage",
+            "target_ref": "head.ear.subject-left.tip-notch",
+            "target_class": "anatomy",
+            "dimension": "coverage",
+            "relation": "one healed triangular notch occupies a small minority of the outer upper ear tip",
+            "basis": "notch span against total subject-left ear perimeter",
+            "tolerance": "recognizable in left three-quarter and left-profile views without consuming the full tip",
+            "source_confidence": "reference-approximate",
+            "load_bearing_reason": "the healed notch is a stable asymmetric identity feature",
+            "continuity_rule": "preserve the notch on subject-left only and never mirror or duplicate it"
+          }
+        ],
+        "accessory_geometry": [
+          {
+            "accessory_id": "C01-cyan-ear-stud",
+            "item_class": "small circular ear stud",
+            "count": 1,
+            "laterality_or_site": "subject-left upper ear rim",
+            "body_landmarks": [
+              "subject-left ear base",
+              "subject-left upper rim",
+              "subject-left ear tip"
+            ],
+            "support_and_fastening": "one short post passes through the declared rim site",
+            "orientation": "stud face lies approximately parallel to the local outer ear surface",
+            "relative_dimensions": {
+              "length": "short post contained within the ear thickness",
+              "width": "stud face about one tenth of ear height",
+              "thickness": "compact hard stud with a shallow face",
+              "diameter_or_span": "about one tenth of subject-left ear height",
+              "measurement_basis": "visible subject-left ear height and upper-rim thickness"
+            },
+            "repeated_elements": {
+              "unit_size": "not applicable; one stud",
+              "spacing": "not applicable; single item",
+              "count_logic": "exactly one stud"
+            },
+            "shape_and_construction": "one compact circular stud face on one short post",
+            "material_and_finish": "polished metal or enamel with one compact highlight",
+            "color": "electric cyan independent of lighting",
+            "layer_order": "attached to and crossing the outer ear rim, outside the fur surface",
+            "body_and_garment_clearance": "clears ear fur and any collar or headwear",
+            "contact_and_pose_response": "moves rigidly with the ear and does not float when the ear rotates",
+            "articulation_and_mobility": "no independent articulation beyond the ear movement",
+            "visibility_and_occlusion": "must remain visible in left three-quarter and left-profile identity views unless deliberately occluded",
+            "continuity_rules": [
+              "one stud remains on subject-left only",
+              "stud scale and cyan color remain stable"
+            ],
+            "diagnostic_misreadings": [
+              "stud mirrored to subject-right",
+              "stud duplicated into a pair",
+              "stud replaced by a hoop or floating dot"
+            ],
+            "source_confidence": "reference-clear"
+          }
+        ],
+        "state_snapshot_ref": {
+          "id": "C01-main-25",
+          "sha256": "9c791e0ff39a81f7d6954fbb3caaad6436db7f91ad33c1ae0101c4915e53b672"
+        },
+        "visual_projection_ref": {
+          "id": "VSP-EP03-SC01-C01",
+          "sha256": "cb1adf6e57d95aa28b1b960b4097871f08ca76e22297b67238e0d7fac2fe8c39"
+        },
+        "identity": {
+          "species_or_base_form": "a tall anthropomorphic gray wolf with a humanoid body plan",
+          "body_plan": "broad shoulders, deep chest, digitigrade legs, five-fingered hands, long tail",
+          "proportions": "head slightly compact against a large upper torso; long forearms; narrow waist",
+          "head_and_face": "upright triangular ears, long but compact muzzle, heavy brows, cyan eyes",
+          "surfaces_and_markings": "cool gray fur, pale muzzle and chest, charcoal cheek wedges and forearm markings",
+          "appendages": "two upright ears and one long gray tail with a dark tip",
+          "asymmetry_rules": "one cyan stud on the subject-left upper ear rim; the opposite ear has no stud",
+          "identity_accessories": "small cyan stud earring is identity-level; clothing and carried items are scene state",
+          "performance_vocabulary": "ears react before the head; tension appears first in the left hand and shoulders",
+          "growth_geometry": {
+            "representation": "declared-structures",
+            "structures": {
+              "scalp-fibers": {
+                "kind": "head hair",
+                "location": "scalp",
+                "presence": "absent",
+                "geometry": {},
+                "continuity_rules": [
+                  "human-like head hair is explicitly not part of this identity",
+                  "cranial fur remains part of the regional fur map",
+                  "raised or wet cranial fur remains scene-specific character state"
+                ]
+              },
+              "facial-fibers": {
+                "kind": "facial hair",
+                "location": "facial surface",
+                "presence": "absent",
+                "geometry": {},
+                "continuity_rules": [
+                  "muzzle and cheek fur remain surface anatomy rather than human facial hair",
+                  "temporary jaw shadow does not become a beard"
+                ]
+              },
+              "brow-wedges": {
+                "kind": "eyebrows",
+                "location": "above the eyes",
+                "presence": "present",
+                "geometry": {
+                  "shape": "thick angular charcoal brow wedges",
+                  "thickness": "heavy",
+                  "arch": "low forceful arch",
+                  "spacing": "stable wide inter-brow spacing",
+                  "color": "charcoal",
+                  "asymmetry": "expression may tilt one brow while the stable wedge shapes remain"
+                },
+                "continuity_rules": [
+                  "brow wedges remain separate from eye markings",
+                  "expression changes angle rather than base thickness"
+                ]
+              },
+              "eye-edge-fibers": {
+                "kind": "eyelashes",
+                "location": "eye edges",
+                "presence": "present",
+                "geometry": {
+                  "upper_density": "minimal",
+                  "lower_density": "absent",
+                  "length": "short",
+                  "curl": "none",
+                  "color": "charcoal",
+                  "style_intensity": "natural canine-adapted eye edge"
+                },
+                "continuity_rules": [
+                  "lash treatment remains subordinate to the cyan eyes",
+                  "eyeliner-like shadow does not become extra lashes"
+                ]
+              },
+              "mane-neck-shoulders": {
+                "kind": "none",
+                "location": "neck and shoulder mane zone",
+                "presence": "absent",
+                "geometry": {},
+                "continuity_rules": [
+                  "the character has no separate mane structure",
+                  "the cheek and neck ruff does not expand into a shoulder mane"
+                ]
+              },
+              "ruff-cheeks-neck": {
+                "kind": "fur",
+                "location": "lower cheeks, jaw sides, and upper neck",
+                "presence": "present",
+                "geometry": {
+                  "boundary_and_extent": "dense cheek fur begins below the eye line, follows both jaw sides, and tapers into the upper neck before the shoulders",
+                  "length": "medium, longer than the short cranial and muzzle fur",
+                  "density": "dense and full without obscuring the jaw attachment",
+                  "direction": "sweeps outward from the cheeks and then downward along the neck",
+                  "texture": "dense short-to-medium coarse wolf fur grouped into broad readable tufts",
+                  "color": "cool gray with the pale muzzle transition remaining separate",
+                  "silhouette_role": "broadens the lower face and creates a stable cheek-to-neck taper"
+                },
+                "continuity_rules": [
+                  "ruff boundary and cheek-to-neck taper remain stable across views",
+                  "temporary wetness or raised fur changes state but not permanent ruff extent"
+                ]
+              },
+              "fur-body-limbs": {
+                "kind": "fur",
+                "location": "torso, arms, hands, legs, and feet outside the separately declared chest and marking zones",
+                "presence": "present",
+                "geometry": {
+                  "boundary_and_extent": "continuous biological fur covers the body and limbs up to the claw bases while preserving garment and accessory boundaries",
+                  "length": "short to medium, slightly fuller at joints and outer forearms",
+                  "density": "dense and even over the body plan",
+                  "direction": "follows local anatomy from torso outward along each limb",
+                  "texture": "dense wolf fur with broad grouped tufts rather than human body hair",
+                  "color": "cool gray with pale chest and charcoal forearm zones owned by the marking map",
+                  "silhouette_role": "rounds muscular landmarks without changing the declared body proportions"
+                },
+                "continuity_rules": [
+                  "fur remains continuous at anatomical joints and separate from clothing",
+                  "temporary wetness, sweat, compression, or disorder remains scene-specific state",
+                  "temporary paw-fur dampness is owned by /appearance_state/grooming/fur_wetness/paws and never changes permanent limb-fur density or extent"
+                ]
+              },
+              "fur-head-muzzle": {
+                "kind": "fur",
+                "location": "cranial surface, ears, brows, cheeks outside the ruff, and muzzle",
+                "presence": "present",
+                "geometry": {
+                  "boundary_and_extent": "short cranial and muzzle fur follows the ear bases, brow wedges, cheek markings, nose boundary, and mouth edge",
+                  "length": "short on the muzzle and crown, slightly longer around the cheek transition",
+                  "density": "dense with clear facial landmark visibility",
+                  "direction": "radiates from the crown and muzzle bridge toward the cheek and neck transitions",
+                  "texture": "short dense wolf fur with restrained tufting",
+                  "color": "cool gray, pale muzzle, and charcoal brow and cheek zones as declared by the marking map",
+                  "silhouette_role": "preserves the compact canine head while keeping ears, muzzle, and jaw readable"
+                },
+                "continuity_rules": [
+                  "cranial fur does not become human-like head hair",
+                  "facial markings and ruff boundaries remain stable through expression and pose",
+                  "temporary brow-fur dampness is owned by /appearance_state/grooming/fur_wetness/brow and never changes the permanent brow wedges or cranial-fur map"
+                ]
+              },
+              "fur-tail": {
+                "kind": "fur",
+                "location": "entire tail from the tail base to the terminal tip",
+                "presence": "present",
+                "geometry": {
+                  "boundary_and_extent": "continuous fur follows the full tail with a stable dark terminal zone",
+                  "length": "medium and slightly fuller than torso fur",
+                  "density": "dense with a readable outer contour",
+                  "direction": "flows from tail base toward the tip",
+                  "texture": "dense directional wolf fur",
+                  "color": "cool gray with a stable dark tip",
+                  "silhouette_role": "creates the approved long tapered tail contour"
+                },
+                "continuity_rules": [
+                  "tail fur direction follows the tail axis without changing tail anatomy",
+                  "the dark tip boundary and overall tail silhouette remain stable"
+                ]
+              },
+              "terminal-tips": {
+                "kind": "claws",
+                "location": "declared distal structures",
+                "presence": "present",
+                "geometry": {
+                  "digit_system": "claws",
+                  "visible_digit_count": "five fingered hands when fully visible; hidden digits remain unknown",
+                  "length_relative_to_terminal_digit": "exposed claw length is about one sixth of the terminal digit length",
+                  "free_edge_length": "short exposed point beyond each fingertip",
+                  "shape": "broad tapered canine claws with rounded triangular points",
+                  "taper_and_curvature": "gentle downward curve with modest taper",
+                  "thickness": "sturdy claw plate",
+                  "color_and_value": "dark charcoal",
+                  "finish": "low satin",
+                  "cuticle_or_base_transition": "claw base emerges cleanly from the terminal digit fur",
+                  "per_digit_variation": "thumb claw is slightly broader while remaining in the same family",
+                  "damage_or_missing_segments": "intact unless a state event declares damage",
+                  "decoration": "unspecified"
+                },
+                "continuity_rules": [
+                  "each visible claw belongs to one declared digit",
+                  "claw length remains proportionate to the terminal digit",
+                  "camera foreshortening does not change the stable shape family",
+                  "claw dirt is current appearance state; polish color, decoration, or finish changes require an approved Appearance Variant Contract"
+                ]
+              }
+            },
+            "source_confidence": "user-confirmed",
+            "grooming_state": [],
+            "identity_lock_fields": [
+              "human-like head hair remains absent",
+              "no separate mane structure",
+              "dense medium cheek and upper-neck ruff with a stable cheek-to-neck taper",
+              "regional cranial, body, limb, and tail fur boundaries, direction, texture, color, and silhouette roles",
+              "thick angular charcoal brow wedges",
+              "minimal canine-adapted lashes",
+              "short canine claw shape; color and finish follow the declared variant fields"
+            ],
+            "variant_fields": [
+              "/stable_identity/growth_geometry/structures/terminal-tips/geometry/color_and_value",
+              "/stable_identity/growth_geometry/structures/terminal-tips/geometry/decoration",
+              "/stable_identity/growth_geometry/structures/terminal-tips/geometry/finish"
+            ]
+          },
+          "frame_character": {
+            "representation": "declared-structures",
+            "structures": {
+              "surface-padding": {
+                "kind": "soft tissue volume",
+                "location": "declared padded surfaces",
+                "presence": "present",
+                "geometry": {
+                  "amount": "moderate, with dense fur and flesh rounding the landmarks",
+                  "distribution": "full cheeks, broad jaw, neck, shoulders, torso, and joints",
+                  "surface_carrier": "flesh under dense short-to-medium fur",
+                  "landmark_visibility": "major landmarks remain readable but never protrude as sharp ridges"
+                }
+              },
+              "facial-volume": {
+                "kind": "facial volume",
+                "location": "declared facial regions",
+                "presence": "present",
+                "geometry": {
+                  "cheek_mass": "full rounded canine cheek mass from eye line to broad jaw",
+                  "cheekbone_ridge": "submerged beneath fur and soft tissue",
+                  "jaw_corner": "broad with a smooth rounded turn",
+                  "hollowing": "no gaunt or carved cheek hollows",
+                  "plane_transition": "large rounded planes with restrained soft transitions"
+                }
+              },
+              "body-volume": {
+                "kind": "body volume",
+                "location": "declared body regions",
+                "presence": "present",
+                "geometry": {
+                  "joint_surface": "broad rounded joint surfaces",
+                  "landmark_prominence": "moderate landmarks under dense fur and muscular mass",
+                  "muscle_handoffs": "clear but rounded handoffs between shoulder, arm, chest, and forearm",
+                  "mass_rounding": "large interlocking rounded volumes",
+                  "face_body_coherence": "the broad rounded facial frame matches the broad rounded body frame"
+                }
+              },
+              "frame-envelope": {
+                "kind": "overall mass and surface",
+                "location": "entire declared form",
+                "presence": "present",
+                "geometry": {
+                  "frame_mass": "thick-boned",
+                  "surface_character": "rounded-solid"
+                }
+              }
+            },
+            "source_confidence": "preset-selected",
+            "frame_character_id": "example-frame-thick-boned-rounded-solid",
+            "overall_form": "thick-boned; rounded-solid",
+            "coherence_rules": [
+              "face and body use one declared frame character",
+              "muscularity and body weight do not create an unapproved chiseled or gaunt face"
+            ],
+            "diagnostic_misreadings": [
+              "protruding cheekbone ridge",
+              "fine angular face on the broad body",
+              "craggy hollow cheek planes"
+            ]
+          }
+        },
+        "current_state": {
+          "physical_state": {
+            "left_ear_tip": "notched",
+            "wound_stage": "closed_with_swelling"
+          },
+          "appearance_state": {
+            "grooming": {
+              "fur_wetness": {
+                "brow": "dry",
+                "paws": "dry"
+              },
+              "claws": {
+                "dirt": "clean",
+                "polish_condition": "none"
+              }
+            }
+          },
+          "wardrobe_state": {
+            "layers": [
+              {
+                "item_id": "shirt-01",
+                "state": "worn",
+                "closure": "closed"
+              }
+            ],
+            "condition": {
+              "wetness": "dry"
+            }
+          },
+          "emotional_state": {
+            "felt_state": {
+              "emotion": "fear",
+              "intensity": 0.7
+            },
+            "expressed_state": {
+              "emotion": "calm",
+              "intensity": 0.4,
+              "masking_strategy": "professional-composure"
+            }
+          },
+          "performance_state": {
+            "physiological_cues": [
+              "shallow breath",
+              "slight sweat",
+              "left hand tension"
+            ]
+          }
+        },
+        "proportions_and_form": "tall broad-shouldered wolf with a compact waist and stable upright canine body plan",
+        "head_and_face": "long canine muzzle, thick angular brows, cyan eyes, upright ears, dense cheek ruff",
+        "surfaces_and_markings": "blue-gray coat, pale muzzle and chest, paired charcoal cheek wedges",
+        "distinctive_details": [],
+        "performance": {
+          "felt_emotion": [
+            "strong fear",
+            "heat discomfort"
+          ],
+          "displayed_emotion": [
+            "professional composure",
+            "controlled calm"
+          ],
+          "masked_or_conflicted_emotion": [
+            "professional composure masking stronger fear"
+          ],
+          "intent": [
+            "maintain professional composure while privately responding to C02"
+          ],
+          "viewer_or_partner_relationship": [
+            "private close interaction with C02 without physical contact"
+          ],
+          "intensity": "moderate",
+          "temporal_phase": "held",
+          "channel_cues": [
+            {
+              "cue_id": "performance-gaze-c02",
+              "channel": "gaze",
+              "observation": "C01 looks toward C02 and then briefly away.",
+              "visual_instruction": "Aim the eyes toward C02 with a small evasive break in the held gaze.",
+              "laterality": "bilateral",
+              "intensity": "subtle",
+              "direction_or_target": "C02, followed by a brief off-target glance",
+              "visibility": "visible",
+              "evidence_status": "state-derived",
+              "confidence": "high",
+              "stability": "transient-action"
+            },
+            {
+              "cue_id": "performance-ears-before-head",
+              "channel": "ears",
+              "observation": "The ears react before the head turns.",
+              "visual_instruction": "Show a slight anticipatory ear rotation while the head remains more controlled.",
+              "laterality": "bilateral",
+              "intensity": "subtle",
+              "direction_or_target": "C02 before the head completes its response",
+              "visibility": "visible",
+              "evidence_status": "state-derived",
+              "confidence": "high",
+              "stability": "transient-action"
+            },
+            {
+              "cue_id": "performance-shallow-breath",
+              "channel": "breath-voice",
+              "observation": "Breathing remains shallow under the composed exterior.",
+              "visual_instruction": "Keep the chest and throat movement restrained, with only a slight held-breath tension.",
+              "laterality": "centerline",
+              "intensity": "subtle",
+              "direction_or_target": "upper chest and throat",
+              "visibility": "visible",
+              "evidence_status": "state-derived",
+              "confidence": "high",
+              "stability": "current-state"
+            },
+            {
+              "cue_id": "performance-left-hand-tension",
+              "channel": "arms-hands-manipulators",
+              "observation": "Tension concentrates in the subject-left hand braced on the desk edge.",
+              "visual_instruction": "Show controlled finger and tendon tension while preserving the complete desk-support contact chain.",
+              "laterality": "left",
+              "intensity": "moderate",
+              "direction_or_target": "desk edge",
+              "visibility": "visible",
+              "evidence_status": "state-derived",
+              "confidence": "high",
+              "stability": "current-state"
+            },
+            {
+              "cue_id": "performance-temple-sweat",
+              "channel": "physiology",
+              "observation": "Light sweat appears at the temples in the hot humid office.",
+              "visual_instruction": "Render sparse small perspiration at the temples as an environment response, not a stable identity mark.",
+              "laterality": "bilateral",
+              "intensity": "subtle",
+              "direction_or_target": "both temples",
+              "visibility": "visible",
+              "evidence_status": "state-derived",
+              "confidence": "high",
+              "stability": "environment-response"
+            }
+          ],
+          "interpretation_candidates": [
+            {
+              "meaning": "professional composure is containing stronger private fear",
+              "supported_by": [
+                "performance-gaze-c02",
+                "performance-ears-before-head",
+                "performance-shallow-breath",
+                "performance-left-hand-tension"
+              ],
+              "context": "C01 is close to C02 in a private office exchange after the approved injury and prop-transfer events.",
+              "confidence": "high",
+              "content_intensity": "general"
+            },
+            {
+              "meaning": "part of the visible strain is a physiological response to heat and humidity",
+              "supported_by": [
+                "performance-temple-sweat"
+              ],
+              "context": "The approved environment snapshot is hot and humid.",
+              "confidence": "high",
+              "content_intensity": "general"
+            }
+          ],
+          "selected_interpretation": {
+            "meaning": "professional composure masks stronger private fear while heat adds a separate mild physiological response",
+            "supported_by": [
+              "performance-gaze-c02",
+              "performance-ears-before-head",
+              "performance-shallow-breath",
+              "performance-left-hand-tension",
+              "performance-temple-sweat"
+            ],
+            "context": "The scene combines a private exchange with C02 and an approved hot humid environment.",
+            "confidence": "high",
+            "content_intensity": "general"
+          },
+          "ambiguity_notes": [
+            "Keep environment-caused perspiration separate from fear cues and from stable identity."
+          ],
+          "prompt_projection": {
+            "primary_clause": "professional composure masking stronger fear, with ears reacting before the head, a brief evasive gaze break, shallow breath, and tension concentrated in the desk-braced subject-left hand",
+            "supporting_clauses": [
+              "light bilateral temple sweat from the hot humid office"
+            ],
+            "search_facets": [
+              "masked fear",
+              "controlled composure",
+              "evasive gaze",
+              "ear-led reaction",
+              "shallow breath",
+              "tense braced hand",
+              "heat perspiration"
+            ],
+            "review_checks": [
+              "The gaze target remains C02 rather than the viewer.",
+              "Fear is carried by coordinated transient cues rather than a generic frightened face.",
+              "Perspiration remains sparse, environment-caused, and non-identifying.",
+              "The subject-left hand keeps valid contact with the desk edge."
+            ]
+          }
+        },
+        "wardrobe_and_accessories": "closed dry field-office shirt; cyan stud on the subject-left upper ear rim",
+        "growth_geometry": {
+          "representation": "declared-structures",
+          "structures": {
+            "scalp-fibers": {
+              "kind": "head hair",
+              "location": "scalp",
+              "presence": "absent",
+              "geometry": {},
+              "continuity_rules": [
+                "human-like head hair is explicitly not part of this identity",
+                "cranial fur remains part of the regional fur map",
+                "raised or wet cranial fur remains scene-specific character state"
+              ]
+            },
+            "facial-fibers": {
+              "kind": "facial hair",
+              "location": "facial surface",
+              "presence": "absent",
+              "geometry": {},
+              "continuity_rules": [
+                "muzzle and cheek fur remain surface anatomy rather than human facial hair",
+                "temporary jaw shadow does not become a beard"
+              ]
+            },
+            "brow-wedges": {
+              "kind": "eyebrows",
+              "location": "above the eyes",
+              "presence": "present",
+              "geometry": {
+                "shape": "thick angular charcoal brow wedges",
+                "thickness": "heavy",
+                "arch": "low forceful arch",
+                "spacing": "stable wide inter-brow spacing",
+                "color": "charcoal",
+                "asymmetry": "expression may tilt one brow while the stable wedge shapes remain"
+              },
+              "continuity_rules": [
+                "brow wedges remain separate from eye markings",
+                "expression changes angle rather than base thickness"
+              ]
+            },
+            "eye-edge-fibers": {
+              "kind": "eyelashes",
+              "location": "eye edges",
+              "presence": "present",
+              "geometry": {
+                "upper_density": "minimal",
+                "lower_density": "absent",
+                "length": "short",
+                "curl": "none",
+                "color": "charcoal",
+                "style_intensity": "natural canine-adapted eye edge"
+              },
+              "continuity_rules": [
+                "lash treatment remains subordinate to the cyan eyes",
+                "eyeliner-like shadow does not become extra lashes"
+              ]
+            },
+            "mane-neck-shoulders": {
+              "kind": "none",
+              "location": "neck and shoulder mane zone",
+              "presence": "absent",
+              "geometry": {},
+              "continuity_rules": [
+                "the character has no separate mane structure",
+                "the cheek and neck ruff does not expand into a shoulder mane"
+              ]
+            },
+            "ruff-cheeks-neck": {
+              "kind": "fur",
+              "location": "lower cheeks, jaw sides, and upper neck",
+              "presence": "present",
+              "geometry": {
+                "boundary_and_extent": "dense cheek fur begins below the eye line, follows both jaw sides, and tapers into the upper neck before the shoulders",
+                "length": "medium, longer than the short cranial and muzzle fur",
+                "density": "dense and full without obscuring the jaw attachment",
+                "direction": "sweeps outward from the cheeks and then downward along the neck",
+                "texture": "dense short-to-medium coarse wolf fur grouped into broad readable tufts",
+                "color": "cool gray with the pale muzzle transition remaining separate",
+                "silhouette_role": "broadens the lower face and creates a stable cheek-to-neck taper"
+              },
+              "continuity_rules": [
+                "ruff boundary and cheek-to-neck taper remain stable across views",
+                "temporary wetness or raised fur changes state but not permanent ruff extent"
+              ]
+            },
+            "fur-body-limbs": {
+              "kind": "fur",
+              "location": "torso, arms, hands, legs, and feet outside the separately declared chest and marking zones",
+              "presence": "present",
+              "geometry": {
+                "boundary_and_extent": "continuous biological fur covers the body and limbs up to the claw bases while preserving garment and accessory boundaries",
+                "length": "short to medium, slightly fuller at joints and outer forearms",
+                "density": "dense and even over the body plan",
+                "direction": "follows local anatomy from torso outward along each limb",
+                "texture": "dense wolf fur with broad grouped tufts rather than human body hair",
+                "color": "cool gray with pale chest and charcoal forearm zones owned by the marking map",
+                "silhouette_role": "rounds muscular landmarks without changing the declared body proportions"
+              },
+              "continuity_rules": [
+                "fur remains continuous at anatomical joints and separate from clothing",
+                "temporary wetness, sweat, compression, or disorder remains scene-specific state",
+                "temporary paw-fur dampness is owned by /appearance_state/grooming/fur_wetness/paws and never changes permanent limb-fur density or extent"
+              ]
+            },
+            "fur-head-muzzle": {
+              "kind": "fur",
+              "location": "cranial surface, ears, brows, cheeks outside the ruff, and muzzle",
+              "presence": "present",
+              "geometry": {
+                "boundary_and_extent": "short cranial and muzzle fur follows the ear bases, brow wedges, cheek markings, nose boundary, and mouth edge",
+                "length": "short on the muzzle and crown, slightly longer around the cheek transition",
+                "density": "dense with clear facial landmark visibility",
+                "direction": "radiates from the crown and muzzle bridge toward the cheek and neck transitions",
+                "texture": "short dense wolf fur with restrained tufting",
+                "color": "cool gray, pale muzzle, and charcoal brow and cheek zones as declared by the marking map",
+                "silhouette_role": "preserves the compact canine head while keeping ears, muzzle, and jaw readable"
+              },
+              "continuity_rules": [
+                "cranial fur does not become human-like head hair",
+                "facial markings and ruff boundaries remain stable through expression and pose",
+                "temporary brow-fur dampness is owned by /appearance_state/grooming/fur_wetness/brow and never changes the permanent brow wedges or cranial-fur map"
+              ]
+            },
+            "fur-tail": {
+              "kind": "fur",
+              "location": "entire tail from the tail base to the terminal tip",
+              "presence": "present",
+              "geometry": {
+                "boundary_and_extent": "continuous fur follows the full tail with a stable dark terminal zone",
+                "length": "medium and slightly fuller than torso fur",
+                "density": "dense with a readable outer contour",
+                "direction": "flows from tail base toward the tip",
+                "texture": "dense directional wolf fur",
+                "color": "cool gray with a stable dark tip",
+                "silhouette_role": "creates the approved long tapered tail contour"
+              },
+              "continuity_rules": [
+                "tail fur direction follows the tail axis without changing tail anatomy",
+                "the dark tip boundary and overall tail silhouette remain stable"
+              ]
+            },
+            "terminal-tips": {
+              "kind": "claws",
+              "location": "declared distal structures",
+              "presence": "present",
+              "geometry": {
+                "digit_system": "claws",
+                "visible_digit_count": "five fingered hands when fully visible; hidden digits remain unknown",
+                "length_relative_to_terminal_digit": "exposed claw length is about one sixth of the terminal digit length",
+                "free_edge_length": "short exposed point beyond each fingertip",
+                "shape": "broad tapered canine claws with rounded triangular points",
+                "taper_and_curvature": "gentle downward curve with modest taper",
+                "thickness": "sturdy claw plate",
+                "color_and_value": "dark charcoal",
+                "finish": "low satin",
+                "cuticle_or_base_transition": "claw base emerges cleanly from the terminal digit fur",
+                "per_digit_variation": "thumb claw is slightly broader while remaining in the same family",
+                "damage_or_missing_segments": "intact unless a state event declares damage",
+                "decoration": "unspecified"
+              },
+              "continuity_rules": [
+                "each visible claw belongs to one declared digit",
+                "claw length remains proportionate to the terminal digit",
+                "camera foreshortening does not change the stable shape family",
+                "claw dirt is current appearance state; polish color, decoration, or finish changes require an approved Appearance Variant Contract"
+              ]
+            }
+          },
+          "source_confidence": "user-confirmed",
+          "grooming_state": [
+            "/appearance_state/grooming = {\"claws\":{\"dirt\":\"clean\",\"polish_condition\":\"none\"},\"fur_wetness\":{\"brow\":\"dry\",\"paws\":\"dry\"}}"
+          ],
+          "identity_lock_fields": [
+            "human-like head hair remains absent",
+            "no separate mane structure",
+            "dense medium cheek and upper-neck ruff with a stable cheek-to-neck taper",
+            "regional cranial, body, limb, and tail fur boundaries, direction, texture, color, and silhouette roles",
+            "thick angular charcoal brow wedges",
+            "minimal canine-adapted lashes",
+            "short canine claw shape; color and finish follow the declared variant fields"
+          ],
+          "variant_fields": [
+            "/stable_identity/growth_geometry/structures/terminal-tips/geometry/color_and_value",
+            "/stable_identity/growth_geometry/structures/terminal-tips/geometry/decoration",
+            "/stable_identity/growth_geometry/structures/terminal-tips/geometry/finish"
+          ]
+        },
+        "garment_geometry": [
+          {
+            "representation": "declared-structures",
+            "structures": {
+              "garment-construction": {
+                "kind": "closed field-office shirt",
+                "location": "declared garment coverage",
+                "presence": "present",
+                "geometry": {
+                  "layer_order": "1",
+                  "wear_state": "worn",
+                  "fit_profile": "tailored across the shoulders and chest with enough ease for desk-braced arms",
+                  "material_and_thickness": "midweight matte woven cloth with crisp but flexible seams",
+                  "color_and_pattern": "neutral field-office color with no copied logo or insignia",
+                  "upper_edge_and_neckline": "closed shirt neckline beneath a structured collar",
+                  "collar_or_hood_attachment": "two collar points attach to the neckline and remain outside the neck fur",
+                  "shoulder_support": "shoulder seams follow the shoulder caps and connect cleanly to the sleeves",
+                  "sleeve_or_armhole_geometry": "set-in sleeves encircle the upper arms without cutting into the armpits",
+                  "side_panel_and_side_opening": "continuous side seams cover the lateral torso",
+                  "front_panel_extent": "two front panels cover the chest and abdomen and meet at the center closure",
+                  "back_panel_extent": "one continuous back panel spans the shoulder blades and waist",
+                  "hem_or_lower_edge": "lower hem continues below the crop and remains aligned with the torso",
+                  "closure_and_fasteners": "center-front closure remains shut and vertically aligned",
+                  "front_coverage": "chest and abdomen remain fully covered",
+                  "side_coverage": "lateral chest and ribs remain covered by continuous panels",
+                  "rear_coverage": "back and shoulder blades remain covered",
+                  "anatomy_and_appendage_clearance": "collar clears neck fur; sleeves clear elbow flexion; tail remains outside the shirt",
+                  "pose_response": "desk-braced arm tension creates diagonal folds from shoulder to chest and elbow",
+                  "support_surface_response": "the lower sleeve and cuff may compress against the desk while the cloth edge remains separate",
+                  "tension_drape_and_wrinkles": "shallow tension lines radiate from the braced shoulder, elbow, and center closure"
+                }
+              }
+            },
+            "source_confidence": "preset-selected",
+            "garment_id": "C01-office-shirt",
+            "garment_class": "closed field-office shirt",
+            "coverage": "coverage defined by the declared construction",
+            "continuity_rules": [
+              "center closure stays shut",
+              "collar points remain attached and symmetrical in neutral pose",
+              "sleeves remain separate from forearms and desk",
+              "shirt remains a woven layer rather than body paint"
+            ]
+          }
+        ],
+        "pose_and_body_geometry": "upright medium-close three-quarter office portrait with left hand braced on the desk edge",
+        "hands": "left hand carries the visible tension and remains fully attached to the desk-support chain",
+        "legs_and_feet": "outside the crop",
+        "gaze_and_head": "looks toward C02, then briefly away, with the subject-left ear visible",
+        "props_and_contacts": "desk edge supports the left hand; the transferred pendant is possessed by C02 and does not appear on C01"
+      }
+    ],
+    "scene": {
+      "environment": "small field office in hot humid summer weather",
+      "support_and_contact": "the left hand rests against a desk edge while the torso remains upright",
+      "depth_order": [
+        "left hand and desk edge",
+        "face and upper torso",
+        "warm office window"
+      ],
+      "atmosphere": "warm still air with restrained heat tension"
+    },
+    "camera": {
+      "shot_type": "medium close office portrait",
+      "shot_scale": "chest-up",
+      "distance_class": "medium-close",
+      "subject_relative_distance": {
+        "basis": "visible-torso-heights",
+        "minimum": 1.5,
+        "maximum": 2.0
+      },
+      "human_scale_distance_equivalent_m": {
+        "minimum": 1.8,
+        "maximum": 2.5
+      },
+      "camera_height": {
+        "reference_landmark": "upper chest",
+        "offset": "camera center is slightly below eye level and points gently upward"
+      },
+      "pitch_degrees": 3,
+      "yaw_degrees": -25,
+      "roll_degrees": 0,
+      "lens_or_perspective": "natural portrait perspective with restrained three-quarter compression",
+      "lens_equivalent_mm": {
+        "minimum": 55,
+        "maximum": 75
+      },
+      "projection_behavior": "natural-portrait",
+      "frame_occupancy": {
+        "subject_height_percent": {
+          "minimum": 82,
+          "maximum": 90
+        },
+        "subject_width_percent": {
+          "minimum": 70,
+          "maximum": 88
+        }
+      },
+      "framing_and_crop": "left ear, face, shoulders, upper torso, desk-braced left hand, and the second hand remain readable",
+      "coverage_landmarks": {
+        "top": "small clearance above the subject-left ear tip",
+        "bottom": "lower chest and desk-contact hand",
+        "left": "subject-left elbow or desk edge",
+        "right": "subject-right shoulder and hand"
+      },
+      "eye_line_position": {
+        "vertical_percent_from_top": {
+          "minimum": 28,
+          "maximum": 34
+        },
+        "horizontal_percent_from_left": {
+          "minimum": 44,
+          "maximum": 54
+        }
+      },
+      "nearest_form": "the left hand and desk edge",
+      "perspective_scale_change": "the desk hand enlarges mildly while muzzle, ears, shoulders, and torso keep stable identity ratios",
+      "required_visible_elements": [
+        "both cyan eyes",
+        "subject-left ear stud and notch",
+        "paired cheek wedges",
+        "left hand touching desk edge",
+        "closed office shirt"
+      ],
+      "allowed_offscreen_elements": [
+        "lower torso",
+        "legs",
+        "feet",
+        "most of tail"
+      ],
+      "focal_sequence": [
+        "eyes",
+        "subject-left ear detail",
+        "left hand tension",
+        "office window"
+      ],
+      "stability_invariants": [
+        "camera remains medium close",
+        "left ear and desk hand stay inside the frame",
+        "lens does not exaggerate the muzzle",
+        "crop does not pull back to full body"
+      ]
+    },
+    "lighting": {
+      "key_light": "warm window light from camera right",
+      "fill_or_ambient": "cool neutral office fill",
+      "rim_or_accent": "small cyan accents on eye and ear stud",
+      "shadow_character": "clean soft-cel shadows with crisp facial markings",
+      "color_relationship": "warm key against cool gray-blue fur and neutral office shadows"
+    },
+    "visual_language": {
+      "aesthetic_core": null,
+      "style_family": "style-family-clear-portrait",
+      "domain_realizations": {
+        "anthropomorphic-animal": "domain-realization-anthropomorphic-animal-baseline"
+      },
+      "render_profile": "profile-clear-2d-illustration",
+      "aesthetic_touches": []
+    },
+    "constraints": {
+      "user_anchors": [
+        "subject-left cyan ear stud",
+        "healed left ear-tip notch",
+        "cyan eyes",
+        "paired cheek wedges"
+      ],
+      "purposeful_additions": [
+        "subtle heat response from the approved environment snapshot"
+      ],
+      "consequential_assumptions": [],
+      "construction_invariants": [
+        "left-right identity remains stable",
+        "desk-hand support remains continuous",
+        "the pendant is absent from C01 after the atomic transfer"
+      ]
+    },
+    "selected_preset_ids": [
+      "style-family-clear-portrait",
+      "domain-realization-anthropomorphic-animal-baseline",
+      "profile-clear-2d-illustration"
+    ]
+  },
+  "production_spec_sha256": "3c74d567085c332a1bb719f9eab52c33829959bed1f97c58f004bd27edf317d8",
+  "composition_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+  "retrieval_record": {
+    "artifact_type": "prompt-retrieval-record",
+    "pack_state": "illustrative-offline-pilot",
+    "elements": [
+      {
+        "element": "illustrative pilot composition",
+        "queries": [
+          "state-aware pilot composition"
+        ],
+        "inspected_records": [],
+        "outcome": "composed",
+        "composed_wording": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+        "reason": "Illustrative deterministic fixture, not evidence of a production retrieval session."
+      }
+    ],
+    "settled": true,
+    "context": {
+      "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
+      "plot_content_sha256": "58dd32ffbba312183167b59baa25e737f7ea21de2e692b37db7b92f8790541fe"
+    }
+  },
+  "retrieval_record_sha256": "5b311ba9ba9fb2a8096168c558878d540b9d17b15b2e22c65c753d70a04a2dac",
+  "plot": {
+    "artifact_type": "prompt-plot",
+    "story": [
+      {
+        "id": "s1",
+        "beat": "The character is rendered in the approved scene state.",
+        "visibility": "visible"
+      },
+      {
+        "id": "s2",
+        "beat": "The events that produced that state happened before this image.",
+        "visibility": "context"
+      }
+    ],
+    "derived": [
+      {
+        "kind": "shows",
+        "statement": "the character in the declared scene",
+        "from": [
+          "s1"
+        ]
+      },
+      {
+        "kind": "placement",
+        "statement": "the character stands in the declared position",
+        "from": [
+          "s1"
+        ]
+      },
+      {
+        "kind": "composition",
+        "statement": "the camera and framing the production specification declares",
+        "from": [
+          "s1"
+        ]
+      },
+      {
+        "kind": "must_preserve",
+        "statement": "every feature the identity contract fixes",
+        "from": [
+          "s1"
+        ]
+      },
+      {
+        "kind": "free",
+        "statement": "incidental light variation within the declared lighting"
+      }
+    ],
+    "approved": {
+      "by": "the person who owns the brief",
+      "at": "2026-09-11T00:00:00Z",
+      "content_sha256": "58dd32ffbba312183167b59baa25e737f7ea21de2e692b37db7b92f8790541fe"
+    }
+  },
+  "plot_sha256": "12379b02bc4cc79db80bbd6ce9f74dec157a0f59150965c2928125733acdff4f",
+  "state_lineage": {
+    "artifact_type": "state-lineage",
+    "mode": "state-aware",
+    "species_profile_sha256": "5595549bce6c181e0a4bd7f63084ad0aa0d160e8eb4eda8d7f7ef6be849f69a5",
+    "individual_morphology_sha256": "3eab5c9b13162ae58008f06f79154dbbc560b8fa09ec8eb288a367dda7f075b5",
+    "identity_contract_sha256": "e370d88f96b68014de7e8ca5ed1f3dd0b74255b9c4e1051ac8d7ebc2d844e655",
+    "era_contract_sha256": null,
+    "form_contract_sha256": null,
+    "appearance_variant_sha256": null,
+    "state_snapshot_sha256": "9c791e0ff39a81f7d6954fbb3caaad6436db7f91ad33c1ae0101c4915e53b672",
+    "scene_context_sha256": "4e3b658cee42efba40fc9feb72e49027bc84690dd5bdc244756e2704fb51419d",
+    "visual_projection_sha256": "cb1adf6e57d95aa28b1b960b4097871f08ca76e22297b67238e0d7fac2fe8c39",
+    "asset_render_spec_sha256": "f9fa7effeb1f7a6975d2760a77a076f75201a1483fdfc2d9b978b44756573195",
+    "visual_authority_sha256": null,
+    "visual_evidence_bundle_sha256": null,
+    "lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99"
+  },
+  "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
+  "prepared_reference_set": {
+    "artifact_type": "prepared-reference-set",
+    "set_id": "PRS-3527eb0ee61164db13a5",
+    "transport_mode": "none",
+    "target_model": null,
+    "reference_selection": {
+      "artifact_type": "reference-selection",
+      "selection_id": "SEL-C01-SC-EP03-01",
+      "identity_contract_sha256": "e370d88f96b68014de7e8ca5ed1f3dd0b74255b9c4e1051ac8d7ebc2d844e655",
+      "era_contract_sha256": null,
+      "appearance_variant_sha256": null,
+      "state_snapshot_sha256": "9c791e0ff39a81f7d6954fbb3caaad6436db7f91ad33c1ae0101c4915e53b672",
+      "story_order": 25,
+      "required_state_features": [],
+      "selected_references": [],
+      "unresolved_requirements": [],
+      "selection_sha256": "8ae1ba2325932ef246498f469cfc7f1073ae9256ed5dddb9942d00cb6b9df07b"
+    },
+    "reference_selection_sha256": "8ae1ba2325932ef246498f469cfc7f1073ae9256ed5dddb9942d00cb6b9df07b",
+    "reference_use_plan": null,
+    "reference_use_plan_sha256": null,
+    "surface_lighting_plan_sha256": null,
+    "zero_reference_reason": {
+      "code": "no-canonical-record-selected",
+      "record_ids": [],
+      "detail": "This deterministic state-aware pilot selects no canonical record-scoped visual reference; its full identity and scene contracts remain authoritative."
+    },
+    "reference_preamble": "",
+    "prompt_artifacts": [],
+    "selected_references": [],
+    "single_board": null,
+    "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
+  },
+  "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
+  "generation_input_sha256": "9f31340ac750927ae98868e8908144710b70b0240a3d1d0004c4f745a5795c43",
+  "generation_payload": {
+    "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+    "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
+    "native_negative": "",
+    "transports": {
+      "separate": {
+        "available": true,
+        "channel": "prompt_plus_negative_fields",
+        "method": "verbatim-separate-fields",
+        "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+        "negative": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
+        "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
+        "negative_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570"
+      },
+      "integrated": {
+        "available": true,
+        "channel": "single_prompt_field",
+        "method": "authored-affirmative",
+        "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
+        "sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1"
+      },
+      "native_subset": {
+        "available": false,
+        "channel": "prompt_plus_native_negative",
+        "method": "unavailable",
+        "prompt": "",
+        "negative": "",
+        "prompt_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "paste_instructions": {
+        "single_prompt_field": "Paste transports.integrated.text as the only prompt. The text must be an agent-authored affirmative rendition or the certified primary prompt.",
+        "prompt_plus_negative_fields": "Paste transports.separate.prompt into the positive field and transports.separate.negative into the independent negative field, verbatim.",
+        "prompt_plus_native_negative": "Paste transports.native_subset.prompt as the main prompt and transmit transports.native_subset.negative through the platform's concise native negative syntax, verbatim."
+      }
+    },
+    "negative_transport": {
+      "mode": "integrated-critical",
+      "channel": "single_prompt_field",
+      "instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
+      "critical_avoidance_integrated": true,
+      "send_full_negative_verbatim": false,
+      "send_native_negative_verbatim": false
+    },
+    "negative_provenance": {
+      "activated_sources": [
+        "style-family:polished-soft-cel",
+        "state-integrity:left-right",
+        "state-integrity:prop-ownership"
+      ],
+      "diagnostic_sources_retained": [],
+      "semantic_exclusions_user_supplied": [],
+      "affirmative_translations": {
+        "state-integrity:left-right": "stable left-right identity",
+        "state-integrity:prop-ownership": "the wolf's neck and shirt remain visibly free of that pendant"
+      }
+    },
+    "prompt_recommendations": {
+      "merge_mode": "advisory-only",
+      "positive": {
+        "declared": false,
+        "applied": false,
+        "mode": "advisory-only",
+        "reason": "not-declared",
+        "recommended_text": ""
+      },
+      "negative": {
+        "declared": false,
+        "applied": false,
+        "mode": "advisory-only",
+        "reason": "not-declared",
+        "recommended_text": ""
+      },
+      "integrated": {
+        "declared": false,
+        "applied": false,
+        "mode": "advisory-only",
+        "reason": "not-declared",
+        "recommended_text": ""
+      },
+      "negative_preset": "",
+      "resolved_model_id": "gpt-image-2.5-flare"
+    },
+    "parameters": {
+      "size": "1024x1024",
+      "quality": "high"
+    },
+    "service": null,
+    "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
+    "negative_prompt_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",
+    "native_negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "prompt_recommendations_sha256": "46884d57b7319ffc073fe83da8fd3f98cccafb00e28405ad6a4196db6b4fe672"
+  },
+  "generation_contract": {
+    "forward_verified_prompt_transport": true,
+    "forward_verified_negative_transport": true,
+    "forward_ordered_reference_transports": true,
+    "do_not_reconstruct_from_chat": true,
+    "negative_transport_mode": "integrated-critical",
+    "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
+    "negative_prompt_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",
+    "native_negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "prompt_recommendations_sha256": "46884d57b7319ffc073fe83da8fd3f98cccafb00e28405ad6a4196db6b4fe672",
+    "production_spec_sha256": "3c74d567085c332a1bb719f9eab52c33829959bed1f97c58f004bd27edf317d8",
+    "plot_sha256": "12379b02bc4cc79db80bbd6ce9f74dec157a0f59150965c2928125733acdff4f",
+    "retrieval_record_sha256": "5b311ba9ba9fb2a8096168c558878d540b9d17b15b2e22c65c753d70a04a2dac",
+    "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
+    "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
+    "generation_input_sha256": "9f31340ac750927ae98868e8908144710b70b0240a3d1d0004c4f745a5795c43",
+    "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language."
+  },
+  "production_binding": null
+}

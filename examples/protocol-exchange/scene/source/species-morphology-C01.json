@@ -1,0 +1,281 @@
+{
+  "artifact_type": "species-morphology-profile",
+  "profile_id": "SMP-workshop-C01",
+  "canonical_name": "anthropomorphic gray wolf mechanic",
+  "aliases": [],
+  "domain": "anthropomorphic-animal",
+  "reality_status": "custom-original",
+  "species_scope": "custom-lineage",
+  "taxonomy_or_origin": {
+    "family_or_clade": "authored workshop lineage",
+    "lineage_notes": "Scope is this example design; no extrapolation to real animals.",
+    "structural_ancestors_or_influences": []
+  },
+  "body_plan": {
+    "symmetry": "Only the explicitly described asymmetries and paired markings are asserted.",
+    "posture_class": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+    "primary_axis": "upright in this scene",
+    "region_map": [
+      {
+        "region_id": "region-carrier",
+        "name": "authored overall form",
+        "parent_region": null,
+        "bilateral": false,
+        "landmarks": [
+          "outer silhouette"
+        ],
+        "continuity_rules": [
+          "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail"
+        ]
+      }
+    ],
+    "support_structure": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+    "locomotion_modes": [
+      "walking as declared in the shot plan"
+    ],
+    "center_of_mass": "Not numerically specified.",
+    "scale_reference": "broad upper torso, compact waist, long forearms, and stable athletic leg length",
+    "topology_invariants": [
+      "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+      "upright ears and one long gray tail with a pale tip"
+    ]
+  },
+  "standard_features": [
+    {
+      "feature_id": "carrier",
+      "feature_kind": "other",
+      "presence": "present",
+      "count": 1,
+      "laterality": "not-applicable",
+      "attachment_site": "region-carrier",
+      "origin_and_termination": "whole authored body extent",
+      "relative_measurements": {
+        "length": "Not numerically specified.",
+        "width": "Not numerically specified.",
+        "thickness": "Not numerically specified.",
+        "spacing": "Not numerically specified.",
+        "body_ratio": "broad upper torso, compact waist, long forearms, and stable athletic leg length",
+        "measurement_basis": "outer silhouette"
+      },
+      "shape": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+      "orientation": "upright in this scene",
+      "color_and_pattern": "charcoal-gray fur, pale muzzle and chest, darker forearms, and one narrow dark stripe above each eye",
+      "surface_or_material": "fur as explicitly described",
+      "internal_structure": null,
+      "articulation": "Only movements written in the example shot plan.",
+      "resting_configuration": "Scene start stance.",
+      "range_of_motion": "Not quantified; no additional capabilities inferred.",
+      "functional_role": "visible individual body",
+      "expression_role": "controlled posture, ears move before the head, careful hand pressure, and restrained breathing under stress",
+      "individual_variation_axes": [
+        "only author-specified proportions and markings"
+      ],
+      "continuity_rules": [
+        "retain the declared count",
+        "retain the declared extent"
+      ],
+      "required_views": [
+        "front bust",
+        "three-quarter bust",
+        "full body"
+      ],
+      "source_confidence": "preset-selected",
+      "notes": [
+        "This feature is the whole authored body, not an inferred organ list."
+      ],
+      "feature_group": "body-region",
+      "count_logic": {
+        "typical": 1,
+        "minimum": 1,
+        "maximum": 1,
+        "allowed_patterns": [
+          "one authored individual body"
+        ],
+        "count_basis": "explicit individual fixture"
+      },
+      "attachment_topology": {
+        "parent_feature_refs": [
+          "region-carrier"
+        ],
+        "attachment_landmarks": [
+          "outer silhouette"
+        ],
+        "attachment_mode": "whole-form carrier",
+        "branching_or_sequence": "No further topology inferred."
+      },
+      "visibility_and_occlusion": {
+        "ordinary_visibility": "exposed portions in the declared shot crop",
+        "common_occlusions": [
+          "clothes and scene objects"
+        ],
+        "minimum_proof_views": [
+          "front bust",
+          "full body"
+        ]
+      },
+      "sensory_or_signal_output": [],
+      "developmental_behavior": {
+        "life_stage_changes": [],
+        "sex_or_role_dimorphism": [],
+        "seasonal_or_environmental_changes": [],
+        "metamorphic_changes": [],
+        "regeneration_or_shedding": []
+      },
+      "cross_feature_dependencies": [],
+      "measurement_constraints": {
+        "minimum": null,
+        "maximum": null,
+        "typical_range": "Not quantified.",
+        "reference_landmarks": [
+          "outer silhouette"
+        ],
+        "scaling_behavior": "scales coherently with the parent body plan"
+      }
+    }
+  ],
+  "surface_systems": [
+    {
+      "surface_id": "surface-primary",
+      "regions": [
+        "region-carrier"
+      ],
+      "material_type": "fur",
+      "base_color_logic": "charcoal-gray fur, pale muzzle and chest, darker forearms, and one narrow dark stripe above each eye",
+      "pattern_topology": "charcoal-gray fur, pale muzzle and chest, darker forearms, and one narrow dark stripe above each eye",
+      "texture_and_relief": "Not specified beyond fur.",
+      "thickness_or_density": "Not quantified.",
+      "light_and_wetness_response": "Only the explicit current environment and render directions.",
+      "damage_response": "Current injury is separate state, not a species default.",
+      "continuity_rules": [
+        "surface follows the declared carrier",
+        "authored pattern relations remain stable"
+      ]
+    }
+  ],
+  "expression_system": [
+    {
+      "channel_id": "channel-carrier",
+      "carrier_feature_refs": [
+        "carrier"
+      ],
+      "neutral_state": "Current scene baseline, not a universal emotional default.",
+      "active_states": [
+        "controlled posture, ears move before the head, careful hand pressure, and restrained breathing under stress"
+      ],
+      "readable_meanings": [
+        "Only the stated scene interpretation; this channel is not proof of inner feeling."
+      ],
+      "ambiguity_notes": [
+        "interpret the channel together with posture, contact, and scene context"
+      ],
+      "timing_and_range": "Only the authored scene action timing.",
+      "continuity_rules": [
+        "expression changes remain within the physical range of the carrier features"
+      ],
+      "channel_class": "other",
+      "external_tool_refs": [],
+      "signal_dimensions": [
+        "authored signal dimension"
+      ]
+    }
+  ],
+  "individual_variation_model": {
+    "species_invariants": [
+      "body plan remains coherent",
+      "feature count and attachment remain within declared limits"
+    ],
+    "common_variation_axes": [
+      "size",
+      "proportion",
+      "color",
+      "pattern",
+      "feature length",
+      "feature thickness"
+    ],
+    "age_related_variation": [],
+    "seasonal_or_environmental_variation": [],
+    "rare_valid_variants": [],
+    "state_boundaries": [
+      "species profile owns lineage-wide possibilities",
+      "individual contract owns one character realization",
+      "temporary state never rewrites species topology"
+    ]
+  },
+  "near_species_differences": [],
+  "coverage_requirements": [
+    {
+      "requirement_id": "coverage-carrier",
+      "feature_refs": [
+        "carrier"
+      ],
+      "acceptable_views": [
+        "front bust",
+        "three-quarter bust",
+        "full body"
+      ],
+      "priority": "signature",
+      "notes": "Observe the authored body and marking obligations in the corresponding crop."
+    }
+  ],
+  "canon_status": "approved",
+  "source_provenance": [
+    {
+      "type": "example source",
+      "reference": "character-identity-C01.json stable_identity"
+    }
+  ],
+  "notes": [
+    "Synthetic worked-example declaration grounded in the existing authored fixture; not a zoological claim."
+  ],
+  "species_profile_sha256": "4dc89f20d94c49f973063476269cfb09538137d3478457e9189c8dc5ed0a0f08",
+  "communication_and_expression_tools": [],
+  "inventory_completeness": {
+    "reviewed_feature_groups": [
+      "body-region"
+    ],
+    "explicitly_absent_or_inapplicable": [],
+    "unresolved_feature_questions": [],
+    "completeness_status": "provisional"
+  },
+  "developmental_and_population_variation": {
+    "life_stages": [],
+    "sex_or_role_dimorphism": [],
+    "polymorphisms": [],
+    "metamorphic_or_form_changes": [],
+    "population_or_regional_variation": [],
+    "heritable_anomalies": []
+  },
+  "feature_relationships": [],
+  "functional_capabilities": [],
+  "invalid_generalizations": [
+    "Do not infer an undeclared limb, organ, tail, wing, tentacle, or sensory system from a broad creature label."
+  ],
+  "frame_character_model": {
+    "default": {
+      "representation": "declared-structures",
+      "structures": {
+        "body": {
+          "kind": "authored body",
+          "location": "whole visible form",
+          "presence": "present",
+          "geometry": {
+            "form": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+            "proportions": "broad upper torso, compact waist, long forearms, and stable athletic leg length",
+            "face": "long canine muzzle, amber eyes, upright ears, heavy dark brows, and a square cheek structure",
+            "appendages": "upright ears and one long gray tail with a pale tip"
+          }
+        }
+      },
+      "source_confidence": "preset-selected",
+      "frame_character_id": "frame-C01",
+      "overall_form": "tall humanoid canine body with broad shoulders, five-fingered hands, digitigrade legs, and one long tail",
+      "coherence_rules": [
+        "Retain the specific authored fixture; do not extrapolate a species-wide skeleton."
+      ],
+      "diagnostic_misreadings": []
+    },
+    "allowed_individual_variants": [],
+    "inheritance_rule": "individual contracts inherit the default unless an owner-approved variant is declared",
+    "structure_coherence_rule": "All declared components follow the approved overall form without inferred anatomy."
+  }
+}

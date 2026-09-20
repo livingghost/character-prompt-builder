@@ -1,0 +1,12 @@
+{
+  "measurement_id": "measure-muzzle-length",
+  "target_ref": "head.muzzle",
+  "target_class": "anatomy",
+  "dimension": "length",
+  "relation": "about one third of total head depth",
+  "basis": "muzzle tip to muzzle base against occiput to muzzle tip",
+  "tolerance": "within the approved identity tolerance",
+  "source_confidence": "reference-approximate",
+  "load_bearing_reason": "muzzle length controls species and identity read",
+  "continuity_rule": "retain the declared ratio across camera angles and expressions"
+}

@@ -1,0 +1,20 @@
+{
+  "id": "",
+  "feature_type": "",
+  "target_region": "",
+  "laterality": "",
+  "landmark_relation": "",
+  "count_or_distribution": "",
+  "relative_size": "",
+  "shape_and_path": "",
+  "orientation": "",
+  "color_and_value": "",
+  "depth_and_relief": "",
+  "edge_and_texture": "",
+  "surface_interaction": "",
+  "age_or_condition": "",
+  "visibility_and_occlusion": "",
+  "identity_priority": "supporting",
+  "continuity_rules": [],
+  "source_confidence": "reference-clear"
+}

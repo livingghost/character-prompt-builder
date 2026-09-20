@@ -1,0 +1,383 @@
+{
+  "id": "general",
+  "title": "DOMAIN-NEUTRAL CHARACTER IDENTITY REFERENCE SHEET",
+  "canvas": [
+    2300,
+    5902
+  ],
+  "header_fields": [
+    {
+      "field_id": "identity.name",
+      "label": "NAME"
+    },
+    {
+      "field_id": "identity.species_domain",
+      "label": "SPECIES / DOMAIN / KIND"
+    },
+    {
+      "field_id": "field.height_against_a_stated_measure",
+      "label": "DECLARED EXTENT"
+    }
+  ],
+  "scaffold_guide_lines": [
+    "FILL ONLY WHITE EDITABLE INTERIORS. KEEP LABELS, BORDERS, PROFILE FACTS, COLOR KEY, AND PROTECTED PANELS UNCHANGED.",
+    "DRAW ONE CONSISTENT IDENTITY OR COLLECTIVE. PRESERVE DECLARED TOPOLOGY; INVENT NO HUMANOID ANATOMY OR FACIAL CHANNELS."
+  ],
+  "reference_guide_lines": [
+    "IDENTITY AUTHORITY ONLY: MATCH BASE CONFIGURATION, TOPOLOGY, COUNT, PROPORTIONS, LANDMARKS, COLORS, AND MATERIALS.",
+    "THE SCENE PROMPT OWNS POSE, STATE, CAMERA, ENVIRONMENT, LIGHTING, AND EVERY DECLARED VARIABLE."
+  ],
+  "rows": [
+    {
+      "height": 762,
+      "section_label": "BASE FORM / UNCOVERED CONFIGURATION: PRIMARY / ORTHOGONAL A / OPPOSITE / ORTHOGONAL B",
+      "boxes": [
+        {
+          "panel_code": "A1",
+          "slot_id": "canon.primary",
+          "output_name": "base-primary.png",
+          "label": "BASE PRIMARY",
+          "hint": "complete unobstructed identity in its neutral canonical configuration and most recognizable orientation; omit detachable coverings, clothing, equipment, and carried modules",
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "A2",
+          "slot_id": "canon.side",
+          "output_name": "base-orthogonal.png",
+          "label": "BASE ORTHOGONAL A",
+          "hint": "complete unobstructed base configuration from a useful orthogonal orientation, preserving exact topology, component count, connections, formation, proportions, and scale from A1",
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "A3",
+          "slot_id": "canon.back",
+          "output_name": "base-opposite.png",
+          "label": "BASE OPPOSITE",
+          "hint": "complete unobstructed base configuration from the opposite orientation, proving rear or hidden landmarks, connections, and surface continuity",
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "A4",
+          "slot_id": "canon.right",
+          "output_name": "base-second-orthogonal.png",
+          "label": "BASE ORTHOGONAL B",
+          "hint": "complete unobstructed base configuration from the second lateral or orthogonal orientation, proving asymmetric presence and absence independently from A2",
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "footer_height": 82
+        }
+      ]
+    },
+    {
+      "height": 762,
+      "section_label": "BASE FORM / UNCOVERED CONFIGURATION: ABOVE / BELOW",
+      "boxes": [
+        {
+          "slot_id": "canon.top",
+          "output_name": "base-top.png",
+          "panel_code": "A5",
+          "footer_height": 82,
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "label": "BASE ABOVE",
+          "hint": "orthogonal view from above the primary axis of the same uncovered configuration; show the outline, top surfaces, and every component visible from above"
+        },
+        {
+          "slot_id": "canon.underside",
+          "output_name": "base-underside.png",
+          "panel_code": "A6",
+          "footer_height": 82,
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "label": "BASE BELOW",
+          "hint": "orthogonal view from below the primary axis of the same uncovered configuration; show the outline, underside surfaces, and every component visible from below"
+        }
+      ]
+    },
+    {
+      "height": 762,
+      "section_label": "DRESSED / COVERED / SHELLED / EQUIPPED CONFIGURATION: SAME STARTER VIEWS",
+      "boxes": [
+        {
+          "panel_code": "B1",
+          "slot_id": "outfit.turn.front",
+          "output_name": "equipped-primary.png",
+          "label": "EQUIPPED PRIMARY",
+          "hint": "same orientation, topology, and proportions as A1 with the declared covering, outfit, shell, equipment, or carried assembly applied consistently",
+          "kind": "outfit_turnaround",
+          "source_index": 0,
+          "source_row_id": "outfits.01",
+          "reference_role": "identity",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "B2",
+          "slot_id": "outfit.turn.side",
+          "output_name": "equipped-orthogonal.png",
+          "label": "EQUIPPED ORTHOGONAL A",
+          "hint": "same orthogonal orientation, topology, and proportions as A2 with identical declared covering or equipment; show attachment and layer relationships",
+          "kind": "outfit_turnaround",
+          "source_index": 0,
+          "source_row_id": "outfits.01",
+          "reference_role": "identity",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "B3",
+          "slot_id": "outfit.turn.back",
+          "output_name": "equipped-opposite.png",
+          "label": "EQUIPPED OPPOSITE",
+          "hint": "same opposite orientation, topology, and proportions as A3 with identical declared covering or equipment; show rear construction and attachment points",
+          "kind": "outfit_turnaround",
+          "source_index": 0,
+          "source_row_id": "outfits.01",
+          "reference_role": "identity",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "B4",
+          "slot_id": "outfit.turn.right",
+          "output_name": "equipped-second-orthogonal.png",
+          "label": "EQUIPPED ORTHOGONAL B",
+          "hint": "same second lateral or orthogonal orientation as A4 with identical declared covering or equipment; prove asymmetric attachment and absence independently from B2",
+          "kind": "outfit_turnaround",
+          "source_index": 0,
+          "source_row_id": "outfits.01",
+          "reference_role": "identity",
+          "footer_height": 82
+        }
+      ]
+    },
+    {
+      "height": 280,
+      "section_label": "PROFILE AND LOAD-BEARING IDENTITY FACTS",
+      "boxes": [
+        {
+          "panel_code": "C1",
+          "slot_id": "profile.summary",
+          "label": "PROFILE",
+          "hint": "renderer-owned identity facts from sheet-data.json; do not repaint or add text",
+          "kind": "profile",
+          "reference_role": "identity",
+          "default_fill_policy": "skip",
+          "harvest": false,
+          "footer_height": 42
+        }
+      ]
+    },
+    {
+      "height": 250,
+      "section_label": "COLOR AND MATERIAL KEY",
+      "boxes": [
+        {
+          "panel_code": "C2",
+          "slot_id": "palette.strip",
+          "label": "COLOR / MATERIAL KEY",
+          "hint": "renderer-owned fixed and variable swatches from sheet-data.json; do not repaint or add labels",
+          "kind": "palette",
+          "reference_role": "identity",
+          "default_fill_policy": "skip",
+          "harvest": false,
+          "footer_height": 42
+        }
+      ]
+    },
+    {
+      "height": 462,
+      "section_label": "SCALE, RECOGNITION, AND CONFIGURATION DETAIL",
+      "boxes": [
+        {
+          "panel_code": "D1",
+          "slot_id": "size.reference",
+          "output_name": "size-reference.png",
+          "label": "DECLARED EXTENT",
+          "hint": "complete base configuration beside a plain scale indicator for the declared height, length, span, diameter, or other extent; no measurement text",
+          "kind": "size_reference",
+          "reference_role": "identity",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "D2",
+          "slot_id": "identity.icon",
+          "output_name": "identity-focal-detail.png",
+          "label": "IDENTITY FOCAL DETAIL",
+          "hint": "most diagnostic recognition structure at readable scale: face, sensor, emblem, core, pattern junction, formation, or other declared landmark; invent no face",
+          "kind": "icon",
+          "reference_role": "identity",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "D3",
+          "slot_id": "outfit.details",
+          "output_name": "covering-equipment-details.png",
+          "label": "COVERING / EQUIPMENT DETAILS",
+          "hint": "declared covering, clothing, shell, equipment, or carried assembly separated into readable components with attachment points and construction visible",
+          "kind": "outfit_detail",
+          "source_index": 0,
+          "source_row_id": "outfits.01",
+          "reference_role": "identity",
+          "footer_height": 82
+        }
+      ]
+    },
+    {
+      "height": 380,
+      "section_label": "COMMUNICATED-STATE DIFFERENCES: SAME IDENTITY AND TOPOLOGY",
+      "boxes": [
+        {
+          "panel_code": "E1",
+          "slot_id": "expressions.ex.01",
+          "output_name": "communicated-state-01.png",
+          "label": "STATE EXPRESSION 01",
+          "hint": "first declared communicated-state variant using only this identity's actual channels",
+          "kind": "expression_variant",
+          "source_index": 0,
+          "source_row_id": "expressions.01",
+          "reference_role": "performance",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "E2",
+          "slot_id": "expressions.ex.02",
+          "output_name": "communicated-state-02.png",
+          "label": "STATE EXPRESSION 02",
+          "hint": "second declared communicated-state variant; change only declared channels",
+          "kind": "expression_variant",
+          "source_index": 1,
+          "source_row_id": "expressions.02",
+          "reference_role": "performance",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "E3",
+          "slot_id": "expressions.ex.03",
+          "output_name": "communicated-state-03.png",
+          "label": "STATE EXPRESSION 03",
+          "hint": "third declared communicated-state variant; change only declared channels",
+          "kind": "expression_variant",
+          "source_index": 2,
+          "source_row_id": "expressions.03",
+          "reference_role": "performance",
+          "footer_height": 82
+        }
+      ]
+    },
+    {
+      "height": 380,
+      "boxes": [
+        {
+          "panel_code": "E4",
+          "slot_id": "expressions.ex.04",
+          "output_name": "communicated-state-04.png",
+          "label": "STATE EXPRESSION 04",
+          "hint": "fourth declared communicated-state variant; change only declared channels",
+          "kind": "expression_variant",
+          "source_index": 3,
+          "source_row_id": "expressions.04",
+          "reference_role": "performance",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "E5",
+          "slot_id": "expressions.ex.05",
+          "output_name": "communicated-state-05.png",
+          "label": "STATE EXPRESSION 05",
+          "hint": "fifth declared communicated-state variant; change only declared channels",
+          "kind": "expression_variant",
+          "source_index": 4,
+          "source_row_id": "expressions.05",
+          "reference_role": "performance",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "E6",
+          "slot_id": "expressions.ex.06",
+          "output_name": "communicated-state-06.png",
+          "label": "STATE EXPRESSION 06",
+          "hint": "sixth declared communicated-state variant; change only declared channels",
+          "kind": "expression_variant",
+          "source_index": 5,
+          "source_row_id": "expressions.06",
+          "reference_role": "performance",
+          "footer_height": 82
+        }
+      ]
+    },
+    {
+      "height": 600,
+      "section_label": "POSE / ORIENTATION / FORMATION AND BODY-LANGUAGE DIFFERENCES",
+      "boxes": [
+        {
+          "panel_code": "F1",
+          "slot_id": "pose.state.01",
+          "output_name": "pose-state-01.png",
+          "label": "BODY LANGUAGE 01",
+          "hint": "first declared posture, orientation, formation, gesture, or configuration state",
+          "kind": "pose_state",
+          "source_index": 0,
+          "source_row_id": "bodylang.01",
+          "reference_role": "performance",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "F2",
+          "slot_id": "pose.state.02",
+          "output_name": "pose-state-02.png",
+          "label": "BODY LANGUAGE 02",
+          "hint": "second declared posture, orientation, formation, gesture, or configuration state",
+          "kind": "pose_state",
+          "source_index": 1,
+          "source_row_id": "bodylang.02",
+          "reference_role": "performance",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "F3",
+          "slot_id": "pose.state.03",
+          "output_name": "pose-state-03.png",
+          "label": "BODY LANGUAGE 03",
+          "hint": "third declared posture, orientation, formation, gesture, or configuration state",
+          "kind": "pose_state",
+          "source_index": 2,
+          "source_row_id": "bodylang.03",
+          "reference_role": "performance",
+          "footer_height": 82
+        },
+        {
+          "panel_code": "F4",
+          "slot_id": "pose.state.04",
+          "output_name": "pose-state-04.png",
+          "label": "BODY LANGUAGE 04",
+          "hint": "fourth declared posture, orientation, formation, gesture, or configuration state",
+          "kind": "pose_state",
+          "source_index": 3,
+          "source_row_id": "bodylang.04",
+          "reference_role": "performance",
+          "footer_height": 82
+        }
+      ]
+    },
+    {
+      "height": 420,
+      "section_label": "STABLE ITEMS AND DETACHABLE MODULES",
+      "boxes": [
+        {
+          "panel_code": "G1",
+          "slot_id": "items.primary",
+          "output_name": "signature-items.png",
+          "label": "SIGNATURE ITEMS / MODULES",
+          "hint": "each declared stable item or detachable module separately at readable scale",
+          "kind": "items",
+          "reference_role": "support",
+          "footer_height": 82
+        }
+      ]
+    }
+  ]
+}

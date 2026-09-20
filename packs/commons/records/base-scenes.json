@@ -1,0 +1,289 @@
+{
+  "kind": "scene",
+  "records": [
+    {
+      "id": "scene-quiet-window-portrait",
+      "label": "Quiet window close portrait",
+      "curation_status": "vocabulary",
+      "record_role": "adaptable-scene-blueprint",
+      "domain": "shared",
+      "domains": [
+        "shared"
+      ],
+      "image_promise": "A close character portrait with calm lateral window illumination, clear facial performance, and a restrained interior background supporting the silhouette.",
+      "staging": {
+        "body_geometry": "Head and upper torso form one stable portrait mass with a relaxed shoulder line and readable neck connection.",
+        "action_geometry": "The pose remains still enough for subtle acting, with small orientation changes carrying the scene relationship.",
+        "gaze_and_expression": "Gaze and expression follow the requested target, emotion, and temporal moment for this particular scene.",
+        "prop_or_contact_geometry": "Any visible object contact uses clear overlap, pressure, scale, and hand or paw placement.",
+        "focal_hierarchy": "Eyes and identity-bearing facial structure lead, followed by silhouette, gesture, and a single environmental cue.",
+        "depth_order": "A simple foreground edge, character plane, and quiet room background establish compact depth."
+      },
+      "defaults": {
+        "subject": "one character adapted to the requested identity and subject domain",
+        "body": "identity-accurate proportions with a relaxed upper-body presentation",
+        "pose": "settled close-portrait posture",
+        "expression": "scene-appropriate restrained performance",
+        "composition": "face-led close portrait",
+        "camera": "eye-level head-and-shoulders view",
+        "lighting": "cool lateral window light with quiet room fill",
+        "environment": "simple interior near a window",
+        "mood": "calm and attentive",
+        "constraints": "identity anchors and requested relationships remain explicit"
+      },
+      "must_preserve": [
+        "face remains the primary focal region",
+        "window direction stays coherent",
+        "gaze target follows the scene",
+        "identity traits remain independent of transient presentation"
+      ],
+      "adaptable_fields": [
+        "species",
+        "body build",
+        "coat fur palette and markings",
+        "head hair mane and grooming",
+        "wardrobe",
+        "expression and gaze",
+        "room character"
+      ],
+      "failure_modes": [
+        "flat front lighting",
+        "automatic eye contact",
+        "background competing with the face",
+        "scene state copied into permanent identity"
+      ],
+      "aspect_ratio": "4:5",
+      "tags": [
+        "window portrait",
+        "quiet interior"
+      ],
+      "search_terms": [
+        {
+          "phrase": "quiet window portrait",
+          "facet": "scene",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "close portrait window light",
+          "facet": "scene",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "scene-low-angle-presence",
+      "label": "Low-angle presence portrait",
+      "curation_status": "vocabulary",
+      "record_role": "adaptable-scene-blueprint",
+      "domain": "shared",
+      "domains": [
+        "shared"
+      ],
+      "image_promise": "A grounded three-quarter character portrait using a modest low viewpoint, coherent body scale, and controlled dusk separation to emphasize physical presence.",
+      "staging": {
+        "body_geometry": "The near shoulder, torso, and head rise through the frame as connected masses with a stable center of gravity.",
+        "action_geometry": "A restrained turn or stance creates depth while preserving the identity-bearing head and body proportions.",
+        "gaze_and_expression": "Attention follows the requested relationship, carried through head turn, eyes, facial channels, and posture together.",
+        "prop_or_contact_geometry": "Visible support or held objects connect through clear joint alignment, overlap, and believable contact pressure.",
+        "focal_hierarchy": "The face leads, broad body masses establish scale, and dusk edge light separates the outer contour.",
+        "depth_order": "A near body plane, readable face, and subdued distant field create controlled perspective depth."
+      },
+      "defaults": {
+        "subject": "one character adapted to the requested identity and subject domain",
+        "body": "requested proportions and build expressed through connected volumes",
+        "pose": "settled three-quarter stance",
+        "expression": "scene-appropriate composed performance",
+        "composition": "character-dominant three-quarter portrait",
+        "camera": "moderately low three-quarter viewpoint",
+        "lighting": "soft dusk rim with broad fill",
+        "environment": "simple evening depth field",
+        "mood": "grounded presence",
+        "constraints": "facial identity and body scale remain coherent"
+      },
+      "must_preserve": [
+        "low viewpoint stays moderate",
+        "body masses share one perspective",
+        "face remains readable",
+        "explicit identity anchors remain fixed"
+      ],
+      "adaptable_fields": [
+        "species",
+        "body build",
+        "coat fur palette and markings",
+        "head hair mane and grooming",
+        "wardrobe",
+        "expression and gaze",
+        "evening environment"
+      ],
+      "failure_modes": [
+        "extreme under-chin view",
+        "uncontrolled foreground enlargement",
+        "continuous neon outline",
+        "tiny head caused by body scaling"
+      ],
+      "aspect_ratio": "4:5",
+      "tags": [
+        "low viewpoint",
+        "grounded scale"
+      ],
+      "search_terms": [
+        {
+          "phrase": "low angle presence portrait",
+          "facet": "scene",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "three quarter character presence",
+          "facet": "scene",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "scene-profile-breathing-room",
+      "label": "Profile portrait with breathing room",
+      "curation_status": "vocabulary",
+      "record_role": "adaptable-scene-blueprint",
+      "domain": "shared",
+      "domains": [
+        "shared"
+      ],
+      "image_promise": "A reserved profile portrait with open space along the attention direction, quiet environmental context, and gentle ambient modeling across the character.",
+      "staging": {
+        "body_geometry": "The head contour and shoulder line create an off-center mass anchored comfortably inside the frame.",
+        "action_geometry": "A small head or torso turn directs attention into the open image field and supports a reflective moment.",
+        "gaze_and_expression": "The visible eye, mouth or muzzle, ear or sensory orientation, and posture share one selected emotional phase.",
+        "prop_or_contact_geometry": "Any object or environmental contact supports the directional pose through clear placement and scale.",
+        "focal_hierarchy": "Facial contour and visible eye lead, followed by directional space and one quiet context accent.",
+        "depth_order": "Character edge, open atmospheric field, and a restrained distant cue form shallow editorial depth."
+      },
+      "defaults": {
+        "subject": "one character adapted to the requested identity and subject domain",
+        "body": "identity-accurate head and shoulder profile",
+        "pose": "reserved side-facing orientation",
+        "expression": "scene-appropriate reflective performance",
+        "composition": "off-center portrait with gaze-directed open space",
+        "camera": "side or near-profile framing",
+        "lighting": "soft overcast ambience",
+        "environment": "minimal atmospheric context",
+        "mood": "quiet and reflective",
+        "constraints": "profile landmarks and attention direction remain readable"
+      },
+      "must_preserve": [
+        "identity-bearing profile contour remains clear",
+        "open space aligns with attention",
+        "visible eye stays structurally placed",
+        "environment remains subordinate to the character"
+      ],
+      "adaptable_fields": [
+        "species",
+        "body build",
+        "coat fur palette and markings",
+        "head hair mane and grooming",
+        "wardrobe",
+        "expression and gaze",
+        "environment cue"
+      ],
+      "failure_modes": [
+        "ambiguous head rotation",
+        "attention aimed into the nearest edge",
+        "arbitrary empty space",
+        "lost facial contour"
+      ],
+      "aspect_ratio": "4:5",
+      "tags": [
+        "profile composition",
+        "open gaze space"
+      ],
+      "search_terms": [
+        {
+          "phrase": "profile portrait breathing room",
+          "facet": "scene",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "quiet profile portrait",
+          "facet": "scene",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "scene-environmental-character-view",
+      "label": "Layered environmental character view",
+      "curation_status": "vocabulary",
+      "record_role": "adaptable-scene-blueprint",
+      "domain": "shared",
+      "domains": [
+        "shared"
+      ],
+      "image_promise": "A medium character portrait where a simple foreground cue and readable background establish place while the subject remains the dominant narrative layer.",
+      "staging": {
+        "body_geometry": "The visible upper or mid body forms a clear central action mass with readable posture and silhouette.",
+        "action_geometry": "A simple activity or environmental interaction gives the figure a purpose and organizes nearby objects around it.",
+        "gaze_and_expression": "The character's attention connects to the viewer, another subject, an object, or the setting according to the brief.",
+        "prop_or_contact_geometry": "Foreground and interacted objects use clear depth, overlap, contact, and scale relative to the body.",
+        "focal_hierarchy": "Face and action lead, the immediate context follows, and distant setting shapes provide quiet orientation.",
+        "depth_order": "One foreground cue, the character plane, and a simplified background establish three distinct depth layers."
+      },
+      "defaults": {
+        "subject": "one character adapted to the requested identity and subject domain",
+        "body": "readable requested proportions at medium portrait scale",
+        "pose": "simple environment-facing activity",
+        "expression": "attention appropriate to the activity or relationship",
+        "composition": "character-led three-layer environmental view",
+        "camera": "medium portrait distance",
+        "lighting": "neutral key with open bounce",
+        "environment": "adaptable place with one foreground and one background cue",
+        "mood": "clear contextual presence",
+        "constraints": "setting detail supports the character hierarchy"
+      },
+      "must_preserve": [
+        "character remains the dominant narrative layer",
+        "environment establishes a readable place",
+        "contacts use believable depth and scale",
+        "identity anchors remain stable across the activity"
+      ],
+      "adaptable_fields": [
+        "species",
+        "body build",
+        "coat fur palette and markings",
+        "head hair mane and grooming",
+        "wardrobe",
+        "expression and gaze",
+        "activity and environment"
+      ],
+      "failure_modes": [
+        "background detail overwhelming the character",
+        "tiny unreadable face",
+        "floating foreground object",
+        "unclear activity"
+      ],
+      "aspect_ratio": "4:5",
+      "tags": [
+        "character in setting",
+        "layered environment"
+      ],
+      "search_terms": [
+        {
+          "phrase": "environmental character view",
+          "facet": "scene",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "layered character setting",
+          "facet": "scene",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

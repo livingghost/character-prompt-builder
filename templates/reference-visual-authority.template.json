@@ -1,0 +1,23 @@
+{
+  "artifact_type": "reference-visual-authority",
+  "authority_id": "VA-template",
+  "source_ref_id": "SRC-template",
+  "source_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "source_media_type": "image/png",
+  "source_dimensions": {
+    "width": 1,
+    "height": 1
+  },
+  "authority_mode": "external-reference",
+  "guide_scope": "reference-evidence",
+  "locked_dimensions": [],
+  "free_dimensions": [],
+  "archival_vector_ref": {
+    "artifact_id": "faithful-archival",
+    "path": "faithful-archival.svg",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "media_type": "image/svg+xml"
+  },
+  "notes": [],
+  "visual_authority_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

@@ -1,0 +1,13 @@
+{
+  "artifact_type": "reference-selection",
+  "selection_id": "SEL-C01-SC-EP03-01",
+  "identity_contract_sha256": "e370d88f96b68014de7e8ca5ed1f3dd0b74255b9c4e1051ac8d7ebc2d844e655",
+  "era_contract_sha256": null,
+  "appearance_variant_sha256": null,
+  "state_snapshot_sha256": "9c791e0ff39a81f7d6954fbb3caaad6436db7f91ad33c1ae0101c4915e53b672",
+  "story_order": 25,
+  "required_state_features": [],
+  "selected_references": [],
+  "unresolved_requirements": [],
+  "selection_sha256": "8ae1ba2325932ef246498f469cfc7f1073ae9256ed5dddb9942d00cb6b9df07b"
+}

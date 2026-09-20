@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "authority_id",
+    "source_ref_id",
+    "source_sha256",
+    "source_media_type",
+    "source_dimensions",
+    "authority_mode",
+    "guide_scope",
+    "locked_dimensions",
+    "free_dimensions",
+    "archival_vector_ref",
+    "visual_authority_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "reference-visual-authority"
+    },
+    "authority_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_ref_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_media_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_dimensions": {
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "authority_mode": {
+      "enum": [
+        "external-reference",
+        "declared-canon",
+        "text-only"
+      ]
+    },
+    "guide_scope": {
+      "enum": [
+        "identity",
+        "appearance-state",
+        "shot-geometry",
+        "identity-and-shot",
+        "reference-evidence"
+      ]
+    },
+    "locked_dimensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "free_dimensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "archival_vector_ref": {
+      "type": "object",
+      "required": [
+        "artifact_id",
+        "path",
+        "sha256",
+        "media_type"
+      ],
+      "properties": {
+        "artifact_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "media_type": {
+          "const": "image/svg+xml"
+        }
+      },
+      "additionalProperties": false
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "visual_authority_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

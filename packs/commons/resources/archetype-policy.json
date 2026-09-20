@@ -1,0 +1,30 @@
+{
+  "curated_archetype_scope": "Reusable identity contracts with concrete, stable visual evidence or deliberately authored permanent traits.",
+  "canonical_subject_domains": [
+    "human",
+    "anthropomorphic-animal",
+    "animal",
+    "creature",
+    "hybrid",
+    "robot"
+  ],
+  "required_identity_axes": [
+    "morphology",
+    "proportions",
+    "surface distribution",
+    "color and markings",
+    "growth geometry",
+    "distinctive details"
+  ],
+  "creation_basis_values": [
+    "authored identity specification",
+    "reviewed reference evidence"
+  ],
+  "creation_gate": "Create an archetype only when its permanent traits can be stated independently of one scene-conditioned presentation.",
+  "growth_policy": "Add archetypes as separate identity contracts; keep scenes, poses, expressions, gaze, wardrobe state, and transient effects outside permanent identity.",
+  "tier_meaning": {
+    "curated": "A reviewed identity contract suitable for direct adoption.",
+    "vocabulary": "A retrieval aid that still requires semantic review."
+  },
+  "domain_separation": "Each archetype declares the subject domain whose morphology and expression channels it uses."
+}

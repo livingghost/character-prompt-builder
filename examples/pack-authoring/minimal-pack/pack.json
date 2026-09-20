@@ -1,0 +1,20 @@
+{
+  "pack_id": "0198b4e8-7c00-7a31-8c5a-2a6d9f18e4b7",
+  "name": "Minimal Example Pack",
+  "description": "A development-pack example containing one vocabulary record.",
+  "release": "2026.08.15.1",
+  "content": {
+    "record_globs": [
+      "records/**/*.json"
+    ],
+    "resource_globs": [],
+    "resource_bindings": {}
+  },
+  "capabilities": [
+    "lighting"
+  ],
+  "dependencies": [],
+  "optional_dependencies": [],
+  "replaces": [],
+  "license": "GPL-3.0-only"
+}

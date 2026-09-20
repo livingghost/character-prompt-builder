@@ -1,0 +1,20 @@
+{
+  "artifact_type": "relationship-state",
+  "relationship_id": "REL-C01-C02",
+  "timeline_id": "main",
+  "story_order": 0,
+  "bond_type": [],
+  "trust": "",
+  "affinity": "",
+  "intimacy": "",
+  "conflict": "",
+  "authority": "",
+  "obligation": [],
+  "contact_boundary": "",
+  "public_mask": "",
+  "private_behavior": "",
+  "shared_knowledge": [],
+  "relationship_state_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "from": "C01",
+  "to": "C02"
+}

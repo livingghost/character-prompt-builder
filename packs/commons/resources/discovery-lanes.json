@@ -1,0 +1,141 @@
+{
+  "purpose": "Compact exploratory lanes for briefs that leave scene, framing, or lighting open while keeping explicit subject anchors fixed.",
+  "count": 4,
+  "lanes": [
+    {
+      "id": "default-quiet-window-portrait",
+      "label": "Quiet window portrait",
+      "domains": [
+        "human",
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid",
+        "robot"
+      ],
+      "priority": 100,
+      "summary": "A close, calm portrait shaped by cool lateral daylight, a composed face, and a simple background with generous tonal separation.",
+      "scene_query": "quiet close portrait cool window light",
+      "style_family_id": "style-family-clear-portrait",
+      "camera_id": "camera-close-eye-level",
+      "camera_query": "close eye level portrait",
+      "lighting_id": "lighting-cool-window",
+      "lighting_query": "cool window light",
+      "preferred_scene_ids": [
+        "scene-quiet-window-portrait"
+      ],
+      "adds": [
+        "restrained interior context",
+        "lateral window illumination",
+        "face-led visual hierarchy"
+      ],
+      "adjustable": [
+        "gaze target",
+        "room character",
+        "crop tightness",
+        "wardrobe"
+      ]
+    },
+    {
+      "id": "default-low-angle-presence",
+      "label": "Low-angle presence study",
+      "domains": [
+        "human",
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid",
+        "robot"
+      ],
+      "priority": 90,
+      "summary": "A three-quarter portrait from a modestly low viewpoint, using broad foreground masses and a soft upper rim to convey physical presence.",
+      "scene_query": "low angle three quarter portrait physical presence",
+      "style_family_id": "style-family-sculpted-presence",
+      "camera_id": "camera-low-three-quarter",
+      "camera_query": "low three quarter portrait",
+      "lighting_id": "lighting-dusk-rim",
+      "lighting_query": "soft dusk rim light",
+      "preferred_scene_ids": [
+        "scene-low-angle-presence"
+      ],
+      "adds": [
+        "grounded scale",
+        "clear shoulder silhouette",
+        "subtle dusk separation"
+      ],
+      "adjustable": [
+        "viewpoint height",
+        "body turn",
+        "background depth",
+        "expression"
+      ]
+    },
+    {
+      "id": "default-profile-breathing-room",
+      "label": "Profile with breathing room",
+      "domains": [
+        "human",
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid",
+        "robot"
+      ],
+      "priority": 80,
+      "summary": "A reserved side-facing portrait with open space ahead of the gaze, soft ambient illumination, and a quiet environmental cue.",
+      "scene_query": "profile portrait open gaze space reserved mood",
+      "style_family_id": "style-family-quiet-editorial",
+      "camera_id": "camera-profile-space",
+      "camera_query": "profile framing open negative space",
+      "lighting_id": "lighting-overcast-ambient",
+      "lighting_query": "soft overcast ambient light",
+      "preferred_scene_ids": [
+        "scene-profile-breathing-room"
+      ],
+      "adds": [
+        "off-center balance",
+        "gaze-directed open space",
+        "quiet atmospheric depth"
+      ],
+      "adjustable": [
+        "head turn",
+        "environment cue",
+        "amount of open space",
+        "mood"
+      ]
+    },
+    {
+      "id": "default-environmental-character-view",
+      "label": "Environmental character view",
+      "domains": [
+        "human",
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid",
+        "robot"
+      ],
+      "priority": 70,
+      "summary": "A medium portrait that gives the setting a supporting role through foreground, subject, and background layers under clear neutral illumination.",
+      "scene_query": "environmental medium portrait layered depth",
+      "style_family_id": "style-family-environmental-illustration",
+      "camera_id": "camera-environmental-medium",
+      "camera_query": "medium environmental portrait",
+      "lighting_id": "lighting-neutral-bounce",
+      "lighting_query": "neutral studio bounce light",
+      "preferred_scene_ids": [
+        "scene-environmental-character-view"
+      ],
+      "adds": [
+        "readable setting context",
+        "three-layer depth",
+        "balanced subject and environment"
+      ],
+      "adjustable": [
+        "setting type",
+        "foreground cue",
+        "body crop",
+        "activity"
+      ]
+    }
+  ]
+}

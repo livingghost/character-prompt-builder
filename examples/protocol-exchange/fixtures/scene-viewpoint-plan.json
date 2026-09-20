@@ -1,0 +1,64 @@
+{
+  "artifact_type": "scene-viewpoint-plan",
+  "scene_id": "SC-WORKSHOP-01",
+  "story_order": 10,
+  "default_viewpoint_profile_id": "external-character-aligned-third-person",
+  "default_knowledge_scope": "character_restricted",
+  "default_focal_character_id": "C01",
+  "default_point_of_audition": "objective_mix",
+  "coverage_strategy": "motivated sparse coverage with one first-person handoff insert",
+  "axis_of_action": "C01 to C02 across the central workbench",
+  "shots": [
+    {
+      "shot_id": "SC-WORKSHOP-01-SH01",
+      "order_index": 1,
+      "coverage_role": "establishing master",
+      "viewpoint_profile_id": "external-character-aligned-third-person",
+      "camera_spec_file": "generated/shots/SC-WORKSHOP-01-SH01.json"
+    },
+    {
+      "shot_id": "SC-WORKSHOP-01-SH02",
+      "order_index": 2,
+      "coverage_role": "aligned medium approach",
+      "viewpoint_profile_id": "external-character-aligned-third-person",
+      "camera_spec_file": "generated/shots/SC-WORKSHOP-01-SH02.json"
+    },
+    {
+      "shot_id": "SC-WORKSHOP-01-SH03",
+      "order_index": 3,
+      "coverage_role": "over-the-shoulder pendant reveal",
+      "viewpoint_profile_id": "over-the-shoulder",
+      "camera_spec_file": "generated/shots/SC-WORKSHOP-01-SH03.json"
+    },
+    {
+      "shot_id": "SC-WORKSHOP-01-SH04",
+      "order_index": 4,
+      "coverage_role": "subjective handoff insert",
+      "viewpoint_profile_id": "embodied-first-person",
+      "camera_spec_file": "generated/shots/SC-WORKSHOP-01-SH04.json"
+    },
+    {
+      "shot_id": "SC-WORKSHOP-01-SH05",
+      "order_index": 5,
+      "coverage_role": "external reaction close-up",
+      "viewpoint_profile_id": "external-character-aligned-third-person",
+      "camera_spec_file": "generated/shots/SC-WORKSHOP-01-SH05.json"
+    },
+    {
+      "shot_id": "SC-WORKSHOP-01-SH06",
+      "order_index": 6,
+      "coverage_role": "external landing master",
+      "viewpoint_profile_id": "external-character-aligned-third-person",
+      "camera_spec_file": "generated/shots/SC-WORKSHOP-01-SH06.json"
+    }
+  ],
+  "transition_ids": [
+    "VT-WORKSHOP-01",
+    "VT-WORKSHOP-02",
+    "VT-WORKSHOP-03",
+    "VT-WORKSHOP-04",
+    "VT-WORKSHOP-05"
+  ],
+  "knowledge_policy": "Follow C01 knowledge by default. Reveal P01 damage through C01 attention. Keep the concealed injury undisclosed.",
+  "scene_plan_sha256": "ef21f314b406882c674c90a511524f2fbc1c533017f897c88939432c062f08fb"
+}

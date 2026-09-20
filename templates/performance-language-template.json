@@ -1,0 +1,72 @@
+{
+  "felt_emotion": [
+    "internal emotion or bodily state"
+  ],
+  "displayed_emotion": [
+    "visible social display"
+  ],
+  "masked_or_conflicted_emotion": [
+    "optional hidden or competing state"
+  ],
+  "intent": [
+    "what the subject is trying to communicate or do"
+  ],
+  "viewer_or_partner_relationship": [
+    "target and relationship context"
+  ],
+  "intensity": "moderate",
+  "temporal_phase": "held",
+  "channel_cues": [
+    {
+      "cue_id": "cue-01",
+      "channel": "eyes-lids-brows",
+      "observation": "Describe the visible channel state from the source or brief.",
+      "visual_instruction": "Describe the affirmative geometry or material change to render.",
+      "laterality": "bilateral",
+      "intensity": "moderate",
+      "direction_or_target": "viewer, partner, prop, horizon, or other target",
+      "visibility": "visible",
+      "evidence_status": "observed",
+      "confidence": "high",
+      "stability": "transient-action",
+      "notes": "Optional evidence or interpretation note."
+    }
+  ],
+  "interpretation_candidates": [
+    {
+      "meaning": "one plausible coordinated performance reading",
+      "supported_by": [
+        "cue-01"
+      ],
+      "context": "State the scene, relationship, and domain evidence that supports this reading.",
+      "confidence": "high",
+      "content_intensity": "general",
+      "notes": "Keep alternate readings when the visible cues remain genuinely ambiguous."
+    }
+  ],
+  "selected_interpretation": {
+    "meaning": "the reading selected for the current image intent",
+    "supported_by": [
+      "cue-01"
+    ],
+    "context": "State why this reading best fits the brief, state, and relationship context.",
+    "confidence": "high",
+    "content_intensity": "general",
+    "notes": "Selection belongs to the current image and can change when context changes."
+  },
+  "ambiguity_notes": [
+    "Record cue meanings that change with context or intensity."
+  ],
+  "prompt_projection": {
+    "primary_clause": "One concise clause combining the dominant coordinated cues.",
+    "supporting_clauses": [
+      "Supporting cues from other channels."
+    ],
+    "search_facets": [
+      "ordinary canonical-English performance terms"
+    ],
+    "review_checks": [
+      "Confirm that all selected channels tell the same story."
+    ]
+  }
+}

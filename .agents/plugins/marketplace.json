@@ -1,0 +1,17 @@
+{
+  "name": "character-prompt-builder",
+  "plugins": [
+    {
+      "name": "character-prompt-builder",
+      "description": "Turn a short character idea, a detailed production brief, or an approved recurring-character state into a coherent image-generation package: prompts, scoped negative prompts, and canonical reference material; send it to the service the model record names, and keep every generated image in a studio beside the request that produced it.",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      }
+    }
+  ]
+}

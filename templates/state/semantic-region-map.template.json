@@ -1,0 +1,17 @@
+{
+  "artifact_type": "semantic-region-map",
+  "region_map_id": "SRM-neutral-starter",
+  "source_ref_id": "SRC-neutral-starter",
+  "source_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "coordinate_space": {
+    "width": 1,
+    "height": 1
+  },
+  "regions": [],
+  "canonical_record_refs": [],
+  "notes": [
+    "Template values have no authority; replace the source identity, dimensions, regions, hashes, and record bindings only after reviewing real evidence.",
+    "No semantic SVG element mapping is asserted unless authored separately."
+  ],
+  "semantic_region_map_sha256": "6e1616a01c3818a668a377b57e2e5a45bf9f7690440b7f0a9915f67717815c78"
+}

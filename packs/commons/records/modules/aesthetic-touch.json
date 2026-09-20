@@ -1,0 +1,214 @@
+{
+  "kind": "module",
+  "category": "aesthetic-touch",
+  "records": [
+    {
+      "id": "aesthetic-touch-blind-box-presentation",
+      "label": "Blind-box figure presentation",
+      "category": "aesthetic-touch",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Present the character as a collectible blind-box figure: compact proportions, smooth toy surfacing, a clean solid backdrop, and soft even product lighting.",
+      "prompt": "Present the character as a collectible blind-box figure: smooth vinyl-like surfacing with soft rounded transitions, a full-body standing or gently posed display, one solid clean backdrop color, soft even studio light with a subtle ground shadow, and crisp silhouette readability.",
+      "invariants": [
+        "the whole figure stays inside the frame",
+        "one solid backdrop color with a soft ground shadow",
+        "surfacing reads as smooth molded toy material across skin, hair, and clothing"
+      ],
+      "misreadings_to_avoid": [
+        "environmental clutter behind the figure",
+        "photoreal skin texture breaking the toy read",
+        "harsh single-direction shadows"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "presentation finish",
+      "tags": [
+        "blind box",
+        "designer toy",
+        "figure presentation"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "blind box figure presentation",
+          "facet": "aesthetic-touch",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "collectible toy display",
+          "facet": "aesthetic-touch",
+          "weight": 1.05,
+          "source": "author"
+        },
+        {
+          "phrase": "designer toy finish",
+          "facet": "aesthetic-touch",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "aesthetic-touch-kawaii-finish",
+      "label": "Kawaii cuteness finish",
+      "category": "aesthetic-touch",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Push the whole frame toward bright cheerful cuteness: rounded shapes, sweet palette, and friendly readability.",
+      "prompt": "Finish the image with a kawaii treatment: rounded softened shapes, a bright cheerful sweet palette, large friendly eyes, simple clean detailing, and an overall warm approachable mood.",
+      "invariants": [
+        "shapes round off at every corner and tip",
+        "the palette stays bright and sweet",
+        "every face reads friendly at a glance"
+      ],
+      "misreadings_to_avoid": [
+        "dark gritty mood contradicting the cuteness",
+        "sharp aggressive shapes breaking the soft read",
+        "muddy desaturated color flattening the cheer"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "presentation finish",
+      "tags": [
+        "kawaii",
+        "cute finish",
+        "adorable"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "kawaii style finish",
+          "facet": "aesthetic-touch",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "adorable cute treatment",
+          "facet": "aesthetic-touch",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "bright cheerful cute",
+          "facet": "aesthetic-touch",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "aesthetic-touch-sticker-diecut",
+      "label": "Die-cut sticker presentation",
+      "category": "aesthetic-touch",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Present the subject as a die-cut sticker: bold contour border, flat vector-clean color, and an isolated backdrop.",
+      "prompt": "Present the subject as a die-cut sticker: a bold even white or colored contour border tracing the silhouette, clean flat vector-style color inside, crisp edges, subtle drop shadow lifting the sticker, and an uncluttered background.",
+      "invariants": [
+        "one even contour border traces the whole silhouette",
+        "interior color stays flat and clean",
+        "the sticker separates clearly from the background"
+      ],
+      "misreadings_to_avoid": [
+        "border width wobbling around the silhouette",
+        "painterly texture breaking the vector cleanliness",
+        "background clutter competing with the cutout"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "presentation finish",
+      "tags": [
+        "sticker",
+        "die-cut",
+        "vector sticker"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "die-cut sticker style",
+          "facet": "aesthetic-touch",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "sticker sheet design",
+          "facet": "aesthetic-touch",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "contour border sticker",
+          "facet": "aesthetic-touch",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "aesthetic-touch-monster-collecting-anime-style",
+      "label": "Monster-collecting anime creature style",
+      "category": "aesthetic-touch",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Style the creature in the bright monster-collecting anime idiom: rounded simplified body forms, large friendly eyes, vivid saturated flat-leaning color, and cheerful adventure-series energy.",
+      "prompt": "Style the creature in a bright monster-collecting anime idiom: rounded simplified body shapes with clean silhouettes, large expressive friendly eyes, vivid saturated colors in flat-leaning anime rendering, small readable markings on otherwise plain surfaces, and a cheerful energetic adventure-series mood.",
+      "invariants": [
+        "the silhouette stays simple and instantly readable",
+        "eyes stay large, friendly, and expressive",
+        "color stays vivid with clean flat-leaning fills"
+      ],
+      "misreadings_to_avoid": [
+        "realistic animal anatomy overriding the rounded design",
+        "gritty horror mood contradicting the cheerful idiom",
+        "dense texture detail crowding the clean shapes"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "creature styling",
+      "tags": [
+        "monster collecting anime",
+        "cute creature design",
+        "adventure series style"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "monster collecting anime style",
+          "facet": "aesthetic-touch",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "pokemon style",
+          "facet": "aesthetic-touch",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "cute anime creature design",
+          "facet": "aesthetic-touch",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "artifact_type": "state-event",
+  "event_id": "EV-0001",
+  "timeline_id": "main",
+  "scene_context_id": "SC-0001",
+  "event_scope": "physical-state",
+  "targets": [
+    "C01"
+  ],
+  "effective_order": 0,
+  "effective_from": "story:",
+  "recorded_at": "1970-01-01T00:00:00Z",
+  "disclosed_at": null,
+  "occurrence": "offscreen",
+  "canon_status": "proposed",
+  "atomic": false,
+  "cause": {
+    "type": "story-event",
+    "reference": "story-event-reference"
+  },
+  "preconditions": [],
+  "changes": [
+    {
+      "entity_type": "character",
+      "entity_id": "C01",
+      "path": "/physical_state/example",
+      "operation": "set",
+      "value": "example-state",
+      "persistence": "scene-local",
+      "visual_priority": "supporting"
+    }
+  ],
+  "evidence": [],
+  "supersedes_event_ids": [],
+  "notes": []
+}

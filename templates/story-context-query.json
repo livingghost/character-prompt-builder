@@ -1,0 +1,48 @@
+{
+  "artifact_type": "story-context-query",
+  "query_id": "MOMENT",
+  "sources": [
+    {
+      "source_id": "BASE",
+      "path": "state/base.json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "source_id": "EVENTS",
+      "path": "state/events.jsonl",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "source_id": "PROCESSES",
+      "path": "state/processes.json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "source_id": "COVERAGE",
+      "path": "state/coverage.json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "source_id": "DESIGN",
+      "path": "design.md",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "timeline": {
+    "timeline_id": "main",
+    "base_source": "BASE",
+    "events_source": "EVENTS",
+    "processes_source": "PROCESSES",
+    "base_provenance": []
+  },
+  "at": {
+    "story_order": 0,
+    "story_time": "Choose the story point"
+  },
+  "coverage_source_id": "COVERAGE",
+  "scene_context_ids": [],
+  "indexes": [],
+  "requirements": [],
+  "author_bindings": [],
+  "views": []
+}

@@ -1,0 +1,85 @@
+{
+  "artifact_type": "vectorization-result",
+  "source_ref_id": "SRC-03e3f7b83028184c",
+  "source_sha256": "03e3f7b83028184c85e861631c282ccb2697c0fb153029640eb76507a87b488f",
+  "source_media_type": "image/jpeg",
+  "native_dimensions": {
+    "width": 680,
+    "height": 458
+  },
+  "archival_svg_sha256": "4becb566a5305d8ab6d33c58ce67c361ae8269be59389022d69473e092495286",
+  "candidate_pixel_sha256": "a3ec9d85b4512900ea2f68f1bf51e75c927af9e6e23dcb9b5b435f1b02379d42",
+  "method": "native-uniform-compact-perceptual-palette-connected-contours",
+  "selected_profile": {
+    "id": "compact-96",
+    "colors": 96,
+    "filter": "meanshift",
+    "sp": 3,
+    "sr": 8,
+    "median": 3
+  },
+  "attempts": [
+    {
+      "profile": {
+        "id": "compact-96",
+        "colors": 96,
+        "filter": "meanshift",
+        "sp": 3,
+        "sr": 8,
+        "median": 3
+      },
+      "metrics": {
+        "psnr": 29.07243527934981,
+        "ssim": 0.92091373693916,
+        "tile_ssim_min": 0.8558613066581181,
+        "mean_ciede2000": 1.9495898485183716,
+        "p95_ciede2000": 7.730903148651123,
+        "edge_f1": 0.9225976738020527,
+        "mean_absolute_error": 3.742253303527832,
+        "measurement_max_side": 768
+      },
+      "passed": true
+    }
+  ],
+  "quality_thresholds": {
+    "psnr_min": 28.0,
+    "ssim_min": 0.9,
+    "tile_ssim_min": 0.75,
+    "mean_ciede2000_max": 3.5,
+    "p95_ciede2000_max": 12.0,
+    "edge_f1_min": 0.88,
+    "mean_absolute_error_max": 6.0
+  },
+  "accepted_metrics": {
+    "psnr": 29.07243527934981,
+    "ssim": 0.92091373693916,
+    "tile_ssim_min": 0.8558613066581181,
+    "mean_ciede2000": 1.9495898485183716,
+    "p95_ciede2000": 7.730903148651123,
+    "edge_f1": 0.9225976738020527,
+    "mean_absolute_error": 3.742253303527832,
+    "measurement_max_side": 768
+  },
+  "quality_passed": true,
+  "statistics": {
+    "path_count": 96,
+    "contour_component_count": 10097,
+    "ring_count": 10460,
+    "vertex_count": 120768,
+    "unique_color_count": 96,
+    "svg_bytes": 367059
+  },
+  "constraints": {
+    "resized": false,
+    "resampled": false,
+    "raster_payload_embedded": false,
+    "external_raster_reference": false,
+    "contour_simplification": false,
+    "small_region_deletion": false,
+    "regional_quality_allocation": false,
+    "uniform_full_frame_profile": true,
+    "perceptual_palette_reduction": true,
+    "edge_preserving_smoothing": true
+  },
+  "vectorization_result_sha256": "b86dca852fb6b8b946a1783a4f2aee21e4919b89dd9dd23e0eb7fde8b08069b7"
+}

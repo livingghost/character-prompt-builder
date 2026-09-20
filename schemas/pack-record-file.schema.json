@@ -1,0 +1,1079 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "character-prompt-builder-pack-record-file.schema.json",
+  "title": "Character Prompt Builder Pack Record File",
+  "description": "A kind-specific record container used inside a Character Prompt Builder content pack.",
+  "type": "object",
+  "required": [
+    "kind",
+    "records"
+  ],
+  "properties": {
+    "kind": {
+      "enum": [
+        "module",
+        "profile",
+        "aesthetic-core",
+        "style-family",
+        "domain-realization",
+        "scene",
+        "recipe",
+        "archetype",
+        "correction",
+        "model",
+        "asset"
+      ]
+    },
+    "category": {
+      "$ref": "#/$defs/slug"
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "kind": {
+          "const": "module"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/module"
+          }
+        }
+      },
+      "required": [
+        "category"
+      ]
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "profile"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/profile"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "aesthetic-core"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/aesthetic-core"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "style-family"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/style-family"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "domain-realization"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/domain-realization"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "scene"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/scene"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "recipe"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/recipe"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "archetype"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/archetype"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "correction"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/correction"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "model"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/model"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "asset"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/asset"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "non-empty-string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "media-type": {
+      "type": "string",
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*$"
+    },
+    "string-array": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "search-term-array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/search-term"
+      }
+    },
+    "offering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "service",
+        "model_identifier",
+        "request_keys",
+        "constraints",
+        "observed_at"
+      ],
+      "properties": {
+        "service": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "description": "The service, by the key it has in the service-profiles resource."
+        },
+        "model_identifier": {
+          "$ref": "#/$defs/non-empty-string",
+          "description": "The model's identifier on that service."
+        },
+        "request_keys": {
+          "type": "object",
+          "description": "The request key each media role occupies, as an array because a role may need more than one key; a role whose name ends in images occupies a list.",
+          "propertyNames": {
+            "$ref": "#/$defs/non-empty-string"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/$defs/non-empty-string"
+            }
+          }
+        },
+        "constraints": {
+          "type": "object",
+          "description": "The limits the service enforces for this model, in the offering's own words; the observed schema is the machine-checked form."
+        },
+        "setting_keys": {
+          "type": "object",
+          "description": "For an upscaler: the request key each setting the record declares occupies on this service. A declared setting with no key here cannot be sent.",
+          "propertyNames": {
+            "$ref": "#/$defs/non-empty-string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/non-empty-string"
+          }
+        },
+        "parameter_keys": {
+          "type": "object",
+          "description": "The request key each of the record's recommended_parameters occupies on this service. A recommendation with no key here is not sent through this service.",
+          "propertyNames": {
+            "enum": [
+              "sampler",
+              "steps",
+              "guidance",
+              "clip_skip",
+              "hires_scale",
+              "hires_denoise",
+              "hires_steps",
+              "hires_upscaler"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/non-empty-string"
+          }
+        },
+        "observed_at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "schema_snapshot": {
+          "$ref": "#/$defs/non-empty-string",
+          "description": "Path, relative to the pack root, of the service's parameter schema for this model as observed."
+        }
+      }
+    },
+    "search-term": {
+      "type": "object",
+      "required": [
+        "phrase",
+        "facet",
+        "weight",
+        "source"
+      ],
+      "properties": {
+        "phrase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "facet": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 1e-07,
+          "maximum": 10
+        },
+        "source": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "unique-string-array": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/string-array"
+        },
+        {
+          "uniqueItems": true
+        }
+      ]
+    },
+    "domains": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "human",
+          "anthropomorphic-animal",
+          "animal",
+          "creature",
+          "hybrid",
+          "robot",
+          "shared"
+        ]
+      }
+    },
+    "common": {
+      "type": "object",
+      "required": [
+        "id",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "$ref": "#/$defs/non-empty-string"
+        },
+        "curation_status": {
+          "enum": [
+            "curated",
+            "vocabulary"
+          ]
+        },
+        "search_terms": {
+          "$ref": "#/$defs/search-term-array"
+        },
+        "tags": {
+          "$ref": "#/$defs/string-array"
+        },
+        "domains": {
+          "$ref": "#/$defs/domains"
+        },
+        "search_profile": {
+          "type": "object"
+        }
+      },
+      "propertyNames": {
+        "pattern": "^(?!.*_en$).+$"
+      }
+    },
+    "module": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "required": [
+            "category",
+            "prompt",
+            "search_terms",
+            "tags"
+          ],
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/slug"
+            },
+            "prompt": {
+              "$ref": "#/$defs/non-empty-string"
+            }
+          }
+        }
+      ]
+    },
+    "profile": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "required": [
+            "medium_family",
+            "prompt",
+            "rendering",
+            "negative",
+            "negative_terms",
+            "best_for",
+            "domains",
+            "search_terms",
+            "tags"
+          ],
+          "properties": {
+            "medium_family": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "prompt": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "rendering": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "negative": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/string-array"
+                },
+                {
+                  "$ref": "#/$defs/non-empty-string"
+                }
+              ]
+            },
+            "negative_terms": {
+              "$ref": "#/$defs/string-array"
+            },
+            "best_for": {
+              "$ref": "#/$defs/string-array"
+            }
+          }
+        }
+      ]
+    },
+    "aesthetic-core": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "required": [
+            "aesthetic_promise",
+            "integration_prompt",
+            "domains",
+            "search_terms",
+            "tags",
+            "variation_axes"
+          ],
+          "properties": {
+            "aesthetic_promise": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "integration_prompt": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "variation_axes": {
+              "$ref": "#/$defs/string-array"
+            }
+          }
+        }
+      ]
+    },
+    "style-family": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "required": [
+            "medium_family",
+            "style_promise",
+            "integration_prompt",
+            "base_render_profile_id",
+            "domains",
+            "search_terms",
+            "tags"
+          ],
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/slug"
+            },
+            "medium_family": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "style_promise": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "integration_prompt": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "base_render_profile_id": {
+              "$ref": "#/$defs/identifier"
+            }
+          }
+        }
+      ]
+    },
+    "domain-realization": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "required": [
+            "subject_domain",
+            "realization_promise",
+            "integration_prompt",
+            "domains",
+            "search_terms",
+            "tags"
+          ],
+          "properties": {
+            "subject_domain": {
+              "$ref": "#/$defs/slug"
+            },
+            "realization_promise": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "integration_prompt": {
+              "$ref": "#/$defs/non-empty-string"
+            }
+          }
+        }
+      ]
+    },
+    "scene": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "required": [
+            "domain",
+            "defaults",
+            "search_terms",
+            "tags"
+          ],
+          "properties": {
+            "domain": {
+              "$ref": "#/$defs/slug"
+            },
+            "defaults": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    },
+    "recipe": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "required": [
+            "domain",
+            "base_scene_id",
+            "render_profile_id",
+            "rendering",
+            "aspect_ratio",
+            "search_terms",
+            "tags"
+          ],
+          "properties": {
+            "domain": {
+              "$ref": "#/$defs/slug"
+            },
+            "base_scene_id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "render_profile_id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "rendering": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "aspect_ratio": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "defaults": {
+              "type": "object"
+            },
+            "prompt_template": {
+              "type": "string"
+            },
+            "negative_terms": {
+              "$ref": "#/$defs/string-array"
+            }
+          }
+        }
+      ]
+    },
+    "archetype": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "required": [
+            "domain",
+            "character_lock",
+            "defaults",
+            "search_terms",
+            "tags"
+          ],
+          "properties": {
+            "domain": {
+              "$ref": "#/$defs/slug"
+            },
+            "character_lock": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "defaults": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    },
+    "correction": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "required": [
+            "diagnosis",
+            "positive_correction",
+            "avoidance_terms",
+            "search_terms",
+            "tags"
+          ],
+          "properties": {
+            "diagnosis": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "positive_correction": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "avoidance_terms": {
+              "$ref": "#/$defs/string-array"
+            }
+          }
+        }
+      ]
+    },
+    "model": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "required": [
+            "aliases",
+            "operation_kind",
+            "prompt_style",
+            "ordering",
+            "search_terms",
+            "offerings"
+          ],
+          "properties": {
+            "aliases": {
+              "$ref": "#/$defs/string-array"
+            },
+            "operation_kind": {
+              "enum": [
+                "generation",
+                "instruction-edit",
+                "upscale"
+              ]
+            },
+            "prompt_style": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "prompt_dialect": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "description": "The family whose prompt grammar and vocabulary this model reads, by its id in the prompt-dialects resource. A record without one is not read as a tag target."
+            },
+            "supports_negative_prompt": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/non-empty-string"
+                }
+              ]
+            },
+            "negative_transport_mode": {
+              "enum": [
+                "separate-field",
+                "integrated-critical",
+                "native-subset",
+                "retained-only"
+              ]
+            },
+            "negative_transport_notes": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "ordering": {
+              "$ref": "#/$defs/string-array"
+            },
+            "reference_input_media_types": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/media-type"
+              }
+            },
+            "max_reference_images": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_positive_prompt_chars": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max_negative_prompt_chars": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max_outputs": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "supported_resolutions": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/non-empty-string"
+              }
+            },
+            "supported_aspect_ratios": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/non-empty-string"
+              }
+            },
+            "default_aspect_ratio_behavior": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "upscaler_class": {
+              "enum": [
+                "restorative",
+                "generative",
+                "creative"
+              ]
+            },
+            "supported_scale_factors": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "number",
+                "minimum": 1.0000001
+              }
+            },
+            "input_image_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "supports_guidance_prompt": {
+              "type": "boolean"
+            },
+            "upscale_settings": {
+              "type": "object",
+              "description": "The settings this upscaler accepts, each named by the record and mapped to a request key by the offering. An empty object says the model takes none."
+            },
+            "output_limits": {
+              "type": "object",
+              "minProperties": 1
+            },
+            "recommended_uses": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/non-empty-string"
+              }
+            },
+            "avoid_uses": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/non-empty-string"
+              }
+            },
+            "recommended_positive_prompt": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "recommended_negative_prompt": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "recommended_negative_preset": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "recommended_parameters": {
+              "type": "object",
+              "description": "The sampling values the model's author recommends, by service-neutral name. An offering's parameter_keys says which request key each occupies on that service; a single value is filled into a package where the package leaves it unset, and a two-number range [low, high] is a statement for the person choosing, never a value sent.",
+              "propertyNames": {
+                "enum": [
+                  "sampler",
+                  "steps",
+                  "guidance",
+                  "clip_skip",
+                  "hires_scale",
+                  "hires_denoise",
+                  "hires_steps",
+                  "hires_upscaler"
+                ]
+              },
+              "additionalProperties": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/non-empty-string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                ]
+              }
+            },
+            "recommendation_merge_mode": {
+              "enum": [
+                "advisory-only",
+                "prefix",
+                "tag-list"
+              ]
+            },
+            "size_hints": {
+              "type": "object"
+            },
+            "offerings": {
+              "type": "array",
+              "description": "How each service exposes this model: one entry per service, empty when no service here exposes it. A request through a service is checked against its offering and, when the offering points at one, the service's observed parameter schema.",
+              "items": {
+                "$ref": "#/$defs/offering"
+              }
+            },
+            "verified_on": {
+              "$ref": "#/$defs/non-empty-string"
+            }
+          },
+          "oneOf": [
+            {
+              "properties": {
+                "operation_kind": {
+                  "enum": [
+                    "generation",
+                    "instruction-edit"
+                  ]
+                }
+              },
+              "required": [
+                "supports_negative_prompt",
+                "negative_transport_mode",
+                "negative_transport_notes"
+              ]
+            },
+            {
+              "properties": {
+                "operation_kind": {
+                  "const": "upscale"
+                }
+              },
+              "required": [
+                "upscaler_class",
+                "supported_scale_factors",
+                "input_image_count",
+                "supports_guidance_prompt",
+                "upscale_settings"
+              ],
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "supports_negative_prompt"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "negative_transport_mode"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "negative_transport_notes"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "asset": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "required": [
+            "category",
+            "asset_type",
+            "description",
+            "source_ref_id",
+            "source_sha256",
+            "source_media_type",
+            "source_dimensions",
+            "disposition",
+            "evidence_relation",
+            "canonical_record_ids",
+            "primary_resource",
+            "resource_refs",
+            "artifacts",
+            "tags"
+          ],
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/slug"
+            },
+            "asset_type": {
+              "$ref": "#/$defs/slug"
+            },
+            "source_ref_id": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "source_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "source_media_type": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "source_dimensions": {
+              "type": "object",
+              "required": [
+                "width",
+                "height"
+              ],
+              "properties": {
+                "width": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "disposition": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "evidence_relation": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "canonical_record_ids": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/identifier"
+              }
+            },
+            "canonical_record_refs": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/identifier"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}:[a-z0-9][a-z0-9._-]*$"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "record_id"
+                    ],
+                    "properties": {
+                      "pack_id": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+                      },
+                      "record_id": {
+                        "$ref": "#/$defs/identifier"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "primary_resource": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "resource_refs": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/non-empty-string"
+              }
+            },
+            "artifacts": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/artifact"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "artifact": {
+      "type": "object",
+      "required": [
+        "artifact_id",
+        "role",
+        "path",
+        "media_type",
+        "sha256"
+      ],
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "role": {
+          "$ref": "#/$defs/non-empty-string"
+        },
+        "path": {
+          "$ref": "#/$defs/non-empty-string"
+        },
+        "media_type": {
+          "$ref": "#/$defs/non-empty-string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

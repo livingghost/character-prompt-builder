@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "visual-state-projection.schema.json",
+  "title": "Visual State Projection",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "projection_id",
+    "character_id",
+    "state_snapshot_sha256",
+    "scene_context_sha256",
+    "resolved_morphology",
+    "visible_identity_features",
+    "visible_state_deltas",
+    "performance_cues",
+    "wardrobe_and_accessory_state",
+    "held_or_visible_props",
+    "relationship_blocking_cues",
+    "environmental_body_responses",
+    "occluded_or_irrelevant_features",
+    "reference_asset_requirements",
+    "text_anchor_fragments",
+    "review_dimensions",
+    "prompt_regeneration_required",
+    "projection_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "visual-state-projection"
+    },
+    "projection_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "state_snapshot_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "scene_context_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "visible_identity_features": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "visible_state_deltas": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "performance_cues": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "performance_language": {
+      "$ref": "performance-language.schema.json"
+    },
+    "wardrobe_and_accessory_state": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "held_or_visible_props": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "relationship_blocking_cues": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "environmental_body_responses": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "occluded_or_irrelevant_features": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "reference_asset_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "text_anchor_fragments": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "review_dimensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "prompt_regeneration_required": {
+      "type": "boolean"
+    },
+    "projection_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resolved_morphology": {
+      "$ref": "resolved-morphology.schema.json"
+    }
+  },
+  "additionalProperties": false
+}

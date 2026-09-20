@@ -1,0 +1,253 @@
+{
+  "artifact_type": "individual-morphology-contract",
+  "contract_id": "IMC-C02",
+  "character_id": "C02",
+  "domain": "anthropomorphic-animal",
+  "species_profile_ref": {
+    "id": "SMP-workshop-C02",
+    "sha256": "ac85f8b1b243e1e10eda1cfcb58f17d4717f1be8173ada938050f4996f35b6dc"
+  },
+  "individual_measurements": {
+    "scale": "medium height, narrow shoulders, long neck, and fine hands suited to delicate objects",
+    "height_or_length": "Not numerically specified.",
+    "mass_or_volume": "medium height, narrow shoulders, long neck, and fine hands suited to delicate objects",
+    "measurement_basis": "authored relative silhouette",
+    "structure_measurements": {}
+  },
+  "feature_realizations": [
+    {
+      "feature_id": "carrier",
+      "species_feature_ref": "carrier",
+      "status": "inherited",
+      "actual_count": 1,
+      "instance_ids": [
+        "carrier.instance"
+      ],
+      "resolved_feature": {
+        "feature_id": "carrier",
+        "feature_kind": "other",
+        "presence": "present",
+        "count": 1,
+        "laterality": "not-applicable",
+        "attachment_site": "region-carrier",
+        "origin_and_termination": "whole authored body extent",
+        "relative_measurements": {
+          "length": "Not numerically specified.",
+          "width": "Not numerically specified.",
+          "thickness": "Not numerically specified.",
+          "spacing": "Not numerically specified.",
+          "body_ratio": "medium height, narrow shoulders, long neck, and fine hands suited to delicate objects",
+          "measurement_basis": "outer silhouette"
+        },
+        "shape": "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+        "orientation": "upright in this scene",
+        "color_and_pattern": "russet fur, cream muzzle and throat, dark ear tips, dark forearms, and white tail tip",
+        "surface_or_material": "fur as explicitly described",
+        "internal_structure": null,
+        "articulation": "Only movements written in the example shot plan.",
+        "resting_configuration": "Scene start stance.",
+        "range_of_motion": "Not quantified; no additional capabilities inferred.",
+        "functional_role": "visible individual body",
+        "expression_role": "precise eye focus, careful two-finger object handling, small ear turns, and gentle measured speech",
+        "individual_variation_axes": [
+          "only author-specified proportions and markings"
+        ],
+        "continuity_rules": [
+          "retain the declared count",
+          "retain the declared extent"
+        ],
+        "required_views": [
+          "front bust",
+          "three-quarter bust",
+          "full body"
+        ],
+        "source_confidence": "preset-selected",
+        "notes": [
+          "This feature is the whole authored body, not an inferred organ list."
+        ],
+        "feature_group": "body-region",
+        "count_logic": {
+          "typical": 1,
+          "minimum": 1,
+          "maximum": 1,
+          "allowed_patterns": [
+            "one authored individual body"
+          ],
+          "count_basis": "explicit individual fixture"
+        },
+        "attachment_topology": {
+          "parent_feature_refs": [
+            "region-carrier"
+          ],
+          "attachment_landmarks": [
+            "outer silhouette"
+          ],
+          "attachment_mode": "whole-form carrier",
+          "branching_or_sequence": "No further topology inferred."
+        },
+        "visibility_and_occlusion": {
+          "ordinary_visibility": "exposed portions in the declared shot crop",
+          "common_occlusions": [
+            "clothes and scene objects"
+          ],
+          "minimum_proof_views": [
+            "front bust",
+            "full body"
+          ]
+        },
+        "sensory_or_signal_output": [],
+        "developmental_behavior": {
+          "life_stage_changes": [],
+          "sex_or_role_dimorphism": [],
+          "seasonal_or_environmental_changes": [],
+          "metamorphic_changes": [],
+          "regeneration_or_shedding": []
+        },
+        "cross_feature_dependencies": [],
+        "measurement_constraints": {
+          "minimum": null,
+          "maximum": null,
+          "typical_range": "Not quantified.",
+          "reference_landmarks": [
+            "outer silhouette"
+          ],
+          "scaling_behavior": "scales coherently with the parent body plan"
+        }
+      },
+      "laterality_and_asymmetry": "no permanent left-right accessory asymmetry",
+      "damage_or_modification": "intact",
+      "identity_priority": "signature",
+      "state_boundary": "identity-stable",
+      "mutable_state_paths": [],
+      "allowed_variation": [
+        "approved changes only"
+      ],
+      "continuity_rules": [
+        "retain the declared count",
+        "retain the declared connections"
+      ],
+      "required_views": [
+        "front bust",
+        "three-quarter bust",
+        "full body"
+      ],
+      "source_confidence": "preset-selected",
+      "notes": [],
+      "exact_measurements": {
+        "length": "Not numerically specified.",
+        "width": "Not numerically specified.",
+        "thickness": "Not numerically specified.",
+        "spacing": "Not numerically specified.",
+        "measurement_basis": "outer silhouette",
+        "tolerance": "Preserve the authored proportional description."
+      },
+      "attachment_realization": {
+        "parent_feature_refs": [],
+        "attachment_landmarks": [
+          "outer silhouette"
+        ],
+        "attachment_mode": "whole-form carrier",
+        "individual_offset_or_angle": "No additional offset specified."
+      },
+      "personal_expression_behavior": [],
+      "uncertainties": []
+    }
+  ],
+  "surface_and_marking_map": [],
+  "individual_expression_signature": [
+    {
+      "channel_id": "channel-carrier",
+      "baseline_bias": "precise eye focus, careful two-finger object handling, small ear turns, and gentle measured speech",
+      "range": "Only authored scene variation.",
+      "individual_tells": [],
+      "suppression_or_masking": "Use the current state and deliberate acting directions.",
+      "continuity_rules": [
+        "Keep the identity and performance vocabulary distinct from transient states."
+      ]
+    }
+  ],
+  "asymmetry_and_variants": [],
+  "identity_invariants": [
+    "feature count remains stable",
+    "attachment sites remain stable",
+    "individual color and pattern maps remain stable"
+  ],
+  "approved_variation_fields": [
+    "current expression",
+    "temporary wetness",
+    "scene-local deformation within physical range"
+  ],
+  "state_boundaries": [
+    "identity-stable morphology stays in this contract",
+    "long-term age change belongs to an Era Contract",
+    "topology change belongs to a Form Contract",
+    "temporary condition belongs to State Snapshot"
+  ],
+  "coverage_requirements": [
+    {
+      "requirement_id": "coverage-carrier",
+      "feature_refs": [
+        "carrier"
+      ],
+      "acceptable_views": [
+        "front bust",
+        "three-quarter bust",
+        "full body"
+      ],
+      "priority": "signature",
+      "notes": "Observe the authored body and marking obligations in the corresponding crop."
+    }
+  ],
+  "source_provenance": [
+    {
+      "type": "example source",
+      "reference": "character-identity-C02.json stable_identity"
+    }
+  ],
+  "canon_status": "approved",
+  "notes": [
+    "Synthetic worked-example realization of the existing identity, without new anatomical defaults."
+  ],
+  "individual_morphology_sha256": "e2588fc7f8509a7feb68d562882d5f5b2e89131911b117507786f7f669d271d0",
+  "communication_and_expression_tool_realizations": [],
+  "mutable_state_paths": [],
+  "life_stage_and_form": {
+    "life_stage": "unspecified",
+    "sex_or_role_morph": "unspecified",
+    "active_form": "baseline",
+    "developmental_notes": []
+  },
+  "inventory_completeness": {
+    "species_features_reviewed": 1,
+    "individual_features_resolved": 1,
+    "explicit_absences": [],
+    "unresolved_count": 0
+  },
+  "feature_relationship_realizations": [],
+  "individual_differential_diagnosis": [],
+  "unresolved_features": [],
+  "frame_character": {
+    "representation": "declared-structures",
+    "structures": {
+      "body": {
+        "kind": "authored body",
+        "location": "whole visible form",
+        "presence": "present",
+        "geometry": {
+          "form": "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+          "proportions": "medium height, narrow shoulders, long neck, and fine hands suited to delicate objects",
+          "face": "short fox muzzle, green eyes, tall ears, and a narrow jaw",
+          "appendages": "tall ears and one full russet tail with white tip"
+        }
+      }
+    },
+    "source_confidence": "preset-selected",
+    "frame_character_id": "frame-C02",
+    "overall_form": "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+    "coherence_rules": [
+      "Retain the specific authored fixture; do not extrapolate a species-wide skeleton."
+    ],
+    "diagnostic_misreadings": []
+  },
+  "load_bearing_part_measurements": []
+}

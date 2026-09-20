@@ -1,0 +1,54 @@
+{
+  "artifact_type": "prompt-plot",
+  "story": [
+    {
+      "id": "s1",
+      "beat": "The character is rendered in the approved scene state.",
+      "visibility": "visible"
+    },
+    {
+      "id": "s2",
+      "beat": "The events that produced that state happened before this image.",
+      "visibility": "context"
+    }
+  ],
+  "derived": [
+    {
+      "kind": "shows",
+      "statement": "the character in the declared scene",
+      "from": [
+        "s1"
+      ]
+    },
+    {
+      "kind": "placement",
+      "statement": "the character stands in the declared position",
+      "from": [
+        "s1"
+      ]
+    },
+    {
+      "kind": "composition",
+      "statement": "the camera and framing the production specification declares",
+      "from": [
+        "s1"
+      ]
+    },
+    {
+      "kind": "must_preserve",
+      "statement": "every feature the identity contract fixes",
+      "from": [
+        "s1"
+      ]
+    },
+    {
+      "kind": "free",
+      "statement": "incidental light variation within the declared lighting"
+    }
+  ],
+  "approved": {
+    "by": "the person who owns the brief",
+    "at": "2026-09-11T00:00:00Z",
+    "content_sha256": "58dd32ffbba312183167b59baa25e737f7ea21de2e692b37db7b92f8790541fe"
+  }
+}

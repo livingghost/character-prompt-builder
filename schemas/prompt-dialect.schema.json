@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "character-prompt-builder-prompt-dialects.schema.json",
+  "title": "Character Prompt Builder Prompt Dialects",
+  "description": "How one family of models reads a prompt: its tag grammar, the blocks it expects and in what order, and the vocabulary that acts on it. A model record names the dialect it belongs to, and a guide rule names the dialects it applies to, so knowledge from one family never reaches another.",
+  "type": "object",
+  "required": [
+    "format",
+    "name",
+    "description",
+    "dialects"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "character-prompt-builder-prompt-dialects"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dialects": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/dialect"
+      }
+    }
+  },
+  "$defs": {
+    "dialect": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "description",
+        "tag_separator",
+        "block_order"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "corpora": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "The tag corpora this family was trained on, so a term can be checked against the right one.",
+          "items": {
+            "$ref": "#/$defs/short-string"
+          }
+        },
+        "tag_separator": {
+          "$ref": "#/$defs/short-string",
+          "description": "What sits between two tags, written out."
+        },
+        "multi_word_tags": {
+          "$ref": "#/$defs/non-empty-string",
+          "description": "How a tag of more than one word is spelled on this family."
+        },
+        "artist_tag_form": {
+          "$ref": "#/$defs/non-empty-string",
+          "description": "How an artist tag is written on this family."
+        },
+        "weight_range": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "The working range for an explicit numeric weight on this family, low then high. Omit where the family's own material states none.",
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "block_order": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "description": "The blocks a rendition is built from, in the order this family expects them.",
+          "items": {
+            "$ref": "#/$defs/short-string"
+          }
+        },
+        "quality_terms": {
+          "$ref": "#/$defs/term-array",
+          "description": "The family's own quality block."
+        },
+        "rating_terms": {
+          "$ref": "#/$defs/term-array",
+          "description": "The content-register terms this family carries. One per rendition."
+        },
+        "period_terms": {
+          "$ref": "#/$defs/term-array",
+          "description": "The terms that bias the render toward a slice of the corpus by date. One per rendition."
+        },
+        "inert_terms": {
+          "$ref": "#/$defs/term-array",
+          "description": "Terms with no learned meaning on this family, which spend budget and act on nothing."
+        }
+      }
+    },
+    "term-array": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/short-string"
+      }
+    },
+    "short-string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "non-empty-string": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

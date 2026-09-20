@@ -1,0 +1,41 @@
+{
+  "subject_id": "C01",
+  "camera": {
+    "angle": "authored",
+    "shot_scale": "authored",
+    "distance": "authored",
+    "camera_height": "relative to a declared landmark",
+    "pitch": "authored",
+    "subject_frame_occupancy": 0.72,
+    "establishing_context": false
+  },
+  "structure_plan": {
+    "expected_counts": {
+      "manipulator": 2
+    },
+    "assigned_structures": [
+      {
+        "structure_id": "left-upper",
+        "kind": "manipulator",
+        "side": "left",
+        "owner_id": "C01"
+      },
+      {
+        "structure_id": "left-lower",
+        "kind": "manipulator",
+        "side": "left",
+        "owner_id": "C01"
+      }
+    ],
+    "primary_actions": [
+      {
+        "structure_id": "left-upper",
+        "action": "holds the tool"
+      },
+      {
+        "structure_id": "left-lower",
+        "action": "stabilizes the carrier"
+      }
+    ]
+  }
+}

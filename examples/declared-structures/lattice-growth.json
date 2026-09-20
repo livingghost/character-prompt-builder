@@ -1,0 +1,40 @@
+{
+  "representation": "declared-structures",
+  "structures": {
+    "carrier-mesh": {
+      "kind": "spun conductive mesh",
+      "location": "the declared outer carrier",
+      "presence": "present",
+      "geometry": {
+        "color": "matte graphite",
+        "spacing": "one regular cell between adjacent junctions"
+      }
+    },
+    "edge-filaments": {
+      "kind": "flexible translucent filaments",
+      "location": "only the outer rim of the carrier mesh",
+      "presence": "present",
+      "geometry": {
+        "color": "pale amber",
+        "length": "one half of the adjacent mesh cell"
+      },
+      "parent_id": "carrier-mesh",
+      "overrides": [
+        {
+          "structure_id": "carrier-mesh",
+          "properties": [
+            "color"
+          ]
+        }
+      ]
+    }
+  },
+  "source_confidence": "explicit-user",
+  "grooming_state": [],
+  "identity_lock_fields": [
+    "carrier connectivity and filament attachment boundary"
+  ],
+  "variant_fields": [
+    "/stable_identity/growth_geometry/structures/edge-filaments/geometry/color"
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prompt-semantic-preflight.schema.json",
+  "title": "Prompt semantic preflight",
+  "type": "object",
+  "required": [
+    "camera",
+    "structure_plan"
+  ],
+  "properties": {
+    "subject_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "camera": {
+      "type": "object",
+      "required": [
+        "angle",
+        "shot_scale",
+        "distance",
+        "pitch",
+        "subject_frame_occupancy"
+      ],
+      "properties": {
+        "angle": {
+          "type": "string"
+        },
+        "shot_scale": {
+          "type": "string"
+        },
+        "distance": {
+          "type": "string"
+        },
+        "camera_height": {
+          "type": "string"
+        },
+        "pitch": {
+          "type": "string"
+        },
+        "subject_frame_occupancy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "establishing_context": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "structure_plan": {
+      "type": "object",
+      "required": [
+        "expected_counts",
+        "assigned_structures"
+      ],
+      "properties": {
+        "expected_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "primary_actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "structure_id",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string"
+              },
+              "compatible_group": {
+                "type": "string"
+              },
+              "structure_id": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "allow_multiple_primary_actions": {
+          "type": "boolean"
+        },
+        "side_limits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "side",
+              "max_count"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "minLength": 1
+              },
+              "side": {
+                "type": "string",
+                "minLength": 1
+              },
+              "owner_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "max_count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "expected_by_owner": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "assigned_structures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "structure_id",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "minLength": 1
+              },
+              "side": {
+                "type": "string",
+                "minLength": 1
+              },
+              "owner_id": {
+                "type": "string"
+              },
+              "structure_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parent_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "attachment_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uniqueItems": true
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

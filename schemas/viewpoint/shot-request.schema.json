@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "shot-request.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "request_id",
+    "scene_id",
+    "shot_id",
+    "deliverable",
+    "species_profile_sha256_by_character",
+    "individual_morphology_sha256_by_character",
+    "identity_contract_sha256_by_character",
+    "state_snapshot_sha256_by_character",
+    "scene_context_sha256",
+    "camera_spec_sha256",
+    "shot_projection_sha256",
+    "viewpoint_profile_id",
+    "visible_morphology_feature_refs_by_character",
+    "visible_identity_obligations",
+    "visible_state_obligations",
+    "selected_reference_candidates",
+    "required_output",
+    "request_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "shot-request"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "scene_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "shot_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "deliverable": {
+      "enum": [
+        "start-frame",
+        "end-frame",
+        "boundary-frame",
+        "shot-reference",
+        "production-prompt",
+        "character-reference"
+      ]
+    },
+    "identity_contract_sha256_by_character": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    },
+    "state_snapshot_sha256_by_character": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    },
+    "scene_context_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "camera_spec_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "shot_projection_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scene_plot_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "The approved scene plot this shot was planned in, as the content hash it was approved under. Optional, because a request may be made without one; where it is present, whatever plans the frame names the same artifact and hash as its source, and one frame carries one approval chain instead of two that do not mention each other."
+    },
+    "narrative_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "The approved narrative whose chapter and arcs the scene plot belongs to, as the content hash it was approved under. Optional, and meaningful only beside a scene plot."
+    },
+    "viewpoint_profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "visible_identity_obligations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "visible_state_obligations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "selected_reference_candidates": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "required_output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prompt_language",
+        "aspect_ratio",
+        "camera_and_crop",
+        "style_family_policy",
+        "state_lineage_required"
+      ],
+      "properties": {
+        "prompt_language": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aspect_ratio": {
+          "type": "string",
+          "minLength": 1
+        },
+        "camera_and_crop": {
+          "type": "string",
+          "minLength": 8
+        },
+        "style_family_policy": {
+          "type": "string",
+          "minLength": 8
+        },
+        "state_lineage_required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "request_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "species_profile_sha256_by_character": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    },
+    "individual_morphology_sha256_by_character": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    },
+    "visible_morphology_feature_refs_by_character": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uniqueItems": true
+      }
+    }
+  },
+  "dependentRequired": {
+    "narrative_sha256": [
+      "scene_plot_sha256"
+    ]
+  }
+}

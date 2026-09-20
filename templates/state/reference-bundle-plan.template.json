@@ -1,0 +1,20 @@
+{
+  "artifact_type": "reference-bundle-plan",
+  "bundle_id": "RB-C01",
+  "character_id": "C01",
+  "species_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "individual_morphology_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "identity_contract_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "era_contract_sha256": null,
+  "appearance_variant_sha256": null,
+  "style_family_id": "style-family-placeholder",
+  "coverage_policy": "core-coverage",
+  "assets": [],
+  "coverage_matrix": {},
+  "unresolved_requirements": [],
+  "generated_by": "synthetic-fixture-author",
+  "notes": [],
+  "bundle_plan_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "visual_authority_sha256": null,
+  "visual_evidence_bundle_sha256": null
+}

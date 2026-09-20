@@ -1,0 +1,343 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-spec.schema.json",
+  "title": "Scene Production Specification",
+  "type": "object",
+  "required": [
+    "source_brief",
+    "target_model",
+    "creative_latitude",
+    "image_promise",
+    "art_direction",
+    "state_context",
+    "subjects",
+    "scene",
+    "camera",
+    "lighting",
+    "visual_language",
+    "constraints",
+    "selected_preset_ids"
+  ],
+  "properties": {
+    "source_brief": {
+      "type": "string"
+    },
+    "target_model": {
+      "type": "string"
+    },
+    "creative_latitude": {
+      "enum": [
+        "minimal",
+        "directed",
+        "expansive"
+      ]
+    },
+    "image_promise": {
+      "type": "string"
+    },
+    "art_direction": {
+      "type": "object",
+      "required": [
+        "center_of_appeal",
+        "subject_relationship",
+        "composition_and_visual_hierarchy",
+        "medium_family",
+        "shape_and_rhythm",
+        "surface_and_tactility",
+        "color_and_light",
+        "detail_hierarchy"
+      ]
+    },
+    "state_context": {
+      "type": "object",
+      "required": [
+        "mode",
+        "state_lineage_sha256",
+        "scene_context_ref"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "stateless",
+            "state-aware"
+          ]
+        },
+        "state_lineage_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scene_context_ref": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "id",
+            "sha256"
+          ],
+          "additionalProperties": false
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "subjects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "domain",
+          "identity_contract_ref",
+          "state_snapshot_ref",
+          "visual_projection_ref",
+          "species_morphology_profile_ref",
+          "individual_morphology_contract_ref",
+          "resolved_morphology",
+          "frame_character",
+          "load_bearing_part_measurements",
+          "accessory_geometry",
+          "identity",
+          "current_state",
+          "proportions_and_form",
+          "surfaces_and_markings",
+          "distinctive_details",
+          "performance",
+          "wardrobe_and_accessories",
+          "pose_and_body_geometry",
+          "props_and_contacts",
+          "growth_geometry",
+          "garment_geometry"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "domain": {
+            "enum": [
+              "human",
+              "anthropomorphic-animal",
+              "animal",
+              "creature",
+              "hybrid",
+              "robot"
+            ]
+          },
+          "identity_contract_ref": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "id",
+              "sha256"
+            ],
+            "additionalProperties": false
+          },
+          "state_snapshot_ref": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "id",
+              "sha256"
+            ],
+            "additionalProperties": false
+          },
+          "visual_projection_ref": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "id",
+              "sha256"
+            ],
+            "additionalProperties": false
+          },
+          "identity": {},
+          "current_state": {
+            "type": "object"
+          },
+          "proportions_and_form": {},
+          "head_and_face": {},
+          "surfaces_and_markings": {},
+          "distinctive_details": {
+            "type": "array",
+            "items": {
+              "$ref": "distinctive-detail.schema.json"
+            }
+          },
+          "performance": {
+            "$ref": "performance-language.schema.json"
+          },
+          "wardrobe_and_accessories": {},
+          "pose_and_body_geometry": {},
+          "hands": {},
+          "legs_and_feet": {},
+          "gaze_and_head": {},
+          "props_and_contacts": {},
+          "growth_geometry": {
+            "$ref": "growth-geometry.schema.json"
+          },
+          "garment_geometry": {
+            "type": "array",
+            "items": {
+              "$ref": "garment-geometry.schema.json"
+            }
+          },
+          "species_morphology_profile_ref": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "sha256"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "individual_morphology_contract_ref": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "sha256"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "resolved_morphology": {
+            "$ref": "resolved-morphology.schema.json"
+          },
+          "frame_character": {
+            "$ref": "frame-character.schema.json"
+          },
+          "load_bearing_part_measurements": {
+            "type": "array",
+            "items": {
+              "$ref": "part-measurement.schema.json"
+            }
+          },
+          "accessory_geometry": {
+            "type": "array",
+            "items": {
+              "$ref": "accessory-geometry.schema.json"
+            }
+          },
+          "structure_notes": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Optional notes keyed by declared part IDs. No human body-part checklist is required."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "scene": {
+      "type": "object"
+    },
+    "camera": {
+      "$ref": "camera-framing-contract.schema.json"
+    },
+    "lighting": {
+      "type": "object"
+    },
+    "visual_language": {
+      "type": "object"
+    },
+    "constraints": {
+      "type": "object"
+    },
+    "selected_preset_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

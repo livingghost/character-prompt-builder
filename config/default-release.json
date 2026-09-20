@@ -1,0 +1,99 @@
+{
+  "cases": [
+    {
+      "id": "required-resource-providers",
+      "operation": "resource-providers",
+      "expected_names": [
+        "archetype-policy",
+        "discovery-lanes",
+        "negative-policy",
+        "project-defaults"
+      ]
+    },
+    {
+      "id": "search-wolf",
+      "operation": "search",
+      "query": "wolf",
+      "category": "species",
+      "domain": "anthropomorphic-animal",
+      "expected_ids": ["species-wolf"]
+    },
+    {
+      "id": "search-muscular",
+      "operation": "search",
+      "query": "muscular",
+      "category": "body-build",
+      "domain": "anthropomorphic-animal",
+      "expected_ids": ["body-build-muscular"]
+    },
+    {
+      "id": "search-blue-coat",
+      "operation": "search",
+      "query": "blue coat",
+      "category": "coat-palette",
+      "domain": "anthropomorphic-animal",
+      "expected_ids": ["coat-palette-blue"]
+    },
+    {
+      "id": "search-close-portrait",
+      "operation": "search",
+      "query": "close portrait",
+      "category": "composition",
+      "domain": "human",
+      "expected_ids": ["composition-close-portrait"]
+    },
+    {
+      "id": "search-window-light",
+      "operation": "search",
+      "query": "cool window light",
+      "category": "lighting",
+      "domain": "human",
+      "expected_ids": ["lighting-cool-window"]
+    },
+    {
+      "id": "search-cat",
+      "operation": "search",
+      "query": "cat",
+      "category": "species",
+      "domain": "anthropomorphic-animal",
+      "expected_ids": ["species-cat"]
+    },
+    {
+      "id": "search-dragon",
+      "operation": "search",
+      "query": "dragon",
+      "category": "species",
+      "domain": "creature",
+      "expected_ids": ["species-dragon"]
+    },
+    {
+      "id": "search-androgynous",
+      "operation": "search",
+      "query": "androgynous",
+      "category": "gender-presentation",
+      "domain": "human",
+      "expected_ids": ["gender-presentation-androgynous"]
+    },
+    {
+      "id": "search-quiet-authority",
+      "operation": "search",
+      "query": "quiet authority",
+      "category": "emotion-nuance",
+      "domain": "human",
+      "expected_ids": ["emotion-nuance-quiet-authority"]
+    },
+    {
+      "id": "inspire-portrait-state",
+      "operation": "inspire",
+      "query": "quiet authority, cool window light, close portrait",
+      "domain": "human",
+      "categories": ["composition", "camera", "lighting", "emotion-nuance"],
+      "per_category": 4,
+      "expected_category_ids": {
+        "composition": "composition-close-portrait",
+        "lighting": "lighting-cool-window",
+        "emotion-nuance": "emotion-nuance-quiet-authority"
+      }
+    }
+  ]
+}

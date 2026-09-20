@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "authority_id",
+    "source_ref_id",
+    "mode",
+    "authority_scope",
+    "source_sha256",
+    "source_media_type",
+    "source_dimensions",
+    "archival_vector",
+    "canonical_record_refs",
+    "notes",
+    "visual_authority_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "visual-authority"
+    },
+    "authority_id": {
+      "type": "string"
+    },
+    "source_ref_id": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "source-derived",
+        "declared-canon",
+        "text-only"
+      ]
+    },
+    "authority_scope": {
+      "type": "string"
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_media_type": {
+      "type": "string"
+    },
+    "source_dimensions": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "archival_vector": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "artifact_id",
+        "path",
+        "sha256",
+        "representation",
+        "source_payload_embedded",
+        "external_raster_reference"
+      ],
+      "properties": {
+        "artifact_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "representation": {
+          "type": "string"
+        },
+        "source_payload_embedded": {
+          "type": "boolean"
+        },
+        "external_raster_reference": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "canonical_record_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "visual_authority_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

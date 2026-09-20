@@ -1,0 +1,672 @@
+{
+  "kind": "domain-realization",
+  "records": [
+    {
+      "id": "domain-realization-human-baseline",
+      "label": "Human character realization",
+      "curation_status": "curated",
+      "record_role": "domain-translation-grammar",
+      "domains": [
+        "human"
+      ],
+      "subject_domain": "human",
+      "realization_level": "foundation",
+      "base_realization": true,
+      "realization_promise": "Translate the chosen art direction and aesthetic core into a human character whose individual anatomy, proportions, face, hair, skin, hands, grooming, posture, clothing contact, and social performance remain coherent inside the chosen medium.",
+      "identity_and_silhouette": "Build identity from cranial and facial proportions, hairline, hair distribution and styling, body ratios, characteristic posture, skin features, clothing silhouette, and distinctive details and accessories that survive scene changes. Keep the head, neck, shoulders, torso, limbs, hands, and footwear connected through believable human structure.",
+      "performance_channels": "Coordinate pupils, gaze target, eyelids, brows, cheeks, mouth shape, tongue, jaw tension, tears, breath, head angle and pitch, neck, shoulder level, spine, hands, fingers, feet, stance, interpersonal distance, contact, and movement timing as one scene-specific performance. Treat blush and other physiological color changes as localized signals whose meaning comes from the surrounding gaze, mouth, posture, and relationship context.",
+      "anatomy_and_weight": "Place mass around a coherent skeleton, maintain human joint ranges, balanced weight distribution, and a believable center of gravity, and connect hands and feet convincingly to actions. Show natural compression at seated, leaning, kneeling, or reclining support points, and let musculature and body softness follow the requested build.",
+      "surface_and_materials": "Treat skin as broad form and color planes appropriate to the medium, scalp and facial hair as designed masses with selective strand accents, and clothing as a separate constructed layer with readable seams, folds, hems, and tension. Differentiate nails, fabric, leather, metal, and environmental surfaces through appropriate edge, value, texture, and highlight behavior.",
+      "viewer_relationship": "Choose eye contact, averted attention, partner focus, or environmental observation from the scene relationship, then align facial and body orientation with that target. Define social distance through head angle, torso orientation, hand position, and camera height, and keep the face large enough to carry subtle human emotion whenever the direction depends on interpersonal nuance.",
+      "motion_and_environment": "Carry weight through planted feet, seated contact, leaning support, or active momentum, and use natural human gait, reach, grip, balance, and object handling. Let clothing, hair, props, furniture, tools, weather, architecture, and nearby surfaces respond to the same forces through pressure, contact, scale, and perspective.",
+      "translation_rules": {
+        "appeal_center": "Express the chosen appeal through individual human features, posture, grooming, styling, and the clearest scene interaction while preserving the art direction's focal hierarchy.",
+        "shape_and_rhythm": "Organize head, torso, limbs, hair masses, clothing shapes, and negative spaces around one directional rhythm, and translate large and small shape rhythms into hairstyle, clothing silhouette, limb gesture, posture, accessories, and environmental framing.",
+        "performance": "Project emotion through coordinated gaze, lids, brows, mouth, tongue, jaw, cheek color, breath, head, shoulders, spine, hands, feet, stance, contact, distance, and movement timing, with a concrete attention target and an explicit intensity.",
+        "surface": "Assign distinct tactile behavior to skin planes, hair masses, nails, fabric construction, leather, metal, water, sweat, bedding, accessories, props, and surrounding human-scale materials.",
+        "color_and_light": "Preserve local complexion, hair, eye, and wardrobe colors inside the selected light family, with controlled contrast around the face and the active gesture while the illumination describes form and atmosphere.",
+        "detail_hierarchy": "Concentrate finish on identity-bearing facial structure and eyes, hands and action, grooming and hairstyle, distinctive details, clothing construction, then environment, according to the chosen art direction."
+      },
+      "integration_prompt": "Realize the subject as an individual human character with coherent cranial and facial proportions, stable body ratios, intentional grooming, and clearly placed distinctive details. Carry the chosen pose through a believable skeleton and connected muscle and soft-tissue masses, and keep joint ranges, balance, center of gravity, and support compression credible. Let the face, gaze target, head angle, shoulders, breath, hands, stance, and interpersonal distance express the current scene together. Preserve complexion, eye color, hair distribution, hair style, facial hair, and permanent marks as identity traits while wardrobe state and transient presentation follow the scene. Render skin as broad medium-appropriate form and color planes, hair as designed masses with selective strand accents, and garments as separate constructed layers with readable seams, folds, hems, and tension, and differentiate nails, rigid accessories, and nearby objects through their own edge and highlight behavior. Ground every visible contact, and let gravity, motion, lighting, and environment affect the whole figure consistently.",
+      "extension_points": [
+        "individual morphology contract",
+        "growth geometry contract",
+        "wardrobe and accessory state",
+        "distinctive-detail inventory",
+        "human age and life-stage realization",
+        "fashion and editorial realization",
+        "athletic and anatomical realization",
+        "historical clothing realization",
+        "stylized facial proportion realization"
+      ],
+      "best_for": [
+        "human portraits",
+        "full-figure human character art",
+        "human interaction scenes",
+        "fashion and uniform designs",
+        "human action and lifestyle scenes"
+      ],
+      "avoid_for": [
+        "ordinary animal anatomy",
+        "mechanical chassis design",
+        "creatures whose body plan lacks human facial and limb structure"
+      ],
+      "tags": [
+        "human morphology",
+        "human performance channels",
+        "human anatomy",
+        "facial performance",
+        "hair and skin",
+        "human gesture",
+        "clothing construction"
+      ],
+      "search_terms": [
+        {
+          "phrase": "human character",
+          "facet": "domain_realization",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "human subject",
+          "facet": "domain",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "human character realization",
+          "facet": "domain_realization",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "human anatomy",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "facial performance",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "hair and skin",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "human gesture",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "clothing construction",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        }
+      ]
+    },
+    {
+      "id": "domain-realization-creature-baseline",
+      "label": "Creature and monster realization",
+      "curation_status": "curated",
+      "record_role": "domain-translation-grammar",
+      "domains": [
+        "creature"
+      ],
+      "subject_domain": "creature",
+      "realization_level": "foundation",
+      "base_realization": true,
+      "realization_promise": "Translate the art direction into an invented creature whose body plan, silhouette, support logic, appendage logic, sensory structures, locomotion, surface systems, scale, behavior, and distinctive design language remain internally consistent and feel intentionally designed.",
+      "identity_and_silhouette": "Define a stable arrangement of major masses, a clear primary body plan, head or sensory cluster, limb and appendage configuration, support points, locomotion structure, surface regions, repeating motifs, color roles, signature details, and silhouette-defining extensions. Make every unusual feature visibly connected to the whole design.",
+      "performance_channels": "Use the creature's actual sensory and expressive structures, gaze or tracking direction, mouth or display structures, body orientation, expansion or compression, body tension, center of gravity, limb and appendage spread, wings, crest, horns, antennae, tentacles, breathing, glow, surface changes, movement rhythm, distance, contact, and environmental interaction to communicate state.",
+      "anatomy_and_weight": "Establish a load path through the invented skeleton or support system, showing where weight is carried, how joints articulate, how appendages attach, how the torso bends, and how the creature rests or moves, with mass responding consistently to gravity, acceleration, buoyancy, or suspension. Use scale cues and support surfaces to make the body plan credible.",
+      "surface_and_materials": "Map skin, hide, fur, feathers, scales, chitin, shell, membrane, horn, stone, plant, mineral growth, fluid, energy, synthetic material, or luminous tissue into deliberate regions with coherent transitions, choosing one coherent surface system or a clearly mapped combination that follows structural growth and functional zones.",
+      "viewer_relationship": "Make the creature's attention and intent readable through orientation of sensory structures, eye or sensor placement, head orientation, approach or retreat, elevation, scale, distance, posture, and interaction with nearby subjects or terrain, communicating curiosity, majesty, threat, intelligence, vulnerability, or calm.",
+      "motion_and_environment": "Show locomotion and habitat interaction that follow the body plan, including climbing, burrowing, swimming, flying, crawling, standing, coiling, or hovering, and let the habitat reveal size and function through displaced matter, footprints, shadow, vegetation response, water movement, atmospheric overlap, and contact deformation.",
+      "translation_rules": {
+        "appeal_center": "Focus appeal on one distinctive body-plan idea and its clarity, one readable behavior, the silhouette, the sensory focus, and one memorable relationship with scale or environment while preserving the intended emotional tone.",
+        "shape_and_rhythm": "Repeat and vary structural motifs across masses, appendage angles, armor plates, tendrils, wing shapes, segment spacing, body curves, surface regions, silhouette breaks, environmental echoes, and surrounding negative space.",
+        "performance": "Project state through sensory orientation, display structures, body expansion or compression, center of gravity, limb and appendage spread, stance, breathing, glow, surface response, appendage carriage, movement rhythm, distance, and contact according to the established body plan.",
+        "surface": "Organize biological, mineral, fluid, luminous, or composite materials into functional regions with clear transition logic, visible growth direction, structural zones, wear, reflection, translucency, moisture, or emissive behavior.",
+        "color_and_light": "Use color roles to distinguish anatomy, display regions, energy organs, armor, and soft tissue and to clarify behavior, while one coherent light family establishes scale, material response, depth, atmosphere, and environmental integration.",
+        "detail_hierarchy": "Place detail around the head or sensory cluster, the body-plan silhouette, articulation and appendage joints, signature motifs, active surfaces, the surface system, extremities, scale cues, then environment."
+      },
+      "integration_prompt": "Realize the subject as an internally coherent invented creature with one readable body plan, support logic, joint behavior, head or sensory cluster, major body masses, limb and appendage arrangement, locomotion structure, center of gravity, surface regions, color roles, signature motifs, and silhouette-defining extensions. Connect every unusual feature visibly to the torso or structural system, and show how joints, segments, wings, tendrils, plates, or tails support movement through one believable load path and range of motion, whether the creature walks, crawls, swims, flies, floats, coils, or suspends itself. Express current intent through the actual sensory organs, mouth or display structures, body orientation, expansion or compression, posture, breathing, glow, appendage carriage, rhythm, distance, and environmental interaction. Preserve permanent morphology and distinctive details across poses. Use a coherent surface system whose every material region follows a clear biological or structural function with visible growth and function zones. Reveal size and weight through cast shadow, displaced matter, footprints, water, vegetation, atmosphere, contact deformation, architecture, and relative scale cues, and keep the scene's light and depth coherent across the entire design.",
+      "extension_points": [
+        "body-plan specification",
+        "morphology feature inventory",
+        "surface-region map",
+        "scale and behavior contract",
+        "dragon and winged creature realization",
+        "serpentine and aquatic realization",
+        "insectoid and chitin realization",
+        "plant and mineral creature realization",
+        "cosmic and energy creature realization"
+      ],
+      "best_for": [
+        "invented creature portraits",
+        "creature concept scenes",
+        "fantastical wildlife illustration",
+        "monsters and fantasy creatures",
+        "nonhuman body plans",
+        "large-scale creature key art",
+        "creature design sheets"
+      ],
+      "avoid_for": [
+        "strict ordinary animal depiction",
+        "ordinary human character design",
+        "simple hard-surface robots"
+      ],
+      "tags": [
+        "invented body plan",
+        "coherent creature design",
+        "creature body plan",
+        "appendage logic",
+        "monster silhouette",
+        "surface system",
+        "scale and locomotion"
+      ],
+      "search_terms": [
+        {
+          "phrase": "creature",
+          "facet": "domain_realization",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "invented organism",
+          "facet": "domain",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "creature and monster realization",
+          "facet": "domain_realization",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "creature body plan",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "appendage logic",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "monster silhouette",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "surface system",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "scale and locomotion",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        }
+      ]
+    },
+    {
+      "id": "domain-realization-hybrid-baseline",
+      "label": "Hybrid character realization",
+      "curation_status": "curated",
+      "record_role": "domain-translation-grammar",
+      "domains": [
+        "hybrid"
+      ],
+      "subject_domain": "hybrid",
+      "realization_level": "foundation",
+      "base_realization": true,
+      "realization_promise": "Translate the art direction into a hybrid character whose contributing morphologies meet through a deliberate transition map, one functional body plan, a unified silhouette, stable identity landmarks, and consistent material and expressive logic.",
+      "identity_and_silhouette": "Choose a primary structural base and define which source morphology governs each region, then place secondary traits at defined anatomical or material zones, preserve the junctions between them, establish coherent proportions, and repeat selected motifs with controlled rhythm across silhouette, surface, color, and distinctive details so the design reads as one identity.",
+      "performance_channels": "Combine every expressive channel supported by the primary body plan and the secondary systems: eyes, brows, mouth, muzzle, ears, whiskers, sensors, head appendages, hands, paws, manipulators, wings, tail, posture, gesture, breath, glow, material changes, contact, spatial distance, and movement timing. Each channel follows one selected target, intensity, and relationship read in a single scene-conditioned performance.",
+      "anatomy_and_weight": "Connect source anatomies through a single support system and map each limb, appendage, joint, and support structure to the primary body plan. Resolve joints and load paths at every transition, using clear transition zones at head, shoulders, spine, hips, extremities, or surface boundaries so mass, balance, and motion stay credible through the pose.",
+      "surface_and_materials": "Design explicit boundaries and gradients among skin, hair, fur, feathers, scales, chitin, shell, membrane, plant, mineral, metal, mechanical parts, synthetic material, energy, clothing, and added materials as applicable, defining where each begins and changes and using repeated motifs and value groups to unify the surface map.",
+      "viewer_relationship": "Keep the identity zone readable, and use the character's combined sensory orientation, gaze, sensors, face, head angle, torso, hands or paws, appendage attitude, stance, distance, and scene interaction to establish attention and one social or emotional relationship.",
+      "motion_and_environment": "Choose locomotion and object interaction based on the primary body plan, and let every inherited or invented structure contribute functionally to balance, reach, gesture, flight, swimming, protection, display, contact, clothing fit, and response to gravity, air, water, terrain, and nearby objects.",
+      "translation_rules": {
+        "appeal_center": "Center appeal on a clear hybrid design thesis, one unified identity, a clear source-trait hierarchy, memorable and deliberate transition logic, and behavior that uses the combined design meaningfully in one readable scene relationship.",
+        "shape_and_rhythm": "Unify contributing morphologies through repeated curves, angles, mass ratios, appendage rhythms, and intentional negative spaces, repeating traits from both sources while maintaining one dominant silhouette and controlled secondary accents.",
+        "performance": "Coordinate all available facial, sensory, manual, manipulator, postural, appendage, glow, material, contact, timing, and spatial channels around the current intent as one integrated performance led by the primary body plan.",
+        "surface": "Specify region boundaries, transition gradients, direction, density, edge character, and material behavior across contributing surface systems, using repeated material behavior to unify the hybrid.",
+        "color_and_light": "Use a shared palette and repeated color roles to connect source traits and unify regions while illumination reveals their distinct forms, materials, transitions, and meaningful anatomical differences.",
+        "detail_hierarchy": "Prioritize the unified identity zone and its landmarks, the primary body plan, morphology junctions and transition zones, expressive structures, active appendages or manipulators, recurring motifs, the surface map, extremities and meaningful contact points, then environment."
+      },
+      "integration_prompt": "Realize the subject as one coherent hybrid identity guided by a clear design thesis. Establish a primary structural body plan, assign each body region a source morphology or deliberately invented structure, then place secondary traits at deliberate anatomical or material zones with clear transition boundaries, and resolve every junction through believable support, joint, surface, and motion logic. Connect every limb, appendage, sensor, wing, tail, panel, or surface change to a credible joint or support structure. Repeat selected shape, color, and material motifs across the design so the contributing systems feel related and the silhouette remains unified, and keep each source contribution clearly legible inside the shared construction. Preserve individual proportions, permanent region boundaries, hair or covering distribution, markings, and distinctive details across scenes. Build the current performance from the actual relationship using every relevant facial, sensory, manual, postural, tail, wing, and spatial channel, and use the combined traits meaningfully in posture, movement, object interaction, and environmental response. Fit clothing and accessories to the combined anatomy, and let gravity, movement, air, water, terrain, props, and illumination affect the complete character consistently while each material region retains its own tactile response.",
+      "extension_points": [
+        "regional morphology map",
+        "transition-boundary contract",
+        "hybrid surface distribution",
+        "combined performance-channel map",
+        "human-animal hybrid realization",
+        "animal-creature hybrid realization",
+        "organic-mechanical hybrid realization",
+        "multi-species chimera realization",
+        "elemental hybrid realization"
+      ],
+      "best_for": [
+        "hybrid character portraits",
+        "transformation-stable character design",
+        "mixed-morphology narrative scenes",
+        "chimeras",
+        "humans with substantial nonhuman anatomy",
+        "organic-mechanical characters"
+      ],
+      "avoid_for": [
+        "single-source ordinary animal anatomy",
+        "unmodified human depiction",
+        "single-domain characters",
+        "designs where one source appears only as removable costume or accessory"
+      ],
+      "tags": [
+        "mixed morphology",
+        "authored transition logic",
+        "hybrid transition map",
+        "unified chimera",
+        "mixed anatomy",
+        "source-trait hierarchy",
+        "coherent surface zones"
+      ],
+      "search_terms": [
+        {
+          "phrase": "hybrid character",
+          "facet": "domain_realization",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "mixed morphology",
+          "facet": "domain",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "hybrid character realization",
+          "facet": "domain_realization",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "hybrid transition map",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "unified chimera",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "mixed anatomy",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "source-trait hierarchy",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "coherent surface zones",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        }
+      ]
+    },
+    {
+      "id": "domain-realization-robot-baseline",
+      "label": "Robot and android realization",
+      "curation_status": "curated",
+      "record_role": "domain-translation-grammar",
+      "domains": [
+        "robot"
+      ],
+      "subject_domain": "robot",
+      "realization_level": "foundation",
+      "base_realization": true,
+      "realization_promise": "Translate the art direction into a robot or android whose chassis architecture, silhouette, articulation, mass distribution, panel hierarchy, optics, manipulators, surface systems, sensors, wear state, function, and expressive behavior remain coherent through one engineering design.",
+      "identity_and_silhouette": "Preserve chassis proportions, primary shells and torso and shoulder architecture, head or sensor cluster, joint architecture and limb segmentation, sensor arrangement, hands or tools, locomotion system, antennae or extensions, panel rhythms and a consistent panel language, color blocking, identifier marks, wear signatures, attachments, and distinctive mechanical details.",
+      "performance_channels": "Express intent through optic direction and aperture, eyelid-like shutters, sensor orientation, head or sensor-gimbal angle and pitch, faceplate angle, panel and aperture states, indicator color and pulse, light patterns, manipulator gesture, shoulder or chassis position, torso pitch, stance, actuator loading, ventilation cadence, servo sound, movement rhythm and timing, contact, and distance. Mechanical performance carries emotion through functional state changes and readable task geometry.",
+      "anatomy_and_weight": "Build one functional load path through frame, bearings, joints, actuators, supports, wheels, tracks, feet, wings, or suspension, keep mechanical joints aligned with their axes, preserve clearance through articulation, and show mass, inertia, and believable balance under equipment load.",
+      "surface_and_materials": "Differentiate painted shells and panels, exposed or bare metal, polymer, rubber, glass, ceramic, optics, screens, fabric covers, cables, transparent covers, emissive elements, seals, lubricated joints, dust, wear, and heat-affected regions through value, edge, reflection, roughness, thickness, and assembly seams.",
+      "viewer_relationship": "Make attention readable through optic target and sensor aim, head orientation, chassis angle and orientation, approach vector, manipulator position, display state, posture, stance, distance, and spatial relationship to people, machines, or environment, establishing curiosity, authority, warmth, caution, threat, or companionship.",
+      "motion_and_environment": "Connect movement to articulation limits, joint compression, actuator direction, traction, wheel or track contact, foot placement, tool alignment, momentum, vibration, cable travel and slack, panel clearance, dust, water, reflections, contact pressure, sound-implied action, and functional interaction with architecture, terrain, weather, and surrounding objects.",
+      "translation_rules": {
+        "appeal_center": "Express appeal through a distinctive chassis idea and silhouette, optic or sensor performance, mechanical gesture, functional detail and engineering logic, material hierarchy, readable behavior, individual wear, and one purposeful scene interaction.",
+        "shape_and_rhythm": "Organize shells, panel breaks, gaps, joint spacing, armor contours, sensor clusters, cables, light strips, vents, tool shapes, manipulators, supports, repeated mechanical motifs, and negative spaces into one system.",
+        "performance": "Coordinate optics, shutters, gimbals, sensors, faceplate, apertures, displays and indicators, manipulators, chassis and torso pitch, stance, actuators, panels, ventilation, servo rhythm, timing, movement rhythm, contact, and spatial distance around intent while preserving mechanical clearance and function.",
+        "surface": "Assign painted panels, bare metal, polymer, rubber, glass, ceramic, optical, textile, cable, transparent cover, emissive, seal, wear, dust, and heat regions distinct responses.",
+        "color_and_light": "Preserve authored chassis colors, palette, material separation, and identifiers while environment light, emissive signals, reflections, and heat cues describe form and support identity and focal hierarchy.",
+        "detail_hierarchy": "Prioritize the sensor or face cluster and its arrangement, silhouette and articulation, manipulators and active tools, functional interfaces, panel construction and materials, identifier marks, signature wear, active contact points, then environment."
+      },
+      "integration_prompt": "Realize the subject as one coherent and functional robot or android with stable chassis proportions, shell and torso and shoulder architecture, head or sensor cluster, joint placement and limb segmentation, sensor arrangement, manipulators or tools, locomotion system, extensions, panel rhythm and a consistent panel language, color blocking, identifiers, attachments, and distinctive wear. Align joints with clear articulation axes, preserve mechanical clearance, and carry mass through a believable frame and articulation system, distributing it convincingly through feet, wheels, tracks, wings, or supports while showing traction, inertia, support, and range of motion in the current pose. Express scene-specific intent through optics and shutters, sensor aim, head pitch, apertures, displays and indicator intensity, manipulator gesture, torso pitch, stance, panel motion, movement timing, and distance. Differentiate painted shells, exposed metal, polymers, rubber, glass, ceramic, optics, screens, textiles, cables, transparent covers, emissive elements, seals, lubricated joints, dust, and heat-affected regions through material-specific edges, reflections, and highlights. Let environment light, reflections, emissive signals, contact pressure, water, dust, and nearby objects interact consistently with the complete machine.",
+      "extension_points": [
+        "chassis architecture contract",
+        "articulation and load-path map",
+        "sensor and interface inventory",
+        "surface and wear-state map",
+        "humanoid android realization",
+        "industrial robot realization",
+        "small companion robot realization",
+        "vehicle-like robot realization",
+        "soft robot and fabric-covered mechanism realization"
+      ],
+      "best_for": [
+        "robot character portraits",
+        "mechanical action scenes",
+        "identity-preserving chassis variation",
+        "androids",
+        "mechanical mascots",
+        "hard-surface character art",
+        "industrial or companion machines"
+      ],
+      "avoid_for": [
+        "organic animal anatomy",
+        "ordinary human depiction",
+        "soft organic creatures with no mechanical structure"
+      ],
+      "tags": [
+        "functional chassis",
+        "mechanical performance channels",
+        "robot panel hierarchy",
+        "mechanical articulation",
+        "optic expression",
+        "chassis silhouette",
+        "emissive material"
+      ],
+      "search_terms": [
+        {
+          "phrase": "robot character",
+          "facet": "domain_realization",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "robot subject",
+          "facet": "domain",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "robot and android realization",
+          "facet": "domain_realization",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "robot panel hierarchy",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "mechanical articulation",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "optic expression",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "chassis silhouette",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "emissive material",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        }
+      ]
+    },
+    {
+      "id": "domain-realization-anthropomorphic-animal-baseline",
+      "label": "Anthropomorphic animal character realization",
+      "curation_status": "curated",
+      "record_role": "domain-translation-grammar",
+      "domains": [
+        "anthropomorphic-animal"
+      ],
+      "subject_domain": "anthropomorphic-animal",
+      "realization_level": "foundation",
+      "base_realization": true,
+      "realization_promise": "Translate the art direction into an upright animal-derived character whose species identity, humanoid body logic, individual morphology, permanent hair and fur distribution, facial performance, posture, clothing, hands or paws, and tail form one coherent design.",
+      "identity_and_silhouette": "Preserve a species-bearing muzzle or beak structure, ears or other head appendages, tail, feet, hands or paws, body ratios, head hair, mane, facial furnishings, coat distribution, markings, and distinctive individual features, carried on a humanoid torso and limbs with species-appropriate lower legs and one coherent tail or caudal structure. Muzzle or beak mass follows the body's build, a heavyset frame carrying a thick deep muzzle and a lean frame a short slim one, with facial dimensions anchored to landmarks outside themselves such as the eye.",
+      "performance_channels": "Use eyes, gaze target, eyelids, brows or brow-equivalent shapes, ears or head appendages, muzzle or beak corners, tongue, jaw, cheek flush, whiskers, ruff or hackles, head angle and pitch, shoulders, hands or paws, claws, stance, feet, tail, breath, contact, and distance together. A performance record selects the meaning from the combined channel pattern and scene context, so a tongue display, blush, ear angle, or tail motion remains one cue inside the full read.",
+      "anatomy_and_weight": "Join animal-derived head and extremity structures to an upright load-bearing skeleton, preserve readable joints and hand construction, distribute muscle and soft tissue coherently beneath the surface, and ground feet or paws through believable contact on humanoid or digitigrade legs according to the design.",
+      "surface_and_materials": "Separate scalp-like head hair, mane, cheek or jaw furnishings, short and long body fur regions, bare pads or skin, claws, clothing, and accessories through controlled texture, grouping fur, feathers, scales, hide, exposed skin, prosthetics, or mixed species surfaces into deliberate systems appropriate to the chosen medium. The main body coat keeps continuous color and marking paths across the visible head, torso, limbs, hands or paws, and tail. A separately declared hairstyle, mane, feather crest, scale plate region, exposed-skin region, prosthetic, plush coat, long-pile coat, painterly coat, or other explicit surface system keeps its own palette, texture, and finish while meeting adjacent systems at designed anatomical boundaries. Across style families, fur-bearing regions use one anatomical contour-distribution rule modulated by the selected surface state. A shaved region, very short slick coat, saturated or compressed fur, or tightly groomed hair yields a nearly continuous contour; a fuller free coat allows more breaks. Keep long straight and gently curved outer-contour runs mostly continuous. Concentrate silhouette breaks where anatomical curvature changes abruptly: at convex points of strongly bent joints, at ruff or mass transitions, and at visible concave contour junctions between volumes. The selected style family and explicit surface presets set the break count, depth, strand visibility, edge sharpness, and gloss behavior. Clothing, leather, metal, water, bedding, and props remain visibly separate materials with their own construction and contact response.",
+      "viewer_relationship": "Select viewer contact, partner attention, or environmental focus from the scene, then coordinate eyes, gaze target, ears or appendage attitude, muzzle or beak direction and tension, head turn, torso, hands, tail, and personal distance to establish social distance and emotional intent.",
+      "motion_and_environment": "Use humanoid reach, grip, seating, clothing, and tool interaction while preserving species-specific balance, lower-leg construction, tail clearance, and environmental contact. Let fur masses, head hair, mane, tail, clothing, and accessories respond to gravity and motion, and let furniture and props accommodate the body plan while the body establishes clear weight, balance, and contact.",
+      "translation_rules": {
+        "appeal_center": "Express appeal through species readability and identity, individual silhouette, animal facial performance, humanoid gesture, body mass, characteristic permanent grooming, markings, and a coherent relationship among head, hands or paws, and tail.",
+        "shape_and_rhythm": "Coordinate muzzle or beak, ears or head appendages, head hair, mane, torso masses, limbs, tail, fur or feather clumps, clothing, background accents, and negative spaces into one rhythm.",
+        "performance": "Map emotional intent across gaze, lids, brows, muzzle or beak, tongue, cheek flush, whiskers, ears, ruff, jaw, head, shoulders, hands or paws, claws, stance, feet, tail, breath, contact, and social distance as one species-valid system aimed at a concrete target.",
+        "surface": "Map tactile strategy to head hair, mane, facial furnishings, regional fur lengths, feathers, scales, hide, pads, claws, markings, garments, leather, metal, water, bedding, props, and localized moisture or light response.",
+        "color_and_light": "Maintain coat or surface color, species markings, hair, eye, and wardrobe local colors inside the selected light family while coherent illumination turns the full form.",
+        "detail_hierarchy": "Prioritize eyes and species-bearing facial structure, head silhouette, permanent grooming boundaries, markings, hands or paws and action, torso gesture, clothing, then environment."
+      },
+      "integration_prompt": "Realize the subject as one coherent anthropomorphic animal character, joining an upright load-bearing body to species-bearing head, ears or other head appendages, muzzle or beak, extremities, species-appropriate lower legs, and one coherent tail or caudal structure. Preserve individual proportions, coat colors, marking boundaries, eye features, and distinctive details across scenes. Define permanent grooming explicitly: scalp-like head hair, mane, cheek or jaw furnishings, chest ruff, limb feathering, tail fur, and regional coat lengths each receive a stable presence, boundary, direction, density, and silhouette role. Build the current performance from the actual scene relationship through eyes, ears, muzzle or beak corners, mouth, jaw, head turn and pitch, shoulders, hands or paws, stance, tail, and interpersonal distance. Integrate body mass beneath grouped fur, feather, scale, hide, or mixed-surface planes, let clothing fit the anatomy, ground every contact, and carry gravity, motion, light, and environment consistently through body, fur, hair, garments, and props while clothing, leather, metal, water, bedding, and props keep their own illustrated material behavior.",
+      "extension_points": [
+        "species morphology profile",
+        "individual proportion contract",
+        "growth geometry contract",
+        "marking and distinctive-detail inventory",
+        "canine and feline facial realization",
+        "avian and reptilian anthro realization",
+        "short-fur muscular realization",
+        "soft mascot realization",
+        "clothing and tail interaction realization"
+      ],
+      "best_for": [
+        "anthropomorphic animal portraits",
+        "upright animal-character scenes",
+        "identity-preserving character variation",
+        "kemono character art",
+        "fursona and mascot design",
+        "anthro lifestyle and action scenes"
+      ],
+      "avoid_for": [
+        "ordinary quadruped presentation",
+        "human subject design",
+        "fully mechanical robots"
+      ],
+      "tags": [
+        "upright animal character",
+        "species-aware grooming",
+        "anthro morphology",
+        "species identity",
+        "muzzle and ears",
+        "fur and markings",
+        "tail and paws"
+      ],
+      "search_terms": [
+        {
+          "phrase": "anthropomorphic animal",
+          "facet": "domain_realization",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "anthro character",
+          "facet": "domain",
+          "weight": 1.05,
+          "source": "author"
+        },
+        {
+          "phrase": "anthropomorphic animal character realization",
+          "facet": "domain_realization",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "anthro morphology",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "species identity",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "muzzle and ears",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "fur and markings",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "tail and paws",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        }
+      ]
+    },
+    {
+      "id": "domain-realization-animal-baseline",
+      "label": "Ordinary animal realization",
+      "curation_status": "curated",
+      "record_role": "domain-translation-grammar",
+      "domains": [
+        "animal"
+      ],
+      "subject_domain": "animal",
+      "realization_level": "foundation",
+      "base_realization": true,
+      "realization_promise": "Translate the art direction into a species-coherent animal whose locomotion, body plan, covering, individual features, emotion, behavior, scale, and environmental relationship remain naturally connected and species-appropriate.",
+      "identity_and_silhouette": "Preserve the species body plan, head shape and head-to-body ratio, limb count and configuration, posture, tail, wing, fin, or horn structure, coat or covering distribution and pattern, markings, and individual distinctive details. Keep the silhouette grounded in real locomotion and balance.",
+      "performance_channels": "Express state through species-valid eyes and gaze direction, ears or feather position, whiskers, scenting, head carriage and orientation, mouth or beak, neck, spine, body tension, breathing, tail or wing carriage, limb placement, weight shift, paw or hoof readiness, movement timing, distance, and environmental attention. The selected meaning follows the species body plan and the coordinated approach, retreat, play, hunt, rest, alarm, or affiliative pattern.",
+      "anatomy_and_weight": "Build the animal around its actual support pattern and joint sequence, maintain species-appropriate skeleton, joint direction, gait, resting posture, and center of gravity, show mass carried through planted limbs, and connect locomotion to spine, shoulder, pelvis, and balance against ground, branch, water, air, or support surface.",
+      "surface_and_materials": "Describe fur, feathers, scales, skin, shell, horn, hoof, claw, beak, pad, and wet or dry surface qualities according to the selected species, grouped into medium-appropriate masses with accurate growth direction and pattern placement. Use environmental moisture, dust, wind, or light to reinforce habitat and movement.",
+      "viewer_relationship": "Use approach, withdrawal, observation, vigilance, rest, play, or social attention as spatial behavior expressed through orientation, distance, posture, stillness, and species-valid facial cues, and let behavior carry emotion at the species level.",
+      "motion_and_environment": "Use natural locomotion, feeding, resting, grooming, hunting, waiting, nesting, swimming, flying, or social behavior, and let terrain, water, air, vegetation, weather, furniture, or human-made settings meet the animal at believable scale, contact, gait, buoyancy, lift, compression, and displacement.",
+      "translation_rules": {
+        "appeal_center": "Center appeal on species character and identity, individual proportions, natural behavior, posture, timing, covering and surface pattern, and one clear environmental or social relationship while preserving the art direction's focal hierarchy.",
+        "shape_and_rhythm": "Build rhythmic continuity through head, spine, support limbs, gait, tail or wing arcs, covering and feather grouping, terrain, vegetation, water, and surrounding space.",
+        "performance": "Translate emotion into species-valid sensory orientation, gaze, head angle, ears or feathers, whiskers, scenting, mouth or beak, body tension, breathing, spine, limbs, weight, stance, locomotion timing, tail or wing carriage, contact, and distance.",
+        "surface": "Assign covering, keratin, skin, shell, pads, claws, hooves, beak, wetness, dust, wind response, and environmental contact their proper tactile behavior.",
+        "color_and_light": "Keep natural or intentionally stylized species coloration and pattern readable under the selected environmental light as illumination follows body planes and habitat, maintaining camouflage or focal contrast as directed.",
+        "detail_hierarchy": "Concentrate detail on head structure and eyes, body posture and locomotion, characteristic covering changes, pattern and surface direction, markings, extremities, habitat contact, then background context."
+      },
+      "integration_prompt": "Realize the subject as an ordinary animal with a coherent species body plan, support pattern, joint sequence, head structure, extremities, posture, gait, center of gravity, and locomotion. Preserve individual proportions, covering distribution, colors, markings, and distinctive details through changes in activity and setting. Express the current state through species-valid eyes, ears or feather position, head carriage, mouth or beak, spine, body tension, breathing, limb placement, tail or wing position, movement timing, orientation, distance, and environmental attention. Let mass travel through planted limbs, buoyancy, lift, or supported rest according to the scene and its contact with ground, branch, water, or air. Group fur, feathers, scales, skin, shell, horn, hoof, claw, beak, pads, and moisture into coherent medium-appropriate masses with accurate pattern placement and material-specific edges and highlights. Establish credible scale and physical contact with terrain, water, air, vegetation, weather, furniture, objects, and nearby subjects, and preserve species coloration under one coherent environmental light.",
+      "extension_points": [
+        "species body-plan profile",
+        "individual morphology contract",
+        "covering and marking map",
+        "behavioral state projection",
+        "mammal behavior realization",
+        "bird flight and feather realization",
+        "reptile and amphibian realization",
+        "aquatic animal realization",
+        "storybook animal stylization"
+      ],
+      "best_for": [
+        "animal portraits",
+        "animal behavior scenes",
+        "wildlife and companion-animal illustration",
+        "natural animal animation art",
+        "storybook animals with natural anatomy",
+        "habitat-based animal scenes"
+      ],
+      "avoid_for": [
+        "upright anthropomorphic anatomy",
+        "mechanical subject design",
+        "human clothing and tool-use scenes"
+      ],
+      "tags": [
+        "species-valid animal",
+        "natural locomotion",
+        "natural animal anatomy",
+        "species behavior",
+        "habitat interaction",
+        "coat feather scale"
+      ],
+      "search_terms": [
+        {
+          "phrase": "ordinary animal",
+          "facet": "domain_realization",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "animal subject",
+          "facet": "domain",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "ordinary animal realization",
+          "facet": "domain_realization",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "natural animal anatomy",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "species behavior",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "habitat interaction",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "natural locomotion",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "coat feather scale",
+          "facet": "domain_realization",
+          "weight": 0.9,
+          "source": "tag"
+        }
+      ]
+    }
+  ]
+}

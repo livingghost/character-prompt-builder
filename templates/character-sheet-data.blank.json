@@ -1,0 +1,245 @@
+{
+  "sheet_status": "draft",
+  "fields": {
+    "identity.name": "",
+    "identity.species_domain": "",
+    "field.pronouns": "",
+    "field.kind_baseline_sheet_or_self": "",
+    "field.form_of_spine_sheet_or_self": "",
+    "field.form_id_display_name": "",
+    "field.sheet_layout_profile": "",
+    "field.sheet_coverage_exceptions": "",
+    "field.height_against_a_stated_measure": "",
+    "field.build_register": "",
+    "field.key_ratios_load_bearing": "",
+    "field.notes": "",
+    "field.model_fill_visual_design_brief": "",
+    "field.reference_sheet_visual_finish": "",
+    "field.base_form_visual_description": "",
+    "field.dressed_equipped_form_visual_description": "",
+    "field.personality_and_motivational_structure": "",
+    "field.counter_element_or_weakness": "",
+    "field.role_world_and_standing": "",
+    "field.design_themes_and_organizing_principles": "",
+    "field.motifs_derived_from_the_theme_and_where_they_appear": "",
+    "field.unseen_settings_never_drawn_still_binding": "",
+    "field.signature_poses_and_mannerisms_described": "",
+    "field.relationships_and_stance_toward_others": "",
+    "field.form_id": "",
+    "field.form_spine_path": "",
+    "field.per_form_character_deltas_personality_or_stance_shifts_that_are_canon_in_a_given": "",
+    "field.free_01": "",
+    "field.character_specific_expression_described": ""
+  },
+  "tables": {
+    "axes": [
+      {
+        "row_id": "axes.01",
+        "values": {
+          "axis": "",
+          "choices_expression": "",
+          "binding": ""
+        }
+      }
+    ],
+    "views": [
+      {
+        "row_id": "views.01",
+        "values": {
+          "view_id": "",
+          "label": "",
+          "specification": "",
+          "must_prove": ""
+        }
+      }
+    ],
+    "evidence": [
+      {
+        "row_id": "evidence.01",
+        "values": {
+          "subject_table": "",
+          "subject_row_id": "",
+          "view_id": "",
+          "orientation_configuration": "",
+          "specification": "",
+          "must_prove": ""
+        }
+      }
+    ],
+    "formreg": [
+      {
+        "row_id": "formreg.01",
+        "values": {
+          "form_id": "",
+          "display_name": "",
+          "kind_ref": "",
+          "trigger_transition": "",
+          "persists": "",
+          "sheet_path": ""
+        }
+      }
+    ],
+    "invariants": [
+      {
+        "row_id": "invariants.01",
+        "values": {
+          "invariant": "",
+          "value": "",
+          "binding": "",
+          "visible_expression": ""
+        }
+      }
+    ],
+    "bodylang": [
+      {
+        "row_id": "bodylang.01",
+        "values": {
+          "state": "",
+          "posture": "",
+          "gesture": "",
+          "kind_channels": "",
+          "distance_orientation": ""
+        }
+      }
+    ],
+    "partstates": [
+      {
+        "row_id": "partstates.01",
+        "values": {
+          "part": "",
+          "state": "",
+          "configuration": "",
+          "read": ""
+        }
+      }
+    ],
+    "motion": [
+      {
+        "row_id": "motion.01",
+        "values": {
+          "region": "",
+          "range": "",
+          "limit": "",
+          "must_prove": ""
+        }
+      }
+    ],
+    "actions": [
+      {
+        "row_id": "actions.01",
+        "values": {
+          "action": "",
+          "phase": "",
+          "mechanics": "",
+          "kind_channels": ""
+        }
+      }
+    ],
+    "gestures": [
+      {
+        "row_id": "gestures.01",
+        "values": {
+          "gesture": "",
+          "context": "",
+          "body": "",
+          "props": ""
+        }
+      }
+    ],
+    "marks": [
+      {
+        "row_id": "marks.01",
+        "values": {
+          "mark_id": "",
+          "landmark_anchor": "",
+          "shape_path": "",
+          "laterality": "",
+          "counterpart_rule": "",
+          "continuity_rule": "",
+          "visibility_rule": "",
+          "binding": ""
+        }
+      }
+    ],
+    "overrides": [
+      {
+        "row_id": "overrides.01",
+        "values": {
+          "attribute": "",
+          "baseline": "",
+          "override": "",
+          "reason": "",
+          "binding": ""
+        }
+      }
+    ],
+    "colors": [
+      {
+        "row_id": "colors.01",
+        "values": {
+          "zone": "",
+          "base": "",
+          "shadow": "",
+          "highlight": "",
+          "visibility_rule": "",
+          "binding": ""
+        }
+      }
+    ],
+    "parts": [
+      {
+        "row_id": "parts.01",
+        "values": {
+          "part": "",
+          "attribute": "",
+          "laterality": "",
+          "counterpart_rule": "",
+          "continuity_rule": "",
+          "visibility_rule": "",
+          "binding": ""
+        }
+      }
+    ],
+    "items": [
+      {
+        "row_id": "items.01",
+        "values": {
+          "item": "",
+          "visual_identity": "",
+          "scale_attachment": "",
+          "role_rule": "",
+          "continuity_rule": "",
+          "visibility_rule": "",
+          "binding": ""
+        }
+      }
+    ],
+    "expressions": [
+      {
+        "row_id": "expressions.01",
+        "values": {
+          "state": "",
+          "overall_read": "",
+          "channel_states": "",
+          "fixed_identity_cues": "",
+          "notes": "",
+          "binding": ""
+        }
+      }
+    ],
+    "outfits": [
+      {
+        "row_id": "outfits.01",
+        "values": {
+          "outfit": "",
+          "description": "",
+          "notes": "",
+          "continuity_rule": "",
+          "visibility_rule": "",
+          "binding": ""
+        }
+      }
+    ]
+  },
+  "slots": {}
+}

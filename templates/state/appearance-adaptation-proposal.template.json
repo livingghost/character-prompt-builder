@@ -1,0 +1,11 @@
+{
+  "artifact_type": "appearance-adaptation-proposal",
+  "proposal_id": "ADAPT-C01-01",
+  "character_id": "C01",
+  "environment_snapshot_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "matched_rule_ids": [],
+  "proposals": [],
+  "approval_required": true,
+  "status": "proposed",
+  "proposal_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

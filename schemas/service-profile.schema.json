@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "service-profile.schema.json",
+  "title": "Service profiles",
+  "description": "How a generation service is called: endpoint, authentication shape, request envelope, operations, delivery, error shape, and limits. One observation date and one source per service: the record is refreshed as a whole from the service's documentation. Model behaviour is not recorded here; a model record records that, and an offering inside it records how the model is exposed on one service.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "services"
+  ],
+  "properties": {
+    "services": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/service"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "observed_at",
+        "source",
+        "endpoint",
+        "auth",
+        "envelope",
+        "operations",
+        "delivery",
+        "errors",
+        "limits"
+      ],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/text"
+        },
+        "documentation": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "observed_at": {
+          "$ref": "#/$defs/date"
+        },
+        "source": {
+          "$ref": "#/$defs/text"
+        },
+        "endpoint": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "base_url",
+            "method"
+          ],
+          "properties": {
+            "base_url": {
+              "type": "string",
+              "pattern": "^https://"
+            },
+            "method": {
+              "type": "string",
+              "enum": [
+                "GET",
+                "POST"
+              ]
+            }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scheme",
+            "header"
+          ],
+          "properties": {
+            "scheme": {
+              "type": "string",
+              "enum": [
+                "bearer",
+                "api-key",
+                "basic"
+              ]
+            },
+            "header": {
+              "$ref": "#/$defs/text"
+            },
+            "env_var": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$"
+            },
+            "note": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        "envelope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "request",
+            "response"
+          ],
+          "properties": {
+            "request": {
+              "$ref": "#/$defs/text"
+            },
+            "response": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        "operations": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/operation"
+          }
+        },
+        "delivery": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/delivery"
+          }
+        },
+        "errors": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "shape",
+            "observed_codes"
+          ],
+          "properties": {
+            "shape": {
+              "$ref": "#/$defs/text"
+            },
+            "observed_codes": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/limit"
+          }
+        }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "purpose",
+        "input",
+        "returns"
+      ],
+      "properties": {
+        "purpose": {
+          "$ref": "#/$defs/text"
+        },
+        "input": {
+          "$ref": "#/$defs/text"
+        },
+        "returns": {
+          "$ref": "#/$defs/text"
+        },
+        "note": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "poll",
+        "terminal"
+      ],
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/text"
+        },
+        "poll": {
+          "$ref": "#/$defs/text"
+        },
+        "terminal": {
+          "$ref": "#/$defs/text"
+        },
+        "note": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "limit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "value": {},
+        "note": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    }
+  }
+}

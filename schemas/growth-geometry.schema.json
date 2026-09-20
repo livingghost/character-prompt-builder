@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "growth-geometry.schema.json",
+  "title": "Growth Geometry Contract",
+  "description": "Record only author-declared structures. Kinds, locations and geometry properties are open vocabulary; explicit relationships and authority constraints are validated.",
+  "type": "object",
+  "required": [
+    "representation",
+    "structures",
+    "source_confidence",
+    "grooming_state",
+    "identity_lock_fields",
+    "variant_fields"
+  ],
+  "properties": {
+    "representation": {
+      "const": "declared-structures"
+    },
+    "structures": {
+      "$ref": "declared-structures.schema.json"
+    },
+    "source_confidence": {
+      "enum": [
+        "explicit-user",
+        "reference-clear",
+        "reference-approximate",
+        "preset-selected",
+        "user-confirmed"
+      ]
+    },
+    "grooming_state": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "identity_lock_fields": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "variant_fields": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

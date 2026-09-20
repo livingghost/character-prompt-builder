@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prompt-retrieval-record.schema.json",
+  "title": "Prompt Retrieval Record",
+  "description": "States, for every distinct visual element in one prompt, which catalog and prompt-vocabulary lookups were run and whether the wording was adopted from a record or composed.",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "elements"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "prompt-retrieval-record"
+    },
+    "pack_state": {
+      "type": "string",
+      "description": "Identifier of the resolved pack runtime the lookups ran against."
+    },
+    "elements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "element",
+          "queries",
+          "outcome"
+        ],
+        "properties": {
+          "element": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The visual element this entry covers, such as pose, action, expression, camera, lighting, wardrobe, body feature, or effect."
+          },
+          "queries": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Search strings run against the catalog or the prompt vocabulary for this element."
+          },
+          "inspected_records": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Record identifiers opened with inspect, or vocabulary terms read, while resolving this element."
+          },
+          "outcome": {
+            "enum": [
+              "adopted",
+              "composed"
+            ],
+            "description": "adopted: the wording comes from a retrieved record or vocabulary term. composed: retrieval returned nothing suitable and the wording was written for this prompt."
+          },
+          "adopted_record": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required when outcome is adopted: the record identifier or vocabulary term the wording came from."
+          },
+          "composed_wording": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required when outcome is composed: the wording written for this element."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required when outcome is composed: why no retrieved record or term fits."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "settled": {
+      "type": "boolean"
+    },
+    "context": {
+      "type": "object",
+      "required": [
+        "prompt_sha256",
+        "plot_content_sha256"
+      ],
+      "properties": {
+        "prompt_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "plot_content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

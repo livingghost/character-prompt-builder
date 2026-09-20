@@ -1,0 +1,153 @@
+{
+  "characters": {
+    "C01": {
+      "physical_state": {
+        "left_side_injury": {
+          "status": "none",
+          "visibility": "none",
+          "mobility_effect": "none"
+        }
+      },
+      "appearance_state": {
+        "cleanliness": "workshop clean"
+      },
+      "wardrobe_state": {
+        "outer_layer": "dark blue mechanic jacket",
+        "inner_layer": "gray fitted shirt",
+        "condition": "dry and intact"
+      },
+      "equipment_state": {
+        "hands": "fingerless work gloves"
+      },
+      "inventory_state": {
+        "items": []
+      },
+      "emotional_state": {
+        "felt": "concerned",
+        "expressed": "controlled",
+        "masked": "professional calm",
+        "physiological": "slightly shallow breath"
+      },
+      "performance_state": {
+        "posture": "balanced",
+        "gaze": "toward C02"
+      },
+      "knowledge_state": {
+        "knows_pendant_damage": false
+      },
+      "social_role_state": {
+        "role": "workshop mechanic"
+      },
+      "character_specific_state": {},
+      "uncertainties": []
+    },
+    "C02": {
+      "physical_state": {},
+      "appearance_state": {
+        "cleanliness": "clean"
+      },
+      "wardrobe_state": {
+        "outer_layer": "cream archive vest",
+        "inner_layer": "white rolled-sleeve shirt",
+        "condition": "intact"
+      },
+      "equipment_state": {
+        "face": "round brass spectacles"
+      },
+      "inventory_state": {
+        "items": [
+          "P01"
+        ]
+      },
+      "emotional_state": {
+        "felt": "worried",
+        "expressed": "gentle focus",
+        "masked": "none",
+        "physiological": "steady breath"
+      },
+      "performance_state": {
+        "posture": "careful forward lean",
+        "gaze": "toward C01"
+      },
+      "knowledge_state": {
+        "knows_pendant_damage": true
+      },
+      "social_role_state": {
+        "role": "archive conservator"
+      },
+      "character_specific_state": {},
+      "uncertainties": []
+    }
+  },
+  "relationships": {
+    "REL-C01-C02": {
+      "from": "C01",
+      "to": "C02",
+      "bond_type": [
+        "trusted colleagues"
+      ],
+      "trust": "high",
+      "affinity": "warm",
+      "intimacy": "moderate",
+      "conflict": "low",
+      "authority": "peer",
+      "obligation": [
+        "protect the recovered artifact"
+      ],
+      "contact_boundary": "brief hand contact is accepted",
+      "public_mask": "professional",
+      "private_behavior": "direct concern",
+      "shared_knowledge": [
+        "P01 belongs to the archive"
+      ]
+    }
+  },
+  "environments": {
+    "ENV-WORKSHOP": {
+      "location_id": "LOC-WORKSHOP",
+      "season": "late summer",
+      "time_of_day": "late afternoon",
+      "weather": "light rain outside",
+      "temperature_c": 27,
+      "humidity_percent": 72,
+      "wind": "still indoors",
+      "precipitation": "rain on exterior windows",
+      "water_exposure": "none indoors",
+      "light_context": [
+        "warm work lamps frame-right",
+        "cool rain window frame-left"
+      ],
+      "culture_context_refs": [
+        "urban guild workshop"
+      ],
+      "dress_norms": [
+        "practical layered work clothing"
+      ],
+      "surface_conditions": [
+        "dry wooden floor",
+        "metal workbench"
+      ],
+      "approved_adaptation_rules": [
+        "sleeves may be rolled for heat if already part of approved wardrobe"
+      ],
+      "uncertainties": []
+    }
+  },
+  "props": {
+    "P01": {
+      "name": "damaged silver pendant",
+      "ownership": "archive",
+      "possessed_by": "C02",
+      "carried_by": "C02",
+      "equipped_to": null,
+      "condition": "cracked glass and bent silver rim",
+      "location": "C02 right hand"
+    }
+  },
+  "world": {
+    "scene": "workshop handoff",
+    "viewer_knowledge": [
+      "C01 has been moving carefully but the injury remains concealed"
+    ]
+  }
+}

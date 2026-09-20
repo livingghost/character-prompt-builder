@@ -1,0 +1,667 @@
+{
+  "artifact_type": "observed-parameter-schema",
+  "model_id": "grok-imagine-image-2.0",
+  "service": "runware",
+  "model_identifier": "xai:grok-imagine@image-2.0",
+  "observed_at": "2026-09-13",
+  "source": "the service's model schema endpoint",
+  "unenforced": [
+    "$.properties.inputs.properties.referenceImages.items.anyOf[0].format",
+    "$.properties.inputs.properties.referenceImages.items.anyOf[1].format",
+    "$.properties.uploadEndpoint.format",
+    "$.properties.advancedFeatures.properties.watermark.properties.image.anyOf[0].format",
+    "$.properties.advancedFeatures.properties.watermark.properties.image.anyOf[1].format"
+  ],
+  "schema": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "title": "Model",
+        "description": "Identifier of the model to use for generation.",
+        "type": "string",
+        "const": "xai:grok-imagine@image-2.0"
+      },
+      "inputs": {
+        "title": "Inputs",
+        "description": "The unified payload wrapper for complex media assets dictating image, video or audio inference constraints.",
+        "type": "object",
+        "properties": {
+          "referenceImages": {
+            "title": "Reference Images",
+            "description": "List of reference images (UUID, URL, Data URI, or Base64).",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "title": "Image",
+              "description": "Image input (UUID, URL, Data URI, or Base64).",
+              "type": "string",
+              "anyOf": [
+                {
+                  "format": "uuid"
+                },
+                {
+                  "format": "uri"
+                },
+                {
+                  "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                },
+                {
+                  "pattern": "^[a-zA-Z0-9+/=]+$"
+                }
+              ]
+            },
+            "maxItems": 3
+          }
+        },
+        "additionalProperties": false
+      },
+      "positivePrompt": {
+        "title": "Positive Prompt",
+        "description": "Text prompt describing elements to include in the generated output.",
+        "type": "string",
+        "minLength": 1
+      },
+      "width": {
+        "title": "Width",
+        "description": "Width of the generated media in pixels.",
+        "type": "integer"
+      },
+      "height": {
+        "title": "Height",
+        "description": "Height of the generated media in pixels.",
+        "type": "integer"
+      },
+      "resolution": {
+        "title": "Resolution",
+        "description": "Resolution preset for the output. When used with input media, automatically matches the aspect ratio from the input.",
+        "type": "string",
+        "enum": [
+          "1K",
+          "2K"
+        ],
+        "default": "1K"
+      },
+      "settings": {
+        "title": "Settings",
+        "description": "Global inference settings.",
+        "type": "object",
+        "properties": {
+          "quality": {
+            "type": "string",
+            "title": "Quality",
+            "description": "Image quality level.",
+            "default": "medium",
+            "oneOf": [
+              {
+                "description": "Faster generation with acceptable quality for rapid iteration.",
+                "const": "low"
+              },
+              {
+                "description": "Balanced quality suitable for most use cases.",
+                "const": "medium"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "includeCost": {
+        "title": "Include Cost",
+        "description": "Include task cost in the response.",
+        "type": "boolean"
+      },
+      "numberResults": {
+        "title": "Number of Results",
+        "description": "Number of results to generate. Each result uses a different seed, producing variations of the same parameters.",
+        "type": "integer",
+        "minimum": 1,
+        "default": 1,
+        "maximum": 20
+      },
+      "uploadEndpoint": {
+        "title": "Upload Endpoint",
+        "description": "URL to upload content via HTTP PUT. The request body will contain the raw binary data.",
+        "type": "string",
+        "format": "uri"
+      },
+      "ttl": {
+        "title": "TTL",
+        "description": "Time-to-live (TTL) in seconds for generated content. Only applies when `outputType` is `URL`.",
+        "type": "integer",
+        "minimum": 60
+      },
+      "outputType": {
+        "title": "Output Type",
+        "description": "Image output type.",
+        "type": "string",
+        "enum": [
+          "URL",
+          "base64Data",
+          "dataURI"
+        ],
+        "default": "URL"
+      },
+      "outputFormat": {
+        "title": "Output Format",
+        "description": "File format for the generated image.",
+        "type": "string",
+        "enum": [
+          "JPG",
+          "PNG",
+          "WEBP"
+        ],
+        "default": "JPG"
+      },
+      "outputQuality": {
+        "title": "Output Quality",
+        "description": "Compression quality of the output. Higher values preserve quality but increase file size.",
+        "type": "integer",
+        "minimum": 20,
+        "maximum": 99,
+        "default": 95
+      },
+      "safety": {
+        "type": "object",
+        "title": "Safety Settings",
+        "description": "Content safety checking configuration for image generation.",
+        "properties": {
+          "checkContent": {
+            "title": "Check Content",
+            "description": "Enable or disable content safety checking. Increases total generation time.",
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "advancedFeatures": {
+        "title": "Advanced Features",
+        "description": "Model-specific advanced configuration options.",
+        "type": "object",
+        "properties": {
+          "watermark": {
+            "title": "Watermark",
+            "description": "Watermark configuration.",
+            "type": "object",
+            "properties": {
+              "text": {
+                "title": "Watermark Text",
+                "description": "Watermark text.",
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 32
+              },
+              "image": {
+                "title": "Watermark Image",
+                "description": "Watermark image (UUID, URL, Data URI, or Base64).",
+                "type": "string",
+                "anyOf": [
+                  {
+                    "format": "uuid"
+                  },
+                  {
+                    "format": "uri"
+                  },
+                  {
+                    "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                  },
+                  {
+                    "pattern": "^[a-zA-Z0-9+/=]+$"
+                  }
+                ]
+              },
+              "displayPosition": {
+                "title": "Display Position",
+                "description": "Watermark position.",
+                "type": "string",
+                "enum": [
+                  "top-left",
+                  "top-center",
+                  "top-right",
+                  "center-left",
+                  "center-center",
+                  "center-right",
+                  "bottom-left",
+                  "bottom-center",
+                  "bottom-right",
+                  "tiled"
+                ]
+              },
+              "opacity": {
+                "title": "Watermark Opacity",
+                "description": "Watermark opacity.",
+                "type": "number",
+                "multipleOf": 0.01,
+                "minimum": 0.1,
+                "maximum": 1
+              },
+              "fontColor": {
+                "title": "Font Color",
+                "description": "Text color in hex format.",
+                "type": "string",
+                "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+              },
+              "bgColor": {
+                "title": "Background Color",
+                "description": "Background color in hex format.",
+                "type": "string",
+                "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "text"
+                ]
+              },
+              {
+                "required": [
+                  "image"
+                ]
+              }
+            ],
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "positivePrompt",
+      "model"
+    ],
+    "allOf": [
+      {
+        "dependentRequired": {
+          "width": [
+            "height"
+          ],
+          "height": [
+            "width"
+          ]
+        }
+      },
+      {
+        "if": {
+          "not": {
+            "properties": {
+              "inputs": {
+                "properties": {
+                  "referenceImages": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "referenceImages"
+                ]
+              }
+            },
+            "required": [
+              "inputs"
+            ]
+          }
+        },
+        "then": {
+          "required": [
+            "width",
+            "height"
+          ]
+        }
+      },
+      {
+        "not": {
+          "allOf": [
+            {
+              "required": [
+                "resolution"
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "required": [
+                    "width"
+                  ]
+                },
+                {
+                  "required": [
+                    "height"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "if": {
+          "anyOf": [
+            {
+              "required": [
+                "width"
+              ]
+            },
+            {
+              "required": [
+                "height"
+              ]
+            }
+          ]
+        },
+        "then": {
+          "required": [
+            "width",
+            "height"
+          ],
+          "oneOf": [
+            {
+              "title": "1K (1:1)",
+              "properties": {
+                "width": {
+                  "const": 1024
+                },
+                "height": {
+                  "const": 1024
+                }
+              }
+            },
+            {
+              "title": "1K (3:4)",
+              "properties": {
+                "width": {
+                  "const": 864
+                },
+                "height": {
+                  "const": 1152
+                }
+              }
+            },
+            {
+              "title": "1K (4:3)",
+              "properties": {
+                "width": {
+                  "const": 1152
+                },
+                "height": {
+                  "const": 864
+                }
+              }
+            },
+            {
+              "title": "1K (9:16)",
+              "properties": {
+                "width": {
+                  "const": 720
+                },
+                "height": {
+                  "const": 1280
+                }
+              }
+            },
+            {
+              "title": "1K (16:9)",
+              "properties": {
+                "width": {
+                  "const": 1280
+                },
+                "height": {
+                  "const": 720
+                }
+              }
+            },
+            {
+              "title": "1K (2:3)",
+              "properties": {
+                "width": {
+                  "const": 832
+                },
+                "height": {
+                  "const": 1248
+                }
+              }
+            },
+            {
+              "title": "1K (3:2)",
+              "properties": {
+                "width": {
+                  "const": 1248
+                },
+                "height": {
+                  "const": 832
+                }
+              }
+            },
+            {
+              "title": "1K (9:19.5)",
+              "properties": {
+                "width": {
+                  "const": 576
+                },
+                "height": {
+                  "const": 1248
+                }
+              }
+            },
+            {
+              "title": "1K (19.5:9)",
+              "properties": {
+                "width": {
+                  "const": 1248
+                },
+                "height": {
+                  "const": 576
+                }
+              }
+            },
+            {
+              "title": "1K (9:20)",
+              "properties": {
+                "width": {
+                  "const": 576
+                },
+                "height": {
+                  "const": 1280
+                }
+              }
+            },
+            {
+              "title": "1K (20:9)",
+              "properties": {
+                "width": {
+                  "const": 1280
+                },
+                "height": {
+                  "const": 576
+                }
+              }
+            },
+            {
+              "title": "1K (1:2)",
+              "properties": {
+                "width": {
+                  "const": 704
+                },
+                "height": {
+                  "const": 1408
+                }
+              }
+            },
+            {
+              "title": "1K (2:1)",
+              "properties": {
+                "width": {
+                  "const": 1408
+                },
+                "height": {
+                  "const": 704
+                }
+              }
+            },
+            {
+              "title": "2K (1:1)",
+              "properties": {
+                "width": {
+                  "const": 2048
+                },
+                "height": {
+                  "const": 2048
+                }
+              }
+            },
+            {
+              "title": "2K (3:4)",
+              "properties": {
+                "width": {
+                  "const": 1776
+                },
+                "height": {
+                  "const": 2368
+                }
+              }
+            },
+            {
+              "title": "2K (4:3)",
+              "properties": {
+                "width": {
+                  "const": 2368
+                },
+                "height": {
+                  "const": 1776
+                }
+              }
+            },
+            {
+              "title": "2K (9:16)",
+              "properties": {
+                "width": {
+                  "const": 1584
+                },
+                "height": {
+                  "const": 2816
+                }
+              }
+            },
+            {
+              "title": "2K (16:9)",
+              "properties": {
+                "width": {
+                  "const": 2816
+                },
+                "height": {
+                  "const": 1584
+                }
+              }
+            },
+            {
+              "title": "2K (2:3)",
+              "properties": {
+                "width": {
+                  "const": 1664
+                },
+                "height": {
+                  "const": 2496
+                }
+              }
+            },
+            {
+              "title": "2K (3:2)",
+              "properties": {
+                "width": {
+                  "const": 2496
+                },
+                "height": {
+                  "const": 1664
+                }
+              }
+            },
+            {
+              "title": "2K (9:19.5)",
+              "properties": {
+                "width": {
+                  "const": 1344
+                },
+                "height": {
+                  "const": 2912
+                }
+              }
+            },
+            {
+              "title": "2K (19.5:9)",
+              "properties": {
+                "width": {
+                  "const": 2912
+                },
+                "height": {
+                  "const": 1344
+                }
+              }
+            },
+            {
+              "title": "2K (9:20)",
+              "properties": {
+                "width": {
+                  "const": 1440
+                },
+                "height": {
+                  "const": 3200
+                }
+              }
+            },
+            {
+              "title": "2K (20:9)",
+              "properties": {
+                "width": {
+                  "const": 3200
+                },
+                "height": {
+                  "const": 1440
+                }
+              }
+            },
+            {
+              "title": "2K (1:2)",
+              "properties": {
+                "width": {
+                  "const": 1456
+                },
+                "height": {
+                  "const": 2912
+                }
+              }
+            },
+            {
+              "title": "2K (2:1)",
+              "properties": {
+                "width": {
+                  "const": 2912
+                },
+                "height": {
+                  "const": 1456
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "if": {
+          "required": [
+            "resolution"
+          ]
+        },
+        "then": {
+          "properties": {
+            "inputs": {
+              "required": [
+                "referenceImages"
+              ]
+            }
+          },
+          "required": [
+            "inputs"
+          ]
+        }
+      }
+    ],
+    "additionalProperties": false
+  }
+}

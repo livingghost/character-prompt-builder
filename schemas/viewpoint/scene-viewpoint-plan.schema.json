@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scene-viewpoint-plan.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "scene_id",
+    "story_order",
+    "default_viewpoint_profile_id",
+    "default_knowledge_scope",
+    "default_point_of_audition",
+    "coverage_strategy",
+    "axis_of_action",
+    "shots",
+    "transition_ids",
+    "scene_plan_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "scene-viewpoint-plan"
+    },
+    "scene_id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9-]+$"
+    },
+    "story_order": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "default_viewpoint_profile_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "default_knowledge_scope": {
+      "enum": [
+        "objective",
+        "character_restricted",
+        "shared_restricted",
+        "omniscient"
+      ]
+    },
+    "default_focal_character_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "default_point_of_audition": {
+      "enum": [
+        "objective_mix",
+        "character_subjective",
+        "remote_or_device_audio"
+      ]
+    },
+    "coverage_strategy": {
+      "type": "string",
+      "minLength": 5
+    },
+    "axis_of_action": {
+      "type": "string",
+      "minLength": 5
+    },
+    "shots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "shot_id",
+          "order_index",
+          "coverage_role",
+          "viewpoint_profile_id",
+          "camera_spec_file"
+        ],
+        "properties": {
+          "shot_id": {
+            "type": "string",
+            "pattern": "^[A-Z0-9-]+$"
+          },
+          "order_index": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "coverage_role": {
+            "type": "string",
+            "minLength": 3
+          },
+          "viewpoint_profile_id": {
+            "type": "string",
+            "minLength": 3
+          },
+          "camera_spec_file": {
+            "type": "string",
+            "minLength": 5
+          }
+        }
+      }
+    },
+    "transition_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "knowledge_policy": {
+      "type": "string"
+    },
+    "scene_plan_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "artifact_type": "viewpoint-transition",
+  "transition_id": "VT-SC01-01",
+  "scene_id": "SC01",
+  "from_shot": "SC01-SH01",
+  "to_shot": "SC01-SH02",
+  "from_profile": "external-character-aligned-third-person",
+  "to_profile": "over-the-shoulder",
+  "trigger": "C02 raises the damaged pendant to C01 eye level",
+  "bridge_type": "eyeline-cut",
+  "changes_camera_ownership": false,
+  "changes_knowledge_scope": false,
+  "changes_point_of_audition": false,
+  "knowledge_change": "none",
+  "state_change_event_ids": [],
+  "continuity_requirements": [
+    "P01 remains in C02 right hand",
+    "C01 remains on the same side of the workbench"
+  ],
+  "transition_sha256": "c0c173a4e5059aa2aef0de1922d68a5317cc3b5b5cc88d2ce86e011dbd5b0e3a"
+}

@@ -1,0 +1,149 @@
+{
+  "artifact_type": "character-identity-contract",
+  "contract_id": "CIC-C02",
+  "character_id": "C02",
+  "domain": "anthropomorphic-animal",
+  "canon_status": "approved",
+  "stable_identity": {
+    "species_or_base_form": "anthropomorphic russet fox archivist",
+    "body_plan": "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+    "proportions": "medium height, narrow shoulders, long neck, and fine hands suited to delicate objects",
+    "head_and_face": "short fox muzzle, green eyes, tall ears, and a narrow jaw",
+    "surfaces_and_markings": "russet fur, cream muzzle and throat, dark ear tips, dark forearms, and white tail tip",
+    "appendages": "tall ears and one full russet tail with white tip",
+    "asymmetry_rules": "no permanent left-right accessory asymmetry",
+    "identity_accessories": "round brass spectacles are identity-linked but may be removed only by approved state",
+    "performance_vocabulary": "precise eye focus, careful two-finger object handling, small ear turns, and gentle measured speech",
+    "frame_character": {
+      "representation": "declared-structures",
+      "structures": {
+        "body": {
+          "kind": "authored body",
+          "location": "whole visible form",
+          "presence": "present",
+          "geometry": {
+            "form": "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+            "proportions": "medium height, narrow shoulders, long neck, and fine hands suited to delicate objects",
+            "face": "short fox muzzle, green eyes, tall ears, and a narrow jaw",
+            "appendages": "tall ears and one full russet tail with white tip"
+          }
+        }
+      },
+      "source_confidence": "preset-selected",
+      "frame_character_id": "frame-C02",
+      "overall_form": "slender humanoid vulpine body with five-fingered hands, plantigrade stance, and one full tail",
+      "coherence_rules": [
+        "Retain the specific authored fixture; do not extrapolate a species-wide skeleton."
+      ],
+      "diagnostic_misreadings": []
+    },
+    "growth_geometry": {
+      "representation": "declared-structures",
+      "structures": {
+        "fur": {
+          "kind": "fur",
+          "location": "authored body surface",
+          "presence": "present",
+          "geometry": {
+            "color_and_pattern": "russet fur, cream muzzle and throat, dark ear tips, dark forearms, and white tail tip"
+          }
+        }
+      },
+      "source_confidence": "preset-selected",
+      "grooming_state": [],
+      "identity_lock_fields": [
+        "structures.fur.geometry.color_and_pattern"
+      ],
+      "variant_fields": []
+    },
+    "structure_notes": {
+      "body": "short fox muzzle, green eyes, tall ears, and a narrow jaw"
+    }
+  },
+  "distinctive_details": [],
+  "anchor_fragments": [
+    {
+      "anchor_id": "C02-face",
+      "priority": "signature",
+      "wording": "green eyes, short cream fox muzzle, dark ear tips, and round brass spectacles",
+      "required_when": [
+        "face-visible",
+        "front",
+        "three-quarter",
+        "profile"
+      ],
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "omit_when": [
+        "face-occluded"
+      ]
+    },
+    {
+      "anchor_id": "C02-tail-tip",
+      "priority": "supporting",
+      "wording": "one full russet tail with a white tip",
+      "required_when": [
+        "tail-visible",
+        "full-body",
+        "rear"
+      ],
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "omit_when": [
+        "tail-occluded"
+      ]
+    }
+  ],
+  "coverage_requirements": [
+    {
+      "requirement_id": "CR-C02-FACE",
+      "feature_refs": [
+        "C02-face"
+      ],
+      "acceptable_views": [
+        "front bust",
+        "three-quarter bust",
+        "profile head"
+      ],
+      "priority": "signature",
+      "notes": "Spectacles and green eyes must remain clear."
+    },
+    {
+      "requirement_id": "CR-C02-TAIL",
+      "feature_refs": [
+        "C02-tail-tip"
+      ],
+      "acceptable_views": [
+        "rear full body",
+        "lateral full body"
+      ],
+      "priority": "supporting",
+      "notes": "Tail and white tip must remain attached and readable."
+    }
+  ],
+  "state_schema_ref": null,
+  "source_provenance": [
+    {
+      "type": "approved series design",
+      "reference": "workshop pilot brief"
+    }
+  ],
+  "notes": [
+    "The damaged pendant is inventory, not identity."
+  ],
+  "species_morphology_profile_ref": {
+    "id": "SMP-workshop-C02",
+    "sha256": "ac85f8b1b243e1e10eda1cfcb58f17d4717f1be8173ada938050f4996f35b6dc"
+  },
+  "individual_morphology_contract_ref": {
+    "id": "IMC-C02",
+    "sha256": "e2588fc7f8509a7feb68d562882d5f5b2e89131911b117507786f7f669d271d0"
+  },
+  "visual_authority_ref": null
+}

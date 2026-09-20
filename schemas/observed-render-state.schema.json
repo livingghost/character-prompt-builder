@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "observed-render-state.schema.json",
+  "title": "Observed Render State",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "observation_id",
+    "run_id",
+    "expected_state_snapshot_sha256",
+    "expected_visual_projection_sha256",
+    "observed_state",
+    "state_match_status",
+    "time_range",
+    "evidence_files",
+    "canonized",
+    "routing_recommendation",
+    "observation_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "observed-render-state"
+    },
+    "observation_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "expected_state_snapshot_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expected_visual_projection_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observed_state": {
+      "type": "object"
+    },
+    "state_match_status": {
+      "enum": [
+        "match",
+        "partial-match",
+        "mismatch",
+        "unresolved"
+      ]
+    },
+    "time_range": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_files": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "canonized": {
+      "const": false
+    },
+    "routing_recommendation": {
+      "enum": [
+        "none",
+        "visual-contract-review",
+        "correction-review",
+        "projection-review",
+        "scene-choreography-review",
+        "target-scoped-heuristic",
+        "human-canon-decision"
+      ]
+    },
+    "observation_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

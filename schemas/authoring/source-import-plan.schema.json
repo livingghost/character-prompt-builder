@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "source-import-plan.schema.json",
+  "type": "object",
+  "properties": {
+    "material_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "enum": [
+              "primary-source",
+              "external-reference"
+            ]
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "utf-8-sig",
+              "utf-16",
+              "utf-16-le",
+              "utf-16-be",
+              "cp932",
+              "shift_jis"
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "source_id",
+          "path",
+          "role",
+          "encoding",
+          "sha256"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "start_line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "end_line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "completion": {
+            "enum": [
+              "complete",
+              "partial",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "segment_id",
+          "source_id",
+          "start_line",
+          "end_line",
+          "label",
+          "completion"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 0
+    }
+  },
+  "required": [
+    "material_id",
+    "purpose",
+    "documents",
+    "segments",
+    "unresolved"
+  ],
+  "additionalProperties": false
+}

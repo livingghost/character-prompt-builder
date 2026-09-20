@@ -1,0 +1,22 @@
+{
+  "artifact_type": "viewpoint-transition",
+  "transition_id": "VT-WORKSHOP-05",
+  "scene_id": "SC-WORKSHOP-01",
+  "from_shot": "SC-WORKSHOP-01-SH05",
+  "to_shot": "SC-WORKSHOP-01-SH06",
+  "from_profile": "external-character-aligned-third-person",
+  "to_profile": "external-character-aligned-third-person",
+  "trigger": "C01 raises the eyes from P01 to C02",
+  "bridge_type": "re-establishing-cut",
+  "changes_camera_ownership": false,
+  "changes_knowledge_scope": true,
+  "changes_point_of_audition": false,
+  "knowledge_change": "none",
+  "state_change_event_ids": [],
+  "continuity_requirements": [
+    "P01 remains in C01 right hand",
+    "screen sides return to the established master",
+    "injury state remains concealed"
+  ],
+  "transition_sha256": "073b09fb68a8cfb5506510e5f87a96f058b7d514e5a205c7aab822c79b738885"
+}

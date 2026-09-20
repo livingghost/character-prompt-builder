@@ -1,0 +1,134 @@
+{
+  "render_spec_id": "ARS-EP03-SC01-C01",
+  "asset_id": "S-EP03-SC01-C01",
+  "character_id": "C01",
+  "purpose": "state-aware scene keyframe",
+  "view": "left-three-quarter",
+  "framing": "medium close portrait",
+  "style_family_id": "style-family-clear-portrait",
+  "target_model": "gpt-image-2.5-flare",
+  "coverage_requirement_ids": [
+    "CR-left-ear-stud",
+    "CR-face-eyes"
+  ],
+  "art_direction": {
+    "center_of_appeal": "controlled public composure with visible private tension",
+    "subject_relationship": "C01 is close to C02 but holds formal body language",
+    "composition_and_visual_hierarchy": "face and left ear first, tense left hand second, warm field office third",
+    "medium_family": "cinematic 2D soft-cel anime illustration",
+    "shape_and_rhythm": "broad stable torso with small asymmetrical tension cues",
+    "surface_and_tactility": "clean thick fur, dry office shirt, small heat-related moisture accents",
+    "color_and_light": "warm window key with cool interior shadow separation",
+    "detail_hierarchy": "eyes, left ear stud and notch, cheek markings, left hand, shirt closure"
+  },
+  "subject_resolution": {
+    "identity": "tall broad-shouldered blue-gray wolf with cyan eyes, pale muzzle and chest, charcoal cheek wedges, and one cyan stud on the subject-left upper ear rim",
+    "current_state": "subject-left ear tip has a healed notch; the face presents professional calm while shallow breathing and left-hand tension reveal stronger fear",
+    "wardrobe": "field office shirt worn closed and dry",
+    "relationship_behavior": "close to C02 without touching, looking toward C02 and then briefly away"
+  },
+  "scene": {
+    "environment": "small field office in hot humid summer weather",
+    "support_and_contact": "the left hand rests against a desk edge while the torso remains upright",
+    "depth_order": [
+      "left hand and desk edge",
+      "face and upper torso",
+      "warm office window"
+    ],
+    "atmosphere": "warm still air with restrained heat tension"
+  },
+  "camera": {
+    "shot_type": "medium close office portrait",
+    "shot_scale": "chest-up",
+    "distance_class": "medium-close",
+    "subject_relative_distance": {
+      "basis": "visible-torso-heights",
+      "minimum": 1.5,
+      "maximum": 2.0
+    },
+    "human_scale_distance_equivalent_m": {
+      "minimum": 1.8,
+      "maximum": 2.5
+    },
+    "camera_height": {
+      "reference_landmark": "upper chest",
+      "offset": "camera center is slightly below eye level and points gently upward"
+    },
+    "pitch_degrees": 3,
+    "yaw_degrees": -25,
+    "roll_degrees": 0,
+    "lens_or_perspective": "natural portrait perspective with restrained three-quarter compression",
+    "lens_equivalent_mm": {
+      "minimum": 55,
+      "maximum": 75
+    },
+    "projection_behavior": "natural-portrait",
+    "frame_occupancy": {
+      "subject_height_percent": {
+        "minimum": 82,
+        "maximum": 90
+      },
+      "subject_width_percent": {
+        "minimum": 70,
+        "maximum": 88
+      }
+    },
+    "framing_and_crop": "left ear, face, shoulders, upper torso, desk-braced left hand, and the second hand remain readable",
+    "coverage_landmarks": {
+      "top": "small clearance above the subject-left ear tip",
+      "bottom": "lower chest and desk-contact hand",
+      "left": "subject-left elbow or desk edge",
+      "right": "subject-right shoulder and hand"
+    },
+    "eye_line_position": {
+      "vertical_percent_from_top": {
+        "minimum": 28,
+        "maximum": 34
+      },
+      "horizontal_percent_from_left": {
+        "minimum": 44,
+        "maximum": 54
+      }
+    },
+    "nearest_form": "the left hand and desk edge",
+    "perspective_scale_change": "the desk hand enlarges mildly while muzzle, ears, shoulders, and torso keep stable identity ratios",
+    "required_visible_elements": [
+      "both cyan eyes",
+      "subject-left ear stud and notch",
+      "paired cheek wedges",
+      "left hand touching desk edge",
+      "closed office shirt"
+    ],
+    "allowed_offscreen_elements": [
+      "lower torso",
+      "legs",
+      "feet",
+      "most of tail"
+    ],
+    "focal_sequence": [
+      "eyes",
+      "subject-left ear detail",
+      "left hand tension",
+      "office window"
+    ],
+    "stability_invariants": [
+      "camera remains medium close",
+      "left ear and desk hand stay inside the frame",
+      "lens does not exaggerate the muzzle",
+      "crop does not pull back to full body"
+    ]
+  },
+  "lighting": {
+    "key_light": "warm window light from camera right",
+    "fill_or_ambient": "cool neutral office fill",
+    "rim_or_accent": "small cyan accents on eye and ear stud",
+    "shadow_character": "clean soft-cel shadows with crisp facial markings",
+    "color_relationship": "warm key against cool gray-blue fur and neutral office shadows"
+  },
+  "prompt_scaffold": "Create a state-aware left-three-quarter office portrait that preserves the approved wolf identity, the cyan subject-left ear stud, the healed outer ear-tip notch, cyan eyes, and paired cheek wedges. Show professional composure masking fear through shallow breath, slight temple sweat, and tension concentrated in the left hand. Keep the shirt closed and dry, place the left hand against the desk edge, and use warm window light with cool interior fill in the polished soft-cel style family.",
+  "selected_preset_ids": [
+    "style-family-clear-portrait",
+    "domain-realization-anthropomorphic-animal-baseline",
+    "profile-clear-2d-illustration"
+  ]
+}

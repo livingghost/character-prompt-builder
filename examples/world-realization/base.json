@@ -1,0 +1,26 @@
+{
+  "characters": {},
+  "relationships": {},
+  "environments": {
+    "ROOM": {
+      "light": "ambient",
+      "weather": "dry"
+    }
+  },
+  "props": {
+    "LAMP": {
+      "appearance": {
+        "shell": "ribbed",
+        "signal": "dark"
+      },
+      "physical_state": {
+        "condition": "intact"
+      },
+      "owner": null
+    }
+  },
+  "world": {
+    "public_rule": "unanswered",
+    "author_secret": "SECRET_MARKER_NOT_FOR_CONSUMER"
+  }
+}

@@ -1,0 +1,420 @@
+{
+  "protocol": "shared-production-contracts",
+  "schemas": [
+    {
+      "schema": "shared-state/accessory-geometry.schema.json",
+      "sha256": "37fc043666bcf7291b059370b12f8cf67c227de490058f7c48ba1bf5f3d77c89"
+    },
+    {
+      "schema": "shared-state/adoption-receipt.schema.json",
+      "sha256": "299766af3a5aa470a5aca184280173f3775db9d83f35d6e6a924ab51cb14a810"
+    },
+    {
+      "schema": "shared-state/appearance-adaptation-proposal.schema.json",
+      "sha256": "c057641895258c514313cadb47e86d07f87496f21ed2bf3eee37d6b650b57078"
+    },
+    {
+      "schema": "shared-state/appearance-variant-contract.schema.json",
+      "sha256": "44e6cd71ac008e7f4656654db1b8a98555d33e47a656db140f927d913b45919b"
+    },
+    {
+      "schema": "shared-state/asset-render-specification.schema.json",
+      "sha256": "b5fea5f175a12a095c654b4b33e551aa58a7c3809f7e0096030efd0fb86a8695"
+    },
+    {
+      "schema": "shared-state/camera-framing-contract.schema.json",
+      "sha256": "d0addf37f01c0cf9d53a69e109c3f0b4a27009bc55256e0be65de034b1c60269"
+    },
+    {
+      "schema": "shared-state/candidate-manifest.schema.json",
+      "sha256": "7771db604a68551fdf4f1477271a1b00f0fc36b4d7100e8126250f8a7c971271"
+    },
+    {
+      "schema": "shared-state/character-identity-contract.schema.json",
+      "sha256": "196936b13872ba10a8b1ce95c2042348a5f9b28464b8265e39108ed3b6aefdea"
+    },
+    {
+      "schema": "shared-state/character-state-schema.schema.json",
+      "sha256": "fe672d9b53bb0a461e2122591c2cbbf342f53a1c8851ecce77adb0951dbb5a14"
+    },
+    {
+      "schema": "shared-state/declared-structures.schema.json",
+      "sha256": "b120790f36dd68bcf987b7de8771824339b6d97c327869072ab58abe5cd791ef"
+    },
+    {
+      "schema": "shared-state/distinctive-detail.schema.json",
+      "sha256": "09948785b5e3ccd408ce3148d5ca3e1dc49b6821973ecb4935d31176820e08b1"
+    },
+    {
+      "schema": "shared-state/drift-observation.schema.json",
+      "sha256": "0210b3c01b966b7fa2c7c42ab273d2000910cc994d658be75811ffce26d037f8"
+    },
+    {
+      "schema": "shared-state/environment-snapshot.schema.json",
+      "sha256": "001daab394487347596a7605612414b17f0d87851655c607b5f6e62a9d22d2cb"
+    },
+    {
+      "schema": "shared-state/era-contract.schema.json",
+      "sha256": "5df04acd67f1bae7ba9eec44ada3cb160b7cc766e24a62887f5eb9e1029f03bf"
+    },
+    {
+      "schema": "shared-state/external-contract-reference.schema.json",
+      "sha256": "f168da2768358339df4585e0f0352d9842736d9ab996bd3198539b60b41c22aa"
+    },
+    {
+      "schema": "shared-state/form-contract.schema.json",
+      "sha256": "2a4f9742b24e61a41659254b42770764b995bf86e49e78f8d65b5d1b69c0af68"
+    },
+    {
+      "schema": "shared-state/frame-character.schema.json",
+      "sha256": "ebd271fa21d0d60ebc23770ef596bfcb9da2d1570975d7096722ed09ca7ab380"
+    },
+    {
+      "schema": "shared-state/garment-geometry.schema.json",
+      "sha256": "54b0b6e9719be069df86bfbfd7971112268f2fc44d64a115bcd2230815585618"
+    },
+    {
+      "schema": "shared-state/growth-geometry.schema.json",
+      "sha256": "b82541bbd0f2d15264efa9d7f90f6586de9eb135c9f428e9b8b211854b04adf6"
+    },
+    {
+      "schema": "shared-state/individual-morphology-contract.schema.json",
+      "sha256": "c7f91389797fc72b0d829ff4e17a982040dbba7dce5c4752055b20a66af7ee2b"
+    },
+    {
+      "schema": "shared-state/inventory-state.schema.json",
+      "sha256": "f8f0bb2615d6ca6c99621328e31aec7476981509ed1a8f882b99cf55136bd6ab"
+    },
+    {
+      "schema": "shared-state/morphology-feature-instance.schema.json",
+      "sha256": "a19360d50636d0ca10cede981af6deb9a3bd45ccf84f1e618ce733742bee8cef"
+    },
+    {
+      "schema": "shared-state/morphology-feature.schema.json",
+      "sha256": "2dd0f6cdf9b2106c29285f8b78b3998c80297939f26503ae76d1e8b181c5718f"
+    },
+    {
+      "schema": "shared-state/observed-render-state.schema.json",
+      "sha256": "6f7d757e820f07e894fa2bb3e7b6c71cec759479a95cdd9013eeb86b2fc48deb"
+    },
+    {
+      "schema": "shared-state/part-measurement.schema.json",
+      "sha256": "4a0d52cb131eec2b472d86c0257615f6d35bf5153b47bb305f5c6e3e8081f658"
+    },
+    {
+      "schema": "shared-state/performance-language.schema.json",
+      "sha256": "0949a783838e7e8486dc7e621855cb3abacbedccea156188553ef8c31dc34907"
+    },
+    {
+      "schema": "shared-state/prepared-generation-reference.schema.json",
+      "sha256": "1f025166096398db2d64c9ad949e9611440db215f6c10506191c1647c382e931"
+    },
+    {
+      "schema": "shared-state/prepared-reference-set.schema.json",
+      "sha256": "0f9f3ce5cb3e1b9f1cbbc39c6bee7db01a3282e7bf1654fb9c0506f91f9d06ce"
+    },
+    {
+      "schema": "shared-state/production-spec.schema.json",
+      "sha256": "e4a63780022cc44d723d8e55c02295f1a960f2badc046177fe9315824b4b1f42"
+    },
+    {
+      "schema": "shared-state/reference-bundle-plan.schema.json",
+      "sha256": "ebfdfec36e676034478ce16b1e388a4c10dcdd2d05aa5cfb5f0e97ea2b31867e"
+    },
+    {
+      "schema": "shared-state/reference-selection.schema.json",
+      "sha256": "4627a1e58f69744132b8d2cdebb7925f242fe716646cdd3b6502956ce9e903b2"
+    },
+    {
+      "schema": "shared-state/reference-use-plan.schema.json",
+      "sha256": "f283684bff3963279c03920c45b92db2d2389fe8e31c83587fc704059c830ffe"
+    },
+    {
+      "schema": "shared-state/relationship-projection.schema.json",
+      "sha256": "bbd085ae4634e5e63f9b3e9398a2cce67110aebef4975c9f08d5e02f74c12bff"
+    },
+    {
+      "schema": "shared-state/relationship-state.schema.json",
+      "sha256": "e54e49e1ce975a07cc4e3f9eed4ecde5cc0f40fb13784813d1082da658a502d3"
+    },
+    {
+      "schema": "shared-state/resolved-morphology.schema.json",
+      "sha256": "e767141d690d4e6eb20c27c853bb010c6ff6c59ce1665697e025cac664fcde2d"
+    },
+    {
+      "schema": "shared-state/scene-context-snapshot.schema.json",
+      "sha256": "aeacdf581c002bac137de6abb750426092c7fb0234dc2ae5746286e4292c526e"
+    },
+    {
+      "schema": "shared-state/scene-persona-material.schema.json",
+      "sha256": "e7f4c30b6eb7ed194795fcbbcc631975f804b49ac296c90b3b301a82ae199a18"
+    },
+    {
+      "schema": "shared-state/source-extraction-proposal.schema.json",
+      "sha256": "4cf78dcf327132da028849648d05109eff2a07581f0680efe8471065d4d4743f"
+    },
+    {
+      "schema": "shared-state/source-material-index.schema.json",
+      "sha256": "0c71f7cb44908dea52121320e5b4494b8aa26ab74e954561348e344d85928dc6"
+    },
+    {
+      "schema": "shared-state/species-morphology-profile.schema.json",
+      "sha256": "646501b23db3928acefffcf6cc583cb9ea524d4584640ca87c16375861cc75e6"
+    },
+    {
+      "schema": "shared-state/state-aware-reference-binding.schema.json",
+      "sha256": "ab8071d242f921ac79c58f7582248eb1d60a523525919bdc4f500dec3426bbb8"
+    },
+    {
+      "schema": "shared-state/state-event.schema.json",
+      "sha256": "fbd0de6d420120289a2a26569548df03918f9b7c93e969e7823dd73d60c5ce92"
+    },
+    {
+      "schema": "shared-state/state-lineage.schema.json",
+      "sha256": "48ffdfba15cd3b749a6905b3ab0bef39e3f537de2d51c2f1411f6d1804e91535"
+    },
+    {
+      "schema": "shared-state/state-process.schema.json",
+      "sha256": "f772e16fa0f2b7dd6258e554d882c24fd22daad1f870e950078a40ce1ef58984"
+    },
+    {
+      "schema": "shared-state/state-snapshot.schema.json",
+      "sha256": "256c6f5cf24bc569c8c29af119e765ecaa4f5cd2a59c656a3f9b854152578117"
+    },
+    {
+      "schema": "shared-state/surface-lighting-plan.schema.json",
+      "sha256": "892b552a73a3e091c111edc3b9ea49d7dcab5010f9ad1e548f48e83a29c3c509"
+    },
+    {
+      "schema": "shared-state/visual-authority.schema.json",
+      "sha256": "8ffbfb18886913d83bc78e8baac915d5f828746029fd6a5a1a308bfb74c6b00b"
+    },
+    {
+      "schema": "shared-state/visual-evidence-bundle.schema.json",
+      "sha256": "19721ee0bed582d2769be0e877ba2cada4dfd5a98453aac23a0985d52aeef3df"
+    },
+    {
+      "schema": "shared-state/visual-state-projection.schema.json",
+      "sha256": "68914b778217bdb8105c6bea84b5cc249e0d68d7b9dee065c3dc24acd5cca800"
+    },
+    {
+      "schema": "shared-state/wardrobe-state.schema.json",
+      "sha256": "c346ccd1cdb7a909dd194d54b5612efc358064fb444c1a1586283414f5e57c91"
+    },
+    {
+      "schema": "shared-state/world-state-snapshot.schema.json",
+      "sha256": "d67262517e5fa18e0b3d809c1dfa12f7a37487a6f4c3983eda890462b89676b2"
+    },
+    {
+      "schema": "viewpoint/scene-viewpoint-plan.schema.json",
+      "sha256": "df196bacc504353049f05bdef2c4755bbcb6e4494e9a609b7259a73fa228916f"
+    },
+    {
+      "schema": "viewpoint/shot-camera-spec.schema.json",
+      "sha256": "3c9a44ab15814451da5e4d787b4a8a9a6b90f22abc2cf71c6bada3694cbd1e83"
+    },
+    {
+      "schema": "viewpoint/shot-continuity-ledger.schema.json",
+      "sha256": "b3162fe29b8769e9f248f3f66c38e3f425ff3a2762a9a7aaf1261807d1f16259"
+    },
+    {
+      "schema": "viewpoint/shot-request.schema.json",
+      "sha256": "c7ed042417b0cfe1d1e85106025d391f0779a5627ccdb8ce741af68e61f85057"
+    },
+    {
+      "schema": "viewpoint/shot-visual-projection.schema.json",
+      "sha256": "aecda49f9a68ad4d8d2e8f1a0e3a1d8f0960e44e73f9a79ea4df10636901a29b"
+    },
+    {
+      "schema": "viewpoint/viewpoint-profile.schema.json",
+      "sha256": "ca4feac25ff0bfbaebbf5612750733ffc5fd0a834944e6ee1e9a6167890c0995"
+    },
+    {
+      "schema": "viewpoint/viewpoint-transition.schema.json",
+      "sha256": "752fed4d55d6d59fa68eedd348ea327e5e58d615bef3e40cb7fd429262a1098c"
+    }
+  ],
+  "artifacts": {
+    "adoption-receipt": {
+      "schema": "shared-state/adoption-receipt.schema.json",
+      "self_hash_field": "adoption_receipt_sha256"
+    },
+    "appearance-adaptation-proposal": {
+      "schema": "shared-state/appearance-adaptation-proposal.schema.json",
+      "self_hash_field": "proposal_sha256"
+    },
+    "appearance-variant-contract": {
+      "schema": "shared-state/appearance-variant-contract.schema.json",
+      "self_hash_field": null
+    },
+    "asset-render-specification": {
+      "schema": "shared-state/asset-render-specification.schema.json",
+      "self_hash_field": "render_spec_sha256"
+    },
+    "candidate-manifest": {
+      "schema": "shared-state/candidate-manifest.schema.json",
+      "self_hash_field": "candidate_manifest_sha256"
+    },
+    "character-identity-contract": {
+      "schema": "shared-state/character-identity-contract.schema.json",
+      "self_hash_field": null
+    },
+    "character-state-schema": {
+      "schema": "shared-state/character-state-schema.schema.json",
+      "self_hash_field": null
+    },
+    "drift-observation": {
+      "schema": "shared-state/drift-observation.schema.json",
+      "self_hash_field": "drift_observation_sha256"
+    },
+    "environment-snapshot": {
+      "schema": "shared-state/environment-snapshot.schema.json",
+      "self_hash_field": "environment_snapshot_sha256"
+    },
+    "era-contract": {
+      "schema": "shared-state/era-contract.schema.json",
+      "self_hash_field": null
+    },
+    "external-contract-reference": {
+      "schema": "shared-state/external-contract-reference.schema.json",
+      "self_hash_field": "reference_sha256"
+    },
+    "form-contract": {
+      "schema": "shared-state/form-contract.schema.json",
+      "self_hash_field": null
+    },
+    "individual-morphology-contract": {
+      "schema": "shared-state/individual-morphology-contract.schema.json",
+      "self_hash_field": "individual_morphology_sha256"
+    },
+    "inventory-state": {
+      "schema": "shared-state/inventory-state.schema.json",
+      "self_hash_field": "inventory_state_sha256"
+    },
+    "observed-render-state": {
+      "schema": "shared-state/observed-render-state.schema.json",
+      "self_hash_field": "observation_sha256"
+    },
+    "prepared-reference-set": {
+      "schema": "shared-state/prepared-reference-set.schema.json",
+      "self_hash_field": "prepared_reference_set_sha256"
+    },
+    "reference-bundle-plan": {
+      "schema": "shared-state/reference-bundle-plan.schema.json",
+      "self_hash_field": "bundle_plan_sha256"
+    },
+    "reference-selection": {
+      "schema": "shared-state/reference-selection.schema.json",
+      "self_hash_field": "selection_sha256"
+    },
+    "reference-use-plan": {
+      "schema": "shared-state/reference-use-plan.schema.json",
+      "self_hash_field": "reference_use_plan_sha256"
+    },
+    "relationship-projection": {
+      "schema": "shared-state/relationship-projection.schema.json",
+      "self_hash_field": "relationship_projection_sha256"
+    },
+    "relationship-state": {
+      "schema": "shared-state/relationship-state.schema.json",
+      "self_hash_field": "relationship_state_sha256"
+    },
+    "scene-context-snapshot": {
+      "schema": "shared-state/scene-context-snapshot.schema.json",
+      "self_hash_field": "context_snapshot_sha256"
+    },
+    "scene-viewpoint-plan": {
+      "schema": "viewpoint/scene-viewpoint-plan.schema.json",
+      "self_hash_field": "scene_plan_sha256"
+    },
+    "shot-camera-spec": {
+      "schema": "viewpoint/shot-camera-spec.schema.json",
+      "self_hash_field": "camera_spec_sha256"
+    },
+    "shot-continuity-ledger": {
+      "schema": "viewpoint/shot-continuity-ledger.schema.json",
+      "self_hash_field": "ledger_sha256"
+    },
+    "shot-request": {
+      "schema": "viewpoint/shot-request.schema.json",
+      "self_hash_field": "request_sha256"
+    },
+    "shot-visual-projection": {
+      "schema": "viewpoint/shot-visual-projection.schema.json",
+      "self_hash_field": "projection_sha256"
+    },
+    "species-morphology-profile": {
+      "schema": "shared-state/species-morphology-profile.schema.json",
+      "self_hash_field": "species_profile_sha256"
+    },
+    "state-aware-reference-binding": {
+      "schema": "shared-state/state-aware-reference-binding.schema.json",
+      "self_hash_field": "binding_sha256"
+    },
+    "state-event": {
+      "schema": "shared-state/state-event.schema.json",
+      "self_hash_field": null
+    },
+    "state-lineage": {
+      "schema": "shared-state/state-lineage.schema.json",
+      "self_hash_field": "lineage_sha256"
+    },
+    "state-process": {
+      "schema": "shared-state/state-process.schema.json",
+      "self_hash_field": null
+    },
+    "state-snapshot": {
+      "schema": "shared-state/state-snapshot.schema.json",
+      "self_hash_field": "state_snapshot_sha256"
+    },
+    "surface-lighting-plan": {
+      "schema": "shared-state/surface-lighting-plan.schema.json",
+      "self_hash_field": "surface_lighting_plan_sha256"
+    },
+    "viewpoint-profile": {
+      "schema": "viewpoint/viewpoint-profile.schema.json",
+      "self_hash_field": "profile_sha256"
+    },
+    "viewpoint-transition": {
+      "schema": "viewpoint/viewpoint-transition.schema.json",
+      "self_hash_field": "transition_sha256"
+    },
+    "visual-authority": {
+      "schema": "shared-state/visual-authority.schema.json",
+      "self_hash_field": "visual_authority_sha256"
+    },
+    "visual-evidence-bundle": {
+      "schema": "shared-state/visual-evidence-bundle.schema.json",
+      "self_hash_field": "visual_evidence_bundle_sha256"
+    },
+    "visual-state-projection": {
+      "schema": "shared-state/visual-state-projection.schema.json",
+      "self_hash_field": "projection_sha256"
+    },
+    "wardrobe-state": {
+      "schema": "shared-state/wardrobe-state.schema.json",
+      "self_hash_field": "wardrobe_state_sha256"
+    },
+    "world-state-snapshot": {
+      "schema": "shared-state/world-state-snapshot.schema.json",
+      "self_hash_field": "world_state_sha256"
+    },
+    "scene-persona-material": {
+      "schema": "shared-state/scene-persona-material.schema.json",
+      "self_hash_field": "content_sha256"
+    },
+    "source-material-index": {
+      "schema": "shared-state/source-material-index.schema.json",
+      "self_hash_field": "content_sha256"
+    },
+    "source-extraction-proposal": {
+      "schema": "shared-state/source-extraction-proposal.schema.json",
+      "self_hash_field": "content_sha256"
+    }
+  },
+  "semantics": {
+    "path": "protocols/semantics.md",
+    "sha256": "c5b7cf3f0770e05f90f8c5f8f52f4994557e328c2c8590ad73b019082664d261"
+  },
+  "contract_set_sha256": "5f26960f3b5b6cbc18805b836897e0d8d84cd169f38d01691c43cdb673d694f6"
+}

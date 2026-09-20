@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reference-bundle-plan.schema.json",
+  "title": "Reference Bundle Plan",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "bundle_id",
+    "character_id",
+    "species_profile_sha256",
+    "individual_morphology_sha256",
+    "identity_contract_sha256",
+    "style_family_id",
+    "coverage_policy",
+    "assets",
+    "coverage_matrix",
+    "unresolved_requirements",
+    "visual_authority_sha256",
+    "visual_evidence_bundle_sha256",
+    "bundle_plan_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "reference-bundle-plan"
+    },
+    "bundle_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "identity_contract_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "era_contract_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "appearance_variant_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "style_family_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "coverage_policy": {
+      "enum": [
+        "core-coverage",
+        "series-coverage",
+        "motion-evaluation"
+      ]
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "asset_id",
+          "purpose",
+          "render_spec_file",
+          "render_spec_sha256",
+          "coverage_requirement_ids"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          },
+          "render_spec_file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "render_spec_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "coverage_requirement_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "coverage_matrix": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+        },
+        "uniqueItems": true
+      }
+    },
+    "unresolved_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "generated_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "bundle_plan_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "species_profile_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "individual_morphology_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "visual_authority_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "visual_evidence_bundle_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

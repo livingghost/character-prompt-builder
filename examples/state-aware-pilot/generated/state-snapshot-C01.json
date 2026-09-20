@@ -1,0 +1,81 @@
+{
+  "artifact_type": "state-snapshot",
+  "snapshot_id": "C01-main-25",
+  "character_id": "C01",
+  "timeline_id": "main",
+  "scene_context_id": "SC-EP03-01",
+  "story_order": 25,
+  "story_time": "story:EP03-SC01",
+  "species_profile_sha256": "5595549bce6c181e0a4bd7f63084ad0aa0d160e8eb4eda8d7f7ef6be849f69a5",
+  "individual_morphology_sha256": "3eab5c9b13162ae58008f06f79154dbbc560b8fa09ec8eb288a367dda7f075b5",
+  "identity_contract_sha256": "e370d88f96b68014de7e8ca5ed1f3dd0b74255b9c4e1051ac8d7ebc2d844e655",
+  "era_contract_sha256": null,
+  "form_contract_sha256": null,
+  "appearance_variant_sha256": null,
+  "applied_event_ids": [
+    "EV-C01-001",
+    "EV-C01-002",
+    "EV-TRANSFER-003"
+  ],
+  "applied_process_milestones": [
+    "PROC-C01-WOUND-01@epoch-initial:offset-0",
+    "PROC-C01-WOUND-01@epoch-initial:offset-5"
+  ],
+  "physical_state": {
+    "left_ear_tip": "notched",
+    "wound_stage": "closed_with_swelling"
+  },
+  "appearance_state": {
+    "grooming": {
+      "fur_wetness": {
+        "brow": "dry",
+        "paws": "dry"
+      },
+      "claws": {
+        "dirt": "clean",
+        "polish_condition": "none"
+      }
+    }
+  },
+  "wardrobe_state": {
+    "layers": [
+      {
+        "item_id": "shirt-01",
+        "state": "worn",
+        "closure": "closed"
+      }
+    ],
+    "condition": {
+      "wetness": "dry"
+    }
+  },
+  "equipment_state": {},
+  "inventory_state": {
+    "items": []
+  },
+  "emotional_state": {
+    "felt_state": {
+      "emotion": "fear",
+      "intensity": 0.7
+    },
+    "expressed_state": {
+      "emotion": "calm",
+      "intensity": 0.4,
+      "masking_strategy": "professional-composure"
+    }
+  },
+  "performance_state": {
+    "physiological_cues": [
+      "shallow breath",
+      "slight sweat",
+      "left hand tension"
+    ]
+  },
+  "knowledge_state": {},
+  "social_role_state": {
+    "role": "field-agent"
+  },
+  "character_specific_state": {},
+  "uncertainties": [],
+  "state_snapshot_sha256": "9c791e0ff39a81f7d6954fbb3caaad6436db7f91ad33c1ae0101c4915e53b672"
+}

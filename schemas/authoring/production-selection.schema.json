@@ -1,0 +1,76 @@
+{
+  "type": "object",
+  "properties": {
+    "input_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "candidate": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "review": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "selector": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "enum": [
+        "delivery-only",
+        "studio-adoption"
+      ]
+    },
+    "adoption": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "character": {
+              "type": "string",
+              "minLength": 1
+            },
+            "iteration_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "character",
+            "iteration_id",
+            "scope"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "authorization": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "input_sha256",
+    "candidate",
+    "review",
+    "selector",
+    "reason",
+    "scope",
+    "adoption",
+    "authorization"
+  ],
+  "additionalProperties": false
+}

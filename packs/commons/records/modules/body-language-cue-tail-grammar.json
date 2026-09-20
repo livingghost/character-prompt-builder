@@ -1,0 +1,645 @@
+{
+  "kind": "module",
+  "category": "body-language-cue",
+  "records": [
+    {
+      "id": "body-language-cue-tail-wag-joy",
+      "category": "body-language-cue",
+      "label": "tail wag joy cue",
+      "visual_function": "Use a big, fast, sweeping tail wag as the visible proof of happiness or high positive arousal in tailed anthro characters.",
+      "prompt": "Show a large fast sweeping tail wag with loose body follow-through: the tail base moves with the character, the wag amplitude is wide, and the ears and face carry matching open happiness.",
+      "invariants": [
+        "wag amplitude scales with the strength of the joy",
+        "the tail and the facial expression support the same positive emotion",
+        "the body stays loose and the tail follows through from the base during a joy wag"
+      ],
+      "misreadings_to_avoid": [
+        "a stiff or slow tail read as joy",
+        "tail motion copied onto a stubby-tailed lineage such as bear characters",
+        "a tail wag pasted on while the face stays neutral or flat"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "tail wagging",
+        "happy tail wag",
+        "excited anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "hybrid"
+      ],
+      "applies_to": "appendage_emotion_grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "tail wag joy cue",
+          "facet": "performance",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "tail wagging",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "happy tail wag",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "excited anthro",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "big fast tail wag for happiness",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "anthro tail wagging with joy",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "body-language-cue-tail-small-sway-anticipation",
+      "category": "body-language-cue",
+      "label": "tail small sway anticipation cue",
+      "visual_function": "Use a small, slow, hesitant tail sway as the visible marker of excited expectation or focused attention.",
+      "prompt": "Show a small low-amplitude tail sway, often with the body leaning slightly forward, ears oriented toward the object of attention, and eyes fixed on it.",
+      "invariants": [
+        "sway amplitude stays small and slow compared with a joy wag",
+        "the gaze, ear orientation, and tail sway point at the same expected thing",
+        "the body holds a forward-leaning ready stance while the sway stays low and slow"
+      ],
+      "misreadings_to_avoid": [
+        "the small sway read as boredom or indifference",
+        "sway so wide it reads as a joy wag",
+        "the small sway paired with a slack, disengaged face"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "tail sway",
+        "anticipation",
+        "expectant anthro"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "hybrid"
+      ],
+      "applies_to": "appendage_emotion_grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "tail small sway anticipation cue",
+          "facet": "performance",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "tail sway",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "anticipation",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "expectant anthro",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "small slow tail sway while expecting something",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "hesitant excited tail sway",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "body-language-cue-tail-droop-sadness",
+      "category": "body-language-cue",
+      "label": "tail droop sadness cue",
+      "visual_function": "Use a drooping, lowered tail as the visible marker of sadness, deflation, or shame in tailed anthro characters.",
+      "prompt": "Show the tail hanging low and still, with lowered ears, rounded shoulders, a downcast gaze, and slack arms so the whole silhouette deflates together into one settled, heavy shape.",
+      "invariants": [
+        "the tail hangs low and holds mostly still",
+        "the ears, posture, and gaze agree with the drooping tail",
+        "the spine and shoulders round downward so the whole silhouette settles with the tail"
+      ],
+      "misreadings_to_avoid": [
+        "a drooping tail combined with a bright open grin",
+        "tail droop used on lineages whose tails cannot emote, such as bear or elephant characters",
+        "a lowered tail that still carries a wide, fast sweep"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "tail drooping",
+        "sad anthro",
+        "deflated posture"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "hybrid"
+      ],
+      "applies_to": "appendage_emotion_grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "tail droop sadness cue",
+          "facet": "performance",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "tail drooping",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "sad anthro",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "deflated posture",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "drooping tail for sadness",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "low still tail with downcast mood",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "body-language-cue-tail-stiff-alert",
+      "category": "body-language-cue",
+      "label": "tail stiff alert cue",
+      "visual_function": "Use a stiff, rigid, bristled tail as the visible marker of alertness, fear, or a threat read in tailed anthro characters.",
+      "prompt": "Show the tail held rigid, either straight out or raised and puffed, with wide eyes, pinned or rotated alert ears, and weight shifted back onto the legs.",
+      "invariants": [
+        "the tail reads rigid and locked along its whole length",
+        "the ears, eyes, and weight shift agree with the threat or alarm read",
+        "the fur or scales along the tail lift so the silhouette widens under alarm"
+      ],
+      "misreadings_to_avoid": [
+        "the rigid tail read as relaxed confidence",
+        "bristling combined with a soft happy face",
+        "a bristled tail on a lineage whose tail carries little fur"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "tail bristling",
+        "alert anthro",
+        "fear response"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "hybrid"
+      ],
+      "applies_to": "appendage_emotion_grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "tail stiff alert cue",
+          "facet": "performance",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "tail bristling",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "alert anthro",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "fear response",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "stiff raised tail for alarm",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "puffed rigid tail with wide eyes",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "body-language-cue-feline-tail-up-purr",
+      "category": "body-language-cue",
+      "label": "feline tail up purr contentment cue",
+      "visual_function": "Use an upright, gently quivering tail plus a purring, softened face as the feline-lineage visible marker of calm contentment.",
+      "prompt": "Show the tail held upright with a slight quiver at the tip, relaxed half-lidded or softly closed eyes, a still or kneading posture, and a calm reserved mouth that still reads as pleased.",
+      "invariants": [
+        "the upright tail reads as settled contentment",
+        "the face stays calm and reserved so contentment shows through soft eyes and easy posture",
+        "the tip quiver stays small so the upright tail keeps its relaxed line"
+      ],
+      "misreadings_to_avoid": [
+        "the upright tail read as the canine joy wag",
+        "a wide open grin pasted onto a calm feline face",
+        "a rigid upright tail held stiff enough to read as alarm"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "cat tail up",
+        "purring",
+        "content feline"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "hybrid"
+      ],
+      "applies_to": "appendage_emotion_grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "feline tail up purr contentment cue",
+          "facet": "performance",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "cat tail up",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "purring",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "content feline",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "upright quivering tail with purring calm face",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "feline contentment cue",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "body-language-cue-rabbit-nose-twitch",
+      "category": "body-language-cue",
+      "label": "rabbit nose twitch stress cue",
+      "visual_function": "Use a rapid nose twitch as the lagomorph-lineage visible marker of stress, irritation, or suppressed anger.",
+      "prompt": "Show the small split nose twitching rapidly and repeatedly across several beats, combined with flattened or backward-angled ears, a tense jaw, and stiffened shoulders that hold the irritation.",
+      "invariants": [
+        "the twitch repeats rapidly across several beats",
+        "the ear angle agrees with the stressed or angry read",
+        "the shoulders and jaw hold tension that matches the twitch rate"
+      ],
+      "misreadings_to_avoid": [
+        "the nose twitch read as a casual sniffing gesture",
+        "a calm face with a rapid angry twitch",
+        "a slow, single nose movement standing in for the rapid twitch"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "nose twitch",
+        "angry rabbit",
+        "stressed lagomorph"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "hybrid"
+      ],
+      "applies_to": "appendage_emotion_grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "rabbit nose twitch stress cue",
+          "facet": "performance",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "nose twitch",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "angry rabbit",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "stressed lagomorph",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "rapid nose twitch while stressed or angry",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "rabbit agitation cue",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "body-language-cue-avian-feather-fluff",
+      "category": "body-language-cue",
+      "label": "avian feather fluff alarm cue",
+      "visual_function": "Use a sudden body-wide feather fluff as the avian-lineage visible marker of alarm or startle.",
+      "prompt": "Show the feather coat lifting and fluffing out across the body and wings for a beat, with wide eyes and a recoiling or freezing posture.",
+      "invariants": [
+        "the fluff reads as a volume change across the whole feather coat",
+        "the posture and eyes agree with the startle read",
+        "the fluff lasts a beat and then settles back into the sleek coat"
+      ],
+      "misreadings_to_avoid": [
+        "fluffed feathers read as casual preening or comfort",
+        "fluffing used on non-feathered lineages",
+        "a slow gradual puff that loses the suddenness of the startle"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "ruffled feathers",
+        "startled bird",
+        "alarm response"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "hybrid"
+      ],
+      "applies_to": "appendage_emotion_grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "avian feather fluff alarm cue",
+          "facet": "performance",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "ruffled feathers",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "startled bird",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "alarm response",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "feathers fluffing up in alarm",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "avian startle cue",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "body-language-cue-fluke-wag",
+      "category": "body-language-cue",
+      "label": "fluke wag happiness cue",
+      "visual_function": "Use side-to-side fluke wagging as the marine-lineage visible marker of happiness or excitement in orca and shark anthro characters.",
+      "prompt": "Show the two-fluke tail wagging side to side with visible motion lines or water splash, paired with an eager forward lean and bright eyes.",
+      "invariants": [
+        "the paired flukes move together as one tail fin",
+        "the excitement read is shared by the posture and face",
+        "the wag drives from the tail stock so the whole body carries the motion"
+      ],
+      "misreadings_to_avoid": [
+        "the fluke wag drawn as a mammalian furry tail wag",
+        "a fluke wag on non-marine lineages",
+        "flukes drawn as two separate legs or limbs"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "fluke wag",
+        "excited orca",
+        "tail fin wag"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "hybrid"
+      ],
+      "applies_to": "appendage_emotion_grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "fluke wag happiness cue",
+          "facet": "performance",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "fluke wag",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "excited orca",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "tail fin wag",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "orca or shark fluke wagging with excitement",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "marine anthro happiness cue",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    },
+    {
+      "id": "body-language-cue-heavy-tail-thump",
+      "category": "body-language-cue",
+      "label": "heavy tail thump emphasis cue",
+      "visual_function": "Use a single hard tail thump against the floor or a surface as the dragon and reptilian-lineage visible marker of emphasis, irritation, or rising excitement.",
+      "prompt": "Show the big heavy tail raised and struck down once against the ground with an impact read: dust, a small bounce of nearby objects, or a sharp motion line, paired with a tensed stance.",
+      "invariants": [
+        "the thump lands as a single strike or a slow deliberate beat",
+        "the face and stance carry the matching irritation or emphasis",
+        "the tail mass and thickness make the impact believable"
+      ],
+      "misreadings_to_avoid": [
+        "the thump read as a playful wag",
+        "a light flexible tail that could not produce an impact",
+        "a rapid drumming that loses the weight of a single strike"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "tags": [
+        "tail thump",
+        "irritated dragon",
+        "impact gesture"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "hybrid"
+      ],
+      "applies_to": "appendage_emotion_grammar",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "search_terms": [
+        {
+          "phrase": "heavy tail thump emphasis cue",
+          "facet": "performance",
+          "weight": 1.0,
+          "source": "label"
+        },
+        {
+          "phrase": "tail thump",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "irritated dragon",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "impact gesture",
+          "facet": "performance",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "heavy tail strike on the ground",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "dragon or lizard tail thump",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
+    }
+  ]
+}

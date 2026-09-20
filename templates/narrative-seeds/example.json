@@ -1,0 +1,67 @@
+{
+  "artifact_type": "narrative",
+  "series_id": "{{SERIES_ID}}",
+  "timeline_id": "main",
+  "medium": "screen",
+  "themes": [
+    {
+      "id": "t01",
+      "statement": "undecided"
+    }
+  ],
+  "characters": [
+    {
+      "id": "C01",
+      "name": "[name]",
+      "persona": "narrative/personas/c01.md",
+      "prohibitions": [
+        {
+          "kind": "judgement",
+          "statement": "undecided",
+          "note": "a judgement prohibition names a behaviour; a surface prohibition names a phrase and carries surface instead of statement"
+        }
+      ]
+    }
+  ],
+  "arcs": [
+    {
+      "id": "a01",
+      "name": "[name]",
+      "type": "main",
+      "status": "planned",
+      "themes": [
+        "t01"
+      ],
+      "characters": [
+        "C01"
+      ],
+      "setup": "undecided",
+      "rising": [
+        "undecided"
+      ],
+      "climax": "undecided",
+      "resolution": "undecided"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "ch01",
+      "number": 1,
+      "title": "[title]",
+      "status": "planned",
+      "arcs": [
+        "a01"
+      ],
+      "depicts": [
+        "undecided"
+      ],
+      "story_order_start": 0,
+      "story_order_end": 0
+    }
+  ],
+  "promises": [],
+  "questions": [],
+  "knowledge": [],
+  "relationships": [],
+  "acts": []
+}

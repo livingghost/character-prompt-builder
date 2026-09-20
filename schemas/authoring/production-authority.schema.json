@@ -1,0 +1,179 @@
+{
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "issuer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path",
+        "locator"
+      ],
+      "additionalProperties": false
+    },
+    "grants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "actor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mode": {
+            "enum": [
+              "direct",
+              "delegated"
+            ]
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "direction",
+                "edit",
+                "submit",
+                "select",
+                "adopt"
+              ]
+            },
+            "minItems": 1
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "uses": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "outputs": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cost": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "currency": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      },
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                      }
+                    },
+                    "required": [
+                      "currency",
+                      "amount"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "uses",
+              "outputs",
+              "cost"
+            ],
+            "additionalProperties": false
+          },
+          "protected_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "actor",
+          "mode",
+          "operations",
+          "targets",
+          "limits",
+          "protected_criteria",
+          "expires_at"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "stop_conditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    }
+  },
+  "required": [
+    "task_id",
+    "issuer",
+    "evidence",
+    "grants",
+    "stop_conditions"
+  ],
+  "additionalProperties": false
+}

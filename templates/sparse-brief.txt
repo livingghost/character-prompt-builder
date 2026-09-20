@@ -1,0 +1,16 @@
+Character idea:
+Target image model:
+Interaction mode: balanced | interactive | autonomous
+Creative latitude: minimal | directed | expansive
+Requested medium, if any:
+Aspect ratio, if any:
+Explicit exclusions, if any:
+Series or character-consistency context, if any:
+
+The skill should:
+- understand the brief as a whole
+- form an image intent
+- develop coherent visual directions
+- select one rather than average them
+- consult presets only after the direction is chosen
+- produce a final prompt and focused negative prompt

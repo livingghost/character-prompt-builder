@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reference-use-plan.schema.json",
+  "title": "Record-scoped Reference Use Plan",
+  "description": "Declares why each canonical record is being used and the exact authority of every linked visual artifact.",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "plan_id",
+    "target_model",
+    "transport_mode",
+    "selected_records",
+    "reference_items",
+    "surface_lighting_plan",
+    "surface_lighting_plan_sha256",
+    "zero_reference_reason",
+    "reference_use_plan_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "reference-use-plan"
+    },
+    "plan_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^RUP-[A-Za-z0-9._:-]+$"
+    },
+    "target_model": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "transport_mode": {
+      "enum": [
+        "prompt-artifacts",
+        "multi-image",
+        "single-board",
+        "svg-bundle"
+      ]
+    },
+    "selected_records": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/selected-record"
+      }
+    },
+    "reference_items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reference-item"
+      }
+    },
+    "surface_lighting_plan": {
+      "$ref": "surface-lighting-plan.schema.json"
+    },
+    "surface_lighting_plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "zero_reference_reason": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/zero-reference-reason"
+        }
+      ]
+    },
+    "reference_use_plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "transport_mode": {
+              "enum": [
+                "prompt-artifacts",
+                "svg-bundle"
+              ]
+            },
+            "target_model": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "transport_mode": {
+              "enum": [
+                "multi-image",
+                "single-board"
+              ]
+            },
+            "target_model": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "reference_items": {
+              "minItems": 1
+            },
+            "zero_reference_reason": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "reference_items": {
+              "maxItems": 0
+            },
+            "zero_reference_reason": {
+              "$ref": "#/$defs/zero-reference-reason"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "role-slug": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "intended-influence": {
+      "enum": [
+        "identity",
+        "pose-camera",
+        "outfit",
+        "surface-finish",
+        "lighting",
+        "environment",
+        "prop-accessory",
+        "local-color"
+      ]
+    },
+    "selected-record": {
+      "type": "object",
+      "required": [
+        "record_id",
+        "intended_influence"
+      ],
+      "properties": {
+        "record_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "intended_influence": {
+          "$ref": "#/$defs/intended-influence"
+        }
+      },
+      "additionalProperties": false
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "controls",
+        "must_not_control"
+      ],
+      "properties": {
+        "controls": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "must_not_control": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "reference-item": {
+      "type": "object",
+      "required": [
+        "precedence",
+        "semantic_role",
+        "layer",
+        "canonical_record_id",
+        "intended_influence",
+        "asset_id",
+        "artifact_id",
+        "technical_role",
+        "source",
+        "authority",
+        "preamble"
+      ],
+      "properties": {
+        "precedence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "semantic_role": {
+          "$ref": "#/$defs/role-slug"
+        },
+        "layer": {
+          "enum": [
+            "A",
+            "B"
+          ]
+        },
+        "canonical_record_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "intended_influence": {
+          "$ref": "#/$defs/intended-influence"
+        },
+        "asset_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "artifact_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "technical_role": {
+          "enum": [
+            "faithful-archival-vector",
+            "structural-line-tone",
+            "color-audit",
+            "saturation-rescue",
+            "specular-audit",
+            "subject-mask",
+            "adopted-reference"
+          ]
+        },
+        "source": {
+          "$ref": "prepared-generation-reference.schema.json#/$defs/pack-artifact-source"
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "preamble": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "zero-reference-reason": {
+      "type": "object",
+      "required": [
+        "code",
+        "record_ids",
+        "detail"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "no-suitable-active-asset",
+            "user-declined-visual-references",
+            "state-ineligible"
+          ]
+        },
+        "record_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "uniqueItems": true
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

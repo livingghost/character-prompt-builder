@@ -1,0 +1,184 @@
+{
+  "kind": "model",
+  "records": [
+    {
+      "id": "gpt-image-2.5-flare",
+      "label": "OpenAI GPT Image 2.5 Flare",
+      "aliases": [
+        "gpt image 2.5",
+        "gpt image 2.5 flare",
+        "openai gpt image 2.5",
+        "openai gpt image 2.5 flare"
+      ],
+      "supports_negative_prompt": false,
+      "prompt_style": "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
+      "negative_transport_mode": "integrated-critical",
+      "negative_transport_notes": "Integrate critical exclusions into the reviewed natural-language prompt and retain the portable negative prompt for traceability; this adapter does not declare a separate negative-prompt channel.",
+      "reference_input_media_types": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "size_hints": {
+        "1:1": "1024x1024",
+        "2:3": "1024x1536",
+        "3:2": "1536x1024",
+        "4:5": "1024x1280",
+        "9:16": "1152x2048",
+        "16:9": "2048x1152"
+      },
+      "verified_on": "2026-09-10",
+      "recommended_uses": [
+        "prose-contract generation with role-scoped multi-reference transport"
+      ],
+      "ordering": [
+        "purpose",
+        "subject and permanent identity",
+        "scene-specific character state",
+        "action and relationships",
+        "setting",
+        "composition and camera",
+        "lighting and color",
+        "rendering",
+        "constraints"
+      ],
+      "search_terms": [
+        {
+          "phrase": "gpt-image-2.5-flare",
+          "facet": "model",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "gpt image 2.5",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "openai gpt image 2.5",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ],
+      "operation_kind": "generation",
+      "offerings": []
+    },
+    {
+      "id": "grok-imagine-image-2.0",
+      "label": "xAI Grok Imagine Image 2.0",
+      "aliases": [
+        "grok imagine 2.0",
+        "grok imagine image 2.0",
+        "xai grok imagine"
+      ],
+      "supports_negative_prompt": false,
+      "prompt_style": "prose description of one still frame; a reference image supplies likeness and drawing style while frame geometry stays in the text",
+      "negative_transport_mode": "integrated-critical",
+      "negative_transport_notes": "The observed image-inference schema for this model exposes positivePrompt only; critical exclusions have to be carried inside the positive prose.",
+      "reference_input_media_types": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "max_reference_images": 3,
+      "max_outputs": 20,
+      "supported_resolutions": [
+        "1K",
+        "2K"
+      ],
+      "supported_aspect_ratios": [
+        "1:1",
+        "3:4",
+        "4:3",
+        "9:16",
+        "16:9",
+        "2:3",
+        "3:2",
+        "1:2",
+        "2:1",
+        "9:20",
+        "20:9",
+        "6:13",
+        "13:6"
+      ],
+      "default_aspect_ratio_behavior": "with no reference images width and height are required together and only the accepted pairs pass; with reference images the 1K or 2K resolution preset takes the aspect from the first input and is exclusive with width and height",
+      "size_hints": {
+        "1:1": "1024x1024, 2048x2048",
+        "3:4": "864x1152, 1776x2368",
+        "4:3": "1152x864, 2368x1776",
+        "9:16": "720x1280, 1584x2816",
+        "16:9": "1280x720, 2816x1584",
+        "2:3": "832x1248, 1664x2496",
+        "3:2": "1248x832, 2496x1664",
+        "6:13": "576x1248, 1344x2912",
+        "13:6": "1248x576, 2912x1344",
+        "9:20": "576x1280, 1440x3200",
+        "20:9": "1280x576, 3200x1440",
+        "1:2": "704x1408, 1456x2912",
+        "2:1": "1408x704, 2912x1456"
+      },
+      "verified_on": "2026-09-13",
+      "recommended_uses": [
+        "reference-driven still frames with up to three role-scoped references",
+        "fixed-geometry prose generation at 1K or 2K"
+      ],
+      "ordering": [
+        "identity",
+        "performance",
+        "composition",
+        "environment and light",
+        "medium and finish",
+        "critical construction"
+      ],
+      "search_terms": [
+        {
+          "phrase": "grok-imagine-image-2.0",
+          "facet": "model",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "grok imagine 2.0",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "xai grok imagine",
+          "facet": "model",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ],
+      "operation_kind": "generation",
+      "offerings": [
+        {
+          "service": "runware",
+          "model_identifier": "xai:grok-imagine@image-2.0",
+          "request_keys": {
+            "reference images": [
+              "inputs.referenceImages"
+            ]
+          },
+          "constraints": {
+            "reference_images": {
+              "max": 3
+            },
+            "geometry": "width and height together, from the listed 1K and 2K pairs, are required unless reference images are given; the resolution preset (1K, 2K) is accepted only with reference images and is exclusive with width and height",
+            "text": "positivePrompt of at least one character, always required",
+            "quality": "settings.quality is low or medium, medium by default",
+            "seed": "not in the schema: the service exposes no seed for this model",
+            "number_results": {
+              "min": 1,
+              "max": 20
+            },
+            "inputs_envelope": "media keys sit inside an inputs object (inputs.referenceImages)"
+          },
+          "observed_at": "2026-09-13",
+          "schema_snapshot": "resources/observed-schemas/grok-imagine-image-2.0.runware.json"
+        }
+      ]
+    }
+  ]
+}

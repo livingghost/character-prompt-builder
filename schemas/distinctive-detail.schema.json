@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "distinctive-detail.schema.json",
+  "title": "Distinctive Detail",
+  "type": "object",
+  "required": [
+    "id",
+    "feature_type",
+    "target_region",
+    "laterality",
+    "landmark_relation",
+    "count_or_distribution",
+    "relative_size",
+    "shape_and_path",
+    "orientation",
+    "color_and_value",
+    "depth_and_relief",
+    "edge_and_texture",
+    "surface_interaction",
+    "age_or_condition",
+    "visibility_and_occlusion",
+    "identity_priority",
+    "continuity_rules",
+    "source_confidence"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "feature_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_region": {
+      "type": "string",
+      "minLength": 1
+    },
+    "laterality": {
+      "enum": [
+        "left",
+        "right",
+        "bilateral",
+        "centerline",
+        "distributed",
+        "variable"
+      ]
+    },
+    "landmark_relation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "count_or_distribution": {
+      "type": "string",
+      "minLength": 1
+    },
+    "relative_size": {
+      "type": "string",
+      "minLength": 1
+    },
+    "shape_and_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "orientation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "color_and_value": {
+      "type": "string",
+      "minLength": 1
+    },
+    "depth_and_relief": {
+      "type": "string",
+      "minLength": 1
+    },
+    "edge_and_texture": {
+      "type": "string",
+      "minLength": 1
+    },
+    "surface_interaction": {
+      "type": "string",
+      "minLength": 1
+    },
+    "age_or_condition": {
+      "type": "string",
+      "minLength": 1
+    },
+    "visibility_and_occlusion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identity_priority": {
+      "enum": [
+        "signature",
+        "supporting",
+        "optional"
+      ]
+    },
+    "continuity_rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "source_confidence": {
+      "enum": [
+        "explicit-user",
+        "reference-clear",
+        "reference-approximate",
+        "preset-selected",
+        "user-confirmed"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,19 @@
+{
+  "representation": "declared-structures",
+  "structures": {
+    "wrap": {
+      "kind": "woven band",
+      "location": "outer circumference of the carrier ring",
+      "presence": "present",
+      "geometry": {
+        "closure": "one seam at the authored origin",
+        "thickness": "one hundredth of the carrier radius"
+      }
+    }
+  },
+  "source_confidence": "preset-selected",
+  "garment_id": "ring-wrap",
+  "garment_class": "single continuous ring wrap",
+  "coverage": "Covers the outer circumference; the inner aperture remains open.",
+  "continuity_rules": []
+}

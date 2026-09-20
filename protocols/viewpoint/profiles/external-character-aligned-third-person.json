@@ -1,0 +1,38 @@
+{
+  "artifact_type": "viewpoint-profile",
+  "profile_id": "external-character-aligned-third-person",
+  "label": "External character-aligned third person",
+  "profile_family": "external",
+  "camera_ownership": "external_camera",
+  "default_knowledge_scope": "character_restricted",
+  "default_point_of_audition": "objective_mix",
+  "camera_rules": [
+    "Keep the camera outside all characters and give it a concrete position relative to visible landmarks.",
+    "Let one focal character guide attention, knowledge, and performance emphasis.",
+    "Describe external camera movement through start relation, path, speed, subject relation, and landing."
+  ],
+  "continuity_rules": [
+    "Preserve axis side, screen direction, eyeline, prop ownership, and state across cuts.",
+    "Do not reveal facts unavailable to the focal character unless focalization changes explicitly.",
+    "Use only coverage shots that add a distinct visible function."
+  ],
+  "review_dimensions": [
+    "camera geometry",
+    "focal character alignment",
+    "knowledge visibility",
+    "screen direction"
+  ],
+  "permitted_movement_types": [
+    "locked",
+    "pan",
+    "tilt",
+    "track",
+    "dolly",
+    "crane",
+    "arc",
+    "orbit",
+    "handheld-follow"
+  ],
+  "knowledge_policy": "Apply the declared focalization and do not reveal information outside its scope unless the shot plan records a deliberate change.",
+  "profile_sha256": "fd9fdda8926f1b9fc8ee62aec3c9c5432dc9ae6039ff448338f9115239250e99"
+}

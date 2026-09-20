@@ -1,0 +1,38 @@
+{
+  "artifact_type": "viewpoint-profile",
+  "profile_id": "external-omniscient-third-person",
+  "label": "External omniscient third person",
+  "profile_family": "external",
+  "camera_ownership": "external_camera",
+  "default_knowledge_scope": "omniscient",
+  "default_point_of_audition": "objective_mix",
+  "camera_rules": [
+    "Keep the camera external and allow story-approved information beyond present character knowledge.",
+    "Every privileged reveal must serve a declared story function.",
+    "Position and move the camera with concrete geometry."
+  ],
+  "continuity_rules": [
+    "Record every knowledge reveal in the scene plan.",
+    "Prevent accidental spoilers outside the declared reveal.",
+    "Preserve physical continuity even when knowledge scope expands."
+  ],
+  "review_dimensions": [
+    "reveal purpose",
+    "spoiler control",
+    "camera geometry",
+    "state continuity"
+  ],
+  "permitted_movement_types": [
+    "locked",
+    "pan",
+    "tilt",
+    "track",
+    "dolly",
+    "crane",
+    "arc",
+    "orbit",
+    "handheld-follow"
+  ],
+  "knowledge_policy": "Apply the declared focalization and do not reveal information outside its scope unless the shot plan records a deliberate change.",
+  "profile_sha256": "5ff82e4462b2f298bef7418d33034e762e3fcc146d58263f262adc20e36d175d"
+}

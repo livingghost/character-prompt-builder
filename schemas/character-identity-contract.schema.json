@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "character-identity-contract.schema.json",
+  "title": "Character Identity Contract",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "contract_id",
+    "character_id",
+    "domain",
+    "species_morphology_profile_ref",
+    "individual_morphology_contract_ref",
+    "visual_authority_ref",
+    "stable_identity",
+    "distinctive_details",
+    "anchor_fragments",
+    "coverage_requirements",
+    "canon_status"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "character-identity-contract"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "domain": {
+      "enum": [
+        "human",
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid",
+        "robot"
+      ]
+    },
+    "canon_status": {
+      "enum": [
+        "proposed",
+        "approved",
+        "superseded"
+      ]
+    },
+    "stable_identity": {
+      "type": "object",
+      "required": [
+        "species_or_base_form",
+        "body_plan",
+        "proportions",
+        "frame_character",
+        "surfaces_and_markings",
+        "appendages",
+        "asymmetry_rules",
+        "identity_accessories",
+        "performance_vocabulary",
+        "growth_geometry"
+      ],
+      "properties": {
+        "species_or_base_form": {},
+        "body_plan": {},
+        "proportions": {},
+        "head_and_face": {},
+        "surfaces_and_markings": {},
+        "appendages": {},
+        "asymmetry_rules": {},
+        "identity_accessories": {},
+        "performance_vocabulary": {},
+        "growth_geometry": {
+          "$ref": "growth-geometry.schema.json"
+        },
+        "frame_character": {
+          "$ref": "frame-character.schema.json"
+        },
+        "structure_notes": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Optional notes keyed by declared part IDs. No human body-part checklist is required."
+        }
+      },
+      "additionalProperties": false
+    },
+    "distinctive_details": {
+      "type": "array",
+      "items": {
+        "$ref": "distinctive-detail.schema.json"
+      }
+    },
+    "anchor_fragments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "anchor_id",
+          "priority",
+          "wording",
+          "required_when",
+          "carriers",
+          "omit_when"
+        ],
+        "properties": {
+          "anchor_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "priority": {
+            "enum": [
+              "signature",
+              "supporting",
+              "optional"
+            ]
+          },
+          "wording": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required_when": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "carriers": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "reference-media",
+                "text",
+                "start-frame",
+                "end-frame",
+                "review"
+              ]
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "omit_when": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "coverage_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "requirement_id",
+          "feature_refs",
+          "acceptable_views",
+          "priority"
+        ],
+        "properties": {
+          "requirement_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "feature_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "acceptable_views": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "priority": {
+            "enum": [
+              "signature",
+              "supporting",
+              "optional"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "approval": {
+      "type": "object"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "state_schema_ref": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "source_provenance": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "species_morphology_profile_ref": {
+      "type": "object",
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "individual_morphology_contract_ref": {
+      "type": "object",
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "visual_authority_ref": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "sha256"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "reference_views": {
+      "type": "object",
+      "description": "Author-selected reference views. Required by the reference planner for declared-structures identities; no anatomical coverage baseline is inferred.",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "view",
+          "framing",
+          "coverage_tokens",
+          "camera"
+        ],
+        "properties": {
+          "view": {
+            "type": "string",
+            "minLength": 1
+          },
+          "framing": {
+            "type": "string",
+            "minLength": 1
+          },
+          "coverage_tokens": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "camera": {
+            "$ref": "camera-framing-contract.schema.json"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

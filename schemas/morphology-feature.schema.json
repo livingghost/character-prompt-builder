@@ -1,0 +1,568 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "morphology-feature.schema.json",
+  "title": "Morphology Feature Definition",
+  "type": "object",
+  "required": [
+    "feature_id",
+    "feature_kind",
+    "feature_group",
+    "presence",
+    "count",
+    "laterality",
+    "attachment_site",
+    "relative_measurements",
+    "shape",
+    "orientation",
+    "color_and_pattern",
+    "surface_or_material",
+    "articulation",
+    "resting_configuration",
+    "range_of_motion",
+    "functional_role",
+    "expression_role",
+    "individual_variation_axes",
+    "continuity_rules",
+    "required_views",
+    "source_confidence",
+    "developmental_behavior",
+    "cross_feature_dependencies",
+    "measurement_constraints"
+  ],
+  "properties": {
+    "feature_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "feature_kind": {
+      "enum": [
+        "head",
+        "neck",
+        "torso",
+        "limb",
+        "hand-or-paw",
+        "foot-or-hoof",
+        "digit",
+        "eye",
+        "nose-or-olfactory-organ",
+        "mouth-or-beak",
+        "ear-or-auditory-organ",
+        "tooth-or-fang",
+        "tongue",
+        "tail",
+        "wing",
+        "fin",
+        "tentacle",
+        "antenna",
+        "horn-or-antler",
+        "crest-or-mane",
+        "surface-region",
+        "sensory-organ",
+        "special-organ",
+        "mechanical-component",
+        "energy-structure",
+        "other",
+        "appendage",
+        "skin-or-integument",
+        "gill",
+        "respiratory-organ",
+        "display-organ",
+        "communication-organ",
+        "shell-or-carapace",
+        "spine-or-quill",
+        "pouch",
+        "luminous-organ",
+        "fluid-organ",
+        "tool-interface",
+        "sensor-array",
+        "mask-or-faceplate"
+      ]
+    },
+    "presence": {
+      "enum": [
+        "present",
+        "absent",
+        "vestigial",
+        "optional",
+        "variable",
+        "not-applicable"
+      ]
+    },
+    "count": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object"
+        }
+      ]
+    },
+    "laterality": {
+      "enum": [
+        "left",
+        "right",
+        "bilateral",
+        "centerline",
+        "radial",
+        "distributed",
+        "asymmetric",
+        "variable",
+        "not-applicable"
+      ]
+    },
+    "attachment_site": {
+      "type": "string",
+      "minLength": 1
+    },
+    "origin_and_termination": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relative_measurements": {
+      "type": "object",
+      "required": [
+        "length",
+        "width",
+        "thickness",
+        "spacing",
+        "body_ratio",
+        "measurement_basis"
+      ],
+      "properties": {
+        "length": {
+          "type": "string",
+          "minLength": 1
+        },
+        "width": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thickness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "spacing": {
+          "type": "string",
+          "minLength": 1
+        },
+        "body_ratio": {
+          "type": "string",
+          "minLength": 1
+        },
+        "measurement_basis": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "shape": {
+      "type": "string",
+      "minLength": 1
+    },
+    "orientation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "color_and_pattern": {
+      "type": "string",
+      "minLength": 1
+    },
+    "surface_or_material": {
+      "type": "string",
+      "minLength": 1
+    },
+    "internal_structure": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "articulation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resting_configuration": {
+      "type": "string",
+      "minLength": 1
+    },
+    "range_of_motion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "functional_role": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expression_role": {
+      "type": "string",
+      "minLength": 1
+    },
+    "individual_variation_axes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "continuity_rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 2,
+      "uniqueItems": true
+    },
+    "required_views": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "source_confidence": {
+      "enum": [
+        "explicit-user",
+        "reference-clear",
+        "reference-approximate",
+        "preset-selected",
+        "user-confirmed"
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "feature_group": {
+      "enum": [
+        "body-region",
+        "limb-system",
+        "sensory-system",
+        "feeding-system",
+        "respiratory-system",
+        "locomotion-system",
+        "display-system",
+        "communication-system",
+        "reproductive-system",
+        "defensive-system",
+        "manipulation-system",
+        "surface-system",
+        "mechanical-system",
+        "energy-system",
+        "other"
+      ]
+    },
+    "count_logic": {
+      "type": "object",
+      "required": [
+        "typical",
+        "minimum",
+        "maximum",
+        "allowed_patterns",
+        "count_basis"
+      ],
+      "properties": {
+        "typical": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "minimum": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maximum": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "allowed_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "count_basis": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "attachment_topology": {
+      "type": "object",
+      "required": [
+        "parent_feature_refs",
+        "attachment_landmarks",
+        "attachment_mode",
+        "branching_or_sequence"
+      ],
+      "properties": {
+        "parent_feature_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "attachment_landmarks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "attachment_mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "branching_or_sequence": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "visibility_and_occlusion": {
+      "type": "object",
+      "required": [
+        "ordinary_visibility",
+        "common_occlusions",
+        "minimum_proof_views"
+      ],
+      "properties": {
+        "ordinary_visibility": {
+          "type": "string",
+          "minLength": 1
+        },
+        "common_occlusions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "minimum_proof_views": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "sensory_or_signal_output": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "signal_type",
+          "physical_carrier",
+          "controllable_dimensions",
+          "readable_meanings",
+          "ambiguities"
+        ],
+        "properties": {
+          "signal_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "physical_carrier": {
+            "type": "string",
+            "minLength": 1
+          },
+          "controllable_dimensions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "readable_meanings": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "ambiguities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "developmental_behavior": {
+      "type": "object",
+      "required": [
+        "life_stage_changes",
+        "sex_or_role_dimorphism",
+        "seasonal_or_environmental_changes",
+        "metamorphic_changes",
+        "regeneration_or_shedding"
+      ],
+      "properties": {
+        "life_stage_changes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "sex_or_role_dimorphism": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "seasonal_or_environmental_changes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "metamorphic_changes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "regeneration_or_shedding": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "cross_feature_dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "related_feature_refs",
+          "relationship",
+          "continuity_effect"
+        ],
+        "properties": {
+          "related_feature_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "relationship": {
+            "type": "string",
+            "minLength": 1
+          },
+          "continuity_effect": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "measurement_constraints": {
+      "type": "object",
+      "required": [
+        "minimum",
+        "maximum",
+        "typical_range",
+        "reference_landmarks",
+        "scaling_behavior"
+      ],
+      "properties": {
+        "minimum": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "maximum": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "typical_range": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference_landmarks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "scaling_behavior": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

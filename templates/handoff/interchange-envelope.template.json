@@ -1,0 +1,30 @@
+{
+  "artifact_type": "interchange-envelope",
+  "envelope_id": "IE-EXAMPLE",
+  "contract_profile": "visual-contract-package",
+  "profile_sha256": "27b9151db29215aa10a51c6f892357171d6a4f77e438acf2aa1f57c76543ee82",
+  "origin": {
+    "capability_manifest_sha256": "31e5e11f7010b38172b785fba1bc1faa7d13eabced7a5c1f9232902ee845c330"
+  },
+  "payload": {
+    "artifact_type": "candidate-manifest",
+    "artifact_id": "CM-EXAMPLE",
+    "media_type": "application/json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "required_features": [
+    "canonical-prepared-reference-set",
+    "hash-bound-payload",
+    "producer-provenance",
+    "record-scoped-reference-authority",
+    "state-reconciled-reference-activation"
+  ],
+  "optional_features": [
+    "automatic-visual-reference-activation",
+    "compact-perceptual-three-layer-visual-evidence",
+    "role-scoped-reference-transport",
+    "surface-lighting-plan"
+  ],
+  "extensions": {},
+  "envelope_sha256": "922fb1e197080e2268f6449556557d568c5e773090796ecc60ef7438e6bf050d"
+}

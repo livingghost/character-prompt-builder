@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "state-lineage.schema.json",
+  "title": "State-aware Generation Lineage",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "mode",
+    "species_profile_sha256",
+    "individual_morphology_sha256",
+    "identity_contract_sha256",
+    "era_contract_sha256",
+    "form_contract_sha256",
+    "appearance_variant_sha256",
+    "state_snapshot_sha256",
+    "scene_context_sha256",
+    "visual_projection_sha256",
+    "asset_render_spec_sha256",
+    "visual_authority_sha256",
+    "visual_evidence_bundle_sha256",
+    "lineage_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "state-lineage"
+    },
+    "mode": {
+      "enum": [
+        "stateless",
+        "state-aware"
+      ]
+    },
+    "identity_contract_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "era_contract_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "form_contract_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "appearance_variant_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "state_snapshot_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "scene_context_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "visual_projection_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "asset_render_spec_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "lineage_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "species_profile_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "individual_morphology_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "visual_authority_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "visual_evidence_bundle_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

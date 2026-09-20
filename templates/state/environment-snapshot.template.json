@@ -1,0 +1,22 @@
+{
+  "artifact_type": "environment-snapshot",
+  "environment_snapshot_id": "ENV-01",
+  "location_id": "LOC-01",
+  "timeline_id": "main",
+  "story_order": 0,
+  "season": "",
+  "time_of_day": "",
+  "weather": "",
+  "temperature_c": 20,
+  "humidity_percent": 50,
+  "wind": "",
+  "precipitation": "",
+  "water_exposure": "",
+  "light_context": [],
+  "culture_context_refs": [],
+  "dress_norms": [],
+  "surface_conditions": [],
+  "approved_adaptation_rules": [],
+  "uncertainties": [],
+  "environment_snapshot_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

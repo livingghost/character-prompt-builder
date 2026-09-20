@@ -1,0 +1,333 @@
+{
+  "artifact_type": "asset-render-specification",
+  "render_spec_id": "ARS-EP03-SC01-C01",
+  "asset_id": "S-EP03-SC01-C01",
+  "character_id": "C01",
+  "purpose": "state-aware scene keyframe",
+  "view": "left-three-quarter",
+  "framing": "medium close portrait",
+  "species_profile_sha256": "5595549bce6c181e0a4bd7f63084ad0aa0d160e8eb4eda8d7f7ef6be849f69a5",
+  "individual_morphology_sha256": "3eab5c9b13162ae58008f06f79154dbbc560b8fa09ec8eb288a367dda7f075b5",
+  "identity_contract_sha256": "e370d88f96b68014de7e8ca5ed1f3dd0b74255b9c4e1051ac8d7ebc2d844e655",
+  "era_contract_sha256": null,
+  "appearance_variant_sha256": null,
+  "state_snapshot_sha256": "9c791e0ff39a81f7d6954fbb3caaad6436db7f91ad33c1ae0101c4915e53b672",
+  "visual_state_projection_sha256": "cb1adf6e57d95aa28b1b960b4097871f08ca76e22297b67238e0d7fac2fe8c39",
+  "visual_authority_sha256": null,
+  "visual_evidence_bundle_sha256": null,
+  "style_family_id": "style-family-clear-portrait",
+  "target_model": "gpt-image-2.5-flare",
+  "coverage_requirement_ids": [
+    "CR-left-ear-stud",
+    "CR-face-eyes"
+  ],
+  "art_direction": {
+    "center_of_appeal": "controlled public composure with visible private tension",
+    "subject_relationship": "C01 is close to C02 but holds formal body language",
+    "composition_and_visual_hierarchy": "face and left ear first, tense left hand second, warm field office third",
+    "medium_family": "cinematic 2D soft-cel anime illustration",
+    "shape_and_rhythm": "broad stable torso with small asymmetrical tension cues",
+    "surface_and_tactility": "clean thick fur, dry office shirt, small heat-related moisture accents",
+    "color_and_light": "warm window key with cool interior shadow separation",
+    "detail_hierarchy": "eyes, left ear stud and notch, cheek markings, left hand, shirt closure"
+  },
+  "subject_resolution": {
+    "identity": "tall broad-shouldered blue-gray wolf with cyan eyes, pale muzzle and chest, charcoal cheek wedges, and one cyan stud on the subject-left upper ear rim",
+    "current_state": "subject-left ear tip has a healed notch; the face presents professional calm while shallow breathing and left-hand tension reveal stronger fear",
+    "wardrobe": "field office shirt worn closed and dry",
+    "relationship_behavior": "close to C02 without touching, looking toward C02 and then briefly away",
+    "growth_geometry": {
+      "representation": "declared-structures",
+      "structures": {
+        "scalp-fibers": {
+          "kind": "head hair",
+          "location": "scalp",
+          "presence": "absent",
+          "geometry": {},
+          "continuity_rules": [
+            "human-like head hair is explicitly not part of this identity",
+            "cranial fur remains part of the regional fur map",
+            "raised or wet cranial fur remains scene-specific character state"
+          ]
+        },
+        "facial-fibers": {
+          "kind": "facial hair",
+          "location": "facial surface",
+          "presence": "absent",
+          "geometry": {},
+          "continuity_rules": [
+            "muzzle and cheek fur remain surface anatomy rather than human facial hair",
+            "temporary jaw shadow does not become a beard"
+          ]
+        },
+        "brow-wedges": {
+          "kind": "eyebrows",
+          "location": "above the eyes",
+          "presence": "present",
+          "geometry": {
+            "shape": "thick angular charcoal brow wedges",
+            "thickness": "heavy",
+            "arch": "low forceful arch",
+            "spacing": "stable wide inter-brow spacing",
+            "color": "charcoal",
+            "asymmetry": "expression may tilt one brow while the stable wedge shapes remain"
+          },
+          "continuity_rules": [
+            "brow wedges remain separate from eye markings",
+            "expression changes angle rather than base thickness"
+          ]
+        },
+        "eye-edge-fibers": {
+          "kind": "eyelashes",
+          "location": "eye edges",
+          "presence": "present",
+          "geometry": {
+            "upper_density": "minimal",
+            "lower_density": "absent",
+            "length": "short",
+            "curl": "none",
+            "color": "charcoal",
+            "style_intensity": "natural canine-adapted eye edge"
+          },
+          "continuity_rules": [
+            "lash treatment remains subordinate to the cyan eyes",
+            "eyeliner-like shadow does not become extra lashes"
+          ]
+        },
+        "mane-neck-shoulders": {
+          "kind": "none",
+          "location": "neck and shoulder mane zone",
+          "presence": "absent",
+          "geometry": {},
+          "continuity_rules": [
+            "the character has no separate mane structure",
+            "the cheek and neck ruff does not expand into a shoulder mane"
+          ]
+        },
+        "ruff-cheeks-neck": {
+          "kind": "fur",
+          "location": "lower cheeks, jaw sides, and upper neck",
+          "presence": "present",
+          "geometry": {
+            "boundary_and_extent": "dense cheek fur begins below the eye line, follows both jaw sides, and tapers into the upper neck before the shoulders",
+            "length": "medium, longer than the short cranial and muzzle fur",
+            "density": "dense and full without obscuring the jaw attachment",
+            "direction": "sweeps outward from the cheeks and then downward along the neck",
+            "texture": "dense short-to-medium coarse wolf fur grouped into broad readable tufts",
+            "color": "cool gray with the pale muzzle transition remaining separate",
+            "silhouette_role": "broadens the lower face and creates a stable cheek-to-neck taper"
+          },
+          "continuity_rules": [
+            "ruff boundary and cheek-to-neck taper remain stable across views",
+            "temporary wetness or raised fur changes state but not permanent ruff extent"
+          ]
+        },
+        "fur-body-limbs": {
+          "kind": "fur",
+          "location": "torso, arms, hands, legs, and feet outside the separately declared chest and marking zones",
+          "presence": "present",
+          "geometry": {
+            "boundary_and_extent": "continuous biological fur covers the body and limbs up to the claw bases while preserving garment and accessory boundaries",
+            "length": "short to medium, slightly fuller at joints and outer forearms",
+            "density": "dense and even over the body plan",
+            "direction": "follows local anatomy from torso outward along each limb",
+            "texture": "dense wolf fur with broad grouped tufts rather than human body hair",
+            "color": "cool gray with pale chest and charcoal forearm zones owned by the marking map",
+            "silhouette_role": "rounds muscular landmarks without changing the declared body proportions"
+          },
+          "continuity_rules": [
+            "fur remains continuous at anatomical joints and separate from clothing",
+            "temporary wetness, sweat, compression, or disorder remains scene-specific state",
+            "temporary paw-fur dampness is owned by /appearance_state/grooming/fur_wetness/paws and never changes permanent limb-fur density or extent"
+          ]
+        },
+        "fur-head-muzzle": {
+          "kind": "fur",
+          "location": "cranial surface, ears, brows, cheeks outside the ruff, and muzzle",
+          "presence": "present",
+          "geometry": {
+            "boundary_and_extent": "short cranial and muzzle fur follows the ear bases, brow wedges, cheek markings, nose boundary, and mouth edge",
+            "length": "short on the muzzle and crown, slightly longer around the cheek transition",
+            "density": "dense with clear facial landmark visibility",
+            "direction": "radiates from the crown and muzzle bridge toward the cheek and neck transitions",
+            "texture": "short dense wolf fur with restrained tufting",
+            "color": "cool gray, pale muzzle, and charcoal brow and cheek zones as declared by the marking map",
+            "silhouette_role": "preserves the compact canine head while keeping ears, muzzle, and jaw readable"
+          },
+          "continuity_rules": [
+            "cranial fur does not become human-like head hair",
+            "facial markings and ruff boundaries remain stable through expression and pose",
+            "temporary brow-fur dampness is owned by /appearance_state/grooming/fur_wetness/brow and never changes the permanent brow wedges or cranial-fur map"
+          ]
+        },
+        "fur-tail": {
+          "kind": "fur",
+          "location": "entire tail from the tail base to the terminal tip",
+          "presence": "present",
+          "geometry": {
+            "boundary_and_extent": "continuous fur follows the full tail with a stable dark terminal zone",
+            "length": "medium and slightly fuller than torso fur",
+            "density": "dense with a readable outer contour",
+            "direction": "flows from tail base toward the tip",
+            "texture": "dense directional wolf fur",
+            "color": "cool gray with a stable dark tip",
+            "silhouette_role": "creates the approved long tapered tail contour"
+          },
+          "continuity_rules": [
+            "tail fur direction follows the tail axis without changing tail anatomy",
+            "the dark tip boundary and overall tail silhouette remain stable"
+          ]
+        },
+        "terminal-tips": {
+          "kind": "claws",
+          "location": "declared distal structures",
+          "presence": "present",
+          "geometry": {
+            "digit_system": "claws",
+            "visible_digit_count": "five fingered hands when fully visible; hidden digits remain unknown",
+            "length_relative_to_terminal_digit": "exposed claw length is about one sixth of the terminal digit length",
+            "free_edge_length": "short exposed point beyond each fingertip",
+            "shape": "broad tapered canine claws with rounded triangular points",
+            "taper_and_curvature": "gentle downward curve with modest taper",
+            "thickness": "sturdy claw plate",
+            "color_and_value": "dark charcoal",
+            "finish": "low satin",
+            "cuticle_or_base_transition": "claw base emerges cleanly from the terminal digit fur",
+            "per_digit_variation": "thumb claw is slightly broader while remaining in the same family",
+            "damage_or_missing_segments": "intact unless a state event declares damage",
+            "decoration": "unspecified"
+          },
+          "continuity_rules": [
+            "each visible claw belongs to one declared digit",
+            "claw length remains proportionate to the terminal digit",
+            "camera foreshortening does not change the stable shape family",
+            "claw dirt is current appearance state; polish color, decoration, or finish changes require an approved Appearance Variant Contract"
+          ]
+        }
+      },
+      "source_confidence": "user-confirmed",
+      "grooming_state": [
+        "/appearance_state/grooming = {\"claws\":{\"dirt\":\"clean\",\"polish_condition\":\"none\"},\"fur_wetness\":{\"brow\":\"dry\",\"paws\":\"dry\"}}"
+      ],
+      "identity_lock_fields": [
+        "human-like head hair remains absent",
+        "no separate mane structure",
+        "dense medium cheek and upper-neck ruff with a stable cheek-to-neck taper",
+        "regional cranial, body, limb, and tail fur boundaries, direction, texture, color, and silhouette roles",
+        "thick angular charcoal brow wedges",
+        "minimal canine-adapted lashes",
+        "short canine claw shape; color and finish follow the declared variant fields"
+      ],
+      "variant_fields": [
+        "/stable_identity/growth_geometry/structures/terminal-tips/geometry/color_and_value",
+        "/stable_identity/growth_geometry/structures/terminal-tips/geometry/decoration",
+        "/stable_identity/growth_geometry/structures/terminal-tips/geometry/finish"
+      ]
+    }
+  },
+  "scene": {
+    "environment": "small field office in hot humid summer weather",
+    "support_and_contact": "the left hand rests against a desk edge while the torso remains upright",
+    "depth_order": [
+      "left hand and desk edge",
+      "face and upper torso",
+      "warm office window"
+    ],
+    "atmosphere": "warm still air with restrained heat tension"
+  },
+  "camera": {
+    "shot_type": "medium close office portrait",
+    "shot_scale": "chest-up",
+    "distance_class": "medium-close",
+    "subject_relative_distance": {
+      "basis": "visible-torso-heights",
+      "minimum": 1.5,
+      "maximum": 2.0
+    },
+    "human_scale_distance_equivalent_m": {
+      "minimum": 1.8,
+      "maximum": 2.5
+    },
+    "camera_height": {
+      "reference_landmark": "upper chest",
+      "offset": "camera center is slightly below eye level and points gently upward"
+    },
+    "pitch_degrees": 3,
+    "yaw_degrees": -25,
+    "roll_degrees": 0,
+    "lens_or_perspective": "natural portrait perspective with restrained three-quarter compression",
+    "lens_equivalent_mm": {
+      "minimum": 55,
+      "maximum": 75
+    },
+    "projection_behavior": "natural-portrait",
+    "frame_occupancy": {
+      "subject_height_percent": {
+        "minimum": 82,
+        "maximum": 90
+      },
+      "subject_width_percent": {
+        "minimum": 70,
+        "maximum": 88
+      }
+    },
+    "framing_and_crop": "left ear, face, shoulders, upper torso, desk-braced left hand, and the second hand remain readable",
+    "coverage_landmarks": {
+      "top": "small clearance above the subject-left ear tip",
+      "bottom": "lower chest and desk-contact hand",
+      "left": "subject-left elbow or desk edge",
+      "right": "subject-right shoulder and hand"
+    },
+    "eye_line_position": {
+      "vertical_percent_from_top": {
+        "minimum": 28,
+        "maximum": 34
+      },
+      "horizontal_percent_from_left": {
+        "minimum": 44,
+        "maximum": 54
+      }
+    },
+    "nearest_form": "the left hand and desk edge",
+    "perspective_scale_change": "the desk hand enlarges mildly while muzzle, ears, shoulders, and torso keep stable identity ratios",
+    "required_visible_elements": [
+      "both cyan eyes",
+      "subject-left ear stud and notch",
+      "paired cheek wedges",
+      "left hand touching desk edge",
+      "closed office shirt"
+    ],
+    "allowed_offscreen_elements": [
+      "lower torso",
+      "legs",
+      "feet",
+      "most of tail"
+    ],
+    "focal_sequence": [
+      "eyes",
+      "subject-left ear detail",
+      "left hand tension",
+      "office window"
+    ],
+    "stability_invariants": [
+      "camera remains medium close",
+      "left ear and desk hand stay inside the frame",
+      "lens does not exaggerate the muzzle",
+      "crop does not pull back to full body"
+    ]
+  },
+  "lighting": {
+    "key_light": "warm window light from camera right",
+    "fill_or_ambient": "cool neutral office fill",
+    "rim_or_accent": "small cyan accents on eye and ear stud",
+    "shadow_character": "clean soft-cel shadows with crisp facial markings",
+    "color_relationship": "warm key against cool gray-blue fur and neutral office shadows"
+  },
+  "prompt_scaffold": "Create a state-aware left-three-quarter office portrait that preserves the approved wolf identity, the cyan subject-left ear stud, the healed outer ear-tip notch, cyan eyes, and paired cheek wedges. Show professional composure masking fear through shallow breath, slight temple sweat, and tension concentrated in the left hand. Keep the shirt closed and dry, place the left hand against the desk edge, and use warm window light with cool interior fill in the polished soft-cel style family.",
+  "selected_preset_ids": [
+    "style-family-clear-portrait",
+    "domain-realization-anthropomorphic-animal-baseline",
+    "profile-clear-2d-illustration"
+  ],
+  "render_spec_sha256": "f9fa7effeb1f7a6975d2760a77a076f75201a1483fdfc2d9b978b44756573195"
+}

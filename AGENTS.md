@@ -1,0 +1,122 @@
+# character-prompt-builder
+
+Turn a short character idea, a detailed production brief, or an approved recurring-character state into a coherent image-generation package: prompts, scoped negative prompts, and canonical reference material; send it to the service the model record names, and keep every generated image in a studio beside the request that produced it.
+
+Generated file. Edit `hosts/shared/repository-guide.md.template`.
+
+```
+<repo>/
+  README.md CHANGELOG.md CONTRIBUTING.md DEPENDENCIES.md PACKS.md
+  VISUAL-CORPUS.md LICENSE package-manifest.toml pyproject.toml
+  requirements-core.txt requirements-visual.txt requirements.txt
+  requirements-tested.txt
+  SKILL.md                                        the skill, and the plugin root
+  .claude-plugin/ .codex-plugin/ .agents/ hooks/ MANIFEST.json      generated
+  hosts/shared/                                   templates for the generated
+  references/ scripts/ schemas/ templates/ config/ packs/ agents/
+  examples/ tests/ .github/
+```
+
+`SKILL.md` sits at the plugin root rather than under a `skills/` directory. A
+plugin with no `skills/` directory and no `skills` manifest field is loaded as a
+single skill, and declaring the field would suppress that.
+
+Commands are written with `python`. Use `python3` where that name is not on the
+path, which is the default on macOS and on Debian and Ubuntu. Paths are written
+from the directory holding `SKILL.md`, which is wherever the Skill is installed,
+not from the working directory.
+
+## Before anything reads a pack
+
+```
+python scripts/pack_cli.py state-init
+```
+
+Resolving the pack runtime is a session-entry precondition, not a maintenance
+step. `scripts/session_entry_points.py` is what a host runs on `SessionStart`; it
+reports what the state file settles and says so where it cannot answer, because
+discovery reads every record in every root and that is the runtime's work.
+
+## Where character work lives, and how a result is made
+
+```
+python scripts/studio.py init --out <studio-dir> --studio-id <id> --title "<title>"
+python scripts/studio.py character add <character-id> --studio <studio-dir>
+python scripts/dispatch.py <generation-package.json> --studio <studio-dir> --character <character-id> --slot <slot>
+python scripts/dispatch.py <generation-package.json> --studio <studio-dir> --character <character-id> --slot <slot> --send
+```
+
+A studio holds the sheet, every generated image with the exact request that
+produced it, the accepted image per slot, a gallery that every recording command
+rewrites, and the open task a session resumes from. `scripts/session_entry_points.py`
+prints the studio the working directory belongs to and its open task first; when
+it reports none, `init` comes before any sheet or generation work.
+
+The dispatcher verifies the Generation Package, shows the exact request the
+service would receive, and with `--send` sends it through the service the model
+record's offering names and records every returned image as an iteration by
+itself. A request is checked against the service's own parameter schema, stored
+in the pack as observed, before anything is sent. The credential is read from the
+environment variable the service record names and is never written anywhere.
+
+## What the Skill conforms to
+
+The Agent Skills specification, which belongs to no single host. It fixes what
+every host reads and what every host refuses:
+
+- `name` at most 64 characters and `description` at most 1024. A host refuses
+  more than that.
+- The body under 500 lines, and under 5000 tokens once loaded, because a host
+  loads all of it the moment the Skill activates.
+- References one level deep from `SKILL.md`. A file reached only through another
+  file may be read in part rather than in full.
+- Scripts are executed rather than read into context.
+
+`scripts/validate.py` refuses a body over 500 lines and reports its word count
+without a token measurement. It also settles that every reference document is
+reachable from the `SKILL.md` link graph, and that every script entrypoint is
+named by routed documentation.
+
+## Working on this repository
+
+```
+python scripts/rebuild_metadata.py   regenerate the derived files
+python scripts/validate.py .         the repository-wide diagnostic
+python scripts/package.py            build, extract and revalidate the release
+```
+
+`.claude-plugin/`, `.codex-plugin/`, `.agents/`, `hooks/`, `MANIFEST.json`,
+`config/integration-capabilities.json` and the handoff envelope template are
+generated from `[package]` in `package-manifest.toml`. Edit the metadata and the
+templates, never the generated files.
+
+The required checks are in [CONTRIBUTING.md](CONTRIBUTING.md), and
+[Release Validation](references/release/validation.md) is the sole authority for
+publication. Neither is copied here, because a copy drifts from the document it
+claims to follow.
+
+## Writing for a reader
+
+These rules apply to every file a person reads: README, CONTRIBUTING, CHANGELOG,
+the references, the templates, docstrings and commit messages.
+
+- Say what a thing does, as an action: "the tool records every returned
+  candidate". State a boundary at most once per section, and as who decides:
+  "the author decides when a candidate becomes canon", not "the tool does not
+  decide".
+- One idea per sentence, about twenty words. Three or more items become a list.
+- Prefer the general word. Where a product term must appear because the tools
+  use it, put the general phrase beside it at its first use and use the general
+  word afterward. Do not add a glossary, a preamble about the document itself,
+  or a section that explains why other sections repeat.
+- Show a real example next to any claim about output: an actual command's output
+  or an actual record, trimmed, and labeled synthetic when it is a fixture.
+- Delete a repeated principle and refer to the place it is stated. Longer is
+  not safer.
+- ASCII punctuation, no em or en dashes, English throughout.
+- After changing README.md, run `python scripts/readme_smoke_test.py` and keep
+  the executable example blocks byte-identical unless the commands changed.
+
+## Entry point
+
+`SKILL.md`

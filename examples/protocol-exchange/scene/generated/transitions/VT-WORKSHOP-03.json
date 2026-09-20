@@ -1,0 +1,24 @@
+{
+  "artifact_type": "viewpoint-transition",
+  "transition_id": "VT-WORKSHOP-03",
+  "scene_id": "SC-WORKSHOP-01",
+  "from_shot": "SC-WORKSHOP-01-SH03",
+  "to_shot": "SC-WORKSHOP-01-SH04",
+  "from_profile": "over-the-shoulder",
+  "to_profile": "embodied-first-person",
+  "trigger": "P01 reaches C01 eye level and C01 right hand rises",
+  "bridge_type": "match-on-action",
+  "changes_camera_ownership": true,
+  "changes_knowledge_scope": false,
+  "changes_point_of_audition": true,
+  "knowledge_change": "none",
+  "state_change_event_ids": [
+    "EV-TRANSFER-P01"
+  ],
+  "continuity_requirements": [
+    "P01 transfer state changes from C02 to C01 during the shot",
+    "C02 remains beyond P01",
+    "warm work light stays frame-right"
+  ],
+  "transition_sha256": "0ac486cb6e6c2d4d2fed0b5e5dcc05e3e0fa5f01eb510669683ccb8fb192ce02"
+}

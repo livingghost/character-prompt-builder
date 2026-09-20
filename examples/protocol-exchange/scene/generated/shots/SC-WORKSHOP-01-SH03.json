@@ -1,0 +1,73 @@
+{
+  "artifact_type": "shot-camera-spec",
+  "scene_id": "SC-WORKSHOP-01",
+  "state_snapshot_sha256_by_character": {
+    "C01": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398",
+    "C02": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+  },
+  "shot_id": "SC-WORKSHOP-01-SH03",
+  "order_index": 3,
+  "viewpoint_profile_id": "over-the-shoulder",
+  "profile_family": "external",
+  "camera_ownership": "external_camera",
+  "camera_owner_character_id": null,
+  "knowledge_scope": "character_restricted",
+  "focal_character_ids": [
+    "C01"
+  ],
+  "point_of_audition": "objective_mix",
+  "audition_character_id": null,
+  "coverage_role": "over-the-shoulder pendant reveal",
+  "camera_position": "just behind C01 right shoulder, aimed across the workbench at C02",
+  "shot_scale": "over-the-shoulder medium close",
+  "camera_height": "C01 eye height",
+  "angle": "level over C01 right shoulder",
+  "lens_behavior": "moderate compression that keeps P01 and C02 face readable",
+  "movement": {
+    "type": "locked",
+    "cause": "reveal P01 damage through C01 attention",
+    "start_relation": "C01 right shoulder and ear edge frame the near foreground",
+    "path": "hold while C02 raises P01",
+    "speed_and_amplitude": "no travel",
+    "subject_relation": "C02 face and right hand remain beyond the pendant",
+    "occlusion_risk": "C01 foreground shoulder must not cover P01 or C02 eyes",
+    "landing_composition": "P01 reaches C01 eye level between the two faces"
+  },
+  "screen_direction": "C01 foreground faces screen-right and C02 faces screen-left",
+  "axis_side": "same doorway side of the axis",
+  "eyeline_relation": "C01 eyeline converges on P01 while C02 watches C01",
+  "visible_subjects": [
+    "C01",
+    "C02"
+  ],
+  "visible_body_regions": {
+    "C01": [
+      "right shoulder",
+      "right ear edge",
+      "partial head"
+    ],
+    "C02": [
+      "face",
+      "upper torso",
+      "right hand"
+    ]
+  },
+  "prop_ownership": {
+    "P01": "C02 right hand"
+  },
+  "start_anchor": "P01 below C02 chest with C01 shoulder foreground",
+  "end_anchor": "P01 held at C01 eye level and C01 right hand begins to rise",
+  "knowledge_visibility": [
+    "P01 damage is clearly revealed; C01 injury remains concealed."
+  ],
+  "accepted_variation": [
+    "small foreground shoulder width"
+  ],
+  "review_dimensions": [
+    "foreground anatomy",
+    "eyeline",
+    "P01 damage",
+    "spectacle continuity"
+  ],
+  "camera_spec_sha256": "e9bce12079526e5e859dfc70b641dde18e75b9e3ae8d5d8ea8d0e78a09f7899f"
+}

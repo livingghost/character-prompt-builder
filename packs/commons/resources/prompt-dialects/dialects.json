@@ -1,0 +1,108 @@
+{
+  "format": "character-prompt-builder-prompt-dialects",
+  "name": "Image Prompt Dialects",
+  "description": "How each family of tag-trained image models reads a prompt: the tag grammar it expects, the blocks it is built from and in what order, and the vocabulary that acts on it. A model record names its dialect and a guide rule names the dialects it applies to, so a rule proven on one family is never handed to another. Add a family by adding a dialect here.",
+  "dialects": [
+    {
+      "id": "illustrious-noobai",
+      "name": "Illustrious and NoobAI",
+      "description": "The SDXL-lineage checkpoints trained on Danbooru tags, and the NoobAI merges that add the e621 corpus to them. Trained around one megapixel, read as comma-separated tags, and steered by a rating term and a period term.",
+      "corpora": [
+        "danbooru",
+        "e621 on the NoobAI merges"
+      ],
+      "tag_separator": "a comma followed by one space",
+      "multi_word_tags": "Spaces and underscores read alike, with one exception: write a tag that contains a shorter tag with underscores, so that the whole tag binds and the inner one does not fire on its own.",
+      "artist_tag_form": "the artist tag on its own, with no prefix, and only for an artist with about a hundred posts or more",
+      "block_order": [
+        "quality, style, and rating",
+        "figure count and any interaction between figures",
+        "the figure from head to toe",
+        "pose without the interaction",
+        "camera and background",
+        "lighting, depth, and finish"
+      ],
+      "quality_terms": [
+        "masterpiece",
+        "best quality",
+        "amazing quality",
+        "very aesthetic",
+        "newest"
+      ],
+      "rating_terms": [
+        "general",
+        "sensitive",
+        "questionable",
+        "explicit"
+      ],
+      "period_terms": [
+        "newest",
+        "recent",
+        "mid",
+        "early",
+        "oldest"
+      ],
+      "inert_terms": [
+        "4k",
+        "8k",
+        "hdr",
+        "high quality",
+        "score_9",
+        "score_8",
+        "score_7"
+      ]
+    },
+    {
+      "id": "anima",
+      "name": "Anima",
+      "description": "The Anima base models and the checkpoints built on them, which pair a Qwen-series text encoder and VAE with a Danbooru tag vocabulary. Trained around 1280 pixels square, they carry both the booru quality terms and the score bands, take a year term beside the period term, and want a higher explicit weight than the SDXL lineage.",
+      "corpora": [
+        "danbooru"
+      ],
+      "tag_separator": "a comma followed by one space",
+      "multi_word_tags": "Spaces rather than underscores, except the score terms, which keep theirs.",
+      "artist_tag_form": "the artist tag with an at sign in front of it",
+      "weight_range": [
+        1.2,
+        1.4
+      ],
+      "block_order": [
+        "quality, meta, and rating",
+        "figure count and any interaction between figures",
+        "the subject",
+        "body, hair, face, and outfit",
+        "pose and action",
+        "camera and composition",
+        "background and scene",
+        "lighting, depth, and effects",
+        "a plain-language line for what the tags cannot carry"
+      ],
+      "quality_terms": [
+        "masterpiece",
+        "best quality",
+        "score_9",
+        "score_8",
+        "score_7",
+        "very aesthetic",
+        "highres",
+        "absurdres",
+        "newest"
+      ],
+      "rating_terms": [
+        "safe",
+        "sensitive",
+        "nsfw",
+        "explicit"
+      ],
+      "period_terms": [
+        "newest",
+        "recent",
+        "mid",
+        "early",
+        "old",
+        "year 2025",
+        "year 2024"
+      ]
+    }
+  ]
+}

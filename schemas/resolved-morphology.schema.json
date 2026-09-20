@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "resolved-morphology.schema.json",
+  "title": "Resolved Morphology Projection",
+  "type": "object",
+  "required": [
+    "species_profile_ref",
+    "individual_morphology_ref",
+    "body_plan",
+    "visible_feature_instances",
+    "hidden_or_out_of_frame_feature_refs",
+    "surface_and_marking_map",
+    "expression_channels",
+    "communication_and_expression_tools",
+    "identity_invariants",
+    "current_state_deltas",
+    "visible_obligations",
+    "crop_and_occlusion_requirements",
+    "uncertainties",
+    "active_form",
+    "feature_relationships",
+    "inventory_proof",
+    "expression_projection",
+    "frame_character",
+    "measurement_pass_status",
+    "load_bearing_part_measurements"
+  ],
+  "properties": {
+    "species_profile_ref": {
+      "type": "object",
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "individual_morphology_ref": {
+      "type": "object",
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "body_plan": {
+      "type": "object"
+    },
+    "visible_feature_instances": {
+      "type": "array",
+      "items": {
+        "$ref": "morphology-feature-instance.schema.json"
+      }
+    },
+    "hidden_or_out_of_frame_feature_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "surface_and_marking_map": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "expression_channels": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "communication_and_expression_tools": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "identity_invariants": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "current_state_deltas": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "visible_obligations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "crop_and_occlusion_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "active_form": {
+      "type": "string",
+      "minLength": 1
+    },
+    "feature_relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "relationship_id",
+          "feature_instance_refs",
+          "resolved_rule"
+        ],
+        "properties": {
+          "relationship_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "feature_instance_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 2,
+            "uniqueItems": true
+          },
+          "resolved_rule": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "inventory_proof": {
+      "type": "object",
+      "required": [
+        "declared_visible_count",
+        "declared_hidden_count",
+        "unresolved_count",
+        "count_and_attachment_checks"
+      ],
+      "properties": {
+        "declared_visible_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "declared_hidden_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "count_and_attachment_checks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "expression_projection": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "carrier_feature_refs",
+          "configuration",
+          "meaning_candidates",
+          "tool_refs"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "carrier_feature_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "configuration": {
+            "type": "string",
+            "minLength": 1
+          },
+          "meaning_candidates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "tool_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "frame_character": {
+      "$ref": "frame-character.schema.json"
+    },
+    "measurement_pass_status": {
+      "enum": [
+        "complete",
+        "not-required",
+        "blocked-by-missing-evidence"
+      ]
+    },
+    "load_bearing_part_measurements": {
+      "type": "array",
+      "items": {
+        "$ref": "part-measurement.schema.json"
+      }
+    }
+  },
+  "additionalProperties": false
+}

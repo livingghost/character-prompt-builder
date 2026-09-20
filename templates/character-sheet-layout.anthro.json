@@ -1,0 +1,549 @@
+{
+  "id": "anthro",
+  "title": "CHARACTER IDENTITY REFERENCE SHEET (ANTHRO)",
+  "canvas": [
+    2500,
+    7376
+  ],
+  "header_fields": [
+    {
+      "field_id": "identity.name",
+      "label": "NAME"
+    },
+    {
+      "field_id": "identity.species_domain",
+      "label": "SPECIES / DOMAIN"
+    },
+    {
+      "field_id": "field.pronouns",
+      "label": "PRONOUNS"
+    }
+  ],
+  "scaffold_guide_lines": [
+    "FILL ONLY WHITE EDITABLE INTERIORS. KEEP LABELS, BORDERS, PROFILE FACTS, COLOR KEY, AND GRAY PANELS UNCHANGED.",
+    "DRAW ONE CONSISTENT INDIVIDUAL. BASE-FORM AND DRESSED TURNAROUNDS MUST SHARE EXACT ANATOMY, MARKINGS, AND PROPORTIONS."
+  ],
+  "reference_guide_lines": [
+    "IDENTITY REFERENCE BOARD FOR THIS EXACT INDIVIDUAL. MATCH THE BASE FORM BEFORE APPLYING CLOTHING OR EQUIPMENT.",
+    "SCENE PROMPTS OWN POSE, EXPRESSION, CAMERA, CROP, ENVIRONMENT, AND LIGHTING; FIXED IDENTITY FACTS DO NOT DRIFT."
+  ],
+  "rows": [
+    {
+      "height": 762,
+      "section_label": "BASE FORM: FRONT / LEFT SIDE / BACK / RIGHT SIDE",
+      "boxes": [
+        {
+          "slot_id": "canon.primary",
+          "output_name": "base-front.png",
+          "panel_code": "A1",
+          "footer_height": 82,
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "label": "BASE FRONT",
+          "hint": "complete unobstructed base form, front view, neutral A-pose; remove clothing, footwear, carried items, and detachable equipment while preserving declared body covering and anatomy"
+        },
+        {
+          "slot_id": "canon.side",
+          "output_name": "base-side.png",
+          "panel_code": "A2",
+          "footer_height": 82,
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "label": "BASE LEFT SIDE",
+          "hint": "strict left-facing side view of the same unobstructed base form and neutral stance; fix muzzle projection, chest depth, digitigrade geometry, tail set, and silhouette without foreshortening"
+        },
+        {
+          "slot_id": "canon.back",
+          "output_name": "base-back.png",
+          "panel_code": "A3",
+          "footer_height": 82,
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "label": "BASE BACK",
+          "hint": "complete back view of the same unobstructed base form and neutral stance; show rear markings, back fur flow, limb alignment, tail base, and full tail without clothing or equipment"
+        },
+        {
+          "slot_id": "canon.right",
+          "output_name": "base-right-side.png",
+          "panel_code": "A4",
+          "footer_height": 82,
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "label": "BASE RIGHT SIDE",
+          "hint": "strict right-facing side view of the same unobstructed base form and neutral stance; prove every lateral feature or absence independently from A2 without mirroring"
+        }
+      ]
+    },
+    {
+      "height": 762,
+      "section_label": "BASE FORM: TOP / UNDERSIDE",
+      "boxes": [
+        {
+          "slot_id": "canon.top",
+          "output_name": "base-top.png",
+          "panel_code": "A5",
+          "footer_height": 82,
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "label": "BASE TOP",
+          "hint": "top-down view of the same unobstructed base form in the neutral stance, head toward the top of the frame; show ear set, shoulder and hip width, back markings, tail base and full tail line, and the outline of the whole body from above"
+        },
+        {
+          "slot_id": "canon.underside",
+          "output_name": "base-underside.png",
+          "panel_code": "A6",
+          "footer_height": 82,
+          "kind": "canonical_view",
+          "reference_role": "identity",
+          "label": "BASE UNDERSIDE",
+          "hint": "view from directly below the same unobstructed base form in the neutral stance, head toward the top of the frame; show chest and belly fur boundary, inner limbs, pads of forepaws and hindpaws, tail underside, and the outline of the whole body from below"
+        }
+      ]
+    },
+    {
+      "height": 762,
+      "section_label": "DRESSED / EQUIPPED FORM: FRONT / LEFT SIDE / BACK / RIGHT SIDE",
+      "boxes": [
+        {
+          "slot_id": "outfit.turn.front",
+          "output_name": "outfit-front.png",
+          "panel_code": "B1",
+          "footer_height": 82,
+          "kind": "outfit_turnaround",
+          "source_index": 0,
+          "source_row_id": "outfits.01",
+          "reference_role": "identity",
+          "label": "DRESSED FRONT",
+          "hint": "same front view and body proportions as A1, now wearing the declared primary outfit or equipment; preserve readable hands, feet, ears, tail, and silhouette"
+        },
+        {
+          "slot_id": "outfit.turn.side",
+          "output_name": "outfit-side.png",
+          "panel_code": "B2",
+          "footer_height": 82,
+          "kind": "outfit_turnaround",
+          "source_index": 0,
+          "source_row_id": "outfits.01",
+          "reference_role": "identity",
+          "label": "DRESSED LEFT SIDE",
+          "hint": "same strict left-facing side view as A2 with the identical declared outfit or equipment; show layer order, openings, fastenings, footwear, and tail accommodation"
+        },
+        {
+          "slot_id": "outfit.turn.back",
+          "output_name": "outfit-back.png",
+          "panel_code": "B3",
+          "footer_height": 82,
+          "kind": "outfit_turnaround",
+          "source_index": 0,
+          "source_row_id": "outfits.01",
+          "reference_role": "identity",
+          "label": "DRESSED BACK",
+          "hint": "same back view and proportions as A3 with the identical declared outfit or equipment; show rear construction, motifs, seam paths, openings, and tail accommodation"
+        },
+        {
+          "slot_id": "outfit.turn.right",
+          "output_name": "outfit-right-side.png",
+          "panel_code": "B4",
+          "footer_height": 82,
+          "kind": "outfit_turnaround",
+          "source_index": 0,
+          "source_row_id": "outfits.01",
+          "reference_role": "identity",
+          "label": "DRESSED RIGHT SIDE",
+          "hint": "same strict right-facing side view as A4 with the identical declared outfit or equipment; prove lateral garment, item, and opening placement without mirroring B2"
+        }
+      ]
+    },
+    {
+      "height": 280,
+      "section_label": "PROFILE AND LOAD-BEARING IDENTITY FACTS",
+      "boxes": [
+        {
+          "slot_id": "profile.summary",
+          "panel_code": "C1",
+          "footer_height": 42,
+          "kind": "profile",
+          "reference_role": "identity",
+          "default_fill_policy": "skip",
+          "harvest": false,
+          "label": "PROFILE",
+          "hint": "renderer-owned identity facts from sheet-data.json; do not repaint or add text"
+        }
+      ]
+    },
+    {
+      "height": 250,
+      "section_label": "COLOR AND MATERIAL KEY",
+      "boxes": [
+        {
+          "slot_id": "palette.strip",
+          "panel_code": "C2",
+          "footer_height": 42,
+          "kind": "palette",
+          "reference_role": "identity",
+          "default_fill_policy": "skip",
+          "harvest": false,
+          "label": "COLOR / MATERIAL KEY",
+          "hint": "renderer-owned swatches from sheet-data.json; do not repaint or add labels"
+        }
+      ]
+    },
+    {
+      "height": 422,
+      "section_label": "SCALE AND PRIMARY RECOGNITION",
+      "boxes": [
+        {
+          "slot_id": "size.reference",
+          "output_name": "size-reference.png",
+          "panel_code": "D1",
+          "footer_height": 82,
+          "kind": "size_reference",
+          "reference_role": "identity",
+          "label": "SIZE / EXTENT",
+          "hint": "complete base-form silhouette beside a plain scale indicator for the declared measure; proportions and resting stance identical to A1"
+        },
+        {
+          "slot_id": "head.study",
+          "output_name": "head-study.png",
+          "panel_code": "D2",
+          "footer_height": 82,
+          "kind": "head_study",
+          "reference_role": "identity",
+          "label": "HEAD STUDY",
+          "hint": "large three-quarter head study showing skull and muzzle proportions, nose, eye placement, ear shape and set, cheek fur, jaw mass, and resting expression"
+        },
+        {
+          "slot_id": "identity.icon",
+          "output_name": "icon.png",
+          "panel_code": "D3",
+          "footer_height": 82,
+          "kind": "icon",
+          "reference_role": "identity",
+          "label": "RECOGNITION ICON",
+          "hint": "tight recognition crop with both ears and all signature facial identity cues visible"
+        }
+      ]
+    },
+    {
+      "height": 350,
+      "section_label": "DISTINCTIVE PART DETAILS",
+      "boxes": [
+        {
+          "slot_id": "eye.left.detail",
+          "output_name": "left-eye-detail.png",
+          "panel_code": "E1",
+          "footer_height": 82,
+          "kind": "part_detail",
+          "source_part": "left eye / eyes",
+          "reference_role": "identity",
+          "label": "LEFT EYE",
+          "hint": "left eye at readable scale: iris, pupil, sclera, eyelid, surrounding fur, adjacent marks, and highlight treatment; compare against the separately rendered right eye"
+        },
+        {
+          "slot_id": "eye.right.detail",
+          "output_name": "right-eye-detail.png",
+          "panel_code": "E2",
+          "footer_height": 82,
+          "kind": "part_detail",
+          "source_part": "right eye / eyes",
+          "reference_role": "identity",
+          "label": "RIGHT EYE",
+          "hint": "right eye at the same scale and orientation as E1: preserve independent iris, pupil, eyelid, adjacent marks, and any declared equality or difference"
+        },
+        {
+          "slot_id": "ear.detail",
+          "output_name": "ear-detail.png",
+          "panel_code": "E3",
+          "footer_height": 82,
+          "kind": "part_detail",
+          "source_part": "ears",
+          "reference_role": "identity",
+          "label": "LEFT / RIGHT EARS",
+          "hint": "matched left and right ears at the same scale: front, side, and back construction, inner fur, rim, tip, and any declared asymmetry, damage, or absence"
+        },
+        {
+          "slot_id": "muzzle.detail",
+          "output_name": "muzzle-detail.png",
+          "panel_code": "E4",
+          "footer_height": 82,
+          "kind": "part_detail",
+          "source_part": "muzzle",
+          "reference_role": "identity",
+          "label": "MUZZLE / JAW",
+          "hint": "muzzle and jaw construction: length, projection, nose, lip line, whisker pads, teeth line, and fur boundary"
+        }
+      ]
+    },
+    {
+      "height": 350,
+      "boxes": [
+        {
+          "slot_id": "hand.detail",
+          "output_name": "hand-detail.png",
+          "panel_code": "E5",
+          "footer_height": 82,
+          "kind": "part_detail",
+          "source_part": "hands / hand / forepaws / forepaw",
+          "reference_role": "identity",
+          "label": "FOREPAW / HAND",
+          "hint": "palm and back of one forepaw or hand: digit count, pad layout, claw shape and color, fur boundary, and wrist transition"
+        },
+        {
+          "slot_id": "hindpaw.detail",
+          "output_name": "hindpaw-detail.png",
+          "panel_code": "E6",
+          "footer_height": 82,
+          "kind": "part_detail",
+          "source_part": "hindpaws / hindpaw / feet / foot",
+          "reference_role": "identity",
+          "label": "HINDPAW",
+          "hint": "top and sole of one hindpaw: toe count, pad layout, claws, hock transition, and difference from the forepaw"
+        },
+        {
+          "slot_id": "tail.detail",
+          "output_name": "tail-detail.png",
+          "panel_code": "E7",
+          "footer_height": 82,
+          "kind": "tail_detail",
+          "source_part": "tail",
+          "reference_role": "identity",
+          "label": "TAIL",
+          "hint": "entire tail from base to tip: length, thickness taper, fur flow, markings, exact endpoints, and resting carriage"
+        }
+      ]
+    },
+    {
+      "height": 380,
+      "section_label": "BODY LANDMARK AND MARKING CONTINUITY",
+      "boxes": [
+        {
+          "slot_id": "leg.detail",
+          "output_name": "leg-detail.png",
+          "panel_code": "F1",
+          "footer_height": 82,
+          "kind": "part_detail",
+          "source_part": "legs",
+          "reference_role": "identity",
+          "label": "LEG / HAUNCH",
+          "hint": "one hind limb from hip to paw showing thigh mass, hock angle, paw stance, fur flow, and marking wrap"
+        },
+        {
+          "slot_id": "chest.detail",
+          "output_name": "chest-detail.png",
+          "panel_code": "F2",
+          "footer_height": 82,
+          "kind": "part_detail",
+          "source_part": "chest",
+          "reference_role": "identity",
+          "label": "CHEST / TORSO",
+          "hint": "upper torso showing chest and shoulder mass, throat and ruff boundary, and exact chest marking placement"
+        },
+        {
+          "slot_id": "back.detail",
+          "output_name": "back-detail.png",
+          "panel_code": "F3",
+          "footer_height": 82,
+          "kind": "part_detail",
+          "source_part": "back",
+          "reference_role": "identity",
+          "label": "BACK / SPINE",
+          "hint": "shoulder blade to tail base showing spine line, ruff flow, rear surface pattern, and all marking endpoints"
+        }
+      ]
+    },
+    {
+      "height": 380,
+      "boxes": [
+        {
+          "slot_id": "slot.mark.01",
+          "output_name": "mark-01.png",
+          "panel_code": "F4",
+          "footer_height": 82,
+          "kind": "mark_detail",
+          "source_index": 0,
+          "source_row_id": "marks.01",
+          "reference_role": "identity",
+          "label": "MARK 01",
+          "hint": "first declared signature mark at its exact body landmark with enough surrounding surface to prove placement and laterality"
+        },
+        {
+          "slot_id": "slot.mark.02",
+          "output_name": "mark-02.png",
+          "panel_code": "F5",
+          "footer_height": 82,
+          "kind": "mark_detail",
+          "source_index": 1,
+          "source_row_id": "marks.02",
+          "reference_role": "identity",
+          "label": "MARK 02",
+          "hint": "second declared signature mark at its exact body landmark with enough surrounding surface to prove placement and laterality"
+        }
+      ]
+    },
+    {
+      "height": 380,
+      "section_label": "EXPRESSION DIFFERENCES: SAME HEAD AND MARKINGS",
+      "boxes": [
+        {
+          "slot_id": "expressions.ex.01",
+          "output_name": "expression-01.png",
+          "panel_code": "G1",
+          "footer_height": 82,
+          "kind": "expression_variant",
+          "source_index": 0,
+          "source_row_id": "expressions.01",
+          "reference_role": "performance",
+          "label": "EXPRESSION 01",
+          "hint": "head-and-shoulders view of the first declared expression; face proportions, markings, palette, and ear construction identical to A1"
+        },
+        {
+          "slot_id": "expressions.ex.02",
+          "output_name": "expression-02.png",
+          "panel_code": "G2",
+          "footer_height": 82,
+          "kind": "expression_variant",
+          "source_index": 1,
+          "source_row_id": "expressions.02",
+          "reference_role": "performance",
+          "label": "EXPRESSION 02",
+          "hint": "head-and-shoulders view of the second declared expression; change only declared expression channels"
+        },
+        {
+          "slot_id": "expressions.ex.03",
+          "output_name": "expression-03.png",
+          "panel_code": "G3",
+          "footer_height": 82,
+          "kind": "expression_variant",
+          "source_index": 2,
+          "source_row_id": "expressions.03",
+          "reference_role": "performance",
+          "label": "EXPRESSION 03",
+          "hint": "head-and-shoulders view of the third declared expression; change only declared expression channels"
+        }
+      ]
+    },
+    {
+      "height": 380,
+      "boxes": [
+        {
+          "slot_id": "expressions.ex.04",
+          "output_name": "expression-04.png",
+          "panel_code": "G4",
+          "footer_height": 82,
+          "kind": "expression_variant",
+          "source_index": 3,
+          "source_row_id": "expressions.04",
+          "reference_role": "performance",
+          "label": "EXPRESSION 04",
+          "hint": "head-and-shoulders view of the fourth declared expression; change only declared expression channels"
+        },
+        {
+          "slot_id": "expressions.ex.05",
+          "output_name": "expression-05.png",
+          "panel_code": "G5",
+          "footer_height": 82,
+          "kind": "expression_variant",
+          "source_index": 4,
+          "source_row_id": "expressions.05",
+          "reference_role": "performance",
+          "label": "EXPRESSION 05",
+          "hint": "head-and-shoulders view of the fifth declared expression; change only declared expression channels"
+        },
+        {
+          "slot_id": "expressions.ex.06",
+          "output_name": "expression-06.png",
+          "panel_code": "G6",
+          "footer_height": 82,
+          "kind": "expression_variant",
+          "source_index": 5,
+          "source_row_id": "expressions.06",
+          "reference_role": "performance",
+          "label": "EXPRESSION 06",
+          "hint": "head-and-shoulders view of the sixth declared expression; change only declared expression channels"
+        }
+      ]
+    },
+    {
+      "height": 600,
+      "section_label": "POSE AND BODY-LANGUAGE DIFFERENCES: SAME IDENTITY",
+      "boxes": [
+        {
+          "slot_id": "pose.state.01",
+          "output_name": "pose-state-01.png",
+          "panel_code": "H1",
+          "footer_height": 82,
+          "kind": "pose_state",
+          "source_index": 0,
+          "source_row_id": "bodylang.01",
+          "reference_role": "performance",
+          "label": "BODY LANGUAGE 01",
+          "hint": "complete figure in the first declared posture and gesture; preserve anatomy, markings, palette, and outfit"
+        },
+        {
+          "slot_id": "pose.state.02",
+          "output_name": "pose-state-02.png",
+          "panel_code": "H2",
+          "footer_height": 82,
+          "kind": "pose_state",
+          "source_index": 1,
+          "source_row_id": "bodylang.02",
+          "reference_role": "performance",
+          "label": "BODY LANGUAGE 02",
+          "hint": "complete figure in the second declared posture and gesture; change only declared performance channels"
+        },
+        {
+          "slot_id": "pose.state.03",
+          "output_name": "pose-state-03.png",
+          "panel_code": "H3",
+          "footer_height": 82,
+          "kind": "pose_state",
+          "source_index": 2,
+          "source_row_id": "bodylang.03",
+          "reference_role": "performance",
+          "label": "BODY LANGUAGE 03",
+          "hint": "complete figure in the third declared posture and gesture; change only declared performance channels"
+        },
+        {
+          "slot_id": "pose.state.04",
+          "output_name": "pose-state-04.png",
+          "panel_code": "H4",
+          "footer_height": 82,
+          "kind": "pose_state",
+          "source_index": 3,
+          "source_row_id": "bodylang.04",
+          "reference_role": "performance",
+          "label": "BODY LANGUAGE 04",
+          "hint": "complete figure in the fourth declared posture and gesture; change only declared performance channels"
+        }
+      ]
+    },
+    {
+      "height": 420,
+      "section_label": "CLOTHING CONSTRUCTION, ITEMS, AND MANNERISM",
+      "boxes": [
+        {
+          "slot_id": "outfit.details",
+          "output_name": "outfit-details.png",
+          "panel_code": "I1",
+          "footer_height": 82,
+          "kind": "outfit_detail",
+          "source_index": 0,
+          "source_row_id": "outfits.01",
+          "reference_role": "identity",
+          "label": "OUTFIT / EQUIPMENT DETAILS",
+          "hint": "primary outfit or equipment separated into readable components with front/back construction, layers, fastenings, openings, footwear, and motifs"
+        },
+        {
+          "slot_id": "items.primary",
+          "output_name": "items.png",
+          "panel_code": "I2",
+          "footer_height": 82,
+          "kind": "items",
+          "reference_role": "support",
+          "label": "SIGNATURE ITEMS",
+          "hint": "each declared stable item drawn separately, clearly, and at readable scale; show identity-bearing wear and construction"
+        }
+      ]
+    }
+  ]
+}

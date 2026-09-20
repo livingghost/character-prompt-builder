@@ -1,0 +1,519 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prepared-reference-set.schema.json",
+  "title": "Canonical Prepared Reference Set",
+  "description": "The single reference truth committed by prompt-artifact and generation workflows.",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "set_id",
+    "transport_mode",
+    "target_model",
+    "reference_selection",
+    "reference_selection_sha256",
+    "reference_use_plan",
+    "reference_use_plan_sha256",
+    "surface_lighting_plan_sha256",
+    "zero_reference_reason",
+    "reference_preamble",
+    "prompt_artifacts",
+    "selected_references",
+    "single_board",
+    "prepared_reference_set_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "prepared-reference-set"
+    },
+    "set_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^PRS-[A-Za-z0-9._:-]+$"
+    },
+    "transport_mode": {
+      "enum": [
+        "none",
+        "prompt-artifacts",
+        "multi-image",
+        "single-board",
+        "svg-bundle"
+      ]
+    },
+    "target_model": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "reference_selection": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "reference-selection.schema.json"
+        }
+      ]
+    },
+    "reference_selection_sha256": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/sha256"
+        }
+      ]
+    },
+    "reference_use_plan": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "reference-use-plan.schema.json"
+        }
+      ]
+    },
+    "reference_use_plan_sha256": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/sha256"
+        }
+      ]
+    },
+    "surface_lighting_plan_sha256": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/sha256"
+        }
+      ]
+    },
+    "zero_reference_reason": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/zero-reference-reason"
+        }
+      ]
+    },
+    "reference_preamble": {
+      "type": "string"
+    },
+    "prompt_artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/prompt-artifact"
+      }
+    },
+    "selected_references": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "prepared-generation-reference.schema.json#/$defs/generic-prepared-reference"
+          },
+          {
+            "$ref": "prepared-generation-reference.schema.json#/$defs/state-scoped-prepared-reference"
+          }
+        ]
+      }
+    },
+    "single_board": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/single-board"
+        }
+      ]
+    },
+    "prepared_reference_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "reference_selection": {
+              "type": "null"
+            },
+            "reference_selection_sha256": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "reference_selection": {
+              "$ref": "reference-selection.schema.json"
+            },
+            "reference_selection_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "reference_use_plan": {
+              "type": "null"
+            },
+            "reference_use_plan_sha256": {
+              "type": "null"
+            },
+            "surface_lighting_plan_sha256": {
+              "type": "null"
+            },
+            "prompt_artifacts": {
+              "maxItems": 0
+            },
+            "selected_references": {
+              "items": {
+                "not": {
+                  "required": [
+                    "source"
+                  ],
+                  "properties": {
+                    "source": {
+                      "required": [
+                        "kind"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "pack-artifact"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "reference_use_plan": {
+              "$ref": "reference-use-plan.schema.json"
+            },
+            "reference_use_plan_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "surface_lighting_plan_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "transport_mode": {
+              "const": "none"
+            },
+            "target_model": {
+              "type": "null"
+            },
+            "reference_preamble": {
+              "const": ""
+            },
+            "prompt_artifacts": {
+              "maxItems": 0
+            },
+            "selected_references": {
+              "maxItems": 0
+            },
+            "single_board": {
+              "type": "null"
+            },
+            "zero_reference_reason": {
+              "$ref": "#/$defs/zero-reference-reason"
+            }
+          }
+        },
+        {
+          "properties": {
+            "transport_mode": {
+              "const": "prompt-artifacts"
+            },
+            "target_model": {
+              "type": "null"
+            },
+            "reference_preamble": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reference_use_plan": {
+              "$ref": "reference-use-plan.schema.json"
+            },
+            "prompt_artifacts": {
+              "minItems": 1
+            },
+            "selected_references": {
+              "maxItems": 0
+            },
+            "single_board": {
+              "type": "null"
+            },
+            "zero_reference_reason": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "transport_mode": {
+              "const": "svg-bundle"
+            },
+            "target_model": {
+              "type": "null"
+            },
+            "reference_preamble": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reference_use_plan": {
+              "$ref": "reference-use-plan.schema.json"
+            },
+            "prompt_artifacts": {
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/prompt-artifact"
+                  },
+                  {
+                    "properties": {
+                      "media_type": {
+                        "const": "image/svg+xml"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "selected_references": {
+              "maxItems": 0
+            },
+            "single_board": {
+              "type": "null"
+            },
+            "zero_reference_reason": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "transport_mode": {
+              "const": "multi-image"
+            },
+            "target_model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reference_preamble": {
+              "type": "string",
+              "minLength": 1
+            },
+            "selected_references": {
+              "minItems": 1
+            },
+            "single_board": {
+              "type": "null"
+            },
+            "zero_reference_reason": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "transport_mode": {
+              "const": "single-board"
+            },
+            "target_model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reference_preamble": {
+              "type": "string",
+              "minLength": 1
+            },
+            "selected_references": {
+              "minItems": 1
+            },
+            "single_board": {
+              "$ref": "#/$defs/single-board"
+            },
+            "zero_reference_reason": {
+              "type": "null"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "zero-reference-reason": {
+      "type": "object",
+      "required": [
+        "code",
+        "record_ids",
+        "detail"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "no-canonical-record-selected",
+            "no-suitable-active-asset",
+            "user-declined-visual-references",
+            "state-ineligible"
+          ]
+        },
+        "record_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "prompt-artifact": {
+      "type": "object",
+      "required": [
+        "semantic_role",
+        "source_sha256",
+        "delivered_path",
+        "media_type",
+        "delivered_sha256"
+      ],
+      "properties": {
+        "semantic_role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "delivered_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 3
+        },
+        "delivered_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "single-board": {
+      "type": "object",
+      "required": [
+        "resolved_path",
+        "media_type",
+        "sha256",
+        "panels"
+      ],
+      "properties": {
+        "resolved_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_type": {
+          "const": "image/png"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "panels": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "semantic_role",
+              "source_sha256",
+              "transport_sha256",
+              "box"
+            ],
+            "properties": {
+              "semantic_role": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source_sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "transport_sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "box": {
+                "type": "object",
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "properties": {
+                  "x": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "y": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "width": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "height": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

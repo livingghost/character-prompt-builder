@@ -1,0 +1,394 @@
+{
+  "kind": "module",
+  "category": "camera",
+  "records": [
+    {
+      "id": "camera-close-eye-level",
+      "label": "Close eye-level viewpoint",
+      "category": "camera",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Create conversational proximity through an eye-level camera that keeps facial proportions stable and makes subtle performance easy to read.",
+      "prompt": "Use an eye-level close portrait viewpoint with natural facial perspective, a comfortable head-and-shoulders distance, restrained lens expansion, and a direct spatial relationship between the subject's eyes and the viewer.",
+      "invariants": [
+        "camera height aligns near the subject's eye line",
+        "facial landmarks retain natural relative proportions",
+        "the chosen crop supports readable eyes and mouth"
+      ],
+      "misreadings_to_avoid": [
+        "telephoto flattening that removes spatial presence",
+        "wide-lens facial distortion",
+        "camera height drifting into a strong high or low angle"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "camera viewpoint",
+      "tags": [
+        "conversational camera",
+        "head and shoulders view"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "close portrait",
+          "facet": "camera",
+          "weight": 1.15,
+          "source": "author"
+        },
+        {
+          "phrase": "eye level closeup",
+          "facet": "camera",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "camera-low-three-quarter",
+      "label": "Low three-quarter viewpoint",
+      "category": "camera",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Convey grounded physical presence with a moderate low camera and a three-quarter turn that keeps facial identity and torso structure readable.",
+      "prompt": "Set the camera modestly below the face in a three-quarter view, enlarging the near shoulder slightly, keeping both eyes structurally coherent, and allowing the torso to rise through the frame with stable perspective.",
+      "invariants": [
+        "the low angle remains moderate enough for facial readability",
+        "near and far features follow one perspective system",
+        "the three-quarter turn preserves a clear muzzle or facial silhouette"
+      ],
+      "misreadings_to_avoid": [
+        "extreme under-chin view",
+        "uncontrolled shoulder enlargement",
+        "frontal face pasted onto a rotated head"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "camera viewpoint",
+      "tags": [
+        "physical presence",
+        "three-quarter camera"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "low angle portrait",
+          "facet": "camera",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "three quarter view",
+          "facet": "camera",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "camera-profile-space",
+      "label": "Profile framing with open space",
+      "category": "camera",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Frame a side-facing subject with enough open image area to extend attention beyond the body and support a reserved narrative tone.",
+      "prompt": "Use a clean side or near-profile camera position, place the visible eye and facial contour as the main landmarks, and leave an intentional field of image space forward of the subject's attention.",
+      "invariants": [
+        "the facial contour remains a strong identity-bearing shape",
+        "open space follows the directional logic of the gaze",
+        "camera placement keeps the visible eye structurally seated"
+      ],
+      "misreadings_to_avoid": [
+        "ambiguous almost-frontal head rotation",
+        "gaze directed into the nearest frame edge",
+        "flattened facial contour with lost muzzle or nose structure"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "camera viewpoint",
+      "tags": [
+        "profile portrait",
+        "directional framing"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "profile portrait",
+          "facet": "camera",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "open gaze space",
+          "facet": "camera",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "camera-environmental-medium",
+      "label": "Environmental medium portrait",
+      "category": "camera",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Show character and setting together through a medium portrait distance that preserves facial performance while revealing meaningful environmental context.",
+      "prompt": "Frame the subject from roughly waist or mid-torso upward, retain a readable face, include one foreground or side-plane cue, and reveal enough background structure to establish place and depth around the character.",
+      "invariants": [
+        "the face remains readable at the selected image scale",
+        "environment cues establish place through clear depth layers",
+        "the subject silhouette stays distinct from nearby background forms"
+      ],
+      "misreadings_to_avoid": [
+        "wide establishing shot with a tiny face",
+        "background clutter equal to subject detail",
+        "random crop that conceals the character's activity"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "camera viewpoint",
+      "tags": [
+        "setting context",
+        "medium character view"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "environmental portrait",
+          "facet": "camera",
+          "weight": 1.15,
+          "source": "author"
+        },
+        {
+          "phrase": "medium portrait",
+          "facet": "camera",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "camera-high-angle-look-down",
+      "label": "High angle looking down",
+      "category": "camera",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Place the camera above the subject looking down to soften presence, add vulnerability, or show layout.",
+      "prompt": "Shoot from a high angle: the camera clearly above the subject pitching downward, the subject's upper surfaces and foreshortened body visible, the ground plane rising behind them as backdrop, and a gentle sense of smallness or openness in their presence.",
+      "invariants": [
+        "the camera height stays clearly above the subject",
+        "downward pitch matches the visible ground backdrop",
+        "foreshortening compresses the body believably"
+      ],
+      "misreadings_to_avoid": [
+        "eye-level proportions contradicting the stated height",
+        "background sky where the ground should rise",
+        "distorted head enlargement past believable perspective"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "camera geometry",
+      "tags": [
+        "high angle",
+        "looking down",
+        "elevated camera"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "high angle looking down",
+          "facet": "camera",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "elevated downward shot",
+          "facet": "camera",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "vulnerable high viewpoint",
+          "facet": "camera",
+          "weight": 0.9,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "camera-birds-eye-top-down",
+      "label": "Bird's-eye top-down view",
+      "category": "camera",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Look straight down from far above so the scene flattens into graphic shapes and patterns.",
+      "prompt": "Shoot from a bird's-eye view: the camera almost perpendicular above the scene looking straight down, bodies and objects flattened into readable graphic shapes, shadows acting as design elements, and floor or ground texture serving as the composition field.",
+      "invariants": [
+        "the view stays near-perpendicular to the ground",
+        "the ground plane fills the frame as the field",
+        "subjects read as clear top-down silhouettes"
+      ],
+      "misreadings_to_avoid": [
+        "three-quarter aerial tilt sneaking in a horizon",
+        "eye-level anatomy pasted onto a top-down floor",
+        "shadows contradicting the single overhead reading"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "camera geometry",
+      "tags": [
+        "bird's-eye view",
+        "top-down",
+        "overhead perpendicular"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "birds eye top down",
+          "facet": "camera",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "straight down overhead view",
+          "facet": "camera",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "flattened graphic top view",
+          "facet": "camera",
+          "weight": 0.9,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "camera-worms-eye-ground-up",
+      "label": "Worm's-eye ground-level upward",
+      "category": "camera",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Shoot from ground level steeply upward so the subject towers with extreme dominance.",
+      "prompt": "Shoot from a worm's-eye view: the camera at or near the ground pointing steeply upward, the subject towering with strong vertical convergence, near forms such as feet or legs greatly enlarged, and sky or ceiling as the backdrop behind the figure.",
+      "invariants": [
+        "the camera sits at ground level pitching steeply up",
+        "vertical lines converge upward consistently",
+        "near lower-body forms enlarge ahead of the head"
+      ],
+      "misreadings_to_avoid": [
+        "level-camera proportions without upward convergence",
+        "ground backdrop where sky or ceiling belongs",
+        "the head enlarged instead of the near lower body"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "camera geometry",
+      "tags": [
+        "worm's-eye view",
+        "ground level upward",
+        "towering subject"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "worms eye ground view",
+          "facet": "camera",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "steep upward ground camera",
+          "facet": "camera",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "towering low viewpoint",
+          "facet": "camera",
+          "weight": 0.9,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "camera-first-person-pov",
+      "label": "First-person point of view",
+      "category": "camera",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Show the scene through a participant's eyes, with their own body entering the frame edges naturally.",
+      "prompt": "Shoot as a first-person point of view: the camera at the viewer-character's eye position, their own hands, arms, or knees entering from the frame edges when they act, subjects addressing the lens as if meeting the viewer's eyes, and natural human eye-height perspective on the scene.",
+      "invariants": [
+        "the camera occupies a participant's eye position",
+        "any visible own-body parts enter from frame edges",
+        "other subjects relate to the lens as to a person"
+      ],
+      "misreadings_to_avoid": [
+        "floating third-person distance contradicting the POV",
+        "own-body parts detached from the frame edges",
+        "subjects' eye-lines missing the lens without reason"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "camera geometry",
+      "tags": [
+        "first person",
+        "pov shot",
+        "subjective camera"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "first person pov",
+          "facet": "camera",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "subjective viewpoint shot",
+          "facet": "camera",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "through the eyes view",
+          "facet": "camera",
+          "weight": 0.9,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

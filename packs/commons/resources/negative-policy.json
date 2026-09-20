@@ -1,0 +1,83 @@
+{
+  "principle": "Positive records state desired image content. Negative terms are activated only by an applicable production condition or an explicit user exclusion.",
+  "automatic_sources": {
+    "generation_hygiene": {
+      "activation": "character-image generation where incidental marks are unrelated to the requested design",
+      "terms": [
+        "unintended text",
+        "unintended logo",
+        "watermark",
+        "signature"
+      ]
+    },
+    "visible_limb_integrity": {
+      "activation": "arms, legs, wings, tentacles, or other articulated limbs are visibly framed",
+      "terms": [
+        "unrequested duplicated limb",
+        "missing visible limb",
+        "disconnected joint"
+      ]
+    },
+    "hand_or_paw_integrity": {
+      "activation": "a visible hand, paw, claw, or manipulator performs a readable action",
+      "terms": [
+        "duplicated hand or paw",
+        "fused digits",
+        "broken grasp geometry"
+      ]
+    },
+    "tail_integrity": {
+      "activation": "the selected subject has a visible tail",
+      "terms": [
+        "duplicated tail",
+        "detached tail",
+        "tail fused into a nearby form"
+      ]
+    },
+    "clothing_integrity": {
+      "activation": "constructed clothing is visible",
+      "terms": [
+        "broken garment construction",
+        "fabric fused into anatomy",
+        "inconsistent garment opening"
+      ]
+    },
+    "held_prop_integrity": {
+      "activation": "the subject holds, wears, leans on, or otherwise contacts a prop",
+      "terms": [
+        "floating prop",
+        "prop fused into anatomy",
+        "broken contact geometry"
+      ]
+    },
+    "selected_render_profile": {
+      "activation": "a render profile is selected as the active medium grammar",
+      "source_field": "render-profile:negative_terms"
+    },
+    "selected_style_family": {
+      "activation": "a style family is selected as the active drawing grammar",
+      "source_field": "style-family:negative_terms"
+    }
+  },
+  "conditional_sources": {
+    "observed_generation_failure": {
+      "activation": "a generated image exhibits a specific failure that should be corrected on retry",
+      "source": "generation review"
+    },
+    "user_exclusion": {
+      "activation": "the user explicitly excludes a concept or presentation",
+      "source": "user brief"
+    }
+  },
+  "diagnostic_only_sources": {
+    "scene_failure_modes": {
+      "automatic_emission": false
+    },
+    "atomic_misreadings": {
+      "automatic_emission": false
+    }
+  },
+  "semantic_exclusion_rule": "Do not invent semantic exclusions; add them only when the user explicitly excludes them.",
+  "merge_rule": "Merge only terms whose activation condition is true for the current generation.",
+  "applicability_rule": "Remove inactive terms when the scene, anatomy, wardrobe, props, or selected medium changes."
+}

@@ -1,0 +1,38 @@
+{
+  "artifact_type": "viewpoint-profile",
+  "profile_id": "embodied-first-person",
+  "label": "Embodied first person",
+  "profile_family": "embodied-first-person",
+  "camera_ownership": "character_body",
+  "default_knowledge_scope": "character_restricted",
+  "default_point_of_audition": "character_subjective",
+  "camera_rules": [
+    "The camera belongs to one character body and moves only through that body.",
+    "Visible limbs, breath, balance, and contact belong to the camera owner.",
+    "Looking into the lens means looking toward the camera owner."
+  ],
+  "continuity_rules": [
+    "Do not use detached orbit, crane, or external tracking motion.",
+    "Preserve camera-owner limb ownership and current body state.",
+    "External views of the owner require a real reflection, display, or a separate shot."
+  ],
+  "review_dimensions": [
+    "camera-owner body logic",
+    "visible limb ownership",
+    "subject distance",
+    "subjective audition"
+  ],
+  "permitted_movement_types": [
+    "held",
+    "look",
+    "turn",
+    "lean",
+    "crouch",
+    "stand",
+    "walk",
+    "step",
+    "stumble-recover"
+  ],
+  "knowledge_policy": "Apply the declared focalization and do not reveal information outside its scope unless the shot plan records a deliberate change.",
+  "profile_sha256": "6397aaad905837bb5366dacebb7dd5c99df26ab2796c6779daedaeea48d6fa87"
+}

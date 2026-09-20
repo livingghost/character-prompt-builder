@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "viewpoint-profile.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "profile_id",
+    "label",
+    "profile_family",
+    "camera_ownership",
+    "default_knowledge_scope",
+    "default_point_of_audition",
+    "camera_rules",
+    "continuity_rules",
+    "review_dimensions",
+    "profile_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "viewpoint-profile"
+    },
+    "profile_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]+$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 3
+    },
+    "profile_family": {
+      "enum": [
+        "external",
+        "embodied-first-person",
+        "device-first-person",
+        "fixed-diegetic"
+      ]
+    },
+    "camera_ownership": {
+      "enum": [
+        "external_camera",
+        "character_body",
+        "held_device",
+        "worn_device",
+        "fixed_diegetic_camera",
+        "vehicle_or_machine_sensor"
+      ]
+    },
+    "default_knowledge_scope": {
+      "enum": [
+        "objective",
+        "character_restricted",
+        "shared_restricted",
+        "omniscient"
+      ]
+    },
+    "default_point_of_audition": {
+      "enum": [
+        "objective_mix",
+        "character_subjective",
+        "remote_or_device_audio"
+      ]
+    },
+    "camera_rules": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 8
+      }
+    },
+    "continuity_rules": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 8
+      }
+    },
+    "review_dimensions": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 3
+      }
+    },
+    "permitted_movement_types": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "knowledge_policy": {
+      "type": "string",
+      "minLength": 12
+    },
+    "profile_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

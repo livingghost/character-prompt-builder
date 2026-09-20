@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "character-prompt-builder-distinctive-detail-observation.schema.json",
+  "title": "Distinctive Detail Observation Worksheet",
+  "type": "object",
+  "required": [
+    "source_scope",
+    "subject_domain",
+    "candidate_feature_class",
+    "observed_views",
+    "visibility_confidence",
+    "stable_transient_class",
+    "symmetry_evidence",
+    "occlusion_notes",
+    "style_normalization_notes",
+    "measurement_anchors",
+    "extracted_detail"
+  ],
+  "properties": {
+    "source_scope": {
+      "type": "string"
+    },
+    "subject_domain": {
+      "enum": [
+        "human",
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid",
+        "robot"
+      ]
+    },
+    "candidate_feature_class": {
+      "type": "string"
+    },
+    "observed_views": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "visibility_confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "stable_transient_class": {
+      "enum": [
+        "stable-identity",
+        "condition-dependent",
+        "scene-transient",
+        "style-artifact",
+        "uncertain"
+      ]
+    },
+    "symmetry_evidence": {
+      "enum": [
+        "observed-bilateral",
+        "observed-asymmetric",
+        "single-side-only",
+        "unknown"
+      ]
+    },
+    "occlusion_notes": {
+      "type": "string"
+    },
+    "style_normalization_notes": {
+      "type": "string"
+    },
+    "measurement_anchors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "extracted_detail": {
+      "$ref": "distinctive-detail.schema.json"
+    }
+  },
+  "additionalProperties": false
+}

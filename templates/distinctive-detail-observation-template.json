@@ -1,0 +1,32 @@
+{
+  "source_scope": "",
+  "subject_domain": "anthropomorphic-animal",
+  "candidate_feature_class": "",
+  "observed_views": [],
+  "visibility_confidence": "medium",
+  "stable_transient_class": "uncertain",
+  "symmetry_evidence": "unknown",
+  "occlusion_notes": "",
+  "style_normalization_notes": "",
+  "measurement_anchors": [],
+  "extracted_detail": {
+    "id": "",
+    "feature_type": "",
+    "target_region": "",
+    "laterality": "variable",
+    "landmark_relation": "",
+    "count_or_distribution": "",
+    "relative_size": "",
+    "shape_and_path": "",
+    "orientation": "",
+    "color_and_value": "",
+    "depth_and_relief": "",
+    "edge_and_texture": "",
+    "surface_interaction": "",
+    "age_or_condition": "",
+    "visibility_and_occlusion": "",
+    "identity_priority": "supporting",
+    "continuity_rules": [],
+    "source_confidence": "reference-approximate"
+  }
+}

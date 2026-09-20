@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "character-state-schema.schema.json",
+  "title": "Character State Schema",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "state_schema_id",
+    "character_id",
+    "state_paths",
+    "initial_state",
+    "state_machines"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "character-state-schema"
+    },
+    "state_schema_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "identity_contract_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "state_paths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "state_domain",
+          "value_type",
+          "allowed_persistence",
+          "visual_translation"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "state_domain": {
+            "enum": [
+              "physical",
+              "appearance",
+              "wardrobe",
+              "equipment",
+              "inventory",
+              "emotion",
+              "performance",
+              "relationship",
+              "knowledge",
+              "environment",
+              "social-role",
+              "character-specific"
+            ]
+          },
+          "value_type": {
+            "enum": [
+              "string",
+              "number",
+              "boolean",
+              "object",
+              "array",
+              "null",
+              "any"
+            ]
+          },
+          "allowed_persistence": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "scene-local",
+                "temporary-until-cleared",
+                "decaying",
+                "progressive",
+                "persistent-until-superseded",
+                "era-level",
+                "form-level"
+              ]
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "default_value": {},
+          "visual_translation": {
+            "type": "object"
+          },
+          "prompt_relevance": {
+            "enum": [
+              "always-when-visible",
+              "conditional",
+              "never-direct"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "initial_state": {
+      "type": "object"
+    },
+    "state_machines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "state_machine_id",
+          "states",
+          "allowed_transitions",
+          "visual_consequences",
+          "performance_consequences",
+          "reference_policy"
+        ],
+        "properties": {
+          "state_machine_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "allowed_transitions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "from",
+                "to",
+                "trigger"
+              ],
+              "properties": {
+                "from": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "to": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "trigger": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "preconditions": {
+                  "type": "array"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "visual_consequences": {
+            "type": "object"
+          },
+          "performance_consequences": {
+            "type": "object"
+          },
+          "persistence": {
+            "type": "object"
+          },
+          "reference_policy": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "environment_adaptation_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rule_id",
+          "when",
+          "proposal"
+        ],
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "when": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "operator"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^/"
+                },
+                "operator": {
+                  "enum": [
+                    "equals",
+                    "not-equals",
+                    "contains",
+                    "greater-than",
+                    "greater-or-equal",
+                    "less-than",
+                    "less-or-equal",
+                    "exists",
+                    "not-exists"
+                  ]
+                },
+                "value": {}
+              },
+              "additionalProperties": false
+            }
+          },
+          "proposal": {
+            "type": "object"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "projection_rules": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

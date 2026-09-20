@@ -1,0 +1,15 @@
+{
+  "manifest_id": "CM-RB-C01",
+  "inspection_status": "inspected",
+  "candidates": [
+    {
+      "candidate_id": "C01-A01-r1",
+      "asset_id": "C01-A01",
+      "file": "images/C01-A01.png",
+      "visible_support": [],
+      "unsupported_or_occluded": [],
+      "contradictions": [],
+      "recommendation": "needs-review"
+    }
+  ]
+}

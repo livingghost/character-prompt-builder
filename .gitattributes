@@ -1,0 +1,24 @@
+# Normalize line endings: LF in the repo, native in the working tree.
+* text=auto eol=lf
+
+# Explicit text types (all content in this repo is text)
+*.md      text
+*.py      text diff=python
+*.json    text
+*.jsonl   text
+*.toml    text
+*.yml     text
+*.yaml    text
+*.txt     text
+LICENSE   text
+
+# Generated release metadata and example outputs: keep them out of language
+# stats and collapse them in diffs/PR reviews.
+MANIFEST.json                              linguist-generated=true
+references/catalog-index.md                linguist-generated=true
+packs/default/pack.lock.json               linguist-generated=true
+examples/state-aware-pilot/generated/**    linguist-generated=true
+
+# Files excluded from release archives (see package-manifest.toml)
+.gitattributes  export-ignore
+.github/        export-ignore

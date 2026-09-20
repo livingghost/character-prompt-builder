@@ -1,0 +1,167 @@
+{
+  "kind": "module",
+  "category": "species",
+  "records": [
+    {
+      "id": "species-wolf",
+      "label": "Wolf",
+      "category": "species",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Establish a readable wolf-derived head, silhouette, and species anatomy while leaving character-specific proportions and grooming available for separate identity decisions.",
+      "prompt": "Build the subject from a coherent wolf morphology: a tapered muzzle, alert triangular ears, canid nose structure, balanced cheek planes, and a clearly readable tail and limb language appropriate to the chosen domain.",
+      "invariants": [
+        "the head retains a recognizable canid muzzle and ear relationship",
+        "the nose, cheek, jaw, and eye placement read as one coherent species structure",
+        "domain adaptation preserves the wolf identity across upright and quadrupedal forms"
+      ],
+      "misreadings_to_avoid": [
+        "generic domestic dog head",
+        "feline muzzle and cheek structure",
+        "human face with decorative animal ears"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "species morphology",
+      "tags": [
+        "lupine subject",
+        "canid anatomy"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid"
+      ],
+      "search_terms": [
+        {
+          "phrase": "wolf",
+          "facet": "species",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "lupine",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "canid",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "species-cat",
+      "label": "Cat",
+      "category": "species",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Establish a readable felid head, silhouette, and species anatomy while leaving character-specific proportions and grooming available for separate identity decisions.",
+      "prompt": "Build the subject from a coherent felid morphology: a short rounded muzzle, large forward-set eyes, mobile triangular ears with visible inner structure, a compact jaw, and a flexible tail and limb language appropriate to the chosen domain.",
+      "invariants": [
+        "the head retains a recognizable felid muzzle and ear relationship",
+        "the eyes, nose, and cheek planes read as one coherent species structure",
+        "domain adaptation preserves the cat identity across upright and quadrupedal forms"
+      ],
+      "misreadings_to_avoid": [
+        "generic domestic dog head",
+        "canid or lupine muzzle proportions",
+        "human face with decorative animal ears"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "species morphology",
+      "tags": [
+        "feline subject",
+        "felid anatomy"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "animal",
+        "creature",
+        "hybrid"
+      ],
+      "search_terms": [
+        {
+          "phrase": "cat",
+          "facet": "species",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "feline",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "felid",
+          "facet": "species",
+          "weight": 0.9,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "species-dragon",
+      "label": "Dragon",
+      "category": "species",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Establish a readable draconic head, silhouette, and creature anatomy while leaving character-specific proportions, surface treatment, and wing presence available for separate identity decisions.",
+      "prompt": "Build the subject from a coherent draconic morphology: an elongated reptilian muzzle, horn or crest structures that follow the skull, a long flexible neck and tail, and a deliberately chosen set of wing, scale and frill features that share one construction.",
+      "invariants": [
+        "the head retains a recognizable reptilian muzzle and crest relationship",
+        "the neck, tail, and wing masses share one believable skeletal logic",
+        "domain adaptation preserves the dragon identity across upright and quadrupedal forms"
+      ],
+      "misreadings_to_avoid": [
+        "generic lizard head without draconic structure",
+        "decorative horns floating off the skull",
+        "wings that attach without shoulder anatomy"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "species morphology",
+      "tags": [
+        "draconic subject",
+        "reptilian anatomy"
+      ],
+      "domains": [
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "search_terms": [
+        {
+          "phrase": "dragon",
+          "facet": "species",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "draconic",
+          "facet": "species",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "wyvern",
+          "facet": "species",
+          "weight": 0.8,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

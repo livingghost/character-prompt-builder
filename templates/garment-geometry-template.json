@@ -1,0 +1,9 @@
+{
+  "representation": "declared-structures",
+  "structures": {},
+  "source_confidence": "preset-selected",
+  "garment_id": "example-declared-garment",
+  "garment_class": "author-defined covering",
+  "coverage": "Declare the covered and exposed carrier regions for this design.",
+  "continuity_rules": []
+}

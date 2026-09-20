@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "relationship-projection.schema.json",
+  "title": "Relationship Visual Projection",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "relationship_projection_id",
+    "scene_context_sha256",
+    "participants",
+    "distance",
+    "facing",
+    "gaze",
+    "contact",
+    "public_private_mask",
+    "review_dimensions",
+    "relationship_projection_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "relationship-projection"
+    },
+    "relationship_projection_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "scene_context_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "participants": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "distance": {},
+    "facing": {},
+    "gaze": {},
+    "contact": {
+      "type": "object"
+    },
+    "public_private_mask": {},
+    "object_exchange": {},
+    "performance_cues": {
+      "type": "array"
+    },
+    "review_dimensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "relationship_projection_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

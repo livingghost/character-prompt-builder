@@ -1,0 +1,29 @@
+{
+  "coverage_policy": {
+    "corpus_sweep_rule": "Review available source images as a corpus, cluster repeated coordinated signals, promote reusable cue grammar, and upgrade existing scenes before creating parallel records.",
+    "promotion_gate": [
+      "candidate coordinates at least three visible channels",
+      "social or task target is identifiable",
+      "candidate has repeated source support or clear cross-domain transfer value",
+      "nearest-cue comparison confirms a distinct production function"
+    ],
+    "sensitive_knowledge_rule": "Adult sensual, erotic, grotesque, injury, restraint, and other sensitive cue knowledge remains available when supported by the source or brief; sensitivity alone does not remove canonical production knowledge.",
+    "source_artifact_rule": "Clearly non-diegetic censor masks, editorial blocks, watermarks, logos, pasted UI, and meaningless source text remain outside canonical cue knowledge. Visible supported performance and adult intensity remain available, while exact hidden geometry stays governed by the selected subject contract.",
+    "specificity_rule": "Record supported adult sexual action, anatomy class, hand ownership, contact geometry, physiology, and intensity with the same concrete production detail used for any other subject. Sensitivity is metadata and never a reason to generalize canonical knowledge."
+  },
+  "coverage_summary": {
+    "sandbox_reference_images_reviewed": 224,
+    "coordinated_cue_records": 77,
+    "domains_covered": [
+      "human",
+      "anthropomorphic-animal",
+      "animal",
+      "creature",
+      "hybrid",
+      "robot"
+    ],
+    "review_method": "Ten labeled contact sheets were inspected for recurring gaze, mouth, color, posture, hand, leg, contact, appendage, physiology, and mechanical-signal patterns. Repeated patterns became reusable cue records and representative canonical scenes received structured performance language.",
+    "human": "Human cues include gaze, eyelids, brows, mouth, cheeks, breath, head and neck, torso posture, arm and hand chains, leg support, garment interaction, post-exertion physiology, adult social intent, waking stretch, and bathing relaxation.",
+    "lineage_appendage_grammar": "Nine curated tail and appendage emotion cue records cover the anthro lineage emotion grammar: joy wag, small anticipatory sway, sadness droop, stiff alert bristle, feline tail-up purr, lagomorph nose twitch, avian feather fluff, marine fluke wag, and the dragon or lizard heavy tail thump. Twenty creature-anatomy lineage records carry the matching per-lineage anatomy."
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "state-process.schema.json",
+  "title": "State Background Process",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "process_id",
+    "timeline_id",
+    "entity_type",
+    "entity_id",
+    "path",
+    "process_type",
+    "started_order",
+    "milestones",
+    "interruption_policy",
+    "canon_status",
+    "evidence"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "state-process"
+    },
+    "process_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "timeline_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "entity_type": {
+      "enum": [
+        "character",
+        "relationship",
+        "environment",
+        "prop",
+        "world"
+      ]
+    },
+    "entity_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^/"
+    },
+    "process_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "started_order": {
+      "type": "integer"
+    },
+    "effective_until_order": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "milestones": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "offset",
+          "state"
+        ],
+        "properties": {
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "state": {},
+          "label": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "interruption_policy": {
+      "enum": [
+        "supersedable-by-event",
+        "fixed",
+        "restartable"
+      ]
+    },
+    "canon_status": {
+      "enum": [
+        "proposed",
+        "approved",
+        "superseded"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

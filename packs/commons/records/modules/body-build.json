@@ -1,0 +1,168 @@
+{
+  "kind": "module",
+  "category": "body-build",
+  "records": [
+    {
+      "id": "body-build-muscular",
+      "label": "Muscular build",
+      "category": "body-build",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Create a strong, trained physique whose muscle groups support posture, motion, and weight as connected anatomical volumes.",
+      "prompt": "Give the subject a muscular trained build with a broad load-bearing torso, developed shoulders and limbs, clear joint transitions, and muscle volumes that follow the pose and remain proportional to the head and frame.",
+      "invariants": [
+        "major muscle groups follow the skeleton and action line",
+        "the torso, neck, shoulders, and limbs share one believable scale",
+        "strength remains readable in both relaxed and active poses"
+      ],
+      "misreadings_to_avoid": [
+        "inflated balloon-like anatomy",
+        "random muscle grooves disconnected from movement",
+        "tiny head caused by uncontrolled torso enlargement"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "body build",
+      "tags": [
+        "trained physique",
+        "powerful frame"
+      ],
+      "domains": [
+        "human",
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "search_terms": [
+        {
+          "phrase": "muscular",
+          "facet": "body_build",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "muscled",
+          "facet": "body_build",
+          "weight": 1.05,
+          "source": "author"
+        },
+        {
+          "phrase": "powerful build",
+          "facet": "body_build",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "body-build-average",
+      "label": "Average build",
+      "category": "body-build",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Keep the subject's frame ordinary in proportion, so identity reads through the other declared choices while the physique stays a neutral ground.",
+      "prompt": "Give the subject an average, untrained build: natural proportions, soft muscle definition, an even distribution of mass across shoulders, torso and limbs, and a silhouette that stays legible at any scale while holding to the middle of the range.",
+      "invariants": [
+        "proportions stay within ordinary ranges for the chosen domain",
+        "mass stays evenly distributed across the shoulders, torso and limbs",
+        "the silhouette reads neutral under both relaxed and active poses"
+      ],
+      "misreadings_to_avoid": [
+        "invisible idealized anatomy",
+        "drift toward trained shoulders or torso",
+        "gaunt or emaciated framing from a neutral prompt"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "body build",
+      "tags": [
+        "ordinary build",
+        "unremarkable frame"
+      ],
+      "domains": [
+        "human",
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "search_terms": [
+        {
+          "phrase": "average build",
+          "facet": "body_build",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "average",
+          "facet": "body_build",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "ordinary build",
+          "facet": "body_build",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "body-build-lithe",
+      "label": "Lithe build",
+      "category": "body-build",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Create a slender, flexible physique whose length and narrowness support quick, low-mass motion, with reach and articulation carrying the read.",
+      "prompt": "Give the subject a lithe build: narrow shoulders and torso, long proportional limbs, a light surface with tendon and joint definition close to the skin, and a silhouette that reads quick and flexible in every pose.",
+      "invariants": [
+        "limb length and torso narrowness stay consistent across poses",
+        "the frame reads light and healthy, with muscle present at low volume",
+        "movement reads flexible and resilient at full extension"
+      ],
+      "misreadings_to_avoid": [
+        "muscular drift from generic anatomy defaults",
+        "emaciation or bone-show exaggeration",
+        "childlike proportions when age is not intended"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "body build",
+      "tags": [
+        "slender frame",
+        "flexible build"
+      ],
+      "domains": [
+        "human",
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid"
+      ],
+      "search_terms": [
+        {
+          "phrase": "lithe",
+          "facet": "body_build",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "slender",
+          "facet": "body_build",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "slim build",
+          "facet": "body_build",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

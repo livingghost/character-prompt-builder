@@ -1,0 +1,19 @@
+{
+  "image_promise": "A polished close office portrait in which a familiar wolf maintains professional composure while subtle physical cues reveal fear, and every visible identity and state change matches the canonical timeline.",
+  "chosen_direction": "polished state-aware office tension portrait",
+  "medium_family": "cinematic 2D soft-cel anime illustration",
+  "purposeful_additions": [
+    "approved heat-response cues"
+  ],
+  "aesthetic_core": null,
+  "style_family": "style-family-clear-portrait",
+  "domain_realizations": {
+    "anthropomorphic-animal": "domain-realization-anthropomorphic-animal-baseline"
+  },
+  "render_profile": "profile-clear-2d-illustration",
+  "selected_preset_ids": [
+    "style-family-clear-portrait",
+    "domain-realization-anthropomorphic-animal-baseline",
+    "profile-clear-2d-illustration"
+  ]
+}

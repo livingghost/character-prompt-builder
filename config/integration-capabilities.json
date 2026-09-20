@@ -1,0 +1,220 @@
+{
+  "artifact_type": "integration-capability-manifest",
+  "interfaces": {
+    "produces": [
+      {
+        "profile": "reusable-authoring-material",
+        "artifact_types": [
+          "scene-persona-material",
+          "source-extraction-proposal",
+          "source-material-index"
+        ],
+        "required_features": [
+          "exact-source-excerpts",
+          "hash-bound-payload",
+          "no-automatic-canon",
+          "whole-source-commitments"
+        ],
+        "supported_features": [
+          "exact-source-excerpts",
+          "explicit-snapshot-acceptance",
+          "hash-bound-payload",
+          "no-automatic-canon",
+          "whole-source-commitments"
+        ],
+        "unknown_optional_feature_policy": "preserve",
+        "unknown_required_feature_policy": "reject",
+        "profile_sha256": "216e08e09371ac636323b1e8475d08a74e7d1075fe895587bb04feb7a0288261"
+      },
+      {
+        "profile": "shot-request",
+        "artifact_types": [
+          "shot-request"
+        ],
+        "required_features": [
+          "camera-hash-binding",
+          "hash-bound-payload",
+          "identity-hash-binding",
+          "shot-context-binding",
+          "state-hash-binding",
+          "visible-feature-obligations"
+        ],
+        "supported_features": [
+          "camera-hash-binding",
+          "hash-bound-payload",
+          "identity-hash-binding",
+          "reference-candidates",
+          "shot-context-binding",
+          "state-hash-binding",
+          "viewpoint-profile",
+          "visible-feature-obligations"
+        ],
+        "unknown_optional_feature_policy": "preserve",
+        "unknown_required_feature_policy": "reject",
+        "profile_sha256": "e3664c61d36236c1bd63cbdb04dfbd3f090479e54ad815158d87ba3a611c8b2d"
+      },
+      {
+        "profile": "visual-contract-package",
+        "artifact_types": [
+          "asset-render-specification",
+          "candidate-manifest",
+          "character-identity-contract",
+          "individual-morphology-contract",
+          "prepared-reference-set",
+          "reference-bundle-plan",
+          "reference-use-plan",
+          "species-morphology-profile",
+          "surface-lighting-plan",
+          "visual-authority",
+          "visual-evidence-bundle"
+        ],
+        "required_features": [
+          "canonical-prepared-reference-set",
+          "hash-bound-payload",
+          "producer-provenance",
+          "record-scoped-reference-authority",
+          "state-reconciled-reference-activation"
+        ],
+        "supported_features": [
+          "accessory-geometry",
+          "automatic-visual-reference-activation",
+          "candidate-adoption",
+          "canonical-prepared-reference-set",
+          "compact-perceptual-three-layer-visual-evidence",
+          "derived-visual-evidence",
+          "deterministic-authority-preamble",
+          "exact-source-prompt-artifact-delivery",
+          "frame-character",
+          "hash-bound-payload",
+          "model-facing-unresolved-lighting-block",
+          "package-relative-reference-carriers",
+          "part-measurements",
+          "producer-provenance",
+          "prompt-artifact-svg-delivery",
+          "record-scoped-reference-authority",
+          "reference-bundle-planning",
+          "resolved-morphology",
+          "role-scoped-reference-transport",
+          "semantic-region-map",
+          "state-lineage",
+          "state-reconciled-reference-activation",
+          "surface-lighting-plan",
+          "transactional-reference-materialization",
+          "verified-reference-host-forwarding",
+          "visual-authority"
+        ],
+        "unknown_optional_feature_policy": "preserve",
+        "unknown_required_feature_policy": "reject",
+        "profile_sha256": "27b9151db29215aa10a51c6f892357171d6a4f77e438acf2aa1f57c76543ee82"
+      }
+    ],
+    "consumes": [
+      {
+        "profile": "reusable-authoring-material",
+        "artifact_types": [
+          "scene-persona-material",
+          "source-extraction-proposal",
+          "source-material-index"
+        ],
+        "required_features": [
+          "exact-source-excerpts",
+          "hash-bound-payload",
+          "no-automatic-canon",
+          "whole-source-commitments"
+        ],
+        "supported_features": [
+          "exact-source-excerpts",
+          "explicit-snapshot-acceptance",
+          "hash-bound-payload",
+          "no-automatic-canon",
+          "whole-source-commitments"
+        ],
+        "unknown_optional_feature_policy": "preserve",
+        "unknown_required_feature_policy": "reject",
+        "profile_sha256": "216e08e09371ac636323b1e8475d08a74e7d1075fe895587bb04feb7a0288261"
+      },
+      {
+        "profile": "shot-request",
+        "artifact_types": [
+          "shot-request"
+        ],
+        "required_features": [
+          "camera-hash-binding",
+          "hash-bound-payload",
+          "identity-hash-binding",
+          "shot-context-binding",
+          "state-hash-binding",
+          "visible-feature-obligations"
+        ],
+        "supported_features": [
+          "camera-hash-binding",
+          "hash-bound-payload",
+          "identity-hash-binding",
+          "reference-candidates",
+          "shot-context-binding",
+          "state-hash-binding",
+          "viewpoint-profile",
+          "visible-feature-obligations"
+        ],
+        "unknown_optional_feature_policy": "preserve",
+        "unknown_required_feature_policy": "reject",
+        "profile_sha256": "e3664c61d36236c1bd63cbdb04dfbd3f090479e54ad815158d87ba3a611c8b2d"
+      },
+      {
+        "profile": "visual-contract-package",
+        "artifact_types": [
+          "asset-render-specification",
+          "candidate-manifest",
+          "character-identity-contract",
+          "individual-morphology-contract",
+          "prepared-reference-set",
+          "reference-bundle-plan",
+          "reference-use-plan",
+          "species-morphology-profile",
+          "surface-lighting-plan",
+          "visual-authority",
+          "visual-evidence-bundle"
+        ],
+        "required_features": [
+          "canonical-prepared-reference-set",
+          "hash-bound-payload",
+          "producer-provenance",
+          "record-scoped-reference-authority",
+          "state-reconciled-reference-activation"
+        ],
+        "supported_features": [
+          "accessory-geometry",
+          "automatic-visual-reference-activation",
+          "candidate-adoption",
+          "canonical-prepared-reference-set",
+          "compact-perceptual-three-layer-visual-evidence",
+          "derived-visual-evidence",
+          "deterministic-authority-preamble",
+          "exact-source-prompt-artifact-delivery",
+          "frame-character",
+          "hash-bound-payload",
+          "model-facing-unresolved-lighting-block",
+          "package-relative-reference-carriers",
+          "part-measurements",
+          "producer-provenance",
+          "prompt-artifact-svg-delivery",
+          "record-scoped-reference-authority",
+          "reference-bundle-planning",
+          "resolved-morphology",
+          "role-scoped-reference-transport",
+          "semantic-region-map",
+          "state-lineage",
+          "state-reconciled-reference-activation",
+          "surface-lighting-plan",
+          "transactional-reference-materialization",
+          "verified-reference-host-forwarding",
+          "visual-authority"
+        ],
+        "unknown_optional_feature_policy": "preserve",
+        "unknown_required_feature_policy": "reject",
+        "profile_sha256": "27b9151db29215aa10a51c6f892357171d6a4f77e438acf2aa1f57c76543ee82"
+      }
+    ]
+  },
+  "manifest_sha256": "31e5e11f7010b38172b785fba1bc1faa7d13eabced7a5c1f9232902ee845c330"
+}

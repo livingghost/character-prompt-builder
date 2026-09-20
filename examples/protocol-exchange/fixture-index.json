@@ -1,0 +1,223 @@
+{
+  "scope": "Test data only. No generated media or real-world approval is claimed.",
+  "artifacts": [
+    {
+      "artifact_type": "adoption-receipt",
+      "path": "fixtures/adoption-receipt.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "appearance-adaptation-proposal",
+      "path": "fixtures/appearance-adaptation-proposal.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "appearance-variant-contract",
+      "path": "fixtures/appearance-variant-contract.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "asset-render-specification",
+      "path": "fixtures/asset-render-specification.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "candidate-manifest",
+      "path": "fixtures/candidate-manifest.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "character-identity-contract",
+      "path": "fixtures/character-identity-contract.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "character-state-schema",
+      "path": "fixtures/character-state-schema.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "drift-observation",
+      "path": "fixtures/drift-observation.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "environment-snapshot",
+      "path": "fixtures/environment-snapshot.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "era-contract",
+      "path": "fixtures/era-contract.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "external-contract-reference",
+      "path": "fixtures/external-contract-reference.json"
+    },
+    {
+      "artifact_type": "form-contract",
+      "path": "fixtures/form-contract.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "individual-morphology-contract",
+      "path": "fixtures/individual-morphology-contract.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "inventory-state",
+      "path": "fixtures/inventory-state.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "observed-render-state",
+      "path": "fixtures/observed-render-state.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "prepared-reference-set",
+      "path": "fixtures/prepared-reference-set.json"
+    },
+    {
+      "artifact_type": "reference-bundle-plan",
+      "path": "fixtures/reference-bundle-plan.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "reference-selection",
+      "path": "fixtures/reference-selection.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "reference-use-plan",
+      "path": "fixtures/reference-use-plan.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "relationship-projection",
+      "path": "fixtures/relationship-projection.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "relationship-state",
+      "path": "fixtures/relationship-state.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "scene-context-snapshot",
+      "path": "fixtures/scene-context-snapshot.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "scene-persona-material",
+      "path": "fixtures/scene-persona-material.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "scene-viewpoint-plan",
+      "path": "fixtures/scene-viewpoint-plan.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "shot-camera-spec",
+      "path": "fixtures/shot-camera-spec.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "shot-continuity-ledger",
+      "path": "fixtures/shot-continuity-ledger.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "shot-request",
+      "path": "fixtures/shot-request.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "shot-visual-projection",
+      "path": "fixtures/shot-visual-projection.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "source-extraction-proposal",
+      "path": "fixtures/source-extraction-proposal.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "source-material-index",
+      "path": "fixtures/source-material-index.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "species-morphology-profile",
+      "path": "fixtures/species-morphology-profile.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "state-aware-reference-binding",
+      "path": "fixtures/state-aware-reference-binding.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "state-event",
+      "path": "fixtures/state-event.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "state-lineage",
+      "path": "fixtures/state-lineage.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "state-process",
+      "path": "fixtures/state-process.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "state-snapshot",
+      "path": "fixtures/state-snapshot.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "surface-lighting-plan",
+      "path": "fixtures/surface-lighting-plan.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "viewpoint-profile",
+      "path": "fixtures/viewpoint-profile.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "viewpoint-transition",
+      "path": "fixtures/viewpoint-transition.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "visual-authority",
+      "path": "fixtures/visual-authority.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "visual-evidence-bundle",
+      "path": "fixtures/visual-evidence-bundle.json",
+      "basis": "schema-only-synthetic"
+    },
+    {
+      "artifact_type": "visual-state-projection",
+      "path": "fixtures/visual-state-projection.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "wardrobe-state",
+      "path": "fixtures/wardrobe-state.json",
+      "basis": "worked-example"
+    },
+    {
+      "artifact_type": "world-state-snapshot",
+      "path": "fixtures/world-state-snapshot.json",
+      "basis": "worked-example"
+    }
+  ]
+}

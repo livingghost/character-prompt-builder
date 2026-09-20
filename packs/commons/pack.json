@@ -1,0 +1,47 @@
+{
+  "pack_id": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+  "name": "Character Prompt Builder Commons Pack",
+  "description": "The bundled shared pack: baseline catalog records plus general-purpose production knowledge including the prompt vocabulary dictionary, prompt writing guide, catalog policy, body language coverage, style family taxonomy, and the service profiles that record how generation services are called. Contains no personal data.",
+  "release": "2026.09.15.2",
+  "content": {
+    "record_globs": [
+      "records/**/*.json"
+    ],
+    "resource_globs": [
+      "resources/**/*.json",
+      "resources/**/*.md",
+      "resources/**/*.txt"
+    ],
+    "resource_bindings": {
+      "archetype-policy": "resources/archetype-policy.json",
+      "discovery-lanes": "resources/discovery-lanes.json",
+      "negative-policy": "resources/negative-policy.json",
+      "project-defaults": "resources/project-defaults.json",
+      "prompt-vocabulary": "resources/prompt-vocabulary/dictionary.json",
+      "prompt-writing-guide": "resources/prompt-writing-guide/guide.json",
+      "prompt-dialects": "resources/prompt-dialects/dialects.json",
+      "catalog-policy": "resources/catalog-policy.json",
+      "body-language-coverage": "resources/body-language-coverage.json",
+      "style-family-taxonomy": "resources/style-family-taxonomy.json",
+      "service-profiles": "resources/service-profiles/services.json",
+      "artist-index": "resources/artist-index/anima2b-artist-index.txt"
+    }
+  },
+  "capabilities": [
+    "atomic-modules",
+    "domain-realizations",
+    "model-adapters",
+    "render-profiles",
+    "scene-records",
+    "sparse-brief-discovery",
+    "prompt-vocabulary",
+    "prompt-writing-guide",
+    "prompt-dialects",
+    "catalog-policies",
+    "service-profiles"
+  ],
+  "dependencies": [],
+  "optional_dependencies": [],
+  "replaces": [],
+  "license": "GPL-3.0-only"
+}

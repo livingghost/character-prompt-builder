@@ -1,0 +1,34 @@
+{
+  "artifact_type": "environment-snapshot",
+  "environment_snapshot_id": "ENV-WORKSHOP-10",
+  "location_id": "LOC-WORKSHOP",
+  "timeline_id": "main",
+  "story_order": 10,
+  "season": "late summer",
+  "time_of_day": "late afternoon",
+  "weather": "light rain outside",
+  "temperature_c": 27,
+  "humidity_percent": 72,
+  "wind": "still indoors",
+  "precipitation": "rain on exterior windows",
+  "water_exposure": "none indoors",
+  "light_context": [
+    "warm work lamps frame-right",
+    "cool rain window frame-left"
+  ],
+  "culture_context_refs": [
+    "urban guild workshop"
+  ],
+  "dress_norms": [
+    "practical layered work clothing"
+  ],
+  "surface_conditions": [
+    "dry wooden floor",
+    "metal workbench"
+  ],
+  "approved_adaptation_rules": [
+    "sleeves may be rolled for heat if already part of approved wardrobe"
+  ],
+  "uncertainties": [],
+  "environment_snapshot_sha256": "ff486ecbfbdd35743452cbe44f26a97dec745e0a5381d7e2254006819c50e1df"
+}

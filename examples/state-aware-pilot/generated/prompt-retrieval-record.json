@@ -1,0 +1,21 @@
+{
+  "artifact_type": "prompt-retrieval-record",
+  "pack_state": "illustrative-offline-pilot",
+  "elements": [
+    {
+      "element": "illustrative pilot composition",
+      "queries": [
+        "state-aware pilot composition"
+      ],
+      "inspected_records": [],
+      "outcome": "composed",
+      "composed_wording": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+      "reason": "Illustrative deterministic fixture, not evidence of a production retrieval session."
+    }
+  ],
+  "settled": true,
+  "context": {
+    "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
+    "plot_content_sha256": "58dd32ffbba312183167b59baa25e737f7ea21de2e692b37db7b92f8790541fe"
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "drift-observation.schema.json",
+  "title": "State Drift Observation",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "observation_id",
+    "run_id",
+    "asset_or_clip_id",
+    "expected_state_snapshot_sha256",
+    "expected_visual_projection_sha256",
+    "symptom",
+    "evidence",
+    "scope",
+    "recommended_owner",
+    "drift_observation_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "drift-observation"
+    },
+    "observation_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "asset_or_clip_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "expected_state_snapshot_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expected_visual_projection_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "symptom": {
+      "type": "string",
+      "minLength": 1
+    },
+    "time_range": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object"
+      }
+    },
+    "scope": {
+      "type": "object"
+    },
+    "recommended_owner": {
+      "enum": [
+        "visual-contract",
+        "correction",
+        "projection",
+        "scene-choreography",
+        "target-scoped-heuristic",
+        "human-canon"
+      ]
+    },
+    "proposed_mitigation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "canon_change_proposed": {
+      "type": "boolean"
+    },
+    "drift_observation_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

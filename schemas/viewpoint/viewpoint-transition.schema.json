@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "viewpoint-transition.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "transition_id",
+    "scene_id",
+    "from_shot",
+    "to_shot",
+    "from_profile",
+    "to_profile",
+    "trigger",
+    "bridge_type",
+    "changes_camera_ownership",
+    "changes_knowledge_scope",
+    "changes_point_of_audition",
+    "knowledge_change",
+    "state_change_event_ids",
+    "continuity_requirements",
+    "transition_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "viewpoint-transition"
+    },
+    "transition_id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9-]+$"
+    },
+    "scene_id": {
+      "type": "string"
+    },
+    "from_shot": {
+      "type": "string"
+    },
+    "to_shot": {
+      "type": "string"
+    },
+    "from_profile": {
+      "type": "string"
+    },
+    "to_profile": {
+      "type": "string"
+    },
+    "trigger": {
+      "type": "string",
+      "minLength": 8
+    },
+    "bridge_type": {
+      "enum": [
+        "motivated-hard-cut",
+        "eyeline-cut",
+        "match-on-action",
+        "object-match",
+        "sound-bridge",
+        "occlusion-bridge",
+        "blink-bridge",
+        "light-bridge",
+        "registered-continuation",
+        "re-establishing-cut"
+      ]
+    },
+    "changes_camera_ownership": {
+      "type": "boolean"
+    },
+    "changes_knowledge_scope": {
+      "type": "boolean"
+    },
+    "changes_point_of_audition": {
+      "type": "boolean"
+    },
+    "knowledge_change": {
+      "type": "string"
+    },
+    "state_change_event_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "continuity_requirements": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "string",
+        "minLength": 5
+      }
+    },
+    "transition_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

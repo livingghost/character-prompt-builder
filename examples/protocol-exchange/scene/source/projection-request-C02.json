@@ -1,0 +1,70 @@
+{
+  "projection_id": "VSP-SC-WORKSHOP-C02",
+  "character_id": "C02",
+  "visible_identity_feature_ids": [
+    "C02-face"
+  ],
+  "visible_state_paths": [],
+  "performance_cues": [
+    {
+      "wording": "C02 raises P01 carefully with the right hand and watches C01 reaction",
+      "priority": "supporting"
+    },
+    {
+      "wording": "ears make a small concerned turn before the object is offered",
+      "priority": "supporting"
+    }
+  ],
+  "wardrobe_paths": [
+    "/wardrobe_state/outer_layer",
+    "/wardrobe_state/inner_layer",
+    "/equipment_state/face"
+  ],
+  "prop_paths": [
+    "/inventory_state/items"
+  ],
+  "relationship_blocking_cues": [
+    {
+      "wording": "C02 remains across the workbench until the handoff",
+      "priority": "supporting"
+    },
+    {
+      "wording": "gentle concern is visible without crossing the contact boundary early",
+      "priority": "supporting"
+    }
+  ],
+  "environmental_body_responses": [
+    {
+      "wording": "warm indoor air permits rolled sleeves already present in the approved wardrobe",
+      "priority": "supporting"
+    }
+  ],
+  "occluded_state_paths": [],
+  "reference_asset_requirements": [
+    {
+      "wording": "front or right three-quarter face reference",
+      "priority": "supporting"
+    },
+    {
+      "wording": "spectacles reference",
+      "priority": "supporting"
+    },
+    {
+      "wording": "right hand detail for pendant handling",
+      "priority": "supporting"
+    }
+  ],
+  "text_anchor_ids": [
+    "C02-face"
+  ],
+  "review_dimensions": [
+    "face same-ness",
+    "spectacle continuity",
+    "right-hand prop ownership",
+    "gentle performance"
+  ],
+  "visible_morphology_feature_ids": [
+    "carrier"
+  ],
+  "occluded_morphology_feature_ids": []
+}

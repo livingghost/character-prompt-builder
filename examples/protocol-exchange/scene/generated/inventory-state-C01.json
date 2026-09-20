@@ -1,0 +1,7 @@
+{
+  "artifact_type": "inventory-state",
+  "inventory_state_id": "INV-C01-10",
+  "owner_id": "C01",
+  "items": [],
+  "inventory_state_sha256": "92a103c67291e3e52590d1f3b1b2c65f79150f2c16d97c26d20932741115f073"
+}

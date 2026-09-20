@@ -1,0 +1,180 @@
+{
+  "artifact_type": "shot-continuity-ledger",
+  "scene_id": "SC-WORKSHOP-01",
+  "scene_plan_sha256": "ef21f314b406882c674c90a511524f2fbc1c533017f897c88939432c062f08fb",
+  "shot_entries": [
+    {
+      "shot_id": "SC-WORKSHOP-01-SH01",
+      "camera_spec_sha256": "292ecd54f91d869c95688adfc1370277fc87b9aabf8315429c247721ccb777dd",
+      "start_anchor": "C01 at frame-left doorway, C02 behind the workbench with P01 low in the right hand",
+      "end_anchor": "C01 stops at the near workbench edge as C02 begins to raise P01",
+      "screen_direction": "C01 faces and moves screen-right toward C02",
+      "axis_side": "doorway side of the C01 to C02 axis",
+      "visible_subjects": [
+        "C01",
+        "C02"
+      ],
+      "prop_ownership": {
+        "P01": "C02 right hand"
+      },
+      "state_snapshot_sha256_by_character": {
+        "C01": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398",
+        "C02": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+      }
+    },
+    {
+      "shot_id": "SC-WORKSHOP-01-SH02",
+      "camera_spec_sha256": "d10230cb7fd44ae4ad243104ffd44657148fa012f93cc395b218050c00dac2d8",
+      "start_anchor": "C01 begins two steps from the workbench",
+      "end_anchor": "C01 stops with the left side slightly protected and gaze on P01",
+      "screen_direction": "C01 continues screen-right",
+      "axis_side": "doorway side of the interaction axis",
+      "visible_subjects": [
+        "C01",
+        "C02"
+      ],
+      "prop_ownership": {
+        "P01": "C02 right hand"
+      },
+      "state_snapshot_sha256_by_character": {
+        "C01": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398",
+        "C02": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+      }
+    },
+    {
+      "shot_id": "SC-WORKSHOP-01-SH03",
+      "camera_spec_sha256": "e9bce12079526e5e859dfc70b641dde18e75b9e3ae8d5d8ea8d0e78a09f7899f",
+      "start_anchor": "P01 below C02 chest with C01 shoulder foreground",
+      "end_anchor": "P01 held at C01 eye level and C01 right hand begins to rise",
+      "screen_direction": "C01 foreground faces screen-right and C02 faces screen-left",
+      "axis_side": "same doorway side of the axis",
+      "visible_subjects": [
+        "C01",
+        "C02"
+      ],
+      "prop_ownership": {
+        "P01": "C02 right hand"
+      },
+      "state_snapshot_sha256_by_character": {
+        "C01": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398",
+        "C02": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+      }
+    },
+    {
+      "shot_id": "SC-WORKSHOP-01-SH04",
+      "camera_spec_sha256": "381126dbd0a9d801afac68208f97dd6e43ae97a33a85227eac363ad62f8aba45",
+      "start_anchor": "P01 in C02 right fingers at eye level",
+      "end_anchor": "P01 in C01 right palm while C02 hand releases",
+      "screen_direction": "C02 remains centered beyond the handoff",
+      "axis_side": "camera owner remains on C01 side of the axis",
+      "visible_subjects": [
+        "C01",
+        "C02"
+      ],
+      "prop_ownership": {
+        "P01": "C01 right hand after visible transfer"
+      },
+      "state_snapshot_sha256_by_character": {
+        "C01": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398",
+        "C02": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+      }
+    },
+    {
+      "shot_id": "SC-WORKSHOP-01-SH05",
+      "camera_spec_sha256": "c5788a955772faa75941f2cf5891f9455dafe0be4d3df1abeb96e1fee2fc4e67",
+      "start_anchor": "C01 looks down at P01 in the right hand",
+      "end_anchor": "C01 looks up at C02 with guarded concern",
+      "screen_direction": "C01 faces screen-right toward C02",
+      "axis_side": "same doorway side of the axis",
+      "visible_subjects": [
+        "C01",
+        "C02"
+      ],
+      "prop_ownership": {
+        "P01": "C01 right hand"
+      },
+      "state_snapshot_sha256_by_character": {
+        "C01": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398",
+        "C02": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+      }
+    },
+    {
+      "shot_id": "SC-WORKSHOP-01-SH06",
+      "camera_spec_sha256": "1afcadd52c88ffe259934d4e3dbe04fb4f13fa32c46e51466df363e316b110aa",
+      "start_anchor": "C01 reaction close-up with P01 in hand",
+      "end_anchor": "both characters settle across the workbench with P01 visibly in C01 right hand",
+      "screen_direction": "C01 remains screen-left facing right; C02 remains screen-right facing left",
+      "axis_side": "doorway side of the axis",
+      "visible_subjects": [
+        "C01",
+        "C02"
+      ],
+      "prop_ownership": {
+        "P01": "C01 right hand"
+      },
+      "state_snapshot_sha256_by_character": {
+        "C01": "fa8bb2abf9db91cca8f807277795c82b0d3c0c609f2af30b53b04736009ef398",
+        "C02": "4e367aba0f6784aba6d7d22b298abd58cf55841047208655759e8df7409d9e58"
+      }
+    }
+  ],
+  "transition_entries": [
+    {
+      "transition_id": "VT-WORKSHOP-01",
+      "transition_sha256": "86a376b61e27e3c525a8b2d4cd7570a304632b107e893904081ac73baa0bbf34",
+      "from_shot": "SC-WORKSHOP-01-SH01",
+      "to_shot": "SC-WORKSHOP-01-SH02",
+      "continuity_requirements": [
+        "C01 continues screen-right",
+        "P01 remains in C02 right hand",
+        "C01 injury state remains concealed"
+      ]
+    },
+    {
+      "transition_id": "VT-WORKSHOP-02",
+      "transition_sha256": "88414c7d03131c6815e4cadd32c4ddebc1d1217747b3d0d38236ef454930c2ce",
+      "from_shot": "SC-WORKSHOP-01-SH02",
+      "to_shot": "SC-WORKSHOP-01-SH03",
+      "continuity_requirements": [
+        "P01 remains in C02 right hand",
+        "axis side remains unchanged",
+        "C01 shoulder foreground aligns with the prior position"
+      ]
+    },
+    {
+      "transition_id": "VT-WORKSHOP-03",
+      "transition_sha256": "0ac486cb6e6c2d4d2fed0b5e5dcc05e3e0fa5f01eb510669683ccb8fb192ce02",
+      "from_shot": "SC-WORKSHOP-01-SH03",
+      "to_shot": "SC-WORKSHOP-01-SH04",
+      "continuity_requirements": [
+        "P01 transfer state changes from C02 to C01 during the shot",
+        "C02 remains beyond P01",
+        "warm work light stays frame-right"
+      ]
+    },
+    {
+      "transition_id": "VT-WORKSHOP-04",
+      "transition_sha256": "4d4ad068007045f47af4cbe4af75312ca1bf058ca810575bfac7ef91be44aa10",
+      "from_shot": "SC-WORKSHOP-01-SH04",
+      "to_shot": "SC-WORKSHOP-01-SH05",
+      "continuity_requirements": [
+        "P01 remains in C01 right hand",
+        "C01 posture continues to protect the left side",
+        "C02 remains across the workbench"
+      ]
+    },
+    {
+      "transition_id": "VT-WORKSHOP-05",
+      "transition_sha256": "073b09fb68a8cfb5506510e5f87a96f058b7d514e5a205c7aab822c79b738885",
+      "from_shot": "SC-WORKSHOP-01-SH05",
+      "to_shot": "SC-WORKSHOP-01-SH06",
+      "continuity_requirements": [
+        "P01 remains in C01 right hand",
+        "screen sides return to the established master",
+        "injury state remains concealed"
+      ]
+    }
+  ],
+  "unresolved_continuity": [],
+  "ledger_sha256": "7a9116318bc24ba2ad6b19cd1b3a8484bd554e475d242d296f434c59bbbf5bd5"
+}

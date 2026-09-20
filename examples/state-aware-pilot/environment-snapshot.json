@@ -1,0 +1,32 @@
+{
+  "artifact_type": "environment-snapshot",
+  "environment_snapshot_id": "ENV-LOC01-T25",
+  "location_id": "LOC01",
+  "timeline_id": "main",
+  "story_order": 25,
+  "season": "summer",
+  "time_of_day": "afternoon",
+  "weather": "clear",
+  "temperature_c": 31,
+  "humidity_percent": 84,
+  "wind": "light",
+  "precipitation": "none",
+  "water_exposure": "none",
+  "light_context": [
+    "warm window light"
+  ],
+  "culture_context_refs": [
+    "WORLD-LOCALE-01"
+  ],
+  "dress_norms": [
+    "field office casual"
+  ],
+  "surface_conditions": [
+    "warm wood floor"
+  ],
+  "approved_adaptation_rules": [
+    "ENV-hot-humid-wolf"
+  ],
+  "uncertainties": [],
+  "environment_snapshot_sha256": "23b58ae644bb5364b6c5cfc92ca617acff31f4938b041cb7eb7f1e81c65529bc"
+}

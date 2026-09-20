@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "integration-capability-manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "interfaces",
+    "manifest_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "integration-capability-manifest"
+    },
+    "interfaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "produces",
+        "consumes"
+      ],
+      "properties": {
+        "produces": {
+          "type": "array",
+          "items": {
+            "$ref": "integration-interface.schema.json"
+          }
+        },
+        "consumes": {
+          "type": "array",
+          "items": {
+            "$ref": "integration-interface.schema.json"
+          }
+        }
+      }
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

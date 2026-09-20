@@ -1,0 +1,31 @@
+{
+  "shared_image_promise": "",
+  "shared_identity_and_medium": "",
+  "directions": {
+    "intimate": {
+      "visual_thesis": "bring the viewer emotionally close",
+      "composition": "tight character-led framing",
+      "performance": "small readable gesture or expression",
+      "lighting": "controlled and selective"
+    },
+    "formal": {
+      "visual_thesis": "express character through restraint and hierarchy",
+      "composition": "balanced, deliberate staging",
+      "performance": "contained posture",
+      "lighting": "structured and architectural"
+    },
+    "candid": {
+      "visual_thesis": "capture a revealing moment in progress",
+      "composition": "asymmetrical environmental framing",
+      "performance": "unfinished action",
+      "lighting": "motivated by the setting"
+    },
+    "graphic": {
+      "visual_thesis": "communicate through silhouette and shape economy",
+      "composition": "bold flat hierarchy",
+      "performance": "clear readable pose",
+      "lighting": "minimal or shape-based"
+    }
+  },
+  "selection_rule": "Choose one direction for a result. Do not average directions by default. Each variant must remain a complete visual idea."
+}

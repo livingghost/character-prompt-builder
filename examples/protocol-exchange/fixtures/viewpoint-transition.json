@@ -1,0 +1,22 @@
+{
+  "artifact_type": "viewpoint-transition",
+  "transition_id": "VT-WORKSHOP-01",
+  "scene_id": "SC-WORKSHOP-01",
+  "from_shot": "SC-WORKSHOP-01-SH01",
+  "to_shot": "SC-WORKSHOP-01-SH02",
+  "from_profile": "external-character-aligned-third-person",
+  "to_profile": "external-character-aligned-third-person",
+  "trigger": "C01 begins the final two steps toward the workbench",
+  "bridge_type": "match-on-action",
+  "changes_camera_ownership": false,
+  "changes_knowledge_scope": false,
+  "changes_point_of_audition": false,
+  "knowledge_change": "none",
+  "state_change_event_ids": [],
+  "continuity_requirements": [
+    "C01 continues screen-right",
+    "P01 remains in C02 right hand",
+    "C01 injury state remains concealed"
+  ],
+  "transition_sha256": "86a376b61e27e3c525a8b2d4cd7570a304632b107e893904081ac73baa0bbf34"
+}

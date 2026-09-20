@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "part-measurement.schema.json",
+  "title": "Load-bearing Part Measurement",
+  "type": "object",
+  "required": [
+    "measurement_id",
+    "target_ref",
+    "target_class",
+    "dimension",
+    "relation",
+    "basis",
+    "tolerance",
+    "source_confidence",
+    "load_bearing_reason",
+    "continuity_rule"
+  ],
+  "properties": {
+    "measurement_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "target_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_class": {
+      "enum": [
+        "anatomy",
+        "accessory",
+        "garment",
+        "prop",
+        "mechanical",
+        "other"
+      ]
+    },
+    "dimension": {
+      "enum": [
+        "count",
+        "length",
+        "width",
+        "thickness",
+        "spacing",
+        "diameter",
+        "angle",
+        "offset",
+        "coverage",
+        "color",
+        "surface",
+        "other"
+      ]
+    },
+    "relation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basis": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tolerance": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_confidence": {
+      "enum": [
+        "explicit-user",
+        "reference-clear",
+        "reference-approximate",
+        "preset-selected",
+        "user-confirmed"
+      ]
+    },
+    "load_bearing_reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "continuity_rule": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}

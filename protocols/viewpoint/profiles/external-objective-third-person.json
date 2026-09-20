@@ -1,0 +1,38 @@
+{
+  "artifact_type": "viewpoint-profile",
+  "profile_id": "external-objective-third-person",
+  "label": "External objective third person",
+  "profile_family": "external",
+  "camera_ownership": "external_camera",
+  "default_knowledge_scope": "objective",
+  "default_point_of_audition": "objective_mix",
+  "camera_rules": [
+    "Keep the camera external and neutral to all present characters.",
+    "Prioritize shared action geography and readable multi-character blocking.",
+    "Use movement only when it clarifies action, geography, or a transition."
+  ],
+  "continuity_rules": [
+    "Preserve axis, screen direction, prop ownership, and matching action.",
+    "Do not add internal knowledge or subjective sensory effects.",
+    "Keep reactions visible through external performance evidence."
+  ],
+  "review_dimensions": [
+    "action geography",
+    "multi-character blocking",
+    "matching action",
+    "objective knowledge"
+  ],
+  "permitted_movement_types": [
+    "locked",
+    "pan",
+    "tilt",
+    "track",
+    "dolly",
+    "crane",
+    "arc",
+    "orbit",
+    "handheld-follow"
+  ],
+  "knowledge_policy": "Apply the declared focalization and do not reveal information outside its scope unless the shot plan records a deliberate change.",
+  "profile_sha256": "826a289b3d8c51a981562131c564ff1e32787558bb2f512385491892243625d8"
+}

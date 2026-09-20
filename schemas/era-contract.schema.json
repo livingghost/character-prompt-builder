@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "era-contract.schema.json",
+  "title": "Era Contract",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "contract_id",
+    "character_id",
+    "era_id",
+    "parent_identity_contract_sha256",
+    "effective_from",
+    "approved_changes",
+    "retained_identity_features",
+    "canon_status"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "era-contract"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "era_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "parent_identity_contract_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "effective_from": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effective_order": {
+      "type": "integer"
+    },
+    "approved_changes": {
+      "type": "object"
+    },
+    "retained_identity_features": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "reference_coverage_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "canon_status": {
+      "enum": [
+        "proposed",
+        "approved",
+        "superseded"
+      ]
+    },
+    "approval": {
+      "type": "object"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

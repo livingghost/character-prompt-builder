@@ -1,0 +1,121 @@
+{
+  "projection_id": "VSP-EP03-SC01-C01",
+  "character_id": "C01",
+  "visible_identity_feature_ids": [
+    "I01",
+    "I02",
+    "I03"
+  ],
+  "visible_state_paths": [
+    {
+      "path": "/physical_state/left_ear_tip",
+      "label": "left ear condition",
+      "priority": "signature",
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "wording": "one healed triangular notch on the outer upper subject-left ear tip"
+    },
+    {
+      "path": "/emotional_state/expressed_state",
+      "label": "expressed composure",
+      "priority": "supporting",
+      "carriers": [
+        "text",
+        "review"
+      ],
+      "wording": "controlled calm expression masking stronger fear"
+    },
+    {
+      "path": "/performance_state/physiological_cues",
+      "label": "physiological tension",
+      "priority": "supporting",
+      "carriers": [
+        "text",
+        "review"
+      ],
+      "wording": "shallow breath, slight sweat, and tension concentrated in the left hand"
+    }
+  ],
+  "performance_cues": [
+    {
+      "cue": "ears react before the head",
+      "purpose": "character-specific tension timing"
+    }
+  ],
+  "wardrobe_paths": [
+    "/wardrobe_state/layers",
+    "/wardrobe_state/condition"
+  ],
+  "prop_paths": [],
+  "relationship_blocking_cues": [
+    {
+      "distance": "close but not touching",
+      "gaze": "C01 looks at C02 then briefly away",
+      "public_private_mask": "private"
+    }
+  ],
+  "environmental_body_responses": [
+    {
+      "cue": "light sweat at temples",
+      "cause": "high temperature and humidity"
+    }
+  ],
+  "occluded_state_paths": [
+    "/physical_state/wound_stage"
+  ],
+  "reference_asset_requirements": [
+    {
+      "feature": "subject-left ear notch",
+      "preferred_views": [
+        "left-three-quarter",
+        "left-profile"
+      ]
+    }
+  ],
+  "text_anchor_ids": [
+    "I01",
+    "I02"
+  ],
+  "review_dimensions": [
+    "left/right consistency",
+    "ear notch survival",
+    "eye color",
+    "masked emotional performance"
+  ],
+  "visible_morphology_feature_ids": [
+    "head.eye.pair",
+    "head.ear.pair",
+    "head.muzzle",
+    "head.nose",
+    "limb.arm.pair",
+    "limb.hand.pair"
+  ],
+  "morphology_state_paths": [
+    {
+      "path": "/physical_state/left_ear_tip",
+      "label": "subject-left ear tip state",
+      "priority": "signature",
+      "carriers": [
+        "reference-media",
+        "text",
+        "review"
+      ],
+      "wording": "one healed triangular notch on the outer upper subject-left ear tip"
+    }
+  ],
+  "occluded_morphology_feature_ids": [
+    "limb.leg.pair",
+    "appendage.tail.primary"
+  ],
+  "morphology_visibility_obligations": [
+    "show both eyes, both ear bases, the full muzzle and nose, both shoulders, the braced left hand, and the second hand",
+    "preserve subject-left ear asymmetry and do not mirror it"
+  ],
+  "morphology_crop_and_occlusion_requirements": [
+    "legs and tail continue outside the medium-close crop rather than terminating",
+    "the subject-left ear tip and desk-braced hand remain visible"
+  ]
+}

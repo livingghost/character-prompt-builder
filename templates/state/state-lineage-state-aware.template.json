@@ -1,0 +1,17 @@
+{
+  "artifact_type": "state-lineage",
+  "mode": "state-aware",
+  "species_profile_sha256": "43554d3321b58564be447b52b65a4dadf5d6913ec274e7c4d3657397b4689d99",
+  "individual_morphology_sha256": "a0473d2297273229c195998ed39d44652cc622ea2ff30d647c2dbec29a456566",
+  "identity_contract_sha256": "0b32ee1765b21169e5cb3cbfaa1a71e06c0765571ee2f645e6a40e5170a0a446",
+  "era_contract_sha256": null,
+  "form_contract_sha256": null,
+  "appearance_variant_sha256": null,
+  "state_snapshot_sha256": "e5ed84ec3a216c59038873c09b222d51d1bd21782102465aa0de74bf42f7fc7d",
+  "scene_context_sha256": "095e6dbe94cc1bd0cbfe84b195be65ecd3c6f726aedfad0daa73741c4ba1ce20",
+  "visual_projection_sha256": "0c6e72dc084b28f5e3e858c96b4c7ca2e8f8525e1fd5bf555e5de35ec9fadfb6",
+  "asset_render_spec_sha256": "40f26d4e32f8cf610cf59b5eeb9594537406280d852bf1f6431520a85d635166",
+  "lineage_sha256": "ec067824dfe7faa0856a6b7fb83e6063faaca3e3c47959e8a233c3f198c80e0a",
+  "visual_authority_sha256": null,
+  "visual_evidence_bundle_sha256": null
+}

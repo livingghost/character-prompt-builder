@@ -1,0 +1,43 @@
+{
+  "accessory_id": "dog-tag-primary",
+  "item_class": "rectangular dog tag necklace",
+  "count": 1,
+  "laterality_or_site": "centerline upper chest",
+  "body_landmarks": [
+    "neck base",
+    "sternum",
+    "nose width"
+  ],
+  "support_and_fastening": "one continuous chain supports one tag from the neck",
+  "orientation": "tag hangs vertically with a small pose-responsive swing",
+  "relative_dimensions": {
+    "length": "about one and one half tag widths",
+    "width": "about the subject nose width",
+    "thickness": "thin rigid metal plate",
+    "diameter_or_span": "not applicable; use tag width and chain loop span",
+    "measurement_basis": "nose width and upper-chest landmarks"
+  },
+  "repeated_elements": {
+    "unit_size": "chain link or bead about one eighth of tag width",
+    "spacing": "small clear gap between repeated units",
+    "count_logic": "enough repeated units to close one continuous neck loop"
+  },
+  "shape_and_construction": "rounded rectangular plate with one top hole and one continuous chain",
+  "material_and_finish": "brushed metal with compact hard highlights",
+  "color": "declared metal color",
+  "layer_order": "over fur skin or shirt and behind any foreground arm that crosses it",
+  "body_and_garment_clearance": "tag rests on the chest and remains separate from neckline and fur",
+  "contact_and_pose_response": "chain and tag follow gravity and chest contact without floating",
+  "articulation_and_mobility": "small swing and rotation around the chain attachment",
+  "visibility_and_occlusion": "visible in declared anchor views; record deliberate arm or crop occlusion",
+  "continuity_rules": [
+    "one tag remains attached to one continuous chain",
+    "size and centerline placement remain stable"
+  ],
+  "diagnostic_misreadings": [
+    "duplicated tags",
+    "chain passing through neck",
+    "tag fused into shirt or fur"
+  ],
+  "source_confidence": "preset-selected"
+}

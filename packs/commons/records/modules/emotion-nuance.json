@@ -1,0 +1,96 @@
+{
+  "kind": "module",
+  "category": "emotion-nuance",
+  "records": [
+    {
+      "id": "emotion-nuance-quiet-authority",
+      "label": "Quiet authority",
+      "category": "emotion-nuance",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Express calm command through coordinated posture, gaze, facial tension, and use of space while keeping the performance understated.",
+      "prompt": "Stage quiet authority through an upright settled posture, economical movement, a steady attentive gaze appropriate to the scene, relaxed mouth tension, and comfortable ownership of the surrounding space with a restrained understated display.",
+      "invariants": [
+        "posture carries calm self-possession",
+        "gaze target follows the actual scene relationship",
+        "facial and body channels share the same restrained intensity"
+      ],
+      "misreadings_to_avoid": [
+        "aggressive intimidation",
+        "blank emotionless face",
+        "exaggerated heroic posing"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "scene-conditioned performance",
+      "tags": [
+        "calm command",
+        "restrained presence"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "quiet authority",
+          "facet": "performance",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "calm authority",
+          "facet": "performance",
+          "weight": 1.1,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "emotion-nuance-attentive-composure",
+      "label": "Attentive composure",
+      "category": "emotion-nuance",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Show active, measured attention through small coordinated cues while preserving a composed emotional surface suitable for many scenes.",
+      "prompt": "Express attentive composure with a subtly oriented head, eyes focused on the relevant person or event, even breathing through the shoulders, a settled jaw, and restrained micro-expression that suggests active evaluation.",
+      "invariants": [
+        "attention has a concrete target in the scene",
+        "body tension remains controlled and readable",
+        "small facial cues carry the performance at the selected distance"
+      ],
+      "misreadings_to_avoid": [
+        "fixed stare aimed automatically at the viewer",
+        "sleepy disengagement",
+        "overt suspicion unsupported by the scene"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "scene-conditioned performance",
+      "tags": [
+        "measured attention",
+        "composed evaluation"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "search_terms": [
+        {
+          "phrase": "composed attention",
+          "facet": "performance",
+          "weight": 1.05,
+          "source": "author"
+        },
+        {
+          "phrase": "attentive calm",
+          "facet": "performance",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

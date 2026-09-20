@@ -1,0 +1,174 @@
+{
+  "kind": "module",
+  "category": "gender-presentation",
+  "records": [
+    {
+      "id": "gender-presentation-masculine",
+      "label": "Masculine presentation",
+      "category": "gender-presentation",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Make the subject read as masculine through structure, proportion, and grooming choices, so the read survives a change of wardrobe and framing.",
+      "prompt": "Give the subject a masculine presentation carried by structure: a broader shoulder-to-hip relationship, squarer jaw and brow planes, a lower-set center of visual weight, and grooming that follows the same anatomy.",
+      "invariants": [
+        "the masculine read comes from anatomy and proportion",
+        "structure stays consistent across poses and crops",
+        "the presentation coheres with the subject's species and build"
+      ],
+      "misreadings_to_avoid": [
+        "coded accessories doing all the gender work",
+        "exaggerated proportions that break the chosen build",
+        "facial structure fighting the stated presentation"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "gender presentation",
+      "tags": [
+        "male-coded structure",
+        "broad shoulder-to-hip line",
+        "squared jaw and brow"
+      ],
+      "domains": [
+        "human",
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid",
+        "robot"
+      ],
+      "search_terms": [
+        {
+          "phrase": "masculine",
+          "facet": "presentation",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "male",
+          "facet": "presentation",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "manly",
+          "facet": "presentation",
+          "weight": 0.9,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "gender-presentation-feminine",
+      "label": "Feminine presentation",
+      "category": "gender-presentation",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Make the subject read as feminine through structure, proportion, and grooming choices, so the read survives a change of wardrobe and framing.",
+      "prompt": "Give the subject a feminine presentation carried by structure: a narrower shoulder-to-hip relationship, softer jaw and brow planes, a higher-set center of visual weight, and grooming that follows the same anatomy.",
+      "invariants": [
+        "the feminine read comes from anatomy and proportion",
+        "structure stays consistent across poses and crops",
+        "the presentation coheres with the subject's species and build"
+      ],
+      "misreadings_to_avoid": [
+        "coded accessories doing all the gender work",
+        "proportions drifting toward caricature",
+        "facial structure fighting the stated presentation"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "gender presentation",
+      "tags": [
+        "female-coded structure",
+        "narrow shoulder-to-hip line",
+        "softened jaw and brow"
+      ],
+      "domains": [
+        "human",
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid",
+        "robot"
+      ],
+      "search_terms": [
+        {
+          "phrase": "feminine",
+          "facet": "presentation",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "female",
+          "facet": "presentation",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "womanly",
+          "facet": "presentation",
+          "weight": 0.9,
+          "source": "author"
+        }
+      ]
+    },
+    {
+      "id": "gender-presentation-androgynous",
+      "label": "Androgynous presentation",
+      "category": "gender-presentation",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Hold the subject's gender deliberately unresolved through balanced structure, proportion, and grooming, so both reads stay equally available.",
+      "prompt": "Give the subject an androgynous presentation carried by balance: a shoulder-to-hip relationship midway between reads, facial planes that mix soft and squared cues, and grooming chosen to keep the read genuinely open.",
+      "invariants": [
+        "both gender reads stay equally available",
+        "the ambiguity is deliberate balance, held by fully authored detail",
+        "the presentation coheres with the subject's species and build"
+      ],
+      "misreadings_to_avoid": [
+        "one strong gendered cue that collapses the ambiguity",
+        "inconsistency across views that reads as error",
+        "concealment used instead of balanced structure"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "gender presentation",
+      "tags": [
+        "gender-ambiguous structure",
+        "balanced shoulder-to-hip line",
+        "neutral jaw and brow"
+      ],
+      "domains": [
+        "human",
+        "anthropomorphic-animal",
+        "creature",
+        "hybrid",
+        "robot"
+      ],
+      "search_terms": [
+        {
+          "phrase": "androgynous",
+          "facet": "presentation",
+          "weight": 1.2,
+          "source": "author"
+        },
+        {
+          "phrase": "androgyny",
+          "facet": "presentation",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "gender-ambiguous",
+          "facet": "presentation",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ]
+    }
+  ]
+}

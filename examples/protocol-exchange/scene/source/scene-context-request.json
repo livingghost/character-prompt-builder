@@ -1,0 +1,38 @@
+{
+  "scene_context_id": "SC-WORKSHOP-01",
+  "timeline_id": "main",
+  "story_order_start": 10,
+  "story_order_end": 11,
+  "story_time_start": "story:EP01-SC03-start",
+  "story_time_end": "story:EP01-SC03-end",
+  "active_character_ids": [
+    "C01",
+    "C02"
+  ],
+  "relationship_ids": [
+    "REL-C01-C02"
+  ],
+  "environment_id": "ENV-WORKSHOP",
+  "prop_ids": [
+    "P01"
+  ],
+  "location_snapshot": {
+    "location_id": "LOC-WORKSHOP",
+    "layout": "C01 enters from frame-left doorway, C02 stands behind the central workbench, rain window is frame-left, work lamps are frame-right"
+  },
+  "social_context": {
+    "privacy": "private workshop",
+    "task": "inspect and return the damaged pendant"
+  },
+  "viewer_disclosure_state": {
+    "C01_left_side_injury": "not visually revealed",
+    "P01_damage": "visible from SH03 onward"
+  },
+  "planned_events": [
+    {
+      "event_id": "EV-TRANSFER-P01",
+      "status": "proposed",
+      "role": "planned visible handoff"
+    }
+  ]
+}

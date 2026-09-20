@@ -1,0 +1,18 @@
+{
+  "canonical_query": "elderly human botanist blue field jacket",
+  "domain": "human",
+  "anchors": {
+    "age": [
+      "elderly"
+    ],
+    "role": [
+      "botanist"
+    ],
+    "wardrobe": [
+      "blue field jacket"
+    ]
+  },
+  "source_brief": "optional original-language brief retained verbatim; never used for lexical scoring",
+  "source_language": "und",
+  "unresolved_terms": []
+}

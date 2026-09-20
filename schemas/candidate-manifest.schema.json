@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "candidate-manifest.schema.json",
+  "title": "Reference Candidate Manifest",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "manifest_id",
+    "bundle_plan_sha256",
+    "character_id",
+    "identity_contract_sha256",
+    "candidates",
+    "inspection_status",
+    "candidate_manifest_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "candidate-manifest"
+    },
+    "manifest_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "bundle_plan_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "identity_contract_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "asset_id",
+          "file",
+          "file_sha256",
+          "dimensions",
+          "visible_support",
+          "unsupported_or_occluded",
+          "contradictions",
+          "recommendation"
+        ],
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "asset_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "file_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "dimensions": {
+            "type": "object",
+            "required": [
+              "width",
+              "height"
+            ],
+            "properties": {
+              "width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "visible_support": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "unsupported_or_occluded": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "contradictions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "recommendation": {
+            "enum": [
+              "adopt",
+              "reject",
+              "repair",
+              "needs-review"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "inspection_status": {
+      "enum": [
+        "pending",
+        "inspected",
+        "approved"
+      ]
+    },
+    "candidate_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

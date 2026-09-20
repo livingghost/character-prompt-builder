@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "morphology-feature-instance.schema.json",
+  "title": "Individual Morphology Feature Realization",
+  "type": "object",
+  "required": [
+    "feature_id",
+    "species_feature_ref",
+    "status",
+    "actual_count",
+    "instance_ids",
+    "resolved_feature",
+    "laterality_and_asymmetry",
+    "damage_or_modification",
+    "identity_priority",
+    "state_boundary",
+    "mutable_state_paths",
+    "allowed_variation",
+    "continuity_rules",
+    "required_views",
+    "source_confidence",
+    "exact_measurements",
+    "attachment_realization",
+    "personal_expression_behavior",
+    "uncertainties"
+  ],
+  "properties": {
+    "feature_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "species_feature_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "inherited",
+        "overridden",
+        "absent",
+        "additional",
+        "replaced",
+        "prosthetic-or-mechanical"
+      ]
+    },
+    "actual_count": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object"
+        }
+      ]
+    },
+    "instance_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "resolved_feature": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "morphology-feature.schema.json"
+        }
+      ]
+    },
+    "laterality_and_asymmetry": {
+      "type": "string",
+      "minLength": 1
+    },
+    "damage_or_modification": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identity_priority": {
+      "enum": [
+        "signature",
+        "supporting",
+        "optional"
+      ]
+    },
+    "state_boundary": {
+      "enum": [
+        "identity-stable",
+        "era-level",
+        "form-level",
+        "appearance-variant",
+        "current-state"
+      ]
+    },
+    "mutable_state_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^/"
+      },
+      "uniqueItems": true
+    },
+    "allowed_variation": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "continuity_rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 2,
+      "uniqueItems": true
+    },
+    "required_views": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "source_confidence": {
+      "enum": [
+        "explicit-user",
+        "reference-clear",
+        "reference-approximate",
+        "preset-selected",
+        "user-confirmed"
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "exact_measurements": {
+      "type": "object",
+      "required": [
+        "length",
+        "width",
+        "thickness",
+        "spacing",
+        "measurement_basis",
+        "tolerance"
+      ],
+      "properties": {
+        "length": {
+          "type": "string",
+          "minLength": 1
+        },
+        "width": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thickness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "spacing": {
+          "type": "string",
+          "minLength": 1
+        },
+        "measurement_basis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tolerance": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "attachment_realization": {
+      "type": "object",
+      "required": [
+        "parent_feature_refs",
+        "attachment_landmarks",
+        "attachment_mode",
+        "individual_offset_or_angle"
+      ],
+      "properties": {
+        "parent_feature_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "attachment_landmarks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "attachment_mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "individual_offset_or_angle": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "personal_expression_behavior": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "state_or_intent",
+          "configuration",
+          "timing",
+          "coordination_with_other_features"
+        ],
+        "properties": {
+          "state_or_intent": {
+            "type": "string",
+            "minLength": 1
+          },
+          "configuration": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timing": {
+            "type": "string",
+            "minLength": 1
+          },
+          "coordination_with_other_features": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "field",
+          "uncertainty",
+          "resolution_needed"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uncertainty": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resolution_needed": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

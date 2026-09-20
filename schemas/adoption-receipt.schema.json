@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "adoption-receipt.schema.json",
+  "title": "Adoption Receipt",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "receipt_id",
+    "issued_by",
+    "issued_at",
+    "candidate_manifest_sha256",
+    "character_id",
+    "adoptions",
+    "asset_registry_updates",
+    "adoption_receipt_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "adoption-receipt"
+    },
+    "receipt_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "issued_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "issued_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]+)?Z$"
+    },
+    "candidate_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "adoptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "asset_registry_id",
+          "effective_story_range",
+          "status"
+        ],
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "asset_registry_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "effective_story_range": {
+            "type": "object",
+            "required": [
+              "from_order",
+              "to_order"
+            ],
+            "properties": {
+              "from_order": {
+                "type": "integer"
+              },
+              "to_order": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "status": {
+            "enum": [
+              "adopted",
+              "rejected",
+              "superseded"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "asset_registry_updates": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "adoption_receipt_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

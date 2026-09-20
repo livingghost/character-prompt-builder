@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "surface-lighting-plan.schema.json",
+  "title": "Surface and Lighting Plan",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "plan_id",
+    "source_lighting_mode",
+    "source_evidence_roles",
+    "light_sources",
+    "shadow_topology",
+    "highlight_response",
+    "material_responses",
+    "unresolved_decisions",
+    "surface_lighting_plan_sha256"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "surface-lighting-plan"
+    },
+    "plan_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^SLP-[A-Za-z0-9._:-]+$"
+    },
+    "source_lighting_mode": {
+      "enum": [
+        "preserve",
+        "rescope",
+        "replace"
+      ]
+    },
+    "source_evidence_roles": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      },
+      "uniqueItems": true
+    },
+    "light_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "light_id",
+          "direction",
+          "apparent_size",
+          "color",
+          "relative_intensity",
+          "softness"
+        ],
+        "properties": {
+          "light_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "direction": {
+            "type": "string",
+            "minLength": 1
+          },
+          "apparent_size": {
+            "type": "string",
+            "minLength": 1
+          },
+          "color": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relative_intensity": {
+            "type": "string",
+            "minLength": 1
+          },
+          "softness": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "shadow_topology": {
+      "type": "object",
+      "required": [
+        "form_shadow",
+        "cast_shadow",
+        "contact_shadow",
+        "ambient_occlusion",
+        "edge_hardness",
+        "hue_shift",
+        "occluder_receiver_rules"
+      ],
+      "properties": {
+        "form_shadow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cast_shadow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contact_shadow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ambient_occlusion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "edge_hardness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hue_shift": {
+          "type": "string",
+          "minLength": 1
+        },
+        "occluder_receiver_rules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "highlight_response": {
+      "type": "object",
+      "required": [
+        "broad_sheen",
+        "hard_specular",
+        "rim_light",
+        "lobe_width",
+        "edge_character",
+        "reflection_tint",
+        "protected_highlight_islands"
+      ],
+      "properties": {
+        "broad_sheen": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hard_specular": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rim_light": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lobe_width": {
+          "type": "string",
+          "minLength": 1
+        },
+        "edge_character": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reflection_tint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "protected_highlight_islands": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "material_responses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "material",
+          "roughness",
+          "specular_strength",
+          "highlight_shape",
+          "wetness",
+          "anisotropy"
+        ],
+        "properties": {
+          "material": {
+            "type": "string",
+            "minLength": 1
+          },
+          "roughness": {
+            "type": "string",
+            "minLength": 1
+          },
+          "specular_strength": {
+            "type": "string",
+            "minLength": 1
+          },
+          "highlight_shape": {
+            "type": "string",
+            "minLength": 1
+          },
+          "wetness": {
+            "type": "string",
+            "minLength": 1
+          },
+          "anisotropy": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "unresolved_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "surface_lighting_plan_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

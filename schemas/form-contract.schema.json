@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "form-contract.schema.json",
+  "title": "Form Contract",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "contract_id",
+    "character_id",
+    "form_id",
+    "parent_identity_contract_sha256",
+    "translation_rules",
+    "silhouette_and_topology",
+    "canon_status"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "form-contract"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "character_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "form_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "parent_identity_contract_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "translation_rules": {
+      "type": "object"
+    },
+    "silhouette_and_topology": {
+      "type": "object"
+    },
+    "surface_system": {
+      "type": "object"
+    },
+    "appendage_changes": {
+      "type": "object"
+    },
+    "reference_coverage_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "canon_status": {
+      "enum": [
+        "proposed",
+        "approved",
+        "superseded"
+      ]
+    },
+    "approval": {
+      "type": "object"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}
