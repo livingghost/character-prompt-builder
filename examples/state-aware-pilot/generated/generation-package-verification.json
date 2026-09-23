@@ -2713,7 +2713,7 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "2bc15bce39d7976911f1cb648f467927b9344349cd2a918f1b6fafbdd53c0c06",
+  "generation_input_sha256": "7f81ad3f0c15b279e883d4fbf052891c1f3f7159e98cbd17f83ee0415772f059",
   "parameters": {
     "size": "1024x1024",
     "quality": "high"
@@ -2752,7 +2752,7 @@
     "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
     "effective_prompt_sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1",
     "selected_references": [],
-    "generation_input_sha256": "2bc15bce39d7976911f1cb648f467927b9344349cd2a918f1b6fafbdd53c0c06",
+    "generation_input_sha256": "7f81ad3f0c15b279e883d4fbf052891c1f3f7159e98cbd17f83ee0415772f059",
     "prompt_trace": [
       {
         "source_kind": "authored",

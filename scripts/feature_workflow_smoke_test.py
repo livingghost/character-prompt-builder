@@ -543,6 +543,23 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertFalse(report['release_authorized']);self.assertIsNone(report['pack']['locked_file_count'])
         self.assertEqual(report['contract']['owner'],'core-release-gate')
 
+    def test_42_an_image_scene_material_uses_the_adopted_identity_while_it_holds(self):
+        import scene_persona as scene
+        from scene_material_smoke_test import finish_draft, write_series
+        write_series(self.root/'story')
+        row=self.iteration(); self.adopt(row)
+        drafted=scene.draft(self.root,'story/narrative/scenes/sc01-plot.json','plan.json','image')
+        self.assertEqual([item['subject_id'] for item in drafted['identities']],['C01'])
+        ids={excerpt['excerpt_id'] for excerpt in finish_draft(self.root,'plan.json')['excerpts']}
+        self.assertNotIn('C01-appearance-1',ids); self.assertIn('C02-appearance-1',ids)
+        built=scene.build(self.root,'plan.json','material')
+        self.assertEqual(built['identities'],[{'subject_id':'C01','studio_character':'C01','slot':'base.front',
+            'iteration_id':row['iteration_id'],'image_sha256':row['result']['sha256']}])
+        self.assertTrue(scene.verify(self.root,'plan.json','material')['ok'])
+        newer=self.iteration('red'); studio.accept(self.root,'C01',newer['iteration_id'])
+        with self.assertRaisesRegex(ValueError,'C01: the identity image base.front .* is not accepted and bound'):
+            scene.verify(self.root,'plan.json','material')
+
 
 def main():
     stream=io.StringIO()

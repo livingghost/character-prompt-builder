@@ -57,7 +57,7 @@ python scripts/work_ledger.py block --studio <dir> "which of the three, or anoth
 python scripts/work_ledger.py finish --studio <dir>
 ```
 
-Mark each step as it is done, not at the end. A step that is not written down is a step the next session does again or skips. `finish` refuses while a step is not done; `abandon --reason` closes a task that will not be finished. `block` records the question the task waits on, so a session that resumes asks it instead of guessing. `show` prints where the task stands; `studio.py status` prints the same beside every character's slots and candidates.
+Mark each step as it is done, not at the end. A step that is not written down is a step the next session does again or skips. `finish` refuses while a step is not done; `abandon --reason` closes a task that will not be finished. `block` records the question the task waits on, so a session that resumes asks it instead of guessing. `show` prints where the task stands; `studio.py status` prints the same beside every character's slots and candidates, and the scene materials a persona change reaches.
 
 A checkpoint is a `note` or a `step` written at a boundary where loss would cost work: after a relevant instruction or correction arrives, when a draft or decision is ready and before it is presented, before a switch of task or route, and before and after an external operation. It records what was decided, where it was written, and the next safe operation; a candidate awaiting the author's answer is written down here with the question. Written is not saved: read the files back before a cumulative reply claims them. A checkpoint is neither a production result nor an adoption nor permission to publish.
 

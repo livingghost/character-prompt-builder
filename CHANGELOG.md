@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026.09.23.5
+## 2026.09.23.6
 
 Initial release.
 
@@ -18,6 +18,11 @@ Initial release.
 - Bind every production side effect to an explicit grant: prepared immutable runs pinned to the installed implementation by digest, exclusive record writes that also work on file systems without hard links, intent and authorization steps for handoff, external claims, revision and adoption, and recovery without resubmission.
 - Release a reservation until its send step is recorded, so a failed upload returns its budget. A send that ends in a 5xx answer, a redirect, a timeout or a dropped connection is journaled as indeterminate, the dispatcher stops, and nothing is sent again.
 - Reuse existing material without promoting it to canon: preserved source documents with evidence-bound extraction proposals, scene-specific Persona material verified against complete sources, and story moments resolved into production evidence.
+- Cut a scene's Persona material by heading and field, as `persona_units.py` names them. The material records the hash of every heading and field it read, quoted or not, and a second hash that reports a heading or field whose name alone changed as renamed.
+- `scene_persona.py draft` starts a plan from a scene plot with each character's Persona core, its relations and, for an image, its appearance. The build refuses a Persona of another phase than the chapter's, a core left out or unanswered, and an image material without a filled appearance unless the studio has adopted the character's identity image; the material then records that image, and `verify` and production check it again.
+- A scene material states its medium, text or image, and a production task that makes an image or video refuses a material prepared for text. In a studio, the root is the studio and the series lives under `story/`.
+- `scene_persona.py impact` lists, in story order, every scene a later Persona change reaches, quoted or only read, with the production runs and studio images made from each material, and `studio.py status` prints the count and the command. A rebuilt material records how its review treated each change and which material it supersedes.
+- `seal_contract.py` also seals the public contract manifest: each registered schema's byte hash, the semantics hash and the set digest.
 - Inspect outcomes without a parallel ledger: read-only run reviews, evidence studies with blind review cards, explicitly configured agent trials, repair analysis over recorded reviews, pinned still-image edits and exact reference delivery.
 - Read complete material by default with operator-owned budgets and deadlines instead of invented ceilings. The product identity is CalVer (`YYYY.MM.DD.N`, UTC), checked by the release contract in CI and release validation.
 - Read a route's documents and active guides through one snapshot, with paged replay. The read writes the reading record with the route, key and every hash filled; the author lists only the documents that apply to the task, each with a quotation and a reason. `--model`, or `--dialect ID` for a prompt family without a model record, reads only that family's writing guide sections, and an unknown model is refused with the model ids and prompt families the enabled packs offer. A prompt answered in conversation reads no route. Species and morphology documents come with feature `body-plan`, and `recurring-identity` delivers the identity contract. SKILL.md, which the host loads when the skill activates, names every route and feature.

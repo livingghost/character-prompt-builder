@@ -12,4 +12,4 @@ python scripts/protocol_exchange.py export --root /absolute/path/to/empty-projec
 python scripts/protocol_exchange.py verify --root /absolute/path/to/empty-project --bundle public-exchange
 ```
 
-For actual scenes replace the short constructed functional model with complete applicable originals, read them, and make the scene selection and review yourself. Changing unquoted lines in `originals/subject.md` invalidates local scene reuse; the archived import remains an exact copy of the imported source. No `version` or `revision` counter is needed to identify these contents.
+For actual scenes replace the short constructed functional model with complete applicable originals, read them, and make the scene selection and review yourself. Changing any part of `originals/subject.md` invalidates local scene reuse, and `scene_persona.py impact` says whether the change touched a quoted heading; the archived import remains an exact copy of the imported source. No `version` or `revision` counter is needed to identify these contents.

@@ -124,11 +124,11 @@ Compare the actual draft with the definitions it was written from, and classify 
 | A contradiction with the current definition | Repair the draft within scope, or obtain a separately scoped redesign. |
 | An inferred inner state | An inference. An observed cue establishes no hidden truth. |
 
-An accepted scene adopts the scene; its incidental permanent traits stay proposals. One line proves no habitual voice, one action proves no value, and a rendered detail adopts no visual canon. Store pending additions before the next appearance: reviewed stable additions in the owning Persona or identity decision, scene events in the scene and state owners, and a work trail entry that references those decisions without becoming a second ledger. Provisional additions stay readable as the branch's held choices until they are adopted or dropped.
+An accepted scene adopts the scene; its incidental permanent traits stay proposals. One line proves no habitual voice, one action proves no value, and a rendered detail adopts no visual canon. Store pending additions before the next appearance: reviewed stable additions in the owning Persona or identity decision, scene events in the scene and state owners, and a work trail entry that references those decisions without becoming a second ledger. `scene_persona.py impact` lists the scenes an addition to a Persona reaches. Provisional additions stay readable as the branch's held choices until they are adopted or dropped.
 
 ## Time and ownership
 
-Separate recording time from story-effective time. A past fact authored late is an editorial addition with its own effective time; earlier chapters keep the knowledge they had. A sustained change opens a phase with the unchanged dimensions retained, and a temporary mood stays state.
+Separate recording time from story-effective time. A past fact authored late is an editorial addition with its own effective time; earlier chapters keep the knowledge they had, and `scene_persona.py impact` lists the written scenes to check against it. A sustained change opens a phase with the unchanged dimensions retained, and a temporary mood stays state.
 
 Each fact has one owner, as the creative method's record homes state:
 

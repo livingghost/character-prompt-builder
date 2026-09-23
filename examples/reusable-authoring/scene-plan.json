@@ -21,25 +21,23 @@
   ],
   "excerpts": [
     {
+      "anchor": "Controlling definition",
       "depends_on": [],
-      "end_line": 2,
       "excerpt_id": "attention",
       "reason": "The controlling definition governs expression.",
       "source_id": "model",
-      "start_line": 1,
       "subject_ids": [
         "subject"
       ]
     },
     {
+      "anchor": "Expression",
       "depends_on": [
         "attention"
       ],
-      "end_line": 4,
       "excerpt_id": "expression",
       "reason": "Do not replace a contextual response with a stock emotion.",
       "source_id": "model",
-      "start_line": 3,
       "subject_ids": [
         "subject"
       ]
@@ -47,6 +45,7 @@
   ],
   "interactions": [],
   "material_id": "prepared-activity",
+  "medium": "text",
   "purpose": "Demonstrate persistent definitions and scoped applications without a mandatory story pattern.",
   "reopen_when": [
     "The recipient, information, purpose or original model changes."
@@ -57,7 +56,8 @@
     "decision": "ready",
     "limitations": [
       "This is not evidence of artistic suitability; read real full Personas when preparing actual work."
-    ]
+    ],
+    "revisions": []
   },
   "scene_id": "activity",
   "scene_source_id": "scene",
@@ -91,6 +91,7 @@
       "subject_id": "subject"
     }
   ],
+  "supersedes": null,
   "unknowns": [
     "The recipient and final response are intentionally unspecified."
   ]

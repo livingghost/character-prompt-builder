@@ -2737,7 +2737,7 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "2bc15bce39d7976911f1cb648f467927b9344349cd2a918f1b6fafbdd53c0c06",
+  "generation_input_sha256": "7f81ad3f0c15b279e883d4fbf052891c1f3f7159e98cbd17f83ee0415772f059",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -2879,10 +2879,10 @@
     "retrieval_record_sha256": "5b311ba9ba9fb2a8096168c558878d540b9d17b15b2e22c65c753d70a04a2dac",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-    "generation_input_sha256": "2bc15bce39d7976911f1cb648f467927b9344349cd2a918f1b6fafbdd53c0c06",
+    "generation_input_sha256": "7f81ad3f0c15b279e883d4fbf052891c1f3f7159e98cbd17f83ee0415772f059",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
     "visual_continuity_sha256": "4f99d48f2b415e826c076d18aafa8bd692e4ed5cc4c326088e12bdfcebcc6146",
-    "route_reading_sha256": "07a02547b606757644de237ded929d1f0c9ee7a2ad7a4b67faaa94666207ed28",
+    "route_reading_sha256": "41cb9587948861f7c90d9bea3f8fe2eb41c23581be1799b15774c4611bd6b717",
     "request_validation_sha256": "7f3e001a72070b03f5fcaf686341b43ccb0b66bd69eb5a9e7afeb938dafd1421",
     "input_snapshots_sha256": "4ed9a6cf37d1fec78fb483cfa6eca8acb1372cb1e08e6b60148ef414c46b2125"
   },
@@ -2931,7 +2931,7 @@
       },
       {
         "path": "references/runtime/studio.md",
-        "sha256": "72d55768e462a0f69459d2f2e449e9e25cf2975b4b09d2d453d6627200750c62"
+        "sha256": "5e0f70d25113bca1a1db4d7ee87f4c1569115baae1fb67a50ddb013e498d43e6"
       },
       {
         "path": "references/runtime/world-realization.md",
@@ -2959,7 +2959,7 @@
       }
     },
     "route": "state-series",
-    "reading_key": "d1a5bbce95a9d68312f2f0de0c683a79",
+    "reading_key": "814ef5ab9baf528114fffd4b795b024d",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
@@ -2976,7 +2976,7 @@
       }
     ]
   },
-  "route_reading_sha256": "07a02547b606757644de237ded929d1f0c9ee7a2ad7a4b67faaa94666207ed28",
+  "route_reading_sha256": "41cb9587948861f7c90d9bea3f8fe2eb41c23581be1799b15774c4611bd6b717",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",

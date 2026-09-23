@@ -880,7 +880,30 @@ def status(root: Path) -> str:
             lines.extend("  reference problem: " + error for error in reference_state["errors"])
         except (ValueError, OSError, RuntimeError) as exc:
             lines.append(f"  reference problem: {exc}")
+    persona_changes = persona_change_line(root)
+    if persona_changes:
+        lines.append(persona_changes)
     return "\n".join(lines)
+
+
+def persona_change_line(root: Path) -> str | None:
+    """The scene materials of this studio that a persona change reaches, and the command that lists them."""
+    import scene_persona
+    root = root.resolve()
+    try:
+        scenes = scene_persona.impact(root, uses=False)["scenes"]
+    except (ValueError, OSError, KeyError, TypeError, UnicodeError) as exc:
+        return f"scene materials cannot be compared with their personas: {exc}"
+    states = [row["status"] for row in scenes]
+    reached = sum(state in ("stale", "review", "missing") for state in states)
+    if not reached:
+        return None
+    detail = [f"{states.count('stale')} stale"] if "stale" in states else []
+    detail += [f"{states.count('missing')} with a source gone"] if "missing" in states else []
+    command = (f"python {shlex.quote(str(ROOT / 'scripts' / 'scene_persona.py'))} impact "
+               f"--root {shlex.quote(str(root))}")
+    return (f"persona changes reach {_count(reached, 'scene material')}"
+            + (f" ({', '.join(detail)})" if detail else "") + f": {command}")
 
 
 def _explain(exc: BaseException) -> str:

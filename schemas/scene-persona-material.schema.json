@@ -15,6 +15,12 @@
       "type": "string",
       "minLength": 1
     },
+    "medium": {
+      "enum": [
+        "text",
+        "image"
+      ]
+    },
     "purpose": {
       "type": "string",
       "minLength": 1
@@ -207,13 +213,58 @@
             "minLength": 1
           },
           "minItems": 0
+        },
+        "revisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "from_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "kind": {
+                "enum": [
+                  "correction",
+                  "addition"
+                ]
+              },
+              "anchors": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "decision": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "source_id",
+              "from_sha256",
+              "kind",
+              "anchors",
+              "decision"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 0
         }
       },
       "required": [
         "by",
         "decision",
         "basis",
-        "limitations"
+        "limitations",
+        "revisions"
       ],
       "additionalProperties": false
     },
@@ -260,6 +311,37 @@
           "bytes": {
             "type": "integer",
             "minimum": 0
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "anchor": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "body_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "blank": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "anchor",
+                "sha256",
+                "body_sha256",
+                "blank"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 0
           }
         },
         "required": [
@@ -269,7 +351,8 @@
           "subject_ids",
           "sha256",
           "reading_basis",
-          "bytes"
+          "bytes",
+          "units"
         ],
         "additionalProperties": false
       },
@@ -288,13 +371,9 @@
             "type": "string",
             "minLength": 1
           },
-          "start_line": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "end_line": {
-            "type": "integer",
-            "minimum": 1
+          "anchor": {
+            "type": "string",
+            "minLength": 1
           },
           "subject_ids": {
             "type": "array",
@@ -329,19 +408,65 @@
           "source_sha256": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$"
+          },
+          "covers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
           }
         },
         "required": [
           "excerpt_id",
           "source_id",
-          "start_line",
-          "end_line",
+          "anchor",
           "subject_ids",
           "depends_on",
           "reason",
           "text",
           "text_sha256",
-          "source_sha256"
+          "source_sha256",
+          "covers"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "identities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "subject_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "studio_character": {
+            "type": "string",
+            "minLength": 1
+          },
+          "slot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "iteration_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "image_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "subject_id",
+          "studio_character",
+          "slot",
+          "iteration_id",
+          "image_sha256"
         ],
         "additionalProperties": false
       },
@@ -354,12 +479,20 @@
     "content_sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "supersedes": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
     }
   },
   "required": [
     "material_id",
     "scene_id",
     "scene_source_id",
+    "medium",
     "purpose",
     "conditions",
     "subjects",
@@ -373,8 +506,10 @@
     "audience",
     "sources",
     "definitions",
+    "identities",
     "source_set_sha256",
-    "content_sha256"
+    "content_sha256",
+    "supersedes"
   ],
   "additionalProperties": false
 }

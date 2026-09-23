@@ -82,6 +82,19 @@ class SceneIntegration(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'stale|modified'):
             self.prepare()
 
+    def test_an_image_task_refuses_a_text_material(self):
+        fixture.task(self.root, self.spec, artifact='image'); self.write_task()
+        with self.assertRaisesRegex(ValueError, 'prepared for text, and a task that makes image widens its scope'):
+            self.prepare()
+
+    def test_a_text_task_accepts_an_image_material(self):
+        plan = m.load(self.root, 'scene-plan.json'); plan['medium'] = 'image'
+        (self.root/'image-plan.json').write_bytes(m.encoded(plan))
+        scene.build(self.root, 'image-plan.json', 'image-material')
+        self.spec['scene_materials'] = [{'plan':'image-plan.json','bundle':'image-material'}]; self.write_task()
+        consumer = workflow.load_run(self.root, self.prepare())[2]
+        self.assertIn('Medium: image', consumer['authoring_materials'][0]['document'])
+
     def test_feature_needs_explicit_material(self):
         self.spec['scene_materials']=[];self.write_task()
         with self.assertRaisesRegex(ValueError,'scene_materials'):

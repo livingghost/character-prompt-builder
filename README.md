@@ -165,18 +165,18 @@ python scripts/source_material.py verify --root ../cpb-authoring-demo --bundle s
 ```
 <!-- end-readme-example -->
 
-The generated `scene-material/persona.md` carries the definitions themselves, each tied to its source, lines and whole-file hash:
+The generated `scene-material/persona.md` carries the definitions themselves, each tied to its source, the heading or field it quotes, and the whole-file hash:
 
 ```text
 ## Applicable definition text
 ### attention
-Source: model, lines 1-2; complete source SHA-256: 1cf481eb...
+Source: model, Controlling definition; complete source SHA-256: 568809ee...
 Reason for inclusion: The controlling definition governs expression.
 
 > Attend to the recipient before choosing a response.
 
 ### expression
-Source: model, lines 3-4; complete source SHA-256: 1cf481eb...
+Source: model, Expression; complete source SHA-256: 568809ee...
 Dependencies: attention
 
 > A pause is an available response, not automatically distress.
@@ -186,9 +186,10 @@ Dependencies: attention
 A pause may be chosen after attending to the recipient; no exact line or motive is prescribed.
 ```
 
-For real work, author a plan against the [plan schema](schemas/authoring/scene-persona-plan.schema.json) and run `inspect`, `build` and `verify` with your own paths:
+For real work, start a plan from a scene plot with `draft`, finish it against the [plan schema](schemas/authoring/scene-persona-plan.schema.json), and run `inspect`, `build` and `verify` with your own paths:
 
 ```sh
+python scripts/scene_persona.py draft --root PROJECT --scene-plot narrative/scenes/SC01-plot.json --medium text --out scene-plan.json
 python scripts/scene_persona.py inspect --root PROJECT --plan scene-plan.json
 python scripts/scene_persona.py build --root PROJECT --plan scene-plan.json --out scene-material
 python scripts/scene_persona.py verify --root PROJECT --plan scene-plan.json --bundle scene-material --require-ready
@@ -202,7 +203,7 @@ In a production task, add `scene-persona` to `features` and list the material:
 ]
 ```
 
-Preparation verifies the files and carries the text into the exact input handed to the generator. Author-only information stays out of the image prompt. Changing any complete source, quoted or not, invalidates reuse, and a new participant, topic or portrayal aim can call for fresh preparation even when no file changed. When a gap appears, go back to the originals. [Scene Persona Material](references/runtime/scene-persona.md) covers replacement and accepted external snapshots.
+Preparation verifies the files and carries the text into the exact input handed to the generator. Author-only information stays out of the image prompt. Changing any complete source, quoted or not, invalidates reuse, and `scene_persona.py impact` lists the scenes, runs and images a persona change reaches. A new participant, topic or portrayal aim can call for fresh preparation even when no file changed. When a gap appears, go back to the originals. [Scene Persona Material](references/runtime/scene-persona.md) covers replacement and accepted external snapshots.
 
 ### Resolve the story state and ground it in the world
 

@@ -74,6 +74,17 @@ class ProductionTests(unittest.TestCase):
         run,candidate=self.candidate(); self.record_review(run,candidate); self.select(run,candidate)
         return run,w.complete(self.root,run)
 
+    def test_impact_names_the_runs_that_used_a_material(self):
+        import scene_persona
+        import scene_material_smoke_test as material
+        material.fixture(self.root); scene_persona.build(self.root,'plan.json','scene-material')
+        self.spec.update(route='performance',features=['scene-persona'],
+                         scene_materials=[{'plan':'plan.json','bundle':'scene-material'}])
+        self.save_spec()
+        run,candidate=self.candidate(); self.record_review(run,candidate); self.select(run,candidate)
+        rows=scene_persona.impact(self.root)['scenes']
+        self.assertEqual([(row['material'],row['runs']) for row in rows],
+                         [('scene-material/material.json',[{'run':run,'selection_recorded':True}])])
     def test_routes_all_owners_and_dependencies(self): self.assertTrue(routes.validate()['ok'])
     def test_uuid_identity(self): self.assertEqual(uuid.UUID(self.prepare()).version,7)
     def test_task_template_validates_with_the_printed_series_id(self):

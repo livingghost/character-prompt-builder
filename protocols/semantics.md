@@ -130,14 +130,15 @@ artifact to an image/video/audio request or disclose its author-only information
 as performer knowledge. A consumer selects its own supported operation.
 
 Complete source SHA-256 commitments include material not quoted. Every quoted
-span binds to a complete source, line range, exact UTF-8 text, and text digest.
-Declared definition dependencies must resolve inside the artifact. Whole-source
-change requires re-examining applicability; a producer must not certify freshness
-from quoted spans alone. The preparation review and reading basis are attributed
+definition binds to a complete source, the heading or field it names, exact UTF-8
+text, and text digest. Declared definition dependencies must resolve inside the
+artifact. Whole-source change requires re-examining applicability; a producer
+must not certify freshness from quoted definitions alone. The preparation review and reading basis are attributed
 claims, not proof that the author actually read or understood a source. Structural
 validation and a `ready` decision do not demonstrate artistic correctness.
 
-The material is valid only within its stated scene, purpose and conditions. New
+The material is valid only within its stated scene, purpose, conditions and
+medium; a material prepared for text does not serve an image or video. New
 participants, information, topics or intended behavior can require preparation
 even when no existing file changed. Unknowns and deliberate ambiguity stay visible.
 An explicit size budget is a refusal-to-truncate bound, not a summarization rule.

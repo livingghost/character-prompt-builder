@@ -165,7 +165,7 @@ def snapshot(root: Path, task_path: str) -> tuple[dict, dict, list[dict], dict[s
             if add(root, (directory / name).relative_to(root).as_posix()) != expected:
                 raise ValueError('moment bundle changed during preparation')
     import scene_persona
-    authoring_materials = scene_persona.consume(root, task.get('scene_materials', []), add)
+    authoring_materials = scene_persona.consume(root, task.get('scene_materials', []), add, task['artifact'])
     # The installed implementation is pinned by digest; its bytes stay in the installation.
     skill_files = {execution_routes.MANIFEST, 'package-manifest.toml'} | {r['path'] for r in route['reads']}
     for parent, glob in [('scripts', '*.py'), ('scripts', '*.json'), ('schemas', '*.json')]:
@@ -399,6 +399,20 @@ def run_task(root: Path, run: str) -> str | None:
         return None
 
 
+def run_ids(root: Path) -> list[str]:
+    """The identifier of every run under production/, in order; entries that are not runs are skipped."""
+    folder = c.local(root, 'production', exists=False)
+    if not folder.is_dir():
+        return []
+    found = []
+    for child in sorted(folder.iterdir()):
+        try:
+            found.append(run_identifier(child.name))
+        except ValueError:
+            continue
+    return found
+
+
 def reservations(root: Path, task_id: str, *, exclude: str | None = None) -> list[dict]:
     """Collect the unreleased reservations of every run in one work task.
 
@@ -407,21 +421,14 @@ def reservations(root: Path, task_id: str, *, exclude: str | None = None) -> lis
     so damage to a run of this task, or to one that cannot be attributed, fails.
     """
     result = []
-    folder = c.local(root, 'production', exists=False)
-    if not folder.exists():
-        return result
-    for child in sorted(folder.iterdir()):
-        try:
-            run_identifier(child.name)
-        except ValueError:
-            continue
-        owner = run_task(root, child.name)
+    for run in run_ids(root):
+        owner = run_task(root, run)
         if owner is not None and owner != task_id:
             continue
-        _, prepared, _, rows = load_run(root, child.name)
+        _, prepared, _, rows = load_run(root, run)
         if prepared['task']['task_id'] != task_id:
             continue
-        states=lifecycle.derive(rows,prepared,child.name)
+        states=lifecycle.derive(rows,prepared,run)
         for row in rows:
             if row['event'] == 'authorization' and row['sha256'] != exclude and states[row['sha256']]['status']!='released':
                 result.append(row['data']['request'])

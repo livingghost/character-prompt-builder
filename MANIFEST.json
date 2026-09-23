@@ -1,6 +1,6 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.09.23.5",
+  "version": "2026.09.23.6",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
   "generated_at": "2026-09-23",
@@ -82,8 +82,8 @@
     "distribution": "generated externally by scripts/package.py",
     "included_in_archive": false
   },
-  "file_count_excluding_manifest": 838,
-  "total_bytes_excluding_manifest": 13371046,
+  "file_count_excluding_manifest": 840,
+  "total_bytes_excluding_manifest": 13451212,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -98,12 +98,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "11ea526f3de790a16c43674c5bca75276bcc4193981cf069b082be6c272a8993"
+      "sha256": "ce44c20106757849a6fb24f6186b8dbe5380ec5ef6632dc81e172592e627fa27"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "dca1b0eb331e029087b9ad7064c3b7db91d2372f84bc8852a3ac08f765cada96"
+      "sha256": "e9732f41424f3b109a495835861d86477a0f6aed3781526c9dd751fb4b9aec45"
     },
     {
       "path": ".gitignore",
@@ -117,8 +117,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 12269,
-      "sha256": "78f068c251e3768738a00c594c9e4a43e42b79caf1e78e613b3251a5c7ae736f"
+      "bytes": 13649,
+      "sha256": "833dc077db889393355b2a6cb6f669136cc475f20b501580c378d30bf1114073"
     },
     {
       "path": "CLAUDE.md",
@@ -147,8 +147,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 31070,
-      "sha256": "fc76c653bc2e54e8a5f7e3af760d4d9672c0ff119b874c426273762c9b848085"
+      "bytes": 31376,
+      "sha256": "3af16fd0583c0d8fca29de779ebd3be64b5856ed04a65088e8c0a2bcc72b44b3"
     },
     {
       "path": "SKILL.md",
@@ -189,6 +189,11 @@
       "path": "config/pack-initialization.json",
       "bytes": 71,
       "sha256": "7cb2065866b9fc99b1d66d18b3560315bec51c12c78a9c8f04898a1302d25e1a"
+    },
+    {
+      "path": "config/persona-core.json",
+      "bytes": 232,
+      "sha256": "406d6a372138a44f59628930754583dfd132ea07c099cfc710ff72d2575660bf"
     },
     {
       "path": "config/protocol-layout.json",
@@ -482,8 +487,8 @@
     },
     {
       "path": "examples/protocol-exchange/fixtures/scene-persona-material.json",
-      "bytes": 3591,
-      "sha256": "d37d4b69f83452ae12b46ec61b205e85a717b87f7da8d7ac9f3d2534f4ccd414"
+      "bytes": 4876,
+      "sha256": "8bc8bbae2d2f7edf6f664413ff32cab58143cfcf43aa7b6efb9228575db6d2e1"
     },
     {
       "path": "examples/protocol-exchange/fixtures/scene-viewpoint-plan.json",
@@ -877,8 +882,8 @@
     },
     {
       "path": "examples/reusable-authoring/README.md",
-      "bytes": 1329,
-      "sha256": "9a0b87c59ad55233473f6677b51ac1af4da757e440789bc8fef3250c2a4c2ff2"
+      "bytes": 1403,
+      "sha256": "80376a75e6585c593ab659e7c19e5ca05c7443bc83e2ff6674c43d8a843be95f"
     },
     {
       "path": "examples/reusable-authoring/claims-plan.json",
@@ -912,18 +917,18 @@
     },
     {
       "path": "examples/reusable-authoring/scene-material/material.json",
-      "bytes": 3591,
-      "sha256": "d37d4b69f83452ae12b46ec61b205e85a717b87f7da8d7ac9f3d2534f4ccd414"
+      "bytes": 4876,
+      "sha256": "8bc8bbae2d2f7edf6f664413ff32cab58143cfcf43aa7b6efb9228575db6d2e1"
     },
     {
       "path": "examples/reusable-authoring/scene-material/persona.md",
-      "bytes": 2670,
-      "sha256": "b0619f7ca4f1cd1d15a014ecc5595c3f4238c25dbd55a8e08da3c418bc449b80"
+      "bytes": 2697,
+      "sha256": "ec819b2b6ae556c5659ac30ea4d819181a90d985b824de0c7f9561365fcbcbad"
     },
     {
       "path": "examples/reusable-authoring/scene-plan.json",
-      "bytes": 2745,
-      "sha256": "bcd4d8bb8fc705bc6c99d33d8aca67553b18f585af47021688b06574253f3da8"
+      "bytes": 2792,
+      "sha256": "e226b181552471ab272f05a40edeb41601b8974708299a95bbc0d05e9560e5a4"
     },
     {
       "path": "examples/reusable-authoring/source-material/index.json",
@@ -993,12 +998,12 @@
     {
       "path": "examples/state-aware-pilot/generated/generation-package-verification.json",
       "bytes": 140127,
-      "sha256": "79aed278b4bc2cd685b89dbc915b7b92cbe179384535717044c1f6896691d632"
+      "sha256": "7add5dd4abbd93d7854375fd8c8a18583a6794fb5de4415d24a604632167cd5b"
     },
     {
       "path": "examples/state-aware-pilot/generated/generation-package.json",
       "bytes": 155333,
-      "sha256": "fa53400483813043fe06e251cc82667b257dd530b3537d7bbb11c5c5a2d9e7d1"
+      "sha256": "5bfc6486332061811d41bb7169d2c34260eefc36118549d3b2a3209d80e41e0b"
     },
     {
       "path": "examples/state-aware-pilot/generated/integrated-prompt.txt",
@@ -1043,7 +1048,7 @@
     {
       "path": "examples/state-aware-pilot/generated/reads.jsonl",
       "bytes": 1722,
-      "sha256": "04a55ecd21479c7f6405a04a870d9275e01dec70d49cf0ac6c23471545475cd6"
+      "sha256": "88716188bf20d8da2cf3d6eedeb78ada4b56ff3c0587543622e7371aa225866d"
     },
     {
       "path": "examples/state-aware-pilot/generated/reference-bundle/C01-A01-left-three-quarter-bust.render-spec.json",
@@ -1073,7 +1078,7 @@
     {
       "path": "examples/state-aware-pilot/generated/route-reading.json",
       "bytes": 2858,
-      "sha256": "02aba0dcd5d07a0f8293592ddebc7c07d3d35fecbfa941bfef2b0eed9e3a7fb7"
+      "sha256": "1a1f63e1ba63bab8d119ce143ca378e6d1783488135d0c3e3a431899f9c55e20"
     },
     {
       "path": "examples/state-aware-pilot/generated/scene-context-snapshot.json",
@@ -1273,7 +1278,7 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2078,
-      "sha256": "713a4e66ee981acec34b087a35fcb525a3ba6e69e915b185df0793a14b531678"
+      "sha256": "268a6ca1775de691cf65a3d8b5d506e8660793ba9119e0a6b0cf461d281e1335"
     },
     {
       "path": "packs/commons/pack.json",
@@ -1448,12 +1453,12 @@
     {
       "path": "protocols/contract-manifest.json",
       "bytes": 16093,
-      "sha256": "70821da5cb1f709b394826febef73ff90b2365823c2ef0cf46a23d0000ad1abb"
+      "sha256": "2684bffc9324214fb79504f6b5827151c2bd89841b78c1747ab77dbee5d60955"
     },
     {
       "path": "protocols/semantics.md",
-      "bytes": 10604,
-      "sha256": "c5b7cf3f0770e05f90f8c5f8f52f4994557e328c2c8590ad73b019082664d261"
+      "bytes": 10706,
+      "sha256": "e16c7c578718a0ae5f96d51369c3735db85f57d09d55bfe9b8e1883a3b8b1d15"
     },
     {
       "path": "protocols/shared-state/README.md",
@@ -1548,7 +1553,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 613,
-      "sha256": "d30e459316c3c4e4a2d96c10c0808f441cc49eb69aae861316bd0ead04c40b02"
+      "sha256": "3056a7da6429bc1365d2e8bbb3fe9d0b08ba0d503355660f73ad047ac78fdd9d"
     },
     {
       "path": "references/adapters/flux.md",
@@ -1837,8 +1842,8 @@
     },
     {
       "path": "references/runtime/cast-and-persona-depth.md",
-      "bytes": 12723,
-      "sha256": "c356c71c2a4cb26c83fdc0310fbc325e530ce112905ce5c89bb8d25f6c74af85"
+      "bytes": 12876,
+      "sha256": "03c16252d21261d1ca3189a0929a09d362b98e270f193988a2843d8eefed8c71"
     },
     {
       "path": "references/runtime/character-performance-probes.md",
@@ -1962,8 +1967,8 @@
     },
     {
       "path": "references/runtime/scene-persona.md",
-      "bytes": 6841,
-      "sha256": "2f4ce149bfa6f607ad7e8fee33cec1871371f5fe6be248ef8bb34c00bc87124c"
+      "bytes": 13048,
+      "sha256": "f9a4e79bb3bd392a5cd5aa972c920a528b2ee824f1bf611905552c56cb3bfcdb"
     },
     {
       "path": "references/runtime/source-material.md",
@@ -1987,8 +1992,8 @@
     },
     {
       "path": "references/runtime/studio.md",
-      "bytes": 13346,
-      "sha256": "72d55768e462a0f69459d2f2e449e9e25cf2975b4b09d2d453d6627200750c62"
+      "bytes": 13396,
+      "sha256": "5e0f70d25113bca1a1db4d7ee87f4c1569115baae1fb67a50ddb013e498d43e6"
     },
     {
       "path": "references/runtime/subject-domain-quick-reference.md",
@@ -2152,8 +2157,8 @@
     },
     {
       "path": "schemas/authoring/scene-persona-plan.schema.json",
-      "bytes": 7446,
-      "sha256": "08180134337140ef6eceaf98a0cd275a44e142d9cdf6f458c1974586a7ba6f20"
+      "bytes": 8729,
+      "sha256": "7398c2d94136f96c8ffff24d30a1a2852d09b1eb634e16a25f7c333af0bf5a99"
     },
     {
       "path": "schemas/authoring/source-claims-plan.schema.json",
@@ -2442,8 +2447,8 @@
     },
     {
       "path": "schemas/scene-persona-material.schema.json",
-      "bytes": 8255,
-      "sha256": "e7f4c30b6eb7ed194795fcbbcc631975f804b49ac296c90b3b301a82ae199a18"
+      "bytes": 11526,
+      "sha256": "80671b761c757a317d98530a6ba38ea4b52338f5fea95af98b99dac364f593e6"
     },
     {
       "path": "schemas/semantic-region-map.schema.json",
@@ -2857,8 +2862,8 @@
     },
     {
       "path": "scripts/create_authoring_example.py",
-      "bytes": 5932,
-      "sha256": "d94f4fc54678009131f1736a3a295e51b27cbc816e4d340922f1a6c133033c7f"
+      "bytes": 6058,
+      "sha256": "d79ff983e84d88e1e0427ed5dd38eb1eb8ad678f308fcef2d0c957f4b2341179"
     },
     {
       "path": "scripts/default_only_example_resolution_smoke_test.py",
@@ -2937,8 +2942,8 @@
     },
     {
       "path": "scripts/feature_workflow_smoke_test.py",
-      "bytes": 37931,
-      "sha256": "8fb4f2c0b180a3d38f97295785e00ad29141d6a0f6c56cb83f30d22cafa5e873"
+      "bytes": 39195,
+      "sha256": "025a4e8a40d4f804bef224a0cc8948351675cfa1671f4f9aad19e3c2d76d867a"
     },
     {
       "path": "scripts/fresh_session_runtime_smoke_test.py",
@@ -3156,6 +3161,11 @@
       "sha256": "d2abd420a3e27c5553a0a894e045b6b837dcde18f1718c92ad774cadfa393489"
     },
     {
+      "path": "scripts/persona_units.py",
+      "bytes": 11228,
+      "sha256": "a87d56d022f4c097095ae95ff3c7a405168aec7d2c90b86f730b23db921241e3"
+    },
+    {
       "path": "scripts/persona_workflow_smoke_test.py",
       "bytes": 18945,
       "sha256": "7d71d4bdc101756b5b4f8bdf0c39eab4c08533738885f253c11b6f4fb043b1d1"
@@ -3272,13 +3282,13 @@
     },
     {
       "path": "scripts/production_workflow.py",
-      "bytes": 71738,
-      "sha256": "5f4fed4b883b5dd264850825f68729cd9c8e07cef0dda3c38dc90efab38cc1d3"
+      "bytes": 71953,
+      "sha256": "780c71b08a100047f7869a0902ae8ae55b2976485917ec310a83c98345d8aca9"
     },
     {
       "path": "scripts/production_workflow_smoke_test.py",
-      "bytes": 41271,
-      "sha256": "f3c148d3f958da0a4c2c5dc666398f7c4a7b0f7a2cd8413ca6a0d4571e3b2460"
+      "bytes": 42034,
+      "sha256": "859d7c323295bf421b5533ad803818fc245c118397bcbb7e83c275b107f84f57"
     },
     {
       "path": "scripts/prompt_artifact_smoke_test.py",
@@ -3407,8 +3417,8 @@
     },
     {
       "path": "scripts/reimplementation_smoke_test.py",
-      "bytes": 13741,
-      "sha256": "09c6dcac7ae5988d05bdc849f7f2f69783472029393dddf82294c91c84e8b4b1"
+      "bytes": 14562,
+      "sha256": "db0e5d32a5baa366cb6a48475aec920a1d5d2222cc677464db5d4290009e3806"
     },
     {
       "path": "scripts/release_contract.py",
@@ -3522,13 +3532,13 @@
     },
     {
       "path": "scripts/scene_material_smoke_test.py",
-      "bytes": 12602,
-      "sha256": "73897ef09fe4fc1fd01bff2d42df41a82d06b77ef7b5a5ea99fb729089e951f4"
+      "bytes": 29005,
+      "sha256": "7209d96c9199b8e254faea92ca98b8802ac91d0b66c485c0ad7ba07a17cefb92"
     },
     {
       "path": "scripts/scene_persona.py",
-      "bytes": 17967,
-      "sha256": "b02bbb5b643382d0509643279c44cd4886fe1dfa5318d694373b30f84f7f7142"
+      "bytes": 48066,
+      "sha256": "249559465c05c0f9c7c226297a22e994201ed8530b9bedc5d362307af2509cc5"
     },
     {
       "path": "scripts/scene_plot.py",
@@ -3552,8 +3562,8 @@
     },
     {
       "path": "scripts/seal_contract.py",
-      "bytes": 3931,
-      "sha256": "ec27a40cf238684c6a5c257030a930dcc04f6799ec33d4f5d36ba79c07127e97"
+      "bytes": 5481,
+      "sha256": "333672dc6d9b3df0db7ef38e84fbb6a0bf10503c5579db4eea081b8425c30a63"
     },
     {
       "path": "scripts/search_discovery.py",
@@ -3667,8 +3677,8 @@
     },
     {
       "path": "scripts/studio.py",
-      "bytes": 48370,
-      "sha256": "cb40d2471db46fbb0ae8babc3d1874aeec1df3211e0892a8d788bd5bb382d28a"
+      "bytes": 49555,
+      "sha256": "05cc82b63f3b893c7cb6d5814b34fb90fd98b6abcd7b6a65744b8810d403d2a2"
     },
     {
       "path": "scripts/studio_recipe_smoke_test.py",
@@ -3942,8 +3952,8 @@
     },
     {
       "path": "templates/narrative/personas/README.md",
-      "bytes": 6886,
-      "sha256": "6681bfcf4d1f3693e3504a5b46892f306269e1d8b5705a1807273bde47a64e1e"
+      "bytes": 7696,
+      "sha256": "12c5ebd471531d66ef65ac553540b4563e88136cd55d87df7c6ebd31d2f085c7"
     },
     {
       "path": "templates/narrative/personas/persona-template.md",

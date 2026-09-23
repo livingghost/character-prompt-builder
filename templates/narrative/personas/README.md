@@ -17,6 +17,12 @@ them, write the next phase as a new file rather than editing this one, and say i
 and what held. The old file is what the earlier chapters are consistent with, and overwriting it
 makes those chapters unverifiable.
 
+## Changing a persona
+
+Fill the core first: the portrayal identity, what the person knows at this point, the speech baseline and the prohibitions. Every scene carries them, and a scene made into an image also carries the appearance until the studio adopts an identity image. Fill the rest as scenes need it.
+
+An edit after a scene has read this file is one of three things. A change in the story is not an edit: record a state event, or write the next phase. A correction changes what the person always was, and an addition answers a blank field. Note which it was in the `changelog` field, then run `scripts/scene_persona.py impact --root <studio or series directory> --persona <this file>` to list the scenes and images it reaches. The skill's Scene Persona reference, section 3, says what to do with each.
+
 ## The front matter every persona carries
 
 The first block carries the machine-readable links. The index also scans the body for unfinished
