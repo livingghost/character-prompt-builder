@@ -145,7 +145,7 @@ with mock.patch.object(pack_cache, "load_runtime_catalog", side_effect=Assertion
                 result = subprocess.run(
                     [sys.executable, "-B", "-c", probe, str(script_dir), *order],
                     cwd=script_dir.parent,
-                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUTF8": "1"},
+                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
                     capture_output=True, text=True, encoding="utf-8", timeout=30,
                 )
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -1885,7 +1885,7 @@ class LeftOutPackWarningTests(unittest.TestCase):
             [sys.executable, str(Path(catalog_cli.__file__)), "--state-file", str(folder / "state.json"),
              "--cache-dir", str(folder / "cache"), "--managed-root", str(folder / "managed"), *command],
             capture_output=True, text=True, encoding="utf-8", timeout=600,
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUTF8": "1", **UNPAINTED},
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", **UNPAINTED},
         )
 
     def test_left_out_pack_is_one_line_and_first_when_nothing_else_is_left(self) -> None:
@@ -1909,4 +1909,6 @@ class LeftOutPackWarningTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main()

@@ -224,7 +224,7 @@ class DependencyTests(unittest.TestCase):
         self.assertIn('rejected',result['review_notes'][0]['message'])
 
     def test_missing_intent_id_is_error(self):
-        p=self.project();p.write_text(p.read_text().replace('intent-i-focus','intent-i-missing'))
+        p=self.project();p.write_text(p.read_text(encoding='utf-8').replace('intent-i-focus','intent-i-missing'),encoding='utf-8')
         self.assertTrue(reader.audit(self.root,[p])['errors'])
 
     def test_missing_target_is_error(self):
@@ -336,13 +336,13 @@ class DependencyTests(unittest.TestCase):
         self.project()
         result=subprocess.run([sys.executable,'-B',str(ROOT/'scripts/authorial_intent_audit.py'),
                                '--root',str(self.root),'personas/one.md'],cwd=self.root,
-                              text=True,capture_output=True,check=False)
+                              text=True,encoding="utf-8",capture_output=True,check=False)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertTrue(json.loads(result.stdout)['ok'])
 
     def test_help_exposes_current_arguments(self):
         result=subprocess.run([sys.executable,'-B',str(ROOT/'scripts/authorial_intent_audit.py'),'--help'],
-                              text=True,capture_output=True,check=False)
+                              text=True,encoding="utf-8",capture_output=True,check=False)
         self.assertEqual(result.returncode,0)
         for flag in ('--root','--fail-on-gaps'):
             self.assertIn(flag,result.stdout)
@@ -356,7 +356,7 @@ class CurrentIntentRenameTests(unittest.TestCase):
         self.design = self.root/'narrative/design'
         self.design.mkdir(parents=True)
         (self.design/'project.md').write_text(
-            narrative_entity.front_matter('design','project','Project','','') + entry())
+            narrative_entity.front_matter('design','project','Project','','') + entry(),encoding='utf-8')
         self.notes = self.root/'notes'
         self.notes.mkdir()
 
@@ -368,7 +368,7 @@ class CurrentIntentRenameTests(unittest.TestCase):
 
     def test_current_design_rename_follows_active_note_binding(self):
         p = self.notes/'moment.md'
-        p.write_text('- **authorial_intent_refs**: [aim](../narrative/design/project.md#intent-i-focus)\n')
+        p.write_text('- **authorial_intent_refs**: [aim](../narrative/design/project.md#intent-i-focus)\n', encoding='utf-8')
         result = self.rename()
         self.assertIn('notes/moment.md',result['rewritten'])
         report = reader.audit(self.root,['notes/moment.md'])
@@ -382,32 +382,32 @@ class CurrentIntentRenameTests(unittest.TestCase):
         p.write_text('- **authorial_intent_refs**:\n  [aim]('+address+')\n\n'
                      'A prose mention [aim]('+address+').\n'
                      '<!-- - **authorial_intent_refs**: [sample]('+address+') -->\n'
-                     '```markdown\n- **authorial_intent_refs**: [sample]('+address+')\n```\n')
+                     '```markdown\n- **authorial_intent_refs**: [sample]('+address+')\n```\n', encoding='utf-8')
         self.rename()
-        text = p.read_text()
+        text = p.read_text(encoding="utf-8")
         self.assertEqual(text.count('direction.md#intent-i-focus'),1)
         self.assertEqual(text.count('project.md#intent-i-focus'),3)
         self.assertTrue(reader.audit(self.root,['notes/moment.md'])['ok'])
 
     def test_renamed_record_retains_self_intent_references(self):
         p = self.design/'project.md'
-        p.write_text(p.read_text()+'\n## Review\n- **authorial_intent_refs**: '
-                     '[explicit](project.md#intent-i-focus) [local](#intent-i-focus)\n')
+        p.write_text(p.read_text(encoding='utf-8')+'\n## Review\n- **authorial_intent_refs**: '
+                     '[explicit](project.md#intent-i-focus) [local](#intent-i-focus)\n', encoding='utf-8')
         self.rename()
         p = self.design/'direction.md'
-        self.assertIn('(direction.md#intent-i-focus)',p.read_text())
-        self.assertIn('(#intent-i-focus)',p.read_text())
+        self.assertIn('(direction.md#intent-i-focus)',p.read_text(encoding='utf-8'))
+        self.assertIn('(#intent-i-focus)',p.read_text(encoding='utf-8'))
         report = reader.audit(self.root,['narrative/design/direction.md'])
         self.assertTrue(report['ok'],report['errors'])
         self.assertEqual(len(report['links']),2)
 
     def test_same_basename_elsewhere_retains_its_distinct_owner(self):
-        p = self.notes/'project.md';p.write_text(entry('i-other'))
+        p = self.notes/'project.md';p.write_text(entry('i-other'), encoding='utf-8')
         p = self.notes/'moment.md'
         original = '- **authorial_intent_refs**: [other](project.md#intent-i-other)\n'
-        p.write_text(original)
+        p.write_text(original, encoding="utf-8")
         self.rename()
-        self.assertEqual(p.read_text(),original)
+        self.assertEqual(p.read_text(encoding="utf-8"),original)
         self.assertTrue(reader.audit(self.root,['notes/moment.md'])['ok'])
 
 
@@ -437,17 +437,17 @@ class CurrentAuthoringTests(unittest.TestCase):
             code,result=call(narrative_init.main,'--out',str(root),'--series-id','project',
                              '--title','Observation','--medium','prose')
             self.assertEqual(code,0,result)
-            data=json.loads((root/'narrative/narrative.json').read_text())
+            data=json.loads((root/'narrative/narrative.json').read_text(encoding='utf-8'))
             self.assertEqual(data['characters'],[])
             self.assertEqual(data['themes'],[])
-            self.assertIn('## Authorial intent register',(root/'narrative/design/project.md').read_text())
+            self.assertIn('## Authorial intent register',(root/'narrative/design/project.md').read_text(encoding='utf-8'))
 
     def test_add_current_persona_is_not_adoption(self):
         with tempfile.TemporaryDirectory() as tmp:
             code,result=call(narrative_entity.main,'--series',tmp,'add','persona','subject-a',
                              '--character','A','--name','Subject A','--phase','current')
             self.assertEqual(code,0,result)
-            text=(Path(tmp)/'narrative/personas/subject-a.md').read_text()
+            text=(Path(tmp)/'narrative/personas/subject-a.md').read_text(encoding='utf-8')
             self.assertIn('**adoption_scope**:',text)
             self.assertIn('**authorial_intent_refs**:',text)
             self.assertIn('no adoption yet',text)
@@ -455,7 +455,7 @@ class CurrentAuthoringTests(unittest.TestCase):
     def test_new_identity_fields_participate_in_literal_audit(self):
         text='- **inner_core**: Repeats a sufficiently long generic explanation for review.\n- **recognizable_portrayal**: Repeats a sufficiently long generic explanation for review.\n'
         with tempfile.TemporaryDirectory() as tmp:
-            p=Path(tmp)/'a.md';p.write_text(text)
+            p=Path(tmp)/'a.md';p.write_text(text, encoding='utf-8')
             result=persona_expression_audit.audit([p])
         self.assertEqual(len(result['duplicate_groups']),1)
         self.assertEqual(result['semantic_quality'],'not_assessed')
@@ -468,12 +468,12 @@ class CurrentAuthoringTests(unittest.TestCase):
         self.assertEqual(len(result['links']),3)
 
     def test_router_and_method_reach_intent_authority(self):
-        self.assertIn('(references/runtime/authorial-intent.md)',(ROOT/'SKILL.md').read_text())
+        self.assertIn('(references/runtime/authorial-intent.md)',(ROOT/'SKILL.md').read_text(encoding='utf-8'))
         for path in ('references/runtime/narrative-development.md','references/runtime/character-performance.md'):
-            self.assertIn('(authorial-intent.md)',(ROOT/path).read_text())
+            self.assertIn('(authorial-intent.md)',(ROOT/path).read_text(encoding='utf-8'))
 
     def test_documented_scope_supports_non_agents_and_multiple_modes(self):
-        text=(ROOT/'references/runtime/authorial-intent.md').read_text()
+        text=(ROOT/'references/runtime/authorial-intent.md').read_text(encoding='utf-8')
         for phrase in ('unpeopled landscape','Neither mode has to be a mask',
                        'An adopted exception does not erase the general rule',
                        'A local beat can fit while the accumulated portrayal loses its center',
@@ -481,11 +481,13 @@ class CurrentAuthoringTests(unittest.TestCase):
             self.assertIn(phrase,text)
 
     def test_script_is_routed_and_current_test_is_registered(self):
-        text=(ROOT/'references/narrative-authoring.md').read_text()
+        text=(ROOT/'references/narrative-authoring.md').read_text(encoding='utf-8')
         self.assertIn('scripts/authorial_intent_audit.py',text)
         for path in ('CONTRIBUTING.md','references/release/validation.md','.github/workflows/ci.yml'):
-            self.assertIn('scripts/authorial_intent_smoke_test.py',(ROOT/path).read_text())
+            self.assertIn('scripts/authorial_intent_smoke_test.py',(ROOT/path).read_text(encoding='utf-8'))
 
 
 if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main(verbosity=2)

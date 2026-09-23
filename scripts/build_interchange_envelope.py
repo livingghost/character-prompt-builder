@@ -90,4 +90,6 @@ def main() -> int:
         if acquired and lock is not None: lock.unlink(missing_ok=True)
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

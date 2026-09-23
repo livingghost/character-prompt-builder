@@ -118,4 +118,7 @@ def main(argv=None) -> int:
     print(json.dumps(result,ensure_ascii=False,indent=2));return 0
 
 
-if __name__=='__main__':raise SystemExit(main())
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

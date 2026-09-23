@@ -41,7 +41,7 @@ class Boundary(unittest.TestCase):
         return contract.validate_envelope(value or self.envelope,**options)
     def command(self,*args):
         env={k:v for k,v in os.environ.items() if k not in {'PYTHONPATH'}};env['PYTHONDONTWRITEBYTECODE']='1';env['HOME']=str(self.root/'home');Path(env['HOME']).mkdir(exist_ok=True)
-        return subprocess.run([sys.executable,str(ROOT/'scripts/build_interchange_envelope.py'),*map(str,args)],cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
+        return subprocess.run([sys.executable,str(ROOT/'scripts/build_interchange_envelope.py'),*map(str,args)],cwd=self.root,env=env,capture_output=True,text=True,encoding='utf-8',timeout=30)
     def args(self,out):
         return ['--profile','shot-request','--payload',self.root/'artifact.json','--payload-type',self.kind,'--payload-id',self.envelope['payload']['artifact_id'],'--out',out]
     def test_bundled_capability_declaration(self):
@@ -79,8 +79,8 @@ class Boundary(unittest.TestCase):
     def test_data_path_containment(self):
         v=copy.deepcopy(self.envelope);v['payload']['path']='../artifact.json';v=contract.finalize(v,'envelope_sha256');self.assertFalse(self.check(v)['ok'])
     def test_declared_capability_path(self):
-        (self.root/'config').mkdir();(self.root/'data').mkdir();(self.root/'data/declaration.json').write_text(json.dumps(self.caps));(self.root/'config/protocol-layout.json').write_text(json.dumps({'capabilities':'data/declaration.json'}))
-        (self.root/'irrelevant').mkdir();(self.root/'irrelevant/integration-capabilities.json').write_text('{}');self.assertEqual(contract.load_capabilities(self.root),self.caps)
+        (self.root/'config').mkdir();(self.root/'data').mkdir();(self.root/'data/declaration.json').write_text(json.dumps(self.caps), encoding='utf-8');(self.root/'config/protocol-layout.json').write_text(json.dumps({'capabilities':'data/declaration.json'}), encoding='utf-8')
+        (self.root/'irrelevant').mkdir();(self.root/'irrelevant/integration-capabilities.json').write_text('{}',encoding='utf-8');self.assertEqual(contract.load_capabilities(self.root),self.caps)
     def test_malformed_declaration_is_reported(self):
         result=self.check(declaration={'artifact_type':'integration-capability-manifest','interfaces':None,'manifest_sha256':'x'});self.assertFalse(result['ok'])
     def test_every_declared_payload_roundtrip(self):
@@ -94,16 +94,16 @@ class Boundary(unittest.TestCase):
         self.assertEqual({p.name for p in out.iterdir()},{'artifact.json','declaration.json','envelope.json'});self.assertEqual((out/'artifact.json').read_bytes(),self.raw)
         report=contract.validate_envelope(contract.read_json(out/'envelope.json'),capabilities=self.caps,direction='consumes',declaration=contract.read_json(out/'declaration.json'),payload_root=out);self.assertTrue(report['ok'],report)
     def test_cli_existing_output_preserved(self):
-        out=self.root/'bundle';out.mkdir();(out/'keep').write_text('keep');result=self.command(*self.args(out));self.assertNotEqual(result.returncode,0);self.assertEqual((out/'keep').read_text(),'keep')
+        out=self.root/'bundle';out.mkdir();(out/'keep').write_text('keep',encoding='utf-8');result=self.command(*self.args(out));self.assertNotEqual(result.returncode,0);self.assertEqual((out/'keep').read_text(encoding='utf-8'),'keep')
     def test_cli_existing_lock_preserved(self):
-        out=self.root/'bundle';lock=self.root/'.bundle.publish.lock';lock.write_text('owned by another operation');result=self.command(*self.args(out));self.assertNotEqual(result.returncode,0);self.assertEqual(lock.read_text(),'owned by another operation');self.assertFalse(out.exists())
+        out=self.root/'bundle';lock=self.root/'.bundle.publish.lock';lock.write_text('owned by another operation',encoding='utf-8');result=self.command(*self.args(out));self.assertNotEqual(result.returncode,0);self.assertEqual(lock.read_text(encoding='utf-8'),'owned by another operation');self.assertFalse(out.exists())
     def test_strict_json(self):
-        p=self.root/'bad.json';p.write_text('{"x":1,"x":2}');self.assertRaises(ValueError,contract.read_json,p)
+        p=self.root/'bad.json';p.write_text('{"x":1,"x":2}',encoding="utf-8");self.assertRaises(ValueError,contract.read_json,p)
 
     def test_cli_reports_capability_subject(self):
         result = subprocess.run(
             [sys.executable, str(ROOT / 'scripts/validate_integration.py')],
-            cwd=self.root, capture_output=True, text=True, timeout=30,
+            cwd=self.root, capture_output=True, text=True, encoding="utf-8", timeout=30,
             env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'},
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -140,4 +140,6 @@ class Boundary(unittest.TestCase):
             contract.confined_path(self.root, '../outside.json')
 
 if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     stream=io.StringIO();result=unittest.TextTestRunner(stream=stream,verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Boundary));sys.stderr.write(stream.getvalue());print(json.dumps({'ok':result.wasSuccessful(),'tests':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skipped':len(result.skipped)}));raise SystemExit(not result.wasSuccessful())

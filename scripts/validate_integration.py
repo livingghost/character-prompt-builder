@@ -59,4 +59,7 @@ def main() -> int:
         return int(bool(errors))
     except (ValueError,OSError,TypeError,KeyError,UnicodeError) as exc:
         print(json.dumps({"ok":False,"errors":[str(exc)]}));return 1
-if __name__=="__main__":raise SystemExit(main())
+if __name__=="__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

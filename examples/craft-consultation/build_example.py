@@ -10,11 +10,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import execution_contract as c
+from io_budget import environment_seconds
 
 
 def call(root, operation, *args):
     result = subprocess.run([sys.executable, str(ROOT / 'scripts/production_workflow.py'), operation,
-        '--root', str(root), '--task', 'task.json', *args], capture_output=True, text=True, timeout=120)
+        '--root', str(root), '--task', 'task.json', *args], capture_output=True, text=True, encoding='utf-8', timeout=environment_seconds('EXAMPLE_COMMAND_TIMEOUT_SECONDS'))
     if result.returncode:
         raise ValueError(result.stdout + result.stderr)
     return json.loads(result.stdout)
@@ -62,8 +63,8 @@ def build(root):
     expected = dict(spec, selected_preset_ids=[selected])
     if new_spec != expected or (root / 'spec.json').read_bytes() != original_spec:
         raise ValueError('Authored fields were changed by application.')
-    import preset_consultation
-    questions = preset_consultation.review_questions(root, c.load(root / result['task']))
+    import craft_consultation
+    questions = craft_consultation.review_questions(root, c.load(root / result['task']))
     if questions['readability'] != [decisions['uses'][0]['review_question']]:
         raise ValueError('The authored review question was not carried to its declared criterion.')
     return {'synthetic': True, 'searchable_records': search['scope']['searchable']['total_records'],
@@ -99,4 +100,6 @@ def main():
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

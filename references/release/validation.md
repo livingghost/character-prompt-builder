@@ -17,21 +17,20 @@ Use this document only for publishing a core release or a pack release. Ordinary
 
 ## Core release environment
 
-Install and verify the exact Tested profile with the Python 3.12 that CI uses. uv creates that environment and installs into it:
+Install and verify the exact Tested profile with the Python 3.12 that CI uses. Run this check with that Python; it creates the environment at `../cpb-tested` and installs the pins into it once you confirm:
 
 ```bash
-uv venv --python 3.12 ../cpb-tested
-uv pip install --python ../cpb-tested -r requirements-tested.txt
+python scripts/check_dependencies.py --tested --venv ../cpb-tested --install
 ```
 
-Run every check with that environment's Python, starting with `python scripts/check_dependencies.py --tested`. Where pip is the installer, `python -m pip install -r requirements-tested.txt` installs the same pins.
+Run every other check with that environment's Python. The Tested profile also requires ffprobe from FFmpeg, and the same command installs it through the system package manager.
 
 Core and Visual profiles support development and task-specific runtime; only the Tested profile validates publication. Each of these blocks publication:
 
 - missing pin
 - import failure
 - functional dependency failure
-- real CairoSVG render failure
+- real SVG render failure
 - reference-runtime failure
 - generation-commitment failure
 - visual-evidence workflow failure
@@ -64,6 +63,7 @@ These regression-only entrypoints remain individually discoverable for targeted 
 
 ```bash
 python scripts/dependency_check_smoke_test.py
+python scripts/stdio_encoding_smoke_test.py
 python scripts/catalog_html_smoke_test.py
 python scripts/default_release_smoke_test.py --state-file config/default-pack-state.json --cache-dir <dedicated-cache-dir> --managed-root <existing-managed-dir>
 python scripts/eval_runtime_smoke_test.py
@@ -119,8 +119,8 @@ python scripts/visual_evidence_smoke_test.py
 Require all of the following:
 
 - `SKILL.md` frontmatter contains only `name` and `description`;
-- `SKILL.md` is at most 500 lines, enforced by `scripts/validate.py`, which reports the word count and leaves it unbounded;
-- optional runtime, model, maintenance, and release documents are reachable through truthful conditional links in the graph rooted at `SKILL.md`;
+- `SKILL.md` is at most 500 lines and at most 5000 tokens estimated as characters divided by four, both enforced by `scripts/validate.py`;
+- optional runtime, model, maintenance, and release documents are reachable through truthful conditional links in the graph rooted at `SKILL.md`, or through a route or feature `SKILL.md` names;
 - prompt-artifacts stays independent of image-generation, state-aware, maintenance, and release documents;
 - model adapter files contain only their named target family;
 - the runtime document graph contains only current single-purpose authorities;
@@ -301,4 +301,4 @@ Their synthetic providers exercise request recording and recovery separately fro
 
 ## Craft consultation
 
-Run `scripts/preset_consultation_smoke_test.py` and the `examples/preset-consultation/build_example.py --check` CLI example. Check search scope, full records, explicit decisions, atomic application, and unassessed reviewer questions. Assess actual output quality separately.
+Run `scripts/craft_consultation_smoke_test.py` and the `examples/craft-consultation/build_example.py --check` CLI example. Check search scope, full records, explicit decisions, atomic application, and unassessed reviewer questions. Assess actual output quality separately.

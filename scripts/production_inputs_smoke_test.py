@@ -38,7 +38,7 @@ class InputToolsTests(unittest.TestCase):
             'intended_effect': 'Synthetic output, not an audience claim.', 'basis': [], 'decisions': [],
             'action_slice': None, 'limitations': ['Synthetic input fixture.']})
         (self.root / 'task.json').write_bytes(c.encoded(self.task))
-        (self.root / 'delivery.txt').write_text('Synthetic authored delivery.\n')
+        (self.root / 'delivery.txt').write_text('Synthetic authored delivery.\n', encoding='utf-8')
         self.ledger = self.root / 'work/reads.jsonl'
         self.env = patch.dict(os.environ, {'CPB_READS_LEDGER': str(self.ledger)})
         self.env.start()
@@ -146,7 +146,7 @@ class InputToolsTests(unittest.TestCase):
 
     def test_existing_destination_is_preserved(self):
         (self.root / 'built').mkdir()
-        (self.root / 'built/authored.txt').write_text('Preserve this existing synthetic source.')
+        (self.root / 'built/authored.txt').write_text('Preserve this existing synthetic source.', encoding='utf-8')
         before = self.files()
         with self.assertRaises(FileExistsError):
             self.build()
@@ -156,7 +156,7 @@ class InputToolsTests(unittest.TestCase):
         original = adapters.build_validation
         def altered(*args):
             result = original(*args)
-            (self.root / 'choices.json').write_text('{}')
+            (self.root / 'choices.json').write_text('{}', encoding='utf-8')
             return result
         with patch.object(adapters, 'build_validation', side_effect=altered):
             with self.assertRaises(ValueError):
@@ -263,7 +263,7 @@ class InputToolsTests(unittest.TestCase):
             self.assertEqual((action['operation'], action['script']), ('build-generation-payload', script))
             if script not in usage:
                 usage[script] = subprocess.run([sys.executable, str(tool.ROOT / script), '--help'],
-                                               capture_output=True, text=True, check=True).stdout
+                                               capture_output=True, text=True, encoding="utf-8", check=True).stdout
             for name in action['required_args']:
                 self.assertIn('--' + name + ' ', usage[script], (script, name))
 
@@ -293,7 +293,7 @@ class InputToolsTests(unittest.TestCase):
 
     def test_changed_source_is_reported_before_reusing_applications(self):
         run = self.prepared_source()
-        (self.root / 'delivery.txt').write_text('Changed synthetic delivery for a separate assessment.')
+        (self.root / 'delivery.txt').write_text('Changed synthetic delivery for a separate assessment.', encoding='utf-8')
         before = self.files()
         result = tool.inspect_inputs(self.root, 'task.json', from_run=run)
         fresh = result['source_run']['freshness']
@@ -317,7 +317,7 @@ class InputToolsTests(unittest.TestCase):
 
     def test_cli_help_documents_no_side_effect_build(self):
         run = subprocess.run([sys.executable, str(tool.ROOT / 'scripts/production_workflow.py'),
-                              'build-inputs', '--help'], capture_output=True, text=True, check=False)
+                              'build-inputs', '--help'], capture_output=True, text=True, encoding='utf-8', check=False)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertIn('--choices', run.stdout)
         self.assertIn('--out-dir', run.stdout)
@@ -326,7 +326,7 @@ class InputToolsTests(unittest.TestCase):
         run = subprocess.run([sys.executable, str(tool.ROOT / 'scripts/production_workflow.py'),
                               'build-inputs', '--root', str(self.root), '--task', 'task.json',
                               '--choices', 'choices.json', '--out-dir', 'cli-built'],
-                             capture_output=True, text=True, check=False)
+                             capture_output=True, text=True, encoding="utf-8", check=False)
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         self.assertEqual(json.loads(run.stdout)['state'], 'built')
         actual = c.load(self.root / 'cli-built/route-reading.json')
@@ -334,4 +334,6 @@ class InputToolsTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main()

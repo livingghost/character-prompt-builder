@@ -147,4 +147,7 @@ class GenerationVariationTests(unittest.TestCase):
         choices=c.load(self.root/'variation/choices.json')['choices']
         self.assertEqual(choices['visual']['subjects'].keys(),package['visual_continuity']['subjects'].keys())
 
-if __name__=='__main__':unittest.main(verbosity=2)
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main(verbosity=2)

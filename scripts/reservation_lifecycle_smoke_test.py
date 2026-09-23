@@ -15,7 +15,7 @@ import production_fixtures as fixture
 
 def setup(root):
     task=work_ledger.begin(root,'Synthetic reservation test',['deliver'])
-    (root/'delivery.txt').write_text('Synthetic declared output.')
+    (root/'delivery.txt').write_text('Synthetic declared output.', encoding='utf-8')
     spec={'task_id':task['task_id'],'route':'development','features':[],'sources':[],
         'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Synthetic rendition.'},
         'criteria':[{'id':'output','strength':'hard','text':'Inspect actual bytes.'}],'world_views':[]}
@@ -36,7 +36,7 @@ class ReservationTests(unittest.TestCase):
         self.temporary=tempfile.TemporaryDirectory();self.addCleanup(self.temporary.cleanup)
         self.root=Path(self.temporary.name)
         self.run,self.token,self.actor=setup(self.root)
-        (self.root/'cancel.txt').write_text('Synthetic explicit cancellation request.\n')
+        (self.root/'cancel.txt').write_text('Synthetic explicit cancellation request.\n', encoding='utf-8')
         self.request={'reservation':life.selector(self.run,self.token),'actor':self.actor,
             'evidence':{'path':'cancel.txt','sha256':c.digest(c.read(self.root/'cancel.txt')),'locator':'whole'},
             'reason':'Cancel this unused synthetic reservation.'}
@@ -75,10 +75,10 @@ class ReservationTests(unittest.TestCase):
         self.request['amounts']={'outputs':20};self.save_request()
         with self.assertRaises(ValueError):self.release()
     def test_evidence_bytes_must_match(self):
-        (self.root/'cancel.txt').write_text('Different evidence')
+        (self.root/'cancel.txt').write_text('Different evidence', encoding='utf-8')
         with self.assertRaises(ValueError):self.release()
     def test_source_change_does_not_prevent_cancellation(self):
-        (self.root/'delivery.txt').write_text('Revised synthetic delivery')
+        (self.root/'delivery.txt').write_text('Revised synthetic delivery', encoding='utf-8')
         self.assertTrue(self.release()['released'])
     def test_other_effect_cannot_be_released(self):
         life.begin(self.root,self.run,self.token,effect='local-action')
@@ -152,4 +152,7 @@ class ReservationTests(unittest.TestCase):
         self.assertCountEqual(result,['success','rejected'])
         self.assertIn(self.states()[self.token]['status'],{'started','released'})
 
-if __name__=='__main__':unittest.main()
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main()

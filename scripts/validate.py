@@ -142,12 +142,12 @@ ROOT_REQUIRED = (
     'scripts/production_resume.py',
     'scripts/production_resume_smoke_test.py',
     'scripts/production_inputs.py',
-    'scripts/preset_consultation.py',
-    'scripts/preset_consultation_smoke_test.py',
-    'references/runtime/preset-consultation.md',
-    'examples/preset-consultation/README.md',
-    'examples/preset-consultation/build_example.py',
-    'examples/preset-consultation/report.json',
+    'scripts/craft_consultation.py',
+    'scripts/craft_consultation_smoke_test.py',
+    'references/runtime/craft-consultation.md',
+    'examples/craft-consultation/README.md',
+    'examples/craft-consultation/build_example.py',
+    'examples/craft-consultation/report.json',
     'scripts/production_input_adapters.py',
     'scripts/production_inputs_smoke_test.py',
     'scripts/production_input_model_smoke_test.py',
@@ -352,9 +352,11 @@ ROOT_REQUIRED = (
 # Read volume is measured, not used as proof of relevance or a hard optimization gate.
 
 # The Agent Skills specification recommends a body under 500 lines and under
-# 5000 tokens. The line count is exact and is refused here; the token figure has
-# no local tokenizer, so the word count is reported and not bounded.
+# 5000 tokens, and both are refused here. No local tokenizer exists, so the token
+# figure is estimated as characters divided by four.
 SKILL_MAX_LINES = 500
+SKILL_MAX_ESTIMATED_TOKENS = 5000
+SKILL_CHARACTERS_PER_TOKEN = 4
 
 
 def carried_implementation_hashes(document: str) -> dict[str, str]:
@@ -390,7 +392,7 @@ def run_preset_quality_audit(root: Path, errors: list[str]) -> None:
              "--state-file", str(area / "pack-state.json"),
              "--cache-dir", str(area / "cache"),
              "--managed-root", str(area / "managed")],
-            cwd=root, text=True, check=False,
+            cwd=root, text=True, encoding="utf-8", check=False,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
         )
@@ -508,7 +510,8 @@ FRESH_SESSION_RUNTIME_DOCUMENTS = (
     "references/runtime/reference-prompt-artifacts.md",
     "references/runtime/pack-state-quickstart.md",
 )
-SKILL_ROUTER_LINKS = (
+# SKILL.md routes each of these by a link or by naming a route or feature that delivers it.
+SKILL_ROUTED_DOCUMENTS = (
     "references/runtime/narrative-development.md",
     "references/runtime/cast-and-persona-depth.md",
     "references/runtime/prompt-composition.md",
@@ -523,6 +526,16 @@ SKILL_ROUTER_LINKS = (
     "references/maintenance/packs.md",
     "references/maintenance/search-discovery.md",
     "references/release/validation.md",
+)
+# Prompt work in conversation reads these without a route read, so SKILL.md links each one.
+SKILL_DIRECT_LINKS = (
+    "references/runtime/prompt-only-core.md",
+    "references/runtime/prompt-composition.md",
+    "references/runtime/sparse-discovery.md",
+    "references/runtime/prompt-vocabulary.md",
+    "references/runtime/prompt-writing-guide.md",
+    "references/runtime/subject-domain-quick-reference.md",
+    "references/runtime/craft-consultation.md",
 )
 ADAPTER_DIRECTORY = "references/adapters"
 
@@ -582,16 +595,56 @@ def _adapter_documents(root: Path) -> tuple[str, ...]:
     return tuple(sorted(f"{ADAPTER_DIRECTORY}/{path.name}" for path in directory.glob("*.md")))
 
 
-def _skill_target_adapters(skill: str) -> tuple[str, ...]:
+def _route_deliveries(root: Path) -> dict[str, tuple[str, ...]]:
+    """Return, for each route and feature name, the documents a route read prints for it."""
+
+    path = root / "config/execution-routes.json"
+    if not path.is_file():
+        return {}
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    features = manifest.get("features", {})
+    deliveries: dict[str, set[str]] = {}
+    for name, feature in features.items():
+        deliveries.setdefault(name, set()).update(feature.get("reads", ()))
+    for name, route in manifest.get("routes", {}).items():
+        reads = deliveries.setdefault(name, set())
+        reads.update(manifest.get("always_read", ()), route.get("reads", ()))
+        for feature in route.get("features", ()):
+            reads.update(features.get(feature, {}).get("reads", ()))
+    return {name: tuple(sorted(reads)) for name, reads in deliveries.items()}
+
+
+def _named_route_documents(root: Path, skill: str) -> set[str]:
+    """Return what a route read delivers for each route or feature SKILL.md names."""
+
+    return {
+        read
+        for name, reads in _route_deliveries(root).items()
+        if f"`{name}`" in skill
+        for read in reads
+    }
+
+
+def _skill_routed_documents(root: Path, skill: str) -> set[str]:
+    """Return what SKILL.md links and what a route read delivers for each route or feature it names."""
+
+    return set(_markdown_link_targets(skill)) | _named_route_documents(root, skill)
+
+
+def _skill_target_adapters(skill: str, root: Path) -> tuple[str, ...]:
     """Return the adapters SKILL.md offers as the one selectable target adapter."""
 
     selection = [line for line in skill.splitlines() if "exactly one of" in line]
     if not selection:
         return ()
+    deliveries = _route_deliveries(root)
     targets = {
         target
         for line in selection
-        for target in _markdown_link_targets(line)
+        for target in (
+            *_markdown_link_targets(line),
+            *(read for name in re.findall(r"`([^`]+)`", line) for read in deliveries.get(name, ())),
+        )
         if target.startswith(f"{ADAPTER_DIRECTORY}/")
     }
     return tuple(sorted(targets))
@@ -909,13 +962,17 @@ def _markdown_link_targets(text: str) -> tuple[str, ...]:
     return tuple(targets)
 
 
-def _reachable_reference_documents(root: Path) -> set[str]:
-    """Return Markdown references discoverable from the Skill link graph."""
+def _reachable_reference_documents(root: Path, skill: str) -> set[str]:
+    """Return Markdown references reached by links from SKILL.md and from the documents
+    a route read delivers for each route or feature SKILL.md names."""
 
     resolved_root = root.resolve()
-    pending = ["SKILL.md"]
+    delivered = sorted(
+        relative for relative in _named_route_documents(root, skill) if (root / relative).is_file()
+    )
+    pending = ["SKILL.md", *delivered]
     visited: set[str] = set()
-    reached_references: set[str] = set()
+    reached_references = {relative for relative in delivered if relative.startswith("references/")}
     while pending:
         relative = pending.pop()
         if relative in visited:
@@ -972,6 +1029,13 @@ def check_skill_documentation_contract(root: Path, errors: list[str]) -> dict[st
             f"SKILL.md exceeds the {SKILL_MAX_LINES}-line limit the specification "
             f"recommends: observed {line_count}"
         )
+    estimated_tokens = -(-len(skill) // SKILL_CHARACTERS_PER_TOKEN)
+    observed["SKILL estimated tokens"] = estimated_tokens
+    if estimated_tokens > SKILL_MAX_ESTIMATED_TOKENS:
+        errors.append(
+            f"SKILL.md exceeds the {SKILL_MAX_ESTIMATED_TOKENS}-token limit the specification "
+            f"recommends: estimated {estimated_tokens} from {len(skill)} characters"
+        )
 
     for phrase in SKILL_REQUIRED_ROUTER_PHRASES:
         if phrase not in skill:
@@ -982,18 +1046,22 @@ def check_skill_documentation_contract(root: Path, errors: list[str]) -> dict[st
                 "SKILL.md must route to specialist instructions instead of embedding deep "
                 f"runtime or maintenance commands: {token}"
             )
+    routed_documents = _skill_routed_documents(root, skill)
+    unrouted = [relative for relative in SKILL_ROUTED_DOCUMENTS if relative not in routed_documents]
+    observed["SKILL routed documents"] = len(SKILL_ROUTED_DOCUMENTS) - len(unrouted)
+    for relative in unrouted:
+        errors.append(f"SKILL.md does not route the required document: {relative}")
     link_targets = _markdown_link_targets(skill)
-    missing_links = [relative for relative in SKILL_ROUTER_LINKS if relative not in link_targets]
-    observed["SKILL routed documents"] = len(SKILL_ROUTER_LINKS) - len(missing_links)
-    for relative in missing_links:
-        errors.append(f"SKILL.md is missing required routed document link: {relative}")
+    for relative in SKILL_DIRECT_LINKS:
+        if relative not in link_targets:
+            errors.append(f"SKILL.md does not link the conversational prompt document: {relative}")
 
     all_reference_documents = {
         path.relative_to(root).as_posix()
         for path in (root / "references").rglob("*.md")
         if path.is_file()
     }
-    reachable_reference_documents = _reachable_reference_documents(root)
+    reachable_reference_documents = _reachable_reference_documents(root, skill)
     unreachable_reference_documents = sorted(
         all_reference_documents - reachable_reference_documents
     )
@@ -1002,7 +1070,7 @@ def check_skill_documentation_contract(root: Path, errors: list[str]) -> dict[st
     observed["unreachable reference documents"] = unreachable_reference_documents
     for relative in unreachable_reference_documents:
         errors.append(
-            "reference document is unreachable from the SKILL.md link graph: "
+            "reference document is reached by no SKILL.md link or named route or feature: "
             + relative
         )
 
@@ -1081,11 +1149,11 @@ def check_skill_documentation_contract(root: Path, errors: list[str]) -> dict[st
     )
 
     adapters = _adapter_documents(root)
-    target_adapters = _skill_target_adapters(skill)
+    target_adapters = _skill_target_adapters(skill, root)
     observed["adapter documents"] = len(adapters)
     observed["SKILL target adapters"] = len(target_adapters)
     for relative in adapters:
-        if relative not in link_targets:
+        if relative not in routed_documents:
             errors.append(f"SKILL.md does not route the adapter document: {relative}")
     for relative in target_adapters:
         if relative not in adapters:
@@ -1557,6 +1625,7 @@ def run_visual_evidence_smoke(root: Path) -> dict[str, Any]:
         cwd=root,
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
         text=True,
+        encoding="utf-8",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
@@ -1592,6 +1661,7 @@ def run_reference_runtime_smoke(root: Path) -> dict[str, Any]:
         cwd=root,
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
         text=True,
+        encoding="utf-8",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
@@ -1624,8 +1694,9 @@ def run_nondefault_pack_isolation_smoke(root: Path) -> dict[str, Any]:
     process = subprocess.run(
         [sys.executable, "scripts/nondefault_pack_isolation_smoke_test.py"],
         cwd=root,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"},
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
         text=True,
+        encoding="utf-8",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
@@ -1658,8 +1729,9 @@ def run_preset_maintenance_smoke(root: Path) -> dict[str, Any]:
     process = subprocess.run(
         [sys.executable, "scripts/preset_maintenance_smoke_test.py"],
         cwd=root,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"},
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
         text=True,
+        encoding="utf-8",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
@@ -1677,8 +1749,8 @@ def run_preset_maintenance_smoke(root: Path) -> dict[str, Any]:
 
 def run_feature_workflow_smoke(root: Path) -> dict[str, Any]:
     process = subprocess.run([sys.executable, "scripts/feature_workflow_smoke_test.py"], cwd=root,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"},
-        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        text=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     try:
         result = json.loads(process.stdout)
     except ValueError:
@@ -1691,8 +1763,8 @@ def run_feature_workflow_smoke(root: Path) -> dict[str, Any]:
 
 def run_structure_neutrality_smoke(root: Path) -> dict[str, Any]:
     process = subprocess.run([sys.executable, "scripts/structure_neutrality_smoke_test.py"], cwd=root,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"},
-        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        text=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     try:
         result = json.loads(process.stdout)
     except ValueError:
@@ -1785,7 +1857,7 @@ def run_standalone_regression(root: Path, name: str, *, output_format: str) -> d
     try:
         proc = subprocess.run(
             [sys.executable, str(root / "scripts" / name)], cwd=root,
-            capture_output=True, text=True, timeout=budget,
+            capture_output=True, text=True, encoding="utf-8", timeout=budget,
         )
     except subprocess.TimeoutExpired as exc:
         return {
@@ -2011,7 +2083,7 @@ def validate(
         "agent_evaluation_smoke_test.py": "unittest",
         "resource_handling_smoke_test.py": "unittest",
         "reimplementation_smoke_test.py": "unittest",
-        "preset_consultation_smoke_test.py": "unittest",
+        "craft_consultation_smoke_test.py": "unittest",
     }
     for name, output_format in regressions.items():
         result = run_standalone_regression(root, name, output_format=output_format)
@@ -2691,7 +2763,7 @@ def validate(
     protocol_sync = subprocess.run(
         [sys.executable, "scripts/validate_integration.py"],
         cwd=root, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        text=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
     )
     if protocol_sync.returncode != 0:
         errors.append("Local integration capability validation failed")
@@ -2904,4 +2976,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

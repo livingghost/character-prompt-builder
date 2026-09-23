@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
-"""Exercise the dispatcher's request building and its refusals without touching a service."""
+"""Exercise the dispatcher's request building, the transport contract and their refusals; the only service is a loopback one the test starts."""
 from __future__ import annotations
 
 import base64
 import contextlib
 import copy
 import hashlib
+import http.server
 import io
 import json
 import os
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import types
-import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -24,11 +26,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import dispatch  # noqa: E402
 import execution_contract  # noqa: E402
+import service_profile  # noqa: E402
 import studio  # noqa: E402
+import transport_contract  # noqa: E402
 import transport_runware  # noqa: E402
 from request_contract import MANAGEMENT_VALUE
 
-EXPECTED_CHECKS = 47
+EXPECTED_CHECKS = 59
 
 SERVICE = {"endpoint": {"base_url": "https://example.invalid/v1", "method": "POST"}, "operations": {"imageInference": {}}, "auth": {"env_var": "EXAMPLE_KEY"}}
 TEXT_KEYS = {"model": ["model"], "prompt": ["positivePrompt"], "negative prompt": ["negativePrompt"]}
@@ -98,14 +102,6 @@ def refusal(fn) -> str:
     return ""
 
 
-def raises(fn, kind) -> bool:
-    try:
-        fn()
-    except kind:
-        return True
-    return False
-
-
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 24
 
 
@@ -120,11 +116,72 @@ class FakeResponse(io.BytesIO):
 
 class FakeOpener:
     def __init__(self, body: bytes = PNG, *, length: int | None = None, status: int = 200) -> None:
-        self.body, self.length, self.status, self.opened = body, length, status, []
+        self.body, self.length, self.status, self.opened, self.timeouts = body, length, status, [], []
 
     def open(self, request, timeout=None):
         self.opened.append(request.full_url)
+        self.timeouts.append(timeout)
         return FakeResponse(self.body, length=self.length, status=self.status)
+
+
+class LoopbackService:
+    """A service on 127.0.0.1 that gives every POST the reply the test sets, and keeps each request it receives.
+
+    A reply is (status, headers, body), "drop" to close the connection without an
+    answer, or "slow" to answer after a second.
+    """
+
+    def __init__(self) -> None:
+        self.received: list[dict[str, Any]] = []
+        self.reply: Any = (200, {}, b"{}")
+        owner = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self) -> None:
+                body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                owner.received.append({"path": self.path, "body": body, "headers": dict(self.headers)})
+                reply = owner.reply
+                if reply == "drop":
+                    return
+                if reply == "slow":
+                    time.sleep(1)
+                    reply = (200, {}, b"{}")
+                status, headers, answer = reply
+                self.send_response(status)
+                for name, value in headers.items():
+                    self.send_header(name, value)
+                self.send_header("Content-Length", str(len(answer)))
+                self.end_headers()
+                self.wfile.write(answer)
+
+            def log_message(self, *args: Any) -> None:
+                pass
+
+        class Server(http.server.ThreadingHTTPServer):
+            daemon_threads = True
+
+            def handle_error(self, request: Any, client_address: Any) -> None:
+                pass  # A client that stopped waiting leaves a broken pipe; the test reads what it received.
+
+        self.server = Server(("127.0.0.1", 0), Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+
+    def __enter__(self) -> "LoopbackService":
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+
+
+def unknown(fn) -> transport_contract.Indeterminate | None:
+    """The Indeterminate a call raised, or None when it raised none."""
+    try:
+        fn()
+    except transport_contract.Indeterminate as exc:
+        return exc
+    return None
 
 
 def saved(url: str, opener: FakeOpener, folder: Path) -> tuple[str | None, str | None, list[str]]:
@@ -317,52 +374,153 @@ def main() -> int:
           and not any(secret in row[1] for row in found for secret in ("top-level-secret", "project-secret", "stray-secret")),
           conflicting[1])
 
-    # The transport sends the credential only to https on the Runware API host.
+    # The Runware transport sends the credential only to https on its API host,
+    # through the post() of the transport contract.
     check("the Runware transport accepts only https on its API host as the endpoint",
           transport_runware.endpoint({"endpoint": {"base_url": "https://api.runware.ai/v1"}}) == "https://api.runware.ai/v1"
           and all(refused(lambda url=url: transport_runware.endpoint({"endpoint": {"base_url": url}}), "is not https://api.runware.ai")
                   for url in ("http://api.runware.ai/v1", "https://example.invalid/v1", "https://api.runware.ai.example.invalid/v1",
                               "https://user:pw@api.runware.ai/v1", "https://api.runware.ai:8443/v1", "")))
     sender = FakeOpener()
-    with patch.object(transport_runware.urllib.request, "build_opener", return_value=sender):
+    with patch.object(transport_contract.urllib.request, "build_opener", return_value=sender):
         check("a record naming another server is refused before the credential leaves the machine",
               refused(lambda: transport_runware.send({"taskType": "imageInference"}, SERVICE, "KEY"), "is not https://api.runware.ai")
               and not sender.opened)
     runware = {"endpoint": {"base_url": "https://api.runware.ai/v1"}}
     for body, name in ((b"<html>502 Bad Gateway</html>", "a 200 answer that is not JSON"),
                        (b'["not", "an", "object"]', "a 200 answer that is JSON but not an object")):
-        with patch.object(transport_runware.urllib.request, "build_opener", return_value=FakeOpener(body)):
+        with patch.object(transport_contract.urllib.request, "build_opener", return_value=FakeOpener(body)):
             answer = transport_runware.send({"taskType": "imageInference"}, runware, "KEY")
         check(f"{name} is kept as an error answer with its body",
               transport_runware.rejections(answer) == [{"code": "http200-not-json-object", "message": body.decode()}]
               and transport_runware.observation_outcome(answer) == "rejected", answer)
-    check("the transport refuses to follow a redirect with the credential",
-          raises(lambda: transport_runware._NoRedirect().redirect_request(
-              urllib.request.Request("https://api.runware.ai/v1", data=b"[]", method="POST"), None, 302, "Found", {},
-              "https://example.invalid/v1"), urllib.error.HTTPError))
 
-    # The transport contract is the dispatcher's docstring, which names exactly
-    # what the dispatcher, its renderer and the package builder use.
-    documented = {line.split("(")[0].strip() for line in (dispatch.__doc__ or "").splitlines()
+    # The network rules every transport shares.
+    check("an address is https, or http on a loopback address, and names no user or password",
+          all(transport_contract.address(url) == url for url in (
+              "https://api.example.invalid/v1", "http://127.0.0.1:8080/v1", "http://localhost/v1", "http://[::1]:9/v1"))
+          and all(refused(lambda url=url: transport_contract.address(url), "refused to send") for url in (
+              "http://example.invalid/v1", "http://10.0.0.1/v1", "http://127.0.0.1.example.invalid/v1",
+              "https://user:pw@api.example.invalid/v1", "ftp://127.0.0.1/v1", "")))
+    plain = FakeOpener(b"{}")
+    without = {name: value for name, value in os.environ.items() if name != transport_contract.TIMEOUT}
+    with patch.object(transport_contract.urllib.request, "build_opener", return_value=plain):
+        check("http to a host that is not loopback is refused before a connection opens",
+              refused(lambda: transport_contract.post("http://example.invalid/v1", b"{}", {}), "refused to send")
+              and not plain.opened)
+        with patch.dict(os.environ, without, clear=True):
+            transport_contract.post("https://api.example.invalid/v1", b"{}", {})
+        with patch.dict(os.environ, {transport_contract.TIMEOUT: "30"}):
+            transport_contract.post("https://api.example.invalid/v1", b"{}", {})
+    check("the exchange has no deadline until PRODUCTION_HTTP_TIMEOUT_SECONDS sets one",
+          plain.timeouts == [None, 30.0], plain.timeouts)
+    with LoopbackService() as service:
+        service.reply = (302, {"Location": service.url + "/elsewhere"}, b"")
+        redirected = unknown(lambda: transport_contract.post(service.url + "/v1", b"{}", {}))
+        check("a redirect is never followed, and whether the request was carried out is indeterminate",
+              redirected is not None and redirected.status == 302 and [row["path"] for row in service.received] == ["/v1"],
+              (str(redirected), service.received))
+        service.received.clear()
+        service.reply = (503, {}, b"upstream busy")
+        busy = unknown(lambda: transport_contract.post(service.url + "/v1", b"{}", {}))
+        check("a 5xx answer is indeterminate and keeps its status and body",
+              busy is not None and len(service.received) == 1 and busy.evidence() == {
+                  "outcome": "indeterminate", "reason": "the service answered 503", "http_status": 503, "body": "upstream busy"},
+              busy and busy.evidence())
+        service.received.clear()
+        service.reply = "drop"
+        dropped = unknown(lambda: transport_contract.post(service.url + "/v1", b"{}", {}))
+        check("a connection dropped before an answer is indeterminate",
+              dropped is not None and dropped.status is None and dropped.reason.startswith("the connection ended")
+              and len(service.received) == 1, dropped and dropped.evidence())
+        service.reply = "slow"
+        with patch.dict(os.environ, {transport_contract.TIMEOUT: "0.2"}):
+            late = unknown(lambda: transport_contract.post(service.url + "/v1", b"{}", {}))
+        check("an answer later than PRODUCTION_HTTP_TIMEOUT_SECONDS is indeterminate",
+              late is not None and late.reason == "no complete answer within PRODUCTION_HTTP_TIMEOUT_SECONDS (0.2 seconds)",
+              late and late.evidence())
+        service.reply = (400, {}, b'{"errors": [{"code": "bad"}]}')
+        check("a 4xx answer is returned as it came, for the transport to read the refusal",
+              transport_contract.post(service.url + "/v1", b"{}", {}) == (400, b'{"errors": [{"code": "bad"}]}'))
+
+    class Unreliable:
+        """A transport that opens its own connection and gives an answer something other than an outcome."""
+
+        def send(self, request, service, key):
+            raise ConnectionResetError("reset by 203.0.113.9 while sending KEY")
+
+        def observation_outcome(self, answer):
+            return "maybe"
+
+    reset = unknown(lambda: transport_contract.send_once(Unreliable(), {}, {}, "KEY"))
+    check("a network failure inside a transport's own send is indeterminate, and its text is not kept",
+          reset is not None and reset.reason == "the connection ended before a complete answer (ConnectionResetError)"
+          and refused(lambda: transport_contract.outcome(Unreliable(), {}), "one of accepted, rejected, indeterminate"),
+          reset and reset.evidence())
+
+    # The contract is the docstring of scripts/transport_contract.py, which names
+    # exactly what check() requires.
+    documented = {line.split("(")[0].strip() for line in (transport_contract.__doc__ or "").splitlines()
                   if line.startswith("    ") and not line.startswith("     ")}
-    called = {*dispatch.TRANSPORT_NAMES, "compile_upscale"}
-    check("the dispatcher's docstring lists exactly the names a transport defines, and the Runware transport has each",
-          documented == called and all(hasattr(transport_runware, name) for name in called), sorted(documented ^ called))
+    check("the transport contract's docstring lists exactly the names check() requires, and the Runware transport meets it",
+          documented == set(transport_contract.NAMES) and transport_contract.check(transport_runware) is transport_runware,
+          sorted(documented ^ set(transport_contract.NAMES)))
     check("the Runware transport's docstring restates no part of the contract",
           not any(line.startswith("    ") for line in (transport_runware.__doc__ or "").splitlines()))
-    # A transport is found by the service's key and refused, in one line, for each name it lacks.
+    # A transport is the module the service record names, refused in one line for each name it lacks or mistypes.
     partial = types.ModuleType("transport_partial_fixture")
     partial.OPERATIONS = {"generation": "make", "upscale": "enlarge"}
+    partial.RESULT_HOSTS = "im.example.invalid"
     partial.endpoint = lambda service: ""
     with patch.dict(sys.modules, {"transport_partial_fixture": partial}):
-        lacking = refusal(lambda: dispatch.load_transport("partial-fixture"))
-    check("a transport that lacks contract names is refused in one line naming each missing one",
-          all(name in lacking for name in ("RESULT_HOSTS", "compile_request", "compile_upscale", "observation_outcome"))
-          and "endpoint" not in lacking and "OPERATIONS" not in lacking and len(lacking.splitlines()) == 1, lacking)
-    absent = refusal(lambda: dispatch.load_transport("absent-fixture"))
-    check("a service with no transport names the module to write and where its contract is",
-          "scripts/transport_absent_fixture.py" in absent and "scripts/dispatch.py docstring" in absent
+        lacking = refusal(lambda: transport_contract.load("partial_fixture"))
+    check("a transport that lacks or mistypes contract names is refused in one line naming each",
+          all(f"{name} is missing" in lacking for name in ("compile_request", "compile_upscale", "added_parameters",
+                                                           "upload_bytes", "send", "rejections", "results", "observation_outcome"))
+          and "RESULT_HOSTS is not a set of host names" in lacking and "endpoint" not in lacking
+          and "OPERATIONS" not in lacking and len(lacking.splitlines()) == 1, lacking)
+    absent = refusal(lambda: transport_contract.load("absent_fixture"))
+    check("a record naming a transport that is not there names the module to write and the contract",
+          "scripts/transport_absent_fixture.py" in absent and "scripts/transport_contract.py" in absent
           and "transport_runware" not in absent, absent)
+    with patch.object(transport_contract.importlib, "import_module", side_effect=AssertionError("imported")):
+        names = [refusal(lambda name=name: transport_contract.load(name)) for name in ("Runware", "../runware", "runware.x", "", None)]
+    check("a transport name other than lowercase letters, digits and underscores is refused before any import",
+          all("is not a transport name" in text for text in names), names)
+    with tempfile.TemporaryDirectory(prefix="cpb-dispatch-profiles-") as tmp:
+        profiles = Path(tmp) / "services.json"
+        readings = []
+        for transport in (None, "Run-ware", "runware"):
+            entry = {"endpoint": {"base_url": "https://api.runware.ai/v1"}, **({} if transport is None else {"transport": transport})}
+            profiles.write_text(json.dumps({"services": {"svc": entry}}), encoding="utf-8")
+            try:
+                readings.append(service_profile.load_service("svc", profiles)["transport"])
+            except service_profile.PackError as exc:
+                readings.append(str(exc))
+    check("a service record is read only with a transport in lowercase letters, digits and underscores",
+          "gives the transport None" in readings[0] and "gives the transport 'Run-ware'" in readings[1]
+          and readings[2] == "runware", readings)
+    from state_protocol import validate_against_schema
+    schema = json.loads((ROOT / "schemas" / "service-profile.schema.json").read_text(encoding="utf-8"))
+    commons = json.loads((ROOT / "packs" / "commons" / "resources" / "service-profiles" / "services.json").read_text(encoding="utf-8"))
+    check("the commons service records meet their schema and name transports that meet the contract",
+          validate_against_schema(commons, schema) == []
+          and all(transport_contract.load(entry["transport"]) for entry in commons["services"].values()),
+          validate_against_schema(commons, schema))
+    # The dispatcher holds a transport's endpoint to the network rules as well.
+    lax = types.ModuleType("transport_lax_fixture")
+    for name in transport_contract.NAMES:
+        setattr(lax, name, getattr(transport_runware, name))
+    lax.endpoint = lambda record: record["endpoint"]["base_url"]
+    chosen = []
+    with tempfile.TemporaryDirectory(prefix="cpb-dispatch-lax-") as tmp, patch.dict(sys.modules, {"transport_lax_fixture": lax}):
+        profiles = Path(tmp) / "services.json"
+        for url in ("http://example.invalid/v1", "http://127.0.0.1:9/v1"):
+            profiles.write_text(json.dumps({"services": {"lax-service": {"transport": "lax_fixture",
+                                                                         "endpoint": {"base_url": url}}}}), encoding="utf-8")
+            chosen.append(refusal(lambda: dispatch.service_for({"service": "lax-service"}, str(profiles))))
+    check("the dispatcher refuses an endpoint its transport let through, so http reaches only a loopback service",
+          "refused to send" in chosen[0] and chosen[1] == "", chosen)
     # A refusal is kept under the hash of the request, whatever fields the service's request has.
     with tempfile.TemporaryDirectory(prefix="cpb-dispatch-refusal-") as tmp:
         plain = {"prompt": "a heron on a post", "num_images": 1}
@@ -445,4 +603,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

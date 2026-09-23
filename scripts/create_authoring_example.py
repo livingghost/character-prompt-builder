@@ -80,4 +80,7 @@ def main() -> int:
         print(json.dumps({'ok':False,'error':str(exc)},ensure_ascii=False));return 1
 
 
-if __name__=='__main__':raise SystemExit(main())
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

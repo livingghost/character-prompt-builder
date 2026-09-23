@@ -27,8 +27,8 @@ class ResumeFixture:
         self.root = Path(self.tmp.name)
         self.directory = self.root / 'production' / RUN
         (self.directory / 'records').mkdir(parents=True)
-        (self.root / 'source.txt').write_text('Synthetic source material.\n')
-        (self.root / 'delivery.txt').write_text('Synthetic retained instructions.\n')
+        (self.root / 'source.txt').write_text('Synthetic source material.\n', encoding='utf-8')
+        (self.root / 'delivery.txt').write_text('Synthetic retained instructions.\n', encoding='utf-8')
         task = make_task(self.root)
         task_reading(self.root, task)
         reading = c.load(self.root / task['route_reading'])
@@ -73,7 +73,7 @@ class ResumeFixture:
 
     def outputs(self):
         self.start()
-        (self.root / 'result.txt').write_text('Synthetic acquired output.\n')
+        (self.root / 'result.txt').write_text('Synthetic acquired output.\n', encoding='utf-8')
         item = w.file_record(self.root, self.directory, 'result.txt')
         return self.append('dispatch-results', {'claim': self.claim_record['sha256'], 'files': [item],
                                                'evidence': [], 'expected_count': 1})
@@ -102,7 +102,7 @@ class ResumeTests(ResumeFixture, unittest.TestCase):
         self.assertFalse(report['execution']['new_submission_allowed_by_this_report'])
 
     def test_changed_source_keeps_saved_reservations(self):
-        (self.root / 'source.txt').write_text('Changed synthetic premise.')
+        (self.root / 'source.txt').write_text('Changed synthetic premise.', encoding='utf-8')
         report = w.status(self.root, RUN)
         self.assertFalse(report['ok'])
         self.assertTrue(report['integrity']['ok'])
@@ -112,7 +112,7 @@ class ResumeTests(ResumeFixture, unittest.TestCase):
 
     def test_changed_source_does_not_hide_uncertain_send(self):
         self.start()
-        (self.root / 'source.txt').write_text('Changed synthetic premise.')
+        (self.root / 'source.txt').write_text('Changed synthetic premise.', encoding='utf-8')
         report = w.status(self.root, RUN)
         self.assertEqual(report['next'], 'recover-recording-or-resolve-remote-status')
         self.assertEqual(report['execution']['state'], 'boundary-recorded-outcome-unconfirmed')
@@ -122,7 +122,7 @@ class ResumeTests(ResumeFixture, unittest.TestCase):
 
     def test_retained_outputs_take_priority_over_new_preparation(self):
         result = self.outputs()
-        (self.root / 'source.txt').write_text('Changed synthetic premise.')
+        (self.root / 'source.txt').write_text('Changed synthetic premise.', encoding='utf-8')
         report = w.status(self.root, RUN)
         self.assertEqual(report['next'], 'recover-recording')
         self.assertEqual(report['execution']['result_receipt'], result['sha256'])
@@ -203,10 +203,10 @@ class ResumeTests(ResumeFixture, unittest.TestCase):
 
     def test_cli_resume_reports_stale_run_without_writing(self):
         self.start()
-        (self.root / 'source.txt').write_text('Changed synthetic premise.')
+        (self.root / 'source.txt').write_text('Changed synthetic premise.', encoding='utf-8')
         before = self.files()
         result = subprocess.run([sys.executable, str(Path(w.__file__)), 'resume', '--root', str(self.root), '--run', RUN],
-                                capture_output=True, text=True, timeout=15)
+                                capture_output=True, text=True, encoding="utf-8", timeout=15)
         self.assertEqual(result.returncode, 1, result.stderr)
         report = json.loads(result.stdout)
         self.assertTrue(report['integrity']['ok'])
@@ -237,4 +237,6 @@ def claim_data(token):
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main()

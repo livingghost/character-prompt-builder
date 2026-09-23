@@ -16,6 +16,7 @@ import sys
 SKILL = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SKILL / 'scripts'))
 import production_fixtures as fixture
+from io_budget import environment_seconds
 from PIL import Image, ImageDraw
 
 
@@ -28,8 +29,9 @@ def run(out: Path) -> dict:
         (out / name).write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     def command(script, *args, parse=True):
         argv = [sys.executable, '-B', str(SKILL / 'scripts' / script), *map(str, args)]
-        result = subprocess.run(argv, cwd=out, capture_output=True, text=True,
-                                env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
+        result = subprocess.run(argv, cwd=out, capture_output=True, text=True, encoding="utf-8",
+                                env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'},
+                                timeout=environment_seconds('EXAMPLE_COMMAND_TIMEOUT_SECONDS'))
         log.append({'argv': argv, 'returncode': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr})
         write('commands.json', log)
         if result.returncode:
@@ -46,9 +48,9 @@ def run(out: Path) -> dict:
         return workflow(rid, 'authorize', '--file', rp)['sha256']
     command('work_ledger.py', '--studio', out, 'begin', '--goal', 'Synthetic localized image repair',
             '--step', 'observe', '--step', 'repair', parse=False)
-    task_id = json.loads((out / 'work/current.json').read_text())['task_id']
-    (out / 'brief.txt').write_text('Processing fixture: a central region must differ from the surrounding field. No cast, story or audience claim.\n')
-    (out / 'delivery.txt').write_text('Use an unbroken field for the initial diagnostic fixture.\n')
+    task_id = json.loads((out / 'work/current.json').read_text(encoding='utf-8'))['task_id']
+    (out / 'brief.txt').write_text('Processing fixture: a central region must differ from the surrounding field. No cast, story or audience claim.\n', encoding='utf-8')
+    (out / 'delivery.txt').write_text('Use an unbroken field for the initial diagnostic fixture.\n', encoding='utf-8')
     task = {'task_id': task_id, 'route': 'development', 'features': [],
             'sources': [{'id': 'brief', 'path': 'brief.txt', 'role': 'world', 'disposition': 'applied',
                          'locator': 'whole', 'reason': 'Explicit synthetic processing requirement.'}],
@@ -103,7 +105,7 @@ def run(out: Path) -> dict:
     revised = copy.deepcopy(task)
     revised['direction']['decisions'][0].update(selected='local', reason='The actual initial artifact failed the declared contrast check.')
     revised['delivery']['path'] = 'revised-delivery.txt'
-    (out / 'revised-delivery.txt').write_text('Change only the central image region.\n')
+    (out / 'revised-delivery.txt').write_text('Change only the central image region.\n', encoding='utf-8')
     write('revised-task.json', revised)
     intent = workflow(first, 'revision-intent', '--task', 'revised-task.json', '--candidate', initial['sha256'], '--repair', 'separate-region')
     child = workflow(first, 'revise', '--task', 'revised-task.json', '--candidate', initial['sha256'], '--repair', 'separate-region',
@@ -127,6 +129,8 @@ def run(out: Path) -> dict:
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()

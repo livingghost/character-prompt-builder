@@ -13,7 +13,7 @@ import unittest
 from unittest.mock import patch
 
 import execution_contract as c
-import preset_consultation as tool
+import craft_consultation as tool
 import production_workflow as workflow
 import production_workflow_smoke_test as fixtures
 import production_inputs
@@ -274,8 +274,8 @@ class ConsultationTests(unittest.TestCase):
         with self.assertRaises(ValueError): tool.consult([{'canonical_query': 'light', 'focus': 'detail'}], [], settings=self.settings)
 
     def test_public_cli_example_rebuilds_exactly(self):
-        result = subprocess.run([sys.executable, str(ROOT / 'examples/preset-consultation/build_example.py'), '--check'],
-                                cwd=ROOT, capture_output=True, text=True, timeout=120)
+        result = subprocess.run([sys.executable, str(ROOT / 'examples/craft-consultation/build_example.py'), '--check'],
+                                cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=120)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         report = json.loads(result.stdout)
         self.assertTrue(report['full_record_preserved'])
@@ -289,4 +289,6 @@ class ConsultationTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main()

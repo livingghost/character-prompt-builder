@@ -1,6 +1,6 @@
 # Preset Workflow
 
-This workflow combines discovery and focused lookup. Preserve the user's fixed anchors while consulting successful craft patterns to develop open choices. A sparse brief can compare coherent directions before selection. During composition and repair, return to the library for each unresolved craft question. Follow [Craft consultation](runtime/preset-consultation.md) to connect selected knowledge to the production specification and its review.
+This workflow combines discovery and focused lookup. Preserve the user's fixed anchors while consulting successful craft patterns to develop open choices. A sparse brief can compare coherent directions before selection. During composition and repair, return to the library for each unresolved craft question. Follow [Craft consultation](runtime/craft-consultation.md) to connect selected knowledge to the production specification and its review.
 
 ## 1. Choose the retrieval path
 

@@ -275,4 +275,7 @@ class RenditionTests(unittest.TestCase):
     def test_18_no_automatic_assessment_is_added(self):
         result=mr.compose('text',**self.kw);self.assertNotIn('assessment',result);self.assertEqual(result['review_requirements'],[])
 
-if __name__=='__main__':unittest.main()
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main()

@@ -77,7 +77,7 @@ UNAVAILABLE = "no pack state is resolvable in this environment"
 
 def run(script: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(script), *arguments], text=True, capture_output=True, check=False
+        [sys.executable, str(script), *arguments], text=True, encoding="utf-8", capture_output=True, check=False
     )
 
 
@@ -309,4 +309,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

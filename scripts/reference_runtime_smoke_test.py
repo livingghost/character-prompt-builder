@@ -1549,6 +1549,8 @@ def run() -> dict[str, Any]:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     report = run()
     print(json.dumps(report, ensure_ascii=False, indent=2))
     raise SystemExit(0 if report["ok"] else 1)

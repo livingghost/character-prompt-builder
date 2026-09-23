@@ -252,6 +252,7 @@ def _kill_removal_midway(root: Path, quarantine: Path) -> None:
         [sys.executable, "-B", "-c", script],
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if completed.returncode != 137:
         raise AssertionError(
@@ -467,6 +468,7 @@ class PresetMaintenanceTest(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
             )
             self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
             self.assertFalse(orphan.exists())
@@ -592,4 +594,6 @@ class PresetMaintenanceTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main(verbosity=2)

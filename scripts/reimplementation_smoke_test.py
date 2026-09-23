@@ -56,15 +56,15 @@ class SceneIntegration(unittest.TestCase):
     def test_document_and_whole_sources_are_pinned(self):
         run = self.prepare()
         _,prepared,consumer,_ = workflow.load_run(self.root,run)
-        self.assertEqual(consumer['authoring_materials'][0]['document'], (self.root/'scene-material/persona.md').read_text())
+        self.assertEqual(consumer['authoring_materials'][0]['document'], (self.root/'scene-material/persona.md').read_text(encoding='utf-8'))
         deps = {x['path'] for x in prepared['dependencies'] if x['space']=='project'}
         self.assertTrue({'originals/subject.md','originals/scene.md','scene-plan.json','scene-material/persona.md'} <= deps)
         self.assertNotIn('templates/narrative/personas/persona-template.md', {x['path'] for x in prepared['route']['reads']})
 
     def test_author_notes_are_not_appended_to_generation_prompt(self):
         run = self.prepare()
-        value = binding.create(self.root,run,(self.root/'delivery.txt').read_text())
-        binding.validate(value,(self.root/'delivery.txt').read_text())
+        value = binding.create(self.root,run,(self.root/'delivery.txt').read_text(encoding='utf-8'))
+        binding.validate(value,(self.root/'delivery.txt').read_text(encoding='utf-8'))
         actual = binding.effective(value,'PUBLIC_RENDERING_ONLY')
         self.assertEqual(actual,'PUBLIC_RENDERING_ONLY')
         self.assertNotIn('Controlling definition',actual)
@@ -72,13 +72,13 @@ class SceneIntegration(unittest.TestCase):
     def test_unquoted_source_edit_invalidates_reuse(self):
         run=self.prepare()
         p=self.root/'originals/subject.md'
-        p.write_text(p.read_text()+'A newly declared exception outside the selected excerpt.\n')
+        p.write_text(p.read_text(encoding='utf-8')+'A newly declared exception outside the selected excerpt.\n', encoding='utf-8')
         self.assertFalse(workflow.status(self.root,run)['ok'])
         with self.assertRaisesRegex(ValueError,'complete source changed'):
             self.prepare()
 
     def test_changed_derived_document_is_not_accepted(self):
-        p=self.root/'scene-material/persona.md';p.write_text(p.read_text()+'Unexpected new direction.\n')
+        p=self.root/'scene-material/persona.md';p.write_text(p.read_text(encoding='utf-8')+'Unexpected new direction.\n', encoding='utf-8')
         with self.assertRaisesRegex(ValueError,'stale|modified'):
             self.prepare()
 
@@ -202,7 +202,11 @@ class UpscaleIntegration(unittest.TestCase):
 
     def test_ambiguous_remote_failure_never_retries(self):
         self.transport.send.side_effect=OSError('Synthetic connection lost after submit')
-        with self.assertRaises(OSError):self.call()
+        self.assertEqual(self.call(),1)
+        journals=[p.parent for p in (self.root/'runs').glob('*/run.json') if json.loads(p.read_text(encoding='utf-8'))['status']=='indeterminate']
+        self.assertEqual(len(journals),1)
+        self.assertEqual(json.loads((journals[0]/'indeterminate.json').read_text(encoding='utf-8'))['outcome'],'indeterminate')
+        self.assertFalse((journals[0]/'answer.json').exists())
         with self.assertRaisesRegex(ValueError,'already claimed'):self.call()
         self.assertEqual(self.transport.send.call_count,1)
         self.assertEqual(self.transport.upload_bytes.call_count,1)
@@ -223,4 +227,6 @@ class UpscaleIntegration(unittest.TestCase):
 
 
 if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main(verbosity=2)

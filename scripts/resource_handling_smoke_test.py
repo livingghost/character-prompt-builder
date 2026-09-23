@@ -132,7 +132,7 @@ class CompleteMaterialTests(unittest.TestCase):
         import state_protocol
         path = ROOT / 'schemas/scene-persona-material.schema.json'
         if not path.exists(): path = ROOT / 'protocols/shared-state/schemas/scene-persona-material.schema.json'
-        schema = json.loads(path.read_text())
+        schema = json.loads(path.read_text(encoding="utf-8"))
         def nodes(value):
             if isinstance(value, dict):
                 yield value
@@ -151,7 +151,7 @@ class ExecutionBudgetTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(); self.root = Path(self.temporary.name)
         (self.root / 'prompt.txt').write_text('Fixture only.', encoding='utf-8')
-        (self.root / 'host.py').write_text("import pathlib,sys\npathlib.Path(sys.argv[1], 'result.txt').write_text('complete')\n", encoding='utf-8')
+        (self.root / 'host.py').write_text("import pathlib,sys\npathlib.Path(sys.argv[1], 'result.txt').write_text('complete', encoding='utf-8')\n", encoding='utf-8')
         self.study = {'purpose':'Synthetic budget mechanics, not model performance','repetitions':1,
             'cases':[{'id':'case','prompt':'prompt.txt','inputs':['host.py'],'expected_outputs':['result.txt'],'criteria':['Human review remains separate']}],
             'conditions':[{'id':'host','host_label':'Python fixture','model_label':'none','argv':[sys.executable,'inputs/host.py','{outputs}'],'skill':None,'timeout_seconds':None,
@@ -180,7 +180,7 @@ class ExecutionBudgetTests(unittest.TestCase):
 
     def test_log_over_32_mib_preserves_tail_metric_and_output(self):
         script = """import json,pathlib,sys
-out=pathlib.Path(sys.argv[1]); (out/'result.txt').write_text('complete output')
+out=pathlib.Path(sys.argv[1]); (out/'result.txt').write_text('complete output', encoding='utf-8')
 for _ in range(33): sys.stdout.write('x'*1048576+'\\n')
 print(json.dumps({'event':'metrics','total_tokens':123}))
 """
@@ -195,7 +195,7 @@ print(json.dumps({'event':'metrics','total_tokens':123}))
         self.assertEqual(budget.file_identity(self.root / log['path'])['sha256'], log['sha256'])
 
     def test_explicit_small_log_budget_keeps_emitted_bytes_and_fails(self):
-        (self.root / 'host.py').write_text("import pathlib,sys\npathlib.Path(sys.argv[1],'result.txt').write_text('complete')\nsys.stdout.buffer.write(b'x'*4096+b'\\n')\n", encoding='utf-8')
+        (self.root / 'host.py').write_text("import pathlib,sys\npathlib.Path(sys.argv[1],'result.txt').write_text('complete', encoding='utf-8')\nsys.stdout.buffer.write(b'x'*4096+b'\\n')\n", encoding='utf-8')
         self.study['conditions'][0]['max_log_bytes'] = 64
         result, receipt = self.run_fixture()
         self.assertFalse(result['ok']); self.assertEqual(receipt['status'], 'log-limit')
@@ -259,4 +259,47 @@ class ValidationRegressionBudgetTests(unittest.TestCase):
         self.assertFalse(result['ok']); self.assertIsNone(result['returncode'])
         self.assertIn('VALIDATE_REGRESSION_TIMEOUT_SECONDS', result['errors'][0]); self.assertEqual(result['stdout'], 'partial')
 
-if __name__ == '__main__': unittest.main(verbosity=2)
+
+class ChildProcessDeadlineTests(unittest.TestCase):
+    def isolated_worker(self, environment, run):
+        import search_regression
+        from types import SimpleNamespace
+        with patch.dict(os.environ, environment):
+            if not environment:
+                os.environ.pop('SEARCH_REGRESSION_TIMEOUT_SECONDS', None)
+            with patch.object(search_regression.subprocess, 'run', run):
+                return search_regression._run_isolated_worker(0, 1, SimpleNamespace(command_arguments=list))
+
+    def test_search_worker_runs_to_completion_without_an_operator_deadline(self):
+        from types import SimpleNamespace
+        seen = {}
+        def completed(command, **kwargs):
+            seen['timeout'] = kwargs.get('timeout')
+            return SimpleNamespace(returncode=0, stdout='{"ok": true, "cases": 1}', stderr='')
+        result = self.isolated_worker({}, completed)
+        self.assertIsNone(seen['timeout']); self.assertEqual((0, {'ok': True, 'cases': 1}), (result[2], result[5]))
+
+    def test_search_worker_stops_at_the_operator_deadline(self):
+        import subprocess
+        seen = {}
+        def timed_out(command, **kwargs):
+            seen['timeout'] = kwargs.get('timeout')
+            raise subprocess.TimeoutExpired(command, kwargs.get('timeout'))
+        result = self.isolated_worker({'SEARCH_REGRESSION_TIMEOUT_SECONDS': '0.5'}, timed_out)
+        self.assertEqual(0.5, seen['timeout']); self.assertEqual((-1, None), (result[2], result[5]))
+
+    def test_example_commands_and_search_workers_set_no_deadline_of_their_own(self):
+        import ast
+        fixed = []
+        for path in [*sorted(ROOT.glob('examples/*/*.py')), ROOT / 'scripts/search_regression.py',
+                     ROOT / 'scripts/validate_state_protocol.py', ROOT / 'scripts/production_evidence.py']:
+            for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+                if isinstance(node, ast.keyword) and node.arg == 'timeout' and isinstance(node.value, ast.Constant) and node.value.value is not None:
+                    fixed.append(f'{path.relative_to(ROOT).as_posix()}:{node.value.lineno}')
+        self.assertEqual([], fixed)
+
+
+if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main(verbosity=2)

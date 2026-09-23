@@ -32,12 +32,12 @@ class MomentTests(unittest.TestCase):
     def save(self):fixture.pin(self.root,self.query)
     def value(self):self.save();return sc.materialize(self.root,'query.json')
     def change_json(self,name,fn):
-        value=json.loads((self.root/name).read_text());fn(value);fixture.write(self.root,name,value)
+        value=json.loads((self.root/name).read_text(encoding="utf-8"));fn(value);fixture.write(self.root,name,value)
     def events(self,value):fixture.write(self.root,'events.jsonl',''.join(json.dumps(e)+'\n' for e in value))
     def minimal(self):
         self.query.pop('views',None);self.query.pop('author_bindings',None);self.query.pop('requirements',None)
     def command(self,*args):
-        return subprocess.run([sys.executable,'-B',str(ROOT/'scripts/story_context.py'),*map(str,args)],capture_output=True,text=True,
+        return subprocess.run([sys.executable,'-B',str(ROOT/'scripts/story_context.py'),*map(str,args)],capture_output=True,text=True,encoding='utf-8',
                               env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
     def build(self):
         result=self.value();sc.publish(result,self.root/'bundle');return result
@@ -59,7 +59,7 @@ class MomentTests(unittest.TestCase):
         self.query['scene_context_ids']=[context]
         self.query['requirements'][0]['scene_context_id']=context
         self.query['views'][0]['scene_context_id']=context
-        p=self.root/'events.jsonl';p.write_text(p.read_text().replace('CTX:work.room',context))
+        p=self.root/'events.jsonl';p.write_text(p.read_text(encoding='utf-8').replace('CTX:work.room',context),encoding='utf-8')
         bundle=self.value();self.assertIn(context,bundle['author']['context_snapshots'])
         self.assertTrue(all(len(Path(name).name)<=69 for name in sc.output_files(bundle)))
 
@@ -151,7 +151,7 @@ class MomentTests(unittest.TestCase):
         self.query['author_bindings'][0]['scene_context_ids']=['OTHER']
         with self.assertRaisesRegex(ValueError,'not applicable'):self.value()
     def test_selected_intent_needs_approval(self):
-        p=self.root/'intent.md';p.write_text(p.read_text().replace('**status**: adopted','**status**: proposed'))
+        p=self.root/'intent.md';p.write_text(p.read_text(encoding='utf-8').replace('**status**: adopted','**status**: proposed'),encoding='utf-8')
         with self.assertRaisesRegex(ValueError,'adopted intent'):self.value()
     def test_intent_binding_contains_actual_selected_text(self):
         value=self.value()['author']['author_bindings']['intent']['selected_content']
@@ -160,7 +160,7 @@ class MomentTests(unittest.TestCase):
         self.query['author_bindings'][0]['selector']['heading']='## Unknown'
         with self.assertRaisesRegex(ValueError,'exact Markdown heading'):self.value()
     def test_duplicate_heading_is_not_arbitrarily_selected(self):
-        p=self.root/'persona.md';p.write_text(p.read_text()+'\n## Earlier period\nOther\n')
+        p=self.root/'persona.md';p.write_text(p.read_text(encoding='utf-8')+'\n## Earlier period\nOther\n', encoding='utf-8')
         with self.assertRaisesRegex(ValueError,'one exact'):self.value()
     def test_json_epoch_selector(self):
         fixture.write(self.root,'persona.json',{'epochs':{'first':{'speech':'brief'}}});self.query['sources'][5]['path']='persona.json';self.query['author_bindings'][0]['selector']={'kind':'json-pointer','pointer':'/epochs/first'}
@@ -184,9 +184,9 @@ class MomentTests(unittest.TestCase):
         bundle=self.build()
         with self.assertRaises(ValueError):sc.publish(bundle,self.root/'bundle')
     def test_concurrent_reservation_is_not_removed(self):
-        bundle=self.value();lock=self.root/'.bundle.story-context-lock';lock.write_text('other')
+        bundle=self.value();lock=self.root/'.bundle.story-context-lock';lock.write_text('other', encoding='utf-8')
         with self.assertRaises(FileExistsError):sc.publish(bundle,self.root/'bundle')
-        self.assertEqual(lock.read_text(),'other')
+        self.assertEqual(lock.read_text(encoding='utf-8'),'other')
     def test_source_path_escapes_rejected(self):
         self.query['sources'][0]['path']='../outside.json';fixture.write(self.root,'query.json',self.query)
         with self.assertRaisesRegex(ValueError,'escapes'):sc.materialize(self.root,'query.json')
@@ -250,7 +250,7 @@ class ProductionTests(MomentTests):
         production_fixtures.task(self.root,spec)
         fixture.write(self.root,'task.json',spec);return production.prepare(self.root,'task.json')['run']
     def test_production_selects_only_view(self):
-        run=self.setup_run();consumer=json.loads((self.root/'production'/run/'consumer.json').read_text());self.assertEqual(len(consumer['moment_views']),1);self.assertNotIn('PRIVATE',json.dumps(consumer));self.assertEqual(consumer['world_views'],[])
+        run=self.setup_run();consumer=json.loads((self.root/'production'/run/'consumer.json').read_text(encoding='utf-8'));self.assertEqual(len(consumer['moment_views']),1);self.assertNotIn('PRIVATE',json.dumps(consumer));self.assertEqual(consumer['world_views'],[])
     def test_source_change_invalidates_prepared_run(self):
         run=self.setup_run();fixture.write(self.root,'persona.md','changed persona')
         with self.assertRaisesRegex(ValueError,'changed project input'):production.assert_current(self.root,run)
@@ -276,7 +276,7 @@ class ProductionTests(MomentTests):
         self.query['requirements'].append({'requirement_id':'other','scene_context_id':None,'pointer':'/world/other','test':'present','purpose':'Unrelated author question'})
         self.assertTrue(self.setup_run())
     def test_route_requires_selected_moment(self):
-        self.setup_run();spec=json.loads((self.root/'task.json').read_text());spec['moment_views']=[]
+        self.setup_run();spec=json.loads((self.root/'task.json').read_text(encoding='utf-8'));spec['moment_views']=[]
         with self.assertRaisesRegex(ValueError,'selected moment view'):production.validate_task(spec)
     def test_source_change_between_resolve_and_pin_is_caught(self):
         self.build();task=work_ledger.begin(self.root,'fixture',['step']);fixture.write(self.root,'delivery.txt','Use selected facts')
@@ -296,6 +296,8 @@ def suite():
     return result
 
 if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     result=unittest.TextTestRunner(verbosity=2).run(suite())
     print(json.dumps({'ok':result.wasSuccessful(),'tests':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skipped':len(result.skipped)}))
     raise SystemExit(not result.wasSuccessful())

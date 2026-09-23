@@ -1,7 +1,7 @@
 """Pytest bridge that runs every scripts/ smoke suite as a subprocess.
 
 Each parametrized case executes ``python scripts/<name>.py [args...]``
-with cwd = repository root and PYTHONDONTWRITEBYTECODE=1 / PYTHONUTF8=1,
+with cwd = repository root and PYTHONDONTWRITEBYTECODE=1,
 mirroring how validate.py, package.py, and CI invoke the suites, and
 asserts a zero exit code.  On failure the suite's full stdout and stderr
 are echoed in the assertion message.
@@ -92,7 +92,7 @@ def _resolve_args(args, tmp_path):
                 "--managed-root",
                 str(runtime_root / "managed"),
             ]
-            _default_packs_only(selectors, {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUTF8": "1"})
+            _default_packs_only(selectors, {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
             resolved.extend(selectors)
         else:
             resolved.append(arg)
@@ -104,7 +104,6 @@ def test_smoke_suite(repo_root, tmp_path, script, args):
     command = [sys.executable, "scripts/" + script, *_resolve_args(args, tmp_path)]
     env = dict(os.environ)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
-    env["PYTHONUTF8"] = "1"
     env["NO_COLOR"] = "1"
     # Each suite gets its own home, so the pack state and host configuration of
     # the person running the tests never reach it. That home's pack state enables

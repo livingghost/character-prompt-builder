@@ -126,7 +126,7 @@ def consult(questions: list[dict], identifiers: list[str], *, settings=None,
     entries = runtime.load_entries()
     inventory = scope(settings, catalog=catalog, entries=entries)
     if previous is not None:
-        if previous.get('artifact_type') != 'preset-consultation' or previous.get('ok') is not True:
+        if previous.get('artifact_type') != 'craft-consultation' or previous.get('ok') is not True:
             raise ValueError('previous consultation must be a successful saved report')
         if previous['scope']['runtime_fingerprint'] != catalog.fingerprint:
             raise ValueError('catalog changed; repeat the affected questions in the current runtime')
@@ -159,7 +159,7 @@ def consult(questions: list[dict], identifiers: list[str], *, settings=None,
     history = copy.deepcopy(previous.get('history', [])) if previous else []
     if previous is not None:
         history.append({'questions': previous['questions'], 'search': previous['search']})
-    return {'artifact_type': 'preset-consultation', 'ok': search['error_count'] == 0,
+    return {'artifact_type': 'craft-consultation', 'ok': search['error_count'] == 0,
             'scope': inventory, 'questions': copy.deepcopy(questions), 'search': search, 'inspected': inspected,
             'history': history,
             'application_template': {'source_id': None, 'reason': None, 'uses': [], 'not_used': []},
@@ -211,8 +211,8 @@ def apply(root: Path, task_path: str, report_path: str, decisions_path: str,
     checked = production_spec.validate(spec)
     if not checked['ok']:
         raise ValueError('production specification: ' + '; '.join(checked['errors']))
-    if report.get('artifact_type') != 'preset-consultation' or report.get('ok') is not True:
-        raise ValueError('select a successful preset consultation')
+    if report.get('artifact_type') != 'craft-consultation' or report.get('ok') is not True:
+        raise ValueError('select a successful craft consultation')
     if 'task' in report and report['task'] != task_ref:
         raise ValueError('consultation names a different task snapshot; consult the current task')
     catalog = runtime.begin_catalog_request(); entries = runtime.load_entries()

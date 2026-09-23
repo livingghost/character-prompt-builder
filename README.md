@@ -51,15 +51,15 @@ python scripts/check_dependencies.py --profile core
 ```
 <!-- end-readme-example -->
 
-This checks the environment and installs nothing. For image work, check the visual profile, run the `install_command` it prints, and check again:
+Without `--install` the check installs nothing. With it, the check prints the commands that install what is missing, runs them once you confirm, and checks again with the Python that received the packages. For image work:
 
 ```sh
-python scripts/check_dependencies.py --profile visual
+python scripts/check_dependencies.py --profile visual --install
 ```
 
-The command installs into the Python that ran the check: through pip where that Python has pip, and through `uv pip install --python` in an environment uv created, which has no pip.
+The commands install into the Python that ran the check, through pip, or through `uv pip install --python` where that Python has no pip. Where the system manages that Python's packages (PEP 668), add `--venv DIR`. The commands then create a virtual environment at DIR when it is absent and install into it, and the tools run with its Python.
 
-CairoSVG needs the native Cairo runtime as well as its Python package, and character-sheet text rendering needs an installed font. [DEPENDENCIES.md](DEPENDENCIES.md) explains each dependency and the native-library notes. The [core](requirements-core.txt), [visual](requirements-visual.txt) and [combined](requirements.txt) requirement files define the supported profiles; the [tested requirements](requirements-tested.txt) pin the release-validation environment.
+Character-sheet text rendering needs an installed font. [DEPENDENCIES.md](DEPENDENCIES.md) explains each dependency and the native-library notes. The [core](requirements-core.txt), [visual](requirements-visual.txt) and [combined](requirements.txt) requirement files define the supported profiles; the [tested requirements](requirements-tested.txt) pin the release-validation environment.
 
 ### First commands
 
@@ -265,7 +265,7 @@ The example's approvals are labeled synthetic fixtures. Real work uses your own 
 
 ### Send an approved image generation
 
-A live generation needs a configured service, a model record that describes that service's fields, credentials outside the project files, and a package bound to a prepared run. The included transport is for Runware. Another service is a service record, an offering on each model record it exposes, and one transport module, `transport_<service>.py` beside the other scripts, written against the contract in the dispatcher's module docstring; a service without a transport uses an explicitly recorded external hand-off. A dry run shows the exact request and saves what to approve:
+A live generation needs a configured service, a model record that describes that service's fields, credentials outside the project files, and a package bound to a prepared run. The included transport is for Runware. Another service is a service record whose `transport` names its module, an offering on each model record it exposes, and that module, `transport_<name>.py` beside the other scripts, written against [scripts/transport_contract.py](scripts/transport_contract.py); a service without a transport uses an explicitly recorded external hand-off. A dry run shows the exact request and saves what to approve:
 
 ```sh
 python scripts/dispatch.py generation-package.json --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --intent-out intent.json
@@ -363,7 +363,7 @@ python scripts/pack_cli.py init ~/.character-prompt-builder/packs/NAME --name "N
 
 **Catalog resources are missing.** Check discovered packs, enabled UUIDs and which pack supplies the missing resource. A folder on disk is active only once its pack is enabled.
 
-**Visual preflight fails.** Install and check the named dependencies with the interpreter that runs the tools. Cairo and fonts may need native installation. Authoring keeps working while visual inspection waits.
+**Visual preflight fails.** Install and check the named dependencies with the interpreter that runs the tools. Fonts install through the operating system rather than pip. Authoring keeps working while visual inspection waits.
 
 ## Validation
 

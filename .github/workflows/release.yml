@@ -9,9 +9,8 @@ permissions: {}
 
 env:
   PYTHONDONTWRITEBYTECODE: "1"
-  PYTHONUTF8: "1"
-  # A native crash, such as an abort inside the Cairo library, prints the Python
-  # stack of every thread instead of ending the process silently.
+  # A native crash prints the Python stack of every thread instead of ending the
+  # process silently.
   PYTHONFAULTHANDLER: "1"
 
 jobs:
@@ -33,7 +32,7 @@ jobs:
       - name: Install release rendering prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libcairo2 fonts-noto-cjk ffmpeg
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk ffmpeg
           fc-list --format '%{file}\n' ':lang=ja:weight=regular' | grep .
           fc-list --format '%{file}\n' ':lang=ja:weight=bold' | grep .
 

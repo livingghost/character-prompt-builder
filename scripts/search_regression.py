@@ -32,6 +32,7 @@ from catalog_cli import (  # noqa: E402
     named_resource_path,
     search_entries,
 )
+from io_budget import environment_seconds  # noqa: E402
 from pack_runtime_cli import (  # noqa: E402
     PackRuntimeContext,
     add_pack_runtime_arguments,
@@ -52,6 +53,8 @@ DEFAULT_CHUNK_SIZE = 20
 DEFAULT_MAX_WORKERS = 1
 DEFAULT_EXECUTION_MODE = "in-process"
 SEARCH_REGRESSION_RESOURCE = "catalog-search-regression"
+# An isolated worker runs to completion unless the operator sets this deadline.
+WORKER_TIMEOUT_VARIABLE = "SEARCH_REGRESSION_TIMEOUT_SECONDS"
 
 
 def load_spec() -> dict[str, Any]:
@@ -286,10 +289,11 @@ def _run_isolated_worker(
             command,
             cwd=str(ROOT),
             text=True,
+            encoding="utf-8",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
-            timeout=360,
+            timeout=environment_seconds(WORKER_TIMEOUT_VARIABLE),
         )
     except subprocess.TimeoutExpired as exc:
         return start, end, -1, exc.stdout or "", exc.stderr or "", None
@@ -401,7 +405,7 @@ def run_isolated(
     for start, end, returncode, stdout, stderr, report in sorted(completed, key=lambda row: row[0]):
         if report is None:
             if returncode == -1:
-                failures.append(f"worker cases {start}:{end} exceeded 360 seconds")
+                failures.append(f"worker cases {start}:{end} exceeded {WORKER_TIMEOUT_VARIABLE}")
             else:
                 failures.append(
                     f"worker cases {start}:{end} returned invalid JSON; "
@@ -524,4 +528,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

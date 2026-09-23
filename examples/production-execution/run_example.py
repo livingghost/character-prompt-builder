@@ -11,6 +11,7 @@ from pathlib import Path
 SKILL=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(SKILL/'scripts'))
 import production_fixtures as fixture
+from io_budget import environment_seconds
 
 
 def run(out: Path) -> dict:
@@ -19,16 +20,16 @@ def run(out: Path) -> dict:
     log=[]
     def command(script: str, *args: str, parse: bool = True):
         argv=[sys.executable,'-B',str(SKILL/'scripts'/script),*map(str,args)]
-        p=subprocess.run(argv,cwd=out,capture_output=True,text=True,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
+        p=subprocess.run(argv,cwd=out,capture_output=True,text=True,encoding='utf-8',env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'},timeout=environment_seconds('EXAMPLE_COMMAND_TIMEOUT_SECONDS'))
         log.append({'argv':argv,'returncode':p.returncode,'stdout':p.stdout,'stderr':p.stderr})
-        (out/'commands.json').write_text(json.dumps(log,indent=2)+'\n')
+        (out/'commands.json').write_text(json.dumps(log,indent=2)+'\n',encoding='utf-8')
         if p.returncode: raise ValueError(p.stdout+p.stderr)
         return json.loads(p.stdout) if parse else p.stdout
     def write(name,value): (out/name).write_text(json.dumps(value,indent=2)+'\n',encoding='utf-8')
     command('work_ledger.py','--studio',out,'begin','--goal','Synthetic unpeopled room fixture','--step','prepare','--step','deliver',parse=False)
-    task_id=json.loads((out/'work/current.json').read_text())['task_id']
-    (out/'world.md').write_text('A room contains one lamp. No characters are specified.\n')
-    (out/'delivery.txt').write_text('Describe the declared room in one sentence.\n')
+    task_id=json.loads((out/'work/current.json').read_text(encoding='utf-8'))['task_id']
+    (out/'world.md').write_text('A room contains one lamp. No characters are specified.\n', encoding='utf-8')
+    (out/'delivery.txt').write_text('Describe the declared room in one sentence.\n', encoding='utf-8')
     spec={'task_id':task_id,'route':'development','features':[],
           'sources':[{'id':'world','path':'world.md','role':'world','disposition':'applied','locator':'whole','reason':'Synthetic fixture premise.'}],
           'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Minimal declared-world fixture.'},
@@ -46,7 +47,7 @@ def run(out: Path) -> dict:
         return workflow('authorize','--file',rp)['sha256']
     intent=workflow('handoff-intent','--recipient','synthetic fixture','--method','manual')
     workflow('handoff','--recipient','synthetic fixture','--method','manual','--authorization',authorize(intent))
-    (out/'output.txt').write_text('One lamp stands in the room.\n')
+    (out/'output.txt').write_text('One lamp stands in the room.\n', encoding='utf-8')
     candidate=workflow('capture','--artifact','output.txt','--note','Handwritten synthetic fixture, not model output.')
     review=workflow('draft-review','--candidate',candidate['sha256'],'--out','review.json')
     review.update(reviewer='synthetic-test-reviewer',observations=[{'locator':{'kind':'lines','start':1,'end':1},'observation':'The fixture names one lamp and no character.'}],conclusion='Synthetic positive fixture, not user approval.')
@@ -69,4 +70,7 @@ def run(out: Path) -> dict:
 def main():
     p=argparse.ArgumentParser(description=__doc__); p.add_argument('--out',type=Path,required=True); a=p.parse_args()
     print(json.dumps(run(a.out.absolute()),indent=2))
-if __name__=='__main__': main()
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    main()

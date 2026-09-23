@@ -203,4 +203,7 @@ def main(argv: Sequence[str] | None=None)->int:
         write_json(Path(a.out),value); print(json.dumps(value,ensure_ascii=False,indent=2,allow_nan=False)); return 0
     except (ValueError,OSError,json.JSONDecodeError) as exc:
         print(json.dumps({'ok':False,'errors':[str(exc)]},ensure_ascii=False,indent=2,allow_nan=False)); return 1
-if __name__=='__main__': raise SystemExit(main())
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

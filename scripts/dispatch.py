@@ -27,50 +27,8 @@ recorded with them.
 
 The service record (endpoint, auth, operations) is the `service-profiles`
 resource, and the model's identifier and request keys on that service are the
-model record's offering. The rest of a service is one module beside this file,
-`transport_<service>.py`, named by the service's key with dashes as underscores.
-It defines these names, and the dispatcher refuses a transport that lacks one:
-
-    OPERATIONS
-        The service's operation name for each model record `operation_kind` it
-        sends. `compile_upscale` is needed only where it names "upscale".
-
-    RESULT_HOSTS
-        The hosts a returned image URL may name; the image is fetched over https.
-
-    endpoint(service) -> str
-        The service record's endpoint, refused unless the credential may go there.
-
-    compile_request(verified, offering, service, media_ids, seed, count) -> dict
-        {"request", "layout", "request_trace"}: the request as it would be
-        sent, the source of each field, and a layout naming where each part
-        sits, as request_contract.validate_layout reads it: the model and the
-        operation (null where the address carries them), the prompt, the
-        negative, the output count, the seed, each media item, and the
-        identifiers of this one run. `media_ids` is empty for the preview.
-
-    compile_upscale(model_identifier, source_path, scale, settings, offering,
-                    service, media_ids, guidance) -> dict
-        The same for an upscale of one image.
-
-    added_parameters(offering, seed, count) -> dict
-        The seed and the count the dispatch adds, on this service's keys.
-
-    upload_bytes(data, media_type, service, key) -> str
-        Register one image and return the id the request carries.
-
-    send(request, service, key) -> dict
-        Perform the request and return the answer as a JSON object.
-
-    rejections(answer) -> list[dict]
-        The service's refusals, empty when it accepted the request.
-
-    results(answer) -> list[dict]
-        One entry per returned image with its "seed" and "id", and either its
-        "url" or its bytes as base64 text in "data".
-
-    observation_outcome(answer) -> str
-        "rejected", "accepted" or "indeterminate".
+model record's offering. The record's `transport` names the module that knows the
+rest of the service; scripts/transport_contract.py states what that module defines.
 
 Every returned image is saved and recorded as its own iteration of the
 character, with the request as sent, the answer, the package, and the file, and
@@ -81,7 +39,8 @@ the authorization allows, and when another image fails to arrive. Every sent run
 is journaled under the studio's runs/ before upload, with the expected and
 received counts, any refusal, and any failed download. `production_workflow.py
 recover-recording` saves the missing images from the saved answer; nothing is
-sent again.
+sent again. A send that ends without an answer is journaled as indeterminate,
+and the dispatcher stops.
 
 The dry run prints the model, the service and its endpoint, the output count,
 whether the negative prompt is sent, the cost, and then the exact request, so
@@ -97,7 +56,6 @@ import contextlib
 import copy
 import hashlib
 import http.client
-import importlib
 import itertools
 import json
 import os
@@ -115,6 +73,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import execution_contract  # noqa: E402
 import service_profile  # noqa: E402
 import studio  # noqa: E402
+import transport_contract  # noqa: E402
 from catalog_cli import configure_pack_runtime  # noqa: E402
 from build_generation_payload import validate_generation_package_carrier_paths  # noqa: E402
 from model_contract import (  # noqa: E402
@@ -125,33 +84,6 @@ from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime  #
 from prepare_generation_references import model_pack_root, resolve_model_record  # noqa: E402
 from upscale_package import build_upscale_package, validate_settings  # noqa: E402
 from verify_generation_payload import verify  # noqa: E402
-
-
-# The names every transport defines; the module docstring states what each does.
-TRANSPORT_NAMES = ("OPERATIONS", "RESULT_HOSTS", "endpoint", "compile_request", "added_parameters", "upload_bytes",
-                   "send", "rejections", "results", "observation_outcome")
-
-
-def load_transport(service_id: str):
-    """The service's transport module, refused when it lacks a name the transport contract requires."""
-    name = f"transport_{service_id.replace('-', '_')}"
-    try:
-        module = importlib.import_module(name)
-    except ModuleNotFoundError as exc:
-        if exc.name != name:
-            raise
-        raise SystemExit(
-            f"no transport for the service {service_id!r}. Write scripts/{name}.py against the transport "
-            "contract in the scripts/dispatch.py docstring, or send by hand and record the result with "
-            "scripts/studio.py iterate."
-        ) from None
-    operations = getattr(module, "OPERATIONS", None)
-    required = [*TRANSPORT_NAMES, *(["compile_upscale"] if isinstance(operations, dict) and "upscale" in operations else [])]
-    missing = [item for item in required if not hasattr(module, item)]
-    if missing:
-        raise SystemExit(f"{name} lacks {', '.join(missing)}, which the transport contract in the "
-                         "scripts/dispatch.py docstring requires")
-    return module
 
 
 def api_key(service: dict[str, Any]) -> str:
@@ -318,15 +250,18 @@ def require_guidance_key(offering: dict[str, Any], guidance: str | None) -> str 
 
 
 def service_for(offering: dict[str, Any], profiles_arg: str | None, settings: Any = None):
-    """The service record and its transport; the transport refuses an endpoint it does not send to."""
+    """The service record and the transport it names; an endpoint the network rules refuse stops here."""
     service_id = str(offering["service"])
     # The same runtime the model record came from: a record and the service it
     # names must not be read from two different sets of packs.
-    profiles = service_profile.resolve_path(profiles_arg, state_file=None, cache_dir=None, managed_root=None,
-                                            settings=settings)
-    service = service_profile.load_service(service_id, profiles)
-    transport = load_transport(service_id)
-    transport.endpoint(service)
+    try:
+        profiles = service_profile.resolve_path(profiles_arg, state_file=None, cache_dir=None, managed_root=None,
+                                                settings=settings)
+        service = service_profile.load_service(service_id, profiles)
+    except service_profile.PackError as exc:
+        raise ValueError(str(exc)) from None
+    transport = transport_contract.load(service["transport"])
+    transport_contract.address(transport.endpoint(service))
     return service_id, service, transport
 
 
@@ -491,6 +426,29 @@ def recorded_run(root: Path, **facts: Any):
         raise
 
 
+def send_and_keep(run: RunJournal, transport: Any, request: dict[str, Any], service: dict[str, Any],
+                  key: str) -> dict[str, Any] | None:
+    """Send once and keep the answer with its outcome; None for a send whose outcome is unknown.
+
+    A send that ends without an answer keeps its reason in indeterminate.json and
+    no answer.json, so recovery and resume treat it as unconfirmed. The caller stops.
+    """
+    try:
+        answer = transport_contract.send_once(transport, request, service, key)
+    except transport_contract.Indeterminate as unknown:
+        run.write("indeterminate.json", unknown.evidence())
+        run.update(status="indeterminate")
+        print(f"error: {unknown.reason}; whether the service carried out the request is unknown. Nothing is sent "
+              f"again. Check the service's own records before preparing a new run; the request is kept in {run.path}",
+              file=sys.stderr)
+        return None
+    answer_path = run.write("answer.json", answer)
+    run.write("transport-outcome.json", {"outcome": transport_contract.outcome(transport, answer),
+              "response_sha256": hashlib.sha256(answer_path.read_bytes()).hexdigest()})
+    run.update(status="answered")
+    return answer
+
+
 def acquire(run: RunJournal, transport: Any) -> dict[str, Any]:
     """Save every image the saved answer returns that the journal does not hold yet.
 
@@ -649,7 +607,7 @@ def recover(root: Path, production_run: str, journal: Path) -> int:
     if not (journal / "answer.json").is_file():
         raise ValueError("the send has no saved answer, so its outcome is unknown; recovery sends nothing, "
                          "so no image can be recovered from this run")
-    acquisition = acquire(run, load_transport(run.document["service"]))
+    acquisition = acquire(run, transport_contract.load(run.document.get("transport")))
     with c.lock(root):
         status = settle(root, run, acquisition, recovering=True)
     if status == "download-incomplete":
@@ -755,7 +713,8 @@ def dispatch_generation(args: argparse.Namespace, root: Path) -> int:
     authorization = args.production_authorization
     key = api_key(service)
     with recorded_run(root, operation="generation", character=args.character, slot=args.slot,
-                      service=service_id, model=model_id, production_run=production_run, expected=args.count,
+                      service=service_id, transport=service.get("transport"), model=model_id,
+                      production_run=production_run, expected=args.count,
                       note=args.note, offering=offering_summary(offering, model_id, record),
                       companion=companion.name if companion is not None else None) as run:
         stored_package = run.keep(package_path, "package.json")
@@ -799,11 +758,9 @@ def dispatch_generation(args: argparse.Namespace, root: Path) -> int:
         run.write("request.json", request)
         run.update(status="sending")
         reservation_lifecycle.begin_step(root, production_run, authorization, claim=claim['sha256'], step='send', operation='send')
-        answer = transport.send(request, service, key)
-        answer_path = run.write("answer.json", answer)
-        run.write('transport-outcome.json', {'outcome': transport.observation_outcome(answer),
-                  'response_sha256': hashlib.sha256(answer_path.read_bytes()).hexdigest()})
-        run.update(status="answered")
+        answer = send_and_keep(run, transport, request, service, key)
+        if answer is None:
+            return 1
         refused = transport.rejections(answer)
         if refused:
             record_refusal(root, package_path.stem, request, refused, package=str(stored_package),
@@ -875,7 +832,8 @@ def dispatch_upscale(args: argparse.Namespace, root: Path) -> int:
     key = api_key(service)
     audit = "pending" if record.get("upscaler_class") in {"generative", "creative"} else "not-required"
     with recorded_run(root, operation="upscale", character=args.character, slot=args.slot,
-                      service=service_id, model=model_id, production_run=production_run, expected=1,
+                      service=service_id, transport=service.get("transport"), model=model_id,
+                      production_run=production_run, expected=1,
                       note=args.note, offering=offering_summary(offering, model_id, record),
                       companion="upscale.references") as run:
         # Keep both images beside the package and copy them into the iteration
@@ -915,11 +873,9 @@ def dispatch_upscale(args: argparse.Namespace, root: Path) -> int:
         run.write("request.json", request)
         run.update(status="sending")
         reservation_lifecycle.begin_step(root, production_run, args.production_authorization, claim=claim['sha256'], step='send', operation='send')
-        answer = transport.send(request, service, key)
-        answer_path = run.write('answer.json', answer)
-        run.write('transport-outcome.json', {'outcome': transport.observation_outcome(answer),
-                  'response_sha256': hashlib.sha256(answer_path.read_bytes()).hexdigest()})
-        run.update(status="answered")
+        answer = send_and_keep(run, transport, request, service, key)
+        if answer is None:
+            return 1
         refused = transport.rejections(answer)
         if refused:
             record_refusal(root, f"upscale-{source.stem}", request, refused, source=str(staged_source),
@@ -974,4 +930,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

@@ -13,11 +13,8 @@ env:
   # Keep validate.py's "no development artifact" guarantee satisfied: the check
   # steps below must not leave scripts/__pycache__ behind.
   PYTHONDONTWRITEBYTECODE: "1"
-  # The scripts emit JSON with ensure_ascii=False; force UTF-8 stdout so the
-  # Windows runner does not fail on its default ANSI code page.
-  PYTHONUTF8: "1"
-  # A native crash, such as an abort inside the Cairo library, prints the Python
-  # stack of every thread instead of ending the process silently.
+  # A native crash prints the Python stack of every thread instead of ending the
+  # process silently.
   PYTHONFAULTHANDLER: "1"
 
 jobs:
@@ -44,20 +41,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      # CairoSVG loads the native Cairo runtime through cffi. The pip wheel does
-      # not carry it and the Windows runner image does not ship it, so install it
-      # from the preinstalled MSYS2 tree. Stage the DLLs in a directory of their
-      # own: putting mingw64/bin itself on PATH shadows the tool-cache python.exe.
-      - name: Install the Cairo runtime
-        if: runner.os == 'Windows'
-        run: |
-          C:/msys64/usr/bin/pacman -Sy --noconfirm --needed mingw-w64-x86_64-cairo
-          test -f /c/msys64/mingw64/bin/libcairo-2.dll
-          CAIRO_DIR="$(cygpath -u "$RUNNER_TEMP")/cairo-runtime"
-          mkdir -p "$CAIRO_DIR"
-          cp /c/msys64/mingw64/bin/*.dll "$CAIRO_DIR/"
-          cygpath -w "$CAIRO_DIR" >> "$GITHUB_PATH"
-
       # The Character Sheet gate renders CJK design text through resolved
       # font files. The Windows image ships Meiryo, Malgun Gothic and
       # Microsoft YaHei; the Linux image ships no CJK font and the raster
@@ -70,6 +53,18 @@ jobs:
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
           fc-list --format '%{file}\n' ':lang=ja:weight=regular' | grep .
           fc-list --format '%{file}\n' ':lang=ja:weight=bold' | grep .
+
+      # Temporal evidence reads audio and video through ffprobe, which neither
+      # runner image ships.
+      - name: Install FFmpeg
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            choco install ffmpeg --no-progress -y
+          else
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
+          ffprobe -version | head -n 1
 
       - name: Set up uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -86,6 +81,12 @@ jobs:
         run: |
           python scripts/check_dependencies.py --tested
           python scripts/dependency_check_smoke_test.py
+
+      # Every command writes UTF-8 and every file is read and written as UTF-8
+      # whatever the locale code page is; the runners keep their own code page.
+      - name: Validate command output encoding
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: python scripts/stdio_encoding_smoke_test.py
 
       - name: Validate product identity, documentation and process evidence
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -247,8 +248,8 @@ jobs:
             "python scripts/production_workflow_smoke_test.py" \
             "python scripts/production_resume_smoke_test.py" \
             "python scripts/production_inputs_smoke_test.py" \
-            "python scripts/preset_consultation_smoke_test.py" \
-            "python examples/preset-consultation/build_example.py --check" \
+            "python scripts/craft_consultation_smoke_test.py" \
+            "python examples/craft-consultation/build_example.py --check" \
             "python scripts/production_input_model_smoke_test.py" \
             "python scripts/dispatch_preview_smoke_test.py" \
             "python scripts/schema_observation_smoke_test.py" \
@@ -404,20 +405,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      # CairoSVG loads the native Cairo runtime through cffi. The pip wheel does
-      # not carry it and the Windows runner image does not ship it, so install it
-      # from the preinstalled MSYS2 tree. Stage the DLLs in a directory of their
-      # own: putting mingw64/bin itself on PATH shadows the tool-cache python.exe.
-      - name: Install the Cairo runtime
-        if: runner.os == 'Windows'
-        run: |
-          C:/msys64/usr/bin/pacman -Sy --noconfirm --needed mingw-w64-x86_64-cairo
-          test -f /c/msys64/mingw64/bin/libcairo-2.dll
-          CAIRO_DIR="$(cygpath -u "$RUNNER_TEMP")/cairo-runtime"
-          mkdir -p "$CAIRO_DIR"
-          cp /c/msys64/mingw64/bin/*.dll "$CAIRO_DIR/"
-          cygpath -w "$CAIRO_DIR" >> "$GITHUB_PATH"
-
       # The Character Sheet gate renders CJK design text through resolved
       # font files. The Windows image ships Meiryo, Malgun Gothic and
       # Microsoft YaHei; the Linux image ships no CJK font and the raster
@@ -430,6 +417,18 @@ jobs:
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
           fc-list --format '%{file}\n' ':lang=ja:weight=regular' | grep .
           fc-list --format '%{file}\n' ':lang=ja:weight=bold' | grep .
+
+      # Temporal evidence reads audio and video through ffprobe, which neither
+      # runner image ships.
+      - name: Install FFmpeg
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            choco install ffmpeg --no-progress -y
+          else
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
+          ffprobe -version | head -n 1
 
       - name: Set up uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0

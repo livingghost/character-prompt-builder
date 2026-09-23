@@ -61,7 +61,7 @@ def main() -> int:
         expect(bool(validate_changelog(text + f"\n## {heading}\nDuplicate.\n", "2026.09.19.1", style=style)), f"{style}: duplicate current entry rejected")
     expect(bool(validate_changelog("# Log\n## [2026.09.19.1] - 2026-09-18\nChanges.\n", "2026.09.19.1", style="dated")), "explicit date must match CalVer date")
     # Check actual distributed product files via the CLI, not only parser units.
-    cli = subprocess.run([sys.executable, str(Path(__file__).with_name("release_contract.py")), "--root", str(root), "--tag", "v" + version], capture_output=True, text=True)
+    cli = subprocess.run([sys.executable, str(Path(__file__).with_name("release_contract.py")), "--root", str(root), "--tag", "v" + version], capture_output=True, text=True, encoding="utf-8")
     expect(cli.returncode == 0, f"installed release CLI: {cli.stdout} {cli.stderr}")
     # CI controls are not required inside a runtime-only release archive.
     for name in ("ci.yml", "release.yml"):
@@ -83,24 +83,24 @@ def main() -> int:
     # Mutate only a small isolated fixture: no edits to the installed product.
     with tempfile.TemporaryDirectory(prefix="product-release-check-") as td:
         fixture=Path(td)
-        (fixture/"package-manifest.toml").write_text((root/"package-manifest.toml").read_text(), encoding="utf-8")
-        (fixture/"CHANGELOG.md").write_text((root/"CHANGELOG.md").read_text(), encoding="utf-8")
+        (fixture/"package-manifest.toml").write_text((root/"package-manifest.toml").read_text(encoding="utf-8"), encoding="utf-8")
+        (fixture/"CHANGELOG.md").write_text((root/"CHANGELOG.md").read_text(encoding="utf-8"), encoding="utf-8")
         for rel in (".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "pyproject.toml", "MANIFEST.json"):
             p=root/rel
             if p.exists():
                 target=fixture/rel; target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(p.read_bytes())
         expect(check(fixture)["ok"], "isolated product identity must validate")
         for rel in (".claude-plugin/plugin.json", ".codex-plugin/plugin.json"):
-            target=fixture/rel; saved=target.read_bytes(); data=json.loads(saved);data["version"]="2000.01.01.1";target.write_text(json.dumps(data))
+            target=fixture/rel; saved=target.read_bytes(); data=json.loads(saved);data["version"]="2000.01.01.1";target.write_text(json.dumps(data), encoding="utf-8")
             expect(not check(fixture)["ok"], f"stale generated host metadata: {rel}");target.write_bytes(saved)
-        target=fixture/"CHANGELOG.md";saved=target.read_bytes();target.write_text("# Change notes\n\n## Features\nFeature descriptions.\n")
+        target=fixture/"CHANGELOG.md";saved=target.read_bytes();target.write_text("# Change notes\n\n## Features\nFeature descriptions.\n", encoding="utf-8")
         expect(not check(fixture)["ok"], "the current entry requires a release date");target.write_bytes(saved)
         inventory_path = fixture / "MANIFEST.json"
         if inventory_path.exists():
             saved = inventory_path.read_bytes()
             for field in ("version", "version_scheme", "release_timezone", "generated_at"):
                 data = json.loads(saved); data[field] = "incorrect"
-                inventory_path.write_text(json.dumps(data))
+                inventory_path.write_text(json.dumps(data), encoding="utf-8")
                 expect(not check(fixture)["ok"], f"distribution inventory {field} must remain bound to product CalVer")
             inventory_path.write_bytes(saved)
     print(json.dumps({"ok":not errors, "checks":checks, "errors":errors}, indent=2))
@@ -108,4 +108,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

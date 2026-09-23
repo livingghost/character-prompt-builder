@@ -82,6 +82,8 @@ class ReferenceDeliveryTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     import io
     import json
     buffer = io.StringIO()

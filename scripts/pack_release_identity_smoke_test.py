@@ -24,6 +24,7 @@ def run_cli(pack: Path) -> tuple[int, dict[str, Any]]:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
         check=False,
         env={**__import__("os").environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
@@ -115,4 +116,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

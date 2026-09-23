@@ -179,10 +179,10 @@ def run() -> dict[str, Any]:
         "definition": "requirements-visual.txt",
         "python": sys.version.split()[0],
         "dependencies": [],
-        "errors": ["CairoSVG is not installed"],
+        "errors": ["resvg-py is not installed"],
         "check_command": "python scripts/check_dependencies.py --profile visual",
         "install_command": "python -m pip install -r requirements-visual.txt",
-        "missing_packages": ["CairoSVG"],
+        "missing_packages": ["resvg-py"],
         "incompatible_packages": [],
     }
     with patch("reference_runtime.check_profile", return_value=failed_dependency_report):
@@ -200,7 +200,7 @@ def run() -> dict[str, Any]:
                 == "python scripts/check_dependencies.py --profile visual"
                 and exc.report["install_command"]
                 == "python -m pip install -r requirements-visual.txt"
-                and exc.report["missing_packages"] == ["CairoSVG"]
+                and exc.report["missing_packages"] == ["resvg-py"]
             )
     _record(
         checks,
@@ -222,6 +222,8 @@ def run() -> dict[str, Any]:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     report = run()
     print(json.dumps(report, ensure_ascii=False, indent=2))
     raise SystemExit(0 if report["ok"] else 1)

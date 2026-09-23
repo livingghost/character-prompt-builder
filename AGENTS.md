@@ -75,10 +75,10 @@ every host reads and what every host refuses:
   file may be read in part rather than in full.
 - Scripts are executed rather than read into context.
 
-`scripts/validate.py` refuses a body over 500 lines and reports its word count
-without a token measurement. It also settles that every reference document is
-reachable from the `SKILL.md` link graph, and that every script entrypoint is
-named by routed documentation.
+`scripts/validate.py` refuses a body over 500 lines or over 5000 tokens,
+estimated as characters divided by four. It also settles that every reference
+document is reached from a `SKILL.md` link or from a route or feature `SKILL.md`
+names, and that every script entrypoint is named by routed documentation.
 
 ## Source ownership and change discipline
 

@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import execution_contract as c
+from io_budget import environment_seconds
 import studio
 
 
@@ -35,7 +36,7 @@ def build() -> dict:
         before = {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob('*') if p.is_file()}
         command = [sys.executable, str(ROOT / 'scripts/studio.py'), '--studio', str(root), 'recipe',
                    '--character', 'subject-a', '--slot', 'base.front', '--iteration', row['iteration_id']]
-        response = subprocess.run(command, capture_output=True, text=True, check=False, timeout=30)
+        response = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False, timeout=environment_seconds("EXAMPLE_COMMAND_TIMEOUT_SECONDS"))
         if response.returncode:
             raise ValueError(response.stdout + response.stderr)
         result = json.loads(response.stdout)
@@ -63,4 +64,6 @@ def main() -> int:
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

@@ -10,10 +10,11 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'scripts'))
 import execution_contract as c
+from io_budget import environment_seconds
 
 
 def execute(args):
-    result=subprocess.run([sys.executable,*args],capture_output=True,text=True,timeout=60)
+    result=subprocess.run([sys.executable,*args],capture_output=True,text=True,encoding="utf-8",timeout=environment_seconds("EXAMPLE_COMMAND_TIMEOUT_SECONDS"))
     if result.returncode:raise ValueError(result.stdout+result.stderr)
     return json.loads(result.stdout)
 
@@ -64,4 +65,7 @@ def main():
     else:path.write_bytes(raw)
     print(raw.decode(),end='');return 0
 
-if __name__=='__main__':raise SystemExit(main())
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

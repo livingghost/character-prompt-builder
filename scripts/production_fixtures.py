@@ -34,7 +34,7 @@ def task(root: Path, spec: dict, *, artifact: str = 'text', execution: str = 'au
                              'protected_criteria': [], 'expires_at': None, 'request_scope': None,
                              'submission_validation_modes': ['target-schema', 'bounded-probe', 'observed-profile']}], 'stop_conditions': []}
     (root / spec['authority']).write_bytes(c.encoded(authority))
-    (root / 'fixture-authority-basis.txt').write_text('Synthetic test declaration, not a real user instruction.\n')
+    (root / 'fixture-authority-basis.txt').write_text('Synthetic test declaration, not a real user instruction.\n', encoding='utf-8')
     return spec
 
 

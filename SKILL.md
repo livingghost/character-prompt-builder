@@ -46,46 +46,38 @@ For saved deliverables and multistep production, read the route with `python scr
 
 ## Choose a runtime path
 
-Each item names its route or `--feature`. Activate selectively:
+Each item names a route or `--feature`; the route read above prints its documents. Activate selectively:
 
 - worlds, themes, agents or narratives: route `development`, [Creative Development](references/runtime/narrative-development.md) and [Project Design](templates/narrative/design/design-template.md); for individualized behavior, feature `persona` and the complete [Persona Template](templates/narrative/personas/persona-template.md);
-- cast admission, a recurring unnamed participant, or how much of a person a scene needs: [Cast Admission and Persona Depth](references/runtime/cast-and-persona-depth.md), in route `development`;
-- reusing reviewed scene persona material: feature `scene-persona`, [Scene Persona Material](references/runtime/scene-persona.md);
-- any chosen story moment, concurrent states or a depiction between recorded events: route or feature `story-context`, [Story Context](references/runtime/story-context.md);
-- grounded continuity, state provenance or bounded consumer views: route `world-realization` or feature `world-view`, [World Realization](references/runtime/world-realization.md); reusable identity patterns: feature `portrayal-principles`, [Portrayal Principles](references/portrayal-principles.md);
+- cast admission, a recurring unnamed participant, or how much of a person a scene needs: route `development`;
+- reusing reviewed scene persona material: feature `scene-persona`;
+- any chosen story moment, concurrent states or a depiction between recorded events: route or feature `story-context`;
+- grounded continuity, state provenance or bounded consumer views: route `world-realization` or feature `world-view`; reusable identity patterns: feature `portrayal-principles`;
 - creator portrayal aims and identity: feature `authorial-intent`, [Authorial Intent](references/runtime/authorial-intent.md); individualized voice or body: route or feature `performance`, [Character Performance](references/runtime/character-performance.md);
-- persistent world or narrative files, or scene-derived plots: feature `narrative-files`, [Narrative Protocol](references/narrative-protocol.md) and [Narrative Authoring](references/narrative-authoring.md);
-- ordinary prompt-only work with no selected reference and no complex construction risk: route `prompt-only`, [Prompt-Only Core](references/runtime/prompt-only-core.md); feature `subject-domain`, [Subject Domain Quick Reference](references/runtime/subject-domain-quick-reference.md), only when the subject domain is unresolved;
-- complex multi-axis prompt composition: route `composition`, [Prompt Composition Runtime](references/runtime/prompt-composition.md);
-- sparse brief or difficult emotion, activity, situation, relationship, or theme retrieval: feature `sparse-retrieval`, [Sparse-Brief Discovery Runtime](references/runtime/sparse-discovery.md);
-- craft knowledge for open axes or an observed failure: feature `craft-consultation`, [Craft consultation](references/runtime/preset-consultation.md);
-- terminology lookup, alternate wording or category browsing: feature `vocabulary`, [Prompt Vocabulary Runtime](references/runtime/prompt-vocabulary.md);
-- final prompt ordering, weighting, LoRA notation, negative syntax or term comparison: feature `prompt-dialect`, [Prompt Writing Guide Runtime](references/runtime/prompt-writing-guide.md);
-- linked evidence, or a prompt plus references without generation: route `reference-artifacts` or feature `references`, [Prompt Artifact Reference Runtime](references/runtime/reference-prompt-artifacts.md);
-- model-facing reference transports: feature `reference-delivery`, [Exact Reference Delivery](references/runtime/reference-delivery.md);
-- generation or model transport: route `generation`, [Image Generation Runtime](references/runtime/image-generation.md), plus the feature for exactly one of [GPT Image](references/adapters/gpt-image.md) `gpt-image`, [Midjourney and Niji](references/adapters/midjourney-niji.md) `midjourney`, [FLUX](references/adapters/flux.md) `flux`, [SDXL and ComfyUI](references/adapters/sdxl-comfyui.md) `sdxl`, [NovelAI](references/adapters/novelai.md) `novelai`, [Grok Imagine](references/adapters/grok-imagine.md) `grok`, [Instruction-Edit](references/adapters/instruction-edit.md) `instruction-edit`, or the [Unlisted Image Interface](references/adapters/unlisted-interface.md) `unlisted-interface`;
-- continuity, temporal state, off-screen events, cross-scene identity, or an arriving shot-request: route or feature `state-series`, [State-Aware Series Runtime](references/runtime/state-aware-series.md);
-- several images at once, across models or as concurrent variants of one model: route `batch`, [Batch Generation Runtime](references/runtime/batch-generation.md);
-- the same character in a new pose or scene: route `repose`, [Character Repose Workflow](references/runtime/character-repose-workflow.md);
-- deterministic editing of pinned stills: feature `image-edit`, [Image Editing](references/runtime/image-editing.md);
-- enlarging a finished image: route `upscale`, [Upscale Adapter](references/adapters/upscale.md) with an active upscaler model record;
-- canonical identity, a character sheet, its panels, candidates or reference board: route `character-sheet`, [Character Sheet Discipline](references/runtime/character-sheet-discipline.md); a new pose or scene for an accepted character uses `repose` or `generation` instead;
-- sheet, candidate, or accepted-image work, which lives in a studio: feature `studio`, [Studio Runtime](references/runtime/studio.md) first;
-- explicit selection for a canonical owner: route or feature `adoption`, [Adoption Workflow](references/runtime/adoption-workflow.md);
-- scoped changes or review of existing artifacts: route `revise` or feature `revision-guidance`, [Revision Contract](references/runtime/revision-contract.md);
-- a production report or evidence study: feature `evidence-review`, [Evidence Review](references/runtime/evidence-review.md); preserved originals, host trials or repair hypotheses: [Source Material](references/runtime/source-material.md), [Agent Evaluation](references/runtime/agent-evaluation.md), [Repair Analysis](references/runtime/repair-analysis.md);
-- public state or shot interchange: feature `protocol-exchange`, [Protocol Exchange](references/protocol-exchange.md);
-- absent pack state, custom packs, or provider selection: feature `pack-runtime`, [Pack State Runtime Quickstart](references/runtime/pack-state-quickstart.md).
+- persistent world or narrative files, or scene-derived plots: feature `narrative-files`;
+- ordinary prompt-only work with no selected reference and no complex construction risk: route `prompt-only`; feature `subject-domain`, [Subject Domain](references/runtime/subject-domain-quick-reference.md), only when the subject domain is unresolved;
+- complex multi-axis prompt composition: route `composition`, [Composition](references/runtime/prompt-composition.md);
+- sparse brief or difficult emotion, activity, situation, relationship, or theme retrieval: feature `sparse-retrieval`, [Sparse Discovery](references/runtime/sparse-discovery.md);
+- craft knowledge for open axes or an observed failure: feature `craft-consultation`, [Craft consultation](references/runtime/craft-consultation.md);
+- terminology lookup, alternate wording or category browsing: feature `vocabulary`, [Vocabulary](references/runtime/prompt-vocabulary.md);
+- final prompt ordering, weighting, LoRA notation, negative syntax or term comparison: feature `prompt-dialect`, [Writing Guide](references/runtime/prompt-writing-guide.md);
+- linked evidence, or a prompt plus references without generation: route `reference-artifacts` or feature `references`;
+- model-facing reference transports: feature `reference-delivery`;
+- generation or model transport: route `generation` plus the feature for exactly one of `gpt-image`, `midjourney` (and Niji), `flux`, `sdxl` (and ComfyUI), `novelai`, `grok`, `instruction-edit`, or `unlisted-interface` for any other image interface;
+- continuity, temporal state, off-screen events, cross-scene identity, or an arriving shot-request: route or feature `state-series`;
+- several images at once, across models or as concurrent variants of one model: route `batch`;
+- the same character in a new pose or scene: route `repose`;
+- deterministic editing of pinned stills: feature `image-edit`;
+- enlarging a finished image: route `upscale` with an active upscaler model record;
+- canonical identity, a character sheet, its panels, candidates or reference board: route `character-sheet`; a new pose or scene for an accepted character uses `repose` or `generation` instead;
+- sheet, candidate, or accepted-image work, which lives in a studio: feature `studio` first;
+- explicit selection for a canonical owner: route or feature `adoption`;
+- scoped changes or review of existing artifacts: route `revise` or feature `revision-guidance`;
+- a production report or evidence study: feature `evidence-review`; preserved originals, host trials or repair hypotheses: feature `source-material`, `agent-evaluation` or `repair-analysis`;
+- public state or shot interchange: feature `protocol-exchange`;
+- absent pack state, custom packs, or provider selection: feature `pack-runtime`.
 
-Load specialists only for a load-bearing subject:
-
-- exact multi-subject geometry, crop, perspective, overlap, or contact: [Prompt Composition Geometry](references/prompt-composition-geometry.md) and [Camera Framing Contract](references/camera-framing-contract.md);
-- recurring identity, unfamiliar body plan, ordinary animal, hybrid, creature, robot, transformation, or unusual feature counts: [Morphology and Species Contracts](references/morphology-and-species-contracts.md) and [Species Architecture](references/species-architecture.md); recurring identity also requires [Character Identity Contract](references/character-identity-contract.md);
-- subtle emotion, body language, appendage acting, physiological response, or mechanical performance: [Performance Language Specification](references/performance-language-specification.md);
-- garment, growth, grooming, hair, fur, feathers, quills, bristles, spun fiber, molded strands, nails, claws, talons, hooves, digit plates, or local identity: [Garment Geometry](references/garment-geometry-specification.md), [Growth Geometry](references/growth-geometry-specification.md), and [Distinctive Detail](references/distinctive-detail-specification.md);
-- scene artifacts: [Production Specification](references/production-specification.md);
-- a named or implied rendering medium, photographic look, 3D or toy presentation, in-image type or logo, environment-forward composition, or repeated wrong-finish results: [Finishing Layers Specification](references/finishing-layers-specification.md);
-- supplied raster, linked SVG, reference collection, or corpus ingestion: [Derived Visual Evidence](references/derived-visual-evidence.md), [Visual Reference Activation and Transport](references/visual-reference-activation-and-transport.md), [Reference Corpus Ingestion](references/reference-corpus-ingestion.md), and [Visual Technique Observation](references/reference-corpus-visual-technique-observation.md).
+Add a specialist feature only for a load-bearing subject: `geometry` for exact multi-subject geometry, crop, perspective, overlap, or contact; `body-plan` for an unfamiliar body plan, ordinary animal, hybrid, creature, robot, transformation, or unusual feature counts, and `recurring-identity` for recurring identity; `performance-language` for subtle emotion, body language, appendage acting, physiological response, or mechanical performance; `garment-growth` for garment, growth, grooming, hair, fur, feathers, quills, bristles, spun fiber, molded strands, nails, claws, talons, hooves, digit plates, or local identity; `production-spec` for scene artifacts; `finishing` for a named or implied rendering medium, photographic look, 3D or toy presentation, in-image type or logo, environment-forward composition, or repeated wrong-finish results; `visual-evidence` for a supplied raster, linked SVG, reference collection, or corpus ingestion.
 
 ## Mandatory studio gate
 

@@ -47,7 +47,7 @@ def main() -> int:
     # The command a reader runs first starts, whatever the release tree holds.
     proc = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "catalog_cli.py"), "--help"],
-        text=True, capture_output=True, check=False,
+        text=True, encoding="utf-8", capture_output=True, check=False,
     )
     help_ok = proc.returncode == 0 and "usage:" in proc.stdout
     if not help_ok:
@@ -77,4 +77,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

@@ -53,7 +53,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         }
         self.record = {"operation_kind": "upscale", "supported_scale_factors": [2],
                        "upscale_settings": {}, "upscaler_class": "deterministic"}
-        self.service = {"id": "fixture", "endpoint": {"base_url": "https://example.invalid"},
+        self.service = {"id": "fixture", "transport": "fixture", "endpoint": {"base_url": "https://example.invalid"},
                         "operations": {"imageInference": {}, "imageUpscale": {}}}
         self.answer = {"data": [{"imageURL": "https://example.invalid/one.png"}]}
         self.entries = [{"url": "https://example.invalid/one.png", "id": "one", "seed": 11},
@@ -86,7 +86,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         reader, _ = input_contracts.capture_validation(validation, root=self.root)
         self.execution_policy = reader.json(validation["execution_policy"])
         basis = self.root / "visual-basis.txt"
-        basis.write_text("Synthetic single-subject exploration; no author acceptance is asserted.\n")
+        basis.write_text("Synthetic single-subject exploration; no author acceptance is asserted.\n", encoding="utf-8")
         visual = {
             "purpose": "sheet-panel", "basis": file_ref(self.root, basis.name, locator="whole"),
             "subjects": {"subject": {"continuity": "undecided", "character_id": None,
@@ -138,6 +138,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.stack.enter_context(patch("production_workflow.claim_dispatch",
                                        return_value={"sha256": "c" * 64}))
         self.started = self.stack.enter_context(patch("reservation_lifecycle.begin_step"))
+        self.loaded = self.stack.enter_context(patch("transport_contract.load", return_value=self.transport))
         self.patches = {}
         for name, kwargs in {
             "verify": {"side_effect": self.verified},
@@ -150,7 +151,6 @@ class DispatchRecoveryTests(unittest.TestCase):
             "api_key": {"return_value": "OFFLINE-CREDENTIAL-MUST-NEVER-BE-SAVED"},
             "save": {"side_effect": self.save},
             "open_run": {"return_value": "synthetic-boundary-stub"},
-            "load_transport": {"return_value": self.transport},
         }.items():
             self.patches[name] = self.stack.enter_context(patch.object(dispatch, name, **kwargs))
 
@@ -251,8 +251,8 @@ class DispatchRecoveryTests(unittest.TestCase):
         path, journal = self.journal()
         self.assertEqual(journal["status"], "complete")
         self.assertEqual(journal["iterations"], ["it-0001", "it-0002"])
-        self.assertEqual(json.loads((path / "request.json").read_text()), self.request)
-        self.assertEqual(json.loads((path / "answer.json").read_text()), self.answer)
+        self.assertEqual(json.loads((path / "request.json").read_text(encoding="utf-8")), self.request)
+        self.assertEqual(json.loads((path / "answer.json").read_text(encoding="utf-8")), self.answer)
         self.assertEqual([row["seed"] for row in studio.read_iterations(self.home)], [11, 12])
         for file in self.root.rglob("*.json"):
             self.assertNotIn("OFFLINE-CREDENTIAL-MUST-NEVER-BE-SAVED", file.read_text(encoding="utf-8"))
@@ -272,7 +272,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.transport.upload_bytes.assert_called_once_with(carrier, "image/png", self.service,
                                                      "OFFLINE-CREDENTIAL-MUST-NEVER-BE-SAVED")
         self.assertEqual((run / companion.name / "input.png").read_bytes(), carrier)
-        sealed = json.loads((run / "request-contract.json").read_text())
+        sealed = json.loads((run / "request-contract.json").read_text(encoding="utf-8"))
         self.assertEqual(sealed["media"][0]["path"], str(run / companion.name / "input.png"))
 
 
@@ -299,15 +299,38 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual((path / "package.json").read_bytes(), self.package.read_bytes())
         self.transport.send.assert_not_called()
 
-    def test_send_failure_preserves_request_without_automatic_retry(self):
-        self.transport.send.side_effect = OSError("offline network failure")
-        with self.assertRaises(OSError):
-            self.call()
-        path, journal = self.journal()
-        self.assertEqual(journal["failed_at"], "sending")
-        self.assertEqual(json.loads((path / "request.json").read_text()), self.request)
-        self.assertEqual(self.transport.send.call_count, 1)
-        self.assertFalse((path / "answer.json").exists())
+    def test_a_send_without_an_answer_is_indeterminate_kept_and_never_resent_in_both_modes(self):
+        import transport_contract
+        failures = {"generation": OSError("offline network failure at 203.0.113.9"),
+                    "upscale": transport_contract.Indeterminate("the service answered 502", status=502, body=b"bad gateway")}
+        kept = {"generation": {"outcome": "indeterminate", "http_status": None, "body": None,
+                               "reason": "the connection ended before a complete answer (OSError)"},
+                "upscale": {"outcome": "indeterminate", "http_status": 502, "body": "bad gateway",
+                            "reason": "the service answered 502"}}
+        for mode, failure in failures.items():
+            with self.subTest(mode=mode):
+                self.transport.send.reset_mock()
+                self.transport.send.side_effect = failure
+                said = io.StringIO()
+                with contextlib.redirect_stderr(said), patch.object(dispatch, "build_upscale_package",
+                                                                    side_effect=self.fake_upscale_builder):
+                    self.assertEqual(self.call(mode), 1)
+                path = next(folder for folder in (self.root / "runs").iterdir()
+                            if (folder / "run.json").is_file()
+                            and json.loads((folder / "run.json").read_text(encoding="utf-8"))["operation"] == mode)
+                journal = json.loads((path / "run.json").read_text(encoding="utf-8"))
+                self.assertEqual(journal["status"], "indeterminate")
+                self.assertEqual(json.loads((path / "indeterminate.json").read_text(encoding="utf-8")), kept[mode])
+                self.assertTrue((path / "request.json").is_file())
+                self.assertFalse((path / "answer.json").exists() or (path / "transport-outcome.json").exists())
+                self.assertEqual(self.transport.send.call_count, 1)
+                self.assertIn("Nothing is sent again", said.getvalue())
+                self.assertNotIn("203.0.113.9", said.getvalue() + (path / "indeterminate.json").read_text(encoding="utf-8"))
+        path, journal = next((folder, json.loads((folder / "run.json").read_text(encoding="utf-8")))
+                             for folder in (self.root / "runs").iterdir() if (folder / "run.json").is_file()
+                             and json.loads((folder / "run.json").read_text(encoding="utf-8"))["operation"] == "generation")
+        self.assertEqual(json.loads((path / "request.json").read_text(encoding="utf-8")), self.request)
+        self.assertEqual(journal["transport"], "fixture")
 
     def test_service_refusal_preserves_exact_answer(self):
         self.entries = []
@@ -316,7 +339,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         path, journal = self.journal()
         self.assertEqual(journal["status"], "refused")
         self.assertEqual(journal["refused"], [{"reason": "offline refusal"}])
-        self.assertEqual(json.loads((path / "answer.json").read_text()), self.answer)
+        self.assertEqual(json.loads((path / "answer.json").read_text(encoding="utf-8")), self.answer)
         self.assertEqual(studio.read_iterations(self.home), [])
 
     def test_images_beside_a_refusal_are_downloaded_and_recorded(self):
@@ -336,7 +359,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertTrue((path / "answer.json").is_file())
         self.assertEqual(self.call("upscale"), 1)
         for file in (self.root / "runs").glob("*/run.json"):
-            self.assertEqual(json.loads(file.read_text())["status"], "no-results")
+            self.assertEqual(json.loads(file.read_text(encoding="utf-8"))["status"], "no-results")
         self.results_recorded.assert_not_called()
 
     def test_count_mismatch_records_every_image_and_no_production_result(self):
@@ -345,7 +368,7 @@ class DispatchRecoveryTests(unittest.TestCase):
                 self.options.count = count
                 before = len(studio.read_iterations(self.home))
                 self.assertEqual(self.call(), 1)
-                journals = [json.loads(path.read_text()) for path in (self.root / "runs").glob("*/run.json")]
+                journals = [json.loads(path.read_text(encoding="utf-8")) for path in (self.root / "runs").glob("*/run.json")]
                 journal = next(row for row in journals if row["expected"] == count)
                 self.assertEqual((journal["status"], journal["received"]), ("count-mismatch", 2))
                 self.assertEqual(len(studio.read_iterations(self.home)), before + 2)
@@ -359,7 +382,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual(journal["status"], "download-incomplete")
         self.assertEqual([row["index"] for row in journal["failed_downloads"]], [1, 2])
         self.assertTrue((path / "answer.json").is_file())
-        self.assertEqual(json.loads((path / "response-1.json").read_text())["url"], self.entries[0]["url"])
+        self.assertEqual(json.loads((path / "response-1.json").read_text(encoding="utf-8"))["url"], self.entries[0]["url"])
         self.results_recorded.assert_not_called()
 
     def test_one_failed_download_keeps_the_rest_and_recovery_fetches_it_without_sending(self):
@@ -377,6 +400,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.patches["save"].side_effect = self.save
         self.assertEqual(dispatch.recover(self.root, "synthetic-boundary-stub", path), 1)
         self.assertEqual(dispatch.recover(self.root, "synthetic-boundary-stub", path), 0)
+        self.loaded.assert_called_with("fixture")
         _, journal = self.journal()
         self.assertEqual((journal["status"], journal["iterations"]), ("complete", ["it-0001", "it-0002"]))
         self.assertEqual(len(studio.read_iterations(self.home)), 2)
@@ -408,9 +432,8 @@ class DispatchRecoveryTests(unittest.TestCase):
             dispatch.recover(self.root, "synthetic-boundary-stub", empty)
 
     def test_recovery_never_sends_when_the_answer_was_not_saved(self):
-        self.transport.send.side_effect = OSError("offline network failure")
-        with self.assertRaises(OSError):
-            self.call()
+        self.transport.send.side_effect = TimeoutError("offline network failure")
+        self.assertEqual(self.call(), 1)
         path, _ = self.journal()
         with self.assertRaisesRegex(ValueError, "outcome is unknown"):
             dispatch.recover(self.root, "synthetic-boundary-stub", path)
@@ -476,7 +499,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         _, journal = self.journal()
         self.assertEqual((journal["status"], journal["iterations"]), ("complete", ["it-0001", "it-0002"]))
         self.assertEqual((path / "result-2.png").read_bytes(), self.result_bytes)
-        self.assertIsNone(json.loads((path / "response-2.json").read_text())["url"])
+        self.assertIsNone(json.loads((path / "response-2.json").read_text(encoding="utf-8"))["url"])
         self.patches["save"].assert_not_called()
         self.assertEqual([row["seed"] for row in studio.read_iterations(self.home)], [11, 12])
         self.assertEqual((self.transport.send.call_count, self.transport.upload_bytes.call_count), (1, 1))
@@ -491,7 +514,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         path, _ = self.journal()
         answer_sha256 = hashlib.sha256((path / "answer.json").read_bytes()).hexdigest()
         for index, name in ((1, "one"), (2, "two")):
-            named = json.loads((path / f"response-{index}.json").read_text())
+            named = json.loads((path / f"response-{index}.json").read_text(encoding="utf-8"))
             self.assertEqual({key: value for key, value in named.items() if key != "at"},
                              {"answer_sha256": answer_sha256, "index": index, "seed": 10 + index, "id": name, "url": None})
         holding = lambda folder: sorted(p.name for p in folder.rglob("*.json") if encoded in p.read_text(encoding="utf-8"))
@@ -513,7 +536,7 @@ class DispatchRecoveryTests(unittest.TestCase):
             self.assertEqual(self.call(), 1)
         path, _ = self.journal()
         response = path / "response-2.json"
-        response.write_text(json.dumps({**json.loads(response.read_text()), "answer_sha256": "0" * 64}), encoding="utf-8")
+        response.write_text(json.dumps({**json.loads(response.read_text(encoding="utf-8")), "answer_sha256": "0" * 64}), encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "names another answer"):
             dispatch.recover(self.root, "synthetic-boundary-stub", path)
         self.assertFalse((path / "result-2.png").exists())
@@ -597,7 +620,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual(len(journal["iterations"]), 1)
         for row in studio.read_iterations(self.home):
             package_path = self.root / row["package"]["path"]
-            package = json.loads(package_path.read_text())
+            package = json.loads(package_path.read_text(encoding="utf-8"))
             self.assertTrue((package_path.parent / package["source"]).is_file())
             self.assertTrue((package_path.parent / package["output"]).is_file())
 
@@ -632,24 +655,23 @@ class ResumeOffersDownload(unittest.TestCase):
 
 
 # A second service, as its author would add it: a transport module written
-# against the contract in the dispatch.py docstring. The model and the operation
-# travel in the address, the text on the offering's keys, and images come back
-# inline as base64.
-SECOND_TRANSPORT = '''"""A synthetic second service for the dispatch tests; it contacts nothing."""
+# against scripts/transport_contract.py, named by the service record rather than
+# by the service's key. The model and the operation travel in the address, the
+# text on the offering's keys, and images come back inline as base64. It sends
+# through the contract's post() to a loopback service the test starts.
+SECOND_TRANSPORT = '''"""A synthetic second service for the dispatch tests; it reaches only the test's loopback service."""
+import json
+
 from model_contract import NEGATIVE_ROLE, PROMPT_ROLE, required_request_key
 from request_contract import RequestWriter, path_parts
+from transport_contract import address, post
 
 OPERATIONS = {"generation": "text-to-image"}
 RESULT_HOSTS = frozenset()
-SENT = []
-ANSWER = {}
 
 
 def endpoint(service):
-    url = service["endpoint"]["base_url"]
-    if not url.startswith("https://second-service.invalid/"):
-        raise ValueError("the fixture transport sends only to its own address")
-    return url
+    return address(service["endpoint"]["base_url"])
 
 
 def compile_request(verified, offering, service, media_ids=None, seed=None, count=1):
@@ -695,8 +717,10 @@ def upload_bytes(data, media_type, service, key):
 
 
 def send(request, service, key):
-    SENT.append({"address": endpoint(service), "request": request})
-    return ANSWER
+    status, body = post(endpoint(service), json.dumps(request).encode("utf-8"),
+                        {"Content-Type": "application/json", "Authorization": "Key " + key})
+    answer = json.loads(body.decode("utf-8"))
+    return answer if status == 200 else {"errors": [{"status": status, **answer}]}
 
 
 def rejections(answer):
@@ -713,7 +737,7 @@ def observation_outcome(answer):
 
 
 class SecondServiceTests(unittest.TestCase):
-    """A service that is not Runware is data plus one transport module, with no Runware code on the path."""
+    """A service that is not Runware is data plus the transport module its record names, with no Runware code on the path."""
 
     @classmethod
     def setUpClass(cls):
@@ -727,20 +751,20 @@ class SecondServiceTests(unittest.TestCase):
         cls.fixture.catalog_cli.configure_pack_runtime(None)
 
     def setUp(self):
+        from dispatch_smoke_test import LoopbackService
         self.fixture.FeatureWorkflowTests.setUp(self)
+        self.loopback = LoopbackService()
+        self.addCleanup(self.loopback.__exit__)
 
-    def test_preview_send_and_inline_recovery_through_a_second_service(self):
-        import base64
+    def prepare(self):
+        """The records, the bound package and its authorization for one send of two images through the second service."""
         import importlib
-        import socket
         import input_contracts
         import production_fixtures
         import production_workflow as workflow
         import request_renderer
         import execution_contract as c
-        from PIL import Image
         from build_generation_payload import generation_input_sha256
-        from generation_payload_smoke_test import NEGATIVE
         from model_contract import validate_model_record
         from prepare_generation_references import resolve_model_record
         from request_validation_fixtures import interface_validation
@@ -748,22 +772,23 @@ class SecondServiceTests(unittest.TestCase):
 
         folder = self.work / "second-service"
         folder.mkdir()
-        (folder / "transport_second_fixture.py").write_text(SECOND_TRANSPORT, encoding="utf-8")
+        (folder / "transport_loopback_fixture.py").write_text(SECOND_TRANSPORT, encoding="utf-8")
         sys.path.insert(0, str(folder))
         self.addCleanup(sys.path.remove, str(folder))
-        self.addCleanup(sys.modules.pop, "transport_second_fixture", None)
-        transport = importlib.import_module("transport_second_fixture")
+        self.addCleanup(sys.modules.pop, "transport_loopback_fixture", None)
+        transport = importlib.import_module("transport_loopback_fixture")
 
         # The service record, the offering with its keys, and the service's observed schema: data only.
         service = {"label": "Second fixture service", "observed_at": "2026-09-23", "source": "synthetic fixture",
-                   "endpoint": {"base_url": "https://second-service.invalid/v1/text-to-image", "method": "POST"},
+                   "transport": "loopback_fixture",
+                   "endpoint": {"base_url": self.loopback.url + "/v1/second-model/text-to-image", "method": "POST"},
                    "auth": {"env_var": "SECOND_FIXTURE_KEY"}, "operations": {"text-to-image": {}}}
         profiles = self.work / "services.json"
         profiles.write_text(json.dumps({"services": {"second-fixture": service}}), encoding="utf-8")
         snapshot = "resources/observed-schemas/second-model.second-fixture.json"
-        pack = self.work / "second-pack"
-        (pack / snapshot).parent.mkdir(parents=True)
-        (pack / snapshot).write_text(json.dumps({"observed_at": "2026-09-23", "schema": {
+        self.schema_pack = self.work / "second-pack"
+        (self.schema_pack / snapshot).parent.mkdir(parents=True)
+        (self.schema_pack / snapshot).write_text(json.dumps({"observed_at": "2026-09-23", "schema": {
             "type": "object", "required": ["prompt"], "additionalProperties": False,
             "properties": {"prompt": {"type": "string", "minLength": 1}, "negative_prompt": {"type": "string"},
                            "num_images": {"type": "integer", "minimum": 1, "maximum": 4}, "seed": {"type": "integer"},
@@ -771,14 +796,14 @@ class SecondServiceTests(unittest.TestCase):
         offering = {"service": "second-fixture", "model_identifier": "vendor/second-model", "observed_at": "2026-09-23",
                     "request_keys": {"prompt": ["prompt"], "negative prompt": ["negative_prompt"]},
                     "constraints": {}, "schema_snapshot": snapshot}
-        run = production_fixtures.prepare_dispatch(self.root, self.fixture.PROMPT)
-        package = production_fixtures.bind_package(self.root, run, self.package)
+        self.production_run = production_fixtures.prepare_dispatch(self.root, self.fixture.PROMPT)
+        package = production_fixtures.bind_package(self.root, self.production_run, self.package)
         _, record = resolve_model_record(package["model"])
-        record = copy.deepcopy(record)
-        record["offerings"] = [offering]
-        self.assertEqual(validate_model_record(record), [])
+        self.record = copy.deepcopy(record)
+        self.record["offerings"] = [offering]
+        self.assertEqual(validate_model_record(self.record), [])
         validation = interface_validation(self.root, target={"service": "second-fixture", "model_identifier": "vendor/second-model",
-            "operation": "text-to-image"}, record=record, offering=offering, service_record=service,
+            "operation": "text-to-image"}, record=self.record, offering=offering, service_record=service,
             transport=transport, reference_mode="prompt-prefix")
         reader, _ = input_contracts.capture_validation(validation, root=self.root)
         reader.basis(package["visual_continuity"]["basis"])
@@ -789,22 +814,48 @@ class SecondServiceTests(unittest.TestCase):
         package["generation_contract"]["generation_input_sha256"] = package["generation_input_sha256"]
         path = self.root / "bound.json"
         path.write_bytes(c.encoded(package))
+        self.model = package["model"]
         rendered = request_renderer.generation(package, verify(package, package_root=self.root, project=self.root),
-                                               record, offering, service, transport, seed=7, count=2)
-        authorization = production_fixtures.grant(self.root, run, workflow.submission_intent(
+                                               self.record, offering, service, transport, seed=7, count=2)
+        authorization = production_fixtures.grant(self.root, self.production_run, workflow.submission_intent(
             package, rendered=rendered, seed=7, count=2, offering=offering, service=service))
+        return argparse.Namespace(package=path, service=None, profiles=str(profiles), seed=7, count=2, send=False,
+                                  character="C01", slot="base.front", note="Synthetic second service.",
+                                  production_authorization=authorization), rendered
+
+    @contextlib.contextmanager
+    def only_the_loopback_service(self):
+        """No Runware code, no connection but to the loopback service, and no download of an inline image."""
+        import socket
+        connect = socket.create_connection
+        port = self.loopback.server.server_address[1]
+
+        def loopback_only(address, *args, **kwargs):
+            if tuple(address[:2]) != ("127.0.0.1", port):
+                raise AssertionError(f"the second-service dispatch connected to {address}")
+            return connect(address, *args, **kwargs)
+
+        with patch.dict(sys.modules, {"transport_runware": None}), \
+                patch.dict(os.environ, {"SECOND_FIXTURE_KEY": "SYNTHETIC-SECOND-KEY"}), \
+                patch.object(socket, "create_connection", loopback_only), \
+                patch.object(dispatch, "resolve_model_record", return_value=(self.model, self.record)), \
+                patch.object(dispatch, "model_pack_root", return_value=self.schema_pack), \
+                patch.object(dispatch, "save", side_effect=AssertionError("an inline image was downloaded")):
+            yield
+
+    def test_preview_send_and_inline_recovery_through_a_second_service(self):
+        import base64
+        import production_workflow as workflow
+        from PIL import Image
+        from generation_payload_smoke_test import NEGATIVE
+
+        options, rendered = self.prepare()
         output = io.BytesIO()
         Image.new("RGB", (24, 24), "white").save(output, format="PNG")
         image = output.getvalue()
-        transport.ANSWER.update({"images": [{"b64": base64.b64encode(image).decode("ascii"), "seed": 101, "id": "a"},
-                                            {"b64": base64.b64encode(image).decode("ascii"), "seed": 102, "id": "b"}]})
-        options = argparse.Namespace(package=path, service=None, profiles=str(profiles), seed=7, count=2, send=False,
-                                     character="C01", slot="base.front", note="Synthetic second service.",
-                                     production_authorization=authorization)
-
-        def refuse(*args, **kwargs):
-            raise AssertionError("the second-service dispatch opened a connection")
-
+        self.loopback.reply = (200, {"Content-Type": "application/json"}, json.dumps({"images": [
+            {"b64": base64.b64encode(image).decode("ascii"), "seed": 101, "id": "a"},
+            {"b64": base64.b64encode(image).decode("ascii"), "seed": 102, "id": "b"}]}).encode("utf-8"))
         real = dispatch.inline_image
         calls = []
 
@@ -815,31 +866,29 @@ class SecondServiceTests(unittest.TestCase):
             return real(data)
 
         shown = io.StringIO()
-        with patch.dict(sys.modules, {"transport_runware": None}), \
-                patch.dict(os.environ, {"SECOND_FIXTURE_KEY": "SYNTHETIC-SECOND-KEY"}), \
-                patch.object(socket.socket, "connect", refuse), patch.object(socket, "create_connection", refuse), \
-                patch.object(dispatch, "resolve_model_record", return_value=(package["model"], record)), \
-                patch.object(dispatch, "model_pack_root", return_value=pack), \
-                patch.object(dispatch, "save", side_effect=AssertionError("an inline image was downloaded")):
+        with self.only_the_loopback_service():
             with contextlib.redirect_stdout(shown):
                 self.assertEqual(dispatch.dispatch_generation(options, self.root), 0)
             head, _, body = shown.getvalue().partition("request (sha256 ")
             previewed = json.loads(body.partition("\n")[2])
-            self.assertIn("service: second-fixture at https://second-service.invalid/v1/text-to-image", head)
+            self.assertIn(f"service: second-fixture at {self.loopback.url}/v1/second-model/text-to-image", head)
             self.assertIn("negative prompt: sent on negative_prompt", head)
             self.assertEqual(previewed, {"prompt": rendered["request"]["prompt"], "negative_prompt": NEGATIVE,
                                          "num_images": 2, "seed": 7, "size": "1024x1024", "quality": "high"})
-            self.assertEqual(transport.SENT, [])
+            self.assertEqual(self.loopback.received, [])
             options.send = True
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
                     patch.object(dispatch, "inline_image", side_effect=second_fails):
                 self.assertEqual(dispatch.dispatch_generation(options, self.root), 1)
             with contextlib.redirect_stdout(io.StringIO()):
-                recovered = workflow.recover_recording(self.root, run)
-        self.assertEqual(transport.SENT, [{"address": "https://second-service.invalid/v1/text-to-image", "request": previewed}])
+                recovered = workflow.recover_recording(self.root, self.production_run)
+        self.assertEqual([(row["path"], json.loads(row["body"])) for row in self.loopback.received],
+                         [("/v1/second-model/text-to-image", previewed)])
         self.assertEqual((len(recovered["iterations"]), recovered["network_calls"]), (2, 0))
         journal = next((self.root / "runs").glob("*/run.json")).parent
-        self.assertEqual(json.loads((journal / "run.json").read_text(encoding="utf-8"))["status"], "complete")
+        self.assertEqual({key: json.loads((journal / "run.json").read_text(encoding="utf-8"))[key]
+                          for key in ("status", "service", "transport")},
+                         {"status": "complete", "service": "second-fixture", "transport": "loopback_fixture"})
         self.assertEqual([(journal / f"result-{index}.png").read_bytes() for index in (1, 2)], [image, image])
         rows = studio.read_iterations(self.home)
         self.assertEqual([row["seed"] for row in rows], [101, 102])
@@ -849,6 +898,39 @@ class SecondServiceTests(unittest.TestCase):
         self.assertEqual(recipe["settings"]["prompt"], previewed["prompt"])
         for file in self.root.rglob("*.json"):
             self.assertNotIn("SYNTHETIC-SECOND-KEY", file.read_text(encoding="utf-8"))
+
+    def unanswered(self, reply):
+        """Send once to a loopback service that gives `reply`; the run's saved evidence and what was said."""
+        import production_workflow as workflow
+        options, _ = self.prepare()
+        options.send = True
+        self.loopback.reply = reply
+        said = io.StringIO()
+        with self.only_the_loopback_service():
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(said):
+                self.assertEqual(dispatch.dispatch_generation(options, self.root), 1)
+            with contextlib.redirect_stdout(io.StringIO()), self.assertRaisesRegex(ValueError, "outcome is unknown"):
+                workflow.recover_recording(self.root, self.production_run)
+        self.assertEqual(len(self.loopback.received), 1)
+        journal = next((self.root / "runs").glob("*/run.json")).parent
+        self.assertEqual(json.loads((journal / "run.json").read_text(encoding="utf-8"))["status"], "indeterminate")
+        self.assertFalse((journal / "answer.json").exists())
+        resume = workflow.status(self.root, self.production_run)
+        self.assertEqual(resume["next"], "recover-recording-or-resolve-remote-status")
+        self.assertNotIn("recover-recording", [action["operation"] for action in resume["next_actions"]])
+        self.assertEqual(studio.read_iterations(self.home), [])
+        self.assertIn("Nothing is sent again", said.getvalue())
+        return json.loads((journal / "indeterminate.json").read_text(encoding="utf-8"))
+
+    def test_a_5xx_answer_is_indeterminate_and_sent_once(self):
+        self.assertEqual(self.unanswered((503, {}, b"upstream busy")),
+                         {"outcome": "indeterminate", "reason": "the service answered 503", "http_status": 503,
+                          "body": "upstream busy"})
+
+    def test_a_dropped_connection_is_indeterminate_and_sent_once(self):
+        kept = self.unanswered("drop")
+        self.assertEqual((kept["http_status"], kept["body"]), (None, None))
+        self.assertTrue(kept["reason"].startswith("the connection ended before a complete answer"), kept)
 
 
 def main():
@@ -864,4 +946,6 @@ def main():
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

@@ -290,4 +290,7 @@ def main(argv: Sequence[str] | None=None) -> int:
         print(json.dumps(result,ensure_ascii=False,indent=2));return 1
 
 
-if __name__=='__main__':raise SystemExit(main())
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

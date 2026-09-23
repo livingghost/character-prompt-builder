@@ -5,6 +5,7 @@
       "documentation": "https://runware.ai/docs",
       "observed_at": "2026-09-07",
       "source": "the service's API documentation and parameter schemas",
+      "transport": "runware",
       "endpoint": {
         "base_url": "https://api.runware.ai/v1",
         "method": "POST"

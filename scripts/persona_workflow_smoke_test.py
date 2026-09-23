@@ -169,12 +169,12 @@ class PersonaWorkflowTests(unittest.TestCase):
         self.assertEqual(code, 0, report)
         second = (self.series / "narrative/personas/c02.md").read_text(encoding="utf-8")
         self.assertEqual(re.findall(r"^## \d+\..*$", second, re.M),
-                         re.findall(r"^## \d+\..*$", self.persona.read_text(), re.M))
+                         re.findall(r"^## \d+\..*$", self.persona.read_text(encoding="utf-8"), re.M))
         self.assertNotIn("# Persona Template", second)
         self.assertIn("# Second (opening)", second)
 
     def test_unselected_phase_is_not_silently_chosen(self):
-        self.assertIn("{phase_name}", self.persona.read_text())
+        self.assertIn("{phase_name}", self.persona.read_text(encoding="utf-8"))
         self.assertNotIn("phases", self.document()["characters"][0])
         self.assertNotIn("approved", self.document())
 
@@ -205,7 +205,7 @@ class PersonaWorkflowTests(unittest.TestCase):
         code, report = invoke(narrative_entity.main, "--series", str(self.series), "add", "persona",
                               "c02", "--character", "C02", "--phase", "opening")
         self.assertEqual(code, 0, report)
-        text = (self.series / "narrative/personas/c02.md").read_text()
+        text = (self.series / "narrative/personas/c02.md").read_text(encoding="utf-8")
         for field in ("authorial_intent_refs", "inner_core", "signature_dynamics", "identity_realization"):
             self.assertIn("**" + field + "**:", text)
 
@@ -296,7 +296,7 @@ class PersonaWorkflowTests(unittest.TestCase):
     def test_real_cli_strict_fails_for_draft(self):
         command = [sys.executable, "-B", str(ROOT / "scripts/narrative_index.py"),
                    str(self.series), "--json", "--strict"]
-        done = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False)
+        done = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=30, check=False)
         self.assertEqual(done.returncode, 1, done.stderr)
         self.assertIn("unfilled", json.loads(done.stdout))
 
@@ -365,4 +365,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

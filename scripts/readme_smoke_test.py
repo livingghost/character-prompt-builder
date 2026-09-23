@@ -219,14 +219,14 @@ def main() -> int:
                 "extraction-proposal/proposal.json",
             ):
                 check(f"documented output exists: {relative}", (authoring / relative).is_file())
-            material = json.loads((authoring / "scene-material/material.json").read_text())
+            material = json.loads((authoring / "scene-material/material.json").read_text(encoding="utf-8"))
             check(
                 "scene material is the public artifact",
                 material.get("artifact_type") == "scene-persona-material",
             )
-            index = json.loads((authoring / "source-material/index.json").read_text())
+            index = json.loads((authoring / "source-material/index.json").read_text(encoding="utf-8"))
             check("source intake does not adopt canon", index.get("canon_adopted") is False)
-            completed = json.loads((temp / "production/result.json").read_text())
+            completed = json.loads((temp / "production/result.json").read_text(encoding="utf-8"))
             check("text production example completes", completed.get("ok") is True)
             check(
                 "production result is identified as synthetic",
@@ -299,4 +299,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

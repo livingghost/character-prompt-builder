@@ -305,7 +305,82 @@
     },
     "craft-consultation": {
       "reads": [
-        "references/runtime/preset-consultation.md"
+        "references/runtime/craft-consultation.md"
+      ],
+      "source_roles": []
+    },
+    "source-material": {
+      "reads": [
+        "references/runtime/source-material.md"
+      ],
+      "source_roles": []
+    },
+    "agent-evaluation": {
+      "reads": [
+        "references/runtime/agent-evaluation.md"
+      ],
+      "source_roles": []
+    },
+    "repair-analysis": {
+      "reads": [
+        "references/runtime/repair-analysis.md"
+      ],
+      "source_roles": []
+    },
+    "geometry": {
+      "reads": [
+        "references/prompt-composition-geometry.md",
+        "references/camera-framing-contract.md"
+      ],
+      "source_roles": []
+    },
+    "body-plan": {
+      "reads": [
+        "references/morphology-and-species-contracts.md",
+        "references/species-architecture.md"
+      ],
+      "source_roles": []
+    },
+    "recurring-identity": {
+      "reads": [
+        "references/character-identity-contract.md",
+        "references/morphology-and-species-contracts.md",
+        "references/species-architecture.md"
+      ],
+      "source_roles": []
+    },
+    "performance-language": {
+      "reads": [
+        "references/performance-language-specification.md"
+      ],
+      "source_roles": []
+    },
+    "garment-growth": {
+      "reads": [
+        "references/garment-geometry-specification.md",
+        "references/growth-geometry-specification.md",
+        "references/distinctive-detail-specification.md"
+      ],
+      "source_roles": []
+    },
+    "production-spec": {
+      "reads": [
+        "references/production-specification.md"
+      ],
+      "source_roles": []
+    },
+    "finishing": {
+      "reads": [
+        "references/finishing-layers-specification.md"
+      ],
+      "source_roles": []
+    },
+    "visual-evidence": {
+      "reads": [
+        "references/derived-visual-evidence.md",
+        "references/visual-reference-activation-and-transport.md",
+        "references/reference-corpus-ingestion.md",
+        "references/reference-corpus-visual-technique-observation.md"
       ],
       "source_roles": []
     }
@@ -589,7 +664,7 @@
     "scripts/request_validation_smoke_test.py",
     "scripts/reservation_lifecycle_smoke_test.py",
     "scripts/production_series_smoke_test.py",
-    "scripts/preset_consultation_smoke_test.py"
+    "scripts/craft_consultation_smoke_test.py"
   ],
   "operations": {
     "authorize": {
@@ -699,12 +774,12 @@
       "effect": "execute only an explicitly approved host command plan; retain unknown and failed measurements"
     },
     "consult-presets": {
-      "owner": "scripts/preset_consultation.py:command",
+      "owner": "scripts/craft_consultation.py:command",
       "command": "python scripts/production_workflow.py consult-presets --help",
       "effect": "read craft candidates"
     },
     "apply-presets": {
-      "owner": "scripts/preset_consultation.py:command",
+      "owner": "scripts/craft_consultation.py:command",
       "command": "python scripts/production_workflow.py apply-presets --help",
       "effect": "publish scoped craft application as a production source"
     }

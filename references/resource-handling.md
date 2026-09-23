@@ -59,10 +59,16 @@ A new content ceiling needs a reason beyond keeping fixtures, context or a relea
 
 ## Network and media execution deadlines
 
-`PRODUCTION_HTTP_TIMEOUT_SECONDS` sets an optional positive finite timeout for
-HTTP operations. `VALIDATE_REGRESSION_TIMEOUT_SECONDS` sets an optional positive
-finite deadline for each standalone regression that `scripts/validate.py` runs;
-an exceeded deadline is reported in the validation result.
+Each of these variables sets an optional positive finite deadline in seconds:
+
+- `PRODUCTION_HTTP_TIMEOUT_SECONDS`: each HTTP operation;
+- `VALIDATE_REGRESSION_TIMEOUT_SECONDS`: each standalone regression that
+  `scripts/validate.py` runs, reported in the validation result when exceeded;
+- `SEARCH_REGRESSION_TIMEOUT_SECONDS`: each isolated worker that
+  `scripts/search_regression.py` runs, reported as a failed case range when exceeded;
+- `EXAMPLE_COMMAND_TIMEOUT_SECONDS`: each command an example under `examples/` runs;
+- `MEDIA_PROBE_TIMEOUT_SECONDS`: each ffprobe run that measures an audio or video capture.
+
 An absent variable leaves the application free of a deadline of its own. These
 are execution settings rather than permission to submit: an ambiguous network
 result still follows the recorded recovery path instead of a blind resubmission.

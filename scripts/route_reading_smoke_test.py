@@ -90,7 +90,7 @@ class ReadingTests(unittest.TestCase):
         path=r.write_draft(issued,self.ledger,root=self.root)
         self.assertEqual(path,self.root/'work/readings'/('generation-'+issued['row']['key_sha256'][:16]+'.json'))
         filled=c.load(path);filled['applied'][0].update(quote=PARAGRAPH,why='Synthetic application.')
-        path.write_text(json.dumps(filled))
+        path.write_text(json.dumps(filled), encoding="utf-8")
         self.assertEqual(r.write_draft(issued,self.ledger,root=self.root),path)
         self.assertEqual(c.load(path),filled)
     def test_cli_read_prints_the_draft_path(self):
@@ -116,8 +116,8 @@ class ReadingTests(unittest.TestCase):
             {'id':'second','title':'Second family','dialects':['family-b'],'rules':[rule.format('the second family')]}]}
         dialects={'format':'synthetic','name':'Synthetic dialects','description':'Synthetic fixture.',
                   'dialects':[{'id':'family-a','name':'A'},{'id':'family-b','name':'B'}]}
-        (pack/'resources/guide.json').write_text(json.dumps(guide))
-        (pack/'resources/dialects.json').write_text(json.dumps(dialects))
+        (pack/'resources/guide.json').write_text(json.dumps(guide), encoding='utf-8')
+        (pack/'resources/dialects.json').write_text(json.dumps(dialects), encoding='utf-8')
         self.manifest['features']['prompt-dialect']={'reads':[],'source_roles':[]}
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         resources={'prompt-writing-guide':SimpleNamespace(path=str(pack/'resources/guide.json'),source_pack='synthetic-pack'),
@@ -194,13 +194,13 @@ class ReadingTests(unittest.TestCase):
             r.capture('generation',root=self.root,dialect='family-a')
     def test_ledger_has_only_key_hash(self):
         issued=self.issued()
-        self.assertNotIn(issued['reading_key'],self.ledger.read_text())
+        self.assertNotIn(issued['reading_key'],self.ledger.read_text(encoding='utf-8'))
         self.assertEqual(c.digest(issued['reading_key'].encode()),r.ledger_rows(self.ledger)[0]['key_sha256'])
     def test_same_version_reusable(self):
         record=self.record()
         self.assertEqual(self.verify(record),self.verify(record))
     def test_document_update(self):
-        record=self.record(); (self.root/'notes/work.md').write_text(PARAGRAPH+' changed')
+        record=self.record(); (self.root/'notes/work.md').write_text(PARAGRAPH+' changed', encoding='utf-8')
         with self.assertRaisesRegex(ValueError,'documents'): self.verify(record)
     def test_unrelated_issuance_preserves_record(self):
         record=self.record(); before=c.content_id(record)
@@ -222,7 +222,7 @@ class ReadingTests(unittest.TestCase):
         record=self.record();record['applied'][0]['quote']='The operator'
         with self.assertRaisesRegex(ValueError,'twelve'): self.verify(record)
     def test_heading_is_not_prose(self):
-        (self.root/'notes/work.md').write_text('# '+PARAGRAPH+'\n')
+        (self.root/'notes/work.md').write_text('# '+PARAGRAPH+'\n', encoding='utf-8')
         issued=self.issued()
         apps={'applied':[{'path':'notes/work.md','quote':PARAGRAPH,'why':'Synthetic'}],'resource_applied':[]}
         with self.assertRaisesRegex(ValueError,'paragraph'):r.build_record(issued,apps,root=self.root,ledgers=[self.ledger])
@@ -278,11 +278,14 @@ class ReadingTests(unittest.TestCase):
         self.assertNotEqual(result['issued']['reading_key'],new['issued']['reading_key'])
     def test_stale_snapshot_never_issues(self):
         result=r.read_page(route='generation',page_bytes=13,root=self.root,ledger=self.ledger,stream=io.StringIO())
-        (self.root/'notes/work.md').write_text(PARAGRAPH+' New source.')
+        (self.root/'notes/work.md').write_text(PARAGRAPH+' New source.', encoding='utf-8')
         with self.assertRaisesRegex(ValueError,'changed'):
             r.read_page(cursor=result['cursor'],page_bytes=10000,root=self.root,ledger=self.ledger,stream=io.StringIO())
         self.assertFalse(self.ledger.exists())
     def test_invalid_page_budget(self):
         with self.assertRaises(ValueError):r.read_page(route='generation',page_bytes=0,root=self.root,ledger=self.ledger)
 
-if __name__=='__main__':unittest.main(verbosity=2)
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main(verbosity=2)

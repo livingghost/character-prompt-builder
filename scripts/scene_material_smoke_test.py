@@ -55,13 +55,13 @@ class SceneMaterialTests(unittest.TestCase):
         return scene.build(self.root,'plan.json','material')
     def test_definition_text_is_in_reusable_document(self):
         self.assertTrue(self.build()['ok'])
-        text = (self.root/'material/persona.md').read_text()
+        text = (self.root/'material/persona.md').read_text(encoding='utf-8')
         self.assertIn('Do not replace listening with a stock response.', text)
         self.assertIn('Dependencies: core',text)
         self.assertTrue(scene.verify(self.root,'plan.json','material',require_ready=True)['ok'])
     def test_unquoted_original_change_invalidates_reuse(self):
         self.build()
-        with (self.root/'persona.md').open('a') as f:f.write('An additional contextual exception.\n')
+        with (self.root/'persona.md').open('a', encoding='utf-8') as f:f.write('An additional contextual exception.\n')
         with self.assertRaisesRegex(ValueError,'complete source changed'):
             scene.verify(self.root,'plan.json','material')
     def test_definition_dependency_must_be_present(self):
@@ -73,7 +73,7 @@ class SceneMaterialTests(unittest.TestCase):
     def test_same_build_is_idempotent(self):
         self.assertTrue(self.build()['written']);self.assertFalse(self.build()['written'])
     def test_derived_markdown_tampering_is_detected(self):
-        self.build();(self.root/'material/persona.md').write_text('different')
+        self.build();(self.root/'material/persona.md').write_text('different', encoding='utf-8')
         self.assertFalse(scene.verify(self.root,'plan.json','material')['ok'])
     def test_optional_budget_never_truncates(self):
         self.plan['max_document_bytes']=30;self.save()
@@ -173,4 +173,7 @@ class SourceMaterialTests(unittest.TestCase):
         self.assertFalse((self.root/'archive').exists())
 
 
-if __name__=='__main__':unittest.main()
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main()

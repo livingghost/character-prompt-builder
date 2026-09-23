@@ -40,9 +40,9 @@ class PreviewTests(unittest.TestCase):
         self.assertIsNone(decision['principal_approval'])
         self.assertFalse(view['execution_ready'])
     def test_existing_file_is_preserved(self):
-        (self.root/'preview.json').write_text('Existing result.')
+        (self.root/'preview.json').write_text('Existing result.', encoding='utf-8')
         with self.assertRaises(FileExistsError):self.preview()
-        self.assertEqual((self.root/'preview.json').read_text(),'Existing result.')
+        self.assertEqual((self.root/'preview.json').read_text(encoding='utf-8'),'Existing result.')
         self.assertFalse((self.root/'intent.json').exists())
     def test_intent_needs_its_prepared_context(self):
         import work_ledger
@@ -67,4 +67,7 @@ class PreviewTests(unittest.TestCase):
         for long in ('request_trace','input_snapshots','base64'):self.assertNotIn(long,text)
         self.assertLess(len(text.splitlines()),40)
 
-if __name__=='__main__':unittest.main(verbosity=2)
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main(verbosity=2)

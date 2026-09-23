@@ -10,7 +10,7 @@ import visual_continuity as v
 class SubjectTests(unittest.TestCase):
     def setUp(self):
         t=tempfile.TemporaryDirectory(); self.addCleanup(t.cleanup); self.root=Path(t.name)
-        (self.root/'basis.txt').write_text('Synthetic single-subject exploration. Not a user approval.\n')
+        (self.root/'basis.txt').write_text('Synthetic single-subject exploration. Not a user approval.\n', encoding='utf-8')
         self.basis=v.file_ref(self.root,'basis.txt',locator='whole')
     def subject(self,continuity='one-off',character=None):
         return {'continuity':continuity,'character_id':character,'studio_character':None,'identity_refs':[]}
@@ -40,7 +40,7 @@ class SubjectTests(unittest.TestCase):
         s=self.subject();s['identity_refs']='identity'
         with self.assertRaises(ValueError):self.check(self.visual({'subject-a':s}))
     def test_source_hash_is_exact(self):
-        value=self.visual({'subject-a':self.subject()});(self.root/'basis.txt').write_text('Changed synthetic source.')
+        value=self.visual({'subject-a':self.subject()});(self.root/'basis.txt').write_text('Changed synthetic source.', encoding='utf-8')
         with self.assertRaises(ValueError):v.check_file(self.root,value['basis'],basis=True)
     def test_locator_does_not_infer_subjects(self):
         value=self.visual({'subject-a':self.subject('undecided')});value['basis']['locator']='A multilingual document about two figures; literal selector only.'
@@ -87,4 +87,7 @@ class DecisionTests(unittest.TestCase):
         with self.assertRaises(ValueError):v.require(record,production_spec=self.spec,prepared=self.prepared,root=self.root)
         with self.assertRaisesRegex(ValueError,'changed'):self.decide({'subject-a':'one-off'})
 
-if __name__=='__main__':unittest.main()
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main()

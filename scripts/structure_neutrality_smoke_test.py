@@ -312,7 +312,7 @@ class StructureNeutralityTests(unittest.TestCase):
         ]
         for args in commands:
             with self.subTest(args=args):
-                result = subprocess.run([sys.executable, *args], cwd=ROOT, capture_output=True, text=True, timeout=30)
+                result = subprocess.run([sys.executable, *args], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=30)
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
 
@@ -326,4 +326,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

@@ -32,6 +32,7 @@ from verify_generation_payload import verify
 from shot_request import validate_request as validate_shot_request
 from shot_request_smoke_test import run as run_shot_binding_smoke
 from default_only_example_resolution_smoke_test import evaluate as evaluate_default_only_examples
+from io_budget import environment_seconds
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -167,7 +168,8 @@ def validate(root:Path=ROOT)->dict[str,Any]:
         proc = subprocess.run(
             [sys.executable, str(root / 'scripts/protocol_exchange.py'), 'check-installed'],
             cwd=root, env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'},
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, encoding="utf-8",
+            timeout=environment_seconds('VALIDATE_REGRESSION_TIMEOUT_SECONDS'),
         )
         public_contract = json.loads(proc.stdout)
         if proc.returncode or not public_contract.get('ok'):
@@ -438,7 +440,7 @@ def validate(root:Path=ROOT)->dict[str,Any]:
         env['PYTHONDONTWRITEBYTECODE']='1'
         deterministic_proc=subprocess.run(
             [sys.executable,str(builder),'--verify-deterministic'],
-            cwd=str(root),env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,
+            cwd=str(root),env=env,text=True,encoding="utf-8",stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,
         )
         if deterministic_proc.returncode!=0:
             errors.append(
@@ -447,7 +449,7 @@ def validate(root:Path=ROOT)->dict[str,Any]:
             )
         replacement_proc=subprocess.run(
             [sys.executable,str(builder),'--replacement-self-test'],
-            cwd=str(root),env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,
+            cwd=str(root),env=env,text=True,encoding="utf-8",stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,
         )
         if replacement_proc.returncode!=0:
             message=replacement_proc.stderr.strip() or replacement_proc.stdout.strip()
@@ -503,4 +505,7 @@ def main(argv:Sequence[str]|None=None)->int:
     result=validate(Path(a.root).resolve())
     if a.report_out: Path(a.report_out).write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n',encoding='utf-8', newline='\n')
     print(json.dumps(result,ensure_ascii=False,indent=2)); return 0 if result['ok'] else 1
-if __name__=='__main__': raise SystemExit(main())
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

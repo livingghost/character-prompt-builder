@@ -34,7 +34,8 @@ def fixture_validation(root: Path, model: str, *, reference_mode: str,
         if resource is None:
             raise ValueError('synthetic offering fixture needs its active service-profiles resource')
         service_record = service_profile.load_service(offering['service'], Path(resource.path))
-        transport = importlib.import_module('transport_' + offering['service'].replace('-', '_'))
+        import transport_contract
+        transport = transport_contract.load(service_record['transport'])
     return interface_validation(root, target=target, record=record, offering=offering or {},
                                 service_record=service_record, transport=transport, reference_mode=reference_mode)
 

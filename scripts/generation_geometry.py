@@ -233,4 +233,6 @@ def settle(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

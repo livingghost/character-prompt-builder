@@ -14,7 +14,7 @@ class SeriesTests(unittest.TestCase):
     def setUp(self):
         temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup);self.root=Path(temporary.name)
         task=work_ledger.begin(self.root,'Synthetic independent production series',['prepare','deliver'])
-        (self.root/'delivery.txt').write_text('Synthetic fixture delivery.\n')
+        (self.root/'delivery.txt').write_text('Synthetic fixture delivery.\n', encoding='utf-8')
         self.task={'task_id':task['task_id'],'route':'development','features':[],'sources':[],
                    'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Synthetic exact text.'},
                    'criteria':[{'id':'identity','strength':'hard','text':'First synthetic criterion.'}],'world_views':[]}
@@ -43,7 +43,7 @@ class SeriesTests(unittest.TestCase):
         p=w.load_run(self.root,third)[1]
         self.assertEqual(p['predecessor'],second);self.assertEqual(p['criteria_predecessor'],first)
     def test_renaming_delivery_keeps_series(self):
-        first=self.prepare();(self.root/'renamed.txt').write_text('Synthetic fixture delivery.\n')
+        first=self.prepare();(self.root/'renamed.txt').write_text('Synthetic fixture delivery.\n', encoding='utf-8')
         self.task['delivery']['path']='renamed.txt';second=self.prepare('renamed-task.json')
         self.assertEqual(w.load_run(self.root,second)[1]['criteria_predecessor'],first)
     def test_revision_decision_cannot_change_series(self):
@@ -57,4 +57,7 @@ class SeriesTests(unittest.TestCase):
         self.task['production_id']=generate_uuid7();second=self.prepare('second.json');fixture.handoff(self.root,second,'synthetic operator','manual')
         self.assertEqual(len(w.reservations(self.root,self.task['task_id'])),2)
 
-if __name__=='__main__':unittest.main()
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main()

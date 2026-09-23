@@ -47,7 +47,7 @@ fidelity result.
 
 Creating a bundle or recomputing perceptual measurements from an admitted
 source raster requires the Visual profile. Full core validation and packaging
-require the exact Tested profile and independently exercise a real CairoSVG
+require the exact Tested profile and independently exercise a real SVG
 render plus the production visual-evidence workflow.
 
 When a pack declares its pack-owned release evaluation contract, run that

@@ -15,4 +15,7 @@ def main() -> int:
         result={"ok":False,"errors":[str(exc)]}
     print(json.dumps(result,ensure_ascii=False,indent=2))
     return 0 if result.get("ok") else 1
-if __name__=="__main__": raise SystemExit(main())
+if __name__=="__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

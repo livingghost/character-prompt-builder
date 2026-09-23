@@ -228,7 +228,7 @@ class AuthoringTests(unittest.TestCase):
         return invoke(narrative_entity.main, "--series", str(self.series), "add", kind, identifier, *extra)
 
     def root_references(self, *ids):
-        self.design.write_text(self.design.read_text().replace("references: []",
+        self.design.write_text(self.design.read_text(encoding="utf-8").replace("references: []",
                                "references: [" + ", ".join(ids) + "]"), encoding="utf-8")
 
     def install_scene(self, document=None):
@@ -247,7 +247,7 @@ class AuthoringTests(unittest.TestCase):
         return narrative_coverage.cover(self.path, self.series / "narrative/scenes", self.series)
 
     def test_default_init_creates_no_story_or_persona(self):
-        value = json.loads(self.path.read_text())
+        value = json.loads(self.path.read_text(encoding="utf-8"))
         self.assertEqual(self.started["seed"], "neutral")
         self.assertTrue(all(value[field] == [] for field in ("characters", "themes", "arcs", "chapters")))
         self.assertFalse((self.series / "narrative/personas/c01.md").exists())
@@ -261,7 +261,7 @@ class AuthoringTests(unittest.TestCase):
         fields = {item["label"] for item in report["unfilled"]["narrative/design/project.md"]}
         self.assertTrue({"world_authorities", "theme_status_and_scope", "change_impact_and_retained_decisions"} <= fields)
         self.assertNotIn("narrative/design/design-template.md", report["unfilled"])
-        self.assertTrue(self.design.read_text().startswith("---\nkind: design"))
+        self.assertTrue(self.design.read_text(encoding="utf-8").startswith("---\nkind: design"))
 
     def test_world_records_join_through_design_without_personas_or_scenes(self):
         for kind, identifier in (("location", "basin"), ("system", "cycle"), ("faction", "guild"),
@@ -282,11 +282,11 @@ class AuthoringTests(unittest.TestCase):
     def test_rename_updates_design_dependency_without_interpreting_prose(self):
         self.add("system", "cycle")
         self.root_references("cycle")
-        self.design.write_text(self.design.read_text() + "\nProse mention: cycle.\n", encoding="utf-8")
+        self.design.write_text(self.design.read_text(encoding="utf-8") + "\nProse mention: cycle.\n", encoding="utf-8")
         code, report = invoke(narrative_entity.main, "--series", str(self.series), "rename", "cycle", "period")
         self.assertEqual(code, 0, report)
-        self.assertIn("references: [period]", self.design.read_text())
-        self.assertIn("Prose mention: cycle.", self.design.read_text())
+        self.assertIn("references: [period]", self.design.read_text(encoding="utf-8"))
+        self.assertIn("Prose mention: cycle.", self.design.read_text(encoding="utf-8"))
         self.assertTrue(narrative_index.scan(self.series)["ok"])
 
     def test_design_root_can_be_removed_when_nobody_else_names_it(self):
@@ -297,7 +297,7 @@ class AuthoringTests(unittest.TestCase):
     def test_real_reference_still_prevents_design_removal(self):
         self.add("design", "branch")
         branch = self.series / "narrative/design/branch.md"
-        branch.write_text(branch.read_text().replace("references: []", "references: [project]"), encoding="utf-8")
+        branch.write_text(branch.read_text(encoding="utf-8").replace("references: []", "references: [project]"), encoding="utf-8")
         code, report = invoke(narrative_entity.main, "--series", str(self.series), "remove", "project")
         self.assertEqual(code, 1, report)
         self.assertTrue(self.design.exists())
@@ -305,7 +305,7 @@ class AuthoringTests(unittest.TestCase):
     def test_design_add_contains_current_intent_register(self):
         code, report = self.add("design", "branch", "--name", "Branch")
         self.assertEqual(code, 0, report)
-        text = (self.series / "narrative/design/branch.md").read_text()
+        text = (self.series / "narrative/design/branch.md").read_text(encoding="utf-8")
         self.assertIn("## Authorial intent register", text)
         self.assertIn("## Portrayal review", text)
 
@@ -325,16 +325,16 @@ class AuthoringTests(unittest.TestCase):
     def test_persona_is_added_only_when_requested_and_retains_twenty_sections(self):
         code, report = self.add("persona", "c01", "--character", "C01", "--phase", "opening")
         self.assertEqual(code, 0, report)
-        text = (self.series / "narrative/personas/c01.md").read_text()
+        text = (self.series / "narrative/personas/c01.md").read_text(encoding="utf-8")
         self.assertEqual(re.findall(r"^## (\d+)\.", text, re.M), [str(i) for i in range(20)])
-        self.assertEqual(json.loads(self.path.read_text())["characters"], [])
+        self.assertEqual(json.loads(self.path.read_text(encoding="utf-8"))["characters"], [])
 
     def test_explicit_example_seed_preserves_teaching_fixture(self):
         target = self.base / "example"
         code, report = invoke(narrative_init.main, "--out", str(target), "--series-id", "sample",
                               "--title", "Example", "--seed", "example")
         self.assertEqual(code, 0, report)
-        self.assertEqual(len(json.loads((target / "narrative/narrative.json").read_text())["characters"]), 1)
+        self.assertEqual(len(json.loads((target / "narrative/narrative.json").read_text(encoding="utf-8"))["characters"]), 1)
         self.assertTrue((target / "narrative/personas/c01.md").is_file())
 
     def test_default_initialization_does_not_overwrite_existing_work(self):
@@ -357,8 +357,8 @@ class AuthoringTests(unittest.TestCase):
     def test_new_world_record_and_design_keep_distinct_responsibilities(self):
         self.assertEqual(self.add("design", "branch")[0], 0)
         self.assertEqual(self.add("system", "cycle")[0], 0)
-        self.assertIn("## Authorial intent register", (self.series / "narrative/design/branch.md").read_text())
-        self.assertIn("Conditions, operation, effects", (self.series / "narrative/world/systems/cycle.md").read_text())
+        self.assertIn("## Authorial intent register", (self.series / "narrative/design/branch.md").read_text(encoding="utf-8"))
+        self.assertIn("Conditions, operation, effects", (self.series / "narrative/world/systems/cycle.md").read_text(encoding="utf-8"))
 
     def test_unpeopled_scene_joins_narrative_index_and_coverage(self):
         self.install_scene()
@@ -397,9 +397,9 @@ class AuthoringTests(unittest.TestCase):
 
     def test_design_edit_does_not_claim_automatic_json_approval_invalidation(self):
         value, _ = self.install_scene()
-        self.design.write_text(self.design.read_text() + "\nA proposed revision requiring author review.\n")
-        self.assertTrue(narrative.validate_narrative(json.loads(self.path.read_text()))["approved"])
-        self.assertEqual(narrative.content_sha256(value), narrative.content_sha256(json.loads(self.path.read_text())))
+        self.design.write_text(self.design.read_text(encoding="utf-8") + "\nA proposed revision requiring author review.\n", encoding="utf-8")
+        self.assertTrue(narrative.validate_narrative(json.loads(self.path.read_text(encoding="utf-8")))["approved"])
+        self.assertEqual(narrative.content_sha256(value), narrative.content_sha256(json.loads(self.path.read_text(encoding="utf-8"))))
 
     def test_reports_do_not_write_or_promote(self):
         self.install_scene()
@@ -415,19 +415,19 @@ class AuthoringTests(unittest.TestCase):
 
 class RoutingTests(unittest.TestCase):
     def test_skill_routes_world_design_and_full_persona_directly(self):
-        text = (ROOT / "SKILL.md").read_text()
+        text = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         for link in ("references/runtime/narrative-development.md", "templates/narrative/design/design-template.md",
                      "templates/narrative/personas/persona-template.md"):
             self.assertIn(f"]({link})", text)
 
     def test_method_preserves_local_variation_axis(self):
-        text = (ROOT / "references/runtime/narrative-development.md").read_text()
+        text = (ROOT / "references/runtime/narrative-development.md").read_text(encoding="utf-8")
         self.assertIn("A situation variation does not silently redesign its", text)
         self.assertIn("Keep incompatible branches separate", text)
         self.assertIn("affected outputs", text)
 
     def test_method_preserves_plurality_and_does_not_mandate_ensemble(self):
-        text = (ROOT / "references/runtime/narrative-development.md").read_text()
+        text = (ROOT / "references/runtime/narrative-development.md").read_text(encoding="utf-8")
         for term in ("make the work an ensemble drama", "Theme is not a compulsory message",
                      "A scene need not change a relationship", "does not require realism"):
             self.assertIn(term, text)
@@ -435,13 +435,13 @@ class RoutingTests(unittest.TestCase):
         self.assertIn("Retain the creator", text)
 
     def test_world_and_persona_authorities_are_not_fused(self):
-        form = (ROOT / "templates/narrative/personas/persona-template.md").read_text()
+        form = (ROOT / "templates/narrative/personas/persona-template.md").read_text(encoding="utf-8")
         self.assertIn("World-Coherence Boundary", form)
         self.assertIn("Shared world facts, adopted visual identity", form)
         self.assertEqual(re.findall(r"^## (\d+)\.", form, re.M), [str(i) for i in range(20)])
 
     def test_semantic_and_serializer_limits_are_explicit(self):
-        text = (ROOT / "references/runtime/narrative-development.md").read_text()
+        text = (ROOT / "references/runtime/narrative-development.md").read_text(encoding="utf-8")
         for term in ("not a native interactive branch graph", "not the bytes of linked Markdown",
                      "do not infer semantic dependencies", "Neither can establish"):
             self.assertIn(term, text)
@@ -458,4 +458,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

@@ -110,7 +110,7 @@ class ObservedSchemaTests(unittest.TestCase):
         self.offering={'service':'synthetic','model_identifier':'synthetic:model','observed_at':'2026-01-01','schema_snapshot':'schema.json'}
         self.model={'id':'synthetic-model','operation_kind':'generation'}
         self.write()
-        (self.root/'transport.py').write_text('# synthetic transport\n');self.envelope=[*self.layout['management'],self.layout['operation']]
+        (self.root/'transport.py').write_text('# synthetic transport\n',encoding='utf-8');self.envelope=[*self.layout['management'],self.layout['operation']]
     def tearDown(self):self.temp.cleanup()
     def write(self):(self.pack/'schema.json').write_bytes(c.encoded(self.snapshot))
     def build(self,contract='@pack/p/schema.json',evidence=None):
@@ -226,4 +226,7 @@ class DelegationTests(unittest.TestCase):
         first=rc.receipt_projection(self.rendered);self.request['task_id']='new-task';self.rendered=fixture.RequestContractTests.seal(self)
         self.assertEqual(first,rc.receipt_projection(self.rendered))
 
-if __name__=='__main__':unittest.main()
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main()

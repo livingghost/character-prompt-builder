@@ -166,4 +166,4 @@ The approved condition owns its optional timeout and log budget; a default byte 
 
 ## Evaluate craft reuse
 
-Use [Craft consultation](preset-consultation.md) to connect consulted knowledge to the task. Evaluate the search scope, complete-source reading, and the fit of the borrowed relationship. Inspect actual outputs for preserved constraints, deliberate changes, and unrelated material introduced by adaptation. Treat an appropriate nonuse decision as valid. Measure useful reuse and avoided repeated work; lookup counts and preset counts do not establish quality.
+Use [Craft consultation](craft-consultation.md) to connect consulted knowledge to the task. Evaluate the search scope, complete-source reading, and the fit of the borrowed relationship. Inspect actual outputs for preserved constraints, deliberate changes, and unrelated material introduced by adaptation. Treat an appropriate nonuse decision as valid. Measure useful reuse and avoided repeated work; lookup counts and preset counts do not establish quality.

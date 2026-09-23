@@ -4,33 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "character-prompt-builder"
-version = "2026.9.23.2"
+version = "2026.9.23.3"
 description = "Art-direction-first prompt construction, visual-state, and reference-evidence tools."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "GPL-3.0-only" }
 dependencies = []
-
-[project.optional-dependencies]
-visual = [
-  "CairoSVG>=2.9,<3",
-  "numpy>=2,<3",
-  "Pillow>=12,<13",
-  "rasterio>=1.5,<2",
-  "opencv-python-headless>=5,<6",
-  "scikit-image>=0.26,<1",
-]
-all = [
-  "CairoSVG>=2.9,<3",
-  "numpy>=2,<3",
-  "Pillow>=12,<13",
-  "rasterio>=1.5,<2",
-  "opencv-python-headless>=5,<6",
-  "scikit-image>=0.26,<1",
-]
+dynamic = ["optional-dependencies"]
 
 [project.urls]
 Documentation = "https://github.com/livingghost/character-prompt-builder"
 
 [tool.setuptools]
 packages = []
+
+[tool.setuptools.dynamic.optional-dependencies]
+visual = { file = ["requirements-visual.txt"] }

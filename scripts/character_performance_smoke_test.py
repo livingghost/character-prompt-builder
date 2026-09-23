@@ -215,7 +215,7 @@ class AuditTests(unittest.TestCase):
     def test_operator_budget_is_reported_without_discarding_input(self):
         p = self.file(text='x'*11)
         self.assertFalse(audit_module.audit([p], max_bytes=10)['ok'])
-        self.assertEqual(p.read_text(), 'x'*11)
+        self.assertEqual(p.read_text(encoding='utf-8'), 'x'*11)
         self.assertTrue(audit_module.audit([p])['ok'])
 
     def test_utf8_bom_and_crlf(self):
@@ -252,13 +252,13 @@ class AuditTests(unittest.TestCase):
     def test_cli_runs_from_other_working_directory(self):
         p = self.file()
         result = subprocess.run([sys.executable, str(ROOT/'scripts/persona_expression_audit.py'), str(p)],
-                                cwd=self.root, text=True, capture_output=True, check=False)
+                                cwd=self.root, text=True, encoding="utf-8", capture_output=True, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(json.loads(result.stdout)['ok'])
 
     def test_help_documents_non_semantic_purpose(self):
         result = subprocess.run([sys.executable, str(ROOT/'scripts/persona_expression_audit.py'), '--help'],
-                                text=True, capture_output=True, check=False)
+                                text=True, encoding="utf-8", capture_output=True, check=False)
         self.assertEqual(result.returncode, 0)
         self.assertIn('--fail-on-unfilled', result.stdout)
         self.assertIn('never a rating', result.stdout)
@@ -271,7 +271,7 @@ class AuthoringContractTests(unittest.TestCase):
         self.root = Path(self.temp.name)
 
     def test_full_form_still_has_twenty_sections(self):
-        text = (ROOT/'templates/narrative/personas/persona-template.md').read_text()
+        text = (ROOT/'templates/narrative/personas/persona-template.md').read_text(encoding='utf-8')
         self.assertEqual(re.findall(r'^## (\d+)\.', text, re.M), [str(i) for i in range(20)])
 
     def test_added_persona_carries_field_local_rules(self):
@@ -284,7 +284,7 @@ class AuthoringContractTests(unittest.TestCase):
         self.assertIn('No automatic agreement or visible leakage', text)
 
     def test_address_inventory_is_not_a_second_switching_table(self):
-        text = (ROOT/'templates/narrative/personas/persona-template.md').read_text()
+        text = (ROOT/'templates/narrative/personas/persona-template.md').read_text(encoding='utf-8')
         self.assertIn('IDENTITY lists the self/address forms and compact scope.', text)
         self.assertIn('Do not duplicate the form registry.', text)
 
@@ -312,11 +312,11 @@ class AuthoringContractTests(unittest.TestCase):
         code, report = invoke(narrative_init.main, '--out', str(series), '--series-id', 'demo',
                               '--title', 'Example', '--medium', 'prose')
         self.assertEqual(code, 0, report)
-        data = json.loads((series/'narrative/narrative.json').read_text())
+        data = json.loads((series/'narrative/narrative.json').read_text(encoding='utf-8'))
         self.assertEqual(data['characters'], [])
         self.assertEqual(data['themes'], [])
         self.assertFalse((series/'narrative/personas/c01.md').exists())
-        copied = (series/'narrative/personas/persona-template.md').read_text()
+        copied = (series/'narrative/personas/persona-template.md').read_text(encoding='utf-8')
         self.assertIn('### Contextual Voice Modes', copied)
 
     def test_example_seed_uses_updated_full_form(self):
@@ -324,22 +324,22 @@ class AuthoringContractTests(unittest.TestCase):
         code, report = invoke(narrative_init.main, '--out', str(series), '--series-id', 'demo',
                               '--title', 'Example', '--medium', 'prose', '--seed', 'example')
         self.assertEqual(code, 0, report)
-        text = (series/'narrative/personas/c01.md').read_text()
+        text = (series/'narrative/personas/c01.md').read_text(encoding='utf-8')
         self.assertIn('### Performance and Context Probes', text)
         self.assertIn('**relationship_conditions_and_audience**:', text)
 
     def test_routed_documents_are_linked(self):
-        skill = (ROOT/'SKILL.md').read_text()
+        skill = (ROOT/'SKILL.md').read_text(encoding='utf-8')
         self.assertIn('(references/runtime/character-performance.md)', skill)
-        method = (ROOT/'references/runtime/narrative-development.md').read_text()
+        method = (ROOT/'references/runtime/narrative-development.md').read_text(encoding='utf-8')
         self.assertIn('(character-performance.md)', method)
-        performance = (ROOT/'references/performance-language-specification.md').read_text()
+        performance = (ROOT/'references/performance-language-specification.md').read_text(encoding='utf-8')
         self.assertIn('(runtime/character-performance.md)', performance)
-        route = (ROOT/'references/runtime/character-performance.md').read_text()
+        route = (ROOT/'references/runtime/character-performance.md').read_text(encoding='utf-8')
         self.assertIn('(character-performance-probes.md)', route)
 
     def test_runtime_keeps_world_scope_and_approval_boundary(self):
-        route = (ROOT/'references/runtime/character-performance.md').read_text()
+        route = (ROOT/'references/runtime/character-performance.md').read_text(encoding='utf-8')
         for phrase in ('No cast size', 'No expressive signal is mandatory',
                        'no universal rule', 'not by a global ranking',
                        'do not invalidate JSON approval automatically',
@@ -353,11 +353,13 @@ class AuthoringContractTests(unittest.TestCase):
         self.assertEqual(non_english_characters(probes), {})
 
     def test_visual_route_has_no_fixed_cue_count_or_anatomy_inheritance(self):
-        text = (ROOT/'references/performance-language-specification.md').read_text()
+        text = (ROOT/'references/performance-language-specification.md').read_text(encoding='utf-8')
         self.assertNotIn('Select three to six cues across at least two channels', text)
         self.assertIn('Only declared structures and capabilities activate a channel.', text)
         self.assertIn('not a dialogue-mode schema', text)
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main(verbosity=2)

@@ -78,8 +78,8 @@ def inspect_inputs(root: Path, task_path: str, *, from_run: str | None = None) -
     task, route, ref = _task(root, task_path, reader)
     saved = _source_run(root, from_run, task)
     sources = _sources(root, task, reader)
-    import preset_consultation
-    craft = preset_consultation.navigation(root, task_path, include_scope=task.get('artifact') in {'image', 'video'})
+    import craft_consultation
+    craft = craft_consultation.navigation(root, task_path, include_scope=task.get('artifact') in {'image', 'video'})
     return {'state': 'inspection', 'task': ref,
             'route': {'id': task['route'], 'features': route['features'],
                       'reads': route['reads']},

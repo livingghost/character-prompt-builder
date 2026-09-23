@@ -72,7 +72,7 @@ class FeatureWorkflowTests(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(evidence._decode(snapshot))
         (self.root/'continuity-decision.txt').write_text(
-            'Synthetic decision: C01 is a recurring test character. Not human consent.\n')
+            'Synthetic decision: C01 is a recurring test character. Not human consent.\n', encoding='utf-8')
 
     def iteration(self, color='white', slot='base.front'):
         from PIL import Image
@@ -540,4 +540,7 @@ def main():
         'error_count':len(result.errors),'errors':[f'{case.id()}: {detail}' for case,detail in result.failures+result.errors],
         'detail':stream.getvalue()},indent=2))
     return 0 if result.wasSuccessful() else 1
-if __name__=='__main__':raise SystemExit(main())
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

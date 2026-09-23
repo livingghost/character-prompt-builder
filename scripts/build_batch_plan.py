@@ -525,6 +525,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     try:
         raise SystemExit(main())
     except (ValueError, OSError) as exc:

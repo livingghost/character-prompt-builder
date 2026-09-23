@@ -15,6 +15,7 @@ import subprocess
 import tempfile
 from typing import Any
 import execution_contract as c
+from io_budget import environment_seconds
 
 KINDS = {'text', 'json', 'image', 'video', 'audio', 'binary'}
 
@@ -64,7 +65,7 @@ def inspect(raw: bytes, kind: str) -> dict:
                 completed = subprocess.run(
                     ['ffprobe', '-v', 'error', '-protocol_whitelist', 'file,pipe',
                      '-show_streams', '-show_format', '-of', 'json', str(path)],
-                    capture_output=True, timeout=30, check=False)
+                    capture_output=True, timeout=environment_seconds('MEDIA_PROBE_TIMEOUT_SECONDS'), check=False)
             except (OSError, subprocess.TimeoutExpired) as exc:
                 raise ValueError('temporal observation requires a working ffprobe') from exc
         if completed.returncode:

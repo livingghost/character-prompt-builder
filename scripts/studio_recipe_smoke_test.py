@@ -125,7 +125,7 @@ class RecipeTests(unittest.TestCase):
         before = self.files()
         result = subprocess.run([sys.executable, str(Path(studio.__file__)), '--studio', str(self.root),
             'recipe', '--character', 'subject-a', '--slot', 'base.front', '--iteration', self.row['iteration_id']],
-            capture_output=True, text=True, timeout=15)
+            capture_output=True, text=True, encoding="utf-8", timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)['request'], self.sent)
         self.assertEqual(self.files(), before)
@@ -133,10 +133,12 @@ class RecipeTests(unittest.TestCase):
     def test_cli_takes_the_studio_after_the_command(self):
         result = subprocess.run([sys.executable, str(Path(studio.__file__)), 'recipe', '--studio', str(self.root),
             '--character', 'subject-a', '--slot', 'base.front', '--iteration', self.row['iteration_id']],
-            capture_output=True, text=True, timeout=15)
+            capture_output=True, text=True, encoding="utf-8", timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)['request'], self.sent)
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main()

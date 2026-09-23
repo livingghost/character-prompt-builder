@@ -690,4 +690,6 @@ def _build_plan(jobs_path: Path, root: Path) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

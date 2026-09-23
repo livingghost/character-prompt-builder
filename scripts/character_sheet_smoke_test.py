@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import functools
 import hashlib
 import json
 import shutil
@@ -13,10 +14,12 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 from unittest import mock
 
+import resvg_py
 from PIL import Image, ImageDraw, ImageFont
 
 from character_sheet import bind_sidecar, initialize_sidecar, sheet_status, validate_sidecar
 from character_sheet_render import textmetrics
+from character_sheet_render.board import rasterize_board
 from character_sheet_render.textmetrics import font_has_glyph, segment_text_by_font
 from compose_sheet_panel_fills import compose_panel_fills
 from harvest_sheet_render import harvest_sheet
@@ -50,7 +53,7 @@ from render_character_sheet import (
 from state_protocol import validate_against_schema
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_CHECKS = 152
+EXPECTED_CHECKS = 154
 
 
 def expect_error(fn: Callable[[], Any], text: str) -> bool:
@@ -1143,7 +1146,7 @@ def main() -> int:
             )
 
         cjk_value = copy.deepcopy(sidecar_value)
-        cjk_name = "견본 見本 みほん / Sample"
+        cjk_name = "견본 見本 みほん 样本 / Sample"
         cjk_zone = "코 鼻 はな / nose"
         cjk_value["fields"]["identity.name"] = cjk_name
         cjk_value["tables"]["colors"].append(
@@ -1194,6 +1197,34 @@ def main() -> int:
             and glyphs_are_real
             and name_has_ink,
             raster_text,
+        )
+        repeated_cjk_render = render_sheet(
+            profile,
+            cjk_value,
+            sheet_dir=render_root,
+            mode="scaffold",
+            out_dir=render_root / "cjk-scaffold-repeated",
+            profile_path=DEFAULT_PROFILE_PATH,
+        )
+        check(
+            "the same sheet renders to the same SVG and PNG bytes",
+            repeated_cjk_render["png"].read_bytes() == cjk_render["png"].read_bytes()
+            and (render_root / "cjk-scaffold-repeated" / "sheet-render.svg").read_bytes()
+            == (render_root / "cjk-scaffold" / "sheet-render.svg").read_bytes(),
+        )
+        unprinted_png = render_root / "no-matching-font.png"
+        without_fonts = functools.partial(resvg_py.svg_to_bytes, skip_system_fonts=True)
+        with mock.patch.object(resvg_py, "svg_to_bytes", without_fonts):
+            no_font_stops = expect_error(
+                lambda: rasterize_board(
+                    '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>',
+                    unprinted_png,
+                ),
+                "no installed font matches",
+            )
+        check(
+            "board text with no installed matching font stops the render rather than vanishing",
+            no_font_stops and not unprinted_png.exists(),
         )
         check(
             "CJK fonts resolve from the known paths first, then from fontconfig, and fail closed without either",
@@ -3262,4 +3293,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

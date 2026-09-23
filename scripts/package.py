@@ -24,6 +24,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from check_dependencies import IMPORT_NAMES, TESTED, constraint, load_requirements
 from execution_contract import sha256_file
 from package_metadata import (
     CORE_RELEASE_REGRESSION_CONTRACT,
@@ -49,14 +50,16 @@ EXPECTED_DEFAULT_RELEASE_CASE_IDS = (
     ("inspire-portrait-state", "inspire"),
 )
 EXPECTED_DEFAULT_RELEASE_CASES = len(EXPECTED_DEFAULT_RELEASE_CASE_IDS)
-EXPECTED_TESTED_DEPENDENCIES = {
-    "CairoSVG": ("==2.9.0", "cairosvg"),
-    "numpy": ("==2.5.2", "numpy"),
-    "Pillow": ("==12.3.0", "PIL"),
-    "rasterio": ("==1.5.1", "rasterio"),
-    "opencv-python-headless": ("==5.0.0.93", "cv2"),
-    "scikit-image": ("==0.26.0", "skimage"),
-}
+
+
+def tested_dependency_inventory() -> dict[str, tuple[str, str]]:
+    """Each distribution requirements-tested.txt pins, with its pin and import name."""
+    return {
+        str(row["distribution"]): (constraint(row), IMPORT_NAMES.get(str(row["distribution"])) or "")
+        for row in load_requirements(TESTED)
+    }
+
+
 EXPECTED_VISUAL_EVIDENCE_CHECKS = 28
 EXPECTED_REFERENCE_RUNTIME_CHECK_NAMES = (
     "non-object-validator-inputs-return-structured-errors",
@@ -125,7 +128,7 @@ EXPECTED_FRESH_SESSION_RUNTIME_CHECKS = len(
 # it is read off the suite. They exist because a suite that silently stops running
 # cases still exits zero, and nothing else would notice. A count that falls behind
 # fails the release loudly, which is the only direction it can be wrong in.
-EXPECTED_DOCUMENTATION_CONTRACT_TESTS = 37
+EXPECTED_DOCUMENTATION_CONTRACT_TESTS = 40
 EXPECTED_RELEASE_FILE_OPERATION_CHECKS = 84
 EXPECTED_PACKAGE_SECURITY_CHECKS = 16
 EXPECTED_PACK_MANAGEMENT_CHECKS = 117
@@ -162,7 +165,7 @@ EXPECTED_PACK_RELEASE_GATE_CHECKS = 53
 EXPECTED_GENERATION_PAYLOAD_CHECKS = 180
 EXPECTED_MODEL_CONTRACT_CHECKS = 62
 EXPECTED_UPSCALE_PACKAGE_CHECKS = 18
-EXPECTED_CHARACTER_SHEET_CHECKS = 152
+EXPECTED_CHARACTER_SHEET_CHECKS = 154
 EXPECTED_PACK_RELEASE_IDENTITY_CHECKS = 9
 EXPECTED_BUNDLED_PACK_GATE_CHECKS = 8
 EXPECTED_GENERATION_MUTATIONS_REJECTED = 27
@@ -343,6 +346,7 @@ def run_command(command: Sequence[str], cwd: Path, *, expect_json: bool = True) 
         cwd=str(cwd),
         env=env,
         text=True,
+        encoding="utf-8",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
@@ -375,6 +379,7 @@ def run_json_gate(command: Sequence[str], cwd: Path) -> dict[str, Any]:
         cwd=str(cwd),
         env=env,
         text=True,
+        encoding="utf-8",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
@@ -414,6 +419,7 @@ def run_unittest_gate(command: Sequence[str], cwd: Path) -> dict[str, Any]:
         cwd=str(cwd),
         env=env,
         text=True,
+        encoding="utf-8",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
@@ -610,17 +616,18 @@ def evaluate_core_gate_contract(
         if row.get("import_ok") is not True or row.get("constraint_ok") is not True:
             errors.append(f"dependencies.dependencies[{index}] is not exact and importable")
         distribution = str(row.get("distribution") or "")
-        constraint = str(row.get("constraint") or "")
+        reported_constraint = str(row.get("constraint") or "")
         import_name = str(row.get("import_name") or "")
         if distribution in observed_dependencies:
             errors.append(f"dependencies contains duplicate distribution {distribution!r}")
-        observed_dependencies[distribution] = (constraint, import_name)
+        observed_dependencies[distribution] = (reported_constraint, import_name)
         if not isinstance(row.get("installed"), str) or not row.get("installed"):
             errors.append(f"dependencies.dependencies[{index}].installed must be explicit")
-    if observed_dependencies != EXPECTED_TESTED_DEPENDENCIES:
+    expected_dependencies = tested_dependency_inventory()
+    if observed_dependencies != expected_dependencies:
         errors.append(
-            "tested dependency inventory differs from the release contract: "
-            f"expected {EXPECTED_TESTED_DEPENDENCIES}, got {observed_dependencies}"
+            f"tested dependency inventory differs from {TESTED.name}: "
+            f"expected {expected_dependencies}, got {observed_dependencies}"
         )
     contract["tested_dependencies"] = len(dependency_rows)
 
@@ -638,7 +645,7 @@ def evaluate_core_gate_contract(
         "three_layer_bundle",
         "single_source_cli",
         "full_file_security_scan",
-        "production_cairosvg_render",
+        "production_svg_render",
         "compact_batch_source_hash_gate",
     ):
         if visual.get(field) is not True:
@@ -1560,7 +1567,7 @@ def validate_stage(
     created = subprocess.run(
         [python, "scripts/pack_cli.py", *runtime_args, "ready",
          *(item for pack_id in metadata.default_pack_ids for item in ("--only", pack_id))],
-        cwd=str(stage_root), text=True, capture_output=True, check=False,
+        cwd=str(stage_root), text=True, encoding="utf-8", capture_output=True, check=False,
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     if created.returncode != 0:
@@ -2345,4 +2352,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

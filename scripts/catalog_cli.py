@@ -183,8 +183,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     sub.add_parser("stats", help="Show catalog counts")
     consultation = sub.add_parser("consult", help="Search explicit craft layers and open complete chosen records in one runtime.")
     consultation.add_argument("query", nargs="?")
-    import preset_consultation
-    consultation.add_argument("--focus", choices=["all", *preset_consultation.LAYERS], default="all")
+    import craft_consultation
+    consultation.add_argument("--focus", choices=["all", *craft_consultation.LAYERS], default="all")
     consultation.add_argument("--inspect", nargs="*", default=[], metavar="ID")
     consultation.add_argument("--previous", type=Path)
 
@@ -324,7 +324,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             questions = ([{"request_id": "craft", "canonical_query": args.query, "focus": args.focus}]
                          if args.query else [])
             previous = load_json(args.previous) if args.previous else None
-            result = preset_consultation.consult(questions, args.inspect, settings=runtime.settings, previous=previous)
+            result = craft_consultation.consult(questions, args.inspect, settings=runtime.settings, previous=previous)
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0 if result["ok"] else 1
         except (ValueError, OSError, KeyError, TypeError) as exc:
@@ -406,4 +406,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

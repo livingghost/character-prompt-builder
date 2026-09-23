@@ -116,6 +116,8 @@ class SessionEntry(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     stream = io.StringIO()
     result = unittest.TextTestRunner(stream=stream, verbosity=2).run(
         unittest.defaultTestLoader.loadTestsFromTestCase(SessionEntry)

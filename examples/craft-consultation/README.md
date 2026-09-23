@@ -1,4 +1,4 @@
-# Synthetic preset consultation
+# Synthetic craft consultation
 
 This local example runs the public consultation and application commands.
 The authored synthetic choices are written in `build_example.py`, rather than inferred from search rank.
@@ -7,8 +7,8 @@ The report records actual command results, not model-image quality or user appro
 From the skill root:
 
 ```sh
-python examples/preset-consultation/build_example.py
-python examples/preset-consultation/build_example.py --check
+python examples/craft-consultation/build_example.py
+python examples/craft-consultation/build_example.py --check
 ```
 
 Use `--workspace` with a new external path to retain the original task, consultation, authored decisions, and applied task.

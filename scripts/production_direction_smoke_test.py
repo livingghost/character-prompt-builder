@@ -174,8 +174,8 @@ class LifecycleTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(); self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         entry = ledger.begin(self.root, 'Synthetic complete production loop', ['prepare', 'deliver'])
-        (self.root/'brief.md').write_text('A deliberately held abstract field. PRIVATE DOSSIER.\n')
-        (self.root/'delivery.txt').write_text('Keep the sparse field.\n')
+        (self.root/'brief.md').write_text('A deliberately held abstract field. PRIVATE DOSSIER.\n', encoding='utf-8')
+        (self.root/'delivery.txt').write_text('Keep the sparse field.\n', encoding='utf-8')
         self.task = {'task_id':entry['task_id'],'route':'development','features':[],
             'sources':[{'id':'brief','path':'brief.md','role':'design','disposition':'applied','locator':'whole','reason':'Declared fixture purpose.'}],
             'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Use the selected expression.'},
@@ -299,7 +299,7 @@ class LifecycleTests(unittest.TestCase):
         with self.assertRaises(ValueError):w.complete(self.root,run)
         self.assertEqual(w.status(self.root,run)['next'],'review-or-revise-candidate')
     def test_changed_source_reports_declared_impact(self):
-        run=self.prepare();(self.root/'brief.md').write_text('Changed purpose.')
+        run=self.prepare();(self.root/'brief.md').write_text('Changed purpose.', encoding='utf-8')
         result=w.impact(self.root,run)
         self.assertFalse(result['ok']);self.assertEqual(result['affected']['decisions'],['expression']);self.assertIn('read',result['affected']['criteria'])
     def test_impact_does_not_rewrite_state(self):
@@ -317,7 +317,7 @@ class LifecycleTests(unittest.TestCase):
                        'operation':'Adjust only the local composition.', 'targets':['delivery','decision:expression'], 'reason':'The fixture requires a different spacing.'}]
         self.write('review.json',d);w.review(self.root,run,'review.json')
         revised=copy.deepcopy(self.task);revised['direction']['decisions'][0]['selected']='shift'
-        revised['delivery']['path']='revised-delivery.txt';(self.root/'revised-delivery.txt').write_text('Use the intended spacing.')
+        revised['delivery']['path']='revised-delivery.txt';(self.root/'revised-delivery.txt').write_text('Use the intended spacing.', encoding='utf-8')
         self.write('revised-task.json',revised)
         intent=w.revision_intent(self.root,run,'revised-task.json',ca['sha256'],'spacing')
         authorization=fixture.grant(self.root,run,intent)
@@ -344,7 +344,7 @@ class LifecycleTests(unittest.TestCase):
         revised = copy.deepcopy(self.task)
         revised['direction']['decisions'][0]['selected'] = 'shift'
         revised['delivery']['path'] = 'new-delivery.txt'
-        (self.root / 'new-delivery.txt').write_text('Use the intended spacing.')
+        (self.root / 'new-delivery.txt').write_text('Use the intended spacing.', encoding='utf-8')
         self.write('new-task.json', revised)
         return revised
     def test_repair_cannot_hide_a_changed_decision(self):
@@ -353,13 +353,13 @@ class LifecycleTests(unittest.TestCase):
             w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
     def test_repair_cannot_hide_a_changed_source(self):
         run, ca = self.candidate(); self.revised_input(run, ca)
-        (self.root / 'brief.md').write_text('An unrelated replacement purpose.')
+        (self.root / 'brief.md').write_text('An unrelated replacement purpose.', encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'reviewed scope'):
             w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
     def test_in_place_delivery_revision_is_authorizable(self):
         run, ca = self.candidate(); revised = self.revised_input(run, ca)
         revised['delivery']['path'] = 'delivery.txt'; self.write('new-task.json', revised)
-        (self.root / 'delivery.txt').write_text('Use the intended spacing.')
+        (self.root / 'delivery.txt').write_text('Use the intended spacing.', encoding='utf-8')
         intent = w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
         authorization = fixture.grant(self.root, run, intent)
         child = w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', authorization)
@@ -374,7 +374,7 @@ class LifecycleTests(unittest.TestCase):
         run, ca = self.candidate(); self.revised_input(run, ca)
         intent = w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
         auth = fixture.grant(self.root, run, intent)
-        (self.root / 'fixture-authority-basis.txt').write_text('Authority withdrawn.')
+        (self.root / 'fixture-authority-basis.txt').write_text('Authority withdrawn.', encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'authority'):
             w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', auth)
     def test_empty_criteria_cannot_create_vacuous_completion(self):
@@ -435,4 +435,6 @@ class MoneyTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main(verbosity=2)

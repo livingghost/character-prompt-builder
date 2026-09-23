@@ -564,7 +564,7 @@ def capture(root: Path, run: str, artifact: str, note: str) -> dict:
 def draft_review(root: Path, run: str, candidate: str) -> dict:
     directory, prepared, _, rows = assert_current(root, run)
     find(rows, 'candidate', candidate)
-    from preset_consultation import review_questions
+    from craft_consultation import review_questions
     questions = review_questions(root, prepared['task'], directory=directory, dependencies=prepared['dependencies'])
     return {'input_sha256': prepared['input_sha256'], 'candidate': candidate, 'reviewer': '',
             'evidence': [], 'observations': [],
@@ -1137,8 +1137,8 @@ def main() -> int:
     sub = parser.add_subparsers(dest='command', required=True)
     import production_inputs
     production_inputs.add_arguments(sub)
-    import preset_consultation
-    preset_consultation.add_arguments(sub)
+    import craft_consultation
+    craft_consultation.add_arguments(sub)
     import production_variation
     production_variation.add_arguments(sub)
     sub.add_parser('new-production-id', help='Assign an explicit stable identity to a new production series.')
@@ -1196,8 +1196,8 @@ def main() -> int:
     args.root = root = args.root.resolve()
     try:
         name = args.command
-        if name in preset_consultation.COMMANDS:
-            result = preset_consultation.command(args, parser)
+        if name in craft_consultation.COMMANDS:
+            result = craft_consultation.command(args, parser)
         elif name == 'draft-variation':
             result = production_variation.command(args, parser)
         elif name in production_inputs.COMMANDS:
@@ -1265,4 +1265,6 @@ def main() -> int:
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

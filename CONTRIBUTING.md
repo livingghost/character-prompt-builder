@@ -30,7 +30,7 @@ Read the documents relevant to the change:
 
 Use Python 3.11 or newer. Core scripts use the standard library only. [Release Validation](references/release/validation.md) exclusively owns the exact publication environment and sequence, including the uv commands that create CI's Python 3.12 environment.
 
-[`requirements-core.txt`](requirements-core.txt) and [`requirements-visual.txt`](requirements-visual.txt) own the supported profiles; [`requirements.txt`](requirements.txt) is the complete compatible set, and [`requirements-tested.txt`](requirements-tested.txt) records release-validation pins. Update the affected profile, the complete and tested definitions, `pyproject.toml`, and `DEPENDENCIES.md` together when a distributed script changes a third-party import. Do not list transitive packages unless package code imports them directly.
+[`requirements-visual.txt`](requirements-visual.txt) holds each supported version range and [`requirements-tested.txt`](requirements-tested.txt) each release-validation pin; `requirements.txt` and the `pyproject.toml` `visual` extra read the ranges. When a distributed script changes a third-party import, update those two files, `DEPENDENCIES.md` and the checker's import names together. Do not list transitive packages unless package code imports them directly.
 
 ## Repository ownership map
 
@@ -191,16 +191,16 @@ every host reads and what every host refuses:
 - `name` at most 64 characters and `description` at most 1024. A host refuses
   more than that, and `validate_skill_frontmatter_contract` refuses it here first.
 - The body under 500 lines, and under 5000 tokens once loaded, because a host
-  loads all of it the moment the Skill activates. `SKILL_MAX_LINES` refuses the
-  line count here first; the word count is reported, not bounded, because no
-  local tokenizer settles the token figure.
+  loads all of it the moment the Skill activates. `SKILL_MAX_LINES` and
+  `SKILL_MAX_ESTIMATED_TOKENS` refuse both here first; the token figure is
+  characters divided by four, because no local tokenizer exists.
 - References one level deep from `SKILL.md`. A file reached only through another
   file may be read in part rather than in full.
 - Scripts are executed rather than read into context.
 
-`scripts/validate.py` also settles that every reference document is reachable
-from the `SKILL.md` link graph and that every script entrypoint is named by
-routed documentation.
+`scripts/validate.py` also settles that every reference document is reached
+from a `SKILL.md` link or from a route or feature `SKILL.md` names, and that
+every script entrypoint is named by routed documentation.
 
 ## Required checks
 

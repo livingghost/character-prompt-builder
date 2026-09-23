@@ -12,6 +12,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / 'scripts'))
+from io_budget import environment_seconds
 import protocol_contract as contract
 import temporal_state
 
@@ -27,7 +28,7 @@ def exercise(out: Path) -> dict:
 
     def call(script: str, *args: object) -> dict:
         command = [sys.executable, str(ROOT / 'scripts' / script), *map(str, args)]
-        p = subprocess.run(command, cwd=out, env=env, capture_output=True, text=True, timeout=60)
+        p = subprocess.run(command, cwd=out, env=env, capture_output=True, text=True, encoding="utf-8", timeout=environment_seconds("EXAMPLE_COMMAND_TIMEOUT_SECONDS"))
         log.append({'argv': command, 'returncode': p.returncode, 'stdout': p.stdout, 'stderr': p.stderr})
         if p.returncode:
             raise ValueError(p.stdout + p.stderr)
@@ -74,6 +75,8 @@ def exercise(out: Path) -> dict:
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', required=True, type=Path)
     args = parser.parse_args()

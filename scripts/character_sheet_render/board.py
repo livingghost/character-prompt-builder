@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import math
 import mimetypes
@@ -74,6 +75,32 @@ from character_sheet_render.textmetrics import (
 
 
 RENDERER_ID = "render_character_sheet"
+
+
+def rasterize_board(svg_markup: str, png_path: Path) -> None:
+    """Draw the board SVG to PNG with resvg and the installed fonts.
+
+    The board's own text uses the first installed family in FONT_FAMILY. When no
+    installed font draws that text, the render stops rather than leaving the text out.
+    """
+
+    try:
+        import resvg_py
+        from PIL import Image
+    except ImportError as exc:
+        raise RuntimeError(
+            "resvg-py and Pillow are required. Run scripts/check_dependencies.py --profile visual."
+        ) from exc
+    probe = resvg_py.svg_to_bytes(
+        svg_string=(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32">'
+            f'<text x="0" y="24" font-size="20" font-family="{FONT_FAMILY}">Hg</text></svg>'
+        )
+    )
+    with Image.open(io.BytesIO(probe)) as probe_image:
+        if probe_image.getchannel("A").getbbox() is None:
+            raise RuntimeError(f"no installed font matches the sheet font families: {FONT_FAMILY}")
+    png_path.write_bytes(resvg_py.svg_to_bytes(svg_string=svg_markup))
 
 
 def image_data_uri(path: Path) -> str:
@@ -1043,7 +1070,8 @@ def render_sheet(
     panel_requests_path = out_dir / "panel-fill-requests.json"
     panel_prompts_dir = out_dir / "panel-fill-prompts"
 
-    svg_path.write_text("\n".join(svg) + "\n", encoding="utf-8", newline="\n")
+    svg_markup = "\n".join(svg) + "\n"
+    svg_path.write_text(svg_markup, encoding="utf-8", newline="\n")
     layout = {
         "renderer": {"id": RENDERER_ID},
         "profile": resolved_profile["id"],
@@ -1062,15 +1090,7 @@ def render_sheet(
         newline="\n",
     )
 
-    try:
-        import cairosvg
-    except ImportError as exc:
-        raise RuntimeError(
-            "CairoSVG is required. Run scripts/check_dependencies.py --profile visual."
-        ) from exc
-    cairosvg.svg2png(
-        url=str(svg_path), write_to=str(png_path), output_width=width, output_height=height
-    )
+    rasterize_board(svg_markup, png_path)
 
     fill_prompt_sha256 = None
     panel_requests_sha256 = None

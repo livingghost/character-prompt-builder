@@ -95,9 +95,9 @@ class RealizationTests(unittest.TestCase):
         row=next(s for s in self.plan['sources'] if s['source_id']==identifier)
         row['sha256']=hashlib.sha256((self.root/row['path']).read_bytes()).hexdigest()
     def change_json(self,filename,callback,source):
-        value=json.loads((self.root/filename).read_text());callback(value);json_write(self.root/filename,value);self.refresh(source)
+        value=json.loads((self.root/filename).read_text(encoding="utf-8"));callback(value);json_write(self.root/filename,value);self.refresh(source)
     def set_events(self,events):
-        (self.root/'events.jsonl').write_text(''.join(json.dumps(e)+'\n' for e in events));self.refresh('EVENTS')
+        (self.root/'events.jsonl').write_text(''.join(json.dumps(e)+'\n' for e in events), encoding='utf-8');self.refresh('EVENTS')
     def test_current_example_compiles(self): self.assertTrue(self.run_plan()['ok'])
     def test_deterministic_build(self): self.assertEqual(self.run_plan(),self.run_plan())
     def test_no_source_mutation(self):
@@ -117,7 +117,7 @@ class RealizationTests(unittest.TestCase):
         for medium in ['prose','single-image','audio','tabletop','abstract installation']:
             self.plan['units'][0]['medium']=medium;self.assertEqual(self.run_plan()['units'][0]['medium'],medium)
     def test_empty_scaffold_is_not_claimed_completed(self):
-        self.plan=json.loads((ROOT/'templates/realization/world-realization-plan.json').read_text())
+        self.plan=json.loads((ROOT/'templates/realization/world-realization-plan.json').read_text(encoding='utf-8'))
         result=self.run_plan();self.assertTrue(result['ok']);self.assertEqual(result['units'],[])
         self.assertTrue(any('Empty plan' in x for x in result['review_notes']))
     def test_duplicate_unit_id(self):
@@ -190,7 +190,7 @@ class RealizationTests(unittest.TestCase):
     def test_unrequested_closing_not_exported(self):
         self.assertTrue(all(x['at']=='opening' for x in self.run_plan()['units'][0]['views'][0]['state_fields']))
     def test_declared_proposed_intent_is_a_note_not_adoption(self):
-        p=self.root/'intent.md';p.write_text(p.read_text().replace('**status**: adopted','**status**: proposed'));self.refresh('INTENT')
+        p=self.root/'intent.md';p.write_text(p.read_text(encoding='utf-8').replace('**status**: adopted','**status**: proposed'),encoding='utf-8');self.refresh('INTENT')
         result=self.run_plan();self.assertTrue(any('not recorded as adopted' in x for x in result['review_notes']))
         self.assertEqual(result['units'][0]['intent_refs'][0]['declared_status'],'proposed')
     def test_dangling_intent_blocks(self):
@@ -232,23 +232,23 @@ class RealizationTests(unittest.TestCase):
         self.assertTrue(wr.verify_bundle(self.root,'plan.json',out)['ok'])
     def test_tampered_consumer_fails_verification(self):
         result=self.run_plan();out=Path(self.tmp.name)/'out';wr.publish(result,out)
-        p=out/'consumer/AFTER--WRITER.json';p.write_text(p.read_text().replace('ribbed','smooth'))
+        p=out/'consumer/AFTER--WRITER.json';p.write_text(p.read_text(encoding='utf-8').replace('ribbed','smooth'),encoding='utf-8')
         self.assertFalse(wr.verify_bundle(self.root,'plan.json',out)['ok'])
     def test_extra_file_in_bundle_is_reported(self):
-        result=self.run_plan();out=Path(self.tmp.name)/'out';wr.publish(result,out);(out/'consumer/leak.txt').write_text('secret')
+        result=self.run_plan();out=Path(self.tmp.name)/'out';wr.publish(result,out);(out/'consumer/leak.txt').write_text('secret',encoding='utf-8')
         self.assertIn('consumer/leak.txt',wr.verify_bundle(self.root,'plan.json',out)['mismatched_files'])
     def test_existing_output_is_not_overwritten(self):
         out=Path(self.tmp.name)/'out';out.mkdir()
         with self.assertRaises(ValueError):wr.publish(self.run_plan(),out)
     def test_stale_source_blocks_rebuild(self):
-        (self.root/'world.md').write_text('changed')
+        (self.root/'world.md').write_text('changed', encoding='utf-8')
         with self.assertRaisesRegex(ValueError,'fingerprint changed'):self.run_plan()
     def test_impact_reaches_dependent_units(self):
-        (self.root/'world.md').write_text('changed');self.save();result=wr.impact(self.root,'plan.json')
+        (self.root/'world.md').write_text('changed',encoding='utf-8');self.save();result=wr.impact(self.root,'plan.json')
         self.assertFalse(result['ok']);self.assertEqual(len(result['affected_units']),3)
     def test_unused_source_change_has_no_invented_unit_dependency(self):
-        (self.root/'unused.txt').write_text('a');self.plan['sources'].append({'source_id':'UNUSED','path':'unused.txt','sha256':hashlib.sha256(b'a').hexdigest()})
-        self.save();(self.root/'unused.txt').write_text('b');self.assertEqual(wr.impact(self.root,'plan.json')['affected_units'],[])
+        (self.root/'unused.txt').write_text('a',encoding='utf-8');self.plan['sources'].append({'source_id':'UNUSED','path':'unused.txt','sha256':hashlib.sha256(b'a').hexdigest()})
+        self.save();(self.root/'unused.txt').write_text('b',encoding='utf-8');self.assertEqual(wr.impact(self.root,'plan.json')['affected_units'],[])
     def test_missing_source_impact_still_reports(self):
         (self.root/'world.md').unlink();self.save();self.assertFalse(wr.impact(self.root,'plan.json')['ok'])
     def test_traversal_blocks(self):
@@ -271,10 +271,10 @@ class RealizationTests(unittest.TestCase):
         self.assertEqual(wr.at_pointer({'a/b':{'~x':2}},'/a~1b/~0x'),(True,2))
         with self.assertRaises(ValueError):wr.tokens('/x~2')
     def test_duplicate_json_keys_block(self):
-        (self.root/'plan.json').write_text('{"plan_id":"A","plan_id":"B"}')
+        (self.root/'plan.json').write_text('{"plan_id":"A","plan_id":"B"}',encoding="utf-8")
         with self.assertRaises(ValueError):wr.compile_plan(self.root,'plan.json')
     def test_nonfinite_json_blocks(self):
-        p=self.root/'base.json';p.write_text('{"x":NaN}');self.refresh('BASE')
+        p=self.root/'base.json';p.write_text('{"x":NaN}', encoding='utf-8');self.refresh('BASE')
         with self.assertRaises(ValueError):self.run_plan()
     def test_cli_inspect_returns_json(self):
         output=io.StringIO()
@@ -314,4 +314,7 @@ class PrincipleTests(unittest.TestCase):
         self.assertEqual(set(json.loads(output.getvalue())['record']),set(pp.TEXT_FIELDS+pp.LIST_FIELDS))
 
 
-if __name__=='__main__':unittest.main(verbosity=2)
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main(verbosity=2)

@@ -335,7 +335,7 @@ def _spawn(script: str, *arguments: Path) -> subprocess.Popen[str]:
         stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUTF8": "1"},
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
 
 
@@ -3595,4 +3595,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

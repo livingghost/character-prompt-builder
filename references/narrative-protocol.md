@@ -247,8 +247,8 @@ itself. What it can do is compare its own against the hash published here, of th
 endings normalised:
 
 ```text
-scripts/narrative.py           7d9abc39ea10258b2f362a0e4bde802168c1994e3890a55786061a5a80485003
-scripts/scene_plot.py          60b54d9da0a94fb3afd0014978d81e86ac4ae5acef003cebc0422034113ce1bb
+scripts/narrative.py           ed923de6d26312920f3bde43b22abda3bd3b6ca9452f80d4c102eb4f702ed994
+scripts/scene_plot.py          2e9dc5ae4742f40e2ff97ec0026d5256d5fff93e2a3c95f88e53e408b3a4bce2
 scripts/narrative_corpus.json  2c89042e7e3ee0f39d9e46b0ec2dcf8b07c2c9e81914dd3c9102cc27ac331289
 ```
 

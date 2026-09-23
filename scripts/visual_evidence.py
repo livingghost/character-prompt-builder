@@ -7,6 +7,7 @@ import re
 import shutil
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree
 
 from execution_contract import sha256_file
 
@@ -573,7 +574,33 @@ def validate_bundle(bundle_dir: Path) -> dict[str, Any]:
     }
 
 
+_PIXEL_LENGTH_RE = re.compile(r"\s*([0-9]+(?:\.[0-9]+)?)\s*(?:px)?\s*")
+
+
+def _svg_markup(data: bytes, width: int | None, height: int | None) -> str:
+    """The SVG as text, with its root viewport set to width by height pixels when both are given.
+
+    The drawing keeps its viewBox, or takes one from its own numeric width and height,
+    and fits the new viewport as its preserveAspectRatio declares.
+    """
+    root = ElementTree.fromstring(data)
+    if width is not None and height is not None:
+        if root.get("viewBox") is None:
+            lengths = [
+                _PIXEL_LENGTH_RE.fullmatch(root.get(name) or "") for name in ("width", "height")
+            ]
+            if not all(lengths):
+                raise ValueError(
+                    "an SVG drawn at a requested size needs a viewBox or a numeric width and height"
+                )
+            root.set("viewBox", f"0 0 {lengths[0].group(1)} {lengths[1].group(1)}")
+        root.set("width", str(width))
+        root.set("height", str(height))
+    return ElementTree.tostring(root, encoding="unicode")
+
+
 def render_svg(svg: Path, output: Path, width: int | None = None, height: int | None = None) -> None:
+    """Rasterize a validated SVG to PNG with resvg, at width by height pixels when both are given."""
     svg = Path(svg)
     output = Path(output)
     errors = validate_svg_for_render(svg)
@@ -582,19 +609,17 @@ def render_svg(svg: Path, output: Path, width: int | None = None, height: int | 
             "SVG rasterization rejected unsafe or non-self-contained input:\n"
             + "\n".join(errors)
         )
+    if (width is None) != (height is None):
+        raise ValueError("SVG rasterization takes both width and height, or neither")
     try:
-        import cairosvg
+        import resvg_py
     except ImportError as exc:
         raise RuntimeError(
-            "CairoSVG is required for SVG rasterization; install requirements-visual.txt"
+            "resvg-py is required for SVG rasterization; install requirements-visual.txt"
         ) from exc
+    png = resvg_py.svg_to_bytes(svg_string=_svg_markup(svg.read_bytes(), width, height))
     output.parent.mkdir(parents=True, exist_ok=True)
-    cairosvg.svg2png(
-        bytestring=svg.read_bytes(),
-        write_to=str(output),
-        output_width=width,
-        output_height=height,
-    )
+    output.write_bytes(png)
 
 
 def canonicalize_svg(source: Path, output: Path) -> dict[str, Any]:

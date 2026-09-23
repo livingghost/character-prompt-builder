@@ -39,7 +39,7 @@ class AcquisitionTests(unittest.TestCase):
         self.assertFalse((self.root/'evidence').exists())
     def test_reference_keeps_source_identity(self):
         self.acquisition['target']=dict(self.target,model_identifier='source-only');self.save()
-        (self.root/'relationship.txt').write_text('Synthetic author-selected reference; not a target observation.')
+        (self.root/'relationship.txt').write_text('Synthetic author-selected reference; not a target observation.', encoding='utf-8')
         ref={'path':'relationship.txt','sha256':c.digest(c.read(self.root/'relationship.txt')),'locator':'whole'}
         files,manifest=self.assemble(kind='reference',relationship=ref)
         self.assertEqual(c.decode(files['reference.json'])['source_target'],self.acquisition['target'])
@@ -47,7 +47,7 @@ class AcquisitionTests(unittest.TestCase):
     def test_no_relationship_is_inferred_from_names(self):
         with self.assertRaises(ValueError):self.assemble(kind='reference')
     def test_overlay_never_changes_acquired_schema(self):
-        (self.root/'basis.txt').write_text('Synthetic adapter envelope.')
+        (self.root/'basis.txt').write_text('Synthetic adapter envelope.', encoding='utf-8')
         value={'artifact_type':'request-envelope-overlay','target':self.target,'fields':{'taskType':{'type':'string'}},
             'basis':{'path':'basis.txt','sha256':c.digest(c.read(self.root/'basis.txt')),'locator':'whole'}}
         (self.root/'overlay.json').write_bytes(c.encoded(value))
@@ -59,7 +59,7 @@ class AcquisitionTests(unittest.TestCase):
             status={'http_status':404,'transport_outcome':'completed'});self.save()
         with self.assertRaises(ValueError):self.assemble()
     def test_changed_response_witness_refused(self):
-        (self.root/'response.json').write_text('{}')
+        (self.root/'response.json').write_text('{}', encoding='utf-8')
         with self.assertRaises(ValueError):self.assemble()
     def test_existing_destination_is_preserved(self):
         files,_=self.assemble();observation.publish(self.root,'evidence',files)
@@ -104,4 +104,7 @@ class PackImportTests(AcquisitionTests):
         with self.assertRaises(ValueError):cli.publish(self.args)
         self.assertFalse(self.args.out_pack.exists())
 
-if __name__=='__main__':unittest.main(verbosity=2)
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main(verbosity=2)

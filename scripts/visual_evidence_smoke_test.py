@@ -234,6 +234,7 @@ def main() -> int:
                 "smoke-record",
             ],
             text=True,
+            encoding="utf-8",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
@@ -257,6 +258,7 @@ def main() -> int:
                     str(argument),
                 ],
                 text=True,
+                encoding="utf-8",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 check=False,
@@ -308,17 +310,25 @@ def main() -> int:
             raise RuntimeError(f"safe SVG inspection failed: {safe_errors}")
         checks += 1
 
-        production_render = root / "production-cairosvg-render" / "output.png"
+        production_render = root / "production-svg-render" / "output.png"
+        repeated_render = root / "production-svg-render" / "repeated.png"
         render_svg(safe, production_render, width=17, height=13)
+        render_svg(safe, repeated_render, width=17, height=13)
         if not production_render.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
-            raise RuntimeError("production CairoSVG integration did not write a PNG")
+            raise RuntimeError("production SVG rasterization did not write a PNG")
+        if repeated_render.read_bytes() != production_render.read_bytes():
+            raise RuntimeError("the same SVG at the same size rasterized to different PNG bytes")
         with Image.open(production_render) as rendered:
             if rendered.format != "PNG" or rendered.size != (17, 13):
                 raise RuntimeError(
-                    "production CairoSVG integration returned unexpected output: "
+                    "production SVG rasterization returned unexpected output: "
                     f"format={rendered.format!r}, size={rendered.size!r}"
                 )
-            rendered.load()
+            pixels = rendered.convert("RGBA")
+            if pixels.getpixel((8, 6)) != (0x12, 0x34, 0x56, 255) or pixels.getpixel((0, 6))[3] != 0:
+                raise RuntimeError(
+                    "the drawing did not fit the requested size as its viewBox declares"
+                )
         checks += 1
 
         unsafe = root / "unsafe-middle.svg"
@@ -488,6 +498,7 @@ def main() -> int:
                 str(compact_report),
             ],
             text=True,
+            encoding="utf-8",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
@@ -504,15 +515,15 @@ def main() -> int:
         checks += 1
 
         raster_calls: list[dict[str, object]] = []
-        fake_cairosvg = types.ModuleType("cairosvg")
+        fake_resvg = types.ModuleType("resvg_py")
 
-        def fake_svg2png(**kwargs: object) -> None:
+        def fake_svg_to_bytes(**kwargs: object) -> bytes:
             raster_calls.append(kwargs)
-            Path(str(kwargs["write_to"])).write_bytes(b"fake-png")
+            return b"fake-png"
 
-        fake_cairosvg.svg2png = fake_svg2png  # type: ignore[attr-defined]
-        previous_cairosvg = sys.modules.get("cairosvg")
-        sys.modules["cairosvg"] = fake_cairosvg
+        fake_resvg.svg_to_bytes = fake_svg_to_bytes  # type: ignore[attr-defined]
+        previous_resvg = sys.modules.get("resvg_py")
+        sys.modules["resvg_py"] = fake_resvg
         try:
             unsafe_render_output = root / "unsafe-render" / "output.png"
             try:
@@ -531,10 +542,10 @@ def main() -> int:
                 raise RuntimeError("validated SVG did not reach the rasterizer")
             checks += 1
         finally:
-            if previous_cairosvg is None:
-                sys.modules.pop("cairosvg", None)
+            if previous_resvg is None:
+                sys.modules.pop("resvg_py", None)
             else:
-                sys.modules["cairosvg"] = previous_cairosvg
+                sys.modules["resvg_py"] = previous_resvg
 
         thumbnail_pack = root / "thumbnail-pack"
         thumbnail_corpus = thumbnail_pack / "resources" / "reference-corpus"
@@ -605,7 +616,7 @@ def main() -> int:
                     "three_layer_bundle": True,
                     "single_source_cli": True,
                     "full_file_security_scan": True,
-                    "production_cairosvg_render": True,
+                    "production_svg_render": True,
                     "compact_batch_source_hash_gate": True,
                     "declared_catalog_thumbnail_gate": True,
                 },
@@ -616,4 +627,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

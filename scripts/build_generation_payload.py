@@ -1119,9 +1119,9 @@ def production_inputs(
             raise ValueError("a package with references needs --request-validation-file with its execution policy")
         if consumer["transport"] != "authored-rendition":
             raise ValueError("bounded production context needs --request-validation-file with its execution policy")
-        import importlib
         import runtime_evidence
         import service_profile
+        import transport_contract
         from catalog_retrieval.runtime import load_pack_catalog
         from request_validation import from_offering
 
@@ -1133,13 +1133,10 @@ def production_inputs(
         if resource is None:
             raise ValueError("the active packs provide no service-profiles resource")
         try:
-            transport = importlib.import_module("transport_" + offering["service"].replace("-", "_"))
-        except ModuleNotFoundError as exc:
-            raise ValueError(f"no transport for the service {offering['service']!r}") from exc
-        try:
             service = service_profile.load_service(offering["service"], Path(resource.path))
         except service_profile.PackError as exc:
             raise ValueError(str(exc)) from exc
+        transport = transport_contract.load(service["transport"])
         validation = from_offering(model_id, record, offering, service, transport, runtime_evidence.reader(root))
     return {"root": root, "run": run, "route_reading": reading,
             "visual_continuity": visual, "request_validation": validation}
@@ -1309,4 +1306,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

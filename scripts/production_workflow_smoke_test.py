@@ -140,11 +140,11 @@ class ProductionTests(unittest.TestCase):
         (self.root/'link').symlink_to(self.root/'brief.md'); self.spec['sources'][0]['path']='link'; self.save_spec()
         with self.assertRaises(ValueError): self.prepare()
     def test_consumer_integrity(self):
-        run=self.prepare(); (w.run_dir(self.root,run)/'consumer.json').write_text('{}'); self.assertFalse(w.status(self.root,run)['ok'])
+        run=self.prepare(); (w.run_dir(self.root,run)/'consumer.json').write_text('{}',encoding='utf-8'); self.assertFalse(w.status(self.root,run)['ok'])
     def test_object_integrity(self):
         run=self.prepare(); p=next((w.run_dir(self.root,run)/'objects').iterdir()); p.write_bytes(b'bad'); self.assertFalse(w.status(self.root,run)['ok'])
     def test_receipt_integrity(self):
-        run,ca=self.candidate(); path=next((w.run_dir(self.root,run)/'records').iterdir()); path.write_text('{}'); self.assertFalse(w.status(self.root,run)['ok'])
+        run,ca=self.candidate(); path=next((w.run_dir(self.root,run)/'records').iterdir()); path.write_text('{}',encoding='utf-8'); self.assertFalse(w.status(self.root,run)['ok'])
     def test_unfinished_review_not_accepted(self):
         run,ca=self.candidate(); self.write('review.json',w.draft_review(self.root,run,ca['sha256']))
         with self.assertRaises(ValueError): w.review(self.root,run,'review.json')
@@ -327,7 +327,7 @@ class ProductionTests(unittest.TestCase):
         return target
     def test_reservations_skip_other_entries_and_other_tasks(self):
         run=self.prepare()
-        (self.root/'production/.DS_Store').write_bytes(b'\x00\x01'); (self.root/'production/README').write_text('Notes.\n')
+        (self.root/'production/.DS_Store').write_bytes(b'\x00\x01'); (self.root/'production/README').write_text('Notes.\n', encoding='utf-8')
         other=self.clone_run(run,task_id=str(uuid.uuid4())); next((other/'objects').iterdir()).write_bytes(b'damaged')
         self.assertEqual(fixture.handoff(self.root,run,'test','manual')['event'],'handoff')
     def test_damaged_run_of_this_task_fails_closed(self):
@@ -408,10 +408,10 @@ class PackageIntegrationTests(unittest.TestCase):
         self.addCleanup(configure_pack_runtime, None)
         import studio
         self.root=studio.init(self.base/'studio','production-test','Offline production tests'); studio.add_character(self.root,'C01','')
-        self.package=json.loads((ROOT/'examples/state-aware-pilot/generated/generation-package.json').read_text())
+        self.package=json.loads((ROOT/'examples/state-aware-pilot/generated/generation-package.json').read_text(encoding='utf-8'))
         self.composition=self.package['composition_prompt']
         task=ledger.begin(self.root,'Synthetic package test',['prepare','render'])
-        (self.root/'delivery.txt').write_text(self.composition)
+        (self.root/'delivery.txt').write_text(self.composition, encoding='utf-8')
         self.spec={'task_id':task['task_id'],'route':'development','features':[],'sources':[],
                    'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Use exact authored prompt.'},'criteria':[{'id':'bytes','strength':'hard','text':'Captured fixture bytes are actually available.'}],'world_views':[]}
         fixture.task(self.root,self.spec,artifact='binary',execution='dispatcher')
@@ -419,7 +419,7 @@ class PackageIntegrationTests(unittest.TestCase):
         self.package=fixture.bind_package(self.root,self.run,self.package)
         from build_generation_payload import generation_input_sha256
         key=generation_input_sha256(self.package); self.package['generation_input_sha256']=key; self.package['generation_contract']['generation_input_sha256']=key
-        self.package_path=self.root/'package.json'; self.package_path.write_text(json.dumps(self.package))
+        self.package_path=self.root/'package.json'; self.package_path.write_text(json.dumps(self.package), encoding='utf-8')
 
     def prepare_adopted_selection(self, *, through_production=False):
         self.spec['execution']='authored'
@@ -428,7 +428,7 @@ class PackageIntegrationTests(unittest.TestCase):
         self.package=fixture.bind_package(self.root,self.run,self.package)
         from build_generation_payload import generation_input_sha256
         key=generation_input_sha256(self.package); self.package['generation_input_sha256']=key; self.package['generation_contract']['generation_input_sha256']=key
-        self.package_path.write_text(json.dumps(self.package))
+        self.package_path.write_text(json.dumps(self.package), encoding="utf-8")
         import studio,adoption_workflow as adoption
         from PIL import Image
         image=self.root/'fixture.png'; Image.new('RGB',(24,24)).save(image)
@@ -436,7 +436,7 @@ class PackageIntegrationTests(unittest.TestCase):
         approval={'scope':'sheet','influence':'identity','character':'C01','iteration_id':row['iteration_id'],'slot':row['slot'],
                   'image_sha256':row['result']['sha256'],'by':fixture.ACTOR,'at':'2026-09-16T00:00:00Z'}
         from visual_continuity import file_ref
-        (self.root/'synthetic-continuity.txt').write_text('Synthetic fixture decision: this single-subject candidate represents C01 and may recur. Not user consent.\n')
+        (self.root/'synthetic-continuity.txt').write_text('Synthetic fixture decision: this single-subject candidate represents C01 and may recur. Not user consent.\n', encoding='utf-8')
         approval['continuity_decision']={'character_id':'C01','continuity':'recurring',
             'basis':file_ref(self.root,'synthetic-continuity.txt',locator='whole'),
             'by':fixture.ACTOR,'at':'2000-01-01T00:00:00Z'}
@@ -469,14 +469,14 @@ class PackageIntegrationTests(unittest.TestCase):
         self.assertEqual(w.verify_completion(self.root,self.run,self.spec['task_id'])['event'],'completion')
     def test_owner_change_after_completion_is_not_current(self):
         row,_=self.prepare_adopted_selection();w.select(self.root,self.run,'selection.json');w.complete(self.root,self.run)
-        (self.root/'characters/C01/adoptions'/f"{row['iteration_id']}.json").write_text('{}')
+        (self.root/'characters/C01/adoptions'/f"{row['iteration_id']}.json").write_text('{}', encoding='utf-8')
         with self.assertRaises(ValueError):w.verify_completion(self.root,self.run,self.spec['task_id'])
     def test_real_studio_adoption_matches_selected_bytes(self):
         self.prepare_adopted_selection(); w.select(self.root,self.run,'selection.json')
         self.assertEqual(w.complete(self.root,self.run)['data']['scope'],'studio-adoption')
     def test_adoption_edit_invalidates_completion(self):
         row,_=self.prepare_adopted_selection(); w.select(self.root,self.run,'selection.json')
-        (self.root/'characters/C01/adoptions'/f"{row['iteration_id']}.json").write_text('{}')
+        (self.root/'characters/C01/adoptions'/f"{row['iteration_id']}.json").write_text('{}', encoding='utf-8')
         with self.assertRaises(ValueError): w.complete(self.root,self.run)
     def test_adoption_wrong_scope_not_selected(self):
         row,d=self.prepare_adopted_selection(); d['adoption']['scope']='another scope'
@@ -490,7 +490,7 @@ class PackageIntegrationTests(unittest.TestCase):
     def test_bound_dispatch_cannot_omit_context(self):
         with self.assertRaises(ValueError): binding.validate_live(None,None,self.package)
     def test_live_input_drift(self):
-        (self.root/'delivery.txt').write_text('changed')
+        (self.root/'delivery.txt').write_text('changed', encoding='utf-8')
         with self.assertRaises(ValueError): binding.validate_live(self.root,self.run,self.package)
     def test_claim_prevents_duplicate_send(self):
         fixture.handoff(self.root,self.run,'test transport','dispatcher'); journal=self.root/'runs'/'fixture'; journal.mkdir()
@@ -533,7 +533,7 @@ class PackageIntegrationTests(unittest.TestCase):
         first=w.recover_recording(self.root,self.run); second=w.recover_recording(self.root,self.run)
         self.assertEqual(first,second); self.assertEqual(first['network_calls'],0)
         original=(self.root/'delivery.txt').read_bytes()
-        (self.root/'delivery.txt').write_text('Changed input after the recorded request completed.\n')
+        (self.root/'delivery.txt').write_text('Changed input after the recorded request completed.\n', encoding='utf-8')
         with patch.object(dispatch,'api_key',side_effect=AssertionError('recording recovery must remain offline')):
             self.assertEqual(w.recover_recording(self.root,self.run),first)
         (self.root/'delivery.txt').write_bytes(original)
@@ -542,4 +542,7 @@ class PackageIntegrationTests(unittest.TestCase):
         w.capture(self.root,self.run,paths[0]['path'],'Actual fixture output')
 
 
-if __name__=='__main__': unittest.main(verbosity=2)
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main(verbosity=2)

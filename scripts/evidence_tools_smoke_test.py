@@ -82,7 +82,7 @@ class EvidenceToolsTests(unittest.TestCase):
 
     def test_every_candidate_is_visible(self):
         run, _ = self.captured()
-        (self.root / 'extra.txt').write_text('Different synthetic candidate.')
+        (self.root / 'extra.txt').write_text('Different synthetic candidate.', encoding='utf-8')
         w.capture(self.root, run, 'extra.txt', 'Synthetic candidate, not a model result.')
         data, _ = ar.build(self.root, run)
         self.assertEqual(len(data['candidates']), 2)
@@ -91,7 +91,7 @@ class EvidenceToolsTests(unittest.TestCase):
         run, _ = self.captured()
         data, original = ar.build(self.root, run)
         f = data['candidates'][0]['files'][0]
-        (self.root / f['path']).write_text('CHANGED AFTER CAPTURE')
+        (self.root / f['path']).write_text('CHANGED AFTER CAPTURE', encoding='utf-8')
         changed, files = ar.build(self.root, run)
         self.assertFalse(changed['current'])
         self.assertEqual(files[f['download']], original[f['download']])
@@ -100,7 +100,7 @@ class EvidenceToolsTests(unittest.TestCase):
     def test_source_change_is_separate_from_saved_evidence(self):
         run, _ = self.captured()
         task = w.load_run(self.root, run)[1]['task']
-        (self.root / task['sources'][0]['path']).write_text('Changed source')
+        (self.root / task['sources'][0]['path']).write_text('Changed source', encoding='utf-8')
         self.assertFalse(ar.build(self.root, run)[0]['current'])
 
     def test_html_is_escaped(self):
@@ -121,7 +121,7 @@ class EvidenceToolsTests(unittest.TestCase):
         result = ar.export(self.root, run, 'reviews/actual')
         self.assertTrue(Path(result['html']).is_file())
         self.assertEqual(before, w.load_run(self.root, run)[3])
-        inventory = json.loads((Path(result['output']) / 'files.json').read_text())
+        inventory = json.loads((Path(result['output']) / 'files.json').read_text(encoding='utf-8'))
         for name, entry in inventory.items():
             self.assertEqual(c.digest((Path(result['output']) / name).read_bytes()), entry['sha256'])
 
@@ -181,7 +181,7 @@ class EvidenceToolsTests(unittest.TestCase):
 
     def test_other_candidate_from_same_run_not_independent(self):
         run, candidate = self.captured()
-        (self.root / 'other.txt').write_text('Another synthetic candidate.')
+        (self.root / 'other.txt').write_text('Another synthetic candidate.', encoding='utf-8')
         other = w.capture(self.root, run, 'other.txt', 'Synthetic second candidate.')
         spec = self.study(run, candidate['sha256'])
         spec['trials'].append({**spec['trials'][0], 'id': 'trial-2', 'candidate': other['sha256']})
@@ -204,7 +204,7 @@ class EvidenceToolsTests(unittest.TestCase):
     def test_changed_case_inputs_not_treated_as_same_task(self):
         run, candidate = self.captured()
         spec = self.study(run, candidate['sha256'])
-        (self.root / spec['cases'][0]['inputs'][0]).write_text('Different case')
+        (self.root / spec['cases'][0]['inputs'][0]).write_text('Different case', encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'case input bytes'):
             ev.build(self.root, self.save_study(spec))
 
@@ -216,7 +216,7 @@ class EvidenceToolsTests(unittest.TestCase):
             ev.build(self.root, self.save_study(spec))
 
     def test_nonfinite_and_boolean_metrics_refused(self):
-        (self.root / 'meter.log').write_text('Synthetic meter evidence.')
+        (self.root / 'meter.log').write_text('Synthetic meter evidence.', encoding='utf-8')
         for value in [True, -1, 'unknown']:
             (self.root / 'measure.json').write_bytes(c.encoded({'values': {'elapsed_seconds': value, 'total_tokens': None, 'tool_calls': None},
                 'basis': 'Synthetic input validation.', 'evidence_path': 'meter.log'}))
@@ -231,9 +231,9 @@ class EvidenceToolsTests(unittest.TestCase):
         spec = self.study(run, candidate['sha256'])
         result = ev.export(self.root, self.save_study(spec), 'evaluations/blind', blind=True)
         folder = Path(result['output'])
-        self.assertNotIn('condition-secret-alpha', (folder / 'index.html').read_text())
+        self.assertNotIn('condition-secret-alpha', (folder / 'index.html').read_text(encoding='utf-8'))
         self.assertFalse(Path(result['operator_key']).is_relative_to(folder))
-        self.assertIn('condition-secret-alpha', Path(result['operator_key']).read_text())
+        self.assertIn('condition-secret-alpha', Path(result['operator_key']).read_text(encoding='utf-8'))
         self.assertFalse((folder / 'evidence.json').exists())
 
     def test_evaluation_export_does_not_invoke_or_mutate_production(self):
@@ -245,6 +245,8 @@ class EvidenceToolsTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     import io
     import json
     buffer = io.StringIO()

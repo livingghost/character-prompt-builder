@@ -40,6 +40,7 @@
         "label",
         "observed_at",
         "source",
+        "transport",
         "endpoint",
         "auth",
         "envelope",
@@ -62,6 +63,11 @@
         "source": {
           "$ref": "#/$defs/text"
         },
+        "transport": {
+          "description": "The transport module that sends to this service: the value runware names scripts/transport_runware.py.",
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$"
+        },
         "endpoint": {
           "type": "object",
           "additionalProperties": false,
@@ -71,8 +77,9 @@
           ],
           "properties": {
             "base_url": {
+              "description": "An https address, or an http address on a loopback host for a local test service.",
               "type": "string",
-              "pattern": "^https://"
+              "pattern": "^(https://|http://(localhost|127\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}|\\[::1\\])(:[0-9]+)?(/|$))"
             },
             "method": {
               "type": "string",

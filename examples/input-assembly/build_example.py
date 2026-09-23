@@ -11,12 +11,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import execution_contract as c
+from io_budget import environment_seconds
 import reading_fixtures
 
 
 def command(root, name, *args, expected=0):
     result = subprocess.run([sys.executable, str(ROOT / 'scripts/production_workflow.py'), name,
-        '--root', str(root), '--task', 'task.json', *args], capture_output=True, text=True, timeout=30)
+        '--root', str(root), '--task', 'task.json', *args], capture_output=True, text=True, encoding='utf-8', timeout=environment_seconds('EXAMPLE_COMMAND_TIMEOUT_SECONDS'))
     if result.returncode != expected:
         raise ValueError(result.stdout + result.stderr)
     return json.loads(result.stdout)
@@ -36,7 +37,7 @@ def build():
                         'intended_effect': 'Inspect local files.', 'basis': [], 'decisions': [], 'action_slice': None,
                         'limitations': ['Synthetic exercise, not approval or service evidence.']})
         (root / 'task.json').write_bytes(c.encoded(task))
-        (root / 'delivery.txt').write_text('Synthetic input assembly exercise.\n')
+        (root / 'delivery.txt').write_text('Synthetic input assembly exercise.\n', encoding='utf-8')
         original = (root / 'task.json').read_bytes()
         # Fixed quotations belong only to this synthetic exercise.
         # A real operator reads the source and supplies its applications.
@@ -83,4 +84,6 @@ def main():
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

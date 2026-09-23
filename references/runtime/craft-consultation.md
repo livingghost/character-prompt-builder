@@ -1,4 +1,4 @@
-# Consult and apply reusable craft
+# Craft consultation
 
 Use the `craft-consultation` route feature to include these rules in the selected route reading.
 
@@ -49,7 +49,7 @@ A changed catalog requires a current consultation; the earlier evidence remains 
 
 The workflow writes `consultation.json` and an unanswered `decisions.json` into a new project directory.
 Returned actions name the report, decision file, runtime, and remaining arguments.
-The public [consultation example](../../examples/preset-consultation/README.md) runs these commands and shows their actual output summary.
+The public [consultation example](../../examples/craft-consultation/README.md) runs these commands and shows their actual output summary.
 
 ## Apply the chosen relationships
 
@@ -104,6 +104,6 @@ Evaluate useful application and avoided repetition, rather than search counts, a
 
 ## Verification
 
-`scripts/preset_consultation_smoke_test.py` exercises scope, full records, dependency inspection, source binding, nonuse, publication failures, and review transfer.
+`scripts/craft_consultation_smoke_test.py` exercises scope, full records, dependency inspection, source binding, nonuse, publication failures, and review transfer.
 The public example executes the actual CLI with synthetic local inputs.
 These checks measure the operation; candidate quality and author acceptance require their own evidence.

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Verify declared Character Prompt Builder dependency profiles."""
+"""Check a Character Prompt Builder dependency profile and print the commands that install it.
+
+The check describes the Python running it, or the virtual environment that --venv names.
+--install runs the printed commands once the user confirms them, then checks again with
+the Python that received the packages.
+"""
 from __future__ import annotations
 
 import argparse
@@ -30,7 +35,7 @@ REQUIREMENT_RE = re.compile(
     r"^([A-Za-z0-9_.-]+)(?:(==|>=)([0-9]+(?:\.[0-9]+)*)(?:,<([0-9]+(?:\.[0-9]+)*))?)$"
 )
 IMPORT_NAMES = {
-    "CairoSVG": "cairosvg",
+    "resvg-py": "resvg_py",
     "numpy": "numpy",
     "Pillow": "PIL",
     "rasterio": "rasterio",
@@ -50,13 +55,27 @@ PROFILE_EXPECTED = {
     "tested": frozenset(IMPORT_NAMES),
 }
 
+PROFILE_ARGUMENTS = {
+    "core": ("--profile", "core"),
+    "visual": ("--profile", "visual"),
+    "full": ("--profile", "full"),
+    "tested": ("--tested",),
+}
 PROFILE_CHECK_COMMANDS = {
-    "core": "python scripts/check_dependencies.py --profile core",
-    "visual": "python scripts/check_dependencies.py --profile visual",
-    "full": "python scripts/check_dependencies.py --profile full",
-    "tested": "python scripts/check_dependencies.py --tested",
+    profile: " ".join(("python", "scripts/check_dependencies.py", *arguments))
+    for profile, arguments in PROFILE_ARGUMENTS.items()
 }
 INSTALLABLE_PROFILES = frozenset({"visual", "full", "tested"})
+# Each profile that reports ffprobe, and whether it requires it.
+FFPROBE_REQUIRED = {"visual": False, "full": False, "tested": True}
+FFPROBE_ENABLES = "measured audio and video streams in temporal production evidence"
+REPORT_FIELDS = ("ok", "python", "profile", "definition", "dependencies", "errors")
+HAS_PIP = "import importlib.util, sys; sys.exit(importlib.util.find_spec('pip') is None)"
+
+
+def shown(command: Sequence[str]) -> str:
+    """One command as this platform's shell reads it."""
+    return subprocess.list2cmdline(list(command)) if os.name == "nt" else shlex.join(command)
 
 
 def externally_managed() -> bool:
@@ -66,26 +85,139 @@ def externally_managed() -> bool:
     return (Path(sysconfig.get_path("stdlib")) / "EXTERNALLY-MANAGED").is_file()
 
 
-def install_command(profile: str) -> tuple[str | None, str | None]:
-    """The command that installs a profile into the Python running this check, or the reason there is none.
+def environment_python(venv: Path) -> Path:
+    """The interpreter inside the virtual environment at venv."""
+    return venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
-    pip installs where this Python has it. A virtual environment that uv creates has no pip,
-    so uv installs into it.
+
+def is_environment(venv: Path) -> bool:
+    return (venv / "pyvenv.cfg").is_file()
+
+
+def runs_pip(python: str) -> bool:
+    """Whether the interpreter at python can import pip."""
+    try:
+        return subprocess.run([python, "-c", HAS_PIP], capture_output=True, check=False).returncode == 0
+    except OSError:
+        return False
+
+
+def install_plan(profile: str, venv: Path | None = None) -> tuple[list[list[str]], str | None]:
+    """The commands that install a profile, in order, or the reason there are none.
+
+    The target is the Python running this check, or the virtual environment at venv, which
+    the first command creates when it is absent. pip installs where the target has it, and uv
+    installs into an environment without pip.
     """
     if profile not in INSTALLABLE_PROFILES:
-        return None, None
-    if externally_managed():
-        return None, ("the system manages this Python's packages (PEP 668); create a virtual environment "
-                      "with python -m venv DIR or uv venv DIR, then run this check with that environment's Python")
-    requirements = str(PROFILE_PATHS[profile])
-    if importlib.util.find_spec("pip") is not None:
-        command = [sys.executable, "-m", "pip", "install", "-r", requirements]
-    elif shutil.which("uv") is not None:
-        command = ["uv", "pip", "install", "--python", sys.executable, "-r", requirements]
+        return [], None
+    create: list[list[str]] = []
+    if venv is None:
+        if externally_managed():
+            return [], ("the system manages this Python's packages (PEP 668); pass --venv DIR to create "
+                        "a virtual environment at DIR and install into it")
+        python = sys.executable
+        has_pip = importlib.util.find_spec("pip") is not None
     else:
-        return None, ("this Python has no pip and uv is not on the executable search path; "
-                      "install pip for it, or use a virtual environment")
-    return (subprocess.list2cmdline(command) if os.name == "nt" else shlex.join(command)), None
+        python = str(environment_python(venv))
+        if is_environment(venv):
+            has_pip = runs_pip(python)
+        elif venv.exists() and (not venv.is_dir() or any(venv.iterdir())):
+            return [], f"{venv} holds no virtual environment and is not an empty directory"
+        elif importlib.util.find_spec("venv") is not None and importlib.util.find_spec("ensurepip") is not None:
+            create = [[sys.executable, "-m", "venv", str(venv)]]
+            has_pip = True
+        elif shutil.which("uv") is not None:
+            create = [["uv", "venv", "--python", sys.executable, str(venv)]]
+            has_pip = False
+        else:
+            return [], ("this Python cannot create a virtual environment with pip, and uv is not on the "
+                        "executable search path; install uv, or run this check with another Python")
+    requirements = str(PROFILE_PATHS[profile])
+    if has_pip:
+        install = [python, "-m", "pip", "install", "-r", requirements]
+    elif shutil.which("uv") is not None:
+        install = ["uv", "pip", "install", "--python", python, "-r", requirements]
+    else:
+        return [], (f"{python} has no pip and uv is not on the executable search path; install pip or uv"
+                    + (", or pass --venv DIR" if venv is None else ""))
+    return [*create, install], None
+
+
+def install_command(profile: str, venv: Path | None = None) -> tuple[str | None, str | None]:
+    """The command that installs a profile's packages, or the reason there is none."""
+    commands, note = install_plan(profile, venv)
+    return (shown(commands[-1]) if commands else None), note
+
+
+def ffmpeg_install_command(platform: str | None = None) -> tuple[list[str] | None, str | None]:
+    """The first package manager on the executable search path that installs FFmpeg, or why there is none.
+
+    A Linux package manager runs through sudo unless the check already runs as root.
+    """
+    platform = platform or sys.platform
+    if platform == "win32":
+        candidates = [["winget", "install", "--exact", "--id", "Gyan.FFmpeg"], ["choco", "install", "ffmpeg", "-y"]]
+    elif platform == "darwin":
+        candidates = [["brew", "install", "ffmpeg"]]
+    else:
+        candidates = [
+            ["apt-get", "install", "-y", "ffmpeg"],
+            ["dnf", "install", "-y", "ffmpeg-free"],
+            ["pacman", "-S", "--noconfirm", "ffmpeg"],
+            ["apk", "add", "ffmpeg"],
+        ]
+    for command in candidates:
+        if shutil.which(command[0]) is None:
+            continue
+        if platform not in {"win32", "darwin"} and getattr(os, "geteuid", lambda: 0)() != 0 and shutil.which("sudo"):
+            return ["sudo", *command], None
+        return command, None
+    return None, "no known package manager is on the executable search path; install FFmpeg so ffprobe is on it"
+
+
+def ffprobe_report(required: bool) -> dict[str, Any]:
+    """Whether ffprobe from FFmpeg runs here, and the command that installs it when it does not."""
+    path = shutil.which("ffprobe")
+    version = None
+    if path is not None:
+        try:
+            completed = subprocess.run(
+                [path, "-version"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=False
+            )
+            if completed.returncode == 0:
+                version = next(iter(completed.stdout.splitlines()), "").strip() or None
+        except OSError:
+            pass
+    report: dict[str, Any] = {
+        "required": required,
+        "enables": FFPROBE_ENABLES,
+        "path": path,
+        "runs": version is not None,
+        "version": version,
+    }
+    if version is None:
+        command, note = ffmpeg_install_command()
+        report["install_command"] = shown(command) if command else None
+        if note:
+            report["install_note"] = note
+    return report
+
+
+def with_ffprobe(report: dict[str, Any], profile: str) -> dict[str, Any]:
+    """Add the ffprobe report for a profile; a profile that requires ffprobe fails where it does not run."""
+    ffprobe = ffprobe_report(FFPROBE_REQUIRED[profile])
+    if not ffprobe["required"] or ffprobe["runs"]:
+        return {**report, "ffprobe": ffprobe}
+    return {
+        **report,
+        "ok": False,
+        "errors": [
+            *(report.get("errors") or []),
+            f"ffprobe from FFmpeg does not run; the {profile} profile needs it for {FFPROBE_ENABLES}",
+        ],
+        "ffprobe": ffprobe,
+    }
 
 
 def version_tuple(value: str) -> tuple[int, ...]:
@@ -96,10 +228,15 @@ def version_tuple(value: str) -> tuple[int, ...]:
 
 
 def load_requirements(path: Path, *, allow_empty: bool = False) -> list[dict[str, str | None]]:
+    """Read a requirement file, following each `-r FILE` line to the file it names."""
     rows: list[dict[str, str | None]] = []
     for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         line = raw.strip()
         if not line or line.startswith("#"):
+            continue
+        included = re.fullmatch(r"-r\s+(\S+)", line)
+        if included:
+            rows.extend(load_requirements(path.parent / included.group(1), allow_empty=True))
             continue
         match = REQUIREMENT_RE.fullmatch(line)
         if not match:
@@ -127,26 +264,16 @@ def satisfies(installed: str, row: dict[str, str | None]) -> bool:
     return upper_raw is None or current < version_tuple(str(upper_raw))
 
 
-def normalized_expression(row: dict[str, str | None]) -> str:
-    name = str(row["distribution"])
+def constraint(row: dict[str, str | None]) -> str:
     if row["operator"] == "==":
-        return f"{name}=={row['lower']}"
-    value = f"{name}>={row['lower']}"
-    if row.get("upper"):
-        value += f",<{row['upper']}"
-    return value
+        return f"=={row['lower']}"
+    return f">={row['lower']}" + (f",<{row['upper']}" if row.get("upper") else "")
 
 
-def _pyproject_lists() -> tuple[list[str], dict[str, list[str]]]:
+def _pyproject_dependencies() -> list[str]:
     with PYPROJECT.open("rb") as stream:
         data = tomllib.load(stream)
-    project = data.get("project") or {}
-    base = [str(value) for value in project.get("dependencies") or []]
-    optional = {
-        str(name): [str(value) for value in values or []]
-        for name, values in (project.get("optional-dependencies") or {}).items()
-    }
-    return base, optional
+    return [str(value) for value in (data.get("project") or {}).get("dependencies") or []]
 
 
 def _definition_for(path: Path) -> str:
@@ -173,16 +300,17 @@ def functional_checks(modules: dict[str, Any]) -> list[str]:
         errors.append(f"Pillow and NumPy functional check failed: {exc}")
 
     try:
-        rendered = modules["CairoSVG"].svg2png(
-            bytestring=(
-                b'<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2">'
-                b'<path d="M0 0H2V2H0Z" fill="#000"/></svg>'
-            )
+        rendered = modules["resvg-py"].svg_to_bytes(
+            svg_string=(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2">'
+                '<path d="M0 0H2V2H0Z" fill="#000"/></svg>'
+            ),
+            skip_system_fonts=True,
         )
         if not rendered.startswith(b"\x89PNG"):
-            errors.append("CairoSVG smoke check returned invalid PNG data")
+            errors.append("resvg-py smoke check returned invalid PNG data")
     except Exception as exc:
-        errors.append(f"CairoSVG functional check failed: {exc}")
+        errors.append(f"resvg-py functional check failed: {exc}")
 
     try:
         np = modules["numpy"]
@@ -243,18 +371,19 @@ def check(requirements_path: Path = CORE) -> dict[str, Any]:
         )
 
     try:
-        base, optional = _pyproject_lists()
-        if base:
+        if _pyproject_dependencies():
             errors.append("pyproject.toml project.dependencies must be empty for the Core profile")
-        visual_rows = load_requirements(VISUAL)
-        visual_expected = sorted((normalized_expression(row) for row in visual_rows), key=str.casefold)
-        if sorted(optional.get("visual", []), key=str.casefold) != visual_expected:
-            errors.append("pyproject.toml optional-dependencies.visual must match requirements-visual.txt")
-        if sorted(optional.get("all", []), key=str.casefold) != visual_expected:
-            errors.append("pyproject.toml optional-dependencies.all must match requirements-visual.txt")
-        full_rows = load_requirements(SUPPORTED)
-        if sorted((normalized_expression(row) for row in full_rows), key=str.casefold) != visual_expected:
-            errors.append("requirements.txt must match requirements-visual.txt")
+        if profile == "tested":
+            ranges = {str(row["distribution"]).casefold(): row for row in load_requirements(VISUAL)}
+            for row in requirements:
+                supported = ranges.get(str(row["distribution"]).casefold())
+                if row["operator"] != "==":
+                    errors.append(f"{requirements_path.name} must pin {row['distribution']} to one version with ==")
+                elif supported is not None and not satisfies(str(row["lower"]), supported):
+                    errors.append(
+                        f"{row['distribution']}=={row['lower']} is outside the range {VISUAL.name} declares, "
+                        f"{constraint(supported)}"
+                    )
     except Exception as exc:
         errors.append(f"cannot validate dependency definitions: {exc}")
 
@@ -263,10 +392,7 @@ def check(requirements_path: Path = CORE) -> dict[str, Any]:
         import_name = IMPORT_NAMES.get(distribution)
         result: dict[str, Any] = {
             "distribution": distribution,
-            "constraint": (
-                f"=={row['lower']}" if row["operator"] == "=="
-                else f">={row['lower']}" + (f",<{row['upper']}" if row.get("upper") else "")
-            ),
+            "constraint": constraint(row),
             "installed": None,
             "import_name": import_name,
             "import_ok": False,
@@ -301,12 +427,64 @@ def check(requirements_path: Path = CORE) -> dict[str, Any]:
     }
 
 
-def check_profile(profile: str) -> dict[str, Any]:
-    """Return an actionable dependency report for one declared profile."""
+def _failed_report(profile: str, error: str) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "python": None,
+        "profile": profile,
+        "definition": PROFILE_PATHS[profile].name,
+        "dependencies": [],
+        "errors": [error],
+    }
+
+
+def check_in(python: str, profile: str) -> dict[str, Any]:
+    """Run this check in a new process of the interpreter at python and return its report."""
+    command = [python, str(Path(__file__).resolve()), *PROFILE_ARGUMENTS[profile]]
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False)
+    except OSError as exc:
+        return _failed_report(profile, f"{shown(command)} could not start: {exc}")
+    try:
+        report = json.loads(completed.stdout)
+        result = {field: report[field] for field in REPORT_FIELDS}
+        if "ffprobe" in report:
+            result["ffprobe"] = report["ffprobe"]
+        return result
+    except (ValueError, KeyError, TypeError):
+        detail = completed.stderr.strip().splitlines()
+        return _failed_report(
+            profile,
+            f"{shown(command)} exited with status {completed.returncode} and printed no report"
+            + (f": {detail[-1]}" if detail else ""),
+        )
+
+
+def check_profile(
+    profile: str,
+    venv: Path | None = None,
+    *,
+    fresh: bool = False,
+    plan: tuple[list[list[str]], str | None] | None = None,
+) -> dict[str, Any]:
+    """Return an actionable dependency report for one declared profile.
+
+    The report describes the Python running this check, or the one in the virtual
+    environment at venv. fresh checks the running Python in a new process, which sees
+    packages installed after this process imported its modules.
+    """
 
     if profile not in PROFILE_PATHS:
         raise ValueError(f"unknown dependency profile: {profile!r}")
-    report = check(PROFILE_PATHS[profile])
+    python = sys.executable if venv is None else str(environment_python(venv))
+    if venv is None and not fresh:
+        report = check(PROFILE_PATHS[profile])
+    elif venv is not None and not is_environment(venv):
+        report = _failed_report(profile, f"{venv} holds no virtual environment")
+    else:
+        report = check_in(python, profile)
+    if "ffprobe" not in report and profile in FFPROBE_REQUIRED:
+        report = with_ffprobe(report, profile)
     dependencies = report.get("dependencies") or []
     missing = sorted(
         str(row.get("distribution"))
@@ -320,15 +498,74 @@ def check_profile(profile: str) -> dict[str, Any]:
         and row.get("installed") is not None
         and row.get("constraint_ok") is not True
     )
-    command, note = install_command(profile)
+    commands, note = install_plan(profile, venv) if plan is None else plan
     return {
         **report,
-        "check_command": PROFILE_CHECK_COMMANDS[profile],
-        "install_command": command,
+        "executable": python,
+        "check_command": PROFILE_CHECK_COMMANDS[profile] + ("" if venv is None else f" --venv {shown([str(venv)])}"),
+        **({"venv_command": shown(commands[0])} if len(commands) > 1 else {}),
+        "install_command": shown(commands[-1]) if commands else None,
         **({"install_note": note} if note else {}),
         "missing_packages": missing,
         "incompatible_packages": incompatible,
     }
+
+
+def pending_commands(report: dict[str, Any], plan: tuple[list[list[str]], str | None]) -> list[list[str]]:
+    """The commands --install runs for a report.
+
+    The package commands run when a package is missing, out of range or fails to import.
+    The FFmpeg command runs when the profile requires ffprobe and it does not run.
+    """
+    rows = report.get("dependencies") or []
+    commands: list[list[str]] = []
+    if not rows or any(row.get("import_ok") is not True or row.get("constraint_ok") is not True for row in rows):
+        commands.extend(plan[0])
+    ffprobe = report.get("ffprobe")
+    if ffprobe and ffprobe["required"] and not ffprobe["runs"]:
+        command, _note = ffmpeg_install_command()
+        if command:
+            commands.append(command)
+    return commands
+
+
+def confirmation(commands: Sequence[Sequence[str]], *, yes: bool) -> str | None:
+    """Return None once the user has confirmed the commands, or why --install runs nothing.
+
+    --yes records a confirmation the user gave elsewhere. Without it, a terminal asks.
+    """
+    no_terminal = ("--install ran nothing: there is no terminal to confirm at; "
+                   "pass --yes once the user has confirmed the printed commands")
+    if yes:
+        return None
+    if sys.stdin is None or not sys.stdin.isatty():
+        return no_terminal
+    sys.stderr.write("".join(f"  {shown(command)}\n" for command in commands) + "Run these commands? [y/N] ")
+    sys.stderr.flush()
+    answer = sys.stdin.readline()
+    if not answer:
+        return no_terminal
+    if answer.strip().casefold() in {"y", "yes"}:
+        return None
+    return "--install ran nothing: the user did not confirm the commands"
+
+
+def run_commands(commands: Sequence[Sequence[str]]) -> tuple[list[str], str | None]:
+    """Run the commands in order with their output on standard error, stopping at the first failure.
+
+    Return the commands that ran and the failure, if any.
+    """
+    ran: list[str] = []
+    for command in commands:
+        ran.append(shown(command))
+        sys.stderr.flush()
+        try:
+            status = subprocess.run(list(command), stdout=sys.stderr, check=False).returncode
+        except OSError as exc:
+            return ran, f"{shown(command)} could not start: {exc}"
+        if status:
+            return ran, f"{shown(command)} exited with status {status}"
+    return ran, None
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -344,12 +581,45 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="verify the exact full release-validation pins",
     )
+    parser.add_argument(
+        "--venv",
+        metavar="DIR",
+        help="check the virtual environment at DIR; the printed commands create it when absent and install into it",
+    )
+    parser.add_argument(
+        "--install",
+        action="store_true",
+        help="run the printed commands once the user confirms them, then check again",
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="the user has already confirmed the printed commands; --install then runs without asking",
+    )
     args = parser.parse_args(argv)
     profile = "tested" if args.tested else args.profile
-    report = check_profile(profile)
+    if args.yes and not args.install:
+        parser.error("--yes confirms --install; pass both")
+    if (args.install or args.venv) and profile not in INSTALLABLE_PROFILES:
+        parser.error("the core profile installs nothing")
+    venv = Path(os.path.abspath(args.venv)) if args.venv else None
+    plan = install_plan(profile, venv)
+    report = check_profile(profile, venv, plan=plan)
+    commands = pending_commands(report, plan) if args.install else []
+    refusal = confirmation(commands, yes=args.yes) if commands else None
+    if refusal:
+        report["errors"].append(refusal)
+    elif commands:
+        ran, failure = run_commands(commands)
+        report = {**check_profile(profile, venv, fresh=True), "install_ran": ran}
+        if failure:
+            report["ok"] = False
+            report["errors"].append(failure)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["ok"] else 1
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

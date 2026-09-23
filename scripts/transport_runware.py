@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Runware transport, written against the transport contract in the dispatch.py docstring.
+"""Runware transport, written against scripts/transport_contract.py.
 
 Runware takes a JSON array of tasks at https://api.runware.ai with the key as a
 bearer token, and refuses per task inside a successful answer. Each task names
@@ -16,14 +16,12 @@ from __future__ import annotations
 
 import base64
 import json
-import urllib.error
-import urllib.request
 import uuid
 from typing import Any
 from urllib.parse import urlparse
 
-from io_budget import environment_seconds
 from model_contract import NEGATIVE_ROLE, PROMPT_ROLE, generation_media_counts, required_request_key
+from transport_contract import post
 
 SERVICE = "runware"
 API_HOST = "api.runware.ai"
@@ -42,13 +40,6 @@ def endpoint(service: dict[str, Any]) -> str:
     return url
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    """A redirect would carry the credential to a place the record did not name."""
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise urllib.error.HTTPError(req.full_url, code, f"redirect to {newurl} refused", headers, fp)
-
-
 def _answer(status: int, body: bytes) -> dict[str, Any]:
     """The parsed answer, or an error answer that keeps a body that is not a JSON object."""
     try:
@@ -61,18 +52,8 @@ def _answer(status: int, body: bytes) -> dict[str, Any]:
 
 
 def _post(payload: list[dict[str, Any]], service: dict[str, Any], key: str) -> dict[str, Any]:
-    request = urllib.request.Request(
-        endpoint(service),
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
-        method="POST",
-    )
-    opener = urllib.request.build_opener(_NoRedirect)
-    try:
-        with opener.open(request, timeout=environment_seconds("PRODUCTION_HTTP_TIMEOUT_SECONDS")) as response:
-            return _answer(response.status, response.read())
-    except urllib.error.HTTPError as error:
-        return _answer(error.code, error.read() if error.fp is not None else b"")
+    return _answer(*post(endpoint(service), json.dumps(payload).encode("utf-8"),
+                         {"Content-Type": "application/json", "Authorization": f"Bearer {key}"}))
 
 
 def _media_paths(verified: dict[str, Any]) -> list[str]:

@@ -65,4 +65,7 @@ def main() -> int:
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--out',required=True,type=Path);args=parser.parse_args()
     try:print(json.dumps(run(args.out.absolute()),indent=2));return 0
     except (ValueError,OSError) as exc:print(json.dumps({'ok':False,'error':str(exc)}));return 1
-if __name__=='__main__':raise SystemExit(main())
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

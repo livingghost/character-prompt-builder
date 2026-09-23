@@ -158,4 +158,7 @@ class ImageEditTests(unittest.TestCase):
         with self.assertRaises(ValueError):edit.execute(self.root,self.run,'edit.json',grant)
 
 
-if __name__=='__main__':unittest.main(verbosity=2)
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main(verbosity=2)

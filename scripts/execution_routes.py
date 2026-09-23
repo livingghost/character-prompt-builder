@@ -100,4 +100,7 @@ def main() -> int:
         print(json.dumps(result,indent=2)); return 0 if result.get('ok',True) else 1
     except (ValueError,OSError) as exc:
         print(json.dumps({'ok':False,'error':str(exc)})); return 1
-if __name__=='__main__': raise SystemExit(main())
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

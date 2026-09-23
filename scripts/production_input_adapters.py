@@ -89,7 +89,6 @@ def build_validation(choices: dict | None, task: dict, reader, root: Path) -> tu
     target = request_contract.target(choices['target'])
     from prepare_generation_references import resolve_model_record
     from model_contract import select_offering
-    from dispatch import load_transport
     model_id, model = resolve_model_record(choices['model'])
     if model_id != choices['model']:
         raise ValueError('select the canonical model ID displayed by the runtime catalog')
@@ -98,10 +97,8 @@ def build_validation(choices: dict | None, task: dict, reader, root: Path) -> tu
         if target['model_identifier'] != model_id:
             raise ValueError('host target differs from the selected canonical model')
         import request_renderer as transport
-    else:
-        if offering['model_identifier'] != target['model_identifier']:
-            raise ValueError('model identifier differs from the selected offering')
-        transport = load_transport(target['service'])
+    elif offering['model_identifier'] != target['model_identifier']:
+        raise ValueError('model identifier differs from the selected offering')
     if choices['service_profiles'] is None:
         from catalog_retrieval.runtime import load_pack_catalog
         catalog = load_pack_catalog()
@@ -121,6 +118,9 @@ def build_validation(choices: dict | None, task: dict, reader, root: Path) -> tu
     service = services[target['service']]
     if target['operation'] not in service.get('operations', {}):
         raise ValueError('the selected service does not declare this operation')
+    if offering is not None:
+        import transport_contract
+        transport = transport_contract.load(service.get('transport'))
     selected = {key: choices[key] for key in ('mode', 'contract', 'evidence', 'execution_policy')}
     policy_ref = reader.select(choices['execution_policy']) if choices['execution_policy'] is not None else None
     policy, local = load_policy({'execution_policy': policy_ref}, reader, target, dialect=model.get('prompt_dialect'))

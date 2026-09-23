@@ -52,6 +52,7 @@ MEDIA_TYPE_RE = re.compile(r"^[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*$")
 DIRECT_MEDIA_TYPES = frozenset({"image/png", "image/jpeg", "image/webp"})
 SVG_MEDIA_TYPE = "image/svg+xml"
 PNG_MEDIA_TYPE = "image/png"
+SVG_RENDERER = "resvg-py"
 
 PACK_SOURCE_FIELDS = frozenset(
     {
@@ -600,22 +601,22 @@ def _validate_transport(
             raise ValueError(f"{field} svg-rasterization transport must be image/png")
         if _require_string(
             derivation.get("renderer_id"), f"{field}.derivation.renderer_id", IDENTIFIER_RE
-        ) != "cairosvg":
-            raise ValueError(f"{field}.derivation.renderer_id must be cairosvg")
+        ) != SVG_RENDERER:
+            raise ValueError(f"{field}.derivation.renderer_id must be {SVG_RENDERER}")
         renderer_release = _require_string(
             derivation.get("renderer_release"), f"{field}.derivation.renderer_release"
         )
         if context.active:
             try:
-                installed_renderer_release = importlib.metadata.version("CairoSVG")
+                installed_renderer_release = importlib.metadata.version(SVG_RENDERER)
             except importlib.metadata.PackageNotFoundError as exc:
                 raise RuntimeError(
-                    "CairoSVG is required to verify SVG-derived references; "
+                    f"{SVG_RENDERER} is required to verify SVG-derived references; "
                     "install requirements-visual.txt"
                 ) from exc
             if renderer_release != installed_renderer_release:
                 raise ValueError(
-                    f"{field}.derivation.renderer_release differs from the installed CairoSVG release"
+                    f"{field}.derivation.renderer_release differs from the installed {SVG_RENDERER} release"
                 )
         if _require_sha256(
             derivation.get("source_sha256"), f"{field}.derivation.source_sha256"
@@ -658,11 +659,11 @@ def _validate_transport(
                 )
                 if recomputed_path.read_bytes() != path.read_bytes():
                     raise ValueError(
-                        f"{field} PNG bytes do not match deterministic CairoSVG rasterization"
+                        f"{field} PNG bytes do not match deterministic SVG rasterization"
                     )
         normalized_derivation = {
             "mode": "svg-rasterization",
-            "renderer_id": "cairosvg",
+            "renderer_id": SVG_RENDERER,
             "renderer_release": renderer_release,
             "source_sha256": source["sha256"],
             "output_dimensions": {"width": width, "height": height},
@@ -1648,10 +1649,10 @@ def _materialize_preflight(
     renderer_release = ""
     if needs_raster:
         try:
-            renderer_release = importlib.metadata.version("CairoSVG")
+            renderer_release = importlib.metadata.version(SVG_RENDERER)
         except importlib.metadata.PackageNotFoundError as exc:
             raise RuntimeError(
-                "CairoSVG is required to prepare SVG references; install requirements-visual.txt"
+                f"{SVG_RENDERER} is required to prepare SVG references; install requirements-visual.txt"
             ) from exc
 
     staging: Path | None = None
@@ -1688,7 +1689,7 @@ def _materialize_preflight(
                     "sha256": sha256_file(staged_path),
                     "derivation": {
                         "mode": "svg-rasterization",
-                        "renderer_id": "cairosvg",
+                        "renderer_id": SVG_RENDERER,
                         "renderer_release": renderer_release,
                         "source_sha256": source["sha256"],
                         "output_dimensions": {"width": width, "height": height},
@@ -2020,4 +2021,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

@@ -22,7 +22,7 @@ def digest(path: Path) -> str:
 def run(script: str, *arguments: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(Path(__file__).with_name(script)), *arguments],
-        text=True, capture_output=True, check=False,
+        text=True, encoding="utf-8", capture_output=True, check=False,
     )
 
 
@@ -127,4 +127,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

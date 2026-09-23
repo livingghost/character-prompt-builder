@@ -49,7 +49,7 @@ def run(*arguments: str) -> subprocess.CompletedProcess:
     """One command, the way a session runs it, in this interpreter."""
 
     return subprocess.run(
-        [sys.executable, *arguments], cwd=ROOT, text=True, check=False,
+        [sys.executable, *arguments], cwd=ROOT, text=True, encoding="utf-8", check=False,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
@@ -542,4 +542,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

@@ -78,4 +78,4 @@ The report analyzes the latest review per candidate; earlier review receipts rem
 
 ## Consult reusable corrections
 
-Use the returned consultation action to investigate a craft question drawn from the recorded failure. Read [Craft consultation](preset-consultation.md) for complete sources, scoped application, and reviewer questions. Preserve the observed evidence and protected requirements when choosing a correction.
+Use the returned consultation action to investigate a craft question drawn from the recorded failure. Read [Craft consultation](craft-consultation.md) for complete sources, scoped application, and reviewer questions. Preserve the observed evidence and protected requirements when choosing a correction.

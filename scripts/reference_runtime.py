@@ -82,8 +82,8 @@ class VisualDependencyPreflightError(RuntimeError):
         super().__init__(
             "Visual dependency preflight failed before model-facing reference preparation"
             + suffix
-            + f". Check with `{self.report['check_command']}`; install with "
-            + f"`{self.report['install_command']}` only when environment changes are authorized."
+            + f". Check with `{self.report['check_command']}`; `{self.report['check_command']} --install` "
+            + "installs it once the user confirms."
         )
 
 
@@ -951,4 +951,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

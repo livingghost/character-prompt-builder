@@ -244,6 +244,7 @@ def _write_fixture_pack(pack_root: Path) -> Path:
         pack_root / "resources" / "service-profiles.json",
         {"services": {"runware": {
             "label": "Synthetic offline image interface",
+            "transport": "runware",
             "endpoint": {"base_url": "https://example.invalid/synthetic", "method": "POST"},
             "auth": {"env_var": "SYNTHETIC_OFFLINE_KEY"},
             "operations": {"imageInference": {}},
@@ -1298,7 +1299,7 @@ def run() -> dict[str, Any]:
                 all(
                     row["transport"]["media_type"] == "image/png"
                     and row["transport"]["derivation"]["mode"] == "svg-rasterization"
-                    and row["transport"]["derivation"]["renderer_id"] == "cairosvg"
+                    and row["transport"]["derivation"]["renderer_id"] == "resvg-py"
                     and row["transport"]["derivation"]["source_sha256"]
                     == row["source"]["sha256"]
                     and Path(row["transport"]["resolved_path"]).read_bytes().startswith(
@@ -1306,7 +1307,7 @@ def run() -> dict[str, Any]:
                     )
                     for row in prepared_mixed
                 ),
-                "real CairoSVG rasterization was not committed source-to-PNG",
+                "real SVG rasterization was not committed source-to-PNG",
             )
             host_mixed = verified_round_trips[2]["host_forwarding"]["selected_references"]
             checked(
@@ -3142,4 +3143,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

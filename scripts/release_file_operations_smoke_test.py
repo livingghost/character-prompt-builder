@@ -681,6 +681,7 @@ def main() -> int:
                 cwd=metadata_stage,
                 env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
                 text=True,
+                encoding="utf-8",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 check=False,
@@ -747,6 +748,7 @@ def main() -> int:
             cwd=ROOT,
             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
             text=True,
+            encoding="utf-8",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
@@ -1116,4 +1118,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

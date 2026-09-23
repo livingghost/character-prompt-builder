@@ -17,12 +17,12 @@ class RunnerTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
-        (self.root / "prompt.txt").write_text("A constructed runner test. Not a model benchmark.\n")
+        (self.root / "prompt.txt").write_text("A constructed runner test. Not a model benchmark.\n", encoding="utf-8")
         script = """import json, pathlib, sys
-out=pathlib.Path(sys.argv[1]);(out/'result.txt').write_text('Fixture output, not generated prose.')
+out=pathlib.Path(sys.argv[1]);(out/'result.txt').write_text('Fixture output, not generated prose.', encoding='utf-8')
 print(json.dumps({'event':'metrics','total_tokens':17,'tool_calls':2,'triggered':True,'completed':False}))
 """
-        (self.root / "host.py").write_text(script)
+        (self.root / "host.py").write_text(script, encoding="utf-8")
         self.study = {
             "purpose": "Fixture only",
             "repetitions": 1,
@@ -104,7 +104,7 @@ print(json.dumps({'event':'metrics','total_tokens':17,'tool_calls':2,'triggered'
         self.assertEqual(measured["values"]["total_tokens"], 17)
         self.assertEqual(measured["runner_evidence"]["quality_verdict"], "not-reviewed")
         receipt = m.load(self.root, row["result"])
-        (self.root / receipt["logs"][0]["path"]).write_text("changed telemetry")
+        (self.root / receipt["logs"][0]["path"]).write_text("changed telemetry", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "evidence changed"):
             evaluation_evidence._measurements(self.root, row["measurements"])
 
@@ -124,14 +124,14 @@ print(json.dumps({'event':'metrics','total_tokens':17,'tool_calls':2,'triggered'
         self.assertIsNone(receipt["measurements"]["elapsed_seconds"])
 
     def test_timeout_is_not_silently_retried(self):
-        (self.root / "host.py").write_text("import time; time.sleep(20)")
+        (self.root / "host.py").write_text("import time; time.sleep(20)", encoding="utf-8")
         self.study["conditions"][0]["timeout_seconds"] = 0.15
         result = self.run_study()
         self.assertEqual(len(result["runs"]), 1)
         self.assertEqual(result["runs"][0]["status"], "timeout")
 
     def test_failed_process_is_retained(self):
-        (self.root / "host.py").write_text("raise SystemExit(7)")
+        (self.root / "host.py").write_text("raise SystemExit(7)", encoding="utf-8")
         result = self.run_study()
         receipt = m.load(self.root, result["runs"][0]["result"])
         self.assertEqual(receipt["status"], "failed")
@@ -147,7 +147,7 @@ print(json.dumps({'event':'metrics','total_tokens':17,'tool_calls':2,'triggered'
 
     def test_input_change_after_approval_refused(self):
         _, plan = agent.plan_study(self.root, "study.json", "evaluation")
-        (self.root / "prompt.txt").write_text("changed")
+        (self.root / "prompt.txt").write_text("changed", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "approved"):
             agent.run_study(self.root, "study.json", "evaluation", plan["content_sha256"])
 
@@ -155,7 +155,7 @@ print(json.dumps({'event':'metrics','total_tokens':17,'tool_calls':2,'triggered'
         result = self.run_study()
         row = result["runs"][0]
         receipt = m.load(self.root, row["result"])
-        (self.root / receipt["logs"][0]["path"]).write_text("modified")
+        (self.root / receipt["logs"][0]["path"]).write_text("modified", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "evidence changed"):
             agent.verify_measurements(self.root, row["result"], receipt["measurements"])
 
@@ -170,14 +170,14 @@ print(json.dumps({'event':'metrics','total_tokens':17,'tool_calls':2,'triggered'
     def test_small_skill_copy_is_self_contained(self):
         skill = self.root / "input-skill"
         skill.mkdir()
-        (skill / "SKILL.md").write_text("Fixture skill only.")
+        (skill / "SKILL.md").write_text("Fixture skill only.", encoding="utf-8")
         self.study["conditions"][0]["skill"] = "input-skill"
         result = self.run_study()
         directory = (self.root / result["runs"][0]["result"]).parent
-        self.assertEqual((directory / "skill/SKILL.md").read_text(), "Fixture skill only.")
+        self.assertEqual((directory / "skill/SKILL.md").read_text(encoding="utf-8"), "Fixture skill only.")
 
     def test_missing_expected_output_is_not_a_successful_study(self):
-        (self.root / "host.py").write_text('print("fixture completed without its deliverable")')
+        (self.root / "host.py").write_text('print("fixture completed without its deliverable")', encoding="utf-8")
         result = self.run_study()
         self.assertFalse(result["ok"])
         receipt = m.load(self.root, result["runs"][0]["result"])
@@ -190,8 +190,9 @@ print(json.dumps({'event':'metrics','total_tokens':17,'tool_calls':2,'triggered'
 
         (self.root / "host.py").write_text(
             "import pathlib, sys\n"
-            'pathlib.Path(sys.argv[1], "result.txt").write_text("Fixture output")\n'
-            'sys.stdout.buffer.write(b"x" * 4096 + b"\\n")\n'
+            'pathlib.Path(sys.argv[1], "result.txt").write_text("Fixture output", encoding="utf-8")\n'
+            'sys.stdout.buffer.write(b"x" * 4096 + b"\\n")\n',
+            encoding="utf-8",
         )
         self.study["conditions"][0]["max_log_bytes"] = 64
         original_popen = agent.subprocess.Popen
@@ -219,13 +220,13 @@ print(json.dumps({'event':'metrics','total_tokens':17,'tool_calls':2,'triggered'
         _, plan = agent.plan_study(self.root, "study.json", "evaluation")
         base = self.root / "evaluation"
         base.mkdir()
-        expected_prompt = (self.root / "prompt.txt").read_text()
+        expected_prompt = (self.root / "prompt.txt").read_text(encoding="utf-8")
         original_write = agent._write
 
         def change_original_after_copy(path, raw):
             original_write(path, raw)
             if path.name == "prompt.txt" and path.parent.name == "inputs":
-                (self.root / "prompt.txt").write_text("Changed after the verified copy was saved.")
+                (self.root / "prompt.txt").write_text("Changed after the verified copy was saved.", encoding="utf-8")
 
         with patch.object(agent, "_write", side_effect=change_original_after_copy):
             row = agent.execute_trial(
@@ -239,7 +240,7 @@ print(json.dumps({'event':'metrics','total_tokens':17,'tool_calls':2,'triggered'
                 plan["content_sha256"],
             )
         retained_prompt = (self.root / row["result"]).parent / "prompt.txt"
-        self.assertEqual(retained_prompt.read_text(), expected_prompt)
+        self.assertEqual(retained_prompt.read_text(encoding="utf-8"), expected_prompt)
 
 
 class FailureTests(unittest.TestCase):
@@ -254,7 +255,7 @@ class FailureTests(unittest.TestCase):
                 (root / hypotheses_path).write_bytes(m.encoded({"hypotheses": hypotheses}))
             with patch.object(repair.artifact_review, "build", return_value=(report, None)):
                 repair.analyze(root, [report["run"]], "analysis", hypotheses_path)
-            return (root / "analysis/analysis.md").read_text()
+            return (root / "analysis/analysis.md").read_text(encoding="utf-8")
 
     def report(self, run="run", text="Preserve the declared condition."):
         return {
@@ -355,4 +356,6 @@ class FailureTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main()

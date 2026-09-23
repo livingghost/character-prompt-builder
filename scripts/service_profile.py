@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read how one service is called: endpoint, auth shape, envelope, operations, delivery, and when that was observed.
+"""Read how one service is called: transport, endpoint, auth shape, envelope, operations, delivery, and when that was observed.
 
 Usage: python scripts/service_profile.py <service-id> [--profiles <services.json>] [--json]
        [--state-file PATH] [--cache-dir PATH] [--managed-root PATH]
@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from pack_cache import load_runtime_catalog  # noqa: E402
 from pack_manager import PackError, default_settings  # noqa: E402
+from transport_contract import NAME  # noqa: E402
 
 RESOURCE = "service-profiles"
 
@@ -55,6 +56,10 @@ def load_service(service: str, path: Path) -> dict[str, Any]:
     record = services.get(service)
     if record is None:
         raise PackError(f"{path}: no service {service!r}; it records {sorted(services)}")
+    transport = record.get("transport") if isinstance(record, dict) else None
+    if not isinstance(transport, str) or not NAME.fullmatch(transport):
+        raise PackError(f"{path}: the service {service!r} gives the transport {transport!r}; a transport is the "
+                        "<name> of scripts/transport_<name>.py, in lowercase letters, digits and underscores")
     return record
 
 
@@ -79,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     endpoint = record.get("endpoint") or {}
     auth = record.get("auth") or {}
     print(f"{args.service}: {record.get('label')} (observed {record.get('observed_at')}, read from {path})")
+    print(f"  transport  scripts/transport_{record['transport']}.py")
     print(f"  endpoint   {endpoint.get('method', 'POST')} {endpoint.get('base_url')}")
     print(f"  auth       {auth.get('scheme')} in {auth.get('header')}" + (f", key from {auth['env_var']}" if auth.get("env_var") else ""))
     print(f"  request    {(record.get('envelope') or {}).get('request')}")
@@ -92,4 +98,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

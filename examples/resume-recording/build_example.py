@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import execution_contract as c
+from io_budget import environment_seconds
 import production_workflow as w
 import work_ledger
 
@@ -25,18 +26,18 @@ def build():
     with tempfile.TemporaryDirectory(prefix='synthetic-resume-example-') as temporary:
         root = Path(temporary)
         started = work_ledger.begin(root, 'Synthetic recovery example', ['inspect retained evidence'])
-        (root / 'delivery.txt').write_text('Synthetic local instructions.\n')
+        (root / 'delivery.txt').write_text('Synthetic local instructions.\n', encoding='utf-8')
         task = {'task_id': started['task_id'], 'route': 'development', 'features': [], 'sources': [],
                 'delivery': {'path': 'delivery.txt', 'transport': 'authored-rendition',
                              'translation_notes': 'Synthetic authored fixture.'},
                 'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect retained output.'}]}
         run = prepare_fixture(root, task)
         command = [sys.executable, str(ROOT / 'scripts/production_workflow.py'), 'resume', '--root', str(root), '--run', run]
-        before = subprocess.run(command, capture_output=True, text=True, check=False, timeout=30)
+        before = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False, timeout=environment_seconds("EXAMPLE_COMMAND_TIMEOUT_SECONDS"))
         if before.returncode != 0:
             raise ValueError(before.stdout + before.stderr)
-        (root / 'delivery.txt').write_text('Revised synthetic local instructions.\n')
-        after = subprocess.run(command, capture_output=True, text=True, check=False, timeout=30)
+        (root / 'delivery.txt').write_text('Revised synthetic local instructions.\n', encoding='utf-8')
+        after = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False, timeout=environment_seconds("EXAMPLE_COMMAND_TIMEOUT_SECONDS"))
         if after.returncode != 1:
             raise ValueError('The changed fixture must require updated execution inputs.')
         return {'synthetic': True, 'before_change': summary(json.loads(before.stdout)),
@@ -69,4 +70,6 @@ def prepare_fixture(root, task):
 
 
 if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     raise SystemExit(main())

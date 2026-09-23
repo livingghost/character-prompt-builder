@@ -8,7 +8,7 @@ hash equality is not artistic success. Discussion without an artifact does not r
 
 ## Assemble authored choices
 
-Use [Craft consultation](preset-consultation.md) while deciding what to write or revise.
+Use [Craft consultation](craft-consultation.md) while deciding what to write or revise.
 
 The route read writes a reading record at the path it prints, with the route, the key and every hash filled.
 Fill each null `quote` with twelve or more words of one paragraph of that document, and each `why` with how it applies to this task.

@@ -14,6 +14,7 @@ ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'scripts'))
 import authorial_intent_audit
 import production_fixtures as fixture
+from io_budget import environment_seconds
 
 
 def write(root: Path, name: str, value):
@@ -94,7 +95,7 @@ def run(out: Path):
     q=write_inputs(out);log=[]
     def command(script,*args):
         argv=[sys.executable,'-B',str(ROOT/'scripts'/script),*map(str,args)]
-        p=subprocess.run(argv,cwd=out,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'},capture_output=True,text=True)
+        p=subprocess.run(argv,cwd=out,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'},capture_output=True,text=True,encoding='utf-8',timeout=environment_seconds('EXAMPLE_COMMAND_TIMEOUT_SECONDS'))
         log.append({'argv':argv,'returncode':p.returncode,'stdout':p.stdout,'stderr':p.stderr});write(out,'commands.json',log)
         if p.returncode:raise ValueError(p.stdout+p.stderr)
         return json.loads(p.stdout)
@@ -140,6 +141,8 @@ def run(out: Path):
 
 
 if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--out',type=Path,required=True);parser.add_argument('--inputs-only',action='store_true');a=parser.parse_args()
     if a.inputs_only:
         if a.out.exists():raise ValueError('choose a new directory')

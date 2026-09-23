@@ -223,4 +223,7 @@ def main():
     sys.stderr.write(buf.getvalue())
     report={'ok':result.wasSuccessful(),'tests':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skipped':len(result.skipped),'public_fixture_count':len(pc.ARTIFACT_TYPES)}
     print(json.dumps(report,indent=2));return 0 if report['ok'] else 1
-if __name__=='__main__':raise SystemExit(main())
+if __name__=='__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    raise SystemExit(main())

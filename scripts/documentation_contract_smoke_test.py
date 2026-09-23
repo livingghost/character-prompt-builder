@@ -20,9 +20,12 @@ import scene_plot
 from validate import (
     AUTHORITATIVE_DOCUMENT_MARKERS,
     FRESH_SESSION_RUNTIME_DOCUMENTS,
+    SKILL_CHARACTERS_PER_TOKEN,
+    SKILL_DIRECT_LINKS,
+    SKILL_MAX_ESTIMATED_TOKENS,
     SKILL_MAX_LINES,
     SKILL_REQUIRED_ROUTER_PHRASES,
-    SKILL_ROUTER_LINKS,
+    SKILL_ROUTED_DOCUMENTS,
     _adapter_documents,
     _skill_target_adapters,
     _skill_word_count,
@@ -83,12 +86,16 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         ]
         skill_lines.extend(
             f"[Route {index}]({relative})"
-            for index, relative in enumerate(SKILL_ROUTER_LINKS, start=1)
+            for index, relative in enumerate(SKILL_ROUTED_DOCUMENTS, start=1)
+        )
+        skill_lines.extend(
+            f"[Prompt {index}]({relative})"
+            for index, relative in enumerate(SKILL_DIRECT_LINKS, start=1)
         )
         direct_routes = [
             relative
             for relative in AUTHORITATIVE_DOCUMENT_MARKERS
-            if relative not in SKILL_ROUTER_LINKS
+            if relative not in SKILL_ROUTED_DOCUMENTS
         ]
         skill_lines.extend(
             f"[Nested authority {index}]({relative})"
@@ -104,7 +111,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
                     for index, adapter in enumerate(
                         (
                             candidate
-                            for candidate in SKILL_ROUTER_LINKS
+                            for candidate in SKILL_ROUTED_DOCUMENTS
                             if candidate.startswith("references/adapters/")
                         ),
                         start=1,
@@ -148,15 +155,63 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             any(f"{SKILL_MAX_LINES}-line limit" in error for error in self._errors())
         )
 
+    def test_estimated_token_limit_is_enforced(self) -> None:
+        path = self.root / "SKILL.md"
+        text = path.read_text(encoding="utf-8")
+        limit = SKILL_MAX_ESTIMATED_TOKENS * SKILL_CHARACTERS_PER_TOKEN
+        at_limit = text + "x" * (limit - len(text) - 1) + "\n"
+        path.write_text(at_limit, encoding="utf-8", newline="\n")
+        self.assertEqual([], self._errors())
+        path.write_text(at_limit + "x", encoding="utf-8", newline="\n")
+        self.assertTrue(
+            any(f"{SKILL_MAX_ESTIMATED_TOKENS}-token limit" in error for error in self._errors())
+        )
+
     def test_required_route_link_is_enforced(self) -> None:
         path = self.root / "SKILL.md"
         text = path.read_text(encoding="utf-8").replace(
-            f"]({SKILL_ROUTER_LINKS[0]})",
+            f"]({SKILL_ROUTED_DOCUMENTS[0]})",
             "](references/not-the-authority.md)",
         )
         self._write("SKILL.md", text)
         self.assertTrue(
-            any("missing required routed document link" in error for error in self._errors())
+            any("does not route the required document" in error for error in self._errors())
+        )
+
+    def test_named_route_feature_routes_and_reaches_its_documents(self) -> None:
+        required = SKILL_ROUTED_DOCUMENTS[0]
+        specialist = "references/specialist.md"
+        adapter = "references/adapters/stray-surface.md"
+        self._write(specialist, "# Specialist\n\nA route read delivers this document.")
+        self._write(adapter, "# Stray Surface Adapter")
+        manifest = {
+            "always_read": [],
+            "routes": {},
+            "features": {"specialist": {"reads": [required, specialist, adapter], "source_roles": []}},
+        }
+        self._write("config/execution-routes.json", json.dumps(manifest))
+        path = self.root / "SKILL.md"
+        text = path.read_text(encoding="utf-8").replace(f"]({required})", "](references/not-the-authority.md)")
+        self._write("SKILL.md", text)
+        unnamed = self._errors()
+        for relative in (required, specialist, adapter):
+            self.assertTrue(any(error.endswith(relative) for error in unnamed), relative)
+        self._write("SKILL.md", text + "\nAdd feature `specialist` for a specialist subject.")
+        self.assertEqual([], self._errors())
+
+    def test_conversational_prompt_document_needs_its_own_link(self) -> None:
+        relative = SKILL_DIRECT_LINKS[-1]
+        manifest = {"always_read": [], "routes": {},
+                    "features": {"prompt-help": {"reads": [relative], "source_roles": []}}}
+        self._write("config/execution-routes.json", json.dumps(manifest))
+        path = self.root / "SKILL.md"
+        text = path.read_text(encoding="utf-8").replace(f"]({relative})", "](references/not-the-authority.md)")
+        self._write("SKILL.md", text + "\nAdd feature `prompt-help` for prompt help.")
+        self.assertTrue(
+            any(
+                error == f"SKILL.md does not link the conversational prompt document: {relative}"
+                for error in self._errors()
+            )
         )
 
     def test_judgment_automation_boundary_is_enforced(self) -> None:
@@ -205,7 +260,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self._write(relative, "# Dead Feature\n\nNo routed authority links here.")
         self.assertTrue(
             any(
-                f"unreachable from the SKILL.md link graph: {relative}" in error
+                f"reached by no SKILL.md link or named route or feature: {relative}" in error
                 for error in self._errors()
             )
         )
@@ -416,7 +471,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn("already rendered for the named target", output_template)
         self.assertIn("The Skill-using agent decides which rules are relevant.", runtime)
 
-        targets = _skill_target_adapters(skill)
+        targets = _skill_target_adapters(skill, ROOT)
         self.assertNotEqual((), targets)
         for adapter in targets:
             body = (ROOT / adapter).read_text(encoding="utf-8")
@@ -815,4 +870,6 @@ class DocumentedCommandTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    import stdio_utf8
+    stdio_utf8.configure()
     unittest.main()
