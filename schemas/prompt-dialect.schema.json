@@ -111,6 +111,10 @@
         "inert_terms": {
           "$ref": "#/$defs/term-array",
           "description": "Terms with no learned meaning on this family, which spend budget and act on nothing."
+        },
+        "negative_form": {
+          "$ref": "#/$defs/non-empty-string",
+          "description": "How this family writes a source the negative-policy resource activates."
         }
       }
     },

@@ -168,6 +168,56 @@ class StructureNeutralityTests(unittest.TestCase):
         plan["structure_plan"]["expected_by_owner"] = {"C01": {"manipulator": 1}}
         self.assertFalse(validate_plan(plan)["ok"])
 
+    def test_plan_errors_say_what_to_write(self):
+        errors = validate_plan({"structure_plan": {"expected_counts": {}, "assigned_structures": []}})["errors"]
+        self.assertEqual(["$: missing required property 'camera'; write an object with angle, shot_scale, distance,"
+                          " pitch and subject_frame_occupancy; --template prints a plan to start from"], errors)
+        plan = fixture("asymmetric-topology.json")
+        plan["camera"]["subject_frame_occupancy"] = "0.45"
+        del plan["structure_plan"]["assigned_structures"][0]["structure_id"]
+        errors = validate_plan(plan)["errors"]
+        self.assertIn("$.camera.subject_frame_occupancy: expected type ['number'], got str; write a number from"
+                      " 0 to 1, the share of the frame the subject fills, such as 0.5", errors)
+        self.assertIn("$.structure_plan.assigned_structures[0]: missing required property 'structure_id'; write a"
+                      " name you choose for the structure, unique in the plan; primary_actions refer to it", errors)
+
+    def test_unknown_plan_fields_are_refused_one_line_each(self):
+        plan = fixture("asymmetric-topology.json")
+        plan["structure_plan"]["assigned_structures"][0]["action"] = "holds the tool"
+        plan["camera"]["lens"] = "35mm"
+        report = validate_plan(plan)
+        self.assertFalse(report["ok"])
+        self.assertEqual([
+            "$.camera.lens: unknown field; this object takes angle, shot_scale, distance, camera_height, pitch,"
+            " subject_frame_occupancy, establishing_context",
+            "$.structure_plan.assigned_structures[0].action: unknown field; an action goes in"
+            ' structure_plan.primary_actions as {"structure_id": "...", "action": "..."}',
+        ], report["errors"])
+
+    def test_plan_help_names_every_field_and_template_passes(self):
+        def run(*args):
+            return subprocess.run([sys.executable, "scripts/validate_prompt_semantics.py", *args], cwd=ROOT,
+                                  capture_output=True, text=True, encoding="utf-8", timeout=30)
+        schema = load_json(ROOT / "schemas/prompt-semantic-preflight.schema.json")
+        names = set()
+        stack = [schema]
+        while stack:
+            node = stack.pop()
+            names.update((node.get("properties") or {}).keys())
+            stack.extend((node.get("properties") or {}).values())
+            stack.extend(child for child in (node.get("items"), node.get("additionalProperties")) if isinstance(child, dict))
+        shown = run("--help").stdout
+        self.assertEqual(set(), {name for name in names if f"  {name}  " not in shown})
+        template = run("--template").stdout
+        self.assertIn(template, shown)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "plan.json"
+            path.write_text(template, encoding="utf-8")
+            self.assertEqual(0, run(str(path)).returncode)
+        missing = run()
+        self.assertEqual(2, missing.returncode)
+        self.assertIn("--template prints one to start from", missing.stderr)
+
 
     def test_camera_does_not_require_human_distance_or_eyes(self):
         value = fixture("reference-camera.json")

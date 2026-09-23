@@ -453,6 +453,15 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             generation,
         )
 
+    def test_a_prompt_answered_in_conversation_reads_no_route(self) -> None:
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        paths = skill.partition("## Choose a runtime path")[2].partition("\n- ")[0]
+        self.assertIn("with nothing saved, reads no route", paths)
+        self.assertIn("[Prompt-Only Core](references/runtime/prompt-only-core.md)", paths)
+        sequence = skill.partition("## Common runtime sequence")[2]
+        first = next(line for line in sequence.splitlines() if line.startswith("1. "))
+        self.assertTrue(first.startswith("1. For saved work, read the route"), first)
+
     def test_prompt_writing_guide_is_an_executed_rendition_stage(self) -> None:
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         runtime = (ROOT / "references/runtime/prompt-writing-guide.md").read_text(encoding="utf-8")

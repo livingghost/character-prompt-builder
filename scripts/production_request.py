@@ -13,13 +13,18 @@ import request_validation
 
 PAYLOAD_FIELDS = {'package_sha256', 'seed', 'count', 'service', 'model_identifier',
                   'offering_sha256', 'service_sha256', 'request_sha256',
-                  'request_contract', 'request_validation', 'input_snapshots'}
+                  'request_contract', 'request_validation', 'input_sha256'}
 DECISION_FIELDS = {'case', 'assessments', 'principal_approval', 'rendition_review'}
 REVIEW_FIELDS = {'request_sha256', 'reviewer', 'conclusion', 'reason', 'binding_ids'}
 
 
 def _binding_ids(rendered: dict) -> list[str]:
     return ['reference:' + str(item['reference_number']) for item in rendered['sealed']['bindings']]
+
+
+def input_hashes(snapshots: dict) -> dict[str, str]:
+    """The path and SHA-256 of every input file the request validation read."""
+    return {path: item['sha256'] for path, item in snapshots.items()}
 
 
 def intent(package: dict, rendered: dict, *, seed: int | None, count: int,
@@ -36,14 +41,19 @@ def intent(package: dict, rendered: dict, *, seed: int | None, count: int,
         'request_sha256': rendered['request_sha256'],
         'request_contract': rc.receipt_projection(rendered),
         'request_validation': copy.deepcopy(package['request_validation']),
-        'input_snapshots': copy.deepcopy(package['input_snapshots']),
+        'input_sha256': input_hashes(package['input_snapshots']),
     }
-    validate_payload(payload)
+    validate_payload(payload, snapshots=package['input_snapshots'])
     return {'operation': 'submit', 'targets': ['delivery'], 'payload': payload}
 
 
-def validate_payload(payload: Any) -> dict:
-    """Verify stored request evidence, independently of a live provider or filesystem."""
+def validate_payload(payload: Any, *, snapshots: dict | None = None) -> None:
+    """Verify a submission payload offline; given the input bytes, also verify them and the request against them.
+
+    The payload names each input file by path and SHA-256. The dispatcher holds
+    the bytes in the package, so it verifies them when it writes the intent and
+    again when it claims the authorization, before any upload or send.
+    """
     c.exact(payload, PAYLOAD_FIELDS, 'model submission payload')
     for field in ('package_sha256', 'offering_sha256', 'service_sha256', 'request_sha256'):
         c.sha(payload[field])
@@ -64,12 +74,30 @@ def validate_payload(payload: Any) -> dict:
     actual_seed = rc.get(rendered['request'], seed_path) if seed_path is not None else None
     if actual_seed != payload['seed']:
         raise ValueError('submission seed differs from its rendered request')
+    record = request_validation.validate_content(payload['request_validation'])
+    if record['target'] != target:
+        raise ValueError('validation target differs from selected execution')
+    if any(record[key] != value for key, value in rendered['sealed']['execution'].items()):
+        raise ValueError('validation was prepared for a different execution contract')
+    hashes = payload['input_sha256']
+    if not isinstance(hashes, dict):
+        raise ValueError('input_sha256 maps each input path to its SHA-256')
+    for path, key in hashes.items():
+        c.text(path, 'input path')
+        c.sha(key)
+    for field in ('contract', 'evidence', 'execution_policy'):
+        ref = record[field]
+        if ref is not None and hashes.get(ref['path']) != ref['sha256']:
+            raise ValueError(f"input_sha256 does not name the validation {field} {ref['path']} with its SHA-256")
+    if snapshots is None:
+        return
+    if input_hashes(snapshots) != hashes:
+        raise ValueError('input bytes differ from the SHA-256 the submission intent names')
     from request_renderer import envelope_fields
 
-    evidence = InputEvidence(None, snapshots=payload['input_snapshots'], live=False)
-    return request_validation.require(
-        payload['request_validation'],
-        evidence,
+    request_validation.require(
+        record,
+        InputEvidence(None, snapshots=copy.deepcopy(snapshots), live=False),
         expected_target=target,
         execution=rendered['sealed']['execution'],
         rendered=rendered,
@@ -93,7 +121,7 @@ def draft_decision(rendered: dict, *, actor: str | None) -> dict:
 def check_authorization(root: Path, prepared: dict, request: dict, grant: dict) -> tuple[dict, list[dict]]:
     """Check scope and the supplied review; leave semantic judgments with the actor."""
     payload = request['payload']
-    report = validate_payload(payload)
+    validate_payload(payload)
     decision = request.get('request_decision')
     c.exact(decision, DECISION_FIELDS, 'model request decision')
     rendered = payload['request_contract']
@@ -126,7 +154,7 @@ def check_authorization(root: Path, prepared: dict, request: dict, grant: dict) 
         case_id=decision['case'],
         rendered=rendered,
         production=prepared['task']['production_id'],
-        mode=report['mode'],
+        mode=payload['request_validation']['mode'],
         modes=grant['submission_validation_modes'],
         assessments=decision['assessments'],
         principal_approval=principal,
@@ -136,7 +164,7 @@ def check_authorization(root: Path, prepared: dict, request: dict, grant: dict) 
         raise ValueError('model request authority: ' + scoped['state'] + '; ' + str(blockers))
     sources = [{'path': path, 'sha256': reader.snapshots[path]['sha256']}
                for path in sorted(reader.read_paths)]
-    return {'validation': report, 'scope': scoped}, sources
+    return {'scope': scoped}, sources
 
 
 def assessment_source(root: Path, payload: dict, *, principal: str, path: str, locator: str) -> dict:

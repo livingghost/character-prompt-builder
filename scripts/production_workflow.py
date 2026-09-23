@@ -55,8 +55,9 @@ def schema_check(value: Any, name: str) -> None:
 
 
 def validate_task(task: Any) -> dict:
+    if isinstance(task, dict):
+        production_identifier(task.get('production_id'))
     schema_check(task, 'task')
-    production_identifier(task['production_id'])
     route = execution_routes.resolve(task['route'], task['features'])
     plan.strings(task['features'], 'features')
     if bool(task.get('scene_materials', [])) != ('scene-persona' in route['features']):
@@ -184,12 +185,15 @@ def snapshot(root: Path, task_path: str) -> tuple[dict, dict, list[dict], dict[s
 
 
 def production_identifier(value: Any) -> str:
+    """The series a preparation belongs to, which decides the run its protected criteria are compared with."""
     try:
         identifier = uuid.UUID(value)
-    except (ValueError, TypeError, AttributeError) as exc:
-        raise ValueError('production_id must be an explicitly assigned UUIDv7') from exc
-    if identifier.version != 7 or str(identifier) != value:
-        raise ValueError('production_id must be a canonical UUIDv7')
+    except (ValueError, TypeError, AttributeError):
+        identifier = None
+    if identifier is None or identifier.version != 7 or str(identifier) != value:
+        raise ValueError('production_id must be a UUIDv7: copy the one '
+                         '`python scripts/production_workflow.py new-production-id` prints, '
+                         'or keep the id of the series this task continues')
     return value
 
 
@@ -885,7 +889,7 @@ def claim_dispatch(root: Path, run: str, package: dict, verified: dict, journal:
         payload = intent['payload']
         import request_contract as rc
         from production_request import validate_payload
-        validate_payload(payload)
+        validate_payload(payload, snapshots=package['input_snapshots'])
         if payload['request_contract'] != rc.receipt_projection(rendered):
             raise ValueError('claim differs from the rendered and reviewed request')
         if payload['package_sha256'] != c.content_id(package):

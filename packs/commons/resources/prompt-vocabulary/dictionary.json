@@ -334,13 +334,6 @@
           ]
         },
         {
-          "term": "score 9",
-          "description": "A quality or finish word; on tag surfaces it nudges rendering toward the named property and carries no subject.",
-          "aliases": [
-            "score_9"
-          ]
-        },
-        {
           "term": "sharp background",
           "description": "A quality or finish word; on tag surfaces it nudges rendering toward the named property and carries no subject."
         },
@@ -406,7 +399,7 @@
         },
         {
           "term": "very aesthetic",
-          "description": "Illustrious and NoobAI family aesthetic-score tag; commonly placed in the leading quality block."
+          "description": "An aesthetic-score tag of the Illustrious, NoobAI and Anima families, placed in the leading quality block."
         },
         {
           "term": "vibrant colors",
@@ -426,7 +419,7 @@
         },
         {
           "term": "oldest",
-          "description": "A period tag on Illustrious and NoobAI checkpoints: biases the render toward the earliest drawing conventions in the training corpus, a deliberate retro finish."
+          "description": "The earliest period band on the families whose period terms name it oldest. On Illustrious and NoobAI checkpoints the 2005 to 2010 band is old, and oldest is not one of their period terms."
         },
         {
           "term": "hdr",
@@ -434,7 +427,15 @@
         },
         {
           "term": "score_9",
-          "description": "The top score band of Pony-family checkpoints, which pulls toward the corpus slice rated highest there. On Illustrious and NoobAI it is literal noise and can print score text into the image."
+          "description": "The top score band of Pony-family checkpoints and of the Anima quality block, which pulls toward the corpus slice rated highest. On Illustrious and NoobAI it is literal noise and can print score text into the image."
+        },
+        {
+          "term": "score_8",
+          "description": "The score band below score_9 in the Anima quality block. On Illustrious and NoobAI it is literal noise and can print score text into the image."
+        },
+        {
+          "term": "score_7",
+          "description": "The score band below score_8 in the Anima quality block. On Illustrious and NoobAI it is literal noise and can print score text into the image."
         },
         {
           "term": "incredibly absurdres",
@@ -51400,6 +51401,10 @@
         {
           "term": "sensitive",
           "description": "The sensitive rating: some exposure, nothing further."
+        },
+        {
+          "term": "safe",
+          "description": "The all-ages rating on the families whose rating terms name it safe rather than general, such as Anima."
         }
       ],
       "single_valued": true

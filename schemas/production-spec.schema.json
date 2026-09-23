@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "production-spec.schema.json",
   "title": "Scene Production Specification",
+  "description": "The scene record for one image. A free-text field the author leaves open holds the string \"unspecified\". A subject that names an identity contract carries its morphology references and resolved morphology; a state-aware specification also names its lineage, scene context, state snapshot and visual projection.",
   "type": "object",
   "required": [
     "source_brief",
@@ -46,14 +47,39 @@
         "surface_and_tactility",
         "color_and_light",
         "detail_hierarchy"
-      ]
+      ],
+      "properties": {
+        "center_of_appeal": {
+          "type": "string"
+        },
+        "subject_relationship": {
+          "type": "string"
+        },
+        "composition_and_visual_hierarchy": {
+          "type": "string"
+        },
+        "medium_family": {
+          "type": "string"
+        },
+        "shape_and_rhythm": {
+          "type": "string"
+        },
+        "surface_and_tactility": {
+          "type": "string"
+        },
+        "color_and_light": {
+          "type": "string"
+        },
+        "detail_hierarchy": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "state_context": {
       "type": "object",
       "required": [
-        "mode",
-        "state_lineage_sha256",
-        "scene_context_ref"
+        "mode"
       ],
       "properties": {
         "mode": {
@@ -63,29 +89,10 @@
           ]
         },
         "state_lineage_sha256": {
-          "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "$ref": "#/$defs/sha256"
         },
         "scene_context_ref": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "properties": {
-            "id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "sha256": {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$"
-            }
-          },
-          "required": [
-            "id",
-            "sha256"
-          ],
-          "additionalProperties": false
+          "$ref": "#/$defs/artifact_ref"
         },
         "notes": {
           "type": "array",
@@ -94,7 +101,33 @@
           }
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "if": {
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "const": "state-aware"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "state_lineage_sha256",
+          "scene_context_ref"
+        ]
+      },
+      "else": {
+        "properties": {
+          "state_lineage_sha256": {
+            "not": {}
+          },
+          "scene_context_ref": {
+            "not": {}
+          }
+        }
+      }
     },
     "subjects": {
       "type": "array",
@@ -103,15 +136,6 @@
         "required": [
           "id",
           "domain",
-          "identity_contract_ref",
-          "state_snapshot_ref",
-          "visual_projection_ref",
-          "species_morphology_profile_ref",
-          "individual_morphology_contract_ref",
-          "resolved_morphology",
-          "frame_character",
-          "load_bearing_part_measurements",
-          "accessory_geometry",
           "identity",
           "current_state",
           "proportions_and_form",
@@ -120,10 +144,19 @@
           "performance",
           "wardrobe_and_accessories",
           "pose_and_body_geometry",
-          "props_and_contacts",
-          "growth_geometry",
-          "garment_geometry"
+          "props_and_contacts"
         ],
+        "dependentRequired": {
+          "identity_contract_ref": [
+            "species_morphology_profile_ref",
+            "individual_morphology_contract_ref",
+            "resolved_morphology"
+          ],
+          "resolved_morphology": [
+            "frame_character",
+            "load_bearing_part_measurements"
+          ]
+        },
         "properties": {
           "id": {
             "type": "string",
@@ -140,67 +173,37 @@
             ]
           },
           "identity_contract_ref": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[a-f0-9]{64}$"
-              }
-            },
-            "required": [
-              "id",
-              "sha256"
-            ],
-            "additionalProperties": false
+            "$ref": "#/$defs/artifact_ref"
           },
           "state_snapshot_ref": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[a-f0-9]{64}$"
-              }
-            },
-            "required": [
-              "id",
-              "sha256"
-            ],
-            "additionalProperties": false
+            "$ref": "#/$defs/artifact_ref"
           },
           "visual_projection_ref": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[a-f0-9]{64}$"
-              }
-            },
-            "required": [
-              "id",
-              "sha256"
-            ],
-            "additionalProperties": false
+            "$ref": "#/$defs/artifact_ref"
+          },
+          "species_morphology_profile_ref": {
+            "$ref": "#/$defs/artifact_ref"
+          },
+          "individual_morphology_contract_ref": {
+            "$ref": "#/$defs/artifact_ref"
+          },
+          "resolved_morphology": {
+            "$ref": "resolved-morphology.schema.json"
+          },
+          "frame_character": {
+            "$ref": "frame-character.schema.json"
+          },
+          "load_bearing_part_measurements": {
+            "type": "array",
+            "items": {
+              "$ref": "part-measurement.schema.json"
+            }
+          },
+          "accessory_geometry": {
+            "type": "array",
+            "items": {
+              "$ref": "accessory-geometry.schema.json"
+            }
           },
           "identity": {},
           "current_state": {
@@ -231,74 +234,6 @@
             "type": "array",
             "items": {
               "$ref": "garment-geometry.schema.json"
-            }
-          },
-          "species_morphology_profile_ref": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "id",
-                  "sha256"
-                ],
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "sha256": {
-                    "type": "string",
-                    "pattern": "^[a-f0-9]{64}$"
-                  }
-                },
-                "additionalProperties": false
-              }
-            ]
-          },
-          "individual_morphology_contract_ref": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "id",
-                  "sha256"
-                ],
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "sha256": {
-                    "type": "string",
-                    "pattern": "^[a-f0-9]{64}$"
-                  }
-                },
-                "additionalProperties": false
-              }
-            ]
-          },
-          "resolved_morphology": {
-            "$ref": "resolved-morphology.schema.json"
-          },
-          "frame_character": {
-            "$ref": "frame-character.schema.json"
-          },
-          "load_bearing_part_measurements": {
-            "type": "array",
-            "items": {
-              "$ref": "part-measurement.schema.json"
-            }
-          },
-          "accessory_geometry": {
-            "type": "array",
-            "items": {
-              "$ref": "accessory-geometry.schema.json"
             }
           },
           "structure_notes": {
@@ -339,5 +274,59 @@
       }
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "if": {
+    "required": [
+      "state_context"
+    ],
+    "properties": {
+      "state_context": {
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "const": "state-aware"
+          }
+        }
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "subjects": {
+        "items": {
+          "required": [
+            "identity_contract_ref",
+            "state_snapshot_ref",
+            "visual_projection_ref",
+            "growth_geometry"
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "artifact_ref": {
+      "type": "object",
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
 }

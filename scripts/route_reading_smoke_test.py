@@ -76,22 +76,47 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(r.execution_routes.unnamed(self.manifest,'route `generation`, feature `extra`'),['development'])
         report=r.execution_routes.validate()
         self.assertEqual((report['ok'],report['errors']),(True,[]))
-    def test_draft_needs_only_quotes_and_reasons(self):
+    def test_species_doctrine_comes_only_with_body_plan(self):
+        manifest=c.load(r.ROOT/r.execution_routes.MANIFEST)
+        species={'references/morphology-and-species-contracts.md','references/species-architecture.md'}
+        carriers={name for group in ('features','routes') for name,entry in manifest[group].items()
+                  if species & set(entry['reads'])}
+        self.assertEqual(carriers,{'body-plan'})
+        self.assertEqual(manifest['features']['recurring-identity']['reads'],['references/character-identity-contract.md'])
+    def test_a_route_reads_only_what_its_tasks_use(self):
+        manifest=c.load(r.ROOT/r.execution_routes.MANIFEST)
+        prompt_only=r.execution_routes.resolve('prompt-only')
+        self.assertEqual([x['path'] for x in prompt_only['reads']],
+                         manifest['always_read']+['references/runtime/prompt-only-core.md'])
+        self.assertEqual(r.execution_routes.resolve('repose')['features'],['prompt-dialect','reference-delivery','studio'])
+    def test_draft_holds_the_read_and_no_application(self):
         issued=self.issued()
-        draft=r.draft_record(issued,root=self.root)
+        draft=r.draft_record(issued)
         self.assertEqual((draft['route'],draft['features'],draft['reading_key'],draft['documents'],draft['resources']),
                          ('generation',[],issued['reading_key'],issued['row']['documents'],{}))
-        self.assertEqual(draft['applied'],[{'path':'notes/work.md','quote':None,'why':None}])
+        self.assertEqual((draft['applied'],draft['resource_applied']),([],[]))
+        self.verify(draft)
+        draft['applied'].append({'path':'notes/work.md','quote':None,'why':None})
         with self.assertRaisesRegex(ValueError,'notes/work.md: quotation'):self.verify(draft)
         draft['applied'][0].update(quote=PARAGRAPH,why='Apply the selected source to this synthetic operation.')
         self.verify(draft)
+    def test_only_the_documents_the_author_applies_carry_quotations(self):
+        self.manifest['routes']['generation']['features']=['extra']
+        (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        issued=self.issued()
+        self.assertEqual([x['path'] for x in issued['row']['documents']],['notes/always.md','notes/work.md','notes/extra.md'])
+        record=r.draft_record(issued)
+        record['applied'].append({'path':'notes/extra.md','quote':PARAGRAPH,'why':'Synthetic application of one read document.'})
+        self.verify(record)
+        record['applied'][0]['quote']='The operator preserves the selected source.'
+        with self.assertRaisesRegex(ValueError,'twelve words of paragraph text: notes/extra.md'):self.verify(record)
     def test_draft_is_written_once(self):
         issued=self.issued()
-        path=r.write_draft(issued,self.ledger,root=self.root)
+        path=r.write_draft(issued,self.ledger)
         self.assertEqual(path,self.root/'work/readings'/('generation-'+issued['row']['key_sha256'][:16]+'.json'))
-        filled=c.load(path);filled['applied'][0].update(quote=PARAGRAPH,why='Synthetic application.')
+        filled=c.load(path);filled['applied'].append({'path':'notes/work.md','quote':PARAGRAPH,'why':'Synthetic application.'})
         path.write_text(json.dumps(filled), encoding="utf-8")
-        self.assertEqual(r.write_draft(issued,self.ledger,root=self.root),path)
+        self.assertEqual(r.write_draft(issued,self.ledger),path)
         self.assertEqual(c.load(path),filled)
     def test_cli_read_prints_the_draft_path(self):
         env={k:v for k,v in os.environ.items() if k!='CPB_READS_LEDGER'}
@@ -104,9 +129,7 @@ class ReadingTests(unittest.TestCase):
         last=run.stdout.rstrip().splitlines()[-1]
         self.assertTrue(last.startswith('reading-record: work/readings/development-'),last)
         draft=c.load(self.root/last.split(': ',1)[1])
-        always=set(c.load(r.ROOT/r.execution_routes.MANIFEST)['always_read'])
-        self.assertEqual([x['path'] for x in draft['applied']],[x['path'] for x in draft['documents'] if x['path'] not in always])
-        self.assertEqual(draft['resource_applied'],[])
+        self.assertEqual((draft['route'],draft['applied'],draft['resource_applied']),('development',[],[]))
     def family_catalog(self):
         pack=self.root/'pack';(pack/'resources').mkdir(parents=True)
         rule='Synthetic rule for {} gives the rendition one clear priority and records it in the delivered prompt.'
@@ -114,8 +137,10 @@ class ReadingTests(unittest.TestCase):
             {'id':'every','title':'Every family','rules':[rule.format('every family')]},
             {'id':'first','title':'First family','dialects':['family-a'],'rules':[rule.format('the first family')]},
             {'id':'second','title':'Second family','dialects':['family-b'],'rules':[rule.format('the second family')]}]}
-        dialects={'format':'synthetic','name':'Synthetic dialects','description':'Synthetic fixture.',
-                  'dialects':[{'id':'family-a','name':'A'},{'id':'family-b','name':'B'}]}
+        family=lambda name:{'id':name,'name':name,'description':'Synthetic family.','tag_separator':', ',
+                            'block_order':['subject','scene']}
+        dialects={'format':'character-prompt-builder-prompt-dialects','name':'Synthetic dialects',
+                  'description':'Synthetic fixture.','dialects':[family('family-a'),family('family-b')]}
         (pack/'resources/guide.json').write_text(json.dumps(guide), encoding='utf-8')
         (pack/'resources/dialects.json').write_text(json.dumps(dialects), encoding='utf-8')
         self.manifest['features']['prompt-dialect']={'reads':[],'source_roles':[]}
@@ -128,10 +153,10 @@ class ReadingTests(unittest.TestCase):
     def family_record(self,dialect,section):
         stream=io.StringIO()
         issued=r.issue('generation',['prompt-dialect'],root=self.root,ledger=self.ledger,stream=stream,dialect=dialect)
-        record=r.draft_record(issued,root=self.root)
-        record['applied'][0].update(quote=PARAGRAPH,why='Synthetic application.')
-        record['resource_applied'][0].update(pointer=f'/sections/{section}/rules/0',why='Synthetic rule application.',
-                                             quote=self.guide['sections'][section]['rules'][0])
+        record=r.draft_record(issued)
+        record['applied'].append({'path':'notes/work.md','quote':PARAGRAPH,'why':'Synthetic application.'})
+        record['resource_applied'].append({'resource':'prompt-writing-guide','pointer':f'/sections/{section}/rules/0',
+                                           'why':'Synthetic rule application.','quote':self.guide['sections'][section]['rules'][0]})
         return record,stream.getvalue()
     def test_model_family_reading_withholds_other_family_sections(self):
         catalog,self.guide=self.family_catalog()
@@ -189,8 +214,42 @@ class ReadingTests(unittest.TestCase):
         self.assertNotIn(self.guide['sections'][1]['rules'][0],out.getvalue())
         draft=c.load(self.root/out.getvalue().rstrip().splitlines()[-1].split(': ',1)[1])
         self.assertEqual({x['dialect'] for x in draft['resources'].values()},{'family-b'})
+    def read_args(self,*words):
+        import argparse
+        parser=argparse.ArgumentParser();r.add_read_arguments(parser)
+        state=self.root/'runtime'
+        return parser.parse_args([*words,'--root',str(self.root),'--state-file',str(state/'state.json'),
+                                  '--cache-dir',str(state/'cache'),'--managed-root',str(state/'managed')]),parser
+    def test_read_command_takes_a_prompt_family_without_a_model_record(self):
+        import contextlib
+        catalog,self.guide=self.family_catalog()
+        out=io.StringIO()
+        with catalog,patch.dict(os.environ),contextlib.redirect_stdout(out):
+            os.environ.pop('CPB_READS_LEDGER',None)
+            r.read_command(*self.read_args('generation','--dialect','family-a'))
+            with self.assertRaisesRegex(ValueError,"unknown dialect 'family-c'; the prompt-dialects resource carries: family-a, family-b"):
+                r.read_command(*self.read_args('generation','--dialect','family-c'))
+        self.assertIn(self.guide['sections'][1]['rules'][0],out.getvalue())
+        self.assertNotIn(self.guide['sections'][2]['rules'][0],out.getvalue())
+        draft=c.load(self.root/out.getvalue().rstrip().splitlines()[-1].split(': ',1)[1])
+        self.assertEqual({x['dialect'] for x in draft['resources'].values()},{'family-a'})
+        row=next(x for x in r.ledger_rows(self.root/'work/reads.jsonl') if x['key_sha256']==c.digest(draft['reading_key'].encode()))
+        self.assertEqual(row['resources'],draft['resources'])
+    def test_an_unknown_model_names_the_models_and_the_prompt_families(self):
+        import prepare_generation_references
+        catalog,self.guide=self.family_catalog()
+        models=[SimpleNamespace(kind='model',record={'id':name},source_pack='synthetic-pack',source_root=self.root/'pack')
+                for name in ('synthetic-model-b','synthetic-model-a')]
+        refused=ValueError("unknown model 'family-a'; use a model record from an enabled pack")
+        with catalog as loader,patch.object(prepare_generation_references,'resolve_model_record',side_effect=refused):
+            loader.return_value.entries=tuple(models)
+            with self.assertRaises(ValueError) as caught:
+                r.read_command(*self.read_args('generation','--model','family-a'))
+        self.assertEqual(str(caught.exception),"unknown model 'family-a'; use a model record from an enabled pack; "
+                         'model ids: synthetic-model-a, synthetic-model-b; a prompt-only read can name the prompt family '
+                         'instead with --dialect ID: family-a, family-b')
     def test_a_model_needs_the_prompt_dialect_feature(self):
-        with self.assertRaisesRegex(ValueError,'no prompt-dialect feature'):
+        with self.assertRaisesRegex(ValueError,'add --feature prompt-dialect'):
             r.capture('generation',root=self.root,dialect='family-a')
     def test_ledger_has_only_key_hash(self):
         issued=self.issued()
@@ -212,9 +271,9 @@ class ReadingTests(unittest.TestCase):
     def test_feature_mismatch(self):
         record=self.record();record['features']=['extra']
         with self.assertRaises(ValueError): self.verify(record)
-    def test_missing_quote(self):
+    def test_a_reading_that_applies_nothing_verifies(self):
         record=self.record();record['applied']=[]
-        with self.assertRaisesRegex(ValueError,'missing application'): self.verify(record)
+        self.verify(record)
     def test_wrong_quote(self):
         record=self.record();record['applied'][0]['quote']=PARAGRAPH.replace('operator','reader')
         with self.assertRaisesRegex(ValueError,'paragraph'): self.verify(record)

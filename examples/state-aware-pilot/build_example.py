@@ -769,13 +769,16 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
     }
     negative_provenance = {
         "activated_sources": [
-            "style-family:polished-soft-cel",
+            f"style-family:{DEFAULT_STYLE_FAMILY_ID}",
+            f"render-profile:{DEFAULT_RENDER_PROFILE_ID}",
             "state-integrity:left-right",
             "state-integrity:prop-ownership",
         ],
         "diagnostic_sources_retained": [],
         "semantic_exclusions_user_supplied": [],
         "affirmative_translations": {
+            f"style-family:{DEFAULT_STYLE_FAMILY_ID}": "crisp facial markings",
+            f"render-profile:{DEFAULT_RENDER_PROFILE_ID}": "a clearly illustrated soft-cel medium",
             "state-integrity:left-right": "stable left-right identity",
             "state-integrity:prop-ownership": (
                 "the wolf's neck and shirt remain visibly free of that pendant"

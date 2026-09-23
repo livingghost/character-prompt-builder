@@ -153,10 +153,7 @@ def _family(name: str, value: dict, dialect: str | None) -> bytes:
                                        else {'id': section['id'], 'dialects': section['dialects']}
                                        for section in value['sections']]}
     else:
-        rows = [row for row in value['dialects'] if row['id'] == dialect]
-        if dialect is not None and not rows:
-            raise ValueError('model dialect is absent from the active resource: ' + dialect)
-        value = {**value, 'dialects': rows}
+        value = {**value, 'dialects': [row for row in value['dialects'] if row['id'] == dialect]}
     return (json.dumps(value, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
 
 
@@ -172,7 +169,7 @@ def _capture_resources(manifest: dict, bodies: list, dialect: Any) -> None:
     manifest['resources'] = {}
     if 'prompt-dialect' not in manifest['features']:
         if dialect is not EVERY_FAMILY:
-            raise ValueError('a model selects prompt-writing guide sections; the reading has no prompt-dialect feature')
+            raise ValueError('a model or prompt family selects writing guide sections; add --feature prompt-dialect')
         return
     from catalog_retrieval.runtime import load_pack_catalog
     from pack_cache import resource_warning
@@ -201,6 +198,13 @@ def _capture_resources(manifest: dict, bodies: list, dialect: Any) -> None:
         raw = c.read(c.local(next(iter(roots)), relative))
         meta = {'status': 'present', 'source_pack': resource.source_pack, 'path': relative, 'sha256': c.digest(raw)}
         if dialect is not EVERY_FAMILY:
+            if name == 'prompt-dialects' and dialect is not None:
+                from pack_manager import PackError
+                from prompt_dialect import find_dialect
+                try:
+                    find_dialect(dialect, path)
+                except PackError as exc:
+                    raise ValueError(str(exc)) from None
             meta['dialect'] = dialect
             raw = _family(name, c.decode(raw), dialect)
         c.decode(raw)
@@ -265,8 +269,6 @@ def _require_resource_applications(record: dict, bodies: list, dialect: str | No
         # Model-facing validation supplies the declared dialect and checks it.
         if dialect is not _NO_MODEL and section.get('dialects') and dialect not in section['dialects']:
             raise ValueError('guide section does not apply to the selected model dialect')
-    if 'prompt-writing-guide' in available and not applications:
-        raise ValueError('missing application for the active prompt-writing-guide')
 
 
 def _add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
@@ -415,22 +417,25 @@ def validate_record_content(record: Any) -> None:
         c.text(item['why'], f"{item['path']}: application reason")
         if item['path'] not in available:
             raise ValueError('quotation document is absent from the recorded edition')
-    if RECORD_RESOURCE_FIELDS:
-        if not isinstance(record['resource_applied'], list):
-            raise ValueError('resource applications must be an array')
-        for item in record['resource_applied']:
-            c.exact(item, {'resource', 'pointer', 'quote', 'why'}, 'resource application')
-            for field in item:
-                c.text(item[field], 'resource application ' + field)
-            if item['resource'] not in record['resources']:
-                raise ValueError('quotation resource is absent from the recorded edition')
+    if not isinstance(record['resource_applied'], list):
+        raise ValueError('resource applications must be an array')
+    for item in record['resource_applied']:
+        c.exact(item, {'resource', 'pointer', 'quote', 'why'}, 'resource application')
+        for field in item:
+            c.text(item[field], 'resource application ' + field)
+        if item['resource'] not in record['resources']:
+            raise ValueError('quotation resource is absent from the recorded edition')
 
 
 def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path] | None = None,
                           project: Path | None = None, package_root: Path | None = None,
                           routes: set[str] | None = None, features: list[str] | None = None,
                           dialect: Any = _NO_MODEL) -> dict:
-    fields = {'route', 'features', 'reading_key', 'documents', 'applied'} | RECORD_RESOURCE_FIELDS
+    """Verify the issued full-text read and each application the author declares.
+
+    The author decides which documents apply to the task; a document read but
+    not applied carries no quotation.
+    """
     validate_record_content(record)
     if routes is not None and record['route'] not in routes:
         raise ValueError('reading route must be one of: ' + ', '.join(sorted(routes)))
@@ -443,23 +448,11 @@ def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path]
         if record[field] != current[field]:
             raise ValueError('reading ' + field + ' differs from the current sources; read again')
     row = _find_row(record, ledgers if ledgers is not None else ledger_candidates(project=project, package_root=package_root))
-    applications = record['applied']
-    if not isinstance(applications, list):
-        raise ValueError('reading applications must be an array')
-    required = {x['path'] for x in record['documents']} - set(c.load(c.local(root, execution_routes.MANIFEST))['always_read'])
     available = {meta['path']: raw.decode('utf-8') for meta, raw in bodies if meta['kind'] == 'document'}
-    covered = set()
-    for item in applications:
-        c.exact(item, {'path', 'quote', 'why'}, 'document application')
-        c.text(item['why'], 'application reason')
-        quote = _normalized(c.text(item['quote'], 'quote'))
-        if item['path'] not in available:
-            raise ValueError('quote refers to a document outside this route')
+    for item in record['applied']:
+        quote = _normalized(item['quote'])
         if len(quote.split()) < 12 or not any(quote in block for block in prose_blocks(available[item['path']])):
             raise ValueError('quote must contain at least twelve words of paragraph text: ' + item['path'])
-        covered.add(item['path'])
-    if required - covered:
-        raise ValueError('missing application for: ' + ', '.join(sorted(required - covered)))
     _require_resource_applications(record, bodies, dialect)
     return row
 
@@ -502,9 +495,8 @@ def build_record(issued: dict, applications: dict, *, root: Path = ROOT,
     c.exact(issued, {'reading_key', 'row'}, 'issued reading')
     row = issued['row']
     result = {key: row[key] for key in sorted({'route', 'features', 'documents'} | RESOURCE_FIELDS)}
-    result.update(reading_key=issued['reading_key'], applied=applications['applied'])
-    if RESOURCE_FIELDS:
-        result['resource_applied'] = applications['resource_applied']
+    result.update(reading_key=issued['reading_key'], applied=applications['applied'],
+                  resource_applied=applications['resource_applied'])
     require_route_reading(result, root=root, project=project, ledgers=ledgers, dialect=dialect)
     return result
 
@@ -578,7 +570,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
             start = 0
         else:
             if route is not None or features or dialect is not EVERY_FAMILY:
-                raise ValueError('a cursor fixes its route, features and model')
+                raise ValueError('a cursor fixes its route, features and prompt family')
             folder, snapshot, page = _cursor(ledger, cursor)
             sid = c.content_id(snapshot)
             if str(root.absolute()) != snapshot['root']:
@@ -651,24 +643,18 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
     return result
 
 
-def draft_record(issued: dict, *, root: Path = ROOT) -> dict:
-    """The reading record with every derived field filled and each authored field null."""
+def draft_record(issued: dict) -> dict:
+    """The reading record with every derived field filled and no application yet."""
     row = issued['row']
-    always = set(c.load(c.local(root, execution_routes.MANIFEST))['always_read'])
-    guide = row['resources'].get('prompt-writing-guide', {}).get('status') == 'present'
     return {'route': row['route'], 'features': row['features'], 'reading_key': issued['reading_key'],
-            'documents': row['documents'], 'resources': row['resources'],
-            'applied': [{'path': item['path'], 'quote': None, 'why': None}
-                        for item in row['documents'] if item['path'] not in always],
-            'resource_applied': [{'resource': 'prompt-writing-guide', 'pointer': None, 'quote': None, 'why': None}]
-                                if guide else []}
+            'documents': row['documents'], 'resources': row['resources'], 'applied': [], 'resource_applied': []}
 
 
-def write_draft(issued: dict, ledger: Path, *, root: Path = ROOT) -> Path:
+def write_draft(issued: dict, ledger: Path) -> Path:
     """Write the draft beside the ledger once; an existing file keeps what the author wrote."""
     row = issued['row']
     path = ledger.parent / 'readings' / (row['route'] + '-' + row['key_sha256'][:16] + '.json')
-    raw = (json.dumps(draft_record(issued, root=root), ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+    raw = (json.dumps(draft_record(issued), ensure_ascii=False, indent=2) + '\n').encode('utf-8')
     try:
         c.atomic(path, raw)
     except FileExistsError:
@@ -676,11 +662,30 @@ def write_draft(issued: dict, ledger: Path, *, root: Path = ROOT) -> Path:
     return path
 
 
+def _model_family(model: str) -> str | None:
+    """The prompt family a model record names; a model that resolves to no record gets what exists."""
+    from catalog_retrieval.runtime import load_pack_catalog
+    from prepare_generation_references import resolve_model_record
+    try:
+        return resolve_model_record(model)[1].get('prompt_dialect')
+    except ValueError as exc:
+        catalog = load_pack_catalog()
+        models = sorted({str(entry.record['id']) for entry in catalog.entries
+                         if entry.kind == 'model' and entry.record.get('id')})
+        resource = catalog.resources.get('prompt-dialects')
+        families = sorted(row['id'] for row in c.load(Path(resource.path))['dialects']) if resource else []
+        raise ValueError(f"{exc}; model ids: {', '.join(models) or 'none'}; a prompt-only read can name "
+                         f"the prompt family instead with --dialect ID: {', '.join(families) or 'none'}") from None
+
+
 def add_read_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('route', nargs='?')
     parser.add_argument('--feature', action='append', default=[])
     parser.add_argument('--root', type=Path, help='Project or studio root for the reading ledger')
-    parser.add_argument('--model', help="Read only the prompt-writing guide sections for this model's family")
+    family = parser.add_mutually_exclusive_group()
+    family.add_argument('--model', help="Read only the writing guide sections for this model's prompt family")
+    family.add_argument('--dialect', metavar='ID',
+                        help='Read only the writing guide sections for this prompt family, without a model record')
     parser.add_argument('--page-bytes', type=int)
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--continue', dest='cursor')
@@ -692,10 +697,9 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
     """Read, then write the draft reading record for the issued key and print its path."""
     runtime = _configure_runtime(args, parser)
     ledger = ledger_candidates(project=args.root)[0]
-    dialect = EVERY_FAMILY
+    dialect = EVERY_FAMILY if args.dialect is None else args.dialect
     if args.model is not None:
-        from prepare_generation_references import resolve_model_record
-        dialect = resolve_model_record(args.model)[1].get('prompt_dialect')
+        dialect = _model_family(args.model)
     if args.cursor or args.replay or args.page_bytes is not None:
         result = read_page(route=args.route, features=args.feature, cursor=args.cursor or args.replay,
                            replay=bool(args.replay), page_bytes=16384 if args.page_bytes is None else args.page_bytes,

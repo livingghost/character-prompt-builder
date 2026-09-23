@@ -2626,9 +2626,10 @@ def run() -> dict[str, Any]:
         generic_state_output = temp / "generic-state-aware-package.json"
         write_json(prepared_zero_path, prepared_zero)
         generic_state_error = ""
+        generic_state_stdout = io.StringIO()
         try:
-            with contextlib.redirect_stdout(io.StringIO()):
-                build_generation_main(
+            with contextlib.redirect_stdout(generic_state_stdout):
+                generic_state_exit = build_generation_main(
                     [
                         "--model",
                         STATE_REFERENCE_MODEL,
@@ -2647,8 +2648,8 @@ def run() -> dict[str, Any]:
                         *reference_runtime_arguments,
                     ]
                 )
-        except ValueError as exc:
-            generic_state_error = str(exc)
+            if generic_state_exit == 1:
+                generic_state_error = "; ".join(json.loads(generic_state_stdout.getvalue())["errors"])
         finally:
             configure_pack_runtime(reference_settings)
         check(

@@ -155,79 +155,147 @@ def load_vocabulary(path: Path) -> dict[str, Any]:
     return validate_vocabulary(value, path=resolved)
 
 
-def _category_matches(category: Mapping[str, Any], filters: Sequence[str]) -> bool:
-    if not filters:
+def _words(value: str) -> str:
+    """Lexical words with plural and -ing endings removed, padded for whole-word tests."""
+    return " " + " ".join(_stem_token(word) for word in normalize_lexical(value).split()) + " "
+
+
+@dataclass(frozen=True)
+class _Entry:
+    row: SearchRow
+    term_identity: str
+    term_words: str
+    alias_identities: tuple[str, ...]
+    alias_words: tuple[str, ...]
+    description_words: str
+    term_tokens: frozenset[str]
+    alias_tokens: frozenset[str]
+    description_tokens: frozenset[str]
+    category_tokens: frozenset[str]
+    category_identity: str
+    category_lexical: str
+
+
+@dataclass(frozen=True)
+class _Query:
+    identity: str
+    words: str
+    tokens: frozenset[str]
+
+
+def _entry_score(query: _Query, entry: _Entry) -> int:
+    """Rank one entry: the term itself first, then whole words, then partial matches.
+
+    Each tier outranks every lower tier. A phrase counts only on word boundaries,
+    so "pout" finds "pouting" and not "spout". Within a tier, query words found in
+    the term count most and words found only in the description least.
+    """
+
+    phrase = query.words if len(query.words.strip()) >= 2 else ""
+    inside = query.identity if len(query.identity) >= 2 else ""
+    term_and_alias = entry.term_tokens | entry.alias_tokens
+    every_field = term_and_alias | entry.description_tokens
+    if query.identity == entry.term_identity:
+        tier = 1000
+    elif phrase and phrase == entry.term_words:
+        tier = 980
+    elif query.identity in entry.alias_identities or (phrase and phrase in entry.alias_words):
+        tier = 950
+    elif phrase and entry.term_words.startswith(phrase):
+        tier = 900
+    elif phrase and phrase in entry.term_words:
+        tier = 880
+    elif phrase and any(phrase in alias for alias in entry.alias_words):
+        tier = 850
+    elif query.tokens and query.tokens <= entry.term_tokens:
+        tier = 800
+    elif query.tokens and query.tokens <= term_and_alias:
+        tier = 780
+    elif inside and inside in entry.term_identity:
+        tier = 700
+    elif inside and any(inside in alias for alias in entry.alias_identities):
+        tier = 680
+    elif phrase and phrase in entry.description_words:
+        tier = 600
+    elif query.tokens and query.tokens <= every_field:
+        tier = 500
+    else:
+        found = query.tokens & every_field
+        if not found:
+            return 0
+        tier = 100 + 380 * len(found) // len(query.tokens)
+    bonus = (4 * len(query.tokens & entry.term_tokens)
+             + 2 * len(query.tokens & (entry.alias_tokens - entry.term_tokens))
+             + len(query.tokens & entry.description_tokens)
+             + (1 if query.tokens & entry.category_tokens else 0))
+    return tier + min(bonus, 19)
+
+
+class VocabularyIndex:
+    """Dictionaries prepared once, so one process answers many searches."""
+
+    def __init__(self, vocabularies: Iterable[Mapping[str, Any]]) -> None:
+        self.entries: list[_Entry] = []
+        for vocabulary in vocabularies:
+            for category in vocabulary["categories"]:
+                category_identity = normalize_identity(
+                    f"{category['id']} {category['name']} {category['description']}"
+                )
+                category_lexical = normalize_lexical(category_identity)
+                category_tokens = frozenset(tokens(category_lexical))
+                for entry in category["entries"]:
+                    aliases = tuple(str(v) for v in entry.get("aliases") or [])
+                    description = str(entry["description"]) if entry.get("description") else None
+                    term_tokens = frozenset(tokens(str(entry["term"])))
+                    self.entries.append(_Entry(
+                        row=SearchRow(term=str(entry["term"]), category_id=str(category["id"]),
+                                      category=str(category["name"]), aliases=aliases,
+                                      description=description, score=0),
+                        term_identity=normalize_identity(str(entry["term"])),
+                        term_words=_words(str(entry["term"])),
+                        alias_identities=tuple(normalize_identity(v) for v in aliases),
+                        alias_words=tuple(_words(v) for v in aliases),
+                        description_words=_words(description or ""),
+                        term_tokens=term_tokens,
+                        alias_tokens=frozenset(tokens(" ".join(aliases))) - term_tokens,
+                        description_tokens=frozenset(tokens(description or "")),
+                        category_tokens=category_tokens,
+                        category_identity=category_identity,
+                        category_lexical=category_lexical,
+                    ))
+
+    @staticmethod
+    def _category_matches(entry: _Entry, filters: Sequence[str]) -> bool:
+        for raw in filters:
+            identity_filter = normalize_identity(raw)
+            lexical_filter = normalize_lexical(raw)
+            if identity_filter and identity_filter in entry.category_identity:
+                continue
+            if lexical_filter and lexical_filter in entry.category_lexical:
+                continue
+            return False
         return True
-    identity_haystack = normalize_identity(
-        f"{category['id']} {category['name']} {category['description']}"
-    )
-    lexical_haystack = normalize_lexical(identity_haystack)
-    for raw in filters:
-        identity_filter = normalize_identity(raw)
-        lexical_filter = normalize_lexical(raw)
-        if identity_filter and identity_filter in identity_haystack:
-            continue
-        if lexical_filter and lexical_filter in lexical_haystack:
-            continue
-        return False
-    return True
 
-
-def _entry_score(
-    query_identity: str,
-    query_lexical: str,
-    query_tokens: tuple[str, ...],
-    category: Mapping[str, Any],
-    entry: Mapping[str, Any],
-) -> int:
-    term_identity = normalize_identity(str(entry["term"]))
-    alias_identities = tuple(normalize_identity(str(v)) for v in entry.get("aliases") or [])
-    description_identity = normalize_identity(str(entry.get("description") or ""))
-    category_identity = normalize_identity(
-        f"{category['id']} {category['name']} {category['description']}"
-    )
-    term_lexical = normalize_lexical(term_identity)
-    alias_lexicals = tuple(normalize_lexical(v) for v in alias_identities)
-    description_lexical = normalize_lexical(description_identity)
-    category_lexical = normalize_lexical(category_identity)
-
-    score = 0
-    if query_identity == term_identity:
-        score = max(score, 1000)
-    if query_identity in alias_identities:
-        score = max(score, 950)
-    if query_identity and query_identity in term_identity:
-        score = max(score, 820 if term_identity.startswith(query_identity) else 780)
-    if query_identity and any(query_identity in alias for alias in alias_identities):
-        score = max(score, 740)
-    if description_identity and query_identity and query_identity in description_identity:
-        score = max(score, 560)
-    if len(query_lexical) >= 2:
-        if query_lexical in term_lexical:
-            score = max(score, 800 if term_lexical.startswith(query_lexical) else 760)
-        if any(query_lexical in alias for alias in alias_lexicals):
-            score = max(score, 720)
-        if description_lexical and query_lexical in description_lexical:
-            score = max(score, 540)
-
-    query_set = set(query_tokens)
-    if query_set:
-        term_tokens = set(tokens(term_lexical))
-        alias_tokens = set(tokens(" ".join(alias_lexicals)))
-        description_tokens = set(tokens(description_lexical))
-        category_tokens = set(tokens(category_lexical))
-        term_overlap = len(query_set & term_tokens)
-        alias_overlap = len(query_set & alias_tokens)
-        description_overlap = len(query_set & description_tokens)
-        category_overlap = len(query_set & category_tokens)
-        if query_set <= term_tokens:
-            score = max(score, 700 + len(query_set) * 12)
-        if query_set <= alias_tokens:
-            score = max(score, 660 + len(query_set) * 12)
-        score += term_overlap * 50 + alias_overlap * 40 + description_overlap * 12
-        if score > 0:
-            score += category_overlap * 5
-    return score
+    def search(self, query: str, *, category_filters: Sequence[str] = (), limit: int = 20) -> list[SearchRow]:
+        identity = normalize_identity(query)
+        if not identity:
+            raise VocabularyError("query must not be empty")
+        if type(limit) is not int or limit < 1:
+            raise VocabularyError("limit must be a positive integer")
+        prepared = _Query(identity=identity, words=_words(query), tokens=frozenset(tokens(query)))
+        scored: list[tuple[int, int, str, str, SearchRow]] = []
+        for entry in self.entries:
+            if category_filters and not self._category_matches(entry, category_filters):
+                continue
+            score = _entry_score(prepared, entry)
+            if score > 0:
+                row = entry.row
+                scored.append((-score, len(entry.term_words.split()), entry.term_identity,
+                               row.category_id, row))
+        scored.sort(key=lambda item: item[:4])
+        return [SearchRow(term=row.term, category_id=row.category_id, category=row.category,
+                          aliases=row.aliases, description=row.description, score=-negative)
+                for negative, _, _, _, row in scored[:limit]]
 
 
 def search_vocabularies(
@@ -237,34 +305,7 @@ def search_vocabularies(
     category_filters: Sequence[str] = (),
     limit: int = 20,
 ) -> list[SearchRow]:
-    query_identity = normalize_identity(query)
-    if not query_identity:
-        raise VocabularyError("query must not be empty")
-    if type(limit) is not int or limit < 1:
-        raise VocabularyError("limit must be a positive integer")
-    query_lexical = normalize_lexical(query)
-    query_tokens = tokens(query)
-    rows: list[SearchRow] = []
-    for vocabulary in vocabularies:
-        for category in vocabulary["categories"]:
-            if not _category_matches(category, category_filters):
-                continue
-            for entry in category["entries"]:
-                score = _entry_score(query_identity, query_lexical, query_tokens, category, entry)
-                if score <= 0:
-                    continue
-                rows.append(
-                    SearchRow(
-                        term=str(entry["term"]),
-                        category_id=str(category["id"]),
-                        category=str(category["name"]),
-                        aliases=tuple(str(v) for v in entry.get("aliases") or []),
-                        description=(str(entry["description"]) if entry.get("description") else None),
-                        score=score,
-                    )
-                )
-    rows.sort(key=lambda r: (-r.score, normalize_identity(r.term), r.category_id))
-    return rows[:limit]
+    return VocabularyIndex(vocabularies).search(query, category_filters=category_filters, limit=limit)
 
 
 def list_categories(vocabularies: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -441,9 +482,42 @@ def read_prompt(vocabularies: Sequence[Mapping[str, Any]], text: str, negative: 
     return {"text": text_rows, "negative": negative_rows, "notices": notices}
 
 
+def _unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    keys = [key for key, _ in pairs]
+    repeated = sorted({key for key in keys if keys.count(key) > 1})
+    if repeated:
+        raise VocabularyError(f"--queries repeats element {repeated[0]!r}; put its queries in one list")
+    return dict(pairs)
+
+
+def load_queries(source: str) -> list[tuple[str, str]]:
+    """Read {"element": ["query", ...]} from literal JSON, a JSON file, or '-' for stdin."""
+    text = source.strip()
+    if text == "-":
+        payload = json.load(sys.stdin, object_pairs_hook=_unique_keys)
+    elif text.startswith("{"):
+        payload = json.loads(text, object_pairs_hook=_unique_keys)
+    else:
+        payload = json.loads(Path(text).read_text(encoding="utf-8"), object_pairs_hook=_unique_keys)
+    example = '{"pose": ["arms crossed"], "lighting": ["soft light", "rim light"]}'
+    if not isinstance(payload, dict) or not payload:
+        raise VocabularyError("--queries takes a JSON object of element names and queries, such as " + example)
+    pairs: list[tuple[str, str]] = []
+    for element, queries in payload.items():
+        items = [queries] if isinstance(queries, str) else queries
+        if (not element.strip() or not isinstance(items, list) or not items
+                or any(not isinstance(query, str) or not query.strip() for query in items)):
+            raise VocabularyError(f"--queries {element!r}: give a query or a list of queries, as in " + example)
+        pairs.extend((element, query) for query in items)
+    return pairs
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("query", nargs="?", help="English term or concept to search")
+    parser.add_argument("--queries", metavar="JSON_OR_PATH",
+                        help='Several searches in one run: {"ELEMENT": ["QUERY", ...]} as literal JSON, '
+                             "a JSON file, or - for stdin. With --record, each query is recorded under its element.")
     parser.add_argument(
         "--dictionary",
         action="append",
@@ -465,16 +539,38 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if (args.record is None) != (args.element is None):
+    if args.queries is not None:
+        if args.query is not None:
+            parser.error("give one query or --queries, not both")
+        if args.element is not None:
+            parser.error("--queries names the element of each query")
+    elif (args.record is None) != (args.element is None):
         parser.error("--record and --element go together")
-    if args.record is not None and (args.read is not None or args.list_categories):
-        parser.error("--record records a search")
+    if (args.record is not None or args.queries is not None) and (args.read is not None or args.list_categories):
+        parser.error("--record and --queries run searches")
     try:
         if args.record is not None:
             from prompt_retrieval import check_recordable
             check_recordable(args.record, None)
+        searches = load_queries(args.queries) if args.queries is not None else None
         vocabularies = [load_vocabulary(path) for path in args.dictionary]
-        if args.read is not None:
+        if searches is not None:
+            index = VocabularyIndex(vocabularies)
+            results = [(element, query, index.search(query, category_filters=args.category, limit=args.limit))
+                       for element, query in searches]
+            output = {
+                "ok": True,
+                "mode": "searches",
+                "category_filters": args.category,
+                "searches": [{"element": element, "query": query, "result_count": len(rows),
+                              "results": [row.as_json() for row in rows]}
+                             for element, query, rows in results],
+            }
+            if args.record is not None:
+                from prompt_retrieval import record_lookups
+                record_lookups(args.record, [(element, [query], [row.term for row in rows])
+                                             for element, query, rows in results])
+        elif args.read is not None:
             report = read_prompt(
                 vocabularies,
                 args.read.read_text(encoding="utf-8"),
@@ -491,7 +587,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             }
         else:
             if args.query is None:
-                raise VocabularyError("query is required unless --list-categories is used")
+                raise VocabularyError("give a query, --queries, --read or --list-categories")
             rows = search_vocabularies(
                 vocabularies,
                 args.query,

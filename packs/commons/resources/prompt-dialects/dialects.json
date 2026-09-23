@@ -1,7 +1,7 @@
 {
   "format": "character-prompt-builder-prompt-dialects",
   "name": "Image Prompt Dialects",
-  "description": "How each family of tag-trained image models reads a prompt: the tag grammar it expects, the blocks it is built from and in what order, and the vocabulary that acts on it. A model record names its dialect and a guide rule names the dialects it applies to, so a rule proven on one family is never handed to another. Add a family by adding a dialect here.",
+  "description": "How each family of tag-trained image models reads a prompt: the tag grammar it expects, the blocks it is built from and in what order, the vocabulary that acts on it, and how it writes a negative the negative-policy resource activates. A model record names its dialect and a guide rule names the dialects it applies to, so a rule proven on one family is never handed to another. Add a family by adding a dialect here.",
   "dialects": [
     {
       "id": "illustrious-noobai",
@@ -40,7 +40,7 @@
         "recent",
         "mid",
         "early",
-        "oldest"
+        "old"
       ],
       "inert_terms": [
         "4k",
@@ -50,7 +50,8 @@
         "score_9",
         "score_8",
         "score_7"
-      ]
+      ],
+      "negative_form": "The corpus tags that name the failure, in the negative field, each checked against the vocabulary: worst quality and low quality for the quality floor; text, watermark, signature, logo, and translation request for generation hygiene; bad hands, extra digits, and fewer digits for hand integrity; extra arms and extra legs for limb integrity; multiple views, comic, 2koma, and 4koma for a single picture; monochrome and greyscale for a colour medium; the rating terms above the requested one for a content rating. A source with no corpus tag stays out of the negative, and a more exact positive carries it."
     },
     {
       "id": "anima",
@@ -99,10 +100,9 @@
         "recent",
         "mid",
         "early",
-        "old",
-        "year 2025",
-        "year 2024"
-      ]
+        "old"
+      ],
+      "negative_form": "The corpus tags that name the failure, in the negative field with spaces in multi-word tags, each checked against the vocabulary: text, watermark, and signature for generation hygiene; bad hands and extra digits for hand integrity; multiple views and comic for a single picture; monochrome and greyscale for a colour medium; the rating terms above the requested one for a content rating. A source with no corpus tag stays out of the negative, and a more exact positive carries it."
     }
   ]
 }

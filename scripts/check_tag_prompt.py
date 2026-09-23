@@ -3,7 +3,8 @@
 
 Usage:
   python scripts/check_tag_prompt.py --dictionary <prompt-vocabulary/dictionary.json>
-      --prompt "<the model-facing prompt>" [--negative "<the negative>"] [--model <model-id>]
+      --prompt "<the model-facing prompt>" [--negative "<the negative>"]
+      [--model <model-id>] [--dialect <dialect-id>] [--dialects <dialects.json>]
 
 The checks are the ones a machine can settle. Each reads the vocabulary resource
 rather than a list kept here: a category the resource marks as describing one
@@ -19,11 +20,17 @@ budget without adding emphasis. A term in both the prompt and the negative is th
 prompt arguing with itself. A count tag does not carry across a chunk break, so a
 chunk that depicts the subject without one can spawn a second figure.
 
+A model family is checked when `--dialect` names it, or when the `--model` record
+names it. Its rating, period and quality terms are read from the prompt-dialects
+resource, including where one of them sits inside a longer tag as a word of its
+own: `old man` carries the period term `old`.
+
 Judgement stays with the agent: this reports, it does not rewrite. A problem is a
 statement about the prompt's own grammar or about a pair the vocabulary itself
 calls incompatible; a note is a reading worth confirming.
 
-Output is JSON on stdout. The exit status is 1 when a problem is reported.
+Output is JSON on stdout; `dialect` names the family checked, or is null. The
+exit status is 1 when a problem is reported.
 """
 from __future__ import annotations
 
@@ -206,6 +213,23 @@ def check(prompt: str, negative: str, vocabulary: dict[str, Any], record: dict[s
         if inert:
             report("problem", "inert term",
                    f"the {dialect['id']} family never learned these, so they spend budget and steer nothing", inert)
+        # A family term can act from inside a longer tag. Words split at spaces
+        # only: an underscore spelling, which a family may use to bind a tag
+        # whole, reads as one word.
+        family_terms: dict[str, str] = {}
+        for field, label in (("rating_terms", "rating"), ("period_terms", "period"), ("quality_terms", "quality")):
+            for term in dialect.get(field) or []:
+                family_terms.setdefault(normalize(term), label)
+        for tag in tags:
+            words = bare(tag).casefold().split()
+            for term, label in family_terms.items():
+                inner = term.split()
+                if len(inner) < len(words) and any(words[i:i + len(inner)] == inner
+                                                   for i in range(len(words) - len(inner) + 1)):
+                    report("note", "family term inside a tag",
+                           f"{bare(tag)!r} carries {term!r}, a {label} term of the {dialect['id']} family, "
+                           "which can act on its own there; spell the tag as the family's multi_word_tags says, "
+                           "or confirm the reading", [bare(tag), term])
         low, high = (dialect.get("weight_range") or [None, None])[:2] or (None, None)
         if low is not None:
             for tag in tags:
@@ -233,28 +257,37 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--prompt", required=True)
     parser.add_argument("--negative", default="")
     parser.add_argument("--model", help="A model record, to check the rendition against its declared limits and its family")
+    parser.add_argument("--dialect", help="A model family by its id, for a family with no model record")
     parser.add_argument("--dialects", help="A prompt-dialects JSON file, instead of the active pack's")
     args = parser.parse_args(argv)
     if not args.dictionary.is_file():
         raise SystemExit(f"{args.dictionary} is not a file")
     record = None
-    dialect = None
+    dialect_id = args.dialect
     if args.model:
         from prepare_generation_references import resolve_model_record
 
-        _, record = resolve_model_record(args.model)
+        model_id, record = resolve_model_record(args.model)
         named = record.get("prompt_dialect")
-        if named:
-            from prompt_dialect import load_dialects, resolve_resource
+        if args.dialect and named and named != args.dialect:
+            raise SystemExit(f"model record {model_id!r} names the {named!r} family, not {args.dialect!r}")
+        dialect_id = dialect_id or named
+    dialect = None
+    if dialect_id:
+        from pack_manager import PackError
+        from prompt_dialect import find_dialect, resolve_resource
 
+        try:
             path = resolve_resource("prompt-dialects", args.dialects, state_file=None, cache_dir=None,
-                                    managed_root=None, required=False)
-            if path is not None:
-                dialect = load_dialects(path).get(named)
+                                    managed_root=None, required=bool(args.dialect))
+            dialect = find_dialect(dialect_id, path) if path is not None else None
+        except PackError as exc:
+            raise SystemExit(str(exc)) from None
     findings = check(args.prompt, args.negative, load_vocabulary(args.dictionary), record, dialect)
     problems = [row for row in findings if row["severity"] == "problem"]
-    print(json.dumps({"ok": not problems, "problems": len(problems),
-                      "notes": len(findings) - len(problems), "findings": findings}, ensure_ascii=False, indent=2))
+    print(json.dumps({"ok": not problems, "problems": len(problems), "notes": len(findings) - len(problems),
+                      "dialect": dialect["id"] if dialect else None, "findings": findings},
+                     ensure_ascii=False, indent=2))
     return 1 if problems else 0
 
 

@@ -34,7 +34,7 @@ A failed build preserves existing output directories and the authored task.
 
 ## Reading choices
 
-Copy `reading_key`, `applied`, and `resource_applied` from the reading record the route read wrote, after filling its quotations and reasons.
+Copy `reading_key`, `applied`, and `resource_applied` from the reading record the route read wrote, after listing the documents and guide rules the task applies.
 `snapshot_id` can be null when the issued record remains valid without the delivery snapshot.
 The builder resolves the document hashes from the issued record.
 

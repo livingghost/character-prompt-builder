@@ -76,6 +76,19 @@ class ProductionTests(unittest.TestCase):
 
     def test_routes_all_owners_and_dependencies(self): self.assertTrue(routes.validate()['ok'])
     def test_uuid_identity(self): self.assertEqual(uuid.UUID(self.prepare()).version,7)
+    def test_task_template_validates_with_the_printed_series_id(self):
+        import subprocess,sys
+        task=c.load(ROOT/'templates/realization/production-task.json')
+        with self.assertRaisesRegex(ValueError,r'python scripts/production_workflow\.py new-production-id'): w.validate_task(task)
+        printed=subprocess.run([sys.executable,str(ROOT/'scripts/production_workflow.py'),'new-production-id'],
+                               capture_output=True,text=True,encoding='utf-8',check=True).stdout
+        task['production_id']=json.loads(printed)['production_id']
+        self.assertEqual(w.validate_task(task)['route'],'development')
+    def test_authority_template_shows_a_checked_stop_condition(self):
+        import production_permissions as permissions
+        authority=c.load(ROOT/'templates/realization/production-authority.json')
+        w.schema_check(authority,'authority'); permissions.validate(authority,authority['task_id'])
+        self.assertEqual([set(x) for x in authority['stop_conditions']],[{'id','text'}])
     def test_consumer_excludes_raw_dossier(self):
         run=self.prepare(); self.assertNotIn('PRIVATE_SOURCE_NOT_FOR_CONSUMER',c.read(w.run_dir(self.root,run)/'consumer.json').decode())
     def test_exact_binding(self):
@@ -497,6 +510,26 @@ class PackageIntegrationTests(unittest.TestCase):
         v={'host_forwarding':{'effective_prompt_sha256':'a'*64}}
         fixture.claim(self.root,self.run,self.package,v,journal)
         with self.assertRaises(ValueError): fixture.claim(self.root,self.run,self.package,v,journal)
+    def test_intent_names_inputs_by_hash_and_the_claim_checks_their_bytes(self):
+        import base64
+        fixture.handoff(self.root,self.run,'test transport','dispatcher'); journal=self.root/'runs'/'fixture'; journal.mkdir()
+        rendered=fixture.rendered_request(self.package,seed=None,count=2); target=rendered['sealed']['target']
+        intent=w.submission_intent(self.package,rendered=rendered,seed=None,count=2,service={},
+                                   offering={'service':target['service'],'model_identifier':target['model_identifier']})
+        snapshots=self.package['input_snapshots']
+        self.assertEqual(intent['payload']['input_sha256'],{path:item['sha256'] for path,item in snapshots.items()})
+        self.assertNotIn('base64',c.encoded(intent).decode('utf-8'))
+        unnamed=copy.deepcopy(intent); del unnamed['payload']['input_sha256'][self.package['request_validation']['contract']['path']]
+        with self.assertRaisesRegex(ValueError,'does not name the validation contract'):
+            w.draft_authorization(self.root,self.run,'fixture-grant',unnamed)
+        authorization=fixture.grant(self.root,self.run,intent)
+        (journal/'request-contract.json').write_bytes(c.encoded(rendered))
+        changed=copy.deepcopy(self.package); raw=b'{"synthetic": "other bytes"}\n'
+        changed['input_snapshots'][sorted(snapshots)[0]]={'sha256':c.digest(raw),'size':len(raw),'base64':base64.b64encode(raw).decode('ascii')}
+        v={'host_forwarding':{'effective_prompt_sha256':'a'*64}}
+        with self.assertRaisesRegex(ValueError,'input bytes differ'):
+            w.claim_dispatch(self.root,self.run,changed,v,journal,intent,authorization,rendered=rendered)
+        self.assertEqual(w.claim_dispatch(self.root,self.run,self.package,v,journal,intent,authorization,rendered=rendered)['event'],'dispatch-claim')
     def test_partial_acquisition_cannot_be_recovered(self):
         fixture.handoff(self.root,self.run,'test transport','dispatcher'); journal=self.root/'runs'/'fixture'; journal.mkdir()
         fixture.claim(self.root,self.run,self.package,{'host_forwarding':{'effective_prompt_sha256':'a'*64}},journal)

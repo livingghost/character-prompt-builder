@@ -23,7 +23,7 @@
     },
     {
       "schema": "shared-state/camera-framing-contract.schema.json",
-      "sha256": "d0addf37f01c0cf9d53a69e109c3f0b4a27009bc55256e0be65de034b1c60269"
+      "sha256": "1b0a3e750e7b0510579e4e708f5896d82b29ae35959e0e3a492f14ae32ae1e9c"
     },
     {
       "schema": "shared-state/candidate-manifest.schema.json",
@@ -103,7 +103,7 @@
     },
     {
       "schema": "shared-state/performance-language.schema.json",
-      "sha256": "0949a783838e7e8486dc7e621855cb3abacbedccea156188553ef8c31dc34907"
+      "sha256": "bca72e549dbb46b77edc4b45441498cf44a9c032efe632594eccbad837adcf58"
     },
     {
       "schema": "shared-state/prepared-generation-reference.schema.json",
@@ -115,7 +115,7 @@
     },
     {
       "schema": "shared-state/production-spec.schema.json",
-      "sha256": "e4a63780022cc44d723d8e55c02295f1a960f2badc046177fe9315824b4b1f42"
+      "sha256": "7475582b389fbb3bb7f7031c37644f24f078063a62ac345c10b50a7fa645cb85"
     },
     {
       "schema": "shared-state/reference-bundle-plan.schema.json",
@@ -416,5 +416,5 @@
     "path": "protocols/semantics.md",
     "sha256": "c5b7cf3f0770e05f90f8c5f8f52f4994557e328c2c8590ad73b019082664d261"
   },
-  "contract_set_sha256": "5f26960f3b5b6cbc18805b836897e0d8d84cd169f38d01691c43cdb673d694f6"
+  "contract_set_sha256": "acea166812758d8f9702c25c180e1f510e2c77ed673703931ca32ac45dca51c8"
 }

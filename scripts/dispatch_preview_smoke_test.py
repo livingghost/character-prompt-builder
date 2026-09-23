@@ -35,6 +35,9 @@ class PreviewTests(unittest.TestCase):
         self.assertEqual(self.preview(),0)
         view=c.load(self.root/'preview.json');intent=c.load(self.root/'intent.json')
         self.assertEqual(view['request_contract']['request_sha256'],intent['payload']['request_sha256'])
+        self.assertEqual(intent['payload']['input_sha256'],
+                         {path:item['sha256'] for path,item in self.request['input_snapshots'].items()})
+        self.assertNotIn('base64',(self.root/'intent.json').read_text(encoding='utf-8'))
         decision=production_request.draft_decision(view['request_contract'],actor='synthetic selector')
         self.assertIsNone(decision['rendition_review']['conclusion'])
         self.assertIsNone(decision['principal_approval'])
@@ -58,7 +61,8 @@ class PreviewTests(unittest.TestCase):
         text=self.output.getvalue()
         head,_,body=text.partition('request (sha256 ')
         for line in ('model: '+self.model,'service: synthetic at https://example.invalid','outputs: 1',
-                     'negative prompt: none; an upscale takes no negative prompt','cost: unknown',
+                     'negative prompt: none; an upscale takes no negative prompt',
+                     'cost: unknown; the author states the upper bound in the authorization',
                      'production run: '+self.run,'saved: trace and validation in','shown, not sent'):
             self.assertIn(line,head)
         view=c.load(self.root/'preview.json')

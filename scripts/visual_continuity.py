@@ -74,8 +74,10 @@ def validate_content(value: Any, production_spec: dict) -> None:
             seen.add(key)
         if item['identity_refs'] and item['studio_character'] is None:
             raise ValueError(ident + ': identity selectors need their studio character')
-        if len(ids) > 1 and item['continuity'] == 'recurring' and not item['identity_refs']:
-            raise ValueError(ident + ': select a current accepted identity before a multiple-subject generation')
+        if item['continuity'] == 'recurring' and not item['identity_refs']:
+            raise ValueError(ident + ': recurring needs an accepted identity image among the references. '
+                             'The first images of a new recurring character are undecided exploration; '
+                             'they become recurring once the author accepts one.')
 
 
 def declared_sheet_slots(root: Path, character: str) -> set[str]:

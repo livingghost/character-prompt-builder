@@ -1,18 +1,34 @@
 {
-  "principle": "Positive records state desired image content. Negative terms are activated only by an applicable production condition or an explicit user exclusion.",
+  "principle": "This policy names the conditions that activate a negative, not its words. A source is active when its condition holds for the current generation. The target writes an active source in its own form: a family in the prompt-dialects resource as its negative_form says, a model with a prose negative field in short plain phrases, and a model with no negative field as affirmative wording in the positive prompt.",
   "automatic_sources": {
     "generation_hygiene": {
       "activation": "character-image generation where incidental marks are unrelated to the requested design",
-      "terms": [
-        "unintended text",
-        "unintended logo",
-        "watermark",
-        "signature"
+      "guards_against": [
+        "text, logos, watermarks, or signatures the design did not ask for"
+      ]
+    },
+    "quality_floor": {
+      "activation": "the target family trains a quality or aesthetic ladder",
+      "guards_against": [
+        "the low-scoring slice of the family's training corpus"
+      ]
+    },
+    "single_picture": {
+      "activation": "the request is one picture, not panels, a sheet, or several views",
+      "guards_against": [
+        "panel layout",
+        "several views of the subject"
+      ]
+    },
+    "requested_content_rating": {
+      "activation": "the request fixes a content rating and the target family carries rating terms",
+      "guards_against": [
+        "a content tier above the requested one"
       ]
     },
     "visible_limb_integrity": {
       "activation": "arms, legs, wings, tentacles, or other articulated limbs are visibly framed",
-      "terms": [
+      "guards_against": [
         "unrequested duplicated limb",
         "missing visible limb",
         "disconnected joint"
@@ -20,7 +36,7 @@
     },
     "hand_or_paw_integrity": {
       "activation": "a visible hand, paw, claw, or manipulator performs a readable action",
-      "terms": [
+      "guards_against": [
         "duplicated hand or paw",
         "fused digits",
         "broken grasp geometry"
@@ -28,7 +44,7 @@
     },
     "tail_integrity": {
       "activation": "the selected subject has a visible tail",
-      "terms": [
+      "guards_against": [
         "duplicated tail",
         "detached tail",
         "tail fused into a nearby form"
@@ -36,7 +52,7 @@
     },
     "clothing_integrity": {
       "activation": "constructed clothing is visible",
-      "terms": [
+      "guards_against": [
         "broken garment construction",
         "fabric fused into anatomy",
         "inconsistent garment opening"
@@ -44,7 +60,7 @@
     },
     "held_prop_integrity": {
       "activation": "the subject holds, wears, leans on, or otherwise contacts a prop",
-      "terms": [
+      "guards_against": [
         "floating prop",
         "prop fused into anatomy",
         "broken contact geometry"
@@ -61,7 +77,7 @@
   },
   "conditional_sources": {
     "observed_generation_failure": {
-      "activation": "a generated image exhibits a specific failure that should be corrected on retry",
+      "activation": "a reviewed result shows a failure or a drift from what the positive states, to correct on retry",
       "source": "generation review"
     },
     "user_exclusion": {
@@ -77,7 +93,7 @@
       "automatic_emission": false
     }
   },
-  "semantic_exclusion_rule": "Do not invent semantic exclusions; add them only when the user explicitly excludes them.",
-  "merge_rule": "Merge only terms whose activation condition is true for the current generation.",
-  "applicability_rule": "Remove inactive terms when the scene, anatomy, wardrobe, props, or selected medium changes."
+  "semantic_exclusion_rule": "A negative names only what an active source guards against, including a drift a reviewed result showed; add other concepts, themes, and presentations only when the user explicitly excludes them.",
+  "merge_rule": "Write only the sources whose condition is true for the current generation.",
+  "applicability_rule": "Drop a source when a change to the scene, anatomy, wardrobe, props, or selected medium makes its condition false."
 }

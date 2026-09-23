@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Mark, validate and settle a prompt retrieval record (`schemas/prompt-retrieval-record.schema.json`).
 
-`catalog_cli.py --record` appends the lookups; this tool records each element's outcome."""
+Catalog and vocabulary searches given `--record` append the lookups; this tool records each element's outcome."""
 from __future__ import annotations
 
 import argparse
@@ -18,20 +18,23 @@ ARTIFACT_TYPE = "prompt-retrieval-record"
 OUTCOMES = ("adopted", "composed")
 
 
-def _string_list(value: Any, label: str, errors: list[str], *, required: bool) -> list[str]:
+MARK_HINT = "mark it with --adopted ID (repeat for each record the wording uses), or with --composed TEXT and --reason TEXT"
+
+
+def _string_list(value: Any, label: str, field: str, errors: list[str], *, required: bool) -> list[str]:
     if value is None:
         if required:
-            errors.append(f"{label} is required")
+            errors.append(f"{label}: {field} is required")
         return []
     if not isinstance(value, list):
-        errors.append(f"{label} must be an array")
+        errors.append(f"{label}: {field} must be an array")
         return []
     if required and not value:
-        errors.append(f"{label} must not be empty")
+        errors.append(f"{label}: {field} must not be empty")
     items: list[str] = []
     for index, item in enumerate(value):
         if not isinstance(item, str) or not item.strip():
-            errors.append(f"{label}[{index}] must be a non-empty string")
+            errors.append(f"{label}: {field}[{index}] must be a non-empty string")
             continue
         items.append(item)
     return items
@@ -74,50 +77,55 @@ def validate_prompt_retrieval_record(value: Any) -> dict[str, Any]:
         entries = []
 
     for index, entry in enumerate(entries):
-        label = f"elements[{index}]"
+        name = entry.get("element") if isinstance(entry, dict) else None
+        named = isinstance(name, str) and bool(name.strip())
+        label = f"element {name!r}" if named else f"elements[{index}]"
         if not isinstance(entry, dict):
             errors.append(f"{label} must be an object")
             continue
         unknown = sorted(set(entry) - {
             "element", "queries", "inspected_records", "outcome",
-            "adopted_record", "composed_wording", "reason",
+            "adopted_records", "composed_wording", "reason",
         })
         if unknown:
             errors.append(f"{label} has unknown keys: {unknown}")
 
-        name = entry.get("element")
-        if not isinstance(name, str) or not name.strip():
-            errors.append(f"{label}.element must be a non-empty string")
+        if not named:
+            errors.append(f"{label}: element must be a non-empty string")
         else:
             if name in element_names:
-                errors.append(f"{label}.element repeats {name!r}")
+                errors.append(f"elements[{index}] repeats {name!r}")
             element_names.append(name)
 
-        _string_list(entry.get("queries"), f"{label}.queries", errors, required=True)
-        _string_list(entry.get("inspected_records"), f"{label}.inspected_records", errors, required=False)
+        _string_list(entry.get("queries"), label, "queries", errors, required=True)
+        inspected = _string_list(entry.get("inspected_records"), label, "inspected_records", errors, required=False)
 
         outcome = entry.get("outcome")
+        if outcome is None:
+            errors.append(f"{label} has no outcome; {MARK_HINT}")
+            continue
         if outcome not in OUTCOMES:
-            errors.append(f"{label}.outcome must be one of {list(OUTCOMES)}, got {outcome!r}")
+            errors.append(f"{label}: outcome must be 'adopted' or 'composed', got {outcome!r}")
             continue
         if outcome == "adopted":
             adopted += 1
-            record = entry.get("adopted_record")
-            if not isinstance(record, str) or not record.strip():
-                errors.append(f"{label}.adopted_record is required when outcome is 'adopted'")
-            if record not in (entry.get("inspected_records") or []):
-                errors.append(f"{label}.adopted_record must have been inspected")
+            records = _string_list(entry.get("adopted_records"), label, "adopted_records", errors, required=True)
+            if len(set(records)) != len(records):
+                errors.append(f"{label}: adopted_records repeats a record")
+            missing = [record for record in records if record not in inspected]
+            if missing:
+                errors.append(f"{label}: adopted records were not inspected: {missing}")
             for absent in ("composed_wording", "reason"):
                 if entry.get(absent) is not None:
-                    errors.append(f"{label}.{absent} does not belong to an adopted outcome")
+                    errors.append(f"{label}: {absent} does not belong to an adopted outcome")
         else:
             composed += 1
             for required_key in ("composed_wording", "reason"):
                 item = entry.get(required_key)
                 if not isinstance(item, str) or not item.strip():
-                    errors.append(f"{label}.{required_key} is required when outcome is 'composed'")
-            if entry.get("adopted_record") is not None:
-                errors.append(f"{label}.adopted_record does not belong to a composed outcome")
+                    errors.append(f"{label}: {required_key} is required when outcome is 'composed'")
+            if entry.get("adopted_records") is not None:
+                errors.append(f"{label}: adopted_records does not belong to a composed outcome")
 
     return {
         "ok": not errors,
@@ -180,41 +188,53 @@ def check_recordable(path: Path, pack_state: str | None) -> None:
     _draft(path, pack_state)
 
 
-def record_lookup(path: Path, element: str, *, queries: Sequence[str] = (),
-                  inspected: Sequence[str] = (), pack_state: str | None = None) -> dict[str, Any]:
-    """Append the queries and inspected records one lookup actually ran."""
-    if not isinstance(element, str) or not element.strip():
-        raise ValueError("a recorded lookup needs a non-empty element name")
+def record_lookups(path: Path, lookups: Sequence[tuple[str, Sequence[str], Sequence[str]]], *,
+                   pack_state: str | None = None) -> dict[str, Any]:
+    """Append (element, queries, inspected records) for each lookup actually run, in one write."""
     value = _draft(path, pack_state)
-    entry = next((item for item in value["elements"] if item.get("element") == element), None)
-    if entry is None:
-        entry = {"element": element, "queries": [], "inspected_records": []}
-        value["elements"].append(entry)
-    for field, items in (("queries", queries), ("inspected_records", inspected)):
-        for item in items:
-            if item not in entry.setdefault(field, []):
-                entry[field].append(item)
+    for element, queries, inspected in lookups:
+        if not isinstance(element, str) or not element.strip():
+            raise ValueError("a recorded lookup needs a non-empty element name")
+        entry = next((item for item in value["elements"] if item.get("element") == element), None)
+        if entry is None:
+            entry = {"element": element, "queries": [], "inspected_records": []}
+            value["elements"].append(entry)
+        for field, items in (("queries", queries), ("inspected_records", inspected)):
+            for item in items:
+                if item not in entry.setdefault(field, []):
+                    entry[field].append(item)
     from pack_manager import atomic_write_json
     atomic_write_json(path, value)
     return value
 
 
-def mark_outcome(value: Any, element: str, *, adopted: str | None = None,
+def record_lookup(path: Path, element: str, *, queries: Sequence[str] = (),
+                  inspected: Sequence[str] = (), pack_state: str | None = None) -> dict[str, Any]:
+    """Append the queries and inspected records one lookup actually ran."""
+    return record_lookups(path, [(element, queries, inspected)], pack_state=pack_state)
+
+
+def mark_outcome(value: Any, element: str, *, adopted: str | Sequence[str] = (),
                  composed: str | None = None, reason: str | None = None) -> dict[str, Any]:
-    """Record the author's decision for one element: adopted wording or composed wording."""
+    """Record the author's decision for one element: the adopted records, or composed wording.
+
+    A mark states the element's whole decision, so it replaces an earlier mark."""
     if not isinstance(value, dict) or value.get("settled"):
         raise ValueError("mark outcomes on an unsettled retrieval record")
     entry = next((item for item in value.get("elements", []) if item.get("element") == element), None)
     if entry is None:
         raise ValueError(f"no recorded lookup for element {element!r}")
-    if adopted and composed is None and reason is None:
-        if adopted not in entry.get("inspected_records", []):
-            raise ValueError(f"{adopted!r} was not inspected for element {element!r}")
+    records = list(dict.fromkeys([adopted] if isinstance(adopted, str) else adopted))
+    if records and composed is None and reason is None:
+        missing = [record for record in records if record not in entry.get("inspected_records", [])]
+        if missing:
+            raise ValueError(f"not inspected for element {element!r}: {missing}; "
+                             "search or inspect with --record first")
         entry.pop("composed_wording", None)
         entry.pop("reason", None)
-        entry.update(outcome="adopted", adopted_record=adopted)
-    elif adopted is None and composed and reason:
-        entry.pop("adopted_record", None)
+        entry.update(outcome="adopted", adopted_records=records)
+    elif not records and composed and reason:
+        entry.pop("adopted_records", None)
         entry.update(outcome="composed", composed_wording=composed, reason=reason)
     else:
         raise ValueError("mark an element with --adopted ID, or with --composed TEXT and --reason TEXT")
@@ -240,7 +260,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--plot-file", type=Path)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--element", help="Mark this element's outcome in the record, in place")
-    parser.add_argument("--adopted", metavar="ID", help="The inspected record whose wording the prompt uses")
+    parser.add_argument("--adopted", metavar="ID", action="append", default=[],
+                        help="An inspected record whose wording the prompt uses; repeat for each such record")
     parser.add_argument("--composed", metavar="TEXT", help="Wording written because no inspected record fits")
     parser.add_argument("--reason", help="Why no inspected record fits the composed wording")
     args = parser.parse_args(argv)
@@ -252,11 +273,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             mark_outcome(value, args.element, adopted=args.adopted, composed=args.composed, reason=args.reason)
             from pack_manager import atomic_write_json
             atomic_write_json(args.record, value)
+            entry = next(item for item in value["elements"] if item.get("element") == args.element)
+            marked = {key: entry[key] for key in ("element", "outcome", "adopted_records", "composed_wording")
+                      if key in entry}
             remaining = validate_prompt_retrieval_record(value)["errors"]
-            print(json.dumps({"ok": True, "marked": args.element, "remaining": remaining},
+            print(json.dumps({"ok": True, "marked": marked, "remaining": remaining},
                              ensure_ascii=False, indent=2))
             return 0
-        if any(x is not None for x in (args.adopted, args.composed, args.reason)):
+        if args.adopted or args.composed is not None or args.reason is not None:
             raise ValueError("--adopted, --composed and --reason require --element")
         if args.settle:
             if not args.prompt_file or not args.plot_file or not args.out:

@@ -343,9 +343,7 @@
     },
     "recurring-identity": {
       "reads": [
-        "references/character-identity-contract.md",
-        "references/morphology-and-species-contracts.md",
-        "references/species-architecture.md"
+        "references/character-identity-contract.md"
       ],
       "source_roles": []
     },
@@ -438,9 +436,7 @@
       "reads": [
         "references/runtime/prompt-only-core.md"
       ],
-      "features": [
-        "pack-runtime"
-      ],
+      "features": [],
       "stages": [
         "prepare",
         "handoff",
@@ -454,9 +450,7 @@
       "reads": [
         "references/runtime/prompt-composition.md"
       ],
-      "features": [
-        "pack-runtime"
-      ],
+      "features": [],
       "stages": [
         "prepare",
         "handoff",
@@ -471,7 +465,6 @@
         "references/runtime/reference-prompt-artifacts.md"
       ],
       "features": [
-        "pack-runtime",
         "references",
         "reference-delivery"
       ],
@@ -489,7 +482,6 @@
         "references/runtime/image-generation.md"
       ],
       "features": [
-        "pack-runtime",
         "studio",
         "reference-delivery",
         "prompt-dialect"
@@ -544,7 +536,7 @@
         "references/runtime/character-repose-workflow.md"
       ],
       "features": [
-        "references",
+        "reference-delivery",
         "studio",
         "prompt-dialect"
       ],

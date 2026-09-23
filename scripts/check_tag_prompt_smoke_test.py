@@ -13,8 +13,28 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_tag_prompt as checker  # noqa: E402
+from prompt_dialect import load_dialects  # noqa: E402
 
-EXPECTED_CHECKS = 21
+EXPECTED_CHECKS = 30
+COMMONS = ROOT / "packs" / "commons" / "resources"
+
+DIALECTS = {
+    "format": "character-prompt-builder-prompt-dialects",
+    "name": "Fixture dialects",
+    "description": "Two fixture families for the regression test.",
+    "dialects": [
+        {
+            "id": "family-a", "name": "Family A", "description": "The first fixture family.",
+            "tag_separator": "a comma followed by one space", "block_order": ["quality", "subject"],
+            "quality_terms": ["masterpiece"], "rating_terms": ["general", "explicit"],
+            "period_terms": ["newest", "old"],
+        },
+        {
+            "id": "family-b", "name": "Family B", "description": "The second fixture family.",
+            "tag_separator": "a comma followed by one space", "block_order": ["quality", "subject"],
+        },
+    ],
+}
 
 DICTIONARY = {
     "format": "character-prompt-builder-prompt-vocabulary",
@@ -130,6 +150,61 @@ def main() -> int:
     rows = findings("1boy, solo, grey fur", "", {"max_positive_prompt_chars": 10}, vocabulary)
     check("a rendition past the record's declared length is a problem",
           any(row["check"] == "length" and row["severity"] == "problem" for row in rows), rows)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        dictionary = Path(tmp) / "dictionary.json"
+        dictionary.write_text(json.dumps(DICTIONARY), encoding="utf-8")
+        dialect_file = Path(tmp) / "dialects.json"
+        dialect_file.write_text(json.dumps(DIALECTS), encoding="utf-8")
+
+        def run(*extra: str) -> subprocess.CompletedProcess:
+            return subprocess.run(
+                [sys.executable, str(ROOT / "scripts" / "check_tag_prompt.py"), "--dictionary", str(dictionary),
+                 "--dialects", str(dialect_file), *extra],
+                capture_output=True, text=True, encoding="utf-8", timeout=60, check=False,
+            )
+
+        named = run("--prompt", "general, explicit, 1boy", "--dialect", "family-a")
+        report = json.loads(named.stdout or "{}")
+        check("--dialect runs the family checks for a family with no model record",
+              named.returncode == 1 and report.get("dialect") == "family-a"
+              and has(report.get("findings") or [], "rating term"), named.stdout[-400:] + named.stderr[-400:])
+        unnamed = run("--prompt", "general, explicit, 1boy")
+        check("without a family the output names none and runs no family check",
+              unnamed.returncode == 0 and json.loads(unnamed.stdout).get("dialect") is None, unnamed.stdout[-300:])
+        unknown = run("--prompt", "1boy", "--dialect", "family-c")
+        check("an unknown family id is answered with the ids the resource carries",
+              unknown.returncode != 0 and "unknown dialect 'family-c'; the prompt-dialects resource carries: "
+              "family-a, family-b" in unknown.stderr, unknown.stderr[-300:])
+        family = load_dialects(dialect_file)["family-a"]
+
+    rows = checker.check("1boy, old man, grey fur", "", vocabulary, None, family)
+    inside = [row for row in rows if row["check"] == "family term inside a tag"]
+    check("a multi-word tag that carries a family period term as a word is a note naming both",
+          len(inside) == 1 and inside[0]["severity"] == "note" and inside[0]["terms"] == ["old man", "old"], rows)
+    rows = checker.check("1boy, old_man, grey fur", "", vocabulary, None, family)
+    check("an underscore spelling binds whole and is not read as its words",
+          not has(rows, "family term inside a tag"), rows)
+    rows = checker.check("1boy, old, grey fur", "", vocabulary, None, family)
+    check("a family term written as its own tag is not read as inside a tag",
+          not has(rows, "family term inside a tag"), rows)
+
+    commons_vocabulary = checker.load_vocabulary(COMMONS / "prompt-vocabulary" / "dictionary.json")
+    commons_dialects = load_dialects(COMMONS / "prompt-dialects" / "dialects.json")
+    rows = checker.check("masterpiece, best quality, newest, 1boy, solo, old man, grey hair", "", commons_vocabulary,
+                         None, commons_dialects["illustrious-noobai"])
+    check("on the commons Illustrious and NoobAI family, old man is read as carrying the period term old",
+          any(row["check"] == "family term inside a tag" and row["terms"] == ["old man", "old"] for row in rows), rows)
+    missing = {family_id: sorted(term for field in ("rating_terms", "period_terms", "quality_terms")
+                                 for term in row.get(field) or []
+                                 if checker.normalize(term) not in commons_vocabulary["category_of"])
+               for family_id, row in commons_dialects.items()}
+    check("every rating, period, and quality term of a commons family is carried by the commons vocabulary",
+          not any(missing.values()), missing)
+    rows = checker.check("masterpiece, newest, year 2025, 1girl, solo", "", commons_vocabulary, None,
+                         commons_dialects["anima"])
+    check("on the commons Anima family a year term sits beside the period term",
+          not has(rows, "period term"), rows)
 
     passed = sum(1 for row in results if row["passed"])
     report = {"ok": len(results) == EXPECTED_CHECKS and passed == len(results), "checks": len(results),

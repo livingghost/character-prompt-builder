@@ -65,7 +65,7 @@ Assume nothing about a universal 75-token ceiling: prompt capacity, chunking, an
 
 A non-load-bearing off-frame detail may be omitted from the model-facing rendition when it consumes scarce prompt capacity or visibly damages the current frame. Preserve it in canonical identity or scene state when continuity still owns it.
 
-A negative channel is for qualities that arrive uninvited. Before adding a term to it, check whether a positive term is requesting the quality being suppressed; if so, remove that positive term instead. Negatives that contradict live positives fight inside one representation and usually damage the wanted content along with the unwanted. A negative list that grows across successive revisions is a symptom of an unresolved positive-side cause rather than of a thorough exclusion policy.
+The `negative-policy` resource decides which negative sources are active and how each kind of target writes one; a tag family's own form is the `negative_form` that `scripts/prompt_dialect.py` returns. A negative channel is for qualities that arrive uninvited. Before adding a term to it, check whether a positive term is requesting the quality being suppressed; if so, remove that positive term instead. Negatives that contradict live positives fight inside one representation and usually damage the wanted content along with the unwanted. A negative list that grows across successive revisions is a symptom of an unresolved positive-side cause rather than of a thorough exclusion policy.
 
 ## Controlled comparison
 
@@ -82,6 +82,7 @@ A tag rendition can be wrong in ways the returned image leaves unreported:
 
 ```bash
 python scripts/check_tag_prompt.py --dictionary <prompt-vocabulary/dictionary.json> --prompt "<the rendition>" --negative "<the negative>" --model <model-id>
+python scripts/check_tag_prompt.py --dictionary <prompt-vocabulary/dictionary.json> --prompt "<the rendition>" --dialect <dialect-id>
 ```
 
 The checks read the resolved vocabulary resource rather than a list kept in the script. They use:
@@ -90,9 +91,14 @@ The checks read the resolved vocabulary resource rather than a list kept in the 
 - the terms it names as putting more than one figure in the picture;
 - the terms each entry declares it opposes.
 
-With `--model` the rendition is also held to the record's declared prompt lengths and negative channel, and to its family. The family checks report more than one rating or period term from that family's set, a term the family lacks, and an explicit weight outside the range the family works in.
+With `--model` the rendition is also held to the record's declared prompt lengths and negative channel, and to its family. `--dialect` names the family directly, for a family without a model record, and an unknown id is answered with the ids the resource carries. The family checks report:
 
-Output is JSON on stdout with a `findings` list. A problem is a statement about the rendition's own grammar or about a pair the vocabulary calls incompatible; a note is a reading worth confirming, such as a term missing from the vocabulary or a chunk after a break that lacks a count tag. The exit status is 1 when a problem is reported, and the command exits with a message when the dictionary path is anything but a file. The check only reports; which finding to act on is the agent's decision. Its regression test is `scripts/check_tag_prompt_smoke_test.py`.
+- more than one rating or period term from that family's set;
+- a term the family lacks;
+- an explicit weight outside the range the family works in;
+- a rating, period, or quality term inside a longer tag, such as the period term old in old man.
+
+Output is JSON on stdout with a `findings` list and the family checked under `dialect`. A problem is a statement about the rendition's own grammar or about a pair the vocabulary calls incompatible; a note is a reading worth confirming, such as a term missing from the vocabulary or a chunk after a break that lacks a count tag. The exit status is 1 when a problem is reported, and the command exits with a message when the dictionary path is anything but a file. The check only reports; which finding to act on is the agent's decision. Its regression test is `scripts/check_tag_prompt_smoke_test.py`.
 
 ## Failure policy
 

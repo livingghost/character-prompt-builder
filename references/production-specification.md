@@ -21,15 +21,25 @@ A Production Specification may be regenerated whenever scene-visible semantic in
 
 ### Stateless
 
-Use `state_context.mode: "stateless"` for a one-off image that has no approved temporal canon. The specification still uses the current structure.
+Use `state_context.mode: "stateless"` for a one-off image and for the first images of a character, when no approved temporal canon exists. A stateless `state_context` holds only the mode and optional notes, and the builder seals the stateless lineage.
 
-For every one-off image, including prompt-only delivery, begin with `templates/production-spec-template.json`, author the complete current scene directly, and validate it before final prompt delivery or packaging:
+For every such image, including prompt-only delivery, draft the smallest valid specification for its subject, replace each `"unspecified"` the author decides, and validate it before final prompt delivery or packaging:
 
 ```bash
-python scripts/production_spec.py validate production-specification.json --require-content
+python scripts/production_spec.py draft production-spec.json --model grok-imagine-image-2.0 \
+  --brief "An old lighthouse keeper watches the sea from a window at dawn." \
+  --kind human --framing upper-thigh --continuity undecided
+python scripts/production_spec.py validate production-spec.json --require-content
 ```
 
-Do not preserve fields from another shape or patch an older prompt into apparent compliance. The current template is the only authoring structure. Stateless mode omits managed-series lineage and snapshot references, but it still records the exact scene, subjects, geometry, camera, environment, materials, art direction, performance, and construction obligations needed for this image.
+The draft prints the builder arguments that name its subject (synthetic brief):
+
+```json
+{"created": "production-spec.json", "sha256": "a28ec0d3f9a951ae75b7d10294aeaab54867d6b0f7424408d00bb8d5c7326eae",
+ "build_with": ["--production-spec-file", "production-spec.json", "--continuity", "C01=undecided"]}
+```
+
+Author the current scene directly rather than patching an older prompt into apparent compliance.
 
 ### State-aware
 
@@ -46,25 +56,27 @@ The specification never reconstructs state from chat memory. It consumes reviewe
 
 Each materially distinct subject defines:
 
+- `id` and canonical `domain`;
+- `identity`: the stable features relevant to this image, projected from the Identity Contract when one exists;
+- `current_state`: visible and performance-relevant deltas resolved for this story time;
+- `proportions_and_form`;
+- `surfaces_and_markings`;
+- `distinctive_details` using `references/distinctive-detail-specification.md`;
+- `performance` derived from felt, displayed, masked, physiological, relationship, and scene context, using `performance-language.schema.json`;
+- `wardrobe_and_accessories`, including layer and condition state;
+- `pose_and_body_geometry`;
+- `props_and_contacts`, including current possession, attachment, support, and depth order.
+
+A subject adds only the structures this image depends on:
+
 - `frame_character`: an authored overall form and declared structure map, with specialist detail only where applicable;
 - `load_bearing_part_measurements`: landmark-anchored dimensions for anatomy, garments, accessories, props, or mechanical parts that must reconstruct consistently;
 - `accessory_geometry`: count, site, attachment, dimensions, repeated elements, material, color, layer order, clearance, pose response, articulation, visibility, and continuity for every reconstruction-critical accessory;
-- `id` and canonical `domain`;
-- `identity_contract_ref`, `state_snapshot_ref`, and `visual_projection_ref` in state-aware mode;
-- `identity`: the stable features relevant to this image, projected from the Identity Contract;
-- `current_state`: visible and performance-relevant deltas resolved for this story time;
-- `proportions_and_form`;
-- optional `head_and_face` when that summary applies;
-- `surfaces_and_markings`;
-- `distinctive_details` using `references/distinctive-detail-specification.md`;
-- `performance` derived from felt, displayed, masked, physiological, relationship, and scene context, using `performance-language.schema.json` when coordinated channel detail matters;
-- `wardrobe_and_accessories`, including layer and condition state;
 - `growth_geometry`, declaring only relevant carried or projecting structures without a mandatory anatomy inventory;
 - `garment_geometry`, containing one geometry contract per materially visible garment;
-- `pose_and_body_geometry`;
-- optional `hands` and `legs_and_feet` convenience summaries, or `structure_notes` for authored parts;
-- optional `gaze_and_head` where applicable;
-- `props_and_contacts`, including current possession, attachment, support, and depth order.
+- `head_and_face`, `hands`, `legs_and_feet` and `gaze_and_head` convenience summaries, or `structure_notes` for authored parts.
+
+A subject that names an `identity_contract_ref` also carries its morphology references and `resolved_morphology`, as [Subject morphology resolution](#subject-morphology-resolution) describes. A state-aware subject also names `state_snapshot_ref` and `visual_projection_ref`, and carries `growth_geometry`.
 
 Do not force an unrelated structure into a human-named summary. Omit inapplicable optional summaries and use the declared structure IDs.
 
@@ -129,7 +141,7 @@ A style family is an indivisible concrete drawing grammar. When selected, use it
 
 ## Modular control
 
-Detailed controls remain optional. Use only fields that affect the current image. Empty optional detail is preferable to invented filler. A sparse portrait may need a small specification; a multi-character contact scene, reference sheet, state transition, or recurring series image may need a complete one.
+A field the author does not decide holds the string `"unspecified"`: free text, each `camera` field and each `performance` field alike. An optional structure the image does not depend on is left out. Either is preferable to invented filler. A sparse portrait may need little more than the draft; a multi-character contact scene, reference sheet, state transition, or recurring series image may need a complete one.
 
 ## Prompt assembly
 
@@ -171,13 +183,13 @@ Do not treat a scene-specific Production Specification as the source of stable i
 
 ## Subject morphology resolution
 
-Each recurring subject carries:
+A subject that names an identity contract carries:
 
 - `species_morphology_profile_ref`;
 - `individual_morphology_contract_ref`;
 - `resolved_morphology`.
 
-`resolved_morphology` is the shot-specific anatomy contract. It lists visible feature instances, hidden or out-of-frame features, active form, surface map, feature relationships, expression channels, communication tools, current state deltas, count and attachment checks, crop requirements, and uncertainties. It prevents the prompt from silently dropping a tail, wing, limb, organ, digit, marking, or tool merely because it is outside the crop.
+`resolved_morphology` is the shot-specific anatomy contract, and the subject's `frame_character` and `load_bearing_part_measurements` equal its own. It lists visible feature instances, hidden or out-of-frame features, active form, surface map, feature relationships, expression channels, communication tools, current state deltas, count and attachment checks, crop requirements, and uncertainties. It prevents the prompt from silently dropping a tail, wing, limb, organ, digit, marking, or tool merely because it is outside the crop.
 
 Use [Morphology and species contracts](morphology-and-species-contracts.md) before authoring an unfamiliar, fictional, hybrid, ordinary-animal, or mechanical body plan.
 

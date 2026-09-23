@@ -11,8 +11,9 @@ hash equality is not artistic success. Discussion without an artifact does not r
 Use [Craft consultation](craft-consultation.md) while deciding what to write or revise.
 
 The route read writes a reading record at the path it prints, with the route, the key and every hash filled.
-Fill each null `quote` with twelve or more words of one paragraph of that document, and each `why` with how it applies to this task.
-A guide application takes a `pointer` such as `/sections/2/rules/0` and that rule's exact text.
+The author decides which of the read documents apply to this task, and lists only those.
+Each entry in `applied` names the document's `path`, a `quote` of twelve or more words from one paragraph of it, and `why` it applies to this task.
+Each entry in `resource_applied` names `"resource": "prompt-writing-guide"`, a `pointer` such as `/sections/2/rules/0`, that rule's exact text as `quote`, and `why`.
 Name the completed file as the task's `route_reading`.
 
 `inspect-inputs` shows declared sources, recorded candidates, and required choices.
@@ -29,6 +30,8 @@ The [synthetic input assembly example](../../examples/input-assembly/README.md) 
 
 Start the work task with `scripts/work_ledger.py --studio PROJECT begin --goal TEXT --step TEXT`.
 Put its task UUID into a production task matching `schemas/authoring/production-task.schema.json`.
+Give the task the `production_id` that `python scripts/production_workflow.py new-production-id` prints.
+A later task for the same deliverable keeps that id, so its protected criteria are compared with the earlier run.
 The draft in `templates/realization/production-task.json` must be completed with real source and
 approval documents; it is not an executable example or an authorization.
 
@@ -194,6 +197,8 @@ and authorization process. None of these commands automatically adopts or sends.
 A dispatcher preview uses the same renderer as its sending path and reports each transform's source.
 Use `--preview-out` to retain the sealed request, declared bindings, and validation report in a new file.
 Use `--intent-out` with the prepared production run to save the exact submit intent.
+The intent names each input file of the request validation by path and SHA-256.
+The dispatcher checks those files' bytes when it saves the intent and again before it sends.
 Pass that file to `draft-authorization`; request hashes and binding IDs are derived from the saved request.
 The actor supplies the scope case, source of approval, rendition judgment, stop assessments, and cost bound.
 A new request within an explicit existing delegation receives a new exact authorization under the same cumulative budget.

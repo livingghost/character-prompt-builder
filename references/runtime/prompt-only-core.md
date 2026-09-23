@@ -22,7 +22,7 @@ Keep camera distance, shot scale, frame occupancy, camera height, and pitch mutu
 
 Assign each limb and hand action once. If a pose contains several actions, identify which hand or limb performs each action. Do not ask one hand to hold two unrelated objects unless the grip is explicitly possible.
 
-Treat this as the master prompt. For a named model or interface, select the adapter and follow [Prompt Writing Guide Runtime](prompt-writing-guide.md) before delivering the final rendition. Resolve the selected `prompt-writing-guide` provider when one exists, and apply only syntax supported by the active interface. When no parser is named or evidenced, keep portable semantic language.
+Treat this as the master prompt. For a named model or interface, read its adapter in `references/adapters/` and follow [Prompt Writing Guide Runtime](prompt-writing-guide.md) before delivering the final rendition. Resolve the selected `prompt-writing-guide` provider when one exists, and apply only syntax supported by the active interface. When no parser is named or evidenced, keep portable semantic language.
 
 ## 4. References and output
 
@@ -32,16 +32,16 @@ Do not create empty reference artifacts. Include `reference-use-plan.json` only 
 
 ## 5. Preflight and deliver
 
-Run the structured semantic preflight for body-count and camera contradictions. After target rendition, verify that ordering or weighting did not alter the approved meaning. Then deliver the requested prompt, an optional negative prompt, and only the conditional artifacts justified by the request.
+Run the structured semantic preflight for body-count and camera contradictions. After target rendition, verify that ordering or weighting did not alter the approved meaning. Then deliver the requested prompt, an optional negative prompt, and only the conditional artifacts justified by the request. A negative carries only the sources the `negative-policy` resource activates, written in the form that resource gives for the target.
 ## 6. Deterministic commands
 
-Use `python scripts/build_prompt_artifacts.py --help` to materialize the conditional prompt artifact set. The builder accepts an optional structured semantic plan and refuses invalid limb or camera assignments before publication.
+Use `python scripts/build_prompt_artifacts.py --help` to materialize the conditional prompt artifact set. The builder accepts an optional structured semantic plan and refuses invalid limb or camera assignments before publication. `python scripts/validate_prompt_semantics.py plan.json` checks the plan alone; its `--template` prints a plan to start from, and its `--help` names every field.
 
 A text draft may omit `--plot`, or include a valid unapproved plot for review. `--prepare-for-generation` requires an approved `--plot`, never invented from an "autonomous" request. A plot separates story beats (`visible` or `context`) from frame statements (`shows`, `placement`, `composition`, `must_preserve`, `free`). Validate it with `python scripts/prompt_plot.py plot.json`. An actual approval records `by`, an RFC3339 UTC `at`, and `content_sha256` of the plot without its approval; print that hash using `--content-sha256`. A changed plot requires renewed approval. Optional upstream `source` remains part of the approved content. Choose a target when useful for the draft; target limitations that change approved meaning require renewed approval.
 
 Draft output has no execution or canonical-update authorization. A saved text file alone does not require Studio initialization. Generation preparation, an explicitly authorized run, and canonical adoption are separate operations.
 
-The builder takes the retrieval record with `--retrieval-record lookups.json`. Catalog and vocabulary searches given `--record lookups.json --element NAME` write that record. Mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID`, or with `--composed TEXT --reason TEXT` when no inspected record fits. Where retrieval cannot run at all, pass `--retrieval-unavailable` with the reason; the package records `retrieval.settled: false` and `--prepare-for-generation` is refused. For generation, bind the marked record to the authored prompt and approved plot with `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file prompt.txt --plot-file plot.json --out retrieval-settled.json`. Missing, unavailable, unsettled, or mismatched records block preparation.
+The builder takes the retrieval record with `--retrieval-record lookups.json`. Catalog and vocabulary searches given `--record lookups.json --element NAME` write that record, and a vocabulary search given `--queries` records each query under its own element. Mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID`, repeating `--adopted` for each record the wording uses, or with `--composed TEXT --reason TEXT` when no inspected record fits. Where retrieval cannot run at all, pass `--retrieval-unavailable` with the reason; the package records `retrieval.settled: false` and `--prepare-for-generation` is refused. For generation, bind the marked record to the authored prompt and approved plot with `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file prompt.txt --plot-file plot.json --out retrieval-settled.json`. Missing, unavailable, unsettled, or mismatched records block preparation.
 
 Regression checks: `python scripts/prompt_artifact_smoke_test.py` and `python scripts/prompt_plot_smoke_test.py`.
 
@@ -51,7 +51,7 @@ Only when retrieval returns no suitable term may the agent compose new wording. 
 
 ## Optional structural detail
 
-The semantic preflight starter uses an empty `structure_plan`, not a human limb inventory. Fill it from the actual proposal when topology matters. Read [Declared Structures Runtime](declared-structures.md) for counts, local scope and detailed geometry. A short draft need not acquire irrelevant structural artifacts.
+The plan `validate_prompt_semantics.py --template` prints uses an empty `structure_plan`, not a human limb inventory. Fill it from the actual proposal when topology matters. Read [Declared Structures Runtime](declared-structures.md) for counts, local scope and detailed geometry. A short draft need not acquire irrelevant structural artifacts.
 
 
 ## Artifact evidence and completion

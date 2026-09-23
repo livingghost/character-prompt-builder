@@ -90,6 +90,16 @@ def load_dialects(path: Path) -> dict[str, dict[str, Any]]:
     return {str(row["id"]): row for row in data["dialects"]}
 
 
+def find_dialect(dialect_id: str, path: Path) -> dict[str, Any]:
+    """One family from a prompt-dialects resource. An unknown id names the families the resource carries."""
+
+    carried = load_dialects(Path(path))
+    if dialect_id not in carried:
+        raise PackError(f"unknown dialect {dialect_id!r}; the prompt-dialects resource carries: "
+                        + ", ".join(sorted(carried)))
+    return carried[dialect_id]
+
+
 def applicable_sections(guide_path: Path | None, dialect_id: str | None) -> dict[str, list[dict[str, Any]]]:
     """The guide split into what applies to every target and what this family owns."""
 
@@ -126,10 +136,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("one of --list, --dialect, or --model")
 
     scope = {"state_file": args.state_file, "cache_dir": args.cache_dir, "managed_root": args.managed_root}
-    dialects = load_dialects(resolve_resource(DIALECTS, args.dialects, **scope))
+    path = resolve_resource(DIALECTS, args.dialects, **scope)
     if args.list and not (args.dialect or args.model):
         print(json.dumps({"dialects": [{"id": row["id"], "name": row["name"], "description": row["description"]}
-                                       for row in dialects.values()]}, ensure_ascii=False, indent=2))
+                                       for row in load_dialects(path).values()]}, ensure_ascii=False, indent=2))
         return 0
 
     record: dict[str, Any] | None = None
@@ -141,13 +151,15 @@ def main(argv: list[str] | None = None) -> int:
         dialect_id = record.get("prompt_dialect")
     else:
         dialect_id = args.dialect
-    if dialect_id is not None and dialect_id not in dialects:
-        raise SystemExit(f"no dialect {dialect_id!r}; the resource carries {sorted(dialects)}")
+    try:
+        dialect = find_dialect(dialect_id, path) if dialect_id else None
+    except PackError as exc:
+        raise SystemExit(str(exc)) from None
 
     guide_path = resolve_resource(GUIDE, args.guide, **scope, required=False)
     report: dict[str, Any] = {
         "model": model_id,
-        "dialect": dialects.get(dialect_id) if dialect_id else None,
+        "dialect": dialect,
         "reads_tags": dialect_id is not None,
         "guide": applicable_sections(guide_path, dialect_id),
     }

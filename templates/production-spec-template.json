@@ -4,107 +4,60 @@
   "creative_latitude": "directed",
   "image_promise": "",
   "art_direction": {
-    "center_of_appeal": "",
-    "subject_relationship": "",
-    "composition_and_visual_hierarchy": "",
-    "medium_family": "",
-    "shape_and_rhythm": "",
-    "surface_and_tactility": "",
-    "color_and_light": "",
-    "detail_hierarchy": ""
+    "center_of_appeal": "unspecified",
+    "subject_relationship": "unspecified",
+    "composition_and_visual_hierarchy": "unspecified",
+    "medium_family": "unspecified",
+    "shape_and_rhythm": "unspecified",
+    "surface_and_tactility": "unspecified",
+    "color_and_light": "unspecified",
+    "detail_hierarchy": "unspecified"
   },
   "state_context": {
     "mode": "stateless",
-    "state_lineage_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-    "scene_context_ref": null,
     "notes": []
   },
   "subjects": [],
   "scene": {
-    "environment": "",
-    "support_and_contact": "",
+    "environment": "unspecified",
+    "support_and_contact": "unspecified",
     "depth_order": [],
-    "atmosphere": ""
+    "atmosphere": "unspecified"
   },
   "camera": {
-    "shot_type": "medium portrait",
-    "shot_scale": "waist-up",
-    "distance_class": "medium-close",
-    "subject_relative_distance": {
-      "basis": "visible-torso-heights",
-      "minimum": 1.3,
-      "maximum": 1.7
-    },
-    "camera_height": {
-      "reference_landmark": "lower sternum",
-      "offset": "camera center sits near the lower sternum and points gently upward"
-    },
-    "pitch_degrees": 6,
-    "yaw_degrees": 0,
-    "roll_degrees": 0,
-    "lens_or_perspective": "natural portrait perspective with mild foreground enlargement",
-    "lens_equivalent_mm": {
-      "minimum": 45,
-      "maximum": 60
-    },
-    "projection_behavior": "natural-portrait",
-    "frame_occupancy": {
-      "subject_height_percent": {
-        "minimum": 92,
-        "maximum": 96
-      },
-      "subject_width_percent": {
-        "minimum": 95,
-        "maximum": 105
-      }
-    },
-    "framing_and_crop": "tight waist-up portrait with the ears, face, shoulders, active hands, and belt line held inside the frame",
-    "coverage_landmarks": {
-      "top": "small clearance above the ear tips",
-      "bottom": "belt line and upper hips",
-      "left": "outer contour of the subject-left upper arm",
-      "right": "outer contour of the subject-right upper arm"
-    },
-    "nearest_form": "the foreground forearm or hand, with only mild scale enlargement",
-    "perspective_scale_change": "foreground hands and forearms enlarge slightly while the head, muzzle, chest, and waist retain stable identity ratios",
-    "required_visible_elements": [
-      "complete ear tips",
-      "complete face",
-      "both shoulders",
-      "active hand geometry",
-      "declared neckline or collar",
-      "declared belt or lower crop anchor"
-    ],
-    "allowed_offscreen_elements": [
-      "lower legs",
-      "feet",
-      "most of the tail"
-    ],
-    "focal_sequence": [
-      "eyes and face",
-      "active hands and torso overlap",
-      "identity accessories",
-      "background separation"
-    ],
-    "stability_invariants": [
-      "shot scale remains waist-up",
-      "bottom crop remains at the belt line",
-      "camera does not move close enough to exaggerate the muzzle or chest",
-      "camera does not pull back into a full-body view"
-    ]
+    "shot_type": "unspecified",
+    "shot_scale": "unspecified",
+    "distance_class": "unspecified",
+    "subject_relative_distance": "unspecified",
+    "camera_height": "unspecified",
+    "pitch_degrees": "unspecified",
+    "yaw_degrees": "unspecified",
+    "roll_degrees": "unspecified",
+    "lens_or_perspective": "unspecified",
+    "lens_equivalent_mm": "unspecified",
+    "projection_behavior": "unspecified",
+    "frame_occupancy": "unspecified",
+    "framing_and_crop": "unspecified",
+    "coverage_landmarks": "unspecified",
+    "nearest_form": "unspecified",
+    "perspective_scale_change": "unspecified",
+    "required_visible_elements": "unspecified",
+    "allowed_offscreen_elements": "unspecified",
+    "focal_sequence": "unspecified",
+    "stability_invariants": "unspecified"
   },
   "lighting": {
-    "key_light": "",
-    "fill_or_ambient": "",
-    "rim_or_accent": "",
-    "shadow_character": "",
-    "color_relationship": ""
+    "key_light": "unspecified",
+    "fill_or_ambient": "unspecified",
+    "rim_or_accent": "unspecified",
+    "shadow_character": "unspecified",
+    "color_relationship": "unspecified"
   },
   "visual_language": {
-    "aesthetic_core": "",
-    "style_family": "",
+    "aesthetic_core": "unspecified",
+    "style_family": "unspecified",
     "domain_realizations": {},
-    "render_profile": "",
+    "render_profile": "unspecified",
     "aesthetic_touches": []
   },
   "constraints": {

@@ -27,8 +27,8 @@ Keep judgment and automation separate. The agent owns meaning, ambiguity, intent
 
 This gate governs image prompts, not prose or brainstorming. Never hand-compose prompt wording before retrieval has been attempted: wrong or competing tags can cancel requested content.
 
-1. For every distinct visual element (pose, action, expression, camera, lighting, wardrobe, body feature, effect, and any specialized domain), search the catalog (`catalog_cli.py search`, then `inspect` the closest record) and, for tag-level wording, the prompt vocabulary (`pack_cli.py resource prompt-vocabulary` plus `search_prompt_vocabulary.py`). Add `--record lookups.json --element NAME` to every search and inspection; in `batch`, each `request_id` names its element.
-2. Mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID`, or with `--composed TEXT --reason TEXT`. When retrieval cannot run, state the reason instead; never fabricate retrieval or approval.
+1. For every distinct visual element (pose, action, expression, camera, lighting, wardrobe, body feature, effect, and any specialized domain), search the catalog (`catalog_cli.py search`, then `inspect` the closest record) and, for tag-level wording, the prompt vocabulary (`pack_cli.py resource prompt-vocabulary` plus `search_prompt_vocabulary.py`). Add `--record lookups.json --element NAME` to every search and inspection; in catalog `batch` each `request_id` names its element, and in a vocabulary `--queries` object each key does.
+2. Mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID` (repeat `--adopted` for every record used), or with `--composed TEXT --reason TEXT`. When retrieval cannot run, state the reason instead; never fabricate retrieval or approval.
 3. Compose new wording only when retrieval finds nothing suitable; [Prompt-Only Core](references/runtime/prompt-only-core.md) gives the wording checks.
 4. When a newly composed phrase is confirmed effective in a finished image, add it back to the owning pack resource (dictionary entry or module record) as terms and wording only, with no session history, seeds, or run parameters.
 
@@ -42,11 +42,11 @@ Before prompt, reference, sheet, generation or visual-state series work (not per
 
 ## Artifact-bearing production gate
 
-For saved deliverables and multistep production, read the route with `python scripts/execution_routes.py read ROUTE --root PROJECT`, adding `--feature NAME` for each applicable feature named below and, once the target is chosen, `--model MODEL` to read only its family's guide sections. It prints [Production Execution](references/runtime/production-execution.md) and every document the route needs, then the path of the reading record to complete; `--page-bytes N` pages a long read and `--continue CURSOR` resumes it. Follow Production Execution through completion, and run `production_workflow.py status` or `resume` before continuing after an interruption.
+For saved deliverables and multistep production, read the route with `python scripts/execution_routes.py read ROUTE --root PROJECT`, adding `--feature NAME` for each applicable feature named below and, once the target is chosen, `--model MODEL`, or `--dialect ID` for a prompt family without a model record, to read only that family's guide sections. It prints [Production Execution](references/runtime/production-execution.md) and every document the route needs, then the path of the reading record to complete; `--page-bytes N` pages a long read and `--continue CURSOR` resumes it. Follow Production Execution through completion, and run `production_workflow.py status` or `resume` before continuing after an interruption.
 
 ## Choose a runtime path
 
-Each item names a route or `--feature`; the route read above prints its documents. Activate selectively:
+Each item names a route or `--feature` whose read prints its documents. A prompt answered in conversation, with nothing saved, reads no route: it reads [Prompt-Only Core](references/runtime/prompt-only-core.md) and the linked documents that apply. Activate selectively:
 
 - worlds, themes, agents or narratives: route `development`, [Creative Development](references/runtime/narrative-development.md) and [Project Design](templates/narrative/design/design-template.md); for individualized behavior, feature `persona` and the complete [Persona Template](templates/narrative/personas/persona-template.md);
 - cast admission, a recurring unnamed participant, or how much of a person a scene needs: route `development`;
@@ -77,7 +77,7 @@ Each item names a route or `--feature`; the route read above prints its document
 - public state or shot interchange: feature `protocol-exchange`;
 - absent pack state, custom packs, or provider selection: feature `pack-runtime`.
 
-Add a specialist feature only for a load-bearing subject: `geometry` for exact multi-subject geometry, crop, perspective, overlap, or contact; `body-plan` for an unfamiliar body plan, ordinary animal, hybrid, creature, robot, transformation, or unusual feature counts, and `recurring-identity` for recurring identity; `performance-language` for subtle emotion, body language, appendage acting, physiological response, or mechanical performance; `garment-growth` for garment, growth, grooming, hair, fur, feathers, quills, bristles, spun fiber, molded strands, nails, claws, talons, hooves, digit plates, or local identity; `production-spec` for scene artifacts; `finishing` for a named or implied rendering medium, photographic look, 3D or toy presentation, in-image type or logo, environment-forward composition, or repeated wrong-finish results; `visual-evidence` for a supplied raster, linked SVG, reference collection, or corpus ingestion.
+Add a specialist feature only for a load-bearing subject: `geometry` for exact multi-subject geometry, crop, perspective, overlap, or contact; `body-plan` for any non-human or unfamiliar body (animal, anthropomorphic animal, hybrid, creature, robot, android), a transformation, or unusual feature counts; `recurring-identity` for a recurring character's identity contract; `performance-language` for subtle emotion, body language, appendage acting, physiological response, or mechanical performance; `garment-growth` for garment, growth, grooming, hair, fur, feathers, quills, bristles, spun fiber, molded strands, nails, claws, talons, hooves, digit plates, or local identity; `production-spec` for scene artifacts; `finishing` for a named or implied rendering medium, photographic look, 3D or toy presentation, in-image type or logo, environment-forward composition, or repeated wrong-finish results; `visual-evidence` for a supplied raster, linked SVG, reference collection, or corpus ingestion.
 
 ## Mandatory studio gate
 
@@ -87,11 +87,11 @@ Persistent character production, sheets, and recorded generation live in a studi
 
 For image work:
 
-1. Read the route (see the production gate), form one image intent, and separate anchors from creative space.
+1. For saved work, read the route (see the production gate). Form one image intent, and separate anchors from creative space.
 2. Develop one coherent direction; for a sparse brief, run `recommend` first.
 3. Retrieve under the gate above; consult craft (feature `craft-consultation`) before settling open axes or after an observed failure. Inspect every selected canonical record in full. Inspect complete records and asset details together with `inspect-many` (or `inspect` plus `asset-lookup`). Adopt evidence only when it has a relevant authority role.
 4. Draft the plot and wording without inventing approval; a prompt-only draft may omit the plot. Present the plot for actual approval, then settle retrieval against it and the prompt. Preparation grants no permission to execute or change canon.
-5. Choose a target; report plot requirements it cannot meet to the approving person. Run `python scripts/validate_prompt_semantics.py` on a compact semantic plan before delivery.
+5. Choose a target; report plot requirements it cannot meet to the approving person. Run `python scripts/validate_prompt_semantics.py plan.json` before delivery; `--template` prints a plan to start from.
 6. Select the target's adapter, resolve the optional `prompt-writing-guide`, and read the complete selected guide before final rendition.
 7. Compose and review under the route's documents.
 

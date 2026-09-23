@@ -25,6 +25,15 @@ python scripts/search_prompt_vocabulary.py "low angle" \
 
 `--record` appends the query and its returned terms to the retrieval record under that element.
 
+Run the searches for every element in one process with `--queries`, which takes a JSON object literally, from a file, or from `-` for stdin:
+
+```bash
+python scripts/search_prompt_vocabulary.py --dictionary DICTIONARY_JSON --record lookups.json \
+  --queries '{"camera": ["low angle"], "lighting": ["soft light", "rim light"]}'
+```
+
+Each query is recorded under its element exactly as a single search records it.
+
 Restrict an ambiguous lookup by category:
 
 ```bash
@@ -42,7 +51,15 @@ python scripts/search_prompt_vocabulary.py \
   --list-categories
 ```
 
-`--dictionary` may be repeated when the caller deliberately searches several resolved dictionaries. Search considers the term, useful aliases, optional English clarification, and category context. Results are lexical candidates rather than adopted prompt text.
+`--dictionary` may be repeated when the caller deliberately searches several resolved dictionaries. Results rank in this order:
+
+- the exact term or alias;
+- terms and aliases holding every query word;
+- terms and aliases holding the query inside a longer word, such as `rainbow` for `rain`;
+- entries whose description holds the query, or the query words the term lacks;
+- entries holding only some of the query words.
+
+Results are lexical candidates rather than adopted prompt text.
 
 ## Read a finished prompt
 
@@ -60,7 +77,7 @@ The same reading is what a user is shown before a run when the decision is their
 
 Categories have an English `name`, an English `description`, and entries. Each entry requires only `term`; `aliases` and an English `description` are optional. The resource stores no per-entry source metadata, review state, content gate, exclusion flag, or automatic-use decision.
 
-The command fails without partial results when the file is missing, malformed, invalid against `schemas/prompt-vocabulary.schema.json`, contains duplicate normalized terms inside one category, repeats a term as its own alias, receives an empty query, or receives an invalid limit.
+The command fails without partial results when the file is missing, malformed, invalid against `schemas/prompt-vocabulary.schema.json`, contains duplicate normalized terms inside one category, repeats a term as its own alias, receives an empty query, receives a `--queries` value that is not an object of element names and queries, or receives an invalid limit.
 
 ## Regression
 
@@ -68,4 +85,4 @@ The command fails without partial results when the file is missing, malformed, i
 python scripts/prompt_vocabulary_smoke_test.py
 ```
 
-The regression creates a fictional temporary dictionary. It does not inspect or fix expectations to any owner-maintained library's current terms, categories, IDs, or counts.
+The regression creates a fictional temporary dictionary. It also searches the commons dictionary for `solo` and `cable knit` and checks only the ranking order: the exact term first, and entries holding every query word above entries holding one.

@@ -2737,7 +2737,7 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "d3fc4c1c708717397b1cf22be68f0d8827efd2b6ba037fa414c2f7147eee7a1c",
+  "generation_input_sha256": "2bc15bce39d7976911f1cb648f467927b9344349cd2a918f1b6fafbdd53c0c06",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -2784,13 +2784,16 @@
     },
     "negative_provenance": {
       "activated_sources": [
-        "style-family:polished-soft-cel",
+        "style-family:style-family-clear-portrait",
+        "render-profile:profile-clear-2d-illustration",
         "state-integrity:left-right",
         "state-integrity:prop-ownership"
       ],
       "diagnostic_sources_retained": [],
       "semantic_exclusions_user_supplied": [],
       "affirmative_translations": {
+        "style-family:style-family-clear-portrait": "crisp facial markings",
+        "render-profile:profile-clear-2d-illustration": "a clearly illustrated soft-cel medium",
         "state-integrity:left-right": "stable left-right identity",
         "state-integrity:prop-ownership": "the wolf's neck and shirt remain visibly free of that pendant"
       }
@@ -2876,10 +2879,10 @@
     "retrieval_record_sha256": "5b311ba9ba9fb2a8096168c558878d540b9d17b15b2e22c65c753d70a04a2dac",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-    "generation_input_sha256": "d3fc4c1c708717397b1cf22be68f0d8827efd2b6ba037fa414c2f7147eee7a1c",
+    "generation_input_sha256": "2bc15bce39d7976911f1cb648f467927b9344349cd2a918f1b6fafbdd53c0c06",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
     "visual_continuity_sha256": "4f99d48f2b415e826c076d18aafa8bd692e4ed5cc4c326088e12bdfcebcc6146",
-    "route_reading_sha256": "541f74d8c75e9844476967405826170b8fd2791da6c3f007e637b287eab1d469",
+    "route_reading_sha256": "07a02547b606757644de237ded929d1f0c9ee7a2ad7a4b67faaa94666207ed28",
     "request_validation_sha256": "7f3e001a72070b03f5fcaf686341b43ccb0b66bd69eb5a9e7afeb938dafd1421",
     "input_snapshots_sha256": "4ed9a6cf37d1fec78fb483cfa6eca8acb1372cb1e08e6b60148ef414c46b2125"
   },
@@ -2912,7 +2915,7 @@
       },
       {
         "path": "references/runtime/production-execution.md",
-        "sha256": "56ddd1898ab46e995438fc0e6ec34b6084dbf5d700e5a895c38d28347080cf7b"
+        "sha256": "83ed331d2b984943efeb4193c27d77d199277f60d3105763cfc0fc9ecc7bc3e9"
       },
       {
         "path": "references/runtime/state-aware-series.md",
@@ -2920,7 +2923,7 @@
       },
       {
         "path": "references/runtime/prompt-writing-guide.md",
-        "sha256": "97371861a5aef8b712f3eeee1c6babea707f2c9e7d990ace4eb32588672fd39a"
+        "sha256": "6730648fbd14aab8d8ebe8e9069356aec7831a5b0fa0702a7bf8896ef5c68c6d"
       },
       {
         "path": "references/runtime/reference-delivery.md",
@@ -2946,41 +2949,21 @@
         "status": "present",
         "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
         "path": "resources/prompt-writing-guide/guide.json",
-        "sha256": "a1293db4650c73779abd2dbec78766696099989dbd6fc52447d323fbbc31f754"
+        "sha256": "57d0dba7742e592a3b1bbc0e2424fe169546a7ba68ccc1ce308d387aa3d95e92"
       },
       "prompt-dialects": {
         "status": "present",
         "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
         "path": "resources/prompt-dialects/dialects.json",
-        "sha256": "0a127b223dade799e890d6d93425fd2b4fe037ae0da3e8d51903b5f3d58bd8d2"
+        "sha256": "0adf7253a6216efb551417dbd194cd00fe86ddcfb0634d47cdb949410afc96c7"
       }
     },
     "route": "state-series",
-    "reading_key": "38a002b7a6010ab8f35aeda22e73d2de",
+    "reading_key": "d1a5bbce95a9d68312f2f0de0c683a79",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
         "quote": "Use this document for recurring characters, temporal continuity, visible consequences of off-screen events, rendered identity references from other scenes, or an arriving shot-request. For a one-off image with no continuity state, use a stateless Production Specification and skip this document.",
-        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
-      },
-      {
-        "path": "references/runtime/prompt-writing-guide.md",
-        "quote": "Use this runtime when a final prompt must be rendered for a named model or interface, or when the user asks about any of these:",
-        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
-      },
-      {
-        "path": "references/runtime/reference-delivery.md",
-        "quote": "Read this when preparing or inspecting model-facing reference attachments. The prepared reference set remains the single committed input, not a new reference ledger.",
-        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
-      },
-      {
-        "path": "references/runtime/studio.md",
-        "quote": "Activate this document when character work will outlive one session: a character whose sheet is filled over days, images that are generated again and again until one is accepted, and decisions that get reversed. A studio is where that work lives, with its trail. Authoring that accumulates decisions a later draft reuses is such work, with or without an image: it gets its studio before the first draft that will be revised, and a narrative series can live inside it. Ordinary one-off prompt work and a one-off answer need no studio.",
-        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
-      },
-      {
-        "path": "references/runtime/world-realization.md",
-        "quote": "For one moment outside a planned unit, use [Story Context](story-context.md). It selects the same base, ledger and process records at an explicit coordinate and can feed its bounded view into a production task. Keep the unit plan for a sequence of openings, closings and continuity links.",
         "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
       }
     ],
@@ -2993,7 +2976,7 @@
       }
     ]
   },
-  "route_reading_sha256": "541f74d8c75e9844476967405826170b8fd2791da6c3f007e637b287eab1d469",
+  "route_reading_sha256": "07a02547b606757644de237ded929d1f0c9ee7a2ad7a4b67faaa94666207ed28",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",

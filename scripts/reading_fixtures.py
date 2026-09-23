@@ -12,17 +12,17 @@ _WORK = tempfile.TemporaryDirectory(prefix='synthetic-reading-')
 
 def fixture_reading(*, route: str = 'generation', features: list[str] | None = None,
                     project: Path | None = None, ledger: Path | None = None) -> dict:
-    """Read full fixture documents, then author a labeled synthetic application."""
+    """Read full fixture documents, then author a labeled synthetic application of the route's own documents."""
     ledger = ledger or Path(os.environ.get('CPB_READS_LEDGER', str(Path(_WORK.name)/'reads.jsonl')))
     os.environ['CPB_READS_LEDGER'] = str(ledger.absolute())
     manifest, bodies = r.capture(route, features)
     key = c.content_id({'fixture': 'synthetic reading', 'manifest': manifest})[:32]
     issued = r.issue(route, features, ledger=ledger, stream=io.StringIO(), key=key,
                      at='2000-01-01T00:00:00Z', cwd='synthetic-fixture')
-    required = {x['path'] for x in manifest['documents']} - set(c.load(r.ROOT/r.execution_routes.MANIFEST)['always_read'])
+    applied = set(c.load(r.ROOT/r.execution_routes.MANIFEST)['routes'][route]['reads'])
     applications = {'applied': [], 'resource_applied': []}
     for meta, raw in bodies:
-        if meta['kind'] == 'document' and meta['path'] in required:
+        if meta['kind'] == 'document' and meta['path'] in applied:
             candidates = [block for block in r.prose_blocks(raw.decode('utf-8')) if len(block.split()) >= 12]
             if not candidates:
                 raise ValueError('fixture needs a paragraph quotation in ' + meta['path'])

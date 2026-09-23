@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
-from prompt_retrieval import mark_outcome, validate_prompt_retrieval_record
+from prompt_retrieval import main as retrieval_main, mark_outcome, validate_prompt_retrieval_record
 from search_prompt_vocabulary import (
     VocabularyError,
     list_categories,
@@ -18,8 +18,37 @@ from search_prompt_vocabulary import (
     main as search_main,
     read_prompt,
     search_vocabularies,
+    tokens,
     validate_vocabulary,
 )
+
+COMMONS_DICTIONARY = Path(__file__).resolve().parents[1] / "packs/commons/resources/prompt-vocabulary/dictionary.json"
+
+
+def ranking_fixture() -> dict[str, Any]:
+    """Synthetic entries where a word match competes with a longer, weaker one."""
+    return {
+        "format": "character-prompt-builder-prompt-vocabulary",
+        "name": "Synthetic Ranking Vocabulary",
+        "description": "Fictional data used only by the regression test.",
+        "categories": [
+            {"id": "knitwear", "name": "Knitwear", "description": "Knitted garments.", "entries": [
+                {"term": "aran sweater", "description": "A wool sweater covered in raised cable and braid knit panels."},
+            ]},
+            {"id": "devices", "name": "Devices", "description": "Electronics.", "entries": [
+                {"term": "charger cable", "aliases": ["charger_cable"], "description": "A cable for charging a device."},
+                {"term": "oil can", "description": "A can with a long spout."},
+            ]},
+            {"id": "faces", "name": "Faces", "description": "Expressions.", "entries": [
+                {"term": "pouting lips"},
+                {"term": "pout"},
+            ]},
+        ],
+    }
+
+
+def words_of(row: Any, *, description: bool = True) -> set[str]:
+    return set(tokens(" ".join([row.term, *row.aliases, row.description if description and row.description else ""])))
 
 
 def fixture() -> dict[str, Any]:
@@ -133,6 +162,59 @@ def main() -> int:
         marked = recorded and mark_outcome(recorded, "camera", adopted="low angle")
         add("a returned term can be marked adopted",
             bool(marked) and validate_prompt_retrieval_record(marked)["ok"], marked)
+
+        single, many = Path(temp) / "single.json", Path(temp) / "many.json"
+        queries = {"camera": ["low angle", "close-up"], "lighting": "soft light"}
+        with contextlib.redirect_stdout(io.StringIO()):
+            for element, query in (("camera", "low angle"), ("camera", "close-up"), ("lighting", "soft light")):
+                search_main([query, "--dictionary", str(path), "--record", str(single), "--element", element])
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = search_main(["--dictionary", str(path), "--queries", json.dumps(queries), "--record", str(many)])
+        report = json.loads(output.getvalue())
+        add("one run answers several queries and records each under its element exactly as single searches do",
+            code == 0 and many.read_text(encoding="utf-8") == single.read_text(encoding="utf-8")
+            and [(row["element"], row["query"]) for row in report["searches"]]
+            == [("camera", "low angle"), ("camera", "close-up"), ("lighting", "soft light")],
+            report)
+        repeated = Path(temp) / "repeated.json"
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = search_main(["--dictionary", str(path), "--record", str(repeated),
+                                "--queries", '{"camera": ["low angle"], "camera": ["close-up"]}'])
+        add("a queries object that names one element twice is refused before anything is recorded",
+            code == 2 and not repeated.exists())
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = retrieval_main([str(many), "--element", "camera", "--adopted", "low angle", "--adopted", "close-up"])
+        report = json.loads(output.getvalue())
+        kept = json.loads(many.read_text(encoding="utf-8"))["elements"][0].get("adopted_records")
+        add("several --adopted records for one element are all kept",
+            code == 0 and kept == ["low angle", "close-up"]
+            and report["marked"]["adopted_records"] == ["low angle", "close-up"], report)
+        add("remaining work names the element rather than its position",
+            report["remaining"] == ["element 'lighting' has no outcome; mark it with --adopted ID (repeat for each"
+                                    " record the wording uses), or with --composed TEXT and --reason TEXT"],
+            report["remaining"])
+
+    ranking = ranking_fixture()
+    knit = search_vocabularies([ranking], "cable knit")
+    add("an entry holding every query word ranks above entries holding one of them",
+        [row.term for row in knit] == ["aran sweater", "charger cable"], [r.as_json() for r in knit])
+    pout = search_vocabularies([ranking], "pout")
+    add("a query matches whole words, so 'pout' finds 'pouting' and not the 'spout' of a description",
+        [row.term for row in pout] == ["pout", "pouting lips"], [r.as_json() for r in pout])
+
+    commons = [load_vocabulary(COMMONS_DICTIONARY)]
+    solo = search_vocabularies(commons, "solo", limit=40)
+    named = ["solo" in words_of(row, description=False) for row in solo]
+    add("commons 'solo': the exact term first, and every term naming solo above entries that only mention it",
+        bool(solo) and solo[0].term == "solo" and named == sorted(named, reverse=True),
+        [r.as_json() for r in solo[:8]])
+    cable = search_vocabularies(commons, "cable knit", limit=40)
+    both = [{"cable", "knit"} <= words_of(row) for row in cable]
+    add("commons 'cable knit': entries holding both words rank above entries holding one",
+        bool(cable) and both[0] and both == sorted(both, reverse=True), [r.as_json() for r in cable[:8]])
     alternation = read_prompt([value], "[blue eyes|green eyes], (closed eyes:1.3)")
     add(
         "a read returns bracketed alternatives in reading order",

@@ -273,6 +273,27 @@ def normalize_negative_provenance(value: dict[str, Any] | None) -> dict[str, Any
     return provenance
 
 
+def selected_medium_sources(production_spec: dict[str, Any], declared: list[Any]) -> list[Any]:
+    """The declared sources, plus the render profile and style family the specification selects.
+
+    The negative policy activates a selected render profile or style family
+    whenever one is selected, so the package records it without being told.
+    """
+
+    from production_spec import UNSPECIFIED
+
+    visual = production_spec.get("visual_language")
+    visual = visual if isinstance(visual, dict) else {}
+    sources = list(declared)
+    for kind, key in (("render-profile", "render_profile"), ("style-family", "style_family")):
+        value = visual.get(key)
+        if isinstance(value, str) and value.strip() and value != UNSPECIFIED:
+            source = f"{kind}:{value}"
+            if source not in sources:
+                sources.append(source)
+    return sources
+
+
 def infer_negative_transport(model: str) -> str:
     """Return the transport mode declared by the canonical model catalog."""
 
@@ -526,16 +547,25 @@ def build_payload(
     prompt_hash = sha256_text(prompt)
     negative_hash = sha256_text(negative_prompt)
     native_hash = sha256_text(native_negative)
-    if not isinstance(production_spec, dict) or not production_spec:
-        raise ValueError("a complete production specification is required")
+    from production_spec import require as require_production_spec, require_lineage
+    require_production_spec(production_spec)
     production_spec = dict(production_spec)
-    from production_spec import validate as validate_production_spec
-    spec_report = validate_production_spec(production_spec, require_content=True)
-    if not spec_report.get("ok"):
-        raise ValueError("invalid production specification: " + "; ".join(spec_report.get("errors", [])))
     if production_spec.get("target_model") != model:
         raise ValueError("package model differs from production specification target_model")
     production_spec_hash = sha256_json(production_spec)
+    provenance["activated_sources"] = selected_medium_sources(production_spec, provenance["activated_sources"])
+    # A single prompt field receives no negative, so the prompt itself states
+    # each active source affirmatively, and the provenance names those words.
+    if mode in {"integrated-critical", "retained-only"}:
+        untranslated = sorted({str(source) for source in provenance["activated_sources"]}
+                              - set(provenance["affirmative_translations"]))
+        if untranslated:
+            raise ValueError(
+                "the target has no negative field, so the prompt states each active negative source affirmatively; "
+                "name those words in --negative-provenance-file, for example "
+                + json.dumps({"affirmative_translations": {untranslated[0]: "<words copied from the prompt>"}})
+                + "; without words: " + ", ".join(untranslated)
+            )
 
     from state_protocol import artifact_hash, finalize_artifact, validate_artifact
     if state_lineage is not None and not isinstance(state_lineage, dict):
@@ -565,12 +595,7 @@ def build_payload(
     lineage_hash = require_concrete_sha256(
         state_lineage.get("lineage_sha256"), "state_lineage.lineage_sha256"
     )
-    if production_spec:
-        state_context = production_spec.get("state_context", {})
-        if state_context.get("state_lineage_sha256") != lineage_hash:
-            raise ValueError("production specification state-lineage hash mismatch")
-        if state_context.get("mode") != state_lineage.get("mode"):
-            raise ValueError("production specification state mode differs from state lineage")
+    require_lineage(production_spec, state_lineage)
 
     reference_set = validate_prepared_reference_set(
         prepared_reference_set
@@ -876,9 +901,9 @@ def generation_package_recovery_path(error: BaseException | None) -> Path | None
 
 
 def generation_package_error_messages(error: BaseException) -> list[str]:
-    """Serialize the primary failure and every rollback/cleanup note in order."""
+    """Serialize the primary failure and every rollback/cleanup note in order, each once."""
 
-    messages = [str(error)]
+    messages = list(dict.fromkeys(getattr(error, "errors", None) or [str(error)]))
     messages.extend(
         str(note)
         for note in getattr(error, "__notes__", ())
@@ -1053,7 +1078,8 @@ def add_production_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--visual-continuity-file",
                         help="Complete visual continuity record; when omitted, --continuity states the decisions")
     parser.add_argument("--continuity", action="append", default=[], metavar="SUBJECT=DECISION",
-                        help="recurring, one-off or undecided, once for each production subject")
+                        help="once for each production subject: one-off; undecided for the first images of a "
+                        "character that may recur; recurring once the author has accepted an identity image")
     parser.add_argument("--character", action="append", default=[], metavar="SUBJECT=CHARACTER",
                         help="The studio character a subject is recorded under; required for a recurring subject")
     parser.add_argument("--sheet-panel", action="store_true", help="The image fills a character sheet panel")
@@ -1273,6 +1299,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             final_companion=final_companion,
             staging_root=staging_root,
         )
+    except (ValueError, OSError) as error:
+        pending_error = error
     except BaseException as error:
         pending_error = error
         raise
@@ -1299,6 +1327,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
         finally:
             configure_pack_runtime(None)
+    if pending_error is not None:
+        print(json.dumps({"ok": False, "errors": generation_package_error_messages(pending_error)},
+                         ensure_ascii=False, indent=2, allow_nan=False))
+        return 1
     if payload is None:
         raise RuntimeError("generation package completed without a payload")
     print(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False))

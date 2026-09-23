@@ -331,7 +331,8 @@ def show_preview(*, model_id: str, offering: dict[str, Any], service_id: str, se
         f"service: {service_id} at {(service.get('endpoint') or {}).get('base_url')} (record observed {service.get('observed_at')})",
         f"outputs: {rendered['output_count']}",
         f"negative prompt: {negative}",
-        "cost: " + (json.dumps(pricing, ensure_ascii=False) if pricing else "unknown"),
+        "cost: " + (json.dumps(pricing, ensure_ascii=False) if pricing
+                    else "unknown; the author states the upper bound in the authorization"),
         f"production run: {production_run}" if production_run else "production run: none, so --send is refused",
         *[f"review: {item.get('statement')}" for item in review],
         *([] if args.send else ["saved: " + "; ".join(saved) if saved else

@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -23,7 +24,7 @@ import validate_studio  # noqa: E402
 import work_ledger  # noqa: E402
 from build_generation_payload import validate_generation_package_carrier_paths  # noqa: E402
 
-EXPECTED_CHECKS = 74
+EXPECTED_CHECKS = 75
 
 
 def refused(fn, text: str) -> bool:
@@ -247,6 +248,14 @@ def regressions(tmp: Path, source: Path, check) -> None:
     (tmp / "plain.txt").write_text("not a directory\n", encoding="utf-8")
     code, _, err = cli("init", "--out", str(tmp / "plain.txt" / "studio"), "--studio-id", "plain", "--title", "Plain")
     check("init below a file says so in one sentence", code == 1 and "is a file" in err and "Error" not in err, err)
+    code, out, _ = cli("init", "--out", str(tmp / "opened"), "--studio-id", "opened", "--title", "Opened")
+    printed = next((line for line in out.splitlines() if "work_ledger.py" in line), "")
+    argv = [part.replace("<goal>", "Synthetic goal").replace("<step>", "Synthetic step")
+            for part in shlex.split(printed.partition(": ")[2])]
+    opened = subprocess.run([sys.executable, *argv[1:]], capture_output=True, text=True, encoding="utf-8") if argv[:1] == ["python"] else None
+    check("init prints the command that opens a task in the new studio, and that command opens one",
+          code == 0 and opened is not None and opened.returncode == 0
+          and (work_ledger.read_current(tmp / "opened") or {}).get("goal") == "Synthetic goal", {"out": out, "argv": argv})
     check("validate_studio names a directory that does not exist",
           validate_studio.validate(missing) == [f"the directory {missing} does not exist"], validate_studio.validate(missing))
     code, _, err = cli("accept", "--studio", str(after), "--character", "nobody", "--iteration", "it-0001")

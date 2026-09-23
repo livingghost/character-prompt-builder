@@ -1,5 +1,6 @@
 {
   "task_id": "COPY_THE_OPEN_TASK_UUID",
+  "production_id": "COPY_THE_ID_NEW-PRODUCTION-ID_PRINTS",
   "route": "development",
   "features": [],
   "route_reading": "COPY_THE_READING_RECORD_PATH_THE_ROUTE_READ_PRINTS",
@@ -41,6 +42,5 @@
   "authority": "authority.json",
   "artifact": "text",
   "execution": "authored",
-  "scene_materials": [],
-  "production_id": ""
+  "scene_materials": []
 }

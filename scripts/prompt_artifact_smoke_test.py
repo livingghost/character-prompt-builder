@@ -37,7 +37,7 @@ RETRIEVAL_RECORD = {
             "queries": ["standing arms at sides"],
             "inspected_records": ["MOD-POSE-EXAMPLE"],
             "outcome": "adopted",
-            "adopted_record": "MOD-POSE-EXAMPLE",
+            "adopted_records": ["MOD-POSE-EXAMPLE"],
         },
         {
             "element": "camera",

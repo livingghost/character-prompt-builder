@@ -6,5 +6,10 @@
     "locator": "Locate the actual instruction or approval."
   },
   "grants": [],
-  "stop_conditions": []
+  "stop_conditions": [
+    {
+      "id": "instruction-changed",
+      "text": "Stop when the user changes or withdraws the instruction this authority cites."
+    }
+  ]
 }

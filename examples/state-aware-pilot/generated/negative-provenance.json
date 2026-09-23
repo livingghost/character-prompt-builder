@@ -1,12 +1,15 @@
 {
   "activated_sources": [
-    "style-family:polished-soft-cel",
+    "style-family:style-family-clear-portrait",
+    "render-profile:profile-clear-2d-illustration",
     "state-integrity:left-right",
     "state-integrity:prop-ownership"
   ],
   "diagnostic_sources_retained": [],
   "semantic_exclusions_user_supplied": [],
   "affirmative_translations": {
+    "style-family:style-family-clear-portrait": "crisp facial markings",
+    "render-profile:profile-clear-2d-illustration": "a clearly illustrated soft-cel medium",
     "state-integrity:left-right": "stable left-right identity",
     "state-integrity:prop-ownership": "the wolf's neck and shirt remain visibly free of that pendant"
   }

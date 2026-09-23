@@ -70,7 +70,7 @@ The supported negative modes are:
 
 The builder never appends literal negative text to the positive prompt. Every Generation Package commits all three renditions independently under `generation_payload.transports` rather than deriving one during forwarding: `generation_payload.transports.separate` commits its positive and portable-negative text with `prompt_sha256` and `negative_sha256`; `generation_payload.transports.integrated` commits the reviewed affirmative integrated text with `sha256`; and `generation_payload.transports.native_subset` commits its positive and concise native-negative text with `prompt_sha256` and `negative_sha256`. The verifier recomputes those hashes and selects the exact committed rendition for the target mode.
 
-On an `integrated-critical` interface, the selected family's and rendering profile's `negative_terms` form the medium's anti-drift boundary, but the interface never receives those terms as negative text. Restate each activated finish or construction requirement affirmatively inside the positive prompt, adjacent to the surface or structure it governs. In negative provenance, map every activated source record ID to its nonempty positive wording under `affirmative_translations`; verification must prove that every translation survived into the committed integrated rendition. When medium drift is diagnosed, search the active catalog for a matching correction and inspect the exact resolved record before use. Core runtime logic must not assume that any optional-pack correction ID exists. Never paste diagnostic or negative vocabulary into the positive prompt.
+On an `integrated-critical` interface, the selected family's and rendering profile's `negative_terms` form the medium's anti-drift boundary, but the interface never receives those terms as negative text. Restate each activated finish or construction requirement affirmatively inside the positive prompt, adjacent to the surface or structure it governs. In negative provenance, map every activated source record ID to its nonempty positive wording under `affirmative_translations`; verification must prove that every translation survived into the committed integrated rendition. The builder adds the render profile and style family the Production Specification selects to `activated_sources`, and on a target with no negative field it refuses an active source that has no entry there. When medium drift is diagnosed, search the active catalog for a matching correction and inspect the exact resolved record before use. Core runtime logic must not assume that any optional-pack correction ID exists. Never paste diagnostic or negative vocabulary into the positive prompt.
 
 ## Services and offerings
 
@@ -138,7 +138,7 @@ The builder reads the prepared production run and derives what the run and the a
 Before packaging:
 
 1. Prepare a production run for the studio's open work task, as [Production execution](production-execution.md) describes. The run pins the task, its route reading, and the prompt as its delivery.
-2. Save the final prompt, the approved plot and the current Production Specification as UTF-8 files. Add the portable negative, its provenance and the image intent when they exist. Omit `--state-lineage-file` for one-off work; the builder seals a stateless lineage.
+2. Save the final prompt and the approved plot as UTF-8 files, and draft the Production Specification with `python scripts/production_spec.py draft` as [Production Specification](../production-specification.md#stateless) shows. Add the portable negative and the image intent when they exist, and the negative provenance whenever a negative source is active. Omit `--state-lineage-file` for stateless work; the builder seals the stateless lineage.
 3. Run each catalog and vocabulary search with `--record lookups.json --element NAME`, and mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID` (or `--composed TEXT --reason TEXT`). Then run `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file prompt.txt --plot-file plot.json --out retrieval.json`. Unavailable or unsettled retrieval blocks packaging. Approval to prepare is not approval to send.
 4. Pass the canonical prepared-reference-set through `--references-file` when references are selected. Do not author another source list.
 
@@ -149,6 +149,7 @@ python scripts/build_generation_payload.py \
   --plot-file plot.json \
   --retrieval-record-file retrieval.json \
   --production-spec-file production-spec.json \
+  --negative-provenance-file negative-provenance.json \
   --continuity C01=one-off \
   --parameters '{"width":832,"height":1248}' \
   --production-root PROJECT \
@@ -162,7 +163,13 @@ The builder derives the rest:
 - The request check reads the observed parameter schema that the model record's offering names in the active pack. The package records that pack file by path and hash, with the hashes of the service record, offering, transport and model record. References and bounded production context need an execution policy, so such a package takes `--request-validation-file`. So does a model exposed on no service here.
 - Visual continuity comes from `--continuity SUBJECT=DECISION`, one `recurring`, `one-off` or `undecided` decision for each production subject. The builder writes the decisions under the project's `work/continuity/` as their basis. `--visual-continuity-file` supplies a complete record instead.
 
-`--character SUBJECT=CHARACTER` records a subject under its studio character, which a recurring subject needs. That character's current accepted identity images must be among the prepared references. `--sheet-panel` marks an image for a character sheet panel.
+The first images of a new character are `undecided` exploration. Once the author accepts one as its identity, later images are `recurring`. `--character SUBJECT=CHARACTER` records a subject under its studio character, which a recurring subject needs. That character's current accepted identity images must be among the prepared references, and the builder refuses `recurring` without one. `--sheet-panel` marks an image for a character sheet panel.
+
+A refused build prints each error once and exits 1 (a stateless specification that names a lineage hash):
+
+```json
+{"ok": false, "errors": ["production specification: $.state_context.state_lineage_sha256: only a state-aware specification names this; the builder seals the stateless lineage"]}
+```
 
 For state-aware work, use `scripts/build_state_generation_package.py` with the same production arguments. It validates the supplied graph, story order, and selection identity, era, appearance, state hash, and references. A recurring subject that names the identity contract takes its character ID from that contract. `build_generation_payload.py` rejects state-aware lineage. Production Specification is mandatory for both paths.
 
@@ -257,7 +264,7 @@ The dry run verifies the package, prints a few plain lines, and then prints the 
 - the model and the service with its endpoint;
 - the output count;
 - whether the negative prompt is sent, said plainly when the target has no negative field;
-- the cost from the offering's or the service's price record, or `cost: unknown`;
+- the cost from the offering's or the service's price record; without one, `cost: unknown`, and the author states the upper bound in the authorization;
 - the production run, followed by `shown, not sent`.
 
 `--preview-out FILE` saves the transformation trace and the validation report, and `--intent-out FILE` saves the submission intent to authorize. `--send` executes only under the actual direct or delegated authority for that exact request. Every live send requires a package bound to a prepared production run. The package names the run, and the studio is the production root. Reserve the submission intent and pass its receipt with `--production-authorization`. Upload and send occur only after the claim. The uppercase arguments above are operator-supplied paths and an actual authorization receipt, not values created by the dispatch command.

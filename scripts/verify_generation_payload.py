@@ -504,16 +504,9 @@ def _verify(
             raise ValueError(f"{location} mismatch")
 
     production_spec = data.get("production_spec")
-    if not isinstance(production_spec, dict) or not production_spec:
-        raise ValueError("a complete production specification is required")
-    from production_spec import validate as validate_production_spec
+    from production_spec import require as require_production_spec, require_lineage
 
-    spec_report = validate_production_spec(production_spec, require_content=True)
-    if not spec_report.get("ok"):
-        raise ValueError(
-            "invalid production specification: "
-            + "; ".join(spec_report.get("errors", []))
-        )
+    require_production_spec(production_spec)
     if production_spec.get("target_model") != model:
         raise ValueError("package model differs from production specification target_model")
     production_spec_hash = sha256_json(production_spec)
@@ -576,11 +569,7 @@ def _verify(
     ):
         if require_concrete_sha256(value, location) != lineage_hash:
             raise ValueError(f"{location} mismatch")
-    state_context = production_spec.get("state_context", {})
-    if state_context.get("state_lineage_sha256") != lineage_hash:
-        raise ValueError("production specification state-lineage hash mismatch")
-    if state_context.get("mode") != state_lineage.get("mode"):
-        raise ValueError("production specification state mode differs from lineage")
+    require_lineage(production_spec, state_lineage)
 
     from prepare_generation_references import validate_prepared_reference_content
     reference_validator = validate_prepared_reference_set if live else validate_prepared_reference_content
@@ -855,10 +844,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 package_root=payload_path.parent,
                 project=args.studio_root,
             )
-    except (ValueError, OSError, json.JSONDecodeError) as exc:
+    except (ValueError, OSError) as exc:
         result = {
             "verified": False,
-            "errors": [str(exc)],
+            "errors": list(dict.fromkeys(getattr(exc, "errors", None) or [str(exc)])),
         }
         print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
         return 1

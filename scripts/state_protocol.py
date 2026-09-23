@@ -1424,8 +1424,6 @@ def validate_state_artifact_graph(
             state_context = production_spec.get("state_context", {})
             if state_context.get("mode") != "stateless":
                 errors.append("stateless production specification must declare mode=stateless")
-            if state_context.get("state_lineage_sha256") != lineage.get("lineage_sha256"):
-                errors.append("production specification state-lineage hash mismatch")
         return {
             "ok": not errors,
             "mode": mode,

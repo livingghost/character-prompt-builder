@@ -371,6 +371,17 @@ class FeatureWorkflowTests(unittest.TestCase):
         args=pm.load_json(self.work/'walkthrough output'/'builder-arguments.json')
         for flag in ('--plot-file','--retrieval-record-file','--continuity','--production-root'):self.assertIn(flag,args)
         for flag in ('--request-validation-file','--visual-continuity-file','--production-run'):self.assertNotIn(flag,args)
+        # A plain one-off person needs only the drafted specification.
+        subject=pm.load_json(self.work/'walkthrough output'/'production-spec.json')['subjects'][0]
+        self.assertEqual(subject['domain'],'human')
+        self.assertFalse({'resolved_morphology','identity_contract_ref','species_morphology_profile_ref'}&subject.keys())
+        # The transcript lists the commands it ran, each with a short result.
+        lines=(self.work/'walkthrough output'/'transcript.txt').read_text(encoding='utf-8').splitlines()
+        self.assertTrue(all(line.startswith(('$ python scripts/','  exit 0: ','# ')) for line in lines))
+        self.assertEqual([line.split()[2] for line in lines if line.startswith('$ ')],
+                         ['scripts/'+name+'.py' for name in ('studio','studio','work_ledger','execution_routes',
+                          'production_workflow','prompt_retrieval','production_spec','build_generation_payload','dispatch')])
+        self.assertLess(sum(map(len,lines)),8000)
         with self.assertRaises(ValueError):module.run(self.work/'walkthrough output')
 
     def prompt_artifacts(self, extra, destination='draft'):

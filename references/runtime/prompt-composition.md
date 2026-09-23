@@ -131,7 +131,7 @@ After inspection, run the Visual Reference Activation Gate for every selected re
 
 ## Scene specification
 
-Every final image uses a current [Production Specification](../production-specification.md), including an ordinary one-off prompt-only image. Start from `templates/production-spec-template.json`, set `state_context.mode` to `stateless` when there is no managed temporal canon, author the current scene structure directly rather than patching an older prompt, and validate it before final prompt delivery:
+Every final image uses a current [Production Specification](../production-specification.md), including an ordinary one-off prompt-only image. Draft it with `python scripts/production_spec.py draft`, as [Production Specification](../production-specification.md#stateless) shows, author the current scene structure directly rather than patching an older prompt, and validate it before final prompt delivery:
 
 ```bash
 python scripts/production_spec.py validate production-specification.json --require-content

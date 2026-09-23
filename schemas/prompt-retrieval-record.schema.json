@@ -56,10 +56,15 @@
             ],
             "description": "adopted: the wording comes from a retrieved record or vocabulary term. composed: retrieval returned nothing suitable and the wording was written for this prompt."
           },
-          "adopted_record": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Required when outcome is adopted: the record identifier or vocabulary term the wording came from."
+          "adopted_records": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Required when outcome is adopted: every record identifier or vocabulary term the wording came from."
           },
           "composed_wording": {
             "type": "string",

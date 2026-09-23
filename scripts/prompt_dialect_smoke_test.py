@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -14,7 +15,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import prompt_dialect as dialects  # noqa: E402
 from pack_manager import PackError  # noqa: E402
 
-EXPECTED_CHECKS = 12
+EXPECTED_CHECKS = 17
 
 SOUND = {
     "format": "character-prompt-builder-prompt-dialects",
@@ -27,6 +28,7 @@ SOUND = {
             "block_order": ["quality", "subject", "camera"],
             "rating_terms": ["general", "explicit"],
             "inert_terms": ["4k"],
+            "negative_form": "The corpus tags that name the failure, in the negative field.",
         },
         {
             "id": "family-two", "name": "Family Two", "description": "The second fixture family.",
@@ -78,6 +80,10 @@ def main() -> int:
     stray["dialects"][0]["unexpected"] = True
     check("an unknown key in a dialect is refused", refused(lambda: dialects.validate_dialects(stray)) is not None)
 
+    blank = json.loads(json.dumps(SOUND))
+    blank["dialects"][0]["negative_form"] = ""
+    check("an empty negative form is refused", refused(lambda: dialects.validate_dialects(blank)) is not None)
+
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp)
         dialect_path = home / "dialects.json"
@@ -110,6 +116,30 @@ def main() -> int:
 
         check("no guide resource yields no rules rather than an error",
               dialects.applicable_sections(None, "family-one") == {"universal": [], "dialect": [], "withheld": []})
+
+        found = dialects.find_dialect("family-two", dialect_path)
+        check("one family is found by its id", found["id"] == "family-two" and found["weight_range"] == [1.2, 1.4])
+        message = refused(lambda: dialects.find_dialect("family-three", dialect_path))
+        check("an unknown family id is answered with the ids the resource carries",
+              message == "unknown dialect 'family-three'; the prompt-dialects resource carries: family-one, family-two",
+              message)
+        run = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "prompt_dialect.py"), "--dialect", "family-three",
+             "--dialects", str(dialect_path), "--guide", str(guide_path)],
+            capture_output=True, text=True, encoding="utf-8", timeout=60, check=False,
+        )
+        check("the command names the families it carries for an unknown id, without a traceback",
+              run.returncode != 0 and "carries: family-one, family-two" in run.stderr
+              and "Traceback" not in run.stderr, run.stderr[-300:])
+        run = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "prompt_dialect.py"), "--dialect", "family-one",
+             "--dialects", str(dialect_path), "--guide", str(guide_path)],
+            capture_output=True, text=True, encoding="utf-8", timeout=60, check=False,
+        )
+        answer = json.loads(run.stdout or "{}")
+        check("a family's answer carries how it writes an active negative",
+              run.returncode == 0 and (answer.get("dialect") or {}).get("negative_form") == SOUND["dialects"][0]["negative_form"],
+              run.stdout[-300:] + run.stderr[-300:])
 
     passed = sum(1 for row in results if row["passed"])
     report = {"ok": len(results) == EXPECTED_CHECKS and passed == len(results), "checks": len(results),

@@ -188,7 +188,7 @@ def record() -> dict[str, Any]:
                 "queries": ["standing at a counter", "pouring"],
                 "inspected_records": ["pose/standing-at-work-surface"],
                 "outcome": "adopted",
-                "adopted_record": "pose/standing-at-work-surface",
+                "adopted_records": ["pose/standing-at-work-surface"],
             },
             {
                 "element": "light",
@@ -228,11 +228,11 @@ RECORD_CASES: list[dict[str, Any]] = [
     {"name": "two elements with one name", "value": element(1, element="pose"),
      "error": "repeats 'pose'"},
     {"name": "an element that searched for nothing", "value": element(0, queries=[]),
-     "error": "elements[0].queries must not be empty"},
+     "error": "element 'pose': queries must not be empty"},
     {"name": "an element with no outcome", "value": drop(0, "outcome"),
-     "error": "outcome must be one of"},
-    {"name": "an adopted element naming no record", "value": drop(0, "adopted_record"),
-     "error": "adopted_record is required when outcome is 'adopted'"},
+     "error": "element 'pose' has no outcome; mark it with --adopted ID"},
+    {"name": "an adopted element naming no record", "value": drop(0, "adopted_records"),
+     "error": "element 'pose': adopted_records is required"},
     {"name": "an adopted element that also composed wording",
      "value": element(0, composed_wording="something"),
      "error": "composed_wording does not belong to an adopted outcome"},
@@ -244,8 +244,11 @@ RECORD_CASES: list[dict[str, Any]] = [
     {"name": "a composed element with no reason", "value": drop(1, "reason"),
      "error": "reason is required when outcome is 'composed'"},
     {"name": "a composed element that also adopted a record",
-     "value": element(1, adopted_record="light/bright-far-window"),
-     "error": "adopted_record does not belong to a composed outcome"},
+     "value": element(1, adopted_records=["light/bright-far-window"]),
+     "error": "adopted_records does not belong to a composed outcome"},
+    {"name": "an adopted record that was never inspected",
+     "value": element(0, adopted_records=["pose/standing-at-work-surface", "pose/leaning"]),
+     "error": "element 'pose': adopted records were not inspected: ['pose/leaning']"},
 ]
 
 

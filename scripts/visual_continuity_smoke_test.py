@@ -3,6 +3,7 @@
 import copy
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 import execution_contract as c
 import visual_continuity as v
@@ -29,6 +30,8 @@ class SubjectTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.check(self.visual({'subject-a':self.subject('recurring')}))
     def test_multiple_recurring_needs_identity(self):
         with self.assertRaises(ValueError):self.check(self.visual({'subject-a':self.subject('recurring','CHAR-A'),'subject-b':self.subject()}))
+    def test_single_recurring_needs_an_accepted_identity_image(self):
+        with self.assertRaisesRegex(ValueError,'undecided exploration'):self.check(self.visual({'subject-a':self.subject('recurring','CHAR-A')}))
     def test_one_off_pair(self):self.check(self.visual({'subject-a':self.subject(),'subject-b':self.subject()}))
     def test_sheet_is_one_subject(self):
         with self.assertRaises(ValueError):self.check(self.visual({'subject-a':self.subject(),'subject-b':self.subject()},'sheet-panel'))
@@ -75,10 +78,18 @@ class DecisionTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.decide({'subject-a':'maybe'})
     def test_recurring_names_its_studio_character(self):
         with self.assertRaisesRegex(ValueError,'studio character'):self.decide({'subject-a':'recurring'})
-        record=self.decide({'subject-a':'recurring'},characters={'subject-a':'C01'})
-        self.assertEqual((record['subjects']['subject-a']['character_id'],record['subjects']['subject-a']['studio_character']),('C01','C01'))
-        record=self.decide({'subject-a':'recurring'},characters={'subject-a':'C01'},work_ids={'subject-a':'CHR-1'})
+    def test_first_images_of_a_new_character_are_undecided(self):
+        with self.assertRaisesRegex(ValueError,'undecided exploration'):
+            self.decide({'subject-a':'recurring'},characters={'subject-a':'C01'})
+        record=self.decide({'subject-a':'undecided'},characters={'subject-a':'C01'})
+        self.assertEqual(record['subjects']['subject-a'],
+                         {'continuity':'undecided','character_id':None,'studio_character':'C01','identity_refs':[]})
+    def test_recurring_selects_the_accepted_identity_and_work_character(self):
+        binding={'slot':'base.front','iteration_id':'I1','influence':'identity','image_path':'accepted.png'}
+        with mock.patch('adoption_workflow.reference_index',return_value={'ok':True,'errors':[],'bindings':[binding]}),                 mock.patch.object(v,'build_record',side_effect=lambda choices,**_:choices):
+            record=self.decide({'subject-a':'recurring'},characters={'subject-a':'C01'},work_ids={'subject-a':'CHR-1'})
         self.assertEqual(record['subjects']['subject-a']['character_id'],'CHR-1')
+        self.assertEqual(record['subjects']['subject-a']['identity_refs'],[{'slot':'base.front','iteration_id':'I1'}])
     def test_character_for_unknown_subject_refused(self):
         with self.assertRaises(ValueError):self.decide({'subject-a':'one-off'},characters={'other':'C01'})
     def test_changed_decision_record_refused(self):

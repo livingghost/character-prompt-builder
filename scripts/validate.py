@@ -2648,10 +2648,6 @@ def validate(
         errors.append("production-spec visual_language fields are invalid")
     production_schema = json.loads((root / "schemas/production-spec.schema.json").read_text(encoding="utf-8"))
     subject_required = set(production_schema.get("properties", {}).get("subjects", {}).get("items", {}).get("required", []))
-    if "growth_geometry" not in subject_required:
-        errors.append("production-spec subjects must require growth_geometry")
-    if "garment_geometry" not in subject_required:
-        errors.append("production-spec subjects must require garment_geometry")
     subject_properties = production_schema.get("properties", {}).get("subjects", {}).get("items", {}).get("properties", {})
     if subject_properties.get("growth_geometry", {}).get("$ref") != "growth-geometry.schema.json":
         errors.append("production-spec subjects.growth_geometry must reference growth-geometry.schema.json")
@@ -2663,9 +2659,8 @@ def validate(
 
     if "distinctive_details" not in subject_required:
         errors.append("production-spec subjects must require distinctive_details")
-    for required_subject_ref in ("identity_contract_ref", "state_snapshot_ref", "visual_projection_ref", "current_state"):
-        if required_subject_ref not in subject_required:
-            errors.append(f"production-spec subjects must require {required_subject_ref}")
+    if "current_state" not in subject_required:
+        errors.append("production-spec subjects must require current_state")
     performance_contract = production_schema.get("properties", {}).get("subjects", {}).get("items", {}).get("properties", {}).get("performance", {})
     if performance_contract.get("$ref") != "performance-language.schema.json":
         errors.append("production-spec subjects.performance must reference performance-language.schema.json")
@@ -2681,7 +2676,7 @@ def validate(
     if projection_performance.get("$ref") != "performance-language.schema.json":
         errors.append("visual-state-projection performance_language must reference performance-language.schema.json")
     state_context_required = set(production_schema.get("properties", {}).get("state_context", {}).get("required", []))
-    if state_context_required != {"mode", "state_lineage_sha256", "scene_context_ref"}:
+    if state_context_required != {"mode"}:
         errors.append("production-spec state_context required fields are invalid")
     if "production_spec" not in payload_template or "production_spec_sha256" not in payload_template:
         errors.append("generation package template is missing production-specification traceability")

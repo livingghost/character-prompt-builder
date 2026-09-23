@@ -33,6 +33,7 @@ from pack_manager import (
     validate_pack,
     write_lock,
 )
+import production_spec
 from production_spec import validate as validate_production_spec
 from prompt_plot import content_sha256
 from prepare_generation_references import (
@@ -65,6 +66,14 @@ def build_main(argv):
     from catalog_retrieval import runtime
     with runtime.using_pack_runtime(runtime._PACK_SETTINGS):
         return cli_with_fixture_retrieval(_build_main, argv)
+
+
+def build_errors(argv) -> list[str]:
+    """The errors the builder CLI printed; an empty list when it built the package."""
+    stdout = io.StringIO()
+    with contextlib.redirect_stdout(stdout):
+        code = build_main(argv)
+    return [] if code == 0 else json.loads(stdout.getvalue())["errors"]
 
 
 PACK_ID = "0198b360-1234-7abc-8def-0123456789ab"
@@ -138,11 +147,16 @@ INTEGRATED_PROMPT = (
     "A poised synthetic character with coherent anatomy in quiet, clean, "
     "text-free studio light."
 )
+# The render profile and style family the pilot specification selects, which
+# the negative policy activates whenever they are selected.
+_PILOT_VISUAL = json.loads(PILOT_PRODUCTION_SPEC.read_text(encoding="utf-8"))["visual_language"]
+MEDIUM_SOURCES = [f"render-profile:{_PILOT_VISUAL['render_profile']}", f"style-family:{_PILOT_VISUAL['style_family']}"]
 NEGATIVE_PROVENANCE = {
-    "activated_sources": ["generation-hygiene"],
+    "activated_sources": ["generation-hygiene", *MEDIUM_SOURCES],
     "diagnostic_sources_retained": ["anatomy-review"],
     "semantic_exclusions_user_supplied": [],
-    "affirmative_translations": {"anatomy-review": "coherent anatomy"},
+    "affirmative_translations": {"anatomy-review": "coherent anatomy", "generation-hygiene": "text-free",
+                                 MEDIUM_SOURCES[0]: "clean", MEDIUM_SOURCES[1]: "poised"},
 }
 GENERIC_DISTINCTIVE_DETAIL = {
     "id": "detail-1",
@@ -493,16 +507,12 @@ APPROVED_PLOT["approved"] = {
 }
 
 
-def _production_spec(model: str, lineage: dict[str, Any]) -> dict[str, Any]:
+def _production_spec(model: str) -> dict[str, Any]:
+    """The pilot's full scene as a stateless one-off: no lineage and no contract references."""
     value = json.loads(PILOT_PRODUCTION_SPEC.read_text(encoding="utf-8"))
     value["source_brief"] = "Exact one-off generation reference smoke test."
     value["target_model"] = model
-    value["state_context"] = {
-        "mode": "stateless",
-        "state_lineage_sha256": lineage["lineage_sha256"],
-        "scene_context_ref": None,
-        "notes": [],
-    }
+    value["state_context"] = {"mode": "stateless", "notes": []}
     for subject in value["subjects"]:
         for field in (
             "species_morphology_profile_ref",
@@ -511,7 +521,7 @@ def _production_spec(model: str, lineage: dict[str, Any]) -> dict[str, Any]:
             "state_snapshot_ref",
             "visual_projection_ref",
         ):
-            subject[field] = None
+            subject.pop(field)
     return value
 
 
@@ -527,10 +537,10 @@ def _package(
     parameters: dict[str, Any] | None = None,
     production_spec_override: Any = _UNSET,
     prepared_reference_root: Path | None = None,
+    negative_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    lineage = _stateless_lineage()
     production_spec = (
-        _production_spec(production_target_model or model, lineage)
+        _production_spec(production_target_model or model)
         if production_spec_override is _UNSET
         else production_spec_override
     )
@@ -561,9 +571,8 @@ def _package(
         creative_intent={"image_promise": "A coherent character study."},
         parameters=(parameters if parameters is not None else {"size": "1024x1024", "quality": "high"}),
         negative_transport=negative_transport,
-        negative_provenance=copy.deepcopy(NEGATIVE_PROVENANCE),
+        negative_provenance=copy.deepcopy(NEGATIVE_PROVENANCE if negative_provenance is None else negative_provenance),
         production_spec=production_spec,
-        state_lineage=lineage,
         prepared_reference_set=prepared_reference_set,
         prepared_reference_root=prepared_reference_root,
     )
@@ -782,7 +791,7 @@ def run() -> dict[str, Any]:
             _write_json(state_lineage_file, fixture_lineage)
             _write_json(
                 production_spec_file,
-                _production_spec(MODEL_ID, fixture_lineage),
+                _production_spec(MODEL_ID),
             )
 
             prepared_round_trips: list[dict[str, Any]] = []
@@ -1006,10 +1015,7 @@ def run() -> dict[str, Any]:
                         f".{precommit_output.stem}-generation-package-*"
                     )
                 )
-                precommit_error: BaseException | None = None
-                try:
-                    with contextlib.redirect_stdout(io.StringIO()):
-                        build_main(
+                precommit_errors = build_errors(
                             [
                                 "--model",
                                 MODEL_ID,
@@ -1035,13 +1041,10 @@ def run() -> dict[str, Any]:
                                 str(precommit_output),
                                 *runtime_arguments,
                             ]
-                        )
-                except BaseException as exc:
-                    precommit_error = exc
+                )
                 checked(
-                    type(precommit_error) is FileNotFoundError
-                    and Path(str(getattr(precommit_error, "filename", ""))).resolve()
-                    == missing_prompt.resolve()
+                    len(precommit_errors) == 1
+                    and missing_prompt.name in precommit_errors[0]
                     and precommit_output.read_bytes() == precommit_previous
                     and not precommit_companion.exists()
                     and set(
@@ -1097,15 +1100,12 @@ def run() -> dict[str, Any]:
                         raise OSError(injected_message)
                     real_replace(source, destination)
 
-                postcommit_error: BaseException | None = None
-                try:
-                    with mock.patch.object(
-                        generation_builder.os,
-                        "replace",
-                        side_effect=fail_json_publication,
-                    ):
-                        with contextlib.redirect_stdout(io.StringIO()):
-                            build_main(
+                with mock.patch.object(
+                    generation_builder.os,
+                    "replace",
+                    side_effect=fail_json_publication,
+                ):
+                    postcommit_errors = build_errors(
                                 [
                                     "--model",
                                     MODEL_ID,
@@ -1131,12 +1131,9 @@ def run() -> dict[str, Any]:
                                     str(postcommit_output),
                                     *runtime_arguments,
                                 ]
-                            )
-                except BaseException as exc:
-                    postcommit_error = exc
+                    )
                 checked(
-                    type(postcommit_error) is OSError
-                    and str(postcommit_error) == injected_message
+                    postcommit_errors == [injected_message]
                     and injected_count == 1
                     and staged_carriers_writable
                     and postcommit_output.read_bytes() == postcommit_previous
@@ -1890,10 +1887,7 @@ def run() -> dict[str, Any]:
             )
             mutation_count += 1
 
-            distinctive_detail_spec = _production_spec(
-                MODEL_ID,
-                _stateless_lineage(),
-            )
+            distinctive_detail_spec = _production_spec(MODEL_ID)
             distinctive_detail_spec["subjects"][0]["distinctive_details"] = [
                 copy.deepcopy(GENERIC_DISTINCTIVE_DETAIL)
             ]
@@ -1921,7 +1915,6 @@ def run() -> dict[str, Any]:
                     "'viewer-left' is not in ['left', 'right', 'bilateral', "
                     "'centerline', 'distributed', 'variable']"
                 ),
-                "subjects[0].distinctive_details[0].laterality is invalid",
             ]
             checked(
                 invalid_laterality_report["ok"] is False
@@ -1937,38 +1930,29 @@ def run() -> dict[str, Any]:
                 unexpected_subject_spec,
                 require_content=True,
             )
-            expected_subject_error = (
-                "subjects[0] unexpected fields: ['fixture_unexpected_subject_field']"
-            )
             checked(
                 unexpected_subject_report["ok"] is False
                 and unexpected_subject_report["errors"]
                 == [
                     "$.subjects[0]: unexpected properties "
                     "['fixture_unexpected_subject_field']",
-                    expected_subject_error,
-                ]
-                and unexpected_subject_report["errors"].count(expected_subject_error)
-                == 1,
+                ],
                 "unexpected production subject field was not reported exactly once by the subject contract",
             )
 
-            expected_laterality_build_error = (
-                "invalid production specification: "
-                + "; ".join(expected_laterality_errors)
-            )
             try:
                 _package(
                     empty_stateless_reference_set(),
                     production_spec_override=invalid_laterality_spec,
                     negative_transport="separate-field",
                 )
-            except ValueError as exc:
-                invalid_laterality_build_error = str(exc)
+            except production_spec.SpecificationError as exc:
+                invalid_laterality_build_errors = exc.errors
             else:
-                invalid_laterality_build_error = ""
+                invalid_laterality_build_errors = []
             checked(
-                invalid_laterality_build_error == expected_laterality_build_error,
+                invalid_laterality_build_errors
+                == ["production specification: " + error for error in expected_laterality_errors],
                 "build_payload accepted or misreported invalid distinctive-detail laterality",
             )
 
@@ -1981,10 +1965,7 @@ def run() -> dict[str, Any]:
             checked(
                 unexpected_property_report["ok"] is False
                 and unexpected_property_report["errors"]
-                == [
-                    "$: unexpected properties ['unsupported_property']",
-                    "unexpected top-level fields: ['unsupported_property']",
-                ],
+                == ["$: unexpected properties ['unsupported_property']"],
                 "unsupported production property did not produce current schema errors",
             )
 
@@ -2010,7 +1991,7 @@ def run() -> dict[str, Any]:
                     ),
                 ),
             ]
-            invalid_id_spec = _production_spec(MODEL_ID, _stateless_lineage())
+            invalid_id_spec = _production_spec(MODEL_ID)
             invalid_id_spec["subjects"][0]["id"] = 7
             invalid_production_cases.append(
                 (
@@ -2376,9 +2357,7 @@ def run() -> dict[str, Any]:
             failed_build_staging_before = set(
                 root.glob(".missing-integrated-package-generation-package-*")
             )
-            try:
-                with contextlib.redirect_stdout(io.StringIO()):
-                    build_main(
+            if not build_errors(
                         [
                             "--model",
                             MODEL_ID,
@@ -2398,10 +2377,7 @@ def run() -> dict[str, Any]:
                             str(missing_integrated_output),
                             *runtime_arguments,
                         ]
-                    )
-            except ValueError:
-                pass
-            else:
+            ):
                 raise SmokeFailure(
                     "builder accepted a negative without affirmative integrated rendition"
                 )
@@ -2422,9 +2398,7 @@ def run() -> dict[str, Any]:
             conflict_staging_before = set(
                 root.glob(".conflicting-package-generation-package-*")
             )
-            try:
-                with contextlib.redirect_stdout(io.StringIO()):
-                    build_main(
+            if not build_errors(
                         [
                             "--model",
                             MODEL_ID,
@@ -2446,10 +2420,7 @@ def run() -> dict[str, Any]:
                             str(conflicting_output),
                             *runtime_arguments,
                         ]
-                    )
-            except ValueError:
-                pass
-            else:
+            ):
                 raise SmokeFailure("builder replaced a pre-existing companion directory")
             checked(
                 conflicting_output.read_text(encoding="utf-8") == "sentinel"
@@ -2479,7 +2450,7 @@ def run() -> dict[str, Any]:
             native_production_spec_file = root / "native-production-specification.json"
             _write_json(
                 native_production_spec_file,
-                _production_spec(NATIVE_MODEL_ID, fixture_lineage),
+                _production_spec(NATIVE_MODEL_ID),
             )
             native_package_file = root / "native-generation-package.json"
             with contextlib.redirect_stdout(io.StringIO()):
@@ -2698,7 +2669,7 @@ def run() -> dict[str, Any]:
             )
             _write_json(
                 certified_production_spec_file,
-                _production_spec(INTEGRATED_MODEL_ID, fixture_lineage),
+                _production_spec(INTEGRATED_MODEL_ID),
             )
             certified_references_file = root / "certified-primary-references.json"
             _write_json(certified_references_file, empty_stateless_reference_set())
@@ -2859,6 +2830,39 @@ def run() -> dict[str, Any]:
                 and "paste_negative" not in retained_export
                 and "native_negative" not in retained_export,
                 "retained-only export exposed an uncharacterized negative channel",
+            )
+
+            # The policy activates the render profile and style family the
+            # specification selects, whether or not the author declared them.
+            declared_only = {"activated_sources": ["generation-hygiene"], "diagnostic_sources_retained": [],
+                             "semantic_exclusions_user_supplied": [], "affirmative_translations": {}}
+            medium_package = _package(empty_stateless_reference_set(), negative_provenance=declared_only)
+            checked(
+                medium_package["generation_payload"]["negative_provenance"]["activated_sources"]
+                == ["generation-hygiene", *MEDIUM_SOURCES],
+                "the build did not activate the render profile and style family its specification selects",
+            )
+            unselected_spec = _production_spec(MODEL_ID)
+            unselected_spec["visual_language"].update({"render_profile": "unspecified", "style_family": None})
+            unselected_package = _package(empty_stateless_reference_set(), negative_provenance=declared_only,
+                                          production_spec_override=unselected_spec)
+            checked(
+                unselected_package["generation_payload"]["negative_provenance"]["activated_sources"]
+                == ["generation-hygiene"],
+                "an unspecified render profile or an absent style family activated a negative source",
+            )
+            # A single prompt field with no negative at all still owes affirmative
+            # wording for every active source.
+            try:
+                _package(empty_stateless_reference_set(), model=INTEGRATED_MODEL_ID,
+                         production_target_model=INTEGRATED_MODEL_ID, negative_prompt="", integrated_prompt="",
+                         negative_provenance={})
+                refusal = ""
+            except ValueError as exc:
+                refusal = str(exc)
+            checked(
+                "no negative field" in refusal and all(source in refusal for source in MEDIUM_SOURCES),
+                "a target with no negative field accepted active sources without affirmative wording",
             )
 
             integrated_text_tamper = copy.deepcopy(integrated_package)
@@ -3053,9 +3057,28 @@ def run_derived_inputs() -> dict[str, Any]:
             project = studio.init(base / "project", "derived-inputs", "Derived input checks")
             run_id = production_fixtures.prepare_dispatch(project, PROMPT)
             (base / "prompt.txt").write_text(PROMPT + "\n", encoding="utf-8")
-            for name, value in {"plot.json": APPROVED_PLOT, "retrieval.json": fixture_retrieval(PROMPT, APPROVED_PLOT),
-                                "spec.json": _production_spec(model, _stateless_lineage())}.items():
+            for name, value in {"plot.json": APPROVED_PLOT, "retrieval.json": fixture_retrieval(PROMPT, APPROVED_PLOT)}.items():
                 atomic_write_json(base / name, value)
+            # A first image of a person needs only the drafted specification: no
+            # morphology contract and no lineage hash.
+            drafted = io.StringIO()
+            with contextlib.redirect_stdout(drafted):
+                draft_exit = production_spec.main(["draft", str(base / "spec.json"), "--model", model, "--brief", PROMPT,
+                                                   "--kind", "human", "--framing", "upper-thigh", "--continuity", "one-off"])
+            lean = json.loads((base / "spec.json").read_text(encoding="utf-8"))
+            checked(draft_exit == 0 and json.loads(drafted.getvalue())["build_with"]
+                    == ["--production-spec-file", str(base / "spec.json"), "--continuity", "C01=one-off"],
+                    "the draft does not name the builder arguments for its subject")
+            checked(lean["state_context"] == {"mode": "stateless", "notes": []}
+                    and not any(key.endswith("_ref") or key == "resolved_morphology" for key in lean["subjects"][0]),
+                    "the drafted specification carries lineage or morphology references")
+            from state_protocol import validate_state_artifact_graph
+            graph = validate_state_artifact_graph(lineage=_stateless_lineage(), production_spec=lean)
+            checked(graph["ok"], f"the stateless graph refuses the drafted specification: {graph['errors']}")
+            with contextlib.redirect_stdout(io.StringIO()):
+                checked(production_spec.main(["draft", str(base / "spec.json"), "--model", model, "--brief", PROMPT,
+                                              "--kind", "human", "--framing", "upper-thigh", "--continuity", "one-off"]) == 1,
+                        "the draft replaced an existing file")
             common = ["--model", model, "--prompt-file", str(base / "prompt.txt"), "--plot-file", str(base / "plot.json"),
                       "--retrieval-record-file", str(base / "retrieval.json"), "--production-spec-file", str(base / "spec.json"),
                       "--parameters", json.dumps({"width": 832, "height": 1248}), "--production-root", str(project), *runtime]
@@ -3065,16 +3088,20 @@ def run_derived_inputs() -> dict[str, Any]:
                     checked(_build_main([*common, "--out", str(base / name), *extra]) == 0, name + " was refused")
                 return json.loads((base / name).read_text(encoding="utf-8"))
 
+            def refusal(*extra: str) -> list[str]:
+                stdout = io.StringIO()
+                with contextlib.redirect_stdout(stdout):
+                    if _build_main([*common, "--out", str(base / "refused.json"), *extra]) == 0:
+                        raise SmokeFailure("builder accepted " + " ".join(extra))
+                return json.loads(stdout.getvalue())["errors"]
+
             def refused(pattern: str, *extra: str) -> None:
-                try:
-                    with contextlib.redirect_stdout(io.StringIO()):
-                        _build_main([*common, "--out", str(base / "refused.json"), *extra])
-                except ValueError as exc:
-                    checked(pattern in str(exc), f"expected {pattern!r}, got {exc}")
-                    return
-                raise SmokeFailure("builder accepted " + " ".join(extra))
+                errors = refusal(*extra)
+                checked(any(pattern in error for error in errors), f"expected {pattern!r}, got {errors}")
 
             derived = build("derived.json", "--continuity", "C01=one-off")
+            checked(derived["production_spec"] == lean and derived["state_lineage"]["mode"] == "stateless",
+                    "the package does not carry the drafted specification and a sealed stateless lineage")
             record = derived["request_validation"]
             checked(record["mode"] == "target-schema" and record["contract"] == record["evidence"]
                     and record["contract"]["path"] == schema_path, "derived request check does not name the pack schema")
@@ -3106,6 +3133,31 @@ def run_derived_inputs() -> dict[str, Any]:
             refused("state each production subject")
             refused("already states continuity", "--continuity", "C01=one-off", "--visual-continuity-file", str(base / "hand-visual.json"))
             refused("studio character", "--continuity", "C01=recurring")
+            # The first images of a new character are undecided until the author accepts one.
+            studio.add_character(project, "C01", "")
+            refused("undecided exploration", "--continuity", "C01=recurring", "--character", "C01=C01")
+            undecided = build("undecided.json", "--continuity", "C01=undecided", "--character", "C01=C01")
+            checked(undecided["visual_continuity"]["subjects"]["C01"]["continuity"] == "undecided",
+                    "an undecided first image of a studio character was refused")
+            # Specification errors come back as JSON, each once, from the builder and the verifier.
+            broken = copy.deepcopy(lean)
+            broken["state_context"]["state_lineage_sha256"] = "a" * 64
+            broken["camera"]["pitch_degrees"] = "level"
+            broken["subjects"][0]["identity_contract_ref"] = {"id": "identity", "sha256": "b" * 64}
+            atomic_write_json(base / "broken-spec.json", broken)
+            errors = refusal("--production-spec-file", str(base / "broken-spec.json"), "--continuity", "C01=one-off")
+            checked(len(errors) == 5 == len(set(errors))
+                    and all(error.startswith("production specification: $.") for error in errors),
+                    f"builder specification errors are not one JSON list with each error once: {errors}")
+            tampered_spec = copy.deepcopy(derived)
+            tampered_spec["production_spec"] = broken
+            atomic_write_json(base / "broken-package.json", tampered_spec)
+            verified_out = io.StringIO()
+            with contextlib.redirect_stdout(verified_out):
+                verify_exit = _verify_main([str(base / "broken-package.json"), "--studio-root", str(project), *runtime])
+            verify_report = json.loads(verified_out.getvalue())
+            checked(verify_exit == 1 and verify_report["verified"] is False and verify_report["errors"] == errors,
+                    "verifier specification errors differ from the builder's")
             refused("each production subject", "--continuity", "C02=one-off")
             with mock.patch("production_workflow.assert_current", return_value=(None, {"route_reading": derived["route_reading"]},
                                                                                  {"transport": "bounded-context"}, [])):
