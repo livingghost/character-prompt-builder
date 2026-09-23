@@ -7,34 +7,39 @@ an iteration: the exact request that was sent, what came back, the file, and the
 package it was built from, so that an image can be regenerated later with the
 same settings and a quality that drifted can be traced to what changed. An
 accepted image is superseded, never overwritten, when the owner changes their
-mind, so the history of a slot is readable end to end.
+mind, and every acceptance is kept with its time, so the history of a slot is
+readable end to end.
 
 The studio also carries the open task and the trail of tasks (see
 work_ledger.py), so a session that lost its context reads where the work stands
 and continues.
 
     python scripts/studio.py init --out DIR --studio-id ID --title "..."
-    python scripts/studio.py status [--studio DIR]
-    python scripts/studio.py character add <id> [--profile general|humanoid|anthro|<path>]
-    python scripts/studio.py iterate --character <id> --slot <slot> --result <file>
+    python scripts/studio.py status --studio DIR
+    python scripts/studio.py character add <id> --studio DIR [--profile general|humanoid|anthro|<path>]
+    python scripts/studio.py iterate --studio DIR --character <id> --slot <slot> --result <file>
         [--package <file>] [--package-companion <dir>] [--request <file>] [--response <file>] [--note "..."]
-    python scripts/studio.py accept --character <id> --iteration <it-id>
-    python scripts/studio.py reject --character <id> --iteration <it-id> --reason "..."
-    python scripts/studio.py recipe --character <id> --slot <slot>
-    python scripts/studio.py gallery [--out <file.html>]
+    python scripts/studio.py accept --studio DIR --character <id> --iteration <it-id>
+    python scripts/studio.py reject --studio DIR --character <id> --iteration <it-id> --reason "..."
+    python scripts/studio.py recipe --studio DIR --character <id> --slot <slot> [--iteration <it-id>]
+    python scripts/studio.py gallery --studio DIR [--out <file.html>]
+
+`--studio` names any directory in the studio, before or after the command, and
+defaults to the working directory.
 """
 from __future__ import annotations
 
 import argparse
 import contextlib
+import copy
 import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import sys
 import tempfile
-import time
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,19 +48,24 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import execution_contract  # noqa: E402
 import work_ledger  # noqa: E402
 
 MANIFEST = "studio.json"
-LOCK = "studio.lock"
 STUDIO_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]+$")
-CHARACTER_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+# A character id is a directory name on every system, so it cannot end in a
+# dot: Windows drops a trailing dot and would put the character somewhere else.
+CHARACTER_ID = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$")
+# Windows reserves these device names in any case and with any extension.
+RESERVED_NAMES = re.compile(r"^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\..*)?$", re.IGNORECASE)
 SLOT = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 ITERATION_ID = re.compile(r"^it-([0-9]+)$")
 DIRECTORIES = ("characters", "packages", "runs", "prompts", "work")
 CHARACTER_DIRECTORIES = ("sheet", "iterations", "accepted")
 STATUSES = ("candidate", "accepted", "rejected", "superseded")
-# Keys of a sent request that name this run and not the recipe: a fresh run gets its own.
-RUN_ONLY_KEYS = ("seed", "taskUUID", "uploadEndpoint", "ttl", "includeCost")
+# The file execution_contract.lock holds in the directory it locks.
+PROJECT_LOCK_FILE = ".production.lock"
+INIT_COMMAND = 'init --out <dir> --studio-id <id> --title "<title>"'
 
 README = {
     "characters": "One directory per character: sheet/ (the Character Sheet), iterations/ (every generated image with the exact request and response), accepted/ (the image accepted for each slot), iterations.jsonl (the record of each iteration and its status).\n",
@@ -79,12 +89,18 @@ def sha256_file(path: Path) -> str:
 
 
 def write_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    """Replace the file whole: a reader sees the old record or the new one, never a torn one."""
+    raw = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    execution_contract.atomic(path, raw, replace=True)
 
 
 def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def init_command() -> str:
+    """The command that creates a studio, with every argument it requires."""
+    return f"python {shlex.quote(str(ROOT / 'scripts' / 'studio.py'))} {INIT_COMMAND}"
 
 
 def studio_root(start: Path) -> Path | None:
@@ -96,41 +112,27 @@ def studio_root(start: Path) -> Path | None:
 
 
 def require_studio(start: Path) -> Path:
-    found = studio_root(start.resolve())
+    start = start.resolve()
+    if not start.exists():
+        raise ValueError(f"the directory {start} does not exist")
+    found = studio_root(start)
     if found is None:
-        raise ValueError(f"{start} is not in a studio; {ROOT / 'scripts' / 'studio.py'} init creates one")
+        raise ValueError(f"{start} is not in a studio; create one with: {init_command()}")
     return found
 
 
 @contextlib.contextmanager
-def recording_lock(root: Path, timeout: float = 60.0) -> Iterator[None]:
-    """Hold the studio while something is recorded, so two recorders never interleave.
-
-    A studio is a directory, and the commands that record read the whole record,
-    copy files into it, and write it back; two of them at once lose one another's
-    rows. The lock is a file the first recorder creates exclusively: the others
-    wait for it to go. A recorder killed mid-write leaves the file behind, and the
-    message names the file to delete.
-    """
-    path = root / LOCK
-    deadline = time.monotonic() + timeout
-    while True:
-        try:
-            handle = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            if time.monotonic() >= deadline:
-                raise ValueError(f"another recorder holds {path}; delete this file if nothing is recording") from None
-            time.sleep(0.05)
-            continue
-        break
-    os.close(handle)
-    try:
+def recording_lock(root: Path) -> Iterator[None]:
+    """Hold the project lock that every studio writer, the dispatcher and adoption share."""
+    with execution_contract.lock(root):
         yield
-    finally:
-        path.unlink(missing_ok=True)
 
 
 # The manifest and the layout.
+
+def _entries(directory: Path) -> list[Path]:
+    return [path for path in directory.iterdir() if path.name != PROJECT_LOCK_FILE]
+
 
 def init(out: Path, studio_id: str, title: str) -> Path:
     if not STUDIO_ID.fullmatch(studio_id):
@@ -138,48 +140,96 @@ def init(out: Path, studio_id: str, title: str) -> Path:
     if not title.strip():
         raise ValueError("a studio needs a title")
     out = out.resolve()
-    if out.exists() and any(out.iterdir()):
+    if out.exists() and not out.is_dir():
+        raise ValueError(f"{out} is a file, not a directory")
+    parent = next((path for path in out.parents if path.exists()), None)
+    if parent is not None and not parent.is_dir():
+        raise ValueError(f"{parent} is a file, so {out} cannot be created")
+    if out.exists() and _entries(out):
         raise ValueError(f"{out} exists and is not empty")
-    for name in DIRECTORIES:
-        (out / name).mkdir(parents=True, exist_ok=True)
-        (out / name / "README.md").write_text(README[name], encoding="utf-8", newline="\n")
-    write_json(out / MANIFEST, {
-        "studio_id": studio_id,
-        "title": title.strip(),
-        "created_at": now(),
-        "characters": [],
-    })
-    write_gallery(out)
+    with recording_lock(out):
+        if _entries(out):
+            raise ValueError(f"{out} exists and is not empty")
+        for name in DIRECTORIES:
+            (out / name).mkdir(parents=True, exist_ok=True)
+            execution_contract.atomic(out / name / "README.md", README[name].encode("utf-8"), replace=True)
+        write_json(out / MANIFEST, {
+            "studio_id": studio_id,
+            "title": title.strip(),
+            "created_at": now(),
+            "characters": [],
+        })
+        write_gallery(out)
     return out
 
 
 def manifest(root: Path) -> dict[str, Any]:
-    value = read_json(root / MANIFEST)
+    path = root / MANIFEST
+    try:
+        value = read_json(path)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path} is not JSON ({exc.msg}, line {exc.lineno})") from None
     if not isinstance(value, dict):
-        raise ValueError(f"{root / MANIFEST}: not an object")
+        raise ValueError(f"{path}: not an object")
     return value
 
 
+def valid_character_id(character: Any) -> bool:
+    return isinstance(character, str) and bool(CHARACTER_ID.fullmatch(character)) and not RESERVED_NAMES.match(character)
+
+
 def character_dir(root: Path, character: str) -> Path:
-    if not CHARACTER_ID.fullmatch(character):
-        raise ValueError("character id must be one or more characters of letters, digits, dot, underscore or dash")
+    if not valid_character_id(character):
+        raise ValueError(
+            "character id must be letters, digits, dot, underscore or dash, "
+            "starting with a letter or digit, not ending with a dot, and not a Windows device name such as con or nul"
+        )
     return root / "characters" / character
+
+
+def listed_characters(root: Path) -> list[str]:
+    return [str(entry.get("id")) for entry in manifest(root).get("characters") or [] if isinstance(entry, dict)]
+
+
+def character_home(root: Path, character: str) -> Path:
+    """The directory of a character the manifest lists; a mistyped id is refused by name."""
+    home = character_dir(root, character)
+    if character not in listed_characters(root) or not home.is_dir():
+        raise ValueError(f"character {character!r} is not in this studio")
+    return home
 
 
 def add_character(root: Path, character: str, profile: str) -> Path:
     home = character_dir(root, character)
-    if home.exists():
-        raise ValueError(f"character {character!r} already exists")
-    for name in CHARACTER_DIRECTORIES:
-        (home / name).mkdir(parents=True)
-    (home / "iterations.jsonl").write_text("", encoding="utf-8")
-    from character_sheet import initialize_sidecar
+    with recording_lock(root):
+        characters = root / "characters"
+        on_disk = [path.name for path in characters.iterdir() if path.is_dir()] if characters.is_dir() else []
+        for existing in (*listed_characters(root), *on_disk):
+            if existing == character:
+                raise ValueError(f"character {character!r} already exists")
+            if existing.casefold() == character.casefold():
+                raise ValueError(
+                    f"character {character!r} differs only by case from {existing!r}; "
+                    "Windows and macOS keep both in one directory"
+                )
+        if home.exists():
+            raise ValueError(f"character {character!r} already exists")
+        try:
+            for name in CHARACTER_DIRECTORIES:
+                (home / name).mkdir(parents=True)
+            execution_contract.atomic(home / "iterations.jsonl", b"", replace=True)
+            from character_sheet import initialize_sidecar
 
-    initialize_sidecar(home / "sheet", profile=profile)
-    document = manifest(root)
-    document.setdefault("characters", []).append({"id": character, "added_at": now()})
-    write_json(root / MANIFEST, document)
-    write_gallery(root)
+            initialize_sidecar(home / "sheet", profile=profile)
+            document = manifest(root)
+            document.setdefault("characters", []).append({"id": character, "added_at": now()})
+            write_json(root / MANIFEST, document)
+        except BaseException:
+            # The manifest is written last, so a character it does not list is
+            # removed whole and the id stays free to add again.
+            shutil.rmtree(home, ignore_errors=True)
+            raise
+        write_gallery(root)
     return home
 
 
@@ -189,19 +239,26 @@ def read_iterations(home: Path) -> list[dict[str, Any]]:
     path = home / "iterations.jsonl"
     if not path.is_file():
         return []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        raise ValueError(f"{path} is not UTF-8 text") from None
     rows = []
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for number, line in enumerate(text.splitlines(), 1):
         if line.strip():
-            value = json.loads(line)
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"{path}: line {number} is not JSON ({exc.msg})") from None
             if not isinstance(value, dict):
-                raise ValueError(f"{path}:{number}: not an object")
+                raise ValueError(f"{path}: line {number} is not an object")
             rows.append(value)
     return rows
 
 
 def write_iterations(home: Path, rows: list[dict[str, Any]]) -> None:
-    path = home / "iterations.jsonl"
-    path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8", newline="\n")
+    raw = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows).encode("utf-8")
+    execution_contract.atomic(home / "iterations.jsonl", raw, replace=True)
 
 
 def next_iteration_id(home: Path, rows: list[dict[str, Any]]) -> str:
@@ -243,6 +300,58 @@ def _keep_companion(home: Path, iteration_id: str, companion: Path) -> Path:
     return target
 
 
+def check_request_layout(layout: Any, request: Any) -> None:
+    """Refuse a request layout that does not describe the recorded request.
+
+    The layout is the one the service's transport wrote with the request: which
+    field holds the model, the prompt, the negative, the seed, each media item
+    and the run's own identifiers. It is checked with the transport contract's
+    own rule, against the request exactly as it was sent.
+    """
+    import request_contract
+
+    if not isinstance(request, dict):
+        raise ValueError("a request layout needs the recorded request it describes")
+    try:
+        target = {"model_identifier": _field(request, layout["model"]), "operation": _field(request, layout["operation"])}
+        request_contract.validate_layout(request, layout, [{}] * len(layout["media"]), target)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"the request layout does not describe the recorded request: {exc}") from None
+
+
+def _field(value: Any, path: Any) -> Any:
+    """The value at a layout path, or None where the request has nothing there."""
+    import request_contract
+
+    if not path:
+        return None
+    try:
+        return request_contract.get(value, path)
+    except ValueError:
+        return None
+
+
+def _check_inputs(files: dict[str, Path | None], package_companion: Path | None) -> None:
+    """Name a missing or unreadable input before anything is copied into the studio."""
+    for name, source in files.items():
+        if source is None:
+            continue
+        path = Path(source).resolve()
+        if not path.exists():
+            raise ValueError(f"the {name} file {path} does not exist")
+        if not path.is_file():
+            raise ValueError(f"the {name} path {path} is not a file")
+        if name != "result":
+            try:
+                read_json(path)
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                raise ValueError(f"the {name} file {path} is not JSON: {exc}") from None
+    if files.get("package") is not None and package_companion is not None:
+        companion = Path(package_companion).resolve()
+        if not companion.is_dir():
+            raise ValueError(f"the package companion {companion} is not a directory")
+
+
 def validate_recording_target(root: Path, character: str, slot: str, *, writable: bool = False) -> Path:
     """Refuse local destination errors before a dispatcher uploads or sends.
 
@@ -253,10 +362,7 @@ def validate_recording_target(root: Path, character: str, slot: str, *, writable
     root = root.resolve()
     if require_studio(root) != root:
         raise ValueError(f"{root} is not a studio root")
-    home = character_dir(root, character)
-    characters = manifest(root).get("characters", [])
-    if not home.is_dir() or not any(isinstance(row, dict) and row.get("id") == character for row in characters):
-        raise ValueError(f"character {character!r} is not in this studio")
+    home = character_home(root, character)
     if not isinstance(slot, str) or not SLOT.fullmatch(slot):
         raise ValueError("slot must be lower-case letters, digits, dot, underscore or dash, such as base.front")
     directories = (root, root / "runs", root / "packages", home, home / "iterations", home / "accepted")
@@ -284,18 +390,23 @@ def validate_recording_target(root: Path, character: str, slot: str, *, writable
 
 def iterate(root: Path, character: str, slot: str, result: Path, *, package: Path | None, request: Path | None,
             response: Path | None, note: str | None, service: dict[str, Any] | None = None,
-            package_companion: Path | None = None) -> dict[str, Any]:
+            package_companion: Path | None = None, layout: dict[str, Any] | None = None) -> dict[str, Any]:
     with recording_lock(root):
         return _record_iteration(root, character, slot, result, package=package, request=request,
                                  response=response, note=note, service=service,
-                                 package_companion=package_companion)
+                                 package_companion=package_companion, layout=layout)
 
 
 def _record_iteration(root: Path, character: str, slot: str, result: Path, *, package: Path | None,
                       request: Path | None, response: Path | None, note: str | None,
                       service: dict[str, Any] | None = None,
-                      package_companion: Path | None = None) -> dict[str, Any]:
+                      package_companion: Path | None = None,
+                      layout: dict[str, Any] | None = None) -> dict[str, Any]:
     home = validate_recording_target(root, character, slot)
+    _check_inputs({"result": result, "package": package, "request": request, "response": response},
+                  package_companion)
+    if layout is not None:
+        check_request_layout(layout, read_json(Path(request)) if request is not None else None)
     rows = read_iterations(home)
     iteration_id = next_iteration_id(home, rows)
     row: dict[str, Any] = {
@@ -304,10 +415,11 @@ def _record_iteration(root: Path, character: str, slot: str, result: Path, *, pa
         "character": character,
         "slot": slot,
         "status": "candidate",
-        "supersedes": None,
+        "acceptances": [],
         "result": _keep(root, home, iteration_id, result, "result"),
         "package": _keep(root, home, iteration_id, package, "package"),
         "request": _keep(root, home, iteration_id, request, "request"),
+        "request_layout": copy.deepcopy(layout),
         "response": _keep(root, home, iteration_id, response, "response"),
         "service": None,
         "seed": None,
@@ -334,10 +446,14 @@ def _record_iteration(root: Path, character: str, slot: str, result: Path, *, pa
     if row["request"]:
         sent = read_json(root / row["request"]["path"])
         if isinstance(sent, dict):
+            # The layout names the fields; a request recorded by hand has none,
+            # and its top-level model and seed are read as written.
+            asked_seed = _field(sent, layout.get("seed")) if layout else sent.get("seed")
+            model = _field(sent, layout.get("model")) if layout else sent.get("model")
             if row["seed"] is None:
-                row["seed"] = sent.get("seed")
-            if row["service"] is None and sent.get("model"):
-                row["service"] = {"id": None, "model_identifier": sent.get("model"), "observed_at": None, "schema_snapshot": None}
+                row["seed"] = asked_seed
+            if row["service"] is None and model:
+                row["service"] = {"id": None, "model_identifier": model, "observed_at": None, "schema_snapshot": None}
     if service is not None:
         row["service"] = dict(service)
     rows.append(row)
@@ -359,7 +475,7 @@ def accept(root: Path, character: str, iteration_id: str) -> dict[str, Any]:
 
 
 def _record_accept(root: Path, character: str, iteration_id: str) -> dict[str, Any]:
-    home = character_dir(root, character)
+    home = character_home(root, character)
     rows = read_iterations(home)
     row = _find(rows, iteration_id)
     if row.get("status") == "accepted":
@@ -368,25 +484,33 @@ def _record_accept(root: Path, character: str, iteration_id: str) -> dict[str, A
         raise ValueError(f"{iteration_id} was rejected; record a new iteration instead")
     if not row.get("result"):
         raise ValueError(f"{iteration_id} has no result file to accept")
+    source = root / row["result"]["path"]
+    if not source.is_file():
+        raise ValueError(f"the result file of {iteration_id} is missing: {row['result']['path']}")
+    replaced = None
     for other in rows:
-        if other.get("slot") == row["slot"] and other.get("status") == "accepted":
+        if other is not row and other.get("slot") == row["slot"] and other.get("status") == "accepted":
             other["status"] = "superseded"
             other["superseded_by"] = iteration_id
             # The copy under accepted/ belongs to the slot, not to the row: it is
             # about to be replaced or removed, so it is no longer this row's image.
             # The iteration keeps its own copy under iterations/.
             other["accepted_path"] = None
-            row["supersedes"] = other["iteration_id"]
+            replaced = other["iteration_id"]
+    # An image accepted again is no longer superseded; each acceptance stays in
+    # its list with what it replaced, so the slot's history is never rewritten.
     row["status"] = "accepted"
-    row["accepted_at"] = now()
-    source = root / row["result"]["path"]
+    row.pop("superseded_by", None)
+    row["acceptances"] = [*(row.get("acceptances") or []), {"at": now(), "supersedes": replaced}]
     target = home / "accepted" / f"{row['slot']}{source.suffix}"
+    # The new copy is in place before a stale one is removed, so the slot is
+    # never without an accepted image.
+    execution_contract.atomic(target, source.read_bytes(), replace=True)
     # Only the copies of this slot: with slots 'base' and 'base.front' side by
     # side, 'base.front.png' has the stem 'base.front' and is not 'base' output.
     for stale in (home / "accepted").glob(f"{row['slot']}.*"):
-        if stale.is_file() and stale.stem == row["slot"]:
+        if stale.is_file() and stale.stem == row["slot"] and stale != target:
             stale.unlink()
-    shutil.copyfile(source, target)
     row["accepted_path"] = target.relative_to(root).as_posix()
     write_iterations(home, rows)
     write_gallery(root)
@@ -399,7 +523,7 @@ def reject(root: Path, character: str, iteration_id: str, reason: str) -> dict[s
 
 
 def _record_reject(root: Path, character: str, iteration_id: str, reason: str) -> dict[str, Any]:
-    home = character_dir(root, character)
+    home = character_home(root, character)
     rows = read_iterations(home)
     row = _find(rows, iteration_id)
     if row.get("status") == "accepted":
@@ -407,6 +531,7 @@ def _record_reject(root: Path, character: str, iteration_id: str, reason: str) -
     if not reason.strip():
         raise ValueError("rejecting an iteration needs the reason")
     row["status"] = "rejected"
+    row.pop("superseded_by", None)
     row["rejected_at"] = now()
     row["reason"] = reason.strip()
     write_iterations(home, rows)
@@ -414,34 +539,123 @@ def _record_reject(root: Path, character: str, iteration_id: str, reason: str) -
     return row
 
 
-def recipe(root: Path, character: str, slot: str) -> dict[str, Any]:
-    """What to send to get an image like the accepted one for a slot: the request minus what names a run."""
-    home = character_dir(root, character)
+def recipe(root: Path, character: str, slot: str, *, iteration: str | None = None) -> dict[str, Any]:
+    """Read one saved request and its evidence without selecting or accepting it."""
+    evidence = execution_contract
+
+    home = validate_recording_target(root, character, slot, writable=False)
     rows = read_iterations(home)
-    accepted = next((row for row in rows if row.get("slot") == slot and row.get("status") == "accepted"), None)
-    if accepted is None:
-        raise ValueError(f"no accepted iteration for slot {slot!r} of {character!r}")
-    if not accepted.get("request"):
-        raise ValueError(f"{accepted['iteration_id']} recorded no request, so its settings cannot be read back")
-    sent = read_json(root / accepted["request"]["path"])
-    settings = {key: value for key, value in sent.items() if key not in RUN_ONLY_KEYS} if isinstance(sent, dict) else sent
+    if iteration is None:
+        matches = [row for row in rows if row.get("slot") == slot and row.get("status") == "accepted"]
+        if not matches:
+            raise ValueError(f"no accepted iteration for slot {slot!r} of {character!r}")
+    else:
+        matches = [row for row in rows if row.get("iteration_id") == iteration]
+        if not matches:
+            raise ValueError(f"no iteration {iteration!r} for {character!r}")
+    if len(matches) != 1:
+        raise ValueError("recipe selector must identify exactly one recorded iteration")
+    row = matches[0]
+    if row.get("slot") != slot or row.get("character") != character:
+        raise ValueError("recipe iteration does not match the selected character and slot")
+    if row.get("status") not in STATUSES:
+        raise ValueError("recipe iteration has an unknown recorded status")
+    if not row.get("request"):
+        raise ValueError(f"{row['iteration_id']} recorded no request, so its settings cannot be read back")
+
+    witnessed = {}
+    bodies = {}
+    for name in ("request", "response", "result", "package"):
+        item = row.get(name)
+        if item is None:
+            continue
+        if not isinstance(item, dict) or not {"path", "sha256"} <= set(item):
+            raise ValueError("recipe needs a recorded file reference: " + name)
+        evidence.sha(item["sha256"])
+        raw = evidence.read(evidence.local(root, item["path"]))
+        if evidence.digest(raw) != item["sha256"]:
+            raise ValueError("recipe evidence changed: " + item["path"])
+        witnessed[name] = {"path": item["path"], "sha256": item["sha256"], "size": len(raw)}
+        bodies[name] = raw
+    sent = evidence.decode(bodies["request"])
+    # The layout the transport recorded names the fields that belong to this one
+    # run: its identifiers and its seed. A request recorded without one keeps them.
+    layout = row.get("request_layout")
+    settings = copy.deepcopy(sent)
+    if isinstance(sent, dict) and isinstance(layout, dict):
+        for path in [*(layout.get("management") or []), layout.get("seed")]:
+            if path:
+                _remove_field(settings, path)
+    response = evidence.decode(bodies["response"]) if "response" in bodies else None
+    seed = response.get("seed") if isinstance(response, dict) else None
+    if seed is None and isinstance(sent, dict):
+        seed = _field(sent, layout.get("seed")) if isinstance(layout, dict) else sent.get("seed")
     return {
         "character": character,
         "slot": slot,
-        "iteration_id": accepted["iteration_id"],
-        "service": accepted.get("service"),
-        "seed": accepted.get("seed"),
-        "package": accepted.get("package"),
+        "iteration_id": row["iteration_id"],
+        "source_status": row["status"],
+        "service": row.get("service"),
+        "seed": seed,
+        "package": row.get("package"),
+        "request": sent,
         "settings": settings,
-        "note": "send these settings again for the same look; a different seed gives a variation, the same seed a reproduction where the service allows it",
+        "evidence": witnessed,
+        "record_sha256": evidence.content_id(row),
+        "note": "These settings describe the saved request. A variation uses fresh validation and authorization.",
     }
 
 
 # Every generated image, in order, with what produced it.
 
-# Request keys that are not settings of the image: the model and text are shown
-# on their own, media are shown by role, and the envelope names the run.
-NOT_A_SETTING = ("model", "positivePrompt", "negativePrompt", "inputs", "taskType", "taskUUID", "deliveryMethod")
+def _remove_field(value: dict[str, Any], path: list[Any]) -> None:
+    """Take one field out of a request copy, and the containers it leaves empty."""
+    path = list(path)
+    # A media position inside a list takes the list: every entry of it is media.
+    while path and isinstance(path[-1], int):
+        path.pop()
+    if not path:
+        return
+    trail: list[tuple[dict[str, Any], Any]] = []
+    node: Any = value
+    for part in path[:-1]:
+        if not isinstance(node, dict) or part not in node:
+            return
+        trail.append((node, part))
+        node = node[part]
+    if not isinstance(node, dict) or path[-1] not in node:
+        return
+    node.pop(path[-1])
+    for parent, key in reversed(trail):
+        if parent[key] != {}:
+            break
+        parent.pop(key)
+
+
+def sent_text(sent: Any, layout: Any) -> dict[str, Any]:
+    """What the recorded request carried, read through the layout the transport recorded with it.
+
+    Without a layout nothing says which field held the prompt, so every field is
+    listed as sent and no prompt is named.
+    """
+    if sent is None:
+        return {"request_recorded": False, "prompt_fields_known": False,
+                "prompt": None, "negative_prompt": None, "settings": {}, "media": {}}
+    if not isinstance(sent, dict) or not isinstance(layout, dict):
+        return {"request_recorded": True, "prompt_fields_known": False, "prompt": None, "negative_prompt": None,
+                "settings": copy.deepcopy(sent) if isinstance(sent, dict) else {"request": sent}, "media": {}}
+    media = {".".join(str(part) for part in item["field"]): _field(sent, item["field"])
+             for item in layout.get("media") or [] if isinstance(item, dict) and item.get("field")}
+    settings = copy.deepcopy(sent)
+    for path in [layout.get("model"), layout.get("operation"), layout.get("primary_text"), layout.get("negative_text"),
+                 *(layout.get("management") or []),
+                 *(item.get("field") for item in layout.get("media") or [] if isinstance(item, dict))]:
+        if path:
+            _remove_field(settings, path)
+    return {"request_recorded": True, "prompt_fields_known": True,
+            "prompt": _field(sent, layout.get("primary_text")),
+            "negative_prompt": _field(sent, layout.get("negative_text")),
+            "settings": settings, "media": media}
 
 
 def gallery_index(root: Path) -> dict[str, Any]:
@@ -456,39 +670,23 @@ def gallery_index(root: Path) -> dict[str, Any]:
             sent = read_json(root / row["request"]["path"]) if row.get("request") else None
             package = read_json(root / row["package"]["path"]) if row.get("package") else None
             payload = (package or {}).get("generation_payload") if isinstance(package, dict) else None
-            prompt = negative = None
-            settings: dict[str, Any] = {}
-            media: dict[str, Any] = {}
-            if isinstance(sent, dict):
-                prompt = sent.get("positivePrompt")
-                negative = sent.get("negativePrompt")
-                settings = {key: value for key, value in sent.items() if key not in NOT_A_SETTING}
-                media = sent.get("inputs") if isinstance(sent.get("inputs"), dict) else {}
-            if prompt is None and isinstance(payload, dict):
-                prompt = payload.get("prompt")
-                negative = payload.get("negative_prompt") or None
-                if not settings and isinstance(payload.get("parameters"), dict):
-                    settings = dict(payload["parameters"])
             service_row = row.get("service") or {}
             model_record = service_row.get("model")
-            dialect = service_row.get("dialect")
             if model_record is None and isinstance(package, dict):
                 model_record = (payload or {}).get("model") or package.get("upscaler_model")
             entries.append({
                 "character": character,
                 "iteration_id": row.get("iteration_id"),
                 "model_record": model_record,
-                "dialect": dialect,
+                "dialect": service_row.get("dialect"),
                 "at": row.get("at"),
                 "slot": row.get("slot"),
                 "status": row.get("status"),
-                "supersedes": row.get("supersedes"),
+                "acceptances": row.get("acceptances") or [],
+                "superseded_by": row.get("superseded_by"),
                 "service": row.get("service"),
                 "seed": row.get("seed"),
-                "prompt": prompt,
-                "negative_prompt": negative,
-                "settings": settings,
-                "media": media,
+                **sent_text(sent, row.get("request_layout")),
                 "result": (row.get("result") or {}).get("path"),
                 "result_sha256": (row.get("result") or {}).get("sha256"),
                 "package": (row.get("package") or {}).get("path"),
@@ -502,6 +700,37 @@ def gallery_index(root: Path) -> dict[str, Any]:
 def _escape(value: Any) -> str:
     text = "" if value is None else str(value)
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+
+def _fact(label: str, value: Any, missing: str | None = "not recorded") -> str:
+    """One labelled fact; an unknown value says so, or is left out when `missing` is None."""
+    if value is None or value == "":
+        return "" if missing is None else f"<b>{label}</b> {missing}"
+    return f"<b>{label}</b> {_escape(value)}"
+
+
+def _text_block(entry: dict[str, Any]) -> str:
+    if not entry.get("request_recorded"):
+        return "<p><b>request</b> not recorded</p>"
+    if not entry.get("prompt_fields_known"):
+        return "<p><b>request</b> every field as sent is listed below; the record does not say which field held the prompt</p>"
+    parts = []
+    for label, key in (("prompt", "prompt"), ("negative", "negative_prompt")):
+        if entry.get(key) is None:
+            parts.append(f"<p><b>{label}</b> none sent</p>")
+        else:
+            parts.append(f"<p><b>{label}</b></p><pre>{_escape(entry[key])}</pre>")
+    return "\n    ".join(parts)
+
+
+def _history(entry: dict[str, Any]) -> str:
+    parts = [f"generated {_escape(entry.get('at'))}"]
+    for acceptance in entry.get("acceptances") or []:
+        replaced = acceptance.get("supersedes") if isinstance(acceptance, dict) else None
+        parts.append(f"accepted {_escape((acceptance or {}).get('at'))}" + (f" in place of {_escape(replaced)}" if replaced else ""))
+    if entry.get("superseded_by"):
+        parts.append(f"superseded by {_escape(entry['superseded_by'])}")
+    return "; ".join(parts)
 
 
 def render_gallery(index: dict[str, Any]) -> str:
@@ -519,22 +748,32 @@ def render_gallery(index: dict[str, Any]) -> str:
         service = entry.get("service") or {}
         image = (f'<a href="{_escape(entry["result"])}"><img src="{_escape(entry["result"])}" alt="{_escape(entry["iteration_id"])}"></a>'
                  if entry.get("result") else "<div class=\"none\">no result file</div>")
+        origin = " ".join(fact for fact in (
+            _fact("model", service.get("model_identifier")),
+            _fact("service", service.get("id"), None),
+            _fact("observed", service.get("observed_at"), None),
+        ) if fact)
+        record = " ".join(fact for fact in (
+            _fact("model record", entry.get("model_record")),
+            _fact("family", entry.get("dialect"), None),
+            _fact("seed", entry.get("seed")),
+        ) if fact)
         rows.append(f"""
 <section class="iteration {_escape(entry.get('status'))}">
   <div class="image">{image}</div>
   <div class="facts">
     <h2>{_escape(entry.get('character'))} / {_escape(entry.get('slot'))} / {_escape(entry.get('iteration_id'))} <span class="status">{_escape(entry.get('status'))}</span></h2>
-    <p class="when">{_escape(entry.get('at'))}{(' supersedes ' + _escape(entry['supersedes'])) if entry.get('supersedes') else ''}</p>
-    <p><b>record</b> {_escape(entry.get('model_record'))}{(' <b>family</b> ' + _escape(entry.get('dialect'))) if entry.get('dialect') else ''}</p>
-    <p><b>model</b> {_escape(service.get('model_identifier'))} <b>service</b> {_escape(service.get('id'))} <b>observed</b> {_escape(service.get('observed_at'))} <b>seed</b> {_escape(entry.get('seed'))}</p>
-    <p><b>prompt</b></p><pre>{_escape(entry.get('prompt'))}</pre>
-    {('<p><b>negative</b></p><pre>' + _escape(entry.get('negative_prompt')) + '</pre>') if entry.get('negative_prompt') else ''}
+    <p class="when">{_history(entry)}</p>
+    <p>{origin}</p>
+    <p>{record}</p>
+    {_text_block(entry)}
     <table>{settings}{media}</table>
     {('<p class="note">' + _escape(entry.get('note')) + '</p>') if entry.get('note') else ''}
     {('<p class="note">rejected: ' + _escape(entry.get('reason')) + '</p>') if entry.get('reason') else ''}
     <p class="hash">{_escape(entry.get('result_sha256'))}</p>
   </div>
 </section>""")
+    count = len(index["entries"])
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>{_escape(index.get('title'))}</title>
 <style>
@@ -548,7 +787,7 @@ pre {{ white-space: pre-wrap; background: #f4f4f4; padding: .5rem; margin: 0 0 .
 table {{ border-collapse: collapse; font-size: .9rem; }} th {{ text-align: left; padding: .1rem .6rem .1rem 0; color: #555; }} td {{ padding: .1rem 0; }}
 .note {{ font-style: italic; }}
 </style></head>
-<body><h1>{_escape(index.get('title'))} ({_escape(index.get('studio_id'))}): {len(index['entries'])} iterations, generated {_escape(index.get('generated_at'))}</h1>
+<body><h1>{_escape(index.get('title'))} ({_escape(index.get('studio_id'))}): {count} {'image' if count == 1 else 'images'}, generated {_escape(index.get('generated_at'))}</h1>
 {''.join(rows)}
 </body></html>
 """
@@ -563,7 +802,11 @@ def gallery_stale(root: Path) -> str | None:
         held = read_json(json_path)
     except (ValueError, json.JSONDecodeError) as exc:
         return f"gallery.json: {exc}"
-    if not isinstance(held, dict) or held.get("entries") != gallery_index(root)["entries"]:
+    try:
+        expected = gallery_index(root)["entries"]
+    except (ValueError, OSError) as exc:
+        return f"the records cannot be read into a gallery: {exc}"
+    if not isinstance(held, dict) or held.get("entries") != expected:
         return "gallery.json does not list what the iteration records hold"
     return None
 
@@ -574,15 +817,36 @@ def write_gallery(root: Path, out: Path | None = None) -> tuple[Path, Path]:
     Every command that records something calls this, so the gallery is current
     without anyone asking for it; the command exists for a record edited by hand.
     """
-    index = gallery_index(root)
-    html_path = (out or (root / "gallery.html")).resolve()
-    json_path = html_path.with_suffix(".json")
-    write_json(json_path, index)
-    html_path.write_text(render_gallery(index), encoding="utf-8", newline="\n")
+    with recording_lock(root):
+        index = gallery_index(root)
+        html_path = (out or (root / "gallery.html")).resolve()
+        json_path = html_path.with_suffix(".json")
+        write_json(json_path, index)
+        execution_contract.atomic(html_path, render_gallery(index).encode("utf-8"), replace=True)
     return html_path, json_path
 
 
 # What a session reads first.
+
+# How far a slot's image is along the adoption route, in words.
+REFERENCE_STATES = {
+    "candidate-accepted": "accepted, not bound to the sheet",
+    "sheet-bound": "bound to the sheet",
+    "catalog-registered": "bound to the sheet and registered in the catalog",
+}
+# What the adoption route does next for a slot, in words.
+REFERENCE_NEXT = {
+    "adopt-with-sheet-scope": "adopt it with adoption_workflow.py to use it as a reference",
+    "accept-candidate": "adoption stopped before accepting the image; repeat the adoption command",
+    "bind-sheet": "adoption stopped before binding the sheet; repeat the adoption command",
+    "register-pack": "adoption stopped before registering the pack; repeat the adoption command",
+    "activate-pack": "adoption stopped before enabling the pack; repeat the adoption command",
+}
+
+
+def _count(number: int, word: str) -> str:
+    return f"{number} {word if number == 1 else word + 's'}"
+
 
 def status(root: Path) -> str:
     document = manifest(root)
@@ -593,37 +857,57 @@ def status(root: Path) -> str:
         rows = read_iterations(home) if home.is_dir() else []
         accepted = {row["slot"]: row for row in rows if row.get("status") == "accepted"}
         candidates = [row for row in rows if row.get("status") == "candidate"]
-        lines.append(f"character {character}: {len(rows)} iterations, {len(accepted)} slots accepted, {len(candidates)} candidates waiting")
+        lines.append(f"character {character}: {_count(len(rows), 'generated image')}, "
+                     f"{_count(len(accepted), 'slot')} accepted, {_count(len(candidates), 'candidate')} waiting")
         for slot, row in sorted(accepted.items()):
-            lines.append(f"  accepted {slot}: {row['iteration_id']} seed {row.get('seed')} ({(row.get('service') or {}).get('model_identifier')})")
+            seed = row.get("seed")
+            model = (row.get("service") or {}).get("model_identifier")
+            lines.append(f"  accepted {slot}: {row['iteration_id']}, seed {'not recorded' if seed is None else seed}"
+                         + (f", model {model}" if model else ""))
         for row in candidates[-5:]:
             lines.append(f"  candidate {row['iteration_id']} for {row.get('slot')}: {row.get('note') or 'no note'}")
         from adoption_workflow import reference_index
         try:
             reference_state = reference_index(root, str(character))
             for item in reference_state["bindings"]:
-                lines.append(f"  reference {item['slot']}: {item['status']}; next={item['next_action'] or 'complete'}")
-            lines.extend("  reference error: " + error for error in reference_state["errors"])
+                state = REFERENCE_STATES.get(item["status"], item["status"])
+                step = item["next_action"]
+                lines.append(f"  {item['slot']} as a reference: {state}"
+                             + (f"; {REFERENCE_NEXT.get(step, 'next: ' + str(step))}" if step else ""))
+            lines.extend("  reference problem: " + error for error in reference_state["errors"])
         except (ValueError, OSError, RuntimeError) as exc:
-            lines.append(f"  reference error: {exc}")
+            lines.append(f"  reference problem: {exc}")
     return "\n".join(lines)
+
+
+def _explain(exc: BaseException) -> str:
+    """One sentence for a refusal or a file the system could not use."""
+    if isinstance(exc, FileNotFoundError) and exc.filename:
+        return f"{exc.filename} does not exist"
+    if isinstance(exc, OSError) and exc.filename:
+        return f"{exc.filename} cannot be used: {exc.strerror or exc}"
+    return str(exc)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--studio", type=Path, default=None, help="A directory in the studio (default: the working directory)")
+    # The studio may also be named after the command, as the documentation writes it.
+    after = argparse.ArgumentParser(add_help=False)
+    after.add_argument("--studio", type=Path, default=argparse.SUPPRESS,
+                       help="A directory in the studio (default: the working directory)")
     commands = parser.add_subparsers(dest="command", required=True)
     init_parser = commands.add_parser("init", help="create a studio")
     init_parser.add_argument("--out", type=Path, required=True)
     init_parser.add_argument("--studio-id", required=True)
     init_parser.add_argument("--title", required=True)
-    commands.add_parser("status", help="the open task, and every character's slots and candidates")
+    commands.add_parser("status", help="the open task, and every character's slots and candidates", parents=[after])
     character_parser = commands.add_parser("character", help="characters")
     character_commands = character_parser.add_subparsers(dest="character_command", required=True)
-    add_parser = character_commands.add_parser("add", help="add a character with a blank sheet")
+    add_parser = character_commands.add_parser("add", help="add a character with a blank sheet", parents=[after])
     add_parser.add_argument("character")
     add_parser.add_argument("--profile", default="")
-    iterate_parser = commands.add_parser("iterate", help="record one generated image with what produced it")
+    iterate_parser = commands.add_parser("iterate", help="record one generated image with what produced it", parents=[after])
     iterate_parser.add_argument("--character", required=True)
     iterate_parser.add_argument("--slot", required=True)
     iterate_parser.add_argument("--result", type=Path, required=True)
@@ -632,17 +916,18 @@ def main(argv: list[str] | None = None) -> int:
     iterate_parser.add_argument("--request", type=Path, help="the request as sent, JSON")
     iterate_parser.add_argument("--response", type=Path, help="what the service answered, JSON")
     iterate_parser.add_argument("--note")
-    accept_parser = commands.add_parser("accept", help="accept an iteration for its slot; the previous one is superseded")
+    accept_parser = commands.add_parser("accept", help="accept an iteration for its slot; the previous one is superseded", parents=[after])
     accept_parser.add_argument("--character", required=True)
     accept_parser.add_argument("--iteration", required=True)
-    reject_parser = commands.add_parser("reject", help="mark an iteration rejected, with the reason")
+    reject_parser = commands.add_parser("reject", help="mark an iteration rejected, with the reason", parents=[after])
     reject_parser.add_argument("--character", required=True)
     reject_parser.add_argument("--iteration", required=True)
     reject_parser.add_argument("--reason", required=True)
-    recipe_parser = commands.add_parser("recipe", help="the settings that produced the accepted image of a slot")
+    recipe_parser = commands.add_parser("recipe", help="read the saved request of the accepted image or an explicitly selected candidate", parents=[after])
     recipe_parser.add_argument("--character", required=True)
     recipe_parser.add_argument("--slot", required=True)
-    gallery_parser = commands.add_parser("gallery", help="write gallery.html and gallery.json: every image in order with prompt, model, settings, and seed")
+    recipe_parser.add_argument("--iteration", help="read this recorded iteration without accepting it")
+    gallery_parser = commands.add_parser("gallery", help="write gallery.html and gallery.json: every image in order with prompt, model, settings, and seed", parents=[after])
     gallery_parser.add_argument("--out", type=Path, help="Where to write the HTML (default: <studio>/gallery.html); the JSON goes beside it")
     args = parser.parse_args(argv)
     try:
@@ -665,12 +950,12 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "reject":
             print(json.dumps(reject(root, args.character, args.iteration, args.reason), ensure_ascii=False, indent=2))
         elif args.command == "recipe":
-            print(json.dumps(recipe(root, args.character, args.slot), ensure_ascii=False, indent=2))
+            print(json.dumps(recipe(root, args.character, args.slot, iteration=args.iteration), ensure_ascii=False, indent=2))
         elif args.command == "gallery":
             html_path, json_path = write_gallery(root, args.out)
             print(f"wrote {html_path} and {json_path}")
-    except (ValueError, OSError, json.JSONDecodeError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+    except (ValueError, OSError) as exc:
+        print(f"error: {_explain(exc)}", file=sys.stderr)
         return 1
     return 0
 

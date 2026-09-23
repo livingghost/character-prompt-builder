@@ -281,7 +281,8 @@ def render(result: dict) -> str:
     return "\n".join(lines)
 
 
-def analyze(root: Path, runs: list[str], output: str, hypotheses_path: str | None = None) -> dict:
+def analyze(root: Path, runs: list[str], output: str, hypotheses_path: str | None = None,
+            *, runtime_arguments: dict | None = None) -> dict:
     reports = []
     for run in runs:
         report, _ = artifact_review.build(root, run)
@@ -292,6 +293,13 @@ def analyze(root: Path, runs: list[str], output: str, hypotheses_path: str | Non
         m.exact(value, {"hypotheses"}, label="hypotheses input")
         hypotheses = value["hypotheses"]
     result = summarize(reports, hypotheses)
+    lookup_actions = []
+    for report in reports:
+        lookup_actions.append({'operation': 'consult-presets', 'script': 'scripts/production_workflow.py',
+            'args': {'root': str(root), 'task': report['task_path'], 'focus': 'repair', **(runtime_arguments or {})},
+            'required_args': ['query', 'out-dir'], 'external_effect': False, 'budget_effect': 'none',
+            'question_owner': 'Translate the observed issue into a craft question and inspect fitting prior knowledge.'})
+
     files = {
         "analysis.json": m.encoded(result),
         "analysis.md": render(result).encode("utf-8"),
@@ -299,6 +307,7 @@ def analyze(root: Path, runs: list[str], output: str, hypotheses_path: str | Non
     return {
         "ok": True,
         "content_sha256": result["content_sha256"],
+        "next_actions": lookup_actions,
         **m.publish(root, output, files),
     }
 
@@ -309,11 +318,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--run", action="append", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--hypotheses")
+    from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
+    add_pack_runtime_arguments(parser)
     args = parser.parse_args(argv)
+    context = resolve_pack_runtime(parser, args)
+    runtime_arguments = {"state-file": str(context.settings.state_file),
+        "cache-dir": str(context.settings.cache_dir), "managed-root": str(context.settings.managed_root),
+        "pack-root": [str(path) for path in context.pack_roots]}
     try:
         print(
             json.dumps(
-                analyze(args.root, args.run, args.out, args.hypotheses),
+                analyze(args.root, args.run, args.out, args.hypotheses, runtime_arguments=runtime_arguments),
                 ensure_ascii=False,
                 indent=2,
             )

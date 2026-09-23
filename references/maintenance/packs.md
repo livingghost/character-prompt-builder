@@ -56,34 +56,33 @@ These contracts apply to the bundled commons pack and to any other pack that bin
 
 ## Development and locking
 
-Create and validate a development pack:
+Create a personal pack in the packs folder beside the state:
 
 ```bash
-python scripts/pack_cli.py init my-pack --name "My Pack"
-python scripts/pack_cli.py validate my-pack
+python scripts/pack_cli.py init ~/.character-prompt-builder/packs/my-pack --name "My Pack"
 ```
 
-`init` generates UUIDv7. Add normalized records and resources, then declare capabilities, globs, and logical bindings. An unlocked development pack may be temporarily empty with a warning.
+`init` generates the UUIDv7, registers the location when no pack root holds it, and enables the pack. Add normalized records and resources, then declare capabilities, globs, and logical bindings; the next catalog command uses them. A pack without `pack.lock.json` is a development pack that may be empty. The runtime validates it at every catalog build, and `ready` and every catalog command name a problem in one line.
 
-Create a released inventory only after validation:
+Build a lock only to publish a release or to install the pack elsewhere; `install` requires one:
 
 ```bash
 python scripts/pack_cli.py build-lock my-pack
 python scripts/pack_cli.py validate my-pack --released
 ```
 
-The lock records every pack file except itself with relative path, size, media type, role, and SHA-256. Any released-file change invalidates it. Advance the pack's own CalVer, rebuild the lock, and publish the complete new release. Never publish different bytes under the same pack UUID and release.
+The lock records every pack file except itself with relative path, size, media type, role, and SHA-256. Any change to a locked file invalidates the pack, so a pack still being edited stays unlocked. Advance the pack's own CalVer, rebuild the lock, and publish the complete new release. Never publish different bytes under the same pack UUID and release.
 
 Run exact one-pack publication checks through [Release Validation](../release/validation.md).
 
 ## Discovery roots and state changes
 
-The project `packs/` directory is always discovered. `packs/commons/` is the single Git-tracked shipped exception. Other immediate children may be user-owned or third-party packs and are ignored by the core repository by default.
+The Skill's `packs/` directory and the packs folder beside the state are always discovered; registering either as well changes nothing. `packs/commons/` is the single Git-tracked shipped pack. Other immediate children are personal packs and are ignored by the core repository by default.
 
 A registered path can be an exact directory containing `pack.json` or a container whose immediate children are pack roots. Use an exact root for isolation and a container for siblings.
 
 ```bash
-python scripts/pack_cli.py state-init
+python scripts/pack_cli.py ready
 python scripts/pack_cli.py root-add PACK_OR_CONTAINER
 python scripts/pack_cli.py list
 python scripts/pack_cli.py root-remove PACK_OR_CONTAINER
@@ -93,7 +92,7 @@ python scripts/pack_cli.py provider-select <logical-name> <pack-uuid>
 python scripts/pack_cli.py provider-clear <logical-name>
 ```
 
-Without `--state-file`, these commands read and persist the platform data-home state described in [Pack State Runtime Quickstart](../runtime/pack-state-quickstart.md). `state-init` persists that resolved state file when absent and reports every discovered pack with its enabled status; it never rewrites an existing state file.
+Without `--state-file`, these commands read and persist the platform data-home state described in [Pack State Runtime Quickstart](../runtime/pack-state-quickstart.md). `ready` persists that resolved state file when absent, never rewrites an existing one, and prints the packs in use and each decision the author owes. `disable` and `remove` clear the provider choices the pack owned and list them in `cleared_providers`.
 
 Required dependencies must be enabled before activation. Disable dependents first or use the explicit cascade behavior. `root-remove` refuses to orphan an enabled pack. Deleting an enabled directory makes it unavailable immediately and produces a state diagnostic until corrected.
 
@@ -110,7 +109,7 @@ Install and update validate manifest, lock, paths, dependency declarations, reco
 
 ZIP handling rejects malformed or unreadable archives, absolute and traversing paths, symbolic links, duplicate member paths, and file-directory collisions. These are structured operation failures. The pack layer does not impose a project-specific archive-size or member-count ceiling; general archive and filesystem behavior remains outside this content-management contract.
 
-The default managed root is `packs/`; `--managed-root` selects an explicit alternative. Managed directories are `<managed-root>/<pack-uuid>/`. Update requires the same UUID and a strictly newer CalVer, then replaces the directory atomically. Retain the prior release in recoverable quarantine at `<managed-root>/.quarantine/` on the same filesystem.
+The default managed root is the packs folder beside the state, `~/.character-prompt-builder/packs` for the persistent state; `--managed-root` selects an explicit alternative. Managed directories are `<managed-root>/<pack-uuid>/`. Update requires the same UUID and a strictly newer CalVer, then replaces the directory atomically. Retain the prior release in recoverable quarantine at `<managed-root>/.quarantine/` on the same filesystem.
 
 Remove accepts only lowercase UUIDv7, applies only to a disabled managed pack, and moves the exact UUID directory into quarantine. It remains recoverable even when the installed manifest is missing or corrupt.
 
@@ -164,7 +163,7 @@ Cache generation, inspection, export, copying, and distribution preserve records
 
 ```text
 pack_cli.py init, validate, build-lock
-pack_cli.py state-init
+pack_cli.py ready
 pack_cli.py root-add, root-remove, list, inspect
 pack_cli.py enable, disable
 pack_cli.py install, update, remove
@@ -173,12 +172,12 @@ pack_cli.py resources, resource
 pack_cli.py provider-list, provider-select, provider-clear
 ```
 
-Successful results and handled operation reports are JSON. Usage errors and operation failures exit nonzero with English diagnostics.
+`ready` prints plain lines and exits 1 while the author owes a decision. The other commands report JSON. Usage errors and operation failures exit nonzero with English diagnostics.
 
 ## First-use activation and bundled integrity
 
-`config/pack-initialization.json` enables all valid discovered packs only while the selected state file is absent. `state-init` persists that result. Existing explicit state is never overwritten: deliberately disabled packs remain disabled, and selected resource providers remain selected. `config/default-pack-state.json` remains the minimal core-release catalog seed, not a restriction on first-use activation of additional supplied packs.
+`config/pack-initialization.json` enables all discovered packs only while the selected state file is absent. `ready` persists that result. Existing explicit state is never overwritten: deliberately disabled packs remain disabled, and selected resource providers remain selected. `config/default-pack-state.json` remains the minimal core-release catalog seed, not a restriction on first-use activation of additional supplied packs.
 
-The actual bundled `packs/commons` directory with the commons UUID is core-managed. It has no `pack.lock.json`; core source inventory and `MANIFEST.json` commit it together with the project, and pack validation still checks its schema and files. `lock` and pack release-lock creation refuse that directory rather than recreating an unnecessary lock. The exemption is path-bound, not a manifest flag: external, installed, copied, and user-library packs still require their release lock. The release gate reports a live core inventory for commons, not a nonexistent lock. Do not remove or weaken any external pack's lock.
+The actual bundled `packs/commons` directory with the commons UUID is core-managed. It has no `pack.lock.json`; core source inventory and `MANIFEST.json` commit it together with the project, and pack validation still checks its schema and files. `lock` and pack release-lock creation refuse that directory rather than recreating an unnecessary lock. The exemption is path-bound, not a manifest flag: a copy of commons and every other pack still need a lock to be released or installed. The release gate reports a live core inventory for commons, not a nonexistent lock. Do not remove or weaken any external pack's lock.
 
 For the actual commons directory, `pack_release_gate.py` reports `scope: core-managed-pack-structure` and `release_authorized: false` after live-inventory and cache checks. This is not a standalone core release pass: `scripts/validate.py` and the project packager own core quality and regression evaluation. The separate pack evaluation contract remains mandatory for external packs that declare evaluation resources.

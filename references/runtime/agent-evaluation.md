@@ -22,6 +22,8 @@ A case describes what the host receives and which deliverables must be present w
 
 The trial uses the verified input copy as its prompt; a later edit to the original leaves the approved prompt as it was. Other input files and an optional skill copy are checked against the inspected plan before copying.
 
+For a trial of unprompted creative depth, cast admission or persistence, the prompt carries no reminder to add an origin, to consider the surroundings, to save, or to ask before naming a person. The author's answer to an admission request the agent raises correctly is a scripted response among the case inputs, not a correction. The worked example of [Cast Admission and Persona Depth](cast-and-persona-depth.md) lists cases of this kind.
+
 ### Host conditions
 
 A condition describes an actual executable and how to invoke it. A host name in a label is a description; it says nothing about whether the host is installed or supported.
@@ -161,3 +163,7 @@ They establish nothing about a real host's performance or about improvement in a
 ## Execution resources
 
 The approved condition owns its optional timeout and log budget; a default byte ceiling is absent, and logs are kept whole. `timeout_seconds: null` disables the application deadline; `max_log_bytes` may be omitted or set to null. See [Resource handling](../resource-handling.md) for budget failures, complete evidence retention and host-level containment.
+
+## Evaluate craft reuse
+
+Use [Craft consultation](preset-consultation.md) to connect consulted knowledge to the task. Evaluate the search scope, complete-source reading, and the fit of the borrowed relationship. Inspect actual outputs for preserved constraints, deliberate changes, and unrelated material introduced by adaptation. Treat an appropriate nonuse decision as valid. Measure useful reuse and avoided repeated work; lookup counts and preset counts do not establish quality.

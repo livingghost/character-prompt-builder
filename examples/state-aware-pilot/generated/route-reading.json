@@ -1,0 +1,93 @@
+{
+  "documents": [
+    {
+      "path": "references/runtime/production-direction.md",
+      "sha256": "a47f8536b936f154cd6090d0ba0ff3a0ea552c441b5192510df1d6f6159f9ba6"
+    },
+    {
+      "path": "references/runtime/production-permissions.md",
+      "sha256": "ebca318898d5994c255f473a493e08af80436f2e423872923ab1d74371219b39"
+    },
+    {
+      "path": "references/runtime/production-execution.md",
+      "sha256": "2ba6a025a618aa2685cf2934b43c7b6cccd4512d53aedc342d2522c08731815f"
+    },
+    {
+      "path": "references/runtime/state-aware-series.md",
+      "sha256": "260acb39c8a234ce0835e52515a0cc11627dcaffec8ca1452d9f5cea347ac6a8"
+    },
+    {
+      "path": "references/runtime/prompt-writing-guide.md",
+      "sha256": "97371861a5aef8b712f3eeee1c6babea707f2c9e7d990ace4eb32588672fd39a"
+    },
+    {
+      "path": "references/runtime/reference-delivery.md",
+      "sha256": "aef43a9afa3c551f79694cc898528e1af2669ac242afdf4f494370e47096ea0c"
+    },
+    {
+      "path": "references/runtime/studio.md",
+      "sha256": "f87e5490c4d6b4ab1923053a9475fa492d085fba0b55e4c66c51129a7c69493c"
+    },
+    {
+      "path": "references/runtime/world-realization.md",
+      "sha256": "fcd5facacdca24ac1c71783c1248d860b6ab7ba2d99b40e902ff29eb297a5c1f"
+    }
+  ],
+  "features": [
+    "prompt-dialect",
+    "reference-delivery",
+    "studio",
+    "world-view"
+  ],
+  "resources": {
+    "prompt-writing-guide": {
+      "status": "present",
+      "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+      "path": "resources/prompt-writing-guide/guide.json",
+      "sha256": "a1293db4650c73779abd2dbec78766696099989dbd6fc52447d323fbbc31f754"
+    },
+    "prompt-dialects": {
+      "status": "present",
+      "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+      "path": "resources/prompt-dialects/dialects.json",
+      "sha256": "0a127b223dade799e890d6d93425fd2b4fe037ae0da3e8d51903b5f3d58bd8d2"
+    }
+  },
+  "route": "state-series",
+  "reading_key": "fb105273a3e764fb5398c8beab667295",
+  "applied": [
+    {
+      "path": "references/runtime/state-aware-series.md",
+      "quote": "Use this document for recurring characters, temporal continuity, visible consequences of off-screen events, rendered identity references from other scenes, or an arriving shot-request. For a one-off image with no continuity state, use a stateless Production Specification and skip this document.",
+      "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+    },
+    {
+      "path": "references/runtime/prompt-writing-guide.md",
+      "quote": "Use this runtime when a final prompt must be rendered for a named model or interface, or when the user asks about any of these:",
+      "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+    },
+    {
+      "path": "references/runtime/reference-delivery.md",
+      "quote": "Read this when preparing or inspecting model-facing reference attachments. The prepared reference set remains the single committed input, not a new reference ledger.",
+      "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+    },
+    {
+      "path": "references/runtime/studio.md",
+      "quote": "Activate this document when character work will outlive one session: a character whose sheet is filled over days, images that are generated again and again until one is accepted, and decisions that get reversed. A studio is where that work lives, with its trail. Authoring that accumulates decisions a later draft reuses is such work, with or without an image: it gets its studio before the first draft that will be revised, and a narrative series can live inside it. Ordinary one-off prompt work and a one-off answer need no studio.",
+      "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+    },
+    {
+      "path": "references/runtime/world-realization.md",
+      "quote": "For one moment outside a planned unit, use [Story Context](story-context.md). It selects the same base, ledger and process records at an explicit coordinate and can feed its bounded view into a production task. Keep the unit plan for a sequence of openings, closings and continuity links.",
+      "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+    }
+  ],
+  "resource_applied": [
+    {
+      "resource": "prompt-writing-guide",
+      "pointer": "/sections/0/rules/0",
+      "quote": "Render the model-facing prompt in English unless the active model record or interface provides better evidence for another language.",
+      "why": "Synthetic fixture exercises the complete decoded rule and its source pointer."
+    }
+  ]
+}

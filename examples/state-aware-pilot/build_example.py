@@ -45,7 +45,7 @@ from state_protocol import (  # noqa: E402
     write_json,
 )
 from verify_generation_payload import verify  # noqa: E402
-from catalog_cli import configure_pack_runtime  # noqa: E402
+from catalog_retrieval.runtime import using_pack_runtime  # noqa: E402
 from pack_manager import default_settings  # noqa: E402
 from prompt_plot import content_sha256
 
@@ -633,17 +633,14 @@ def _build_into(output_dir: Path) -> list[Path]:
 
     with tempfile.TemporaryDirectory(prefix="cpb-pilot-runtime-") as workspace:
         root = Path(workspace)
-        configure_pack_runtime(
-            default_settings(
-                state_file=root / "pack-state.json",
-                cache_dir=root / "cache",
-                default_enabled_packs=[COMMONS_PACK_ID],
-            )
+        commons = load_json(ROOT / "packs/commons/pack.json")
+        settings = default_settings(
+            state_file=root / "pack-state.json", cache_dir=root / "cache",
+            default_enabled_packs=[COMMONS_PACK_ID],
+            default_resource_providers={name: COMMONS_PACK_ID for name in commons["content"]["resource_bindings"]},
         )
-        try:
+        with using_pack_runtime(settings):
             return _build_into_pinned(output_dir)
-        finally:
-            configure_pack_runtime(None)
 
 
 def _build_into_pinned(output_dir: Path) -> list[Path]:
@@ -833,7 +830,20 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
     write_json(generated / "prompt-retrieval-record.json", retrieval)
 
 
+    from reading_fixtures import fixture_reading
+    route_reading = fixture_reading(route="state-series", ledger=generated / "reads.jsonl")
+    write_json(generated / "route-reading.json", route_reading)
+    from visual_fixtures import fixture_visual
+    visual = fixture_visual(production_spec, root=generated, continuity='undecided',
+                            character_id=identity['character_id'])
+    write_json(generated / 'visual-continuity.json', visual)
+    from request_validation_fixtures import fixture_validation
+    validation = fixture_validation(generated, "gpt-image-2.5-flare", reference_mode="prompt-prefix")
+    write_json(generated / 'request-validation.json', validation)
     payload = build_package(
+        request_validation=validation, input_root=generated,
+        route_reading=route_reading,
+        visual_continuity=visual, visual_root=generated,
         model="gpt-image-2.5-flare",
         plot=PLOT,
         retrieval_record=retrieval,
@@ -859,7 +869,7 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
         critical_avoidance_integrated=False,
     )
     write_json(generated / "generation-package.json", payload)
-    verification = verify(payload)
+    verification = verify(payload, project=generated)
     if verification.get("verified") is not True:
         raise ValueError("generated package verification failed: " + "; ".join(verification.get("errors", [])))
     write_json(generated / "generation-package-verification.json", verification)
@@ -876,6 +886,8 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
     )
     checked_artifact(plan, "reference-bundle-plan")
 
+    # The project lock the build took is released by now and is not pilot output.
+    (generated / ".production.lock").unlink(missing_ok=True)
     return sorted(
         (path.relative_to(generated) for path in generated.rglob("*") if path.is_file()),
         key=lambda value: value.as_posix(),

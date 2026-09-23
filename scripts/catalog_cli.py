@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 from typing import Sequence
 
+import prompt_retrieval
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 from search_discovery import CatalogQueryInput, catalog_query_from_mapping
 
@@ -119,6 +120,55 @@ def _add_query_source_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_record_arguments(parser: argparse.ArgumentParser, *, element: str | None = "one") -> None:
+    parser.add_argument(
+        "--record",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "Append this lookup to a prompt retrieval record, created when absent. "
+            "Mark each element's outcome afterward with prompt_retrieval.py."
+        ),
+    )
+    if element == "one":
+        parser.add_argument("--element", help="Visual element this lookup serves, such as pose or lighting")
+    elif element == "each":
+        parser.add_argument(
+            "--element",
+            action="append",
+            default=[],
+            help="Visual element: give one for every ID, or one per ID in order",
+        )
+
+
+def _recorded_lookups(args: argparse.Namespace, result: dict, *, query: str | None = None,
+                      requests: Sequence[dict] | None = None) -> list[tuple[str, list[str], list[str]]]:
+    """Return (element, queries, inspected records) for each lookup this command ran."""
+    if args.command == "batch":
+        by_id = {item["request_id"]: item for item in requests or ()}
+        return [(item["request_id"], [by_id[item["request_id"]]["canonical_query"]], [])
+                for item in result["results"] if item["ok"]]
+    if args.command == "inspect-many":
+        identifiers = [row["record_id"] for row in result["records"]]
+        elements = args.element if len(args.element) != 1 else args.element * len(identifiers)
+        return [(element, [], [identifier]) for element, identifier in zip(elements, identifiers)]
+    if args.command == "inspect":
+        return [(args.element, [], [args.record_id])]
+    return [(args.element, [query] if query else [], [])]
+
+
+def _check_record_arguments(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    if getattr(args, "record", None) is None:
+        if getattr(args, "element", None):
+            parser.error("--element requires --record")
+        return
+    if args.command == "inspect-many":
+        if len(args.element) not in {1, len(dict.fromkeys(args.record_ids))}:
+            parser.error("--record needs one --element, or one --element per record ID")
+    elif args.command != "batch" and not args.element:
+        parser.error("--record requires --element")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -131,6 +181,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("stats", help="Show catalog counts")
+    consultation = sub.add_parser("consult", help="Search explicit craft layers and open complete chosen records in one runtime.")
+    consultation.add_argument("query", nargs="?")
+    import preset_consultation
+    consultation.add_argument("--focus", choices=["all", *preset_consultation.LAYERS], default="all")
+    consultation.add_argument("--inspect", nargs="*", default=[], metavar="ID")
+    consultation.add_argument("--previous", type=Path)
+
 
     inspect_parser = sub.add_parser(
         "inspect",
@@ -145,11 +202,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         metavar="PATH",
         help="Write UTF-8 JSON to PATH instead of standard output.",
     )
+    _add_record_arguments(inspect_parser)
 
     inspect_many = sub.add_parser(
         "inspect-many", help="Read complete records plus all linked asset details under one fresh runtime snapshot")
     inspect_many.add_argument("record_ids", nargs="+")
     inspect_many.add_argument("--out", metavar="PATH")
+    _add_record_arguments(inspect_many, element="each")
 
     asset_lookup_parser = sub.add_parser(
         "asset-lookup",
@@ -192,9 +251,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "Every object requires a unique request_id and a command."
         ),
     )
+    _add_record_arguments(batch_parser, element=None)
 
     search = sub.add_parser("search", help="Look up preset records from canonical descriptive wording")
     _add_query_source_arguments(search)
+    _add_record_arguments(search)
     search.add_argument("--kind", default=DEFAULT_SEARCH_KINDS)
     search.add_argument("--categories", default="")
     search.add_argument("--domain", choices=sorted(VALID_DOMAINS))
@@ -226,11 +287,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Explore coherent visual directions from a sparse canonical brief without requiring preset names or IDs.",
     )
     _add_query_source_arguments(recommendation)
+    _add_record_arguments(recommendation)
     recommendation.add_argument("--domain", choices=sorted(VALID_DOMAINS))
     recommendation.add_argument("--directions", type=int, default=4)
 
     inspiration = sub.add_parser("inspire", help="Retrieve diverse atomic ingredients for a chosen direction")
     _add_query_source_arguments(inspiration)
+    _add_record_arguments(inspiration)
     inspiration.add_argument(
         "--categories",
         default=DEFAULT_INSPIRE_CATEGORIES,
@@ -253,8 +316,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     inspiration.add_argument("--archetype-limit", type=int, default=2, help="Number of subject-archetype identity candidates")
 
     args = parser.parse_args(argv)
+    _check_record_arguments(parser, args)
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
+    if args.command == "consult":
+        try:
+            questions = ([{"request_id": "craft", "canonical_query": args.query, "focus": args.focus}]
+                         if args.query else [])
+            previous = load_json(args.previous) if args.previous else None
+            result = preset_consultation.consult(questions, args.inspect, settings=runtime.settings, previous=previous)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0 if result["ok"] else 1
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            parser.error(str(exc))
+        finally:
+            configure_pack_runtime(None)
     try:
         batch_requests = (
             load_batch_requests(args.requests)
@@ -264,7 +340,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         started = time.perf_counter()
         catalog = begin_catalog_request()
         runtime_seconds = time.perf_counter() - started
+        record = getattr(args, "record", None)
+        if record is not None:
+            prompt_retrieval.check_recordable(record, catalog.fingerprint)
         entries = load_entries()
+        request = None
         if args.command == "stats":
             result = catalog_stats(entries)
             result["active_pack_count"] = catalog.active_pack_count
@@ -306,6 +386,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 request,
                 vars(args),
             )
+        if record is not None:
+            for element, queries, inspected in _recorded_lookups(
+                    args, result, query=request.canonical_query if request else None, requests=batch_requests):
+                prompt_retrieval.record_lookup(record, element, queries=queries, inspected=inspected,
+                                               pack_state=catalog.fingerprint)
     except ValueError as exc:
         parser.error(str(exc))
     finally:

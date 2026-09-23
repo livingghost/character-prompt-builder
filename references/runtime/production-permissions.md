@@ -49,8 +49,10 @@ rechecks the exact payload, actor, target set, authority, expiry and cumulative
 limits.
 
 Reservations accumulate across all preparations with the same work task and
-grant ID; repeating preparation or revising the task leaves usage where it is,
-and an uncertain or unused reservation stays counted. Input changes require
+grant ID; repeating preparation or revising the task leaves usage where it is.
+A reservation stays counted until `release-reservation` returns it. Release is
+possible until a send step or another effect is recorded, so a failed upload
+can return its budget and an uncertain send keeps it. Input changes require
 current preparation: edits may intentionally change the parent's source files,
 while changed authority evidence and changed implementation are excluded from
 reuse. A changed quote, service, package, seed, count, selection reason or
@@ -61,10 +63,11 @@ undeleted, whatever budget they hold.
 External execution uses `claim-external` before the host calls its chosen tool.
 It pins recipient, consumer and output count; the script cannot observe an
 unreported call outside this process. Dispatcher execution reserves before
-upload or send, refuses a response-count mismatch before downloading unexpected
-outputs, and treats an uncertain call as one submission rather than retrying
-it. `recover-recording` only records already acquired, verified files and makes
-no network call.
+upload or send and treats an uncertain send as one submission rather than
+retrying it. It downloads and records every returned image; only the authorized
+count, fully downloaded, becomes the run's result. `recover-recording` downloads
+missing images from the saved answer and records them; it never sends the
+request again.
 
 Canonical adoption has a separate owner approval plus an `adopt` authorization.
 Obtain `adoption-intent`, reserve it, then use `adopt`; it calls the owning

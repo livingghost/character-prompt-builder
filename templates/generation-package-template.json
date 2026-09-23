@@ -132,7 +132,12 @@
     "prepared_reference_set_sha256": "",
     "generation_input_sha256": "",
     "prompt_recommendations_sha256": "",
-    "retrieval_record_sha256": ""
+    "retrieval_record_sha256": "",
+    "route_reading_sha256": "",
+    "visual_continuity_sha256": "",
+    "plot_sha256": "",
+    "request_validation_sha256": "",
+    "input_snapshots_sha256": ""
   },
   "state_lineage": {
     "artifact_type": "state-lineage",
@@ -156,5 +161,15 @@
   "composition_prompt": "",
   "retrieval_record": {},
   "retrieval_record_sha256": "",
-  "production_binding": null
+  "production_binding": null,
+  "route_reading": {},
+  "route_reading_sha256": "",
+  "visual_continuity": {},
+  "visual_continuity_sha256": "",
+  "plot": {},
+  "plot_sha256": "",
+  "request_validation": {},
+  "request_validation_sha256": "",
+  "input_snapshots": {},
+  "input_snapshots_sha256": ""
 }

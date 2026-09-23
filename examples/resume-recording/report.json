@@ -1,0 +1,28 @@
+{
+  "after_change": {
+    "available_operations": [
+      "draft-release",
+      "impact"
+    ],
+    "current_inputs": false,
+    "execution_state": "no-dispatch-claim",
+    "integrity_ok": true,
+    "next": "inspect-impact-and-refresh-inputs",
+    "reservation_states": [
+      "reserved"
+    ]
+  },
+  "before_change": {
+    "available_operations": [
+      "draft-release"
+    ],
+    "current_inputs": true,
+    "execution_state": "no-dispatch-claim",
+    "integrity_ok": true,
+    "next": "authorize-direction-and-handoff",
+    "reservation_states": [
+      "reserved"
+    ]
+  },
+  "synthetic": true
+}

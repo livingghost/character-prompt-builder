@@ -474,7 +474,11 @@ def validate_against_schema(
     errors: list[str] = []
     if "$ref" in schema:
         resolved, resolved_root = _resolve_ref(str(schema["$ref"]), root_schema)
-        return validate_against_schema(value, resolved, path, resolved_root)
+        errors.extend(validate_against_schema(value, resolved, path, resolved_root))
+        siblings = {key: item for key, item in schema.items() if key != "$ref"}
+        if siblings:
+            errors.extend(validate_against_schema(value, siblings, path, root_schema))
+        return errors
 
     all_of = schema.get("allOf")
     if isinstance(all_of, list):

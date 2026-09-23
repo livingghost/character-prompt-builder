@@ -11,14 +11,17 @@ from typing import Any, Sequence
 from pack_cache import (
     cache_status,
     load_runtime_catalog,
+    pack_warnings,
     refresh_cache,
     runtime_resource_provider_status,
 )
 from pack_manager import (
     PackError,
+    PackSettings,
     add_pack_root,
     build_lock_data,
     clear_resource_provider,
+    configured_roots,
     default_settings,
     disable_pack,
     discover_packs,
@@ -29,9 +32,12 @@ from pack_manager import (
     install_pack,
     list_packs,
     load_effective_state,
+    load_state,
+    pack_cli_command,
     remove_pack,
     remove_pack_root,
     select_resource_provider,
+    state_lock,
     validate_pack,
     write_lock,
 )
@@ -87,7 +93,9 @@ def _write_release_lock(path: Path) -> dict[str, Any]:
 
 def _mutate_enabled_state(args: argparse.Namespace, operation) -> dict[str, Any]:
     settings = _settings(args)
-    state = operation(settings)
+    with state_lock(settings):
+        before = load_effective_state(settings)["resource_providers"]
+        state = operation(settings)
     try:
         cache = refresh_cache(settings, force=True)
     except Exception as exc:
@@ -95,7 +103,107 @@ def _mutate_enabled_state(args: argparse.Namespace, operation) -> dict[str, Any]
             "Pack state was committed, but the derived cache could not be refreshed; "
             f"the stale cache will not be used: {exc}"
         ) from exc
-    return {"ok": True, "state": state, "cache": cache}
+    cleared = sorted(set(before) - set(state["resource_providers"]))
+    return {"ok": True, "state": state, "cache": cache, "cleared_providers": cleared}
+
+
+def _init_pack(settings: PackSettings, path: Path, options: dict[str, Any]) -> dict[str, Any]:
+    """Create a pack where the author wants it and make it part of this runtime."""
+    manifest = initialize_pack(path, **options)
+    pack_id = str(manifest["pack_id"])
+    with state_lock(settings):
+        discovered, _ = discover_packs(settings)
+        registered = pack_id not in discovered
+        if registered:
+            add_pack_root(settings, path)
+        state = enable_pack(settings, pack_id)
+    return {
+        "ok": True,
+        "operation": "init",
+        "path": str(path.resolve()),
+        "pack_id": pack_id,
+        "root_registered": registered,
+        "enabled": pack_id in state["enabled_packs"],
+        "manifest": manifest,
+    }
+
+
+def _label(pack_id: str, root: Path | None, manifest: dict[str, Any] | None = None) -> str:
+    """A pack's directory name, which is how a person finds it, then its ID."""
+    if root is None:
+        return pack_id
+    name = root.name if root.name != pack_id else str((manifest or {}).get("name") or pack_id)
+    return f"{name} {pack_id}"
+
+
+def ready(
+    settings: PackSettings,
+    without: set[str],
+    only: list[str] | None = None,
+) -> tuple[bool, list[str]]:
+    """Settle the runtime a session retrieves from, and say what the author must decide.
+
+    The state file is created on first use, enabling every discovered pack or
+    exactly `only`, and left as it is afterwards. `without` disables packs as
+    `disable` does. A pack the author disabled stays disabled and is one line;
+    a pack that appeared since, an enabled pack the catalog cannot use, and a
+    resource whose provider nobody chose are decisions for the author, printed
+    first with the command that settles each. A disabled pack is never
+    validated or indexed, only its manifest is read.
+    """
+
+    roots = configured_roots(settings, load_state(settings.state_file))
+    print(f"scanning packs in {', '.join(str(root) for root in roots)}", file=sys.stderr, flush=True)
+    created = initialize_state_file(settings, only=only)
+    for pack_id in sorted(without):
+        disable_pack(settings, pack_id)
+    state = load_effective_state(settings)
+    enabled = set(state["enabled_packs"])
+    disabled = set(state["disabled_packs"])
+    discovered, _ = discover_packs(settings, state)
+    catalog = load_runtime_catalog(settings, quiet=True)
+    problems = pack_warnings(catalog.diagnostics, settings)
+    command = pack_cli_command(settings)
+    decide: list[str] = []
+    notes: list[str] = []
+    left_out: set[str] = set()
+    for key, line in problems.items():
+        members = set(key.split(",")) & enabled
+        left_out |= members
+        if members:
+            decide.append(f"decide: {line}")
+        else:
+            notes.append(f"warning: {line}")
+    for pack_id in sorted(set(discovered) - enabled):
+        pack = discovered[pack_id]
+        name = _label(pack_id, pack.root, pack.manifest)
+        if pack_id in disabled:
+            notes.append(f"left out: {name} (disabled)")
+            continue
+        decide.append(
+            f"decide: pack {name} is new and not enabled; ask the author whether to use it, "
+            f"then run {command} enable {pack_id} or {command} disable {pack_id}"
+        )
+    for row in catalog.diagnostics:
+        if row.get("code") == "resource-provider-unselected" and row.get("candidate_packs"):
+            name = row.get("resource")
+            decide.append(
+                f"decide: resource {name} has no provider selected; choose one of "
+                f"{', '.join(row['candidate_packs'])}: {command} provider-select {name} <pack-id>"
+            )
+    in_use = sorted(set(discovered) & enabled - left_out)
+    if not in_use:
+        decide.append(f"decide: no pack is in use; enable one: {command} enable <pack-id>")
+    lines = list(decide)
+    if not decide:
+        lines.append(f"ready: retrieval can use {len(in_use)} pack(s)")
+    lines.extend(
+        f"in use: {_label(pack_id, discovered[pack_id].root, discovered[pack_id].manifest)}"
+        for pack_id in in_use
+    )
+    lines.extend(notes)
+    lines.append(f"state: {settings.state_file}" + (" (created now)" if created else ""))
+    return not decide, lines
 
 
 def _inspect_pack(args: argparse.Namespace) -> dict[str, Any]:
@@ -158,7 +266,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     commands = parser.add_subparsers(dest="command", required=True)
 
-    init = commands.add_parser("init", help="Create an empty UUIDv7-identified development pack.")
+    init = commands.add_parser(
+        "init",
+        help=(
+            "Create an empty pack, register its location when no pack root holds it, "
+            "and enable it, so records added to it are used at once."
+        ),
+    )
     init.add_argument("path")
     init.add_argument("--name", required=True)
     init.add_argument("--release")
@@ -191,12 +305,25 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    commands.add_parser(
-        "state-init",
+    ready_command = commands.add_parser(
+        "ready",
         help=(
-            "Persist the resolved state file from the shipped initial state "
-            "when absent, then report discovered packs and enabled status."
+            "Create the state on first use, then print which packs retrieval uses "
+            "and what the author must decide. Exits 1 while a decision is open."
         ),
+    )
+    ready_command.add_argument(
+        "--without",
+        action="append",
+        default=[],
+        metavar="PACK_ID",
+        help="Disable this pack, as disable does, before the check; repeat for each.",
+    )
+    ready_command.add_argument(
+        "--only",
+        action="append",
+        metavar="PACK_ID",
+        help="When the state is new, enable only this pack; repeat for each. The rest are left out.",
     )
 
     root_add_help = (
@@ -276,6 +403,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "ready":
+        try:
+            settled, lines = ready(_settings(args), set(args.without), args.only)
+        except (PackError, OSError, ValueError) as exc:
+            print(f"error: {exc}")
+            return 2
+        for line in lines:
+            print(line)
+        return 0 if settled else 1
     try:
         settings = _settings(args)
         if args.command == "init":
@@ -286,13 +422,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             }
             if args.release:
                 kwargs["release"] = args.release
-            manifest = initialize_pack(Path(args.path), **kwargs)
-            result = {
-                "ok": True,
-                "operation": "init",
-                "path": str(Path(args.path).resolve()),
-                "manifest": manifest,
-            }
+            result = _init_pack(settings, Path(args.path).expanduser(), kwargs)
         elif args.command == "validate":
             result = validate_pack(
                 Path(args.path),
@@ -311,8 +441,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             }
         elif args.command == "list":
             result = list_packs(settings, verify_lock=not args.skip_lock)
-        elif args.command == "state-init":
-            result = initialize_state_file(settings)
         elif args.command == "root-add":
             result = _mutate_enabled_state(
                 args,

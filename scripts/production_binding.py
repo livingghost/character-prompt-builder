@@ -45,18 +45,21 @@ def validate(binding: Any, prompt: str) -> None:
         raise ValueError('production binding composition mismatch')
 
 
-def effective(binding: Any, original: str) -> str:
-    if binding is None: return original
-    consumer=binding['consumer']
-    # Only deliberately public instructions, checks and view fields cross this
-    # boundary. The dossier, evidence ledger, scene authoring materials and source
-    # snapshots do not. Reuse does not make author-only facts performer knowledge.
-    context={'direction':consumer['direction']}
-    if consumer['transport']=='bounded-context':
-        context.update(criteria=consumer['criteria'],world_views=consumer['world_views'],moment_views=consumer['moment_views'])
-    if not context['direction']['directives'] and consumer['transport']=='authored-rendition':
+def effective(binding: Any, original: str, *, context_transport: str | None = None) -> str:
+    """Render only the conversion explicitly chosen for this consumer."""
+    if binding is None:
         return original
-    return 'Production context (hard constraints and advisory choices are distinct):\n'+c.encoded(context).decode('utf-8')+'\n'+original
+    consumer = binding['consumer']
+    if consumer['transport'] == 'authored-rendition':
+        return original
+    if consumer['transport'] != 'bounded-context':
+        raise ValueError('invalid production transport')
+    if context_transport != 'prompt-prefix':
+        raise ValueError('bounded context requires an explicit prompt-prefix execution policy')
+    context = {'direction': consumer['direction'], 'criteria': consumer['criteria'],
+               'world_views': consumer['world_views'], 'moment_views': consumer['moment_views']}
+    return ('Production context (hard constraints and advisory choices are distinct):\n'
+            + c.encoded(context).decode('utf-8') + '\n' + original)
 
 
 def validate_live(root: Path | None, run: str | None, package: dict[str,Any]) -> None:
@@ -64,13 +67,13 @@ def validate_live(root: Path | None, run: str | None, package: dict[str,Any]) ->
     if binding is None:
         if root is not None or run is not None: raise ValueError('package is not bound to production')
         return
-    if root is None or run is None: raise ValueError('bound dispatch requires --production-root and --production-run')
+    if root is None or run is None: raise ValueError('a bound package needs its production root and run')
     expected=create(root,run,package['composition_prompt'])
     if binding!=expected: raise ValueError('package belongs to a different or stale production input')
 
 
 def upscale_request(root: Path, source: Path, model: str, scale: float,
-                    settings: dict, guidance: str | None) -> dict:
+                    settings: dict, guidance: str | None, *, request_validation: dict) -> dict:
     """Describe exact local inputs before the submit authorization is issued."""
     import math
     if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not math.isfinite(scale) or scale <= 0:
@@ -91,18 +94,23 @@ def upscale_request(root: Path, source: Path, model: str, scale: float,
              'source': {'path': relative, 'sha256': c.digest(c.read(source))},
              'model': model, 'scale_factor': float(scale), 'settings': settings,
              'guidance_prompt': guidance}
+    import input_contracts
+    reader, _ = input_contracts.capture_validation(request_validation, root=root)
+    input_contracts.attach(value, request_validation, reader)
     c.encoded(value)  # Reject non-finite or unsupported JSON settings.
     return value
 
 
 def validate_upscale_live(root: Path, run: str, request: dict) -> None:
     """The prepared delivery and source snapshot, not a chat description, authorize input."""
-    c.exact(request, {'artifact_type', 'source', 'model', 'scale_factor', 'settings', 'guidance_prompt'}, 'upscale request')
+    c.exact(request, {'artifact_type', 'source', 'model', 'scale_factor', 'settings', 'guidance_prompt',
+                      'request_validation', 'request_validation_sha256', 'input_snapshots', 'input_snapshots_sha256'}, 'upscale request')
     if request['artifact_type'] != 'upscale-request':
         raise ValueError('expected an upscale-request declaration')
     c.exact(request['source'], {'path', 'sha256'}, 'upscale source')
     expected = upscale_request(root, c.local(root, request['source']['path']), request['model'],
-                               request['scale_factor'], request['settings'], request['guidance_prompt'])
+                               request['scale_factor'], request['settings'], request['guidance_prompt'],
+                               request_validation=request['request_validation'])
     if request != expected:
         raise ValueError('upscale source differs from the prepared request')
     from production_workflow import assert_current
@@ -126,11 +134,14 @@ def main() -> int:
     parser.add_argument('--scale', required=True, type=float)
     parser.add_argument('--settings', default='{}')
     parser.add_argument('--guidance')
+    parser.add_argument('--request-validation-file', required=True, type=Path,
+                        help='Explicit validation record, with evidence paths relative to the project.')
     parser.add_argument('--out', required=True, help='New project-relative declaration file')
     args = parser.parse_args()
     try:
         value = upscale_request(args.root, c.local(args.root, args.source), args.model, args.scale,
-                                c.decode(args.settings.encode('utf-8')), args.guidance)
+                                c.decode(args.settings.encode('utf-8')), args.guidance,
+                                request_validation=c.load(args.request_validation_file))
         c.atomic(c.local(args.root, args.out, exists=False), c.encoded(value))
         print(json.dumps({'ok': True, 'request': args.out, 'content_sha256': c.content_id(value)}, indent=2))
         return 0

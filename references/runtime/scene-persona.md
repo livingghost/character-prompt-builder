@@ -27,7 +27,10 @@ repairs or session resumption. The `scene-persona` feature (section 3) selects
 this mode; it removes the repeated full-template read, while the preparation
 itself must still have happened. Ordinary wording changes inside the reviewed
 scene scope proceed on the existing reading. The code validates integrity and
-declared links; understanding the scene stays the reader's work.
+declared links; understanding the scene stays the reader's work. The verified
+bundle is also the record that the Persona is ready for this use, at this phase
+and in this medium; it says nothing about the Persona's completeness elsewhere,
+which the Persona Template's completion rule governs for a release.
 
 An intact source digest proves the sources unchanged and nothing about a
 creative direction the scene has yet to record. Reopen preparation for a

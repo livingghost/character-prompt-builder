@@ -48,7 +48,10 @@ class ProductionTests(unittest.TestCase):
         else: p.write_bytes(c.encoded(value))
         return p
 
-    def save_spec(self): self.write('task.json',self.spec)
+    def save_spec(self):
+        from reading_fixtures import task_reading
+        task_reading(self.root, self.spec)
+        self.write('task.json',self.spec)
     def prepare(self): return w.prepare(self.root,'task.json')['run']
     def candidate(self,run=None,name='output.txt',content='One lamp.\n'):
         run=run or self.prepare(); fixture.handoff(self.root,run,'test','manual')
@@ -87,7 +90,7 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(binding.effective(b,'TAG_1, TAG_2'),'TAG_1, TAG_2')
     def test_bounded_prefix_only_explicit_fields(self):
         self.spec['delivery']['transport']='bounded-context'; self.save_spec(); run=self.prepare()
-        b=binding.create(self.root,run,'Describe one lamp.'); text=binding.effective(b,'prompt')
+        b=binding.create(self.root,run,'Describe one lamp.'); text=binding.effective(b,'prompt',context_transport='prompt-prefix')
         self.assertIn('Keep one lamp.',text); self.assertNotIn('PRIVATE_SOURCE',text)
     def test_no_handoff_no_capture(self):
         run=self.prepare(); self.write('out.txt','lamp')
@@ -110,7 +113,7 @@ class ProductionTests(unittest.TestCase):
     def test_changed_task_only_note(self):
         run=self.prepare(); self.spec['delivery']['translation_notes']='Different meaning'; self.save_spec(); self.assertFalse(w.status(self.root,run)['ok'])
     def test_unknown_feature(self):
-        self.spec['features']=['missing']; self.save_spec()
+        self.spec['features']=['missing']; self.write('task.json',self.spec)
         with self.assertRaises(ValueError): self.prepare()
     def test_persona_source_required(self):
         self.spec['features']=['persona']; self.save_spec()
@@ -123,7 +126,7 @@ class ProductionTests(unittest.TestCase):
         self.spec['route']='world-realization'; self.save_spec()
         with self.assertRaises(ValueError): self.prepare()
     def test_unknown_route(self):
-        self.spec['route']='unknown'; self.save_spec()
+        self.spec['route']='unknown'; self.write('task.json',self.spec)
         with self.assertRaises(ValueError): self.prepare()
     def test_duplicate_json(self):
         with self.assertRaises(ValueError): c.decode(b'{"a":1,"a":2}')
@@ -255,6 +258,72 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(w.status(self.root,run)['next'],'authorize-direction-and-handoff')
     def test_idempotent_object(self):
         run=self.prepare(); path=w.run_dir(self.root,run); self.assertEqual(c.object_store(path,b'abc'),c.object_store(path,b'abc'))
+    def test_skill_files_are_pinned_without_copies(self):
+        run=self.prepare(); directory=w.run_dir(self.root,run); prepared=c.load(directory/'prepared.json')
+        skill=[d for d in prepared['dependencies'] if d['space']=='skill']
+        self.assertIn('scripts/production_workflow.py',{d['path'] for d in skill})
+        self.assertEqual({p.name for p in (directory/'objects').iterdir()},
+                         {d['sha256'] for d in prepared['dependencies'] if d['space']=='project'})
+        # A copy of the pinned installation stands in for the skill, so one of its files can change.
+        with tempfile.TemporaryDirectory() as temporary:
+            copy=Path(temporary)
+            for d in skill:
+                target=copy/d['path']; target.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(ROOT/d['path'],target)
+            changed=copy/'scripts/production_workflow.py'
+            with patch.object(w,'ROOT',copy):
+                w.assert_current(self.root,run)
+                raw=changed.read_bytes(); changed.write_bytes(raw[:-1]+(b'\n' if raw[-1:]==b' ' else b' '))
+                with self.assertRaisesRegex(ValueError,'changed skill input: scripts/production_workflow.py'):
+                    w.assert_current(self.root,run)
+                self.assertFalse(w.status(self.root,run)['ok'])
+    def clone_run(self,run,task_id=None):
+        from pack_manager import generate_uuid7
+        target=self.root/'production'/generate_uuid7(); shutil.copytree(w.run_dir(self.root,run),target)
+        if task_id is not None:
+            prepared=c.load(target/'prepared.json'); prepared['task']['task_id']=task_id
+            prepared.pop('input_sha256'); prepared['input_sha256']=c.content_id(prepared)
+            (target/'prepared.json').write_bytes(c.encoded(prepared))
+        return target
+    def test_reservations_skip_other_entries_and_other_tasks(self):
+        run=self.prepare()
+        (self.root/'production/.DS_Store').write_bytes(b'\x00\x01'); (self.root/'production/README').write_text('Notes.\n')
+        other=self.clone_run(run,task_id=str(uuid.uuid4())); next((other/'objects').iterdir()).write_bytes(b'damaged')
+        self.assertEqual(fixture.handoff(self.root,run,'test','manual')['event'],'handoff')
+    def test_damaged_run_of_this_task_fails_closed(self):
+        run=self.prepare(); copy=self.clone_run(run); next((copy/'objects').iterdir()).write_bytes(b'damaged')
+        with self.assertRaises(ValueError): fixture.handoff(self.root,run,'test','manual')
+        (copy/'prepared.json').write_bytes(b'{}')
+        with self.assertRaises(ValueError): fixture.handoff(self.root,run,'test','manual')
+    @unittest.skipUnless(os.name=='nt','Windows byte-range lock')
+    def test_lock_raises_an_error_other_than_contention(self):
+        import errno,msvcrt
+        calls=[]
+        def failing(*args):
+            calls.append(args)
+            if len(calls)>1: raise AssertionError('a device error was retried as contention')
+            raise OSError(errno.EIO,'synthetic device error')
+        with patch.object(msvcrt,'locking',side_effect=failing):
+            with self.assertRaises(OSError):
+                with c.lock(self.root): pass
+        real=msvcrt.locking; modes=[]
+        def contended(descriptor,mode,size):
+            modes.append(mode)
+            if len(modes)==1: raise OSError(errno.EACCES,'synthetic contention')
+            return real(descriptor,mode,size)
+        with patch.object(msvcrt,'locking',side_effect=contended):
+            with c.lock(self.root): pass
+        self.assertEqual(modes,[msvcrt.LK_NBLCK,msvcrt.LK_NBLCK,msvcrt.LK_UNLCK])
+    def test_cli_resolves_a_linked_root(self):
+        run=self.prepare()
+        with tempfile.TemporaryDirectory() as temporary:
+            link=Path(temporary)/'linked-project'
+            try: link.symlink_to(self.root,target_is_directory=True)
+            except OSError: self.skipTest('symbolic links are unavailable')
+            out=io.StringIO()
+            with patch('sys.argv',['production_workflow.py','status','--root',str(link),'--run',run]),contextlib.redirect_stdout(out):
+                code=w.main()
+        report=json.loads(out.getvalue())
+        self.assertTrue(report['integrity']['ok'],report); self.assertEqual(code,0)
     def test_finish_resumes_after_journal_publish(self):
         run,_=self.finish(); ledger.step_done(self.root,1); ledger.step_done(self.root,2)
         original=ledger.write_current
@@ -289,6 +358,13 @@ class PackageIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.base=Path(self.temp.name)
+        from catalog_cli import configure_pack_runtime
+        from pack_manager import default_settings
+        configure_pack_runtime(default_settings(
+            state_file=self.base/'pack-state.json', cache_dir=self.base/'cache',
+            managed_root=self.base/'managed',
+            default_enabled_packs=[c.load(ROOT/'packs/commons/pack.json')['pack_id']]))
+        self.addCleanup(configure_pack_runtime, None)
         import studio
         self.root=studio.init(self.base/'studio','production-test','Offline production tests'); studio.add_character(self.root,'C01','')
         self.package=json.loads((ROOT/'examples/state-aware-pilot/generated/generation-package.json').read_text())
@@ -299,7 +375,7 @@ class PackageIntegrationTests(unittest.TestCase):
                    'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Use exact authored prompt.'},'criteria':[{'id':'bytes','strength':'hard','text':'Captured fixture bytes are actually available.'}],'world_views':[]}
         fixture.task(self.root,self.spec,artifact='binary',execution='dispatcher')
         (self.root/'task.json').write_bytes(c.encoded(self.spec)); self.run=w.prepare(self.root,'task.json')['run']
-        self.package['production_binding']=binding.create(self.root,self.run,self.composition)
+        self.package=fixture.bind_package(self.root,self.run,self.package)
         from build_generation_payload import generation_input_sha256
         key=generation_input_sha256(self.package); self.package['generation_input_sha256']=key; self.package['generation_contract']['generation_input_sha256']=key
         self.package_path=self.root/'package.json'; self.package_path.write_text(json.dumps(self.package))
@@ -308,7 +384,7 @@ class PackageIntegrationTests(unittest.TestCase):
         self.spec['execution']='authored'
         (self.root/'task.json').write_bytes(c.encoded(self.spec))
         self.run=w.prepare(self.root,'task.json')['run']
-        self.package['production_binding']=binding.create(self.root,self.run,self.composition)
+        self.package=fixture.bind_package(self.root,self.run,self.package)
         from build_generation_payload import generation_input_sha256
         key=generation_input_sha256(self.package); self.package['generation_input_sha256']=key; self.package['generation_contract']['generation_input_sha256']=key
         self.package_path.write_text(json.dumps(self.package))
@@ -318,6 +394,11 @@ class PackageIntegrationTests(unittest.TestCase):
         row=studio.iterate(self.root,'C01','base.front',image,package=self.package_path,request=None,response=None,note='Synthetic fixture')
         approval={'scope':'sheet','influence':'identity','character':'C01','iteration_id':row['iteration_id'],'slot':row['slot'],
                   'image_sha256':row['result']['sha256'],'by':fixture.ACTOR,'at':'2026-09-16T00:00:00Z'}
+        from visual_continuity import file_ref
+        (self.root/'synthetic-continuity.txt').write_text('Synthetic fixture decision: this single-subject candidate represents C01 and may recur. Not user consent.\n')
+        approval['continuity_decision']={'character_id':'C01','continuity':'recurring',
+            'basis':file_ref(self.root,'synthetic-continuity.txt',locator='whole'),
+            'by':fixture.ACTOR,'at':'2000-01-01T00:00:00Z'}
         if not through_production:
             adoption.adopt(self.root,'C01',row['iteration_id'],approval)
         fixture.handoff(self.root,self.run,'test','manual')
@@ -362,7 +443,7 @@ class PackageIntegrationTests(unittest.TestCase):
         with self.assertRaises(ValueError): w.select(self.root,self.run,'selection.json')
     def test_real_verifier_bound_input(self):
         from verify_generation_payload import verify
-        self.assertTrue(verify(self.package,package_root=ROOT/'examples/state-aware-pilot/generated')['verified'])
+        self.assertTrue(verify(self.package,package_root=ROOT/'examples/state-aware-pilot/generated',project=self.root)['verified'])
     def test_cross_run_binding(self):
         with self.assertRaises(ValueError): binding.validate_live(self.root,w.prepare(self.root,'task.json')['run'],self.package)
     def test_bound_dispatch_cannot_omit_context(self):
@@ -383,11 +464,13 @@ class PackageIntegrationTests(unittest.TestCase):
     def test_dispatch_then_recording_recovery_is_offline_and_idempotent(self):
         import dispatch,studio
         fixture.handoff(self.root,self.run,'test transport','dispatcher')
-        options=argparse.Namespace(package=self.package_path,character='C01',slot='base.front',service=None,profiles=None,seed=None,count=2,send=True,note=None,production_root=self.root,production_run=self.run)
+        options=argparse.Namespace(package=self.package_path,character='C01',slot='base.front',service=None,profiles=None,seed=None,count=2,send=True,note=None)
         entries=[{'url':'https://example.invalid/1.png','id':'one','seed':1},{'url':'https://example.invalid/2.png','id':'two','seed':2}]
-        transport=SimpleNamespace(media_paths=Mock(return_value=[]),upload=Mock(),build=Mock(return_value={'taskUUID':'test-request'}),send=Mock(return_value={'data':'fixture'}),rejections=Mock(return_value=[]),results=Mock(return_value=entries))
-        offering={'service':'test','model_identifier':'test-model','observed_at':'fixture'}
-        options.production_authorization=fixture.grant(self.root,self.run,w.submission_intent(self.package,seed=None,count=2,offering=offering,service={}))
+        transport=SimpleNamespace(media_paths=Mock(return_value=[]),upload=Mock(),build=Mock(return_value={'taskUUID':'test-request'}),send=Mock(return_value={'data':'fixture'}),rejections=Mock(return_value=[]),results=Mock(return_value=entries),observation_outcome=Mock(return_value='accepted'),RESULT_HOSTS=frozenset({'example.invalid'}))
+        rendered=fixture.rendered_request(self.package,seed=None,count=2)
+        target=rendered['sealed']['target']
+        offering={'service':target['service'],'model_identifier':target['model_identifier'],'observed_at':'fixture'}
+        options.production_authorization=fixture.grant(self.root,self.run,w.submission_intent(self.package,rendered=rendered,seed=None,count=2,offering=offering,service={}))
         real_iterate=studio.iterate; calls=[]
         def fail_second(*a,**kw):
             calls.append(1)
@@ -399,13 +482,20 @@ class PackageIntegrationTests(unittest.TestCase):
             stack.enter_context(patch.object(dispatch,'select_offering',return_value=offering))
             stack.enter_context(patch.object(dispatch,'service_for',return_value=('test',{},transport)))
             stack.enter_context(patch.object(dispatch,'check_request'))
+            # This test isolates durable recording; request compilation has separate transport tests.
+            stack.enter_context(patch('request_renderer.generation',return_value=rendered))
             stack.enter_context(patch.object(dispatch,'api_key',return_value='not-a-real-key'))
-            stack.enter_context(patch.object(dispatch,'save',side_effect=lambda url,p:p.write_bytes(url.encode())))
+            stack.enter_context(patch.object(dispatch,'save',side_effect=lambda url,p,hosts:p.write_bytes(url.encode())))
             stack.enter_context(patch.object(studio,'iterate',side_effect=fail_second))
             with self.assertRaises(OSError): dispatch.dispatch_generation(options,self.root)
         self.assertEqual(transport.send.call_count,1)
         first=w.recover_recording(self.root,self.run); second=w.recover_recording(self.root,self.run)
         self.assertEqual(first,second); self.assertEqual(first['network_calls'],0)
+        original=(self.root/'delivery.txt').read_bytes()
+        (self.root/'delivery.txt').write_text('Changed input after the recorded request completed.\n')
+        with patch.object(dispatch,'api_key',side_effect=AssertionError('recording recovery must remain offline')):
+            self.assertEqual(w.recover_recording(self.root,self.run),first)
+        (self.root/'delivery.txt').write_bytes(original)
         self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'C01'))),2)
         paths=w.find(w.load_run(self.root,self.run)[3],'dispatch-results')['data']['files']
         w.capture(self.root,self.run,paths[0]['path'],'Actual fixture output')

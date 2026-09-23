@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from build_generation_payload import (
+    add_production_arguments,
     build_payload,
     create_cli_package_staging,
     generation_package_error_messages,
     generation_package_recovery_path,
     materialize_cli_reference_bundle,
+    production_inputs,
     publish_cli_generation_package,
     read_json,
     read_text,
@@ -49,6 +51,12 @@ def build_package(
     plot: dict[str, Any],
     parameters: dict[str, Any],
     retrieval_record: dict[str, Any] | None = None,
+    visual_continuity: dict[str, Any] | None = None,
+    visual_root: Path | None = None,
+    request_validation: dict[str, Any] | None = None,
+    input_root: Path | None = None,
+    route_reading: dict[str, Any] | None = None,
+    reading_ledgers: list[Path] | None = None,
     integrated_prompt: str = "",
     native_negative: str = "",
     negative_provenance: dict[str, Any] | None = None,
@@ -121,6 +129,10 @@ def build_package(
     payload = build_payload(
         plot=plot,
         retrieval_record=retrieval_record,
+        request_validation=request_validation, input_root=input_root,
+        route_reading=route_reading,
+        visual_continuity=visual_continuity, visual_root=visual_root,
+        reading_ledgers=reading_ledgers,
         model=model,
         prompt=prompt,
         negative_prompt=negative_prompt,
@@ -140,7 +152,7 @@ def build_package(
         production_root=production_root,
         production_run=production_run,
     )
-    verification = verify_package(payload, package_root=prepared_reference_root)
+    verification = verify_package(payload, package_root=prepared_reference_root, project=visual_root or production_root or prepared_reference_root)
     if verification.get("verified") is not True:
         raise ValueError(
             "generated package failed verification: "
@@ -153,10 +165,11 @@ def verify_package(
     payload: dict[str, Any],
     *,
     package_root: Path | None = None,
+    project: Path | None = None,
 ) -> dict[str, Any]:
     from verify_generation_payload import verify
 
-    return verify(payload, package_root=package_root)
+    return verify(payload, package_root=package_root, project=project)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -201,8 +214,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--parameters", default="{}")
     parser.add_argument("--out", required=True)
     add_pack_runtime_arguments(parser)
-    parser.add_argument("--production-root", type=Path)
-    parser.add_argument("--production-run")
+    add_production_arguments(parser)
     args = parser.parse_args(argv)
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
@@ -225,6 +237,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             staging_root=staging_root,
             companion_name=final_companion.name,
         )
+        production_spec = read_json(args.production_spec_file)
+        identity_contract = load_json(Path(args.identity_contract_file))
+        # A recurring subject that names this identity contract is that work character.
+        identity_hash = artifact_hash(identity_contract)
+        work_ids = {subject["id"]: identity_contract.get("character_id")
+                    for subject in production_spec.get("subjects") or []
+                    if isinstance(subject, dict) and isinstance(identity_contract.get("character_id"), str)
+                    and (subject.get("identity_contract_ref") or {}).get("sha256") == identity_hash}
+        derived = production_inputs(args, model=args.model, production_spec=production_spec,
+                                    prepared_reference_set=staged_reference_set, staging_root=staging_root,
+                                    work_ids=work_ids)
         payload = build_package(
             model=args.model,
             prompt=read_text(args.prompt_file),
@@ -234,13 +257,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             negative_provenance=read_json(args.negative_provenance_file),
             brief=read_text(args.brief_file) if args.brief_file else args.brief,
             creative_intent=read_json(args.intent_file),
-            production_spec=read_json(args.production_spec_file),
+            production_spec=production_spec,
             plot=read_json(args.plot_file),
             retrieval_record=read_json(args.retrieval_record_file),
+            request_validation=derived["request_validation"], input_root=derived["root"],
+            route_reading=derived["route_reading"],
+            visual_continuity=derived["visual_continuity"],
+            visual_root=derived["root"],
+            reading_ledgers=[staging_root / "reads.jsonl"],
             state_lineage=read_json(args.state_lineage_file),
             species_profile=load_json(Path(args.species_profile_file)),
             individual_morphology=load_json(Path(args.individual_morphology_file)),
-            identity_contract=load_json(Path(args.identity_contract_file)),
+            identity_contract=identity_contract,
             era_contract=(
                 load_json(Path(args.era_contract_file)) if args.era_contract_file else None
             ),
@@ -269,10 +297,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             parameters=parameters,
             negative_transport=args.negative_transport,
             critical_avoidance_integrated=args.critical_avoidance_integrated,
-            production_root=args.production_root,
-            production_run=args.production_run,
+            production_root=derived["root"],
+            production_run=derived["run"],
         )
         write_json(staged_json, payload)
+        from route_reading import copy_issuance
+        copy_issuance(derived["route_reading"], output_path.parent / "reads.jsonl", ledgers=[staging_root / "reads.jsonl"])
         publish_cli_generation_package(
             output_path=output_path,
             staged_json=staged_json,

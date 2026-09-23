@@ -36,6 +36,11 @@ def resolve(route: str, features: list[str] | None = None, *, root: Path = ROOT)
             'stages':entry['stages'],'manifest_sha256':digest(read(local(root,MANIFEST)))}
 
 
+def unnamed(manifest: dict[str, Any], skill: str) -> list[str]:
+    """Route and feature names SKILL.md omits; its route list is the one the agent reads."""
+    return sorted(n for n in set(manifest['routes']) | set(manifest['features']) if f'`{n}`' not in skill)
+
+
 def validate(root: Path = ROOT) -> dict[str, Any]:
     d=load(local(root,MANIFEST)); errors=[]
     stage_map={s['id']:s for s in d['stages']}
@@ -73,6 +78,8 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
             errors.append(f'{name}: {exc}')
     for p in d['regression']:
         if not local(root,p,exists=False).is_file(): errors.append(f'missing regression: {p}')
+    skill = read(local(root, 'SKILL.md')).decode('utf-8')
+    errors += [f'SKILL.md names no route or feature `{name}`' for name in unnamed(d, skill)]
     return {'ok':not errors,'routes':len(d['routes']),'features':len(d['features']),'stages':len(stage_map),'errors':errors}
 
 
@@ -80,9 +87,15 @@ def main() -> int:
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='command',required=True)
     p=sub.add_parser('inspect'); p.add_argument('route'); p.add_argument('--feature',action='append',default=[])
+    reading = sub.add_parser('read', help='Read the complete route documents and record issuance')
+    from route_reading import add_read_arguments, read_command
+    add_read_arguments(reading)
     sub.add_parser('validate')
     a=parser.parse_args()
     try:
+        if a.command == 'read':
+            read_command(a, parser)
+            return 0
         result=validate() if a.command=='validate' else resolve(a.route,a.feature)
         print(json.dumps(result,indent=2)); return 0 if result.get('ok',True) else 1
     except (ValueError,OSError) as exc:

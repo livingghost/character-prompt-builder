@@ -10,8 +10,10 @@ from typing import Any, Callable
 
 from model_contract import (
     NEGATIVE_TRANSPORT_MODES,
+    PLACEHOLDER_MEDIA,
     apply_prompt_recommendations,
     model_reference_limit,
+    request_instance,
     select_offering,
     validate_generation_parameters,
     validate_model_record,
@@ -19,7 +21,7 @@ from model_contract import (
 from model_contract import apply_recommended_parameters  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_CHECKS = 52
+EXPECTED_CHECKS = 55
 
 
 def load_core_models() -> tuple[dict[str, dict[str, Any]], list[str]]:
@@ -176,9 +178,9 @@ def main() -> int:
     check("output-limited fixture declares ten outputs", output_limited.get("max_outputs") == 10)
     check(
         "output-limited fixture rejects counts above its contract",
-        expect_error(lambda: validate_generation_parameters(output_limited, {"n": 11}), "max_outputs=10"),
+        expect_error(lambda: validate_generation_parameters(output_limited, {}, output_count=11), "max_outputs=10"),
     )
-    validate_generation_parameters(output_limited, {"n": 10})
+    validate_generation_parameters(output_limited, {}, output_count=10)
     check("output-limited fixture accepts its ceiling", True)
 
     upscalers = [
@@ -255,7 +257,7 @@ def main() -> int:
     offering = {
         "service": "svc",
         "model_identifier": "vendor:model@1",
-        "request_keys": {"reference images": ["inputs.referenceImages"]},
+        "request_keys": {"model": ["model"], "prompt": ["positivePrompt"], "reference images": ["inputs.referenceImages"]},
         "constraints": {"reference_images": {"max": 2}},
         "observed_at": "2026-09-13",
     }
@@ -302,6 +304,19 @@ def main() -> int:
     unmapped["offerings"] = [{**offering, "parameter_keys": {"cfg": "CFGScale"}}]
     check("parameter_keys outside the neutral names are refused",
           any("parameter_keys" in row for row in validate_model_record(unmapped)))
+    promptless = copy.deepcopy(separate_edit)
+    promptless["offerings"] = [{**offering, "request_keys": {"reference images": ["inputs.referenceImages"]}}]
+    check("a generation offering that names no prompt key is refused",
+          any("request key of the 'prompt'" in row for row in validate_model_record(promptless)), validate_model_record(promptless))
+    # The request as the service sees it puts each input on the key the offering gives it.
+    placed = request_instance({"model_identifier": "vendor:model@1", "request_keys": {
+        "prompt": ["input.text"], "negative prompt": ["input.avoid"], "reference images": ["refs"]}},
+        {"size": "square"}, prompt="a wolf", negative_prompt="blurry", media_counts={"reference images": 1})
+    check("the request as the service sees it carries the text and media on the offering's keys, and no model key it does not name",
+          placed == {"input": {"text": "a wolf", "avoid": "blurry"}, "size": "square", "refs": [PLACEHOLDER_MEDIA]}, placed)
+    check("a negative for an offering with no negative key is refused",
+          expect_error(lambda: request_instance({"service": "svc", "request_keys": {"prompt": ["text"]}}, {},
+                                                prompt="a wolf", negative_prompt="blurry"), "'negative prompt'"))
     exposed = copy.deepcopy(separate_edit)
     exposed["offerings"] = [offering]
     check(

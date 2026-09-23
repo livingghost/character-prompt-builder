@@ -2,6 +2,8 @@
 """Focused regression tests for CPB state graphs and state-aware generation."""
 from __future__ import annotations
 
+from visual_fixtures import fixture_visual, fixture_root
+from reading_fixtures import fixture_reading
 import base64
 import contextlib
 import copy
@@ -25,11 +27,8 @@ if str(ROOT / "scripts") not in sys.path:
 
 import build_generation_payload as generation_builder  # noqa: E402
 import build_state_generation_package as state_generation_builder  # noqa: E402
-from build_state_generation_package import (  # noqa: E402
-    build_package,
-    main as _build_state_generation_main,
-    verify_package,
-)
+from build_state_generation_package import build_package, main as _build_state_generation_main
+from visual_fixtures import verify_package
 from build_generation_payload import (  # noqa: E402
     main as _build_generation_main,
     materialize_cli_reference_bundle,
@@ -304,8 +303,11 @@ APPROVED_PLOT["approved"] = {
 
 
 def _payload_inputs(graph: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    from request_validation_fixtures import fixture_validation
     return {
         "model": "gpt-image-2.5-flare",
+        "request_validation": fixture_validation(fixture_root(), "gpt-image-2.5-flare", reference_mode="prompt-prefix"),
+        "input_root": fixture_root(),
         "prompt": (GENERATED / "prompt.txt").read_text(encoding="utf-8"),
         "negative_prompt": (GENERATED / "negative.txt").read_text(encoding="utf-8"),
         "integrated_prompt": (GENERATED / "integrated-prompt.txt").read_text(encoding="utf-8"),
@@ -2522,7 +2524,7 @@ def run() -> dict[str, Any]:
                 staging_root=package_root,
                 companion_name=f"generation-package-{count}.references",
             )
-            payload = build_package(
+            payload = build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), 
                 **_payload_inputs(graph),
                 prepared_reference_set=packaged_reference_set,
                 prepared_reference_root=package_root,
@@ -2595,7 +2597,7 @@ def run() -> dict[str, Any]:
             },
         ):
             try:
-                build_package(**_payload_inputs(graph), **arguments)
+                build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), **_payload_inputs(graph), **arguments)
             except (TypeError, ValueError) as exc:
                 missing_reference_errors.append(str(exc))
         check(
@@ -2608,7 +2610,7 @@ def run() -> dict[str, Any]:
 
         old_array_error = ""
         try:
-            build_package(
+            build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), 
                 **_payload_inputs(graph),
                 prepared_reference_set=copy.deepcopy(current_rows),  # type: ignore[arg-type]
             )
@@ -2927,7 +2929,7 @@ def run() -> dict[str, Any]:
                     model=STATE_REFERENCE_MODEL,
                     package_root=prepared_multi_root,
                 )
-                build_package(
+                build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), 
                     **_payload_inputs(graph),
                     prepared_reference_set=reference_set,
                     prepared_reference_root=prepared_multi_root,
@@ -2966,7 +2968,7 @@ def run() -> dict[str, Any]:
                     model=STATE_REFERENCE_MODEL,
                     package_root=prepared_multi_root,
                 )
-                build_package(
+                build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), 
                     **_payload_inputs(graph),
                     prepared_reference_set=reference_set,
                     prepared_reference_root=prepared_multi_root,
@@ -2998,7 +3000,7 @@ def run() -> dict[str, Any]:
                     model=STATE_REFERENCE_MODEL,
                     package_root=prepared_package_current_root,
                 )
-                build_package(
+                build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), 
                     **_payload_inputs(graph),
                     prepared_reference_set=reference_set,
                     prepared_reference_root=prepared_package_current_root,
@@ -3037,7 +3039,7 @@ def run() -> dict[str, Any]:
                     model=STATE_REFERENCE_MODEL,
                     package_root=prepared_package_current_root,
                 )
-                build_package(
+                build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), 
                     **_payload_inputs(graph),
                     prepared_reference_set=reference_set,
                     prepared_reference_root=prepared_package_current_root,
@@ -3052,7 +3054,7 @@ def run() -> dict[str, Any]:
         )
 
         try:
-            build_package(
+            build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), 
                 **_payload_inputs(bad_graph),
                 prepared_reference_set=prepared_zero,
                 prepared_reference_root=prepared_zero_root,
@@ -3068,7 +3070,7 @@ def run() -> dict[str, Any]:
         mismatched_model_inputs = _payload_inputs(graph)
         mismatched_model_inputs["model"] = "different-image-model"
         try:
-            build_package(
+            build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), 
                 **mismatched_model_inputs,
                 prepared_reference_set=prepared_zero,
                 prepared_reference_root=prepared_zero_root,
@@ -3093,7 +3095,7 @@ def run() -> dict[str, Any]:
             "different-image-model"
         )
         try:
-            build_package(
+            build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), 
                 **mismatched_render_inputs,
                 prepared_reference_set=prepared_zero,
                 prepared_reference_root=prepared_zero_root,

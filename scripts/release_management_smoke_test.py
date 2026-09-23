@@ -53,10 +53,9 @@ def main() -> int:
     expect(bool(validate_metadata(mutant)), "archive filename must identify its product release")
     expect(bool(validate_metadata(manifest, "v2000.01.01.1")), "mismatched publication tag must fail")
     for style, heading in (("plain", "2026.09.19.1"), ("dated", "[2026.09.19.1] - 2026-09-19")):
-        text = f"# Changelog\n\n## {heading}\n\n- Product changes.\n\n## Historical entry\nPreserved history.\n"
-        expect(not validate_changelog(text, "2026.09.19.1", style=style), f"{style}: current dated history")
-        expect(not validate_changelog("# Changelog\n\n## Unreleased\nPending.\n" + text, "2026.09.19.1", style=style), f"{style}: unreleased does not hide current release")
-        expect(bool(validate_changelog(text.replace("Product changes.", "" ).replace("- \n", "\n"), "2026.09.19.1", style=style)), f"{style}: heading-only current section rejected")
+        text = f"# Changelog\n\n## {heading}\n\nInitial release.\n\n- Product changes.\n"
+        expect(not validate_changelog(text, "2026.09.19.1", style=style), f"{style}: current release entry")
+        expect(bool(validate_changelog(text.replace("Initial release.", "").replace("Product changes.", "" ).replace("- \n", "\n"), "2026.09.19.1", style=style)), f"{style}: heading-only current section rejected")
         expect(bool(validate_changelog(text.replace(heading, "Current capabilities"), "2026.09.19.1", style=style)), f"{style}: dated release required")
         expect(bool(validate_changelog(text + f"\n## {heading}\nDuplicate.\n", "2026.09.19.1", style=style)), f"{style}: duplicate current entry rejected")
     expect(bool(validate_changelog("# Log\n## [2026.09.19.1] - 2026-09-18\nChanges.\n", "2026.09.19.1", style="dated")), "explicit date must match CalVer date")
@@ -86,7 +85,7 @@ def main() -> int:
             target=fixture/rel; saved=target.read_bytes(); data=json.loads(saved);data["version"]="2000.01.01.1";target.write_text(json.dumps(data))
             expect(not check(fixture)["ok"], f"stale generated host metadata: {rel}");target.write_bytes(saved)
         target=fixture/"CHANGELOG.md";saved=target.read_bytes();target.write_text("# Change notes\n\n## Features\nFeature descriptions.\n")
-        expect(not check(fixture)["ok"], "dateless product history must fail the product contract");target.write_bytes(saved)
+        expect(not check(fixture)["ok"], "the current entry requires a release date");target.write_bytes(saved)
         inventory_path = fixture / "MANIFEST.json"
         if inventory_path.exists():
             saved = inventory_path.read_bytes()

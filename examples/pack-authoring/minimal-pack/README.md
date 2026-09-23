@@ -1,16 +1,16 @@
 # Minimal Example Pack
 
-This directory is an editable development pack. Validate it and generate its release inventory with:
+This synthetic directory is an editable development pack. It is used once its directory is registered and its UUID from `pack.json` enabled; a new pack of your own starts with `python scripts/pack_cli.py init PATH --name NAME`, which does both.
 
 ```bash
-python scripts/pack_cli.py validate examples/pack-authoring/minimal-pack
-python scripts/pack_cli.py build-lock examples/pack-authoring/minimal-pack
-python scripts/pack_cli.py validate examples/pack-authoring/minimal-pack --released
+python scripts/pack_cli.py root-add examples/pack-authoring/minimal-pack
+python scripts/pack_cli.py enable PACK_ID
 ```
 
-Before publishing it, run the exact one-pack release gate documented in
-[Release Validation](../../../references/release/validation.md) with an isolated state,
-dedicated cache, and explicit managed root. The gate performs structural and
-catalog checks even when a pack has no evaluation resources.
+Build its lock only to publish it, then run the exact one-pack release gate in
+[Release Validation](../../../references/release/validation.md) with an isolated
+state, dedicated cache, and explicit managed root:
 
-The example remains outside the active catalog until it is installed or its parent directory is supplied as a pack root and the pack is explicitly enabled.
+```bash
+python scripts/pack_cli.py build-lock examples/pack-authoring/minimal-pack
+```

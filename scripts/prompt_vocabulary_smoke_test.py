@@ -2,16 +2,20 @@
 """Self-contained regression checks for prompt-vocabulary validation and search."""
 from __future__ import annotations
 
+import contextlib
 import copy
+import io
 import json
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
+from prompt_retrieval import mark_outcome, validate_prompt_retrieval_record
 from search_prompt_vocabulary import (
     VocabularyError,
     list_categories,
     load_vocabulary,
+    main as search_main,
     read_prompt,
     search_vocabularies,
     validate_vocabulary,
@@ -118,6 +122,17 @@ def main() -> int:
         path = Path(temp) / "dictionary.json"
         path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
         add("a UTF-8 dictionary round-trips through the file loader", load_vocabulary(path) == value)
+        record = Path(temp) / "lookups.json"
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = search_main(["low angle", "--dictionary", str(path), "--limit", "1",
+                                "--record", str(record), "--element", "camera"])
+        recorded = json.loads(record.read_text(encoding="utf-8")) if record.is_file() else None
+        add("a recorded search appends its query and returned terms in the catalog lookup shape",
+            code == 0 and recorded == {"artifact_type": "prompt-retrieval-record", "elements": [
+                {"element": "camera", "queries": ["low angle"], "inspected_records": ["low angle"]}]}, recorded)
+        marked = recorded and mark_outcome(recorded, "camera", adopted="low angle")
+        add("a returned term can be marked adopted",
+            bool(marked) and validate_prompt_retrieval_record(marked)["ok"], marked)
     alternation = read_prompt([value], "[blue eyes|green eyes], (closed eyes:1.3)")
     add(
         "a read returns bracketed alternatives in reading order",

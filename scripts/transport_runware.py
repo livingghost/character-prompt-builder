@@ -1,189 +1,186 @@
 #!/usr/bin/env python3
-"""Runware transport: the service-specific half of a dispatch.
+"""Runware transport, written against the transport contract in the dispatch.py docstring.
 
-A transport module turns a verified Generation Package into the exact bytes one
-service accepts and reads the service's answer back. `dispatch.py` owns
-everything that is not service-specific: the studio, the record, the files.
-
-A module named `transport_<service>.py` is found by that service id and provides,
-with these exact signatures:
-
-    media_paths(verified)                                -> list[str]
-        The local files that must be registered with the service before the
-        request can name them: the selected reference transports.
-
-    build(verified, offering, service, media_ids, seed, count) -> dict
-        The request as it would be sent, with local paths replaced by the ids in
-        `media_ids`. Called once for the dry run with `media_ids` empty and once
-        with the real ids, so the request is shown before anything is uploaded.
-
-    added_parameters(offering, seed, count)              -> dict
-        What the dispatch adds to the package's own parameters, by this service's
-        request keys. `build` places exactly this, and `dispatch.py` puts exactly
-        this to the model record and the service's observed schema, so that what
-        is checked is what is sent.
-
-    upload(path, service, key) -> str
-        Register one local file and return the id the request will carry.
-
-    send(request, service, key) -> dict
-        Perform the request and return the parsed answer.
-
-    rejections(answer) -> list[dict]
-        The service's refusals, empty when it accepted the request.
-
-    results(answer) -> list[dict]
-        One entry per returned image: {"url", "seed", "id"}.
+Runware takes a JSON array of tasks at https://api.runware.ai with the key as a
+bearer token, and refuses per task inside a successful answer. Each task names
+its operation in `taskType` and carries a fresh `taskUUID`, which is the run's
+own identifier; the model sits in `model`, the count in `numberResults`, and the
+seed in `seed`. The prompt, the negative and the media go on the keys the
+offering gives them. An upscale asks for `upscaleFactor` and a PNG
+`outputFormat`. An image is registered with `imageUpload` as a data URI and
+travels by the id it returns. A finished image comes back as `imageURL` on
+im.runware.ai. An answer body that is not a JSON object is kept as an error
+answer.
 """
 from __future__ import annotations
 from io_budget import environment_seconds
 
 import base64
 import json
-import mimetypes
 import urllib.error
 import urllib.request
 import uuid
-from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
-from model_contract import generation_media_counts
+from model_contract import NEGATIVE_ROLE, PROMPT_ROLE, generation_media_counts, required_request_key
 
 SERVICE = "runware"
+API_HOST = "api.runware.ai"
+OPERATIONS = {"generation": "imageInference", "upscale": "imageUpscale"}
+RESULT_HOSTS = frozenset({"im.runware.ai"})
 
 
-def _endpoint(service: dict[str, Any]) -> str:
-    url = ((service.get("endpoint") or {}).get("base_url") or "").strip()
-    if not url:
-        raise SystemExit("the service record carries no endpoint.base_url")
+def endpoint(service: dict[str, Any]) -> str:
+    """The record's endpoint, only where it is https on the Runware API host."""
+    url = str((service.get("endpoint") or {}).get("base_url") or "").strip()
+    parsed = urlparse(url)
+    if (parsed.scheme != "https" or parsed.hostname != API_HOST or parsed.username or parsed.password
+            or parsed.port not in (None, 443)):
+        raise ValueError(f"the service record's endpoint {url!r} is not https://{API_HOST}; "
+                         "the Runware transport sends the credential to no other place")
     return url
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect would carry the credential to a place the record did not name."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, f"redirect to {newurl} refused", headers, fp)
+
+
+def _answer(status: int, body: bytes) -> dict[str, Any]:
+    """The parsed answer, or an error answer that keeps a body that is not a JSON object."""
+    try:
+        value = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        value = None
+    if isinstance(value, dict):
+        return value
+    return {"errors": [{"code": f"http{status}-not-json-object", "message": body.decode("utf-8", "replace")}]}
 
 
 def _post(payload: list[dict[str, Any]], service: dict[str, Any], key: str) -> dict[str, Any]:
     request = urllib.request.Request(
-        _endpoint(service),
+        endpoint(service),
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
         method="POST",
     )
+    opener = urllib.request.build_opener(_NoRedirect)
     try:
-        with urllib.request.urlopen(request, timeout=environment_seconds("PRODUCTION_HTTP_TIMEOUT_SECONDS")) as response:
-            return json.loads(response.read().decode("utf-8"))
+        with opener.open(request, timeout=environment_seconds("PRODUCTION_HTTP_TIMEOUT_SECONDS")) as response:
+            return _answer(response.status, response.read())
     except urllib.error.HTTPError as error:
-        body = error.read().decode("utf-8", "replace")
-        try:
-            return json.loads(body)
-        except json.JSONDecodeError:
-            return {"errors": [{"code": f"http{error.code}", "message": body}]}
+        return _answer(error.code, error.read() if error.fp is not None else b"")
 
 
-def media_paths(verified: dict[str, Any]) -> list[str]:
+def _media_paths(verified: dict[str, Any]) -> list[str]:
     forwarding = verified.get("host_forwarding") or {}
     return [str(item.get("resolved_path")) for item in forwarding.get("selected_references") or [] if item.get("resolved_path")]
 
 
-def _place(task: dict[str, Any], key_path: str, value: Any) -> None:
-    """Write a value at a request key, which may name a nested envelope."""
-    parts = key_path.split(".")
-    target = task
-    for part in parts[:-1]:
-        target = target.setdefault(part, {})
-    target[parts[-1]] = value
-
-
-def _merge_absent(target: dict[str, Any], defaults: dict[str, Any]) -> None:
-    """Write each default at its key path where the target has nothing there."""
-    for key, value in defaults.items():
-        if isinstance(value, dict) and isinstance(target.get(key), dict):
-            _merge_absent(target[key], value)
-        elif isinstance(value, dict) and key not in target:
-            target[key] = json.loads(json.dumps(value))
-        elif key not in target:
-            target[key] = value
-
-
-def build(verified: dict[str, Any], offering: dict[str, Any], service: dict[str, Any],
-          media_ids: dict[str, str], seed: int | None = None, count: int = 1) -> dict[str, Any]:
-    if "imageInference" not in (service.get("operations") or {}):
-        raise SystemExit("the service record does not describe the operation 'imageInference'")
-    forwarding = verified["host_forwarding"]
-    transport = forwarding["selected_transport"]
-    task: dict[str, Any] = {
-        "taskType": "imageInference",
-        "taskUUID": str(uuid.uuid4()),
-        "model": offering["model_identifier"],
-        "positivePrompt": forwarding["effective_prompt"],
-    }
-    # The negative travels only on a channel the verifier selected for it.
-    negative = (transport.get("rendition") or {}).get("negative") or ""
-    if transport.get("mode") in ("separate-field", "native-subset") and negative:
-        task["negativePrompt"] = negative
-    for name, value in (forwarding.get("parameters") or {}).items():
-        _place(task, str(name), value)
-    keys = offering.get("request_keys") or {}
-    paths = media_paths(verified)
+def compile_request(verified: dict, offering: dict, service: dict, media_ids: dict | None = None,
+                    seed: int | None = None, count: int = 1) -> dict:
+    from request_contract import RequestWriter,path_parts,MANAGEMENT_VALUE
+    operation=OPERATIONS['generation']
+    if operation not in service.get('operations',{}):raise ValueError('service does not declare '+operation)
+    if type(count) is not int or count<1:raise ValueError('output count must be a positive integer')
+    if seed is not None and type(seed) is not int:raise ValueError('seed must be an integer or omitted')
+    forwarding=verified['host_forwarding'];writer=RequestWriter();media_ids=media_ids or {}
+    source=[{'kind':'offering','service':offering['service'],'model_identifier':offering['model_identifier']}]
+    def write(path,value,kind,transform,bindings=None):
+        writer.write(path,value,source_kind=kind,source_refs=source,transform_id=transform,binding_ids=bindings)
+    write(['taskType'],operation,'transport-envelope','operation')
+    write(['taskUUID'],str(uuid.uuid4()),'transport-envelope','task-identifier')
+    write(['model'],offering['model_identifier'],'model-setting','model-identifier')
+    prompt=path_parts(required_request_key(offering,PROMPT_ROLE))
+    write(prompt,forwarding['effective_prompt'],'authored','selected-rendition')
+    writer.trace=[x for x in writer.trace if x['target_field']!=prompt]+[
+        {**x,'target_field':prompt} for x in forwarding.get('prompt_trace',[])] if forwarding.get('prompt_trace') else writer.trace
+    layout={'model':['model'],'operation':['taskType'],'primary_text':prompt,'negative_text':None,
+        'output_count':['numberResults'],'fixed_output_count':None,'seed':None,'media':[],'management':[['taskUUID']],
+        'content':[{'id':'prompt','field':prompt}],
+        'fields':[{'id':'prompt','field':prompt,'kind':'content'},
+                  {'id':'model','field':['model'],'kind':'fixed'},{'id':'operation','field':['taskType'],'kind':'fixed'},
+                  {'id':'count','field':['numberResults'],'kind':'parameter'}]}
+    selected=forwarding['selected_transport'];negative=selected['rendition'].get('negative') or ''
+    if selected['mode'] in {'separate-field','native-subset'} and negative:
+        field=path_parts(required_request_key(offering,NEGATIVE_ROLE))
+        write(field,negative,'authored','selected-negative-channel');layout['negative_text']=field
+        layout['content'].append({'id':'negative','field':field});layout['fields'].append({'id':'negative','field':field,'kind':'content'})
+    parameters=dict(forwarding.get('parameters') or {})
+    if 'numberResults' in parameters and parameters['numberResults']!=count:raise ValueError('package output count differs from the explicit dispatch count')
+    if 'seed' in parameters:
+        if seed is not None and parameters['seed']!=seed:raise ValueError('package seed differs from the explicit dispatch seed')
+        seed=parameters['seed']
+    for name,value in sorted(parameters.items()):
+        if name in {'seed','numberResults'}:continue
+        path=path_parts(name);write(path,value,'model-setting','selected-parameter')
+        layout['fields'].append({'id':'parameter:'+name,'field':path,'kind':'parameter'})
+    paths=_media_paths(verified)
     if paths:
-        ids = [media_ids.get(path, f"<{path}>") for path in paths]
-        # The role, and how many go on it, are settled where the package was
-        # checked, so what is sent is what was judged.
-        try:
-            role = next(iter(generation_media_counts(offering, len(ids))))
-        except ValueError as exc:
-            raise SystemExit(str(exc)) from None
-        _place(task, str(keys[role][0]), ids if role.endswith("images") else ids[0])
-    for name, value in added_parameters(offering, seed, count).items():
-        _place(task, name, value)
-    _merge_absent(task, ((offering.get("constraints") or {}).get("as_written") or {}))
-    return task
-
-
-def added_parameters(offering: dict[str, Any], seed: int | None = None, count: int = 1) -> dict[str, Any]:
-    """What a dispatch adds to the parameters the package carries, by this service's request keys.
-
-    The seed and the result count come from the command line rather than from the
-    package, so they were never put to the model record or to the service's
-    observed schema when the package was built. Naming them here lets the
-    dispatcher check them before it sends them.
-    """
-    added: dict[str, Any] = {}
+        role=next(iter(generation_media_counts(offering,len(paths))))
+        field=path_parts(offering['request_keys'][role][0])
+        values=[media_ids.get(path,MANAGEMENT_VALUE) for path in paths]
+        many=role=='reference images'
+        write(field,values if many else values[0],'reference-binding','ordered-media',[f'attachment:{i+1}' for i in range(len(paths))])
+        for i in range(len(paths)):
+            location=field+[i] if many else field
+            layout['media'].append({'index':i,'field':location})
+            layout['fields'].append({'id':f'media:{i+1}','field':location,'kind':'media'})
+    for control in forwarding.get('native_reference_controls',[]):
+        write(control['field'],control['value'],'reference-binding','native-reference-controls',control['binding_ids'])
+        layout['fields'].append({'id':control['id'],'field':control['field'],'kind':'fixed'})
+    write(['numberResults'],count,'model-setting','explicit-output-count')
     if seed is not None:
-        added["seed"] = seed
-    if count and count != 1:
-        added["numberResults"] = count
-    return added
+        write(['seed'],seed,'model-setting','explicit-seed');layout['seed']=['seed']
+        layout['fields'].append({'id':'seed','field':['seed'],'kind':'parameter'})
+    writer.defaults((offering.get('constraints') or {}).get('as_written') or {},source)
+    return {'request':writer.request,'layout':layout,'request_trace':writer.trace}
 
 
-def build_upscale(model_identifier: str, source_path: str, scale: float, settings: dict[str, Any],
-                  offering: dict[str, Any], service: dict[str, Any], media_ids: dict[str, str],
-                  guidance: str | None = None) -> dict[str, Any]:
-    """The upscale request as sent: the source by the offering's input key, the factor, the settings by their request keys, and a guidance prompt where the offering takes one."""
-    if "imageUpscale" not in (service.get("operations") or {}):
-        raise SystemExit("the service record does not describe the operation 'imageUpscale'")
-    keys = offering.get("request_keys") or {}
-    if not keys.get("input image"):
-        raise SystemExit(f"the offering on {offering.get('service')!r} records no request key for the input image")
-    task: dict[str, Any] = {
-        "taskType": "imageUpscale",
-        "taskUUID": str(uuid.uuid4()),
-        "model": model_identifier,
-        "upscaleFactor": int(scale) if float(scale).is_integer() else scale,
-    }
-    _place(task, str(keys["input image"][0]), media_ids.get(source_path, f"<{source_path}>"))
-    for key_path, value in settings.items():
-        _place(task, key_path, value)
-    # A guidance prompt travels only where the offering records a key for it;
-    # dispatch.py refuses one that has nowhere to go before anything is uploaded.
-    if guidance and keys.get("guidance prompt"):
-        _place(task, str(keys["guidance prompt"][0]), guidance)
-    # An enlargement is kept lossless; a compressed result would spend what the pass produced.
-    task.setdefault("outputFormat", "PNG")
-    _merge_absent(task, ((offering.get("constraints") or {}).get("as_written") or {}))
-    return task
+def added_parameters(offering: dict, seed: int | None = None, count: int = 1) -> dict:
+    if type(count) is not int or count<1:raise ValueError('positive explicit output count required')
+    return {'numberResults':count,**({'seed':seed} if seed is not None else {})}
 
 
-def upload(path: str, service: dict[str, Any], key: str) -> str:
-    data = Path(path).read_bytes()
-    media_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
+def compile_upscale(model_identifier: str, source_path: str, scale: float, settings: dict,
+                    offering: dict, service: dict, media_ids: dict, guidance: str | None = None) -> dict:
+    from request_contract import RequestWriter,path_parts,MANAGEMENT_VALUE
+    operation=OPERATIONS['upscale']
+    if operation not in service.get('operations',{}):raise ValueError('service does not declare '+operation)
+    keys=offering.get('request_keys',{});mapped=keys.get('input image')
+    if not mapped:raise ValueError('upscale offering has no declared input image field')
+    writer=RequestWriter();source=[{'kind':'offering','service':offering['service'],'model_identifier':model_identifier}]
+    def write(path,value,kind,transform):writer.write(path,value,source_kind=kind,source_refs=source,transform_id=transform)
+    write(['taskType'],operation,'transport-envelope','operation');write(['taskUUID'],str(uuid.uuid4()),'transport-envelope','task-identifier')
+    write(['model'],model_identifier,'model-setting','model-identifier')
+    write(['upscaleFactor'],int(scale) if float(scale).is_integer() else scale,'model-setting','selected-scale')
+    image_field=path_parts(mapped[0]);write(image_field,media_ids.get(source_path,MANAGEMENT_VALUE),'reference-binding','upscale-source')
+    layout={'model':['model'],'operation':['taskType'],'primary_text':['guidanceText'], 'negative_text':None,
+        'output_count':None,'fixed_output_count':1,'seed':None,'media':[{'index':0,'field':image_field}], 'management':[['taskUUID']],
+        'content':[],'fields':[{'id':'model','field':['model'],'kind':'fixed'}, {'id':'operation','field':['taskType'],'kind':'fixed'},
+          {'id':'scale','field':['upscaleFactor'],'kind':'parameter'},
+          {'id':'media:1','field':image_field,'kind':'media'}]}
+    if guidance:
+        prompt=keys.get('guidance prompt')
+        if not prompt:raise ValueError('this offering has no guidance prompt field')
+        field=path_parts(prompt[0]);write(field,guidance,'authored','upscale-guidance');layout['primary_text']=field
+        layout['content'].append({'id':'prompt','field':field});layout['fields'].append({'id':'prompt','field':field,'kind':'content'})
+    else:
+        # A absent text channel is represented in the layout, not injected into the wire request.
+        layout['primary_text']=None
+    for name,value in sorted(settings.items()):
+        field=path_parts(name);write(field,value,'model-setting','selected-upscale-setting');layout['fields'].append({'id':'parameter:'+name,'field':field,'kind':'parameter'})
+    writer.defaults({'outputFormat':'PNG'},source);writer.defaults((offering.get('constraints') or {}).get('as_written') or {},source)
+    return {'request':writer.request,'layout':layout,'request_trace':writer.trace}
+
+
+def upload_bytes(data: bytes, media_type: str, service: dict[str, Any], key: str) -> str:
+    """Upload the exact bytes already verified and reserved by the dispatcher."""
+    if not isinstance(data, bytes) or not isinstance(media_type, str) or not media_type:
+        raise ValueError('upload requires verified bytes and their declared media type')
     payload = f"data:{media_type};base64," + base64.b64encode(data).decode("ascii")
     answer = _post([{"taskType": "imageUpload", "taskUUID": str(uuid.uuid4()), "image": payload}], service, key)
     refused = rejections(answer)
@@ -212,3 +209,9 @@ def results(answer: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         found.append({"url": entry.get("imageURL"), "seed": entry.get("seed"), "id": entry.get("imageUUID") or entry.get("taskUUID")})
     return found
+
+
+def observation_outcome(answer:dict)->str:
+    if rejections(answer):return 'rejected'
+    entries=results(answer)
+    return 'accepted' if any(entry.get('id') or entry.get('url') or entry.get('pending') for entry in entries) else 'indeterminate'

@@ -1,0 +1,60 @@
+{
+  "type": "object",
+  "properties": {
+    "reservation": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string"
+        },
+        "authorization_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "run",
+        "authorization_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "locator"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "reservation",
+    "actor",
+    "reason",
+    "evidence"
+  ],
+  "additionalProperties": false
+}

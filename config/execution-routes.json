@@ -1,6 +1,5 @@
 {
   "always_read": [
-    "SKILL.md",
     "references/runtime/production-direction.md",
     "references/runtime/production-permissions.md",
     "references/runtime/production-execution.md"
@@ -112,7 +111,6 @@
   ],
   "features": {
     "persona": {
-      "when": "Individualized behavior or a continuing identity is being designed.",
       "reads": [
         "templates/narrative/personas/persona-template.md",
         "references/narrative-authoring.md"
@@ -122,7 +120,6 @@
       ]
     },
     "authorial-intent": {
-      "when": "Creator portrayal identity or deliberate deviation matters.",
       "reads": [
         "references/runtime/authorial-intent.md",
         "templates/narrative/design/design-template.md"
@@ -132,7 +129,6 @@
       ]
     },
     "performance": {
-      "when": "Voice, expression or body language is being authored.",
       "reads": [
         "references/runtime/character-performance.md",
         "references/performance-language-specification.md"
@@ -142,21 +138,18 @@
       ]
     },
     "world-view": {
-      "when": "Concrete story-time state is projected to a consumer.",
       "reads": [
         "references/runtime/world-realization.md"
       ],
       "source_roles": []
     },
     "portrayal-principles": {
-      "when": "Reusable portrayal principles are being consulted.",
       "reads": [
         "references/portrayal-principles.md"
       ],
       "source_roles": []
     },
     "narrative-files": {
-      "when": "Persistent narrative artifacts are used.",
       "reads": [
         "references/narrative-protocol.md",
         "references/narrative-authoring.md"
@@ -164,14 +157,12 @@
       "source_roles": []
     },
     "subject-domain": {
-      "when": "Subject domain is unresolved.",
       "reads": [
         "references/runtime/subject-domain-quick-reference.md"
       ],
       "source_roles": []
     },
     "references": {
-      "when": "Reference evidence is explicitly selected.",
       "reads": [
         "references/runtime/reference-prompt-artifacts.md",
         "references/visual-reference-activation-and-transport.md",
@@ -180,112 +171,96 @@
       "source_roles": []
     },
     "pack-runtime": {
-      "when": "Image retrieval or pack-backed work is active.",
       "reads": [
         "references/runtime/pack-state-quickstart.md"
       ],
       "source_roles": []
     },
     "sparse-retrieval": {
-      "when": "Sparse input needs directed retrieval.",
       "reads": [
         "references/runtime/sparse-discovery.md"
       ],
       "source_roles": []
     },
     "vocabulary": {
-      "when": "Exact prompt terms are being selected.",
       "reads": [
         "references/runtime/prompt-vocabulary.md"
       ],
       "source_roles": []
     },
     "prompt-dialect": {
-      "when": "An interface-specific rendition is selected.",
       "reads": [
         "references/runtime/prompt-writing-guide.md"
       ],
       "source_roles": []
     },
     "studio": {
-      "when": "A Studio project records results.",
       "reads": [
         "references/runtime/studio.md"
       ],
       "source_roles": []
     },
     "adoption": {
-      "when": "Explicit canonical adoption is requested.",
       "reads": [
         "references/runtime/adoption-workflow.md"
       ],
       "source_roles": []
     },
     "gpt-image": {
-      "when": "The selected interface is GPT Image.",
       "reads": [
         "references/adapters/gpt-image.md"
       ],
       "source_roles": []
     },
     "flux": {
-      "when": "The selected interface is FLUX.",
       "reads": [
         "references/adapters/flux.md"
       ],
       "source_roles": []
     },
     "sdxl": {
-      "when": "The selected interface is SDXL or ComfyUI.",
       "reads": [
         "references/adapters/sdxl-comfyui.md"
       ],
       "source_roles": []
     },
     "novelai": {
-      "when": "The selected interface is NovelAI.",
       "reads": [
         "references/adapters/novelai.md"
       ],
       "source_roles": []
     },
     "midjourney": {
-      "when": "The selected interface is Midjourney or Niji.",
       "reads": [
         "references/adapters/midjourney-niji.md"
       ],
       "source_roles": []
     },
     "unlisted-interface": {
-      "when": "The chosen interface has no dedicated adapter.",
       "reads": [
         "references/adapters/unlisted-interface.md"
       ],
       "source_roles": []
     },
     "grok": {
-      "when": "The selected interface is Grok Imagine.",
       "reads": [
         "references/adapters/grok-imagine.md"
       ],
       "source_roles": []
     },
     "instruction-edit": {
-      "when": "The selected interface performs instruction edits.",
       "reads": [
         "references/adapters/instruction-edit.md"
       ],
       "source_roles": []
     },
     "revision-guidance": {
-      "when": "Existing decisions or outputs are being revised.",
       "reads": [
         "references/runtime/revision-contract.md"
       ],
       "source_roles": []
     },
     "protocol-exchange": {
-      "when": "Selected public state, morphology, reference or viewpoint artifacts cross an application boundary.",
       "reads": [
         "references/protocol-exchange.md",
         "protocols/semantics.md"
@@ -293,46 +268,53 @@
       "source_roles": []
     },
     "story-context": {
-      "when": "A selected story moment supplies state or portrayal guidance for this task.",
       "reads": [
         "references/runtime/story-context.md"
       ],
       "source_roles": []
     },
     "image-edit": {
-      "when": "A selected realization uses deterministic operations on pinned still images.",
       "reads": [
         "references/runtime/image-editing.md"
       ],
       "source_roles": []
     },
     "evidence-review": {
-      "when": "A user requests an inspectable production report or evidence assessment.",
       "reads": [
         "references/runtime/evidence-review.md"
       ],
       "source_roles": []
     },
     "reference-delivery": {
-      "when": "Preparing or inspecting actual model-facing reference transports.",
       "reads": [
         "references/runtime/reference-delivery.md"
       ],
       "source_roles": []
     },
     "scene-persona": {
-      "when": "Reusing reviewed scene Persona material after full-source preparation, within its applicable conditions.",
       "reads": [
         "references/runtime/scene-persona.md"
+      ],
+      "source_roles": []
+    },
+    "state-series": {
+      "reads": [
+        "references/runtime/state-aware-series.md"
+      ],
+      "source_roles": []
+    },
+    "craft-consultation": {
+      "reads": [
+        "references/runtime/preset-consultation.md"
       ],
       "source_roles": []
     }
   },
   "routes": {
     "development": {
-      "when": "worlds, themes, entities or narrative development",
       "reads": [
-        "references/runtime/narrative-development.md"
+        "references/runtime/narrative-development.md",
+        "references/runtime/cast-and-persona-depth.md"
       ],
       "features": [],
       "stages": [
@@ -342,11 +324,9 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "performance": {
-      "when": "individual voice and embodied performance",
       "reads": [
         "references/runtime/character-performance.md"
       ],
@@ -361,11 +341,9 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "world-realization": {
-      "when": "state-guided bounded realization",
       "reads": [
         "references/runtime/world-realization.md"
       ],
@@ -379,11 +357,9 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "prompt-only": {
-      "when": "a portable prompt draft",
       "reads": [
         "references/runtime/prompt-only-core.md"
       ],
@@ -397,11 +373,9 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "composition": {
-      "when": "complex prompt composition",
       "reads": [
         "references/runtime/prompt-composition.md"
       ],
@@ -415,11 +389,9 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "reference-artifacts": {
-      "when": "reference preparation without generation",
       "reads": [
         "references/runtime/reference-prompt-artifacts.md"
       ],
@@ -435,18 +407,17 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "generation": {
-      "when": "explicitly requested image generation",
       "reads": [
         "references/runtime/image-generation.md"
       ],
       "features": [
         "pack-runtime",
         "studio",
-        "reference-delivery"
+        "reference-delivery",
+        "prompt-dialect"
       ],
       "stages": [
         "prepare",
@@ -455,18 +426,17 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "state-series": {
-      "when": "state-aware serial rendering",
       "reads": [
         "references/runtime/state-aware-series.md"
       ],
       "features": [
         "world-view",
         "studio",
-        "reference-delivery"
+        "reference-delivery",
+        "prompt-dialect"
       ],
       "stages": [
         "prepare",
@@ -475,16 +445,15 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "batch": {
-      "when": "several generation tasks",
       "reads": [
         "references/runtime/batch-generation.md"
       ],
       "features": [
-        "studio"
+        "studio",
+        "prompt-dialect"
       ],
       "stages": [
         "prepare",
@@ -493,17 +462,16 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "repose": {
-      "when": "same identity, new pose or scene",
       "reads": [
         "references/runtime/character-repose-workflow.md"
       ],
       "features": [
         "references",
-        "studio"
+        "studio",
+        "prompt-dialect"
       ],
       "stages": [
         "prepare",
@@ -512,11 +480,9 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "upscale": {
-      "when": "enlarging accepted artwork",
       "reads": [
         "references/adapters/upscale.md"
       ],
@@ -530,17 +496,16 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "character-sheet": {
-      "when": "canonical identity and sheet panels",
       "reads": [
         "references/runtime/character-sheet-discipline.md"
       ],
       "features": [
         "authorial-intent",
-        "reference-delivery"
+        "reference-delivery",
+        "prompt-dialect"
       ],
       "stages": [
         "prepare",
@@ -549,11 +514,9 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "adoption": {
-      "when": "explicit selection for a canonical owner",
       "reads": [
         "references/runtime/adoption-workflow.md"
       ],
@@ -568,11 +531,9 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "revise": {
-      "when": "scoped changes or review of artifacts",
       "reads": [
         "references/runtime/revision-contract.md"
       ],
@@ -586,11 +547,9 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     },
     "story-context": {
-      "when": "A selected story moment is expressed as a bounded deliverable.",
       "reads": [
         "references/runtime/story-context.md"
       ],
@@ -604,8 +563,7 @@
         "review",
         "select",
         "complete"
-      ],
-      "completion": "exact selected artifact and current completion receipt; selection alone does not change canon"
+      ]
     }
   },
   "regression": [
@@ -621,7 +579,17 @@
     "scripts/reference_delivery_smoke_test.py",
     "scripts/scene_material_smoke_test.py",
     "scripts/agent_evaluation_smoke_test.py",
-    "scripts/reimplementation_smoke_test.py"
+    "scripts/reimplementation_smoke_test.py",
+    "scripts/production_resume_smoke_test.py",
+    "scripts/production_inputs_smoke_test.py",
+    "scripts/production_input_model_smoke_test.py",
+    "scripts/route_reading_smoke_test.py",
+    "scripts/visual_continuity_smoke_test.py",
+    "scripts/request_contract_smoke_test.py",
+    "scripts/request_validation_smoke_test.py",
+    "scripts/reservation_lifecycle_smoke_test.py",
+    "scripts/production_series_smoke_test.py",
+    "scripts/preset_consultation_smoke_test.py"
   ],
   "operations": {
     "authorize": {
@@ -729,6 +697,16 @@
       "owner": "scripts/agent_evaluation.py:run_study",
       "command": "python scripts/agent_evaluation.py --help",
       "effect": "execute only an explicitly approved host command plan; retain unknown and failed measurements"
+    },
+    "consult-presets": {
+      "owner": "scripts/preset_consultation.py:command",
+      "command": "python scripts/production_workflow.py consult-presets --help",
+      "effect": "read craft candidates"
+    },
+    "apply-presets": {
+      "owner": "scripts/preset_consultation.py:command",
+      "command": "python scripts/production_workflow.py apply-presets --help",
+      "effect": "publish scoped craft application as a production source"
     }
   }
 }

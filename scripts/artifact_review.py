@@ -123,7 +123,7 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
     report = {'preview_characters': preview_chars, 'run': run, 'input_sha256': prepared['input_sha256'],
               'receipt_head': rows[-1]['sha256'] if rows else None,
               'current': not changes, 'changed_dependencies': changes,
-              'task_id': prepared['task']['task_id'],
+              'task_id': prepared['task']['task_id'], 'task_path': prepared['task_path'],
               'direction': prepared['task']['direction'],
               'criteria': prepared['task']['criteria'], 'sources': sources,
               'consumer': consumer, 'candidates': candidates, 'selections': selections,

@@ -103,6 +103,9 @@ python scripts/build_state_generation_package.py \
   --visual-projection-file visual-state-projection.json \
   --asset-render-spec-file asset-render-specification.json \
   --references-file prepared-reference-package/prepared-reference-set.json \
+  --request-validation-file request-validation.json \
+  --continuity SUBJECT_ID=DECISION \
+  --production-root PROJECT \
   --state-file PACK_STATE_JSON \
   --cache-dir CATALOG_CACHE \
   --managed-root MANAGED_PACKS \

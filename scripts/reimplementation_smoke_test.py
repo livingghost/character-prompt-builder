@@ -119,15 +119,30 @@ class UpscaleIntegration(unittest.TestCase):
         self.source=self.root/'source.png';Image.new('RGB',(8,8)).save(self.source)
         self.record=model_rows()[0];self.model=self.record['id']
         self.settings={'variant':'general'}
-        self.request=binding.upscale_request(self.root,self.source,self.model,2,self.settings,None)
+        import transport_runware
+        import request_renderer
+        from request_validation_fixtures import interface_validation
+        self.offering={'service':'synthetic','model_identifier':'fixture:model','observed_at':'2000-01-01',
+                       'setting_keys':{'variant':'variant'},'request_keys':{'input image':['inputImage']}}
+        self.service={'id':'synthetic','endpoint':{'base_url':'https://example.invalid'},'operations':{'imageUpscale':{}}}
+        self.transport=SimpleNamespace(__file__=transport_runware.__file__, compile_upscale=transport_runware.compile_upscale,
+            RESULT_HOSTS=frozenset({'example.invalid'}),
+            upload_bytes=Mock(),send=Mock(),rejections=Mock(return_value=[]),results=Mock(),
+            observation_outcome=Mock(return_value='accepted'))
+        target={'service':'synthetic','model_identifier':'fixture:model','operation':'imageUpscale'}
+        validation=interface_validation(self.root,target=target,record=self.record,offering=self.offering,
+            service_record=self.service,transport=self.transport,reference_mode='authored-rendition')
+        self.validation_file=self.root/'validation.json';self.validation_file.write_bytes(c.encoded(validation))
+        self.request=binding.upscale_request(self.root,self.source,self.model,2,self.settings,None,request_validation=validation)
         sources=[{'id':'source','path':'source.png','role':'upscale-source','disposition':'applied','locator':'whole','reason':'Exact synthetic source image.'}]
         self.run=fixture.prepare_dispatch(self.root,c.encoded(self.request).decode(),route='upscale',sources=sources)
-        self.offering={'service':'synthetic','model_identifier':'fixture:model','observed_at':'2026-09-19','setting_keys':{'variant':'variant'}}
-        self.intent=workflow.submission_intent(self.request,seed=None,count=1,offering=self.offering,service={})
+        rendered=request_renderer.upscale(self.request,self.record,self.offering,self.service,self.transport,self.source,self.settings,root=self.root)
+        self.intent=workflow.submission_intent(self.request,rendered=rendered,seed=None,count=1,offering=self.offering,service=self.service)
         self.authorization=fixture.grant(self.root,self.run,self.intent)
         self.options=argparse.Namespace(send=True,character='subject',slot='base.front',source=self.source,
             model=self.model,scale=2,settings=json.dumps(self.settings),guidance=None,service=None,profiles=None,note='Synthetic fixture only',
-            production_root=self.root,production_run=self.run,production_authorization=self.authorization)
+            production_authorization=self.authorization,
+            request_validation_file=self.validation_file)
         self.entries=[{'url':'https://example.invalid/fixture.png','id':'fixture'}]
         def send(_request,*args):
             rows=workflow.load_run(self.root,self.run)[3]
@@ -136,16 +151,17 @@ class UpscaleIntegration(unittest.TestCase):
         def upload(*args):
             self.assertTrue(any(r['event']=='dispatch-claim' for r in workflow.load_run(self.root,self.run)[3]))
             return 'synthetic-upload-id'
-        self.transport=SimpleNamespace(build_upscale=Mock(return_value={'task':'synthetic'}),upload=Mock(side_effect=upload),
-            send=Mock(side_effect=send),rejections=Mock(return_value=[]),results=Mock(side_effect=lambda answer:list(self.entries)))
-        def save(url,path):
+        self.transport.upload_bytes.side_effect=upload
+        self.transport.send.side_effect=send
+        self.transport.results.side_effect=lambda answer:list(self.entries)
+        def save(url,path,hosts):
             Image.new('RGB',(16,16)).save(path)
             return c.digest(path.read_bytes())
         self.stack=contextlib.ExitStack();self.addCleanup(self.stack.close)
         self.stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
         self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
         for name,kw in {'resolve_model_record':{'return_value':(self.model,self.record)},'select_offering':{'return_value':self.offering},
-            'service_for':{'return_value':('synthetic',{},self.transport)},'model_pack_root':{'return_value':self.root},
+            'service_for':{'return_value':('synthetic',self.service,self.transport)},'model_pack_root':{'return_value':self.root},
             'validate_generation_parameters':{},'api_key':{'return_value':'SYNTHETIC-NO-CREDENTIAL'},'save':{'side_effect':save}}.items():
             self.stack.enter_context(patch.object(dispatch,name,**kw))
         self.stack.enter_context(patch('upscale_package.resolve_model_record',return_value=(self.model,self.record)))
@@ -163,30 +179,30 @@ class UpscaleIntegration(unittest.TestCase):
     def test_absent_authorization_blocks_before_upload(self):
         self.options.production_authorization=None
         with self.assertRaisesRegex(ValueError,'authorization'):self.call()
-        self.transport.upload.assert_not_called();self.transport.send.assert_not_called()
+        self.transport.upload_bytes.assert_not_called();self.transport.send.assert_not_called()
 
     def test_altered_scale_blocks_before_upload(self):
         self.options.scale=4
         with self.assertRaisesRegex(ValueError,'prepared delivery'):self.call()
-        self.transport.upload.assert_not_called()
+        self.transport.upload_bytes.assert_not_called()
 
     def test_source_changed_after_preparation_blocks_before_upload(self):
         self.source.write_bytes(b'changed')
         with self.assertRaises(ValueError):self.call()
-        self.transport.upload.assert_not_called()
+        self.transport.upload_bytes.assert_not_called()
 
-    def test_extra_result_is_not_an_authorized_success(self):
+    def test_extra_result_is_kept_but_not_an_authorized_success(self):
         self.entries.append({'url':'https://example.invalid/other.png','id':'other'})
-        with self.assertRaisesRegex(ValueError,'count'):self.call()
+        self.assertEqual(self.call(),1)
         self.assertFalse(any(r['event']=='dispatch-results' for r in workflow.load_run(self.root,self.run)[3]))
-        self.assertEqual(studio.read_iterations(studio.character_dir(self.root,'subject')),[])
+        self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'subject'))),2)
 
     def test_ambiguous_remote_failure_never_retries(self):
         self.transport.send.side_effect=OSError('Synthetic connection lost after submit')
         with self.assertRaises(OSError):self.call()
         with self.assertRaisesRegex(ValueError,'already claimed'):self.call()
         self.assertEqual(self.transport.send.call_count,1)
-        self.assertEqual(self.transport.upload.call_count,1)
+        self.assertEqual(self.transport.upload_bytes.call_count,1)
 
     def test_acquired_result_recovers_locally_and_idempotently(self):
         with patch.object(studio,'iterate',side_effect=OSError('Synthetic recording failure')):
@@ -199,9 +215,8 @@ class UpscaleIntegration(unittest.TestCase):
         self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'subject'))),1)
 
     def test_generation_also_requires_a_prepared_submission_context(self):
-        self.options.production_run=None
-        with self.assertRaisesRegex(ValueError,'prepared run'):
-            dispatch.require_submission_context(self.options,self.root)
+        with self.assertRaisesRegex(ValueError,'prepared production run'):
+            dispatch.require_submission(self.options,None)
 
 
 if __name__=='__main__':

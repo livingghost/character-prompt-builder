@@ -62,7 +62,7 @@ def validate(authority: Any, task_id: str) -> None:
     ids: set[str] = set()
     for grant in authority['grants']:
         c.exact(grant, {'id', 'actor', 'mode', 'operations', 'targets', 'limits',
-                        'protected_criteria', 'expires_at'}, 'grant')
+                        'protected_criteria', 'expires_at', 'request_scope', 'submission_validation_modes'}, 'grant')
         key = c.text(grant['id'], 'grant id')
         if key in ids:
             raise ValueError('duplicate grant id')
@@ -72,6 +72,9 @@ def validate(authority: Any, task_id: str) -> None:
             raise ValueError('grant mode must be direct or delegated')
         if set(strings(grant['operations'], 'grant operations', nonempty=True)) - OPERATIONS:
             raise ValueError('unknown grant operation')
+        import request_scope
+        request_scope.validate(grant['request_scope'], submit='submit' in grant['operations'],
+                               modes=grant['submission_validation_modes'])
         strings(grant['targets'], 'grant targets', nonempty=True)
         strings(grant['protected_criteria'], 'protected criteria')
         limits = grant['limits']
@@ -96,7 +99,7 @@ def validate(authority: Any, task_id: str) -> None:
 
 def validate_request(request: Any) -> None:
     c.exact(request, {'grant', 'actor', 'operation', 'targets', 'payload', 'outputs',
-                      'cost', 'stop_assessments', 'reason'}, 'authorization request')
+                      'cost', 'stop_assessments', 'reason'} | ({'request_decision'} if isinstance(request, dict) and 'request_decision' in request else set()), 'authorization request')
     for key in ('grant', 'actor', 'reason'):
         c.text(request[key], key)
     if request['operation'] not in OPERATIONS:

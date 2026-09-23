@@ -50,6 +50,7 @@ references: []
 > - Mark newly written dialogue and behavior as **hypothetical design sample** and name the rules it tests. It does not establish that the event occurred in the story, and cannot be independent corroboration of the rule used to write it. Do not label an original proposal with ★ as though it were a source quotation.
 > - Keep the full twenty-section workspace. During exploration, deepen the fields required by the present creative decision and explicitly retain unresolved coverage. Present useful contrasts and probes rather than a complete questionnaire. The five-example and ten-flow targets guide later depth; they neither block early proposals nor authorize fabricated canon.
 > - Separate an individual's own wants, habits and decision criteria from their function in a plot, group or interaction. Species, body size, social status and reputation do not settle temperament. A future relationship plan is not an exception already active in the opening phase.
+> - A person the agent proposes joins the cast only after the author admits that candidate, recorded in the project's design record with its scope; existence, name, appearance and history are separate decisions. Depth follows the use at hand, and a mention, a bounded scene, recurring appearances and a consequential choice each need different preparation; the runtime document that owns cast admission holds both rules.
 > - An original persona ready for adoption must have coherent rules, concrete probes, known gaps and an explicit decision scope. An adopted persona contains adopted content or examined unknowns, not unlabeled draft proposals. Syntactic completeness alone establishes none of this.
 >
 > **World-Coherence Boundary**:
@@ -71,6 +72,7 @@ references: []
 > **Completion Rule**:
 > - **Blank** is a drafting state, not a valid state for a released persona. Before release, every applicable field must contain evidence-backed content (or explicitly adopted original-design content), `unknown`, or `n/a`; optional repeated rows may be removed. A deliberately incomplete draft must be labeled as such, not released as an adopted persona.
 > - Do not treat the instructional HTML comments as character data. They remain concrete authoring examples, such as `addresses by name → asks after their state → pauses`, not statements about the character being documented.
+> - A persona may be ready for one declared use while incomplete overall; the prepared Scene Persona material records that scope. This rule applies to a released persona, and neither label stands for the other.
 >
 > **Anti-Bias Protocol**:
 > - LLMs have stereotyped pre-trained impressions of well-known characters. "Taciturn" becomes "constantly silent"; a "taciturn" character still speaks when necessary, they just don't waste words. Actual behavior is more nuanced than the stereotype.

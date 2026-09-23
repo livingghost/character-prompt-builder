@@ -55,12 +55,7 @@ def validate_metadata(manifest: Mapping[str, Any], tag: str | None = None) -> li
 
 
 def validate_changelog(text: str, version: str, *, style: str) -> list[str]:
-    """Require the top released entry and its body, preserving historical text.
-
-    Historical entries describe past products, not today's source tree. Their
-    original formats/content are not rewritten. An Unreleased section may
-    precede the current release; it cannot replace the current dated entry.
-    """
+    """Check the single current product entry and its substantive release notes."""
     try:
         year, month, day, _ = calver_parts(version)
     except ValueError as exc:
@@ -70,10 +65,9 @@ def validate_changelog(text: str, version: str, *, style: str) -> list[str]:
     iso = date(year, month, day).isoformat()
     expected = version if style == "plain" else f"[{version}] - {iso}"
     sections = list(re.finditer(r"(?m)^##[ \t]+([^\r\n]+)[ \t]*$", text))
-    released = [(i, m) for i, m in enumerate(sections) if m.group(1).strip().casefold() != "unreleased"]
-    if not released:
-        return ["CHANGELOG.md has no released entry"]
-    index, heading = released[0]
+    if len(sections) != 1:
+        return ["CHANGELOG.md must contain one current product release entry"]
+    index, heading = 0, sections[0]
     errors = []
     if heading.group(1).strip() != expected:
         errors.append(f"CHANGELOG.md newest release must be ## {expected}")
@@ -106,8 +100,7 @@ def check(root: Path, tag: str | None = None) -> dict[str, Any]:
     if not isinstance(package, dict):
         return {"ok": False, "errors": errors}
     version = package.get("version", "")
-    # Flat-root Python packages use the original plain CalVer heading; a suite
-    # package declares hosts.suite_root and keeps its original dated heading.
+    # The package layout selects the declared changelog heading style.
     style = "dated" if isinstance(manifest.get("hosts"), dict) and manifest["hosts"].get("suite_root") else "plain"
     try:
         errors.extend(validate_changelog((root / "CHANGELOG.md").read_text(encoding="utf-8"), version, style=style))

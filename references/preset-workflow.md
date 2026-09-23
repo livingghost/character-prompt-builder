@@ -1,6 +1,6 @@
 # Preset Workflow
 
-This workflow has two retrieval paths. A well-specified brief completes its art direction before focused lookup. A sparse identity brief may use discovery to compare coherent outcome directions before the final direction is selected. In both paths, inspected production knowledge remains subordinate to the user's anchors and the chosen image intent.
+This workflow combines discovery and focused lookup. Preserve the user's fixed anchors while consulting successful craft patterns to develop open choices. A sparse brief can compare coherent directions before selection. During composition and repair, return to the library for each unresolved craft question. Follow [Craft consultation](runtime/preset-consultation.md) to connect selected knowledge to the production specification and its review.
 
 ## 1. Choose the retrieval path
 
@@ -19,9 +19,9 @@ Recommendation returns normalized anchors, open axes, identity candidates, and s
 
 Read `references/runtime/sparse-discovery.md` for runtime modifier scope and direction cards. Read `references/maintenance/search-discovery.md` for many-to-many index authoring, variant grouping, and sparse-query evaluation.
 
-## 2. Complete the final direction before focused retrieval
+## 2. Develop the direction with focused retrieval
 
-Privately establish:
+Use the brief and complete inspected records to establish:
 
 - image intent
 - center of appeal
@@ -33,7 +33,7 @@ Privately establish:
 - color and light
 - detail hierarchy
 
-Preset retrieval does not fill these decisions blindly.
+The agent selects a coherent treatment, preserves the fixed anchors, and records the relationships borrowed from inspected knowledge.
 
 ## 3. Describe the chosen direction for focused lookup
 
@@ -163,7 +163,7 @@ Use only the visual decision it solves. Do not import unrelated scene or identit
 
 ### Base scene or recipe
 
-Use only when the independently chosen direction closely matches the staging or repeatable production need. Inspect and adapt the complete record.
+Consult scene and recipe candidates while developing the staging or a repeatable production method. Choose a fitting record within the user's anchors, then inspect and adapt its complete relationships.
 
 ## 8. Build the modular production specification
 

@@ -2,6 +2,8 @@
 """Exercise delivery-geometry resolution, and hold it to a published size table."""
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -13,7 +15,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import generation_geometry as geometry  # noqa: E402
 
-EXPECTED_CHECKS = 21
+EXPECTED_CHECKS = 23
 
 # One megapixel with both sides a multiple of 8, the size table published for
 # this lineage. Two rows are labelled 4:3 because the table resolves one of them
@@ -34,6 +36,8 @@ PUBLISHED = {
     "1.618:1": (1296, 800),
 }
 SNAPSHOT = "resources/observed-schemas/fixture.svc.json"
+# Where the fixture service takes the model identifier and the prompt.
+KEYS = {"model": ["model"], "prompt": ["prompt"]}
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -83,6 +87,22 @@ def fixture_record(offerings: list[dict[str, Any]] | None = None) -> dict[str, A
     }
 
 
+def runtime_pack(folder: Path) -> list[str]:
+    """One enabled pack holding one model record, and the selectors that name its runtime."""
+
+    from pack_manager import atomic_write_json, initialize_pack, save_state
+
+    models = json.loads((ROOT / "packs/commons/records/models.json").read_text(encoding="utf-8"))
+    record = {**models["records"][0], "id": "fixture-runtime-model", "aliases": ["fixture runtime model"],
+              "offerings": [], "size_hints": {"1:1": "1024x1024", "2:3": "832x1216"}}
+    manifest = initialize_pack(folder / "packs" / "fixture", name="Geometry Runtime Fixture")
+    atomic_write_json(folder / "packs" / "fixture" / "records" / "models.json", {"kind": "model", "records": [record]})
+    save_state(folder / "state.json", {"pack_roots": [str(folder / "packs")],
+                                        "enabled_packs": [manifest["pack_id"]], "resource_providers": {}})
+    return ["--state-file", str(folder / "state.json"), "--cache-dir", str(folder / "cache"),
+            "--managed-root", str(folder / "managed")]
+
+
 def main() -> int:
     results: list[dict[str, Any]] = []
 
@@ -121,7 +141,7 @@ def main() -> int:
             "model_identifier": "vendor:fixture@1", "observed_at": "2026-09-13",
             "source": "the fixture service's model schema endpoint", "unenforced": [], "schema": SCHEMA,
         }), encoding="utf-8")
-        offering = {"service": "svc", "model_identifier": "vendor:fixture@1", "request_keys": {},
+        offering = {"service": "svc", "model_identifier": "vendor:fixture@1", "request_keys": KEYS,
                     "constraints": {}, "observed_at": "2026-09-13", "schema_snapshot": SNAPSHOT}
         record = fixture_record([offering])
         refusals, service = geometry.schema_refusals(record, None, "fixture-model", 832, 1216, pack)
@@ -137,7 +157,7 @@ def main() -> int:
             "model_identifier": "vendor:fixture@1", "observed_at": "2026-09-13",
             "source": "the fixture service's model schema endpoint", "unenforced": [], "schema": BUCKET_SCHEMA,
         }), encoding="utf-8")
-        buckets = fixture_record([{"service": "buckets", "model_identifier": "vendor:fixture@1", "request_keys": {},
+        buckets = fixture_record([{"service": "buckets", "model_identifier": "vendor:fixture@1", "request_keys": KEYS,
                                    "constraints": {}, "observed_at": "2026-09-13", "schema_snapshot": BUCKET_SNAPSHOT}])
         for width, height in ((1024, 1024), (832, 1248)):
             refusals, _ = geometry.schema_refusals(buckets, None, "fixture-model", width, height, pack)
@@ -146,6 +166,21 @@ def main() -> int:
             refusals, _ = geometry.schema_refusals(buckets, None, "fixture-model", width, height, pack)
             check(f"a pair outside every bucket is refused as a pair ({width}x{height})",
                   len(refusals) == 1 and refusals[0].startswith(f"{width}x{height}: "), refusals)
+
+    # The runtime selectors go together, as everywhere else, and name the runtime
+    # the model record is read from.
+    with tempfile.TemporaryDirectory(prefix="cpb-geometry-") as tmp:
+        selectors = runtime_pack(Path(tmp))
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            code = geometry.main([*selectors, "--model", "fixture-runtime-model", "--list"])
+        listed = json.loads(printed.getvalue()) if code == 0 else {}
+        check("the runtime selectors choose the runtime the model record is read from",
+              code == 0 and [(row["width"], row["height"]) for row in listed.get("declared_sizes", [])]
+              == [(1024, 1024), (832, 1216)], printed.getvalue()[-400:])
+        with contextlib.redirect_stderr(io.StringIO()):
+            check("one runtime selector without the others is refused",
+                  refused(lambda: geometry.main([*selectors[:2], "--model", "fixture-runtime-model", "--list"])))
 
     passed = sum(1 for row in results if row["passed"])
     report = {"ok": len(results) == EXPECTED_CHECKS and passed == len(results), "checks": len(results),

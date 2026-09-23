@@ -6,13 +6,13 @@ import json
 import mimetypes
 import os
 import sqlite3
-import time
+import sys
 import uuid
-from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
+from execution_contract import lock
 from pack_manager import (
     DiscoveredPack,
     PackError,
@@ -23,6 +23,7 @@ from pack_manager import (
     canonical_json,
     default_settings,
     load_effective_state,
+    pack_cli_command,
     required_dependency_cycles,
     resolve_enabled_lenient,
     sha256_bytes,
@@ -42,13 +43,6 @@ from resource_policy import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE_FILENAME = "catalog.sqlite3"
-# A lock file is written in two steps: the file is created, then the owner is
-# written into it. A reader arriving between the two sees a file it cannot parse
-# and cannot name an owner for. This bounds only that window, which is one small
-# write, so anything above a few milliseconds settles it and seconds is margin.
-# It is not a bound on waiting: a live owner is waited for, however long its work
-# takes.
-MALFORMED_LOCK_GRACE_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -79,6 +73,8 @@ class RuntimePackCatalog:
     resources: dict[str, RuntimePackResource]
     assets_by_canonical_record: dict[str, tuple[RuntimePackEntry, ...]]
     diagnostics: tuple[dict[str, Any], ...]
+    # One line per pack the catalog left out, naming the reason and the fix.
+    warnings: tuple[str, ...] = ()
 
 
 def _builder_fingerprint() -> str:
@@ -115,12 +111,6 @@ def cache_path(settings: PackSettings, fingerprint: str) -> Path:
     """
 
     return settings.cache_dir / f"{CACHE_STEM}-{fingerprint}.{CACHE_SUFFIX}"
-
-
-def _cache_lock_path(settings: PackSettings) -> Path:
-    """The lock a build takes. Readers never take it."""
-
-    return settings.cache_dir / (CACHE_FILENAME + ".lock")
 
 
 def _existing_caches(settings: PackSettings) -> list[Path]:
@@ -227,60 +217,14 @@ def _expected_fingerprint(snapshot: Mapping[str, Any]) -> str:
     )
 
 
-@contextmanager
-def _cache_lock(path: Path) -> Iterable[None]:
-    # A live owner is waited for. Whether to keep waiting is answered by whether
-    # the owner still exists, which is checked directly below, and not by a clock:
-    # a rebuild of this cache runs far longer than any timeout worth setting, so a
-    # deadline fires while a healthy owner is still working and turns a wait into
-    # a failure.
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps({"pid": os.getpid(), "created_ns": time.time_ns()}) + "\n"
-    while True:
-        try:
-            descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            malformed = False
-            try:
-                existing = json.loads(path.read_text(encoding="utf-8"))
-                owner_pid = int(existing.get("pid"))
-            except FileNotFoundError:
-                continue
-            except (OSError, ValueError, TypeError, json.JSONDecodeError):
-                owner_pid = -1
-                malformed = True
-            if malformed:
-                try:
-                    malformed_age = time.time() - path.stat().st_mtime
-                except FileNotFoundError:
-                    continue
-                if malformed_age <= MALFORMED_LOCK_GRACE_SECONDS:
-                    time.sleep(0.05)
-                    continue
-            owner_alive = owner_pid > 0
-            if owner_alive:
-                try:
-                    os.kill(owner_pid, 0)
-                except ProcessLookupError:
-                    owner_alive = False
-                except PermissionError:
-                    owner_alive = True
-                except OSError:
-                    owner_alive = False
-            if not owner_alive:
-                path.unlink(missing_ok=True)
-                continue
-            time.sleep(0.05)
-            continue
-        try:
-            os.write(descriptor, payload.encode("utf-8"))
-        finally:
-            os.close(descriptor)
-        break
-    try:
-        yield
-    finally:
-        path.unlink(missing_ok=True)
+def _cache_lock(settings: PackSettings):
+    """The lock a build takes. Readers never take it.
+
+    The operating system holds it and releases it when the holder exits, however
+    it exits, so a live builder is waited for and a dead one never blocks.
+    """
+
+    return lock(settings.cache_dir)
 
 
 def _required_pack_ids(pack: DiscoveredPack) -> frozenset[str]:
@@ -338,6 +282,8 @@ def _remove_broken_dependencies(
                             "severity": "error",
                             "code": "missing-active-dependency",
                             "pack_id": pack_id,
+                            "root": str(pack.root),
+                            "requires": dependency_id,
                             "message": (
                                 f"Pack {pack_id} was excluded because required pack "
                                 f"{dependency_id} is unavailable."
@@ -443,6 +389,7 @@ def _resolve_resources(
     diagnostics: list[dict[str, Any]],
 ) -> list[tuple[DiscoveredPack, str, str]]:
     candidates: dict[str, dict[str, tuple[DiscoveredPack, str]]] = {}
+    active_ids = {pack.pack_id for pack, _ in packs}
     for pack, _ in packs:
         report = reports.get(pack.pack_id)
         bindings = getattr(report, "resource_bindings", {})
@@ -460,6 +407,7 @@ def _resolve_resources(
                     "severity": "warning",
                     "code": "resource-provider-unselected",
                     "resource": name,
+                    "candidate_packs": sorted(available),
                     "message": (
                         f"Named resource {name!r} was excluded because no provider "
                         "pack is selected in state."
@@ -475,6 +423,7 @@ def _resolve_resources(
                     "code": "resource-provider-unavailable",
                     "resource": name,
                     "provider_pack": provider_id,
+                    "provider_active": provider_id in active_ids,
                     "available_providers": sorted(available),
                     "message": (
                         f"Named resource {name!r} was excluded because selected provider "
@@ -568,12 +517,139 @@ def _resolve_runtime_pack_inputs(
                     "severity": "error",
                     "code": "invalid-enabled-pack",
                     "pack_id": pack.pack_id,
+                    "root": str(pack.root),
                     "message": f"Pack {pack.pack_id} was excluded because validation failed.",
                     "details": report.to_dict()["errors"],
                 }
             )
     valid_packs = _remove_broken_dependencies(valid_packs, diagnostics)
     return selected, valid_packs, pack_reports, pack_validations, diagnostics
+
+
+# A validation problem in a few words, and what repairs it.
+_PACK_REPAIRS: dict[str, tuple[str, str]] = {
+    "lock-extra-files": ("files not in pack.lock.json", "remove the extra files"),
+    "lock-missing-files": ("files in pack.lock.json are missing", "restore the missing files"),
+    "lock-file-mismatch": ("files differ from pack.lock.json", "restore the locked files"),
+    "lock-content-hash": ("files differ from pack.lock.json", "restore the locked files"),
+}
+_REPORTED_WARNINGS: set[str] = set()
+
+
+def _short(message: Any) -> str:
+    text = " ".join(str(message or "").split())
+    return text if len(text) <= 100 else text[:97] + "..."
+
+
+def pack_warnings(
+    diagnostics: Sequence[Mapping[str, Any]],
+    settings: PackSettings,
+) -> dict[str, str]:
+    """One line for each pack the catalog left out: the pack, the reason and the fix.
+
+    Lines are keyed by the pack ID where there is one. Provider selections that
+    point at a left-out pack belong to that pack's line; selections that point at
+    a pack nobody uses get one line per such pack.
+    """
+
+    command = pack_cli_command(settings)
+    lines: dict[str, str] = {}
+
+    def disable(pack_id: str) -> str:
+        if pack_id in settings.protected_pack_ids:
+            return " (it is a bundled pack and stays enabled)"
+        return f" or disable it: {command} disable {pack_id}"
+
+    for row in diagnostics:
+        code = str(row.get("code") or "")
+        pack_id = str(row.get("pack_id") or "")
+        folder = Path(str(row.get("root") or pack_id)).name
+        label = pack_id if folder == pack_id else folder
+        if code == "invalid-enabled-pack":
+            details = [item for item in row.get("details") or [] if isinstance(item, Mapping)]
+            first = details[0] if details else {}
+            first_code = str(first.get("code") or "invalid")
+            reason, repair = _PACK_REPAIRS.get(
+                first_code,
+                (_short(first.get("message")), f"fix it ({command} validate {row.get('root')} names every problem)"),
+            )
+            lines.setdefault(
+                pack_id,
+                f"pack {label} is invalid ({first_code}: {reason}); {repair}{disable(pack_id)}",
+            )
+        elif code == "missing-active-dependency":
+            lines.setdefault(
+                pack_id,
+                f"pack {label} is unusable (it requires pack {row.get('requires')}, which is not in use); "
+                f"enable that pack{disable(pack_id)}",
+            )
+        elif code == "enabled-pack-unavailable":
+            lines.setdefault(
+                pack_id,
+                f"pack {pack_id} is enabled but not found; restore it{disable(pack_id)}",
+            )
+        elif code == "required-dependency-cycle":
+            members = [str(value) for value in row.get("pack_ids") or []]
+            lines.setdefault(
+                ",".join(members),
+                f"packs {', '.join(members)} are unusable (their required dependencies form a cycle); "
+                f"disable one of them: {command} disable <pack-id>",
+            )
+        elif code == "duplicate-pack-id":
+            lines.setdefault(
+                pack_id,
+                f"pack {pack_id} is in more than one pack root, so no copy is used; "
+                f"keep one copy ({command} list shows the roots)",
+            )
+        elif code in {"manifest", "manifest-type", "schema"} and row.get("path"):
+            where = Path(str(row["path"])).parent
+            reason = _short(str(row.get("message") or "").replace(str(row["path"]), "pack.json"))
+            lines.setdefault(
+                str(where),
+                f"pack at {where} has an invalid pack.json ({code}: {reason}); "
+                "fix pack.json or move the directory out of the pack roots",
+            )
+    covered = {member for key in lines for member in key.split(",")}
+    unused: dict[str, list[str]] = {}
+    for row in diagnostics:
+        if row.get("code") != "resource-provider-unavailable":
+            continue
+        provider = str(row.get("provider_pack") or "")
+        name = str(row.get("resource") or "")
+        if provider in covered:
+            continue
+        if row.get("provider_active"):
+            lines[f"{provider}:{name}"] = (
+                f"resource {name} points at pack {provider}, which does not provide it; "
+                f"clear it: {command} provider-clear {name}"
+            )
+        else:
+            unused.setdefault(provider, []).append(name)
+    for provider, names in unused.items():
+        shown = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
+        lines[provider] = (
+            f"{len(names)} resource provider selection(s) ({shown}) point at pack {provider}, "
+            f"which is not in use; clear them: {command} disable {provider}"
+        )
+    return lines
+
+
+def _print_warnings(lines: Sequence[str]) -> None:
+    """Print each warning to standard error once per process."""
+    for line in lines:
+        if line not in _REPORTED_WARNINGS:
+            _REPORTED_WARNINGS.add(line)
+            print(f"warning: {line}", file=sys.stderr, flush=True)
+
+
+def resource_warning(catalog: RuntimePackCatalog, name: str) -> str | None:
+    """Why the selected provider of `name` is not in the catalog, or None when nothing failed."""
+
+    for row in catalog.diagnostics:
+        if row.get("code") == "resource-provider-unavailable" and row.get("resource") == name:
+            provider = str(row.get("provider_pack") or "")
+            return next((line for line in catalog.warnings if provider in line), str(row.get("message")))
+    return None
 
 
 def runtime_resource_provider_status(settings: PackSettings) -> dict[str, Any]:
@@ -603,6 +679,7 @@ def runtime_resource_provider_status(settings: PackSettings) -> dict[str, Any]:
             candidates.setdefault(name, []).append(pack.pack_id)
     resolved_names = {name for _, name, _ in resolved_resources}
     names = sorted(set(candidates) | set(providers))
+    _print_warnings(list(pack_warnings(diagnostics, settings).values()))
     return {
         "ok": True,
         "resource_providers": [
@@ -926,7 +1003,7 @@ def _build(
     """
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with _cache_lock(_cache_lock_path(resolved_settings)):
+    with _cache_lock(resolved_settings):
         if output_path.is_file():
             if not force:
                 return
@@ -1039,7 +1116,14 @@ def cache_status(settings: PackSettings | None = None) -> dict[str, Any]:
 
 def load_runtime_catalog(
     settings: PackSettings | None = None,
+    *,
+    quiet: bool = False,
 ) -> RuntimePackCatalog:
+    """Load the catalog of the enabled packs, and warn once about each pack left out.
+
+    Each warning goes to standard error once per process; `quiet` leaves the
+    printing to a caller that reports the same lines itself.
+    """
     resolved_settings = settings or default_settings()
     # No lock is taken. A published cache is never rewritten, so once this holds
     # a handle nothing can disturb it, and holding it disturbs no build. The one
@@ -1155,6 +1239,9 @@ def load_runtime_catalog(
     diagnostics = tuple(
         dict(item) for item in diagnostics_value if isinstance(item, Mapping)
     )
+    warnings = tuple(pack_warnings(diagnostics, resolved_settings).values())
+    if not quiet:
+        _print_warnings(warnings)
     return RuntimePackCatalog(
         fingerprint=meta.get("cache_fingerprint", ""),
         active_pack_count=int(meta.get("active_pack_count") or 0),
@@ -1164,4 +1251,5 @@ def load_runtime_catalog(
         resources=resources,
         assets_by_canonical_record=assets_by_canonical_record,
         diagnostics=diagnostics,
+        warnings=warnings,
     )

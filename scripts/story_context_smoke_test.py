@@ -264,7 +264,7 @@ class ProductionTests(MomentTests):
         import production_binding
         run=self.setup_run();binding=production_binding.create(self.root,run,'Follow the selected moment.')
         production_binding.validate(binding,'Follow the selected moment.')
-        text=production_binding.effective(binding,'Follow the selected moment.')
+        text=production_binding.effective(binding,'Follow the selected moment.', context_transport='prompt-prefix')
         self.assertIn('moment_views',text);self.assertIn('tense',text)
         self.assertIn('Keep the response concise',text);self.assertNotIn('PRIVATE',text)
         production_binding.validate_live(self.root,run,{'production_binding':binding,'composition_prompt':'Follow the selected moment.'})

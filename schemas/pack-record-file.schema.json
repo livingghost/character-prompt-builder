@@ -224,7 +224,7 @@
         },
         "request_keys": {
           "type": "object",
-          "description": "The request key each media role occupies, as an array because a role may need more than one key; a role whose name ends in images occupies a list.",
+          "description": "The request key each input occupies, by role: model, prompt, negative prompt, reference images, seed image, mask image, input image, guidance prompt. The value is an array because a role may need more than one key; a role whose name ends in images occupies a list. A generation offering names its prompt; one without a negative prompt says the target has no negative field, and one without a model says the address names the model.",
           "propertyNames": {
             "$ref": "#/$defs/non-empty-string"
           },
@@ -276,6 +276,174 @@
         "schema_snapshot": {
           "$ref": "#/$defs/non-empty-string",
           "description": "Path, relative to the pack root, of the service's parameter schema for this model as observed."
+        },
+        "schema_contract": {
+          "type": "object",
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schema_acquisition": {
+          "type": "object",
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "reference_schemas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "parameter_observations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "observation",
+              "profile",
+              "target",
+              "outcome"
+            ],
+            "properties": {
+              "observation": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "profile": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "path",
+                      "sha256"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "target": {
+                "type": "object"
+              },
+              "outcome": {
+                "enum": [
+                  "rejected",
+                  "accepted",
+                  "completed",
+                  "indeterminate"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "production_context_transport": {
+          "enum": [
+            "none",
+            "prompt-prefix"
+          ]
+        },
+        "reference_instruction_transport": {
+          "type": "object",
+          "required": [
+            "mode",
+            "contract"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "native-fields",
+                "authored-rendition",
+                "prompt-prefix",
+                "not-supported"
+              ]
+            },
+            "contract": {
+              "type": "object",
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         }
       }
     },
@@ -875,6 +1043,17 @@
                     "generation",
                     "instruction-edit"
                   ]
+                },
+                "offerings": {
+                  "items": {
+                    "properties": {
+                      "request_keys": {
+                        "required": [
+                          "prompt"
+                        ]
+                      }
+                    }
+                  }
                 }
               },
               "required": [

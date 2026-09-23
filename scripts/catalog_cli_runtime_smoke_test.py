@@ -1762,5 +1762,151 @@ class CatalogInspirationGroupingTest(unittest.TestCase):
             )
 
 
+class ScopedRuntimeTests(unittest.TestCase):
+    def test_restores_explicit_caller_after_failure(self):
+        from pack_manager import default_settings
+        from catalog_retrieval import runtime
+        previous = runtime._PACK_SETTINGS
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            caller = default_settings(state_file=home/'caller.json')
+            nested = default_settings(state_file=home/'nested.json')
+            try:
+                runtime.configure_pack_runtime(caller)
+                with self.assertRaises(ValueError):
+                    with runtime.using_pack_runtime(nested):
+                        self.assertIs(runtime._PACK_SETTINGS, nested)
+                        raise ValueError('Synthetic bounded operation failure.')
+                self.assertIs(runtime._PACK_SETTINGS, caller)
+            finally:
+                runtime.configure_pack_runtime(previous)
+
+
+class RetrievalRecordingTests(unittest.TestCase):
+    """Lookups append themselves to the retrieval record; the author marks outcomes."""
+
+    def tearDown(self) -> None:
+        catalog_cli.clear_runtime_caches()
+
+    def run_cli(self, root: Path, *arguments: str) -> tuple[int, str]:
+        state = root / "state.json"
+        if not state.exists():
+            state.write_text(json.dumps({"pack_roots": [], "enabled_packs": [], "resource_providers": {}}),
+                             encoding="utf-8")
+        runtime = ["--state-file", str(state), "--cache-dir", str(root / "cache"),
+                   "--managed-root", str(root / "managed")]
+        stdout = io.StringIO()
+        with mock.patch.object(catalog_retrieval.runtime, "load_runtime_catalog",
+                               return_value=self.catalog):
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):
+                try:
+                    code = catalog_cli.main([*runtime, *arguments])
+                except SystemExit as stopped:
+                    code = stopped.code
+        return code, stdout.getvalue()
+
+    def test_lookups_are_recorded_and_outcomes_marked(self) -> None:
+        import prompt_retrieval
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            CatalogRuntimeTest._install_fixture_catalog(self, root)
+            self.catalog = catalog_cli.load_pack_catalog()
+            record = root / "lookups.json"
+            batch = json.dumps([{"request_id": "pose", "command": "search", "canonical_query": "fixture one",
+                                 "kind": ["module"], "categories": ["species"], "limit": 1}])
+            steps = [
+                ["search", "fixture zero", "--kind", "module", "--record", str(record), "--element", "identity"],
+                ["batch", "--input", batch, "--record", str(record)],
+                ["inspect-many", "fixture-zero", "fixture-one", "--record", str(record),
+                 "--element", "identity", "--element", "pose"],
+            ]
+            for step in steps:
+                self.assertEqual(self.run_cli(root, *step)[0], 0, step)
+            value = json.loads(record.read_text(encoding="utf-8"))
+            self.assertEqual(value["pack_state"], "fixture-catalog")
+            self.assertEqual(value["elements"], [
+                {"element": "identity", "queries": ["fixture zero"], "inspected_records": ["fixture-zero"]},
+                {"element": "pose", "queries": ["fixture one"], "inspected_records": ["fixture-one"]},
+            ])
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(prompt_retrieval.main([str(record), "--element", "identity",
+                                                        "--adopted", "fixture-many"]), 1)
+                self.assertEqual(prompt_retrieval.main([str(record), "--element", "identity",
+                                                        "--adopted", "fixture-zero"]), 0)
+                self.assertEqual(prompt_retrieval.main([str(record), "--element", "pose", "--composed",
+                                                        "arms folded", "--reason", "No inspected pose fits."]), 0)
+            report = prompt_retrieval.validate_prompt_retrieval_record(json.loads(record.read_text(encoding="utf-8")))
+            self.assertEqual((report["ok"], report["adopted"], report["composed"]), (True, 1, 1))
+
+    def test_changed_runtime_and_missing_element_are_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            CatalogRuntimeTest._install_fixture_catalog(self, root)
+            self.catalog = catalog_cli.load_pack_catalog()
+            record = root / "lookups.json"
+            self.assertEqual(self.run_cli(root, "search", "fixture zero", "--record", str(record))[0], 2)
+            self.assertFalse(record.exists())
+            earlier = {"artifact_type": "prompt-retrieval-record", "pack_state": "earlier-runtime",
+                       "elements": [{"element": "identity", "queries": ["fixture"], "inspected_records": []}]}
+            record.write_text(json.dumps(earlier), encoding="utf-8")
+            code, output = self.run_cli(root, "search", "fixture zero", "--record", str(record),
+                                        "--element", "identity")
+            self.assertEqual((code, output), (2, ""))
+            self.assertEqual(json.loads(record.read_text(encoding="utf-8")), earlier)
+
+
+class LeftOutPackWarningTests(unittest.TestCase):
+    """A pack the catalog leaves out is named in one line by every catalog command."""
+
+    def _pack(self, root: Path, *, broken: bool) -> str:
+        from pack_manager import atomic_write_json, initialize_pack, write_lock
+
+        manifest = initialize_pack(root, name=root.name)
+        label = f"{root.name} quiet light"
+        atomic_write_json(root / "records" / "record.json", {
+            "kind": "module", "category": "lighting",
+            "records": [{"id": f"{root.name}-record", "label": label, "curation_status": "vocabulary",
+                         "category": "lighting", "prompt": f"a controlled {label}", "domains": ["shared"],
+                         "tags": [label],
+                         "search_terms": [{"phrase": label, "facet": "lighting", "weight": 1.0,
+                                           "source": "author"}]}],
+        })
+        write_lock(root)
+        if broken:
+            (root / "NOTES.txt").write_text("added after the lock\n", encoding="utf-8")
+        return str(manifest["pack_id"])
+
+    def _run(self, folder: Path, enabled: list[str], *command: str) -> subprocess.CompletedProcess[str]:
+        from pack_manager import save_state
+
+        save_state(folder / "state.json", {"pack_roots": [str(folder / "packs")],
+                                           "enabled_packs": enabled, "resource_providers": {}})
+        return subprocess.run(
+            [sys.executable, str(Path(catalog_cli.__file__)), "--state-file", str(folder / "state.json"),
+             "--cache-dir", str(folder / "cache"), "--managed-root", str(folder / "managed"), *command],
+            capture_output=True, text=True, encoding="utf-8", timeout=600,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUTF8": "1", **UNPAINTED},
+        )
+
+    def test_left_out_pack_is_one_line_and_first_when_nothing_else_is_left(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="cpb-left-out-") as temporary:
+            folder = Path(temporary).resolve()
+            kept = self._pack(folder / "packs" / "kept-shelf", broken=False)
+            broken = self._pack(folder / "packs" / "broken-shelf", broken=True)
+            warning = (
+                "warning: pack broken-shelf is invalid (lock-extra-files: files not in pack.lock.json); "
+                "remove the extra files or disable it: python scripts/pack_cli.py "
+                f"--state-file {folder / 'state.json'} --cache-dir {folder / 'cache'} "
+                f"--managed-root {folder / 'managed'} disable {broken}"
+            )
+            searched = self._run(folder, [kept, broken], "search", "kept-shelf quiet light")
+            self.assertEqual(searched.returncode, 0, searched.stderr)
+            self.assertEqual(searched.stderr.splitlines(), [warning])
+            self.assertIn("kept-shelf-record", searched.stdout)
+            alone = self._run(folder, [broken], "search", "broken-shelf quiet light")
+            self.assertNotEqual(alone.returncode, 0)
+            self.assertEqual(alone.stderr.splitlines()[0], warning)
+
+
 if __name__ == "__main__":
     unittest.main()

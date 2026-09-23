@@ -78,15 +78,15 @@ Three records change at different times, so they are three records.
 
 - A **service record** says how a service is called: endpoint, authentication shape, request envelope, operations, delivery and polling, error shape, and limits, with one `observed_at` and one `source` for the whole record. It is the `service-profiles` resource of the active pack runtime. `python scripts/service_profile.py <service-id>` prints it; print it beside anything sent, so an ageing record is seen before it fails. Nothing in this repository carries an endpoint of its own.
 - A **model record** says how a model behaves: prompt style, ordering, negative transport, accepted reference media, limits, notes. Nothing in it names an endpoint.
-- An **offering** inside the model record says how one service exposes that model: `service` (the key it has in the service record), `model_identifier` (its identifier there), `request_keys` (the request key each media role occupies: `reference images`, `seed image`, `mask image`, `input image`, and on an upscaler that takes one, `guidance prompt`), `constraints` (the limits that service enforces, in words), `observed_at`, optionally `schema_snapshot`, `parameter_keys` (the request key each of the record's `recommended_parameters` occupies on this service), and for an upscaler `setting_keys` (the request key each setting the record declares occupies on this service). A record's `recommended_parameters` are the sampling values its author recommends, by service-neutral name (`sampler`, `steps`, `guidance`, `clip_skip`, and the `hires_` values); when a package leaves such a value unset, the builder fills it on the key the offering gives it, so the package shows and commits exactly what is sent. A two-number range is a statement for the person choosing and is never filled in, and a recommendation fills a value rather than switching a feature on: a key under an envelope the package never opened, such as the upscaler of a second pass it does not run, stays unwritten until the package asks for that pass. Every model record carries `offerings`; an empty array says no service here exposes the model, which is the state of a record used through a first-party interface or a local host.
+- An **offering** inside the model record says how one service exposes that model: `service` (the key it has in the service record), `model_identifier` (its identifier there), `request_keys` (the request key each input occupies: `model` where the request body names the model, `prompt`, `negative prompt` where the target has a negative field, `reference images`, `seed image`, `mask image`, `input image`, and on an upscaler that takes one, `guidance prompt`), `constraints` (the limits that service enforces, in words), `observed_at`, optionally `schema_snapshot`, `parameter_keys` (the request key each of the record's `recommended_parameters` occupies on this service), and for an upscaler `setting_keys` (the request key each setting the record declares occupies on this service). A record's `recommended_parameters` are the sampling values its author recommends, by service-neutral name (`sampler`, `steps`, `guidance`, `clip_skip`, and the `hires_` values); when a package leaves such a value unset, the builder fills it on the key the offering gives it, so the package shows and commits exactly what is sent. A two-number range is a statement for the person choosing and is never filled in, and a recommendation fills a value rather than switching a feature on: a key under an envelope the package never opened, such as the upscaler of a second pass it does not run, stays unwritten until the package asks for that pass. Every model record carries `offerings`; an empty array says no service here exposes the model, which is the state of a record used through a first-party interface or a local host.
 
-`schema_snapshot` points at the service's own parameter schema for the model, stored in the pack as observed. `python scripts/observe_model_schema.py --pack <pack-dir> <model-id> <service-id> <schema.json>` stores it under `resources/observed-schemas/` with the date, where it came from, and the keywords the checker here does not enforce, points the offering at it, and re-dates the offering; rebuild the pack lock afterwards. Refresh it when the service changes what it accepts.
+`schema_snapshot` points at the model's attributed parameter schema in its selected pack. The [model evidence workflow](model-evidence.md) imports acquired schemas, preserves reference sources, and attaches existing trial records. The `schema`, `reference`, and `attach-probe` operations publish a validated new local pack for explicit activation.
 
 `scripts/build_generation_payload.py` selects the offering the request goes through (`--service` when the record is exposed on more than one), builds the request as the service would see it from the committed prompt, the parameters, and the number of selected references, evaluates it against the observed schema, and refuses the package on any violation: a width and height pair the service does not accept, a preset given together with explicit dimensions, more references than the channel holds, a parameter the model does not take. The offering used is committed as `generation_payload.service` and the verifier makes the same check from the package. A record with no offering is checked against its own limits only.
 
 The checker evaluates the schema keywords `type`, `const`, `enum`, `required`, `properties`, `additionalProperties`, `dependentRequired`, `items`, `contains`, `minItems`, `maxItems`, `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `allOf`, `anyOf`, `oneOf`, `not`, and `if`/`then`/`else`. What a stored schema says with anything else is listed in its `unenforced` field and is settled by the service.
 
-Adding a service is one record in `service-profiles` plus an offering on every model record it exposes; adding a model on a service that is already recorded is one offering.
+Adding a service is one record in `service-profiles`, an offering on every model record it exposes, and one `scripts/transport_<service>.py` written against the transport contract in the `scripts/dispatch.py` docstring. Adding a model on a service that is already recorded is one offering.
 
 ## Model-facing reference transport
 
@@ -133,14 +133,38 @@ The canonical prepared-reference-set commits target and transport mode, optional
 
 ## Generation Package
 
+The builder reads the prepared production run and derives what the run and the active pack already hold. The author supplies the prompt, the approved plot, the settled retrieval record, the Production Specification and the continuity decisions.
+
 Before packaging:
 
-1. Save the final prompt, portable negative, activated negative-source provenance, image intent, chosen direction, current Production Specification, and State Lineage as UTF-8 artifacts.
-2. For one-off work, use the builder's sealed stateless lineage. For a series, use the reviewed identity, snapshot, context, projection, render specification, and finalized state selection.
-3. Record actual retrieval, then run `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file final-prompt.txt --plot-file approved-plot.json --out retrieval-settled.json`. All generation entrypoints require its prompt/plot binding; unavailable or unsettled retrieval blocks preparation. Approval to prepare is not approval to send.
-4. Pass the canonical prepared-reference-set through `--references-file`. Do not author another source list.
+1. Prepare a production run for the studio's open work task, as [Production execution](production-execution.md) describes. The run pins the task, its route reading, and the prompt as its delivery.
+2. Save the final prompt, the approved plot and the current Production Specification as UTF-8 files. Add the portable negative, its provenance and the image intent when they exist. Omit `--state-lineage-file` for one-off work; the builder seals a stateless lineage.
+3. Run each catalog and vocabulary search with `--record lookups.json --element NAME`, and mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID` (or `--composed TEXT --reason TEXT`). Then run `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file prompt.txt --plot-file plot.json --out retrieval.json`. Unavailable or unsettled retrieval blocks packaging. Approval to prepare is not approval to send.
+4. Pass the canonical prepared-reference-set through `--references-file` when references are selected. Do not author another source list.
 
-For stateless work, use `scripts/build_generation_payload.py` with the current `--production-spec-file` and sealed stateless lineage. That CLI rejects state-aware lineage. For state-aware work, use `scripts/build_state_generation_package.py`; it validates the supplied graph, story order, and selection identity, era, appearance, state hash, and references. Production Specification is mandatory for both paths.
+```bash
+python scripts/build_generation_payload.py \
+  --model grok-imagine-image-2.0 \
+  --prompt-file prompt.txt \
+  --plot-file plot.json \
+  --retrieval-record-file retrieval.json \
+  --production-spec-file production-spec.json \
+  --continuity C01=one-off \
+  --parameters '{"width":832,"height":1248}' \
+  --production-root PROJECT \
+  --out PROJECT/generation-package.json
+```
+
+The builder derives the rest:
+
+- The run is the open work task's current run, or the one `--production-run` names.
+- The route reading is the one the run pinned.
+- The request check reads the observed parameter schema that the model record's offering names in the active pack. The package records that pack file by path and hash, with the hashes of the service record, offering, transport and model record. References and bounded production context need an execution policy, so such a package takes `--request-validation-file`. So does a model exposed on no service here.
+- Visual continuity comes from `--continuity SUBJECT=DECISION`, one `recurring`, `one-off` or `undecided` decision for each production subject. The builder writes the decisions under the project's `work/continuity/` as their basis. `--visual-continuity-file` supplies a complete record instead.
+
+`--character SUBJECT=CHARACTER` records a subject under its studio character, which a recurring subject needs. That character's current accepted identity images must be among the prepared references. `--sheet-panel` marks an image for a character sheet panel.
+
+For state-aware work, use `scripts/build_state_generation_package.py` with the same production arguments. It validates the supplied graph, story order, and selection identity, era, appearance, state hash, and references. A recurring subject that names the identity contract takes its character ID from that contract. `build_generation_payload.py` rejects state-aware lineage. Production Specification is mandatory for both paths.
 
 State-aware example:
 
@@ -165,7 +189,10 @@ python scripts/build_state_generation_package.py \
   --visual-projection-file visual-projection.json \
   --asset-render-spec-file asset-render-specification.json \
   --references-file prepared-reference-package/prepared-reference-set.json \
+  --request-validation-file request-validation.json \
+  --continuity C01=recurring --character C01=C01 \
   --parameters '{"size":"1024x1536"}' \
+  --production-root PROJECT \
   --state-file PACK_STATE_JSON \
   --cache-dir CATALOG_CACHE \
   --managed-root MANAGED_PACKS \
@@ -210,11 +237,11 @@ Require all assertions to be true:
 
 Those four true assertions together with the verifier's structured `host_forwarding` object are the complete forwarding contract. The adapter must not supplement them from the sparse brief, chat history, source directories, adjacent files, or remembered model behavior.
 
-When the model record carries an offering, send through the dispatcher, which is what makes recording automatic. Its service-specific half is `scripts/transport_runware.py`; a second service is one more `scripts/transport_<service>.py` written against the same contract:
+When the model record carries an offering, send through the dispatcher, which is what makes recording automatic:
 
 ```bash
 python scripts/dispatch.py generation-package.json --studio <dir> --character <id> --slot <slot> [--service <id>] [--seed N] [--count N]
-python scripts/dispatch.py generation-package.json --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-root PROJECT --production-run RUN_ID --production-authorization RECEIPT_SHA --send
+python scripts/dispatch.py generation-package.json --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-authorization RECEIPT_SHA --send
 
 python scripts/dispatch.py generation-package.json --studio <dir> --character <id> --slot <slot> \
   --state-file PACK_STATE_JSON \
@@ -223,9 +250,19 @@ python scripts/dispatch.py generation-package.json --studio <dir> --character <i
   --pack-root ADDITIONAL_PACK_ROOT
 ```
 
-The runtime selectors go together, as everywhere else: the model record and the service record it names are read from one runtime, never from two. Without them the dispatcher reads the default runtime, which is what a session that ran `pack_cli.py state-init` already has.
+The runtime selectors go together, as everywhere else: the model record and the service record it names are read from one runtime, never from two. Without them the dispatcher reads the default runtime, which is what a session that ran `pack_cli.py ready` already has.
 
-The dry run verifies the package and prints the exact request the service would receive: the effective prompt, the negative on the channel the record declares, the parameters, the references by the offering's request keys, and the offering's `as_written` keys where the parameters left them unset. `--send` executes only under the actual direct or delegated authority for that exact request. Every live send requires a prepared production run: reserve the displayed submission intent and pass `--production-root`, `--production-run` and `--production-authorization`. Upload and send occur only after the claim. The uppercase arguments above are operator-supplied paths, IDs and an actual authorization receipt, not values created by the dispatch command. Unexpected output counts are refused before download. Accepted results are recorded as iterations with the request, answer, package and actual file, updating the Studio gallery. Direction, selection and canonical adoption require their separate authority; see [Production permissions](production-permissions.md). A refusal is written under the studio's `runs/`. The credential is read from the environment variable the service record names, or from the host's own configuration, and is never written anywhere. A model exposed on no service here is sent by hand, and its result is recorded with `studio.py iterate` before anything else is done with it.
+The dry run verifies the package, prints a few plain lines, and then prints the exact request the service would receive. The lines name:
+
+- the model and the service with its endpoint;
+- the output count;
+- whether the negative prompt is sent, said plainly when the target has no negative field;
+- the cost from the offering's or the service's price record, or `cost: unknown`;
+- the production run, followed by `shown, not sent`.
+
+`--preview-out FILE` saves the transformation trace and the validation report, and `--intent-out FILE` saves the submission intent to authorize. `--send` executes only under the actual direct or delegated authority for that exact request. Every live send requires a package bound to a prepared production run. The package names the run, and the studio is the production root. Reserve the submission intent and pass its receipt with `--production-authorization`. Upload and send occur only after the claim. The uppercase arguments above are operator-supplied paths and an actual authorization receipt, not values created by the dispatch command.
+
+Every returned image is saved and recorded as an iteration with the request, answer, package and actual file, updating the Studio gallery. That includes images beside a refusal and a count that differs from the authorization; the run journal under `runs/` records the expected and received counts, any refusal and any failed download. The production run receives a result only when the authorized count arrived in full. An image the answer carries inline is decoded from it, one it names by URL is downloaded only over https from a host the transport declares, and either is kept only when its bytes are an image. When one fails, the images that arrived stay recorded, and `python scripts/production_workflow.py recover-recording --root PROJECT --run RUN_ID` saves the rest from the saved answer without sending anything again. Direction, selection and canonical adoption require their separate authority; see [Production permissions](production-permissions.md). The credential is read from the environment variable the service record names, or from an MCP server's `env` block in the host's configuration, and is never written anywhere. The transport sends it only to the endpoint it accepts from the service record. A model exposed on no service here is sent by hand, and its result is recorded with `studio.py iterate` before anything else is done with it.
 
 ## The model's family
 
@@ -247,10 +284,10 @@ A ratio the record declares in `size_hints` uses the recorded size and label. A 
 
 Output is JSON on stdout: the width, the height, the pixel count, the ratio, where the answer came from, the offering it was checked against, and `refused_by_the_observed_schema`. The exit status is 1 when a size is refused, and the command exits with a message when the model is unknown, the ratio is not written as width and height, or the record declares no size and none was given. `scripts/generation_geometry_smoke_test.py` is its regression test.
 
-An upscale goes the same way, from one image rather than a package. First prepare an upscale production task and authorize the exact source hash, model, factor and settings; use settings actually supported by the selected upscaler:
+An upscale goes the same way, from one image rather than a package. First prepare an upscale production task and authorize the exact source hash, model, factor and settings; use settings actually supported by the selected upscaler. The upscale goes under the run prepared for the studio's open task:
 
 ```bash
-python scripts/dispatch.py --upscale --model UPSCALER_ID --source SOURCE_IMAGE --scale 2 --settings SETTINGS_JSON --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-root PROJECT --production-run RUN_ID --production-authorization RECEIPT_SHA --send
+python scripts/dispatch.py --upscale --model UPSCALER_ID --source SOURCE_IMAGE --scale 2 --settings SETTINGS_JSON --request-validation-file VALIDATION_JSON --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-authorization RECEIPT_SHA --send
 ```
 
 The factor and the settings are checked against the upscaler record, each setting is placed on the request key the offering's `setting_keys` gives it (a declared setting with no key cannot be sent), `--guidance` is sent only where the offering records a `guidance prompt` request key and is refused before anything is uploaded where it does not, the request asks for a lossless PNG result, the request is checked against the observed schema, and after the service answers the Upscale Package is built from the source and the returned image under the studio's `packages/` and recorded as an iteration with the request and the answer. A generative or creative upscaler leaves the package's identity audit pending until [Upscale Adapter](../adapters/upscale.md) review passes.
@@ -278,7 +315,7 @@ When the user requests several images at once, across different models or as con
 
 ## Executable walkthrough
 
-[Workflow Walkthrough](workflow-walkthrough.md) creates real input files, invokes the stateless CLI, verifies its result, and exercises a mocked dispatcher. No credential or service is used. State-aware example commands above require both `--plot-file` and `--retrieval-record-file`; `examples/state-aware-pilot/build_example.py` supplies explicit illustrative lookup data for its generated package.
+[Workflow Walkthrough](workflow-walkthrough.md) takes one idea to a dispatch preview for `grok-imagine-image-2.0` on Runware through the builder and dispatcher CLIs. It sends nothing and uses no credential. State-aware example commands above require both `--plot-file` and `--retrieval-record-file`; `examples/state-aware-pilot/build_example.py` supplies explicit illustrative lookup data for its generated package.
 
 
 ## Artifact evidence and completion

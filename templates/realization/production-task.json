@@ -40,5 +40,6 @@
   "authority": "authority.json",
   "artifact": "text",
   "execution": "authored",
-  "scene_materials": []
+  "scene_materials": [],
+  "production_id": ""
 }

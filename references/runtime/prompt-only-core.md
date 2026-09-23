@@ -1,6 +1,6 @@
 # Prompt-only core
 
-Use this file for the shortest ordinary path from a user brief to prompt text. It deliberately excludes preset maintenance, release operations, full morphology doctrine, and model-facing visual transport unless a trigger requires them.
+The shortest ordinary path from a user brief to prompt text. Preset maintenance, release operations, full morphology doctrine and model-facing visual transport apply only when a trigger requires them.
 
 ## 1. Resolve the request
 
@@ -41,9 +41,9 @@ A text draft may omit `--plot`, or include a valid unapproved plot for review. `
 
 Draft output has no execution or canonical-update authorization. A saved text file alone does not require Studio initialization. Generation preparation, an explicitly authorized run, and canonical adoption are separate operations.
 
-The builder requires the retrieval gate to be answered. Pass `--retrieval-record` with a document that answers `schemas/prompt-retrieval-record.schema.json`: one entry per visual element, its search strings, the records or vocabulary terms inspected, and whether the wording was `adopted` from a record or `composed` because retrieval returned nothing suitable. A composed entry states the wording and the reason. Where retrieval cannot be run at all, pass `--retrieval-unavailable` with the reason; the package records `retrieval.settled: false` and `--prepare-for-generation` is refused. Validate a record on its own with `python scripts/prompt_retrieval.py <record>`. For generation, explicitly bind completed real lookups to the authored prompt and approved plot: `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file prompt.txt --plot-file plot.json --out retrieval-settled.json`. Every generation builder requires this record; missing, unavailable, unsettled, or mismatched records block preparation.
+The builder takes the retrieval record with `--retrieval-record lookups.json`. Catalog and vocabulary searches given `--record lookups.json --element NAME` write that record. Mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID`, or with `--composed TEXT --reason TEXT` when no inspected record fits. Where retrieval cannot run at all, pass `--retrieval-unavailable` with the reason; the package records `retrieval.settled: false` and `--prepare-for-generation` is refused. For generation, bind the marked record to the authored prompt and approved plot with `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file prompt.txt --plot-file plot.json --out retrieval-settled.json`. Missing, unavailable, unsettled, or mismatched records block preparation.
 
-Use `python scripts/prompt_artifact_smoke_test.py` for the self-contained artifact contract regression, which drives the plot and the retrieval gate through the builder and settles that a bad input stops the packaging. Use `python scripts/prompt_plot_smoke_test.py` for the readers themselves: it changes one thing in a document that answers the contract and requires the message that rule is for, because a refusal for some other reason proves nothing about the check it was written for. Use `python scripts/runtime_read_footprint.py` only for maintenance measurement of the routed prompt-only context; it does not influence prompt content.
+Regression checks: `python scripts/prompt_artifact_smoke_test.py` and `python scripts/prompt_plot_smoke_test.py`.
 
 ## Retrieved wording checks
 
@@ -56,4 +56,4 @@ The semantic preflight starter uses an empty `structure_plan`, not a human limb 
 
 ## Artifact evidence and completion
 
-For a saved deliverable, continue through [Production Execution](production-execution.md). Preserve this document's own interpretation, retrieval, approval and adoption boundaries. Prepare the exact inputs, capture the real output, bind review and selection to it, then complete and close the work task. `scripts/production_workflow.py status`, `impact` and `resume` recheck dependencies and artifact bytes. A progress checkbox, a search hit or a newly created image is not production completion or canonical adoption.
+For a saved deliverable, continue through [Production Execution](production-execution.md). A search hit or a newly created image is neither production completion nor canonical adoption.

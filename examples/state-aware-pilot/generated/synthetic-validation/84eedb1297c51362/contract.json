@@ -1,0 +1,1 @@
+{"artifact_type":"model-schema-contract","local_overlay":null,"response_pointer":"/schema","schema":{"type":"object"},"schema_sha256":"9091a8164f97eaca182b3d06d0e5a59e923c880ebc0148056c453c651f5b46cb","target":{"model_identifier":"gpt-image-2.5-flare","operation":"generation","service":"synthetic-host"}}

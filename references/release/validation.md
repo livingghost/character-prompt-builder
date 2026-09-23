@@ -78,6 +78,7 @@ python scripts/release_startup_smoke_test.py
 python scripts/interchange_envelope_smoke_test.py
 python scripts/state_pointer_smoke_test.py
 python scripts/shot_request_smoke_test.py
+python scripts/session_entry_smoke_test.py
 python scripts/narrative_contract_smoke_test.py
 python scripts/narrative_authoring_smoke_test.py
 python scripts/persona_workflow_smoke_test.py
@@ -233,9 +234,9 @@ Commit release metadata only after code, documentation, tests, pack locks, and g
 
 ## First-use activation and bundled integrity
 
-`config/pack-initialization.json` enables all valid discovered packs only while the selected state file is absent, and `state-init` persists that result. Existing explicit state is preserved: deliberately disabled packs remain disabled, and selected resource providers remain selected. `config/default-pack-state.json` remains the minimal core-release catalog seed and leaves first-use activation of additional supplied packs unrestricted.
+`config/pack-initialization.json` enables all discovered packs only while the selected state file is absent, and `ready` persists that result. Existing explicit state is preserved: deliberately disabled packs remain disabled, and selected resource providers remain selected. `config/default-pack-state.json` remains the minimal core-release catalog seed and leaves first-use activation of additional supplied packs unrestricted.
 
-The actual bundled `packs/commons` directory with the commons UUID is core-managed. A `pack.lock.json` is absent there by design: core source inventory and `MANIFEST.json` commit it together with the project, and pack validation still checks its schema and files. `lock` and pack release-lock creation refuse that directory rather than recreating an unnecessary lock. The exemption is bound to that path rather than to a manifest flag, so external, installed, copied, and user-library packs still require their release lock. The release gate reports a live core inventory for commons in place of a lock. Every external pack's lock stays in place and at full strength.
+The actual bundled `packs/commons` directory with the commons UUID is core-managed. A `pack.lock.json` is absent there by design: core source inventory and `MANIFEST.json` commit it together with the project, and pack validation still checks its schema and files. `lock` and pack release-lock creation refuse that directory rather than recreating an unnecessary lock. The exemption is bound to that path rather than to a manifest flag, so a copy of commons and every other pack still need a lock to be released or installed. The release gate reports a live core inventory for commons in place of a lock. Every external pack's lock stays in place and at full strength.
 
 ## Production execution verification
 
@@ -243,6 +244,19 @@ For the artifact-bearing execution path, run:
 
 - `python scripts/execution_routes.py validate`
 - `python scripts/production_workflow_smoke_test.py`
+- `python scripts/production_resume_smoke_test.py`
+- `python scripts/production_inputs_smoke_test.py`
+- `python scripts/production_input_model_smoke_test.py`
+- `python scripts/route_reading_smoke_test.py`
+- `python scripts/visual_continuity_smoke_test.py`
+- `python scripts/request_contract_smoke_test.py`
+- `python scripts/request_validation_smoke_test.py`
+- `python scripts/reservation_lifecycle_smoke_test.py`
+- `python scripts/production_series_smoke_test.py`
+- `python examples/input-assembly/build_example.py --check`
+- `python scripts/studio_recipe_smoke_test.py`
+- `python examples/resume-recording/build_example.py --check`
+- `python examples/candidate-recipe/build_example.py --check`
 - `python examples/production-execution/run_example.py --out <new-directory>`
 
 `scripts/execution_contract.py` owns integrity/I/O; `scripts/production_binding.py` connects the package builder, verifier and dispatcher. Run `python scripts/runtime_read_footprint.py` to measure actual manifest-selected reads. A release profile and a complete development handoff remain distinct distributions.
@@ -264,3 +278,16 @@ user-facing instructions. The [README smoke test](../../scripts/readme_smoke_tes
 CI and the repository validator run this same test. Passing examples leave prose
 completeness, Persona understanding, expressive quality and the full tested
 dependency environment uncertified.
+
+Validate a supplied reading record with `python scripts/route_reading.py RECORD --root PROJECT`.
+The checker reports issuance and quotation integrity; the operator assesses its application to the current task.
+
+## Model request workflow checks
+
+The dispatcher preview, attributed evidence import, and candidate variation each have a dedicated regression entry point.
+Run `scripts/production_variation_smoke_test.py`, `scripts/schema_observation_smoke_test.py`, `scripts/dispatch_preview_smoke_test.py`.
+Their synthetic providers exercise request recording and recovery separately from image quality or author acceptance.
+
+## Craft consultation
+
+Run `scripts/preset_consultation_smoke_test.py` and the `examples/preset-consultation/build_example.py --check` CLI example. Check search scope, full records, explicit decisions, atomic application, and unassessed reviewer questions. Assess actual output quality separately.

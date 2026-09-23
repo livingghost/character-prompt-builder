@@ -1,0 +1,16 @@
+{
+  "purpose": "image",
+  "basis": {
+    "path": "fixture-visual-basis.txt",
+    "sha256": "c9ba7582a90b2b90578e1f3ecd9b21a6665606a86f9f088659aff08d3b126cf0",
+    "locator": "whole"
+  },
+  "subjects": {
+    "C01": {
+      "continuity": "undecided",
+      "character_id": "C01",
+      "studio_character": null,
+      "identity_refs": []
+    }
+  }
+}

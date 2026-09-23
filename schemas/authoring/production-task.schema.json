@@ -539,6 +539,14 @@
           }
         ]
       }
+    },
+    "route_reading": {
+      "type": "string",
+      "minLength": 1
+    },
+    "production_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
     }
   },
   "required": [
@@ -552,7 +560,9 @@
     "direction",
     "authority",
     "artifact",
-    "execution"
+    "execution",
+    "route_reading",
+    "production_id"
   ],
   "additionalProperties": false
 }

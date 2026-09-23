@@ -3,7 +3,9 @@
 
 The script does not interpret the brief or write the prompt. It records the
 creative decision, hashes every transmitted text payload, and declares how the
-target interface receives avoidance instructions.
+target interface receives avoidance instructions. It binds the package to the
+prepared production run and derives the route reading, the request check and
+visual continuity from that run, the active pack and the stated decisions.
 """
 from __future__ import annotations
 
@@ -189,6 +191,10 @@ def generation_commitment_projection(data: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("negative provenance declaration is missing")
 
     return {
+        "route_reading_sha256": data["route_reading_sha256"],
+        "visual_continuity_sha256": data["visual_continuity_sha256"],
+        "request_validation_sha256": data["request_validation_sha256"],
+        "input_snapshots_sha256": data["input_snapshots_sha256"],
         "production_binding": data["production_binding"],
         "model": data.get("model"),
         "parameters": parameters,
@@ -406,10 +412,22 @@ def build_payload(
     prepared_reference_root: Path | None = None,
     plot: dict[str, Any] | None = None,
     retrieval_record: dict[str, Any] | None = None,
+    visual_continuity: dict[str, Any] | None = None,
+    visual_root: Path | None = None,
+    request_validation: dict[str, Any] | None = None,
+    input_root: Path | None = None,
+    route_reading: dict[str, Any] | None = None,
+    reading_ledgers: list[Path] | None = None,
     service: str | None = None,
     production_root: Path | None = None,
     production_run: str | None = None,
 ) -> dict[str, Any]:
+    from route_reading import require_route_reading, GENERATION_ROUTES
+    if route_reading is None:
+        raise ValueError("generation requires a route reading")
+    require_route_reading(route_reading, ledgers=reading_ledgers, project=production_root,
+                          package_root=prepared_reference_root, routes=GENERATION_ROUTES)
+    reading_hash = sha256_json(route_reading)
     input_values = {
         "creative_intent": creative_intent,
         "parameters": parameters,
@@ -450,26 +468,12 @@ def build_payload(
     except ValueError:
         if negative_transport == "auto":
             raise
-    recommendation_audit: dict[str, Any] = {
-        "resolved_model_id": model_id if model_record is not None else None,
-        "merge_mode": "advisory-only",
-        "positive": {
-            "declared": False,
-            "applied": False,
-            "mode": "advisory-only",
-            "reason": "model-record-unavailable",
-            "recommended_text": "",
-        },
-        "negative": {
-            "declared": False,
-            "applied": False,
-            "mode": "advisory-only",
-            "reason": "model-record-unavailable",
-            "recommended_text": "",
-        },
-        "integrated": None,
-        "negative_preset": "",
-    }
+    from model_contract import _merge_one
+    _,positive_audit=_merge_one(prompt,'',mode='advisory-only',limit=None,field='prompt')
+    _,negative_audit=_merge_one(negative_prompt,'',mode='advisory-only',limit=None,field='negative_prompt')
+    recommendation_audit={'resolved_model_id':model_id if model_record is not None else None,
+        'merge_mode':'advisory-only','positive':positive_audit,'negative':negative_audit,
+        'integrated':None,'negative_preset':''}
     if model_record is not None:
         if model_record.get("operation_kind") == "upscale":
             raise ValueError(
@@ -595,6 +599,7 @@ def build_payload(
     # when the record's offering points at one. Nothing has been uploaded yet,
     # so media stand in as placeholders and only their number is judged.
     service_summary: dict[str, Any] | None = None
+    offering = None
     if model_record is not None:
         references = reference_set.get("selected_references") or []
         # The record's recommended sampling values fill what the package leaves
@@ -699,6 +704,13 @@ def build_payload(
         "native-subset": "prompt_plus_native_negative",
         "retained-only": "single_prompt_field",
     }
+    if visual_continuity is None:
+        raise ValueError('generation requires a visual continuity input')
+    from visual_continuity import require as require_visual
+    require_visual(visual_continuity, production_spec=production_spec,
+                   prepared=reference_set,
+                   root=visual_root or production_root or prepared_reference_root)
+    visual_hash = sha256_json(visual_continuity)
     result = {
         "status": "ready",
         "model": model,
@@ -758,7 +770,26 @@ def build_payload(
         },
     }
     from production_binding import create as create_production_binding
+    result["visual_continuity"] = visual_continuity
+    result["visual_continuity_sha256"] = visual_hash
+    result["generation_contract"]["visual_continuity_sha256"] = visual_hash
+    result["route_reading"] = route_reading
+    result["route_reading_sha256"] = reading_hash
+    result["generation_contract"]["route_reading_sha256"] = reading_hash
     result["production_binding"] = create_production_binding(production_root, production_run, composition_prompt)
+    if request_validation is None:
+        raise ValueError('generation requires an explicit request validation record')
+    import input_contracts
+    reader, _ = input_contracts.capture_validation(request_validation, root=input_root or production_root or visual_root or prepared_reference_root)
+    reader.basis(visual_continuity['basis'])
+    input_contracts.attach(result, request_validation, reader)
+    from request_renderer import prepare_forwarding
+    selected_key = {'separate-field':'separate','native-subset':'native_subset','integrated-critical':'integrated','retained-only':'integrated'}[mode]
+    result_forward = prepare_forwarding(result, {'selected_transport': {'mode':mode, 'rendition':transports[selected_key]},
+        'host_forwarding': {}}, root=input_root or production_root or visual_root or prepared_reference_root,
+        model_id=model_id, model=model_record, offering=offering)
+    reader.snapshots.update(result_forward['input_snapshots'])
+    input_contracts.attach(result, request_validation, reader)
     generation_input_hash = generation_input_sha256(result)
     result["generation_input_sha256"] = generation_input_hash
     result["generation_contract"]["generation_input_sha256"] = generation_input_hash
@@ -875,6 +906,20 @@ def materialize_cli_reference_bundle(
     prompt_artifacts = copy.deepcopy(validated["prompt_artifacts"])
     board = copy.deepcopy(validated["single_board"])
     carrier_count = 0
+    sources = [row['source'] for row in selected]
+    if validated['reference_use_plan'] is not None:
+        sources.extend(item['source'] for item in validated['reference_use_plan']['reference_items'])
+    for source in sources:
+        import execution_contract as execution
+        raw = execution.read(Path(source['resolved_path']))
+        if execution.digest(raw) != source['sha256']:
+            raise ValueError('reference source changed while recording its snapshot')
+        destination = staging_root / companion_name / 'sources' / source['sha256']
+        if destination.exists():
+            if execution.read(destination) != raw:
+                raise ValueError('recorded source collision')
+        else:
+            execution.atomic(destination, raw)
     for index, row in enumerate(selected):
         transport = row["transport"]
         transport["resolved_path"] = _copy_reference_carrier(
@@ -997,6 +1042,109 @@ def publish_cli_generation_package(
         raise
 
 
+def add_production_arguments(parser: argparse.ArgumentParser) -> None:
+    """Name the prepared run and the decisions a builder cannot derive from it."""
+    parser.add_argument("--production-root", type=Path, required=True,
+                        help="Studio root holding the prepared production run and the project's input evidence")
+    parser.add_argument("--production-run", help="Prepared run; the open work task's current run when omitted")
+    parser.add_argument("--request-validation-file",
+                        help="Request check with its own evidence and execution policy; when omitted, the builder "
+                        "derives it from the observed schema the active pack's offering names")
+    parser.add_argument("--visual-continuity-file",
+                        help="Complete visual continuity record; when omitted, --continuity states the decisions")
+    parser.add_argument("--continuity", action="append", default=[], metavar="SUBJECT=DECISION",
+                        help="recurring, one-off or undecided, once for each production subject")
+    parser.add_argument("--character", action="append", default=[], metavar="SUBJECT=CHARACTER",
+                        help="The studio character a subject is recorded under; required for a recurring subject")
+    parser.add_argument("--sheet-panel", action="store_true", help="The image fills a character sheet panel")
+
+
+def _subject_values(values: Sequence[str], flag: str) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for value in values:
+        subject, separator, item = value.partition("=")
+        if not separator or not subject or not item or subject in result:
+            raise ValueError(f"{flag} takes SUBJECT=VALUE, once for each subject")
+        result[subject] = item
+    return result
+
+
+def production_inputs(
+    args: argparse.Namespace,
+    *,
+    model: str,
+    production_spec: dict[str, Any],
+    prepared_reference_set: dict[str, Any] | None,
+    staging_root: Path,
+    work_ids: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Read the prepared run and derive every input the author did not write.
+
+    The route reading comes from the run. The request check comes from the active
+    pack's offering unless a record is supplied. Visual continuity is built from
+    the stated decisions unless a record is supplied.
+    """
+    import production_workflow
+    import work_ledger
+    from route_reading import copy_issuance, ledger_candidates
+
+    root = args.production_root.absolute()
+    run = args.production_run or work_ledger.require_open(root).get("production_run")
+    if not run:
+        raise ValueError("the open work task has no prepared production run; prepare one first")
+    _, prepared, consumer, _ = production_workflow.assert_current(root, run)
+    reading = prepared["route_reading"]
+    copy_issuance(reading, staging_root / "reads.jsonl", ledgers=ledger_candidates(project=root))
+    reference_set = prepared_reference_set if prepared_reference_set is not None else empty_stateless_reference_set()
+
+    stated = bool(args.continuity or args.character or args.sheet_panel)
+    if args.visual_continuity_file:
+        if stated:
+            raise ValueError("--visual-continuity-file already states continuity; drop --continuity, --character and --sheet-panel")
+        visual = read_json(args.visual_continuity_file)
+    else:
+        if not args.continuity:
+            raise ValueError("state each production subject's continuity with --continuity SUBJECT=DECISION")
+        from visual_continuity import from_decisions
+        visual = from_decisions(
+            _subject_values(args.continuity, "--continuity"), production_spec=production_spec,
+            prepared=reference_set, root=root, characters=_subject_values(args.character, "--character"),
+            work_ids=work_ids, sheet_panel=args.sheet_panel,
+        )
+
+    if args.request_validation_file:
+        validation = read_json(args.request_validation_file)
+    else:
+        if reference_set.get("selected_references") or reference_set.get("single_board"):
+            raise ValueError("a package with references needs --request-validation-file with its execution policy")
+        if consumer["transport"] != "authored-rendition":
+            raise ValueError("bounded production context needs --request-validation-file with its execution policy")
+        import importlib
+        import runtime_evidence
+        import service_profile
+        from catalog_retrieval.runtime import load_pack_catalog
+        from request_validation import from_offering
+
+        model_id, record = resolve_model_record(model)
+        offering = select_offering(record, getattr(args, "service", None))
+        if offering is None:
+            raise ValueError(f"model record {model_id!r} is exposed on no service here; supply --request-validation-file")
+        resource = load_pack_catalog().resources.get("service-profiles")
+        if resource is None:
+            raise ValueError("the active packs provide no service-profiles resource")
+        try:
+            transport = importlib.import_module("transport_" + offering["service"].replace("-", "_"))
+        except ModuleNotFoundError as exc:
+            raise ValueError(f"no transport for the service {offering['service']!r}") from exc
+        try:
+            service = service_profile.load_service(offering["service"], Path(resource.path))
+        except service_profile.PackError as exc:
+            raise ValueError(str(exc)) from exc
+        validation = from_offering(model_id, record, offering, service, transport, runtime_evidence.reader(root))
+    return {"root": root, "run": run, "route_reading": reading,
+            "visual_continuity": visual, "request_validation": validation}
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build an exact Character Prompt Builder generation payload.")
     parser.add_argument("--model", default="gpt-image-2.5-flare")
@@ -1045,8 +1193,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     add_pack_runtime_arguments(parser)
     parser.add_argument("--out", required=True)
-    parser.add_argument("--production-root", type=Path)
-    parser.add_argument("--production-run")
+    add_production_arguments(parser)
     args = parser.parse_args(argv)
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
@@ -1080,9 +1227,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 staging_root=staging_root,
                 companion_name=final_companion.name,
             )
+        production_spec = read_json(args.production_spec_file)
+        derived = production_inputs(args, model=args.model, production_spec=production_spec,
+                                    prepared_reference_set=staged_reference_set, staging_root=staging_root)
         payload = build_payload(
             plot=read_json(args.plot_file),
             retrieval_record=read_json(args.retrieval_record_file),
+            request_validation=derived["request_validation"], input_root=derived["root"],
+            route_reading=derived["route_reading"],
+            visual_continuity=derived["visual_continuity"],
+            visual_root=derived["root"],
+            reading_ledgers=[staging_root / "reads.jsonl"],
             model=args.model,
             prompt=read_text(args.prompt_file),
             negative_prompt=read_text(args.negative_file),
@@ -1091,7 +1246,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             negative_provenance=read_json(args.negative_provenance_file),
             brief=brief,
             creative_intent=read_json(args.intent_file),
-            production_spec=read_json(args.production_spec_file),
+            production_spec=production_spec,
             state_lineage=state_lineage_input,
             prepared_reference_set=staged_reference_set,
             prepared_reference_root=staging_root,
@@ -1099,19 +1254,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             negative_transport=args.negative_transport,
             critical_avoidance_integrated=args.critical_avoidance_integrated,
             service=args.service,
-            production_root=args.production_root,
-            production_run=args.production_run,
+            production_root=derived["root"],
+            production_run=derived["run"],
         )
         # Writing is the commit point. Re-read every selected reference and verify
         # the exact package contract before creating or replacing the output file.
         from verify_generation_payload import verify
 
-        verify(payload, package_root=staging_root)
+        verify(payload, package_root=staging_root, project=derived["root"])
         staged_json.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
             encoding="utf-8",
             newline="\n",
         )
+        from route_reading import copy_issuance
+        copy_issuance(derived["route_reading"], output_path.parent / "reads.jsonl", ledgers=[staging_root / "reads.jsonl"])
         publish_cli_generation_package(
             output_path=output_path,
             staged_json=staged_json,

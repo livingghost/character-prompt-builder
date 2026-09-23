@@ -246,10 +246,10 @@ def execute(root: Path, run: str, filename: str, authorization: str) -> dict:
         evidence = [w.file_record(root, directory, p) for p in compiled['sources']]
         if any(c.object_read(directory, f['sha256']) != compiled['sources'][f['path']] for f in evidence):
             raise ValueError('source changed during validation')
-        claim = w.append_record(directory, prepared, rows, 'image-edit-claim',
-                                {'intent': intent, 'authorizations': [authorization], 'files': files,
-                                 'evidence': evidence, 'reason': compiled['plan']['reason'],
-                                 'limitations': compiled['plan']['limitations']})
+        claim = w.lifecycle.commit_effect(root,run,'image-edit-claim',
+            {'intent':intent,'authorizations':[authorization],'files':files,'evidence':evidence,
+             'reason':compiled['plan']['reason'],'limitations':compiled['plan']['limitations']},
+            [authorization],effect='local-action')
     # A failed computation leaves the reservation/claim. It never creates a new permission.
     raw = _render(compiled)
     with c.lock(root):

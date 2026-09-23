@@ -267,13 +267,9 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         report = json.loads(result.stdout)
         self.assertEqual("static-lexical-words-not-host-tokens", report["measurement"])
-        skill_words = _skill_word_count((ROOT / "SKILL.md").read_text(encoding="utf-8"))
-        minimal = {
-            entry["path"]: entry
-            for entry in report["routes"]["prompt-only-minimal"]["files"]
-        }
-        self.assertEqual(skill_words, minimal["SKILL.md"]["words"])
         for route in report["routes"].values():
+            # The host loads SKILL.md itself; a route read never repeats it.
+            self.assertNotIn("SKILL.md", [entry["path"] for entry in route["files"]])
             for entry in route["files"]:
                 self.assertFalse(entry["missing"], entry["path"])
                 self.assertEqual(
@@ -306,6 +302,21 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         example = json.loads(example_line)
         self.assertIsInstance(example, list)
         self.assertEqual("identity", example[0]["request_id"])
+
+    def test_retrieval_recording_is_routed_and_accepted(self) -> None:
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("--record lookups.json --element NAME", skill)
+        self.assertIn("prompt_retrieval.py lookups.json --element NAME --adopted ID", skill)
+        for command in ("search", "inspect", "inspect-many", "batch"):
+            result = run_cli(command, "--help")
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn("--record PATH", result.stdout, command)
+        marking = subprocess.run(
+            [sys.executable, "scripts/prompt_retrieval.py", "--help"],
+            cwd=ROOT, check=False, capture_output=True, text=True, encoding="utf-8", env=UNPAINTED,
+        )
+        for option in ("--element", "--adopted ID", "--composed TEXT", "--reason"):
+            self.assertIn(option, marking.stdout)
 
     def test_inspect_output_file_is_routed_and_discoverable(self) -> None:
         sparse = (ROOT / "references/runtime/sparse-discovery.md").read_text(
@@ -542,7 +553,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         sheet = (ROOT / "references/runtime/character-sheet-discipline.md").read_text(encoding="utf-8")
         visual = (ROOT / "references/visual-reference-activation-and-transport.md").read_text(encoding="utf-8")
-        self.assertIn("do not create a second transport package", skill)
+        self.assertIn("one ordinary Reference Use Plan", skill)
         self.assertIn("Build one Reference Use Plan and one Prepared Reference Set", sheet)
         self.assertIn("Registered Character Sheet identity with other evidence", visual)
         self.assertIn("supplied-file-only preparation", visual)

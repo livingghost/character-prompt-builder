@@ -13,6 +13,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import sys
 from pathlib import Path
 from typing import Any, Sequence
@@ -399,7 +400,16 @@ def validate(root:Path=ROOT)->dict[str,Any]:
     payload_path=pilot/'generation-package.json'
     if payload_path.is_file():
         try:
-            result=verify(load_json(payload_path))
+            from catalog_retrieval.runtime import using_pack_runtime
+            from pack_manager import default_settings
+            commons = load_json(root / 'packs/commons/pack.json')
+            with tempfile.TemporaryDirectory(prefix='pilot-validation-') as workspace:
+                runtime = Path(workspace)
+                settings = default_settings(state_file=runtime/'state.json', cache_dir=runtime/'cache',
+                    default_enabled_packs=[commons['pack_id']],
+                    default_resource_providers={name: commons['pack_id'] for name in commons['content']['resource_bindings']})
+                with using_pack_runtime(settings):
+                    result=verify(load_json(payload_path),package_root=pilot,project=pilot)
             if result.get('verified') is not True: errors.append('pilot generation package is not verified')
         except ValueError as exc: errors.append(f'pilot generation package: {exc}')
     prepared_set_path=pilot/'prepared-reference-set.json'

@@ -93,6 +93,12 @@
     "reason": {
       "type": "string",
       "minLength": 1
+    },
+    "request_decision": {
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "required": [

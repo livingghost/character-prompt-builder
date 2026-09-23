@@ -456,12 +456,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--list-categories", action="store_true")
     parser.add_argument("--read", type=Path, help="A file holding a finished prompt: report every term with what it draws")
     parser.add_argument("--negative", type=Path, help="A file holding the negative text, read beside --read")
+    parser.add_argument("--record", type=Path, metavar="PATH",
+                        help="Append this search and the terms it returned to a prompt retrieval record")
+    parser.add_argument("--element", help="Visual element this search serves, such as pose or lighting")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if (args.record is None) != (args.element is None):
+        parser.error("--record and --element go together")
+    if args.record is not None and (args.read is not None or args.list_categories):
+        parser.error("--record records a search")
     try:
+        if args.record is not None:
+            from prompt_retrieval import check_recordable
+            check_recordable(args.record, None)
         vocabularies = [load_vocabulary(path) for path in args.dictionary]
         if args.read is not None:
             report = read_prompt(
@@ -495,7 +506,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "result_count": len(rows),
                 "results": [row.as_json() for row in rows],
             }
-    except (OSError, VocabularyError) as exc:
+            if args.record is not None:
+                from prompt_retrieval import record_lookup
+                record_lookup(args.record, args.element, queries=[args.query],
+                              inspected=[row.term for row in rows])
+    except (OSError, ValueError, VocabularyError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))
         return 2
     print(json.dumps(output, ensure_ascii=False, indent=2))

@@ -1,0 +1,26 @@
+{
+  "inspection_changed_studio": false,
+  "request": {
+    "height": 512,
+    "model": "synthetic:target",
+    "prompt": "A synthetic neutral study.",
+    "request_id": "synthetic-request",
+    "seed": 19,
+    "width": 512
+  },
+  "seed": 23,
+  "settings": {
+    "height": 512,
+    "model": "synthetic:target",
+    "prompt": "A synthetic neutral study.",
+    "width": 512
+  },
+  "slot": "base.front",
+  "source_status": "candidate",
+  "synthetic": true,
+  "verified_evidence": [
+    "request",
+    "response",
+    "result"
+  ]
+}

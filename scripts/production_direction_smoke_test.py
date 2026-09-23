@@ -224,8 +224,9 @@ class LifecycleTests(unittest.TestCase):
     def test_selected_instructions_reach_generation_binding(self):
         run = self.prepare(); b = binding.create(self.root, run, 'Keep the sparse field.')
         effective = binding.effective(b, 'Keep the sparse field.')
-        self.assertIn('quiet interval', effective); self.assertNotIn('PRIVATE', effective)
-        self.assertNotIn('placement change alters', effective)
+        self.assertEqual(effective, 'Keep the sparse field.')
+        self.assertIn('quiet interval', str(b['consumer']['direction']))
+        self.assertNotIn('PRIVATE', effective)
     def test_handoff_needs_its_exact_authorization(self):
         run = self.prepare()
         with self.assertRaises(ValueError): w.handoff(self.root, run, 'author', 'manual', 'a'*64)
@@ -391,7 +392,7 @@ class MoneyTests(unittest.TestCase):
     def setUp(self):
         self.authority={'task_id':'fixture','issuer':'fixture','evidence':{'path':'a','locator':'whole'},
             'grants':[{'id':'grant','actor':'actor','mode':'delegated','operations':['submit'],'targets':['delivery'],
-                       'limits':{'uses':5,'outputs':5,'cost':{'currency':'USD','amount':'0.3'}},'protected_criteria':[],'expires_at':None}], 'stop_conditions':[]}
+                       'limits':{'uses':5,'outputs':5,'cost':{'currency':'USD','amount':'0.3'}},'protected_criteria':[],'expires_at':None,'request_scope':None,'submission_validation_modes':['target-schema']}], 'stop_conditions':[]}
         self.request={'grant':'grant','actor':'actor','operation':'submit','targets':['delivery'],'payload':{'count':1},
                       'outputs':1,'cost':{'currency':'USD','amount':'0.2','basis':'Declared fixture cap'},'stop_assessments':[],'reason':'test'}
     def test_decimal_reservations_are_exact(self):

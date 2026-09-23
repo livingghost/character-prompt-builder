@@ -24,19 +24,19 @@ A Visual Evidence record is a searchable asset whose declared evidence artifacts
 
 ## Runtime activation
 
-`pack-state.json` is the complete authority for registered discovery roots, enabled UUIDs, and logical-resource providers. Once a state exists, discovering a pack does not enable it and enabling it does not change its providers. First-use initialization instead enables all discovered packs and selects additional unambiguous providers.
+`pack-state.json` is the complete authority for registered discovery roots, enabled UUIDs, the packs the author disabled, and logical-resource providers. Once a state exists, discovering a pack does not enable it and enabling it does not change its providers. First-use initialization instead enables all discovered packs and selects additional unambiguous providers.
 
-State resolution is deterministic: an explicit `--state-file` path wins; otherwise commands use the persistent user state at `~/.character-prompt-builder/pack-state.json` under the user home directory on every platform; while the selected file does not exist, `config/pack-initialization.json` enables all discovered packs over the minimal core-release seed in `config/default-pack-state.json`. An existing explicit state is never merged or silently reset. `python scripts/pack_cli.py state-init` persists the resolved state file once and reports every discovered pack with its enabled status, including `disabled_discovered_packs`.
+State resolution is deterministic: an explicit `--state-file` path wins; otherwise commands use the persistent user state at `~/.character-prompt-builder/pack-state.json` under the user home directory on every platform; while the selected file does not exist, `config/pack-initialization.json` enables all discovered packs over the minimal core-release seed in `config/default-pack-state.json`. An existing explicit state is never merged or silently reset. `python scripts/pack_cli.py ready` persists the resolved state file on first use, then prints the packs retrieval uses and each decision the author still owes. A pack the catalog cannot use is left out, and every command names it in one `warning:` line with its fix.
+
+Packs are found in two places without registration: the Skill's own `packs/` and the `packs/` folder beside the state file, which is `~/.character-prompt-builder/packs` for the persistent state. `install` puts packs in the second place, so they survive a Skill update. `root-add` registers any other place.
 
 Use [Pack State Runtime Quickstart](references/runtime/pack-state-quickstart.md) when a prompt task needs a non-bundled pack or provider. It covers explicit state, cache freshness, and the requirement to use one context for catalog, planning, materialization, and verification.
 
-The bundled commons pack is separately authored and minimal. Other user-owned and third-party packs may be added, enabled, disabled, updated, and removed independently. Storage location is not a taxonomy and does not make a pack default, local, cloud, or third-party.
+### Personal packs
 
-### Owner-maintained libraries
+The bundled commons pack is separately authored and minimal. Every other pack is a personal pack that its author creates and manages; it may be added, enabled, disabled, updated, and removed independently. Storage location does not make a pack default, local, cloud, or third-party. A personal pack is a normal pack: full-package construction and catalog export may preserve and validate it, and a fresh state enables it at first use without making its records core-release catalog dependencies.
 
-A directory such as `packs/<owner-library>`, when present in a working tree or a full distribution, is owner-maintained content. It remains a normal pack: full-package construction and catalog export may preserve and validate it, and an explicit pack state may enable and use it. Its presence enables it on fresh runtime initialization, without making its records core-release catalog dependencies.
-
-Core documentation, runtime defaults, and regression expectations must not depend on that library's current record IDs, aliases, model inventory, counts, search results, or evaluation history. Tests that need non-bundled content create synthetic packs in temporary directories. This boundary protects ownership without deleting, moving, renaming, or excluding the library itself.
+Core documentation, runtime defaults, and regression expectations must not depend on a personal pack's record IDs, aliases, model inventory, counts, search results, or evaluation history. The product's own tests and release checks create commons-only states with `ready --only`, and tests that need other content create synthetic packs in temporary directories. This boundary protects ownership without deleting, moving, renaming, or excluding a personal pack.
 
 
 ## Prompt-vocabulary resources
@@ -83,7 +83,7 @@ Discovery does not activate a reference. Planning does not create a second sourc
 
 ```text
 pack_cli.py init, validate, build-lock
-pack_cli.py state-init
+pack_cli.py ready
 pack_cli.py root-add, root-remove, list, inspect
 pack_cli.py enable, disable
 pack_cli.py install, update, remove
@@ -92,10 +92,10 @@ pack_cli.py resources, resource
 pack_cli.py provider-list, provider-select, provider-clear
 ```
 
-Successful command results and handled operation reports are JSON. Usage errors and operation failures exit nonzero with English diagnostics.
+`ready` prints plain lines and exits 1 while the author owes a decision. The other commands report JSON. Usage errors and operation failures exit nonzero with English diagnostics.
 
 ## First-use activation and bundled integrity
 
-`config/pack-initialization.json` enables all valid discovered packs only while the selected state file is absent. `state-init` persists that result. Existing explicit state is never overwritten: deliberately disabled packs remain disabled, and selected resource providers remain selected. `config/default-pack-state.json` remains the minimal core-release catalog seed, not a restriction on first-use activation of additional supplied packs.
+`config/pack-initialization.json` enables all discovered packs only while the selected state file is absent. `ready` persists that result. Existing explicit state is never overwritten: deliberately disabled packs remain disabled, and selected resource providers remain selected. `config/default-pack-state.json` remains the minimal core-release catalog seed, not a restriction on first-use activation of additional supplied packs.
 
-The actual bundled `packs/commons` directory with the commons UUID is core-managed. It has no `pack.lock.json`; core source inventory and `MANIFEST.json` commit it together with the project, and pack validation still checks its schema and files. `lock` and pack release-lock creation refuse that directory rather than recreating an unnecessary lock. The exemption is path-bound, not a manifest flag: external, installed, copied, and user-library packs still require their release lock. The release gate reports a live core inventory for commons, not a nonexistent lock. Do not remove or weaken any external pack's lock.
+The actual bundled `packs/commons` directory with the commons UUID is core-managed. It has no `pack.lock.json`; core source inventory and `MANIFEST.json` commit it together with the project, and pack validation still checks its schema and files. `lock` and pack release-lock creation refuse that directory rather than recreating an unnecessary lock. The exemption is path-bound, not a manifest flag: a copy of commons and every other pack still need a lock to be released or installed. The release gate reports a live core inventory for commons, not a nonexistent lock. Do not remove or weaken any external pack's lock.

@@ -5,6 +5,7 @@ python scripts/feature_workflow_smoke_test.py
 No image-generation service is contacted. Fixtures are synthetic, not real consent.
 """
 from __future__ import annotations
+from reading_fixtures import fixture_reading
 import argparse
 import contextlib
 import copy
@@ -60,6 +61,18 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.work = Path(self.work_context.name)
         self.root = studio.init(self.work/'studio', 'fixture-studio', 'Offline fixture')
         self.home = studio.add_character(self.root, 'C01', '')
+        # Preserve the same actual source witnesses when changing the fixture root.
+        from input_evidence import InputEvidence
+        import execution_contract as contract
+        evidence = InputEvidence(None, snapshots=self.package['input_snapshots'], live=False)
+        for relative, snapshot in evidence.snapshots.items():
+            if relative.startswith('@'):
+                continue
+            destination = contract.local(self.root, relative, exists=False)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(evidence._decode(snapshot))
+        (self.root/'continuity-decision.txt').write_text(
+            'Synthetic decision: C01 is a recurring test character. Not human consent.\n')
 
     def iteration(self, color='white', slot='base.front'):
         from PIL import Image
@@ -68,6 +81,12 @@ class FeatureWorkflowTests(unittest.TestCase):
         return studio.iterate(self.root, 'C01', slot, path, package=self.package_path, request=None, response=None, note='Offline fixture')
 
     def approval(self, row, scope='sheet', influence='identity', **extra):
+        if influence == 'identity':
+            from visual_continuity import file_ref
+            extra.setdefault('continuity_decision', {
+                'character_id': 'C01', 'continuity': 'recurring',
+                'basis': file_ref(self.root, 'continuity-decision.txt', locator='whole'),
+                'by': 'SYNTHETIC PRINCIPAL, NOT HUMAN CONSENT', 'at': '2000-01-01T00:00:00Z'})
         return {'scope': scope, 'influence': influence, 'character': 'C01',
                 'iteration_id': row['iteration_id'], 'slot': row['slot'], 'image_sha256': row['result']['sha256'],
                 'by': 'OFFLINE TEST FIXTURE, NOT HUMAN CONSENT', 'at': '2026-09-15T00:00:00Z', **extra}
@@ -86,7 +105,7 @@ class FeatureWorkflowTests(unittest.TestCase):
                 'requested_paths': ['/scene/eyes'], 'frozen_paths': []}
 
     def test_01_package_requires_real_settled_record_and_verifies(self):
-        self.assertTrue(verify(self.package)['verified'])
+        self.assertTrue(verify(self.package, project=self.root)['verified'])
         self.assertEqual(self.package['composition_prompt'], PROMPT)
         self.assertEqual(self.package['retrieval_record_sha256'], digest(self.package['retrieval_record']))
 
@@ -112,11 +131,11 @@ class FeatureWorkflowTests(unittest.TestCase):
     def test_05_verifier_rejects_removal_tampering_and_record_switch(self):
         for key in ('retrieval_record', 'retrieval_record_sha256', 'composition_prompt'):
             value = copy.deepcopy(self.package); value.pop(key)
-            with self.subTest(key=key), self.assertRaises(ValueError): verify(value)
+            with self.subTest(key=key), self.assertRaises(ValueError): verify(value, project=self.root)
         value=copy.deepcopy(self.package); value['retrieval_record']['settled']=False
-        with self.assertRaises(ValueError): verify(value)
+        with self.assertRaises(ValueError): verify(value, project=self.root)
         value=copy.deepcopy(self.package); value['retrieval_record']=fixture_retrieval(PROMPT+' other', APPROVED_PLOT)
-        with self.assertRaises(ValueError): verify(value)
+        with self.assertRaises(ValueError): verify(value, project=self.root)
 
     def test_06_adopt_binds_real_image_and_package_and_next_reference(self):
         row=self.iteration(); result=self.adopt(row)
@@ -219,7 +238,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         final=self.work/'generation';final.mkdir()
         prepared,_=materialize_cli_reference_bundle(prepared,model=MODEL_ID,source_root=self.work/'prepared',staging_root=final,companion_name='package.references')
         package=_package(prepared,prepared_reference_root=final)
-        self.assertTrue(verify(package,package_root=final)['verified'])
+        self.assertTrue(verify(package,package_root=final, project=self.root)['verified'])
         adoption.validate_for_generation(self.root,'C01',package)
 
     def test_15_catalog_failure_leaves_resumable_sheet_and_no_false_completion(self):
@@ -310,8 +329,9 @@ class FeatureWorkflowTests(unittest.TestCase):
         transport=SimpleNamespace(build=Mock(return_value={'taskUUID':'fixture-task','prompt':PROMPT}),
             media_paths=Mock(return_value=[]),upload=Mock(side_effect=AssertionError('unexpected upload')),
             send=Mock(return_value={'data':'fixture'}),rejections=Mock(return_value=[]),
-            results=Mock(return_value=[{'url':'https://example.invalid/fixture.png','id':'fixture','seed':7}]))
-        def save(url,path):
+            results=Mock(return_value=[{'url':'https://example.invalid/fixture.png','id':'fixture','seed':7}]),
+            RESULT_HOSTS=frozenset({'example.invalid'}))
+        def save(url,path,hosts):
             from PIL import Image
             Image.new('RGB',(24,24),'white').save(path);return studio.sha256_file(path)
         offering={'service':'fixture','model_identifier':MODEL_ID,'observed_at':'2026-09-15'}
@@ -321,29 +341,36 @@ class FeatureWorkflowTests(unittest.TestCase):
         package = fixture.bind_package(self.root, run, self.package)
         options.package = self.root / 'bound-package.json'
         options.package.write_text(json.dumps(package), encoding='utf-8')
-        options.production_root = self.root
-        options.production_run = run
+        rendered = fixture.rendered_request(package, seed=7, count=1)
+        offering.update(rendered['sealed']['target'])
+        transport.observation_outcome = Mock(return_value='accepted')
         options.production_authorization = fixture.grant(self.root, run, workflow.submission_intent(
-            package, seed=7, count=1, offering=offering, service={}))
+            package, rendered=rendered, seed=7, count=1, offering=offering, service={}))
         with contextlib.ExitStack() as stack:
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
             for name,kwargs in {'select_offering':{'return_value':offering},'service_for':{'return_value':('fixture',{},transport)},
                 'check_request':{},'api_key':{'return_value':'OFFLINE-NOT-A-CREDENTIAL'},'save':{'side_effect':save}}.items():
                 stack.enter_context(patch.object(dispatch,name,**kwargs))
+            stack.enter_context(patch('request_renderer.generation',return_value=rendered))
             self.assertEqual(dispatch.dispatch_generation(options,self.root),0)
         transport.send.assert_called_once();rows=studio.read_iterations(self.home);self.assertEqual(len(rows),1)
         self.assertEqual(rows[0]['seed'],7)
         self.adopt(rows[0]);self.assertTrue(self.index()['ok'])
 
-    def test_28_executable_documentation_uses_real_cli_builder_and_verifier(self):
+    def test_28_walkthrough_reaches_a_real_request_preview_offline(self):
         import importlib.util
         spec=importlib.util.spec_from_file_location('offline_walkthrough',ROOT/'examples/feature-walkthrough/run.py')
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         result=module.run(self.work/'walkthrough output')
-        self.assertTrue(result['verified']);self.assertEqual(result['external_requests'],0)
-        self.assertEqual(result['mock_dispatch_count'],1);self.assertEqual(result['iterations'],1)
+        self.assertEqual(result['external_requests'],0);self.assertFalse(result['sent']);self.assertEqual(result['iterations'],0)
+        self.assertEqual(result['package_run'],result['production_run'])
+        self.assertEqual(result['request']['model'],'xai:grok-imagine@image-2.0')
+        self.assertEqual((result['request']['width'],result['request']['height']),(832,1248))
+        self.assertEqual(result['validation']['checked'],['target-schema'])
+        self.assertTrue(result['request_validation']['contract'].startswith('@pack/'))
         args=pm.load_json(self.work/'walkthrough output'/'builder-arguments.json')
-        self.assertIn('--plot-file',args);self.assertIn('--retrieval-record-file',args)
+        for flag in ('--plot-file','--retrieval-record-file','--continuity','--production-root'):self.assertIn(flag,args)
+        for flag in ('--request-validation-file','--visual-continuity-file','--production-run'):self.assertNotIn(flag,args)
         with self.assertRaises(ValueError):module.run(self.work/'walkthrough output')
 
     def prompt_artifacts(self, extra, destination='draft'):
@@ -380,7 +407,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         args['creative_intent']['revision_contract']=invalid
         with self.assertRaisesRegex(ValueError,'revision'):build_payload(**args)
         value=copy.deepcopy(self.package);value['creative_intent']['revision_contract']=invalid
-        with self.assertRaisesRegex(ValueError,'revision'):verify(value)
+        with self.assertRaisesRegex(ValueError,'revision'):verify(value, project=self.root)
 
     def test_32_canonical_revision_approval_is_version_bound_and_not_scene_authority(self):
         value=self.revision();value['candidate']=copy.deepcopy(value['baseline'])
@@ -421,10 +448,15 @@ class FeatureWorkflowTests(unittest.TestCase):
             build_reference_use_plan([{'record_id':result['registration']['record_id'],'intended_influence':'outfit'}],
                   transport_mode='prompt-artifacts',source_lighting_mode='replace')
 
-    def test_36_fresh_pack_state_rejects_duplicate_uuid_instead_of_hiding_it(self):
+    def test_36_fresh_pack_state_names_a_duplicate_uuid_instead_of_hiding_it(self):
+        from pack_cache import load_runtime_catalog
         second=self.work/'duplicate';_write_fixture_pack(second)
-        settings=replace(self.settings,roots=(self.pack,second),state_file=self.work/'fresh.json',initialize_all_discovered=True)
-        with self.assertRaisesRegex(pm.PackError,'Initial discovery'):pm.load_effective_state(settings)
+        settings=replace(self.settings,roots=(self.pack,second),state_file=self.work/'fresh.json',
+                         cache_dir=self.work/'fresh-cache',initialize_all_discovered=True)
+        printed=io.StringIO()
+        with contextlib.redirect_stderr(printed):catalog=load_runtime_catalog(settings)
+        self.assertEqual(catalog.active_pack_count,0)
+        self.assertIn(f'warning: pack {PACK_ID} is in more than one pack root, so no copy is used',printed.getvalue())
         self.assertFalse(settings.state_file.exists())
 
     def test_37_state_builder_checks_retrieval_before_expensive_graph_work(self):

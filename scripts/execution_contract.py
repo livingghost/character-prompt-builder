@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import contextlib
+import errno
 import hashlib
 import json
 import os
 import re
+import stat
 import tempfile
 import time
+import threading
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator
 
@@ -60,6 +63,21 @@ def sha(value: Any) -> str:
     return value
 
 
+# Roots already checked for symbolic links, with their resolved form.
+_checked_roots: dict[str, Path] = {}
+
+
+def _root(root: Path) -> Path:
+    """Refuse a root reached through a symbolic link; each root is checked once per process."""
+    resolved = _checked_roots.get(str(root))
+    if resolved is None:
+        for p in [root, *root.parents]:
+            if p.is_symlink():
+                raise ValueError("symbolic link in root")
+        resolved = _checked_roots[str(root)] = root.resolve()
+    return resolved
+
+
 def local(root: Path, relative: str, *, exists: bool = True) -> Path:
     if not isinstance(relative, str) or not relative or "\\" in relative:
         raise ValueError("canonical project-relative POSIX path required")
@@ -67,16 +85,14 @@ def local(root: Path, relative: str, *, exists: bool = True) -> Path:
     if rel.is_absolute() or rel.as_posix() != relative or any(x in {".", ".."} for x in rel.parts):
         raise ValueError("path must remain within the project")
     root = root.absolute()
-    for p in [root, *root.parents]:
-        if p.is_symlink():
-            raise ValueError("symbolic link in root")
+    resolved = _root(root)
     target = root.joinpath(*rel.parts)
     for p in [target, *target.parents]:
         if p == root:
             break
         if p.is_symlink():
             raise ValueError("symbolic link in project path")
-    target.resolve().relative_to(root.resolve())
+    target.resolve().relative_to(resolved)
     if exists and not target.exists():
         raise ValueError(f"missing file: {relative}")
     return target
@@ -91,6 +107,44 @@ def read(path: Path, maximum: int | None = None) -> bytes:
 
 def load(path: Path) -> Any:
     return decode(read(path))
+
+
+# Earlier readings by (root, relative path): the file, its identity, SHA-256 and size.
+_file_digests: dict[tuple[str, str], tuple[Path, tuple[int, ...], str, int]] = {}
+# A reading is reused only for a file modified this long before it was read,
+# longer than the coarsest common timestamp resolution (two seconds on FAT).
+_SETTLED_NS = 3_000_000_000
+
+
+def _identity(path: Path) -> tuple[int, ...] | None:
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return None
+    if not stat.S_ISREG(info.st_mode):
+        return None
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def file_digest(root: Path, relative: str) -> tuple[str, int]:
+    """Return the SHA-256 and size of one regular file below `root`.
+
+    A repeated call reuses the earlier reading while the file keeps its identity,
+    size and timestamps, and was already settled when it was read. A rewrite
+    within one timestamp tick is therefore read again, like every other change.
+    """
+    key = (str(root.absolute()), relative)
+    known = _file_digests.get(key)
+    if known is not None and _identity(known[0]) == known[1]:
+        return known[2], known[3]
+    started = time.time_ns()
+    path = local(root, relative)
+    before = _identity(path)
+    raw = read(path)
+    result = digest(raw), len(raw)
+    if before is not None and before == _identity(path) and before[3] < started - _SETTLED_NS:
+        _file_digests[key] = (path, before, *result)
+    return result
 
 
 def fsync_dir(path: Path) -> None:
@@ -142,8 +196,47 @@ def publish_directory(staging: Path, target: Path, *, patience: float = 10.0) ->
             time.sleep(0.1)
 
 
+_thread_locks: dict[str, Any] = {}
+_lock_registry_guard = threading.Lock()
+_held_locks = threading.local()
+
+
+def _reset_process_locks() -> None:
+    global _thread_locks, _lock_registry_guard, _held_locks
+    _thread_locks = {}
+    _lock_registry_guard = threading.Lock()
+    _held_locks = threading.local()
+
+
+if hasattr(os, 'register_at_fork'):
+    os.register_at_fork(after_in_child=_reset_process_locks)
+
+
 @contextlib.contextmanager
 def lock(root: Path) -> Iterator[None]:
+    """Hold one project lock across nested calls, threads and processes."""
+    root = root.absolute()
+    root.mkdir(parents=True, exist_ok=True)
+    key = str(root.resolve())
+    with _lock_registry_guard:
+        mutex = _thread_locks.setdefault(key, threading.RLock())
+    with mutex:
+        held = getattr(_held_locks, 'roots', None)
+        if held is None:
+            held = _held_locks.roots = set()
+        if key in held:
+            yield
+            return
+        with _os_lock(root):
+            held.add(key)
+            try:
+                yield
+            finally:
+                held.remove(key)
+
+
+@contextlib.contextmanager
+def _os_lock(root: Path) -> Iterator[None]:
     """Cross-process advisory lock; a process crash releases the OS lock."""
     root.mkdir(parents=True, exist_ok=True)
     path = local(root, ".production.lock", exists=False)
@@ -153,7 +246,8 @@ def lock(root: Path) -> Iterator[None]:
             # Another holder's byte lock refuses a read of that byte, so the
             # file is sized rather than read before locking. LK_LOCK gives up
             # after ten one-second attempts with a permission error; the POSIX
-            # branch waits, so wait here as well.
+            # branch waits, so wait here as well. Only another holder's lock
+            # is waited out; any other error is raised.
             if os.fstat(stream.fileno()).st_size == 0:
                 stream.write(b"0")
                 stream.flush()
@@ -162,7 +256,9 @@ def lock(root: Path) -> Iterator[None]:
                 try:
                     msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
                     break
-                except OSError:
+                except OSError as exc:
+                    if exc.errno not in (errno.EACCES, errno.EDEADLOCK):
+                        raise
                     time.sleep(0.05)
             try:
                 yield

@@ -20,6 +20,7 @@ import re
 import shutil
 import struct
 import tempfile
+from dataclasses import dataclass
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -430,7 +431,35 @@ def model_reference_media_types(model: str, *, required: bool) -> frozenset[str]
     return frozenset(raw)
 
 
-def _validate_pack_source(source: Mapping[str, Any], field: str) -> dict[str, Any]:
+@dataclass(frozen=True)
+class _ReferenceContext:
+    active: bool = True
+    source_archive: Path | None = None
+
+    def path(self, source: Mapping[str, Any], field: str) -> Path:
+        declared = _require_string(source.get('resolved_path'), field + '.resolved_path')
+        if self.active:
+            return _canonical_existing_file(declared, field + '.resolved_path', require_canonical=True)
+        digest = _require_sha256(source.get('sha256'), field + '.sha256')
+        if self.source_archive is not None:
+            import execution_contract as execution
+            archived = execution.local(self.source_archive, digest, exists=False)
+            if archived.is_file():
+                if sha256_file(archived) != digest:
+                    raise ValueError(field + ' archived source byte hash mismatch')
+                return archived
+        # An unchanged original can also supply the recorded byte evidence.
+        # Active catalog membership and ownership are not consulted here.
+        path = _canonical_existing_file(declared, field + '.resolved_path', require_canonical=True)
+        if sha256_file(path) != digest:
+            raise ValueError(field + ' needs the original recorded source bytes')
+        return path
+
+
+_LIVE_REFERENCES = _ReferenceContext()
+
+
+def _validate_pack_source(source: Mapping[str, Any], field: str, *, context: _ReferenceContext = _LIVE_REFERENCES) -> dict[str, Any]:
     _require_exact_fields(source, PACK_SOURCE_FIELDS, field)
     canonical: dict[str, Any] = {
         "kind": "pack-artifact",
@@ -447,17 +476,15 @@ def _validate_pack_source(source: Mapping[str, Any], field: str) -> dict[str, An
     }
     if source.get("kind") != "pack-artifact":
         raise ValueError(f"{field}.kind must be pack-artifact")
-    path = _canonical_existing_file(
-        canonical["resolved_path"], f"{field}.resolved_path", require_canonical=True
-    )
-    canonical["resolved_path"] = str(path)
-    expected = active_pack_artifact_sources().get(
-        (canonical["pack_id"], canonical["asset_id"], canonical["artifact_id"])
-    )
-    if expected is None:
-        raise ValueError(f"{field} does not identify an active pack artifact")
-    if canonical != expected:
-        raise ValueError(f"{field} differs from its active pack artifact declaration")
+    path = context.path(canonical, field)
+    if context.active:
+        expected = active_pack_artifact_sources().get(
+            (canonical["pack_id"], canonical["asset_id"], canonical["artifact_id"])
+        )
+        if expected is None:
+            raise ValueError(f"{field} does not identify an active pack artifact")
+        if canonical != expected:
+            raise ValueError(f"{field} differs from its active pack artifact declaration")
     actual_hash = sha256_file(path)
     if actual_hash != canonical["sha256"]:
         raise ValueError(f"{field} source byte hash mismatch")
@@ -487,7 +514,7 @@ def _prepare_supplied_source(source: Mapping[str, Any], field: str) -> dict[str,
     }
 
 
-def _validate_supplied_source(source: Mapping[str, Any], field: str) -> dict[str, Any]:
+def _validate_supplied_source(source: Mapping[str, Any], field: str, *, context: _ReferenceContext = _LIVE_REFERENCES) -> dict[str, Any]:
     _require_exact_fields(source, SUPPLIED_SOURCE_FIELDS, field)
     if source.get("kind") != "supplied-file":
         raise ValueError(f"{field}.kind must be supplied-file")
@@ -502,9 +529,7 @@ def _validate_supplied_source(source: Mapping[str, Any], field: str) -> dict[str
         ),
         "sha256": _require_sha256(source.get("sha256"), f"{field}.sha256"),
     }
-    path = _canonical_existing_file(
-        canonical["resolved_path"], f"{field}.resolved_path", require_canonical=True
-    )
+    path = context.path(canonical, field)
     if sha256_file(path) != canonical["sha256"]:
         raise ValueError(f"{field} source byte hash mismatch")
     if detect_image_media_type(path) != canonical["media_type"]:
@@ -512,14 +537,14 @@ def _validate_supplied_source(source: Mapping[str, Any], field: str) -> dict[str
     return canonical
 
 
-def _validate_source(source: Any, field: str) -> dict[str, Any]:
+def _validate_source(source: Any, field: str, *, context: _ReferenceContext = _LIVE_REFERENCES) -> dict[str, Any]:
     if not isinstance(source, Mapping):
         raise ValueError(f"{field} must be an object")
     kind = source.get("kind")
     if kind == "pack-artifact":
-        return _validate_pack_source(source, field)
+        return _validate_pack_source(source, field, context=context)
     if kind == "supplied-file":
-        return _validate_supplied_source(source, field)
+        return _validate_supplied_source(source, field, context=context)
     raise ValueError(f"{field}.kind must be pack-artifact or supplied-file")
 
 
@@ -535,6 +560,7 @@ def _validate_transport(
     field: str,
     *,
     package_root: Path | None,
+    context: _ReferenceContext = _LIVE_REFERENCES,
 ) -> dict[str, Any]:
     if not isinstance(transport, Mapping):
         raise ValueError(f"{field} must be an object")
@@ -571,9 +597,8 @@ def _validate_transport(
         _require_exact_fields(derivation, SVG_DERIVATION_FIELDS, f"{field}.derivation")
         if source["media_type"] != SVG_MEDIA_TYPE:
             raise ValueError(f"{field} svg-rasterization source is not SVG")
-        source_digest, svg_errors = inspect_svg(
-            Path(source["resolved_path"]), require_path_element=False
-        )
+        source_path = context.path(source, field + ".source")
+        source_digest, svg_errors = inspect_svg(source_path, require_path_element=False)
         if svg_errors:
             raise ValueError("SVG source is unsafe: " + "; ".join(svg_errors))
         if source_digest != source["sha256"]:
@@ -587,17 +612,18 @@ def _validate_transport(
         renderer_release = _require_string(
             derivation.get("renderer_release"), f"{field}.derivation.renderer_release"
         )
-        try:
-            installed_renderer_release = importlib.metadata.version("CairoSVG")
-        except importlib.metadata.PackageNotFoundError as exc:
-            raise RuntimeError(
-                "CairoSVG is required to verify SVG-derived references; "
-                "install requirements-visual.txt"
-            ) from exc
-        if renderer_release != installed_renderer_release:
-            raise ValueError(
-                f"{field}.derivation.renderer_release differs from the installed CairoSVG release"
-            )
+        if context.active:
+            try:
+                installed_renderer_release = importlib.metadata.version("CairoSVG")
+            except importlib.metadata.PackageNotFoundError as exc:
+                raise RuntimeError(
+                    "CairoSVG is required to verify SVG-derived references; "
+                    "install requirements-visual.txt"
+                ) from exc
+            if renderer_release != installed_renderer_release:
+                raise ValueError(
+                    f"{field}.derivation.renderer_release differs from the installed CairoSVG release"
+                )
         if _require_sha256(
             derivation.get("source_sha256"), f"{field}.derivation.source_sha256"
         ) != source["sha256"]:
@@ -620,7 +646,7 @@ def _validate_transport(
         if max(width, height) > max_side:
             raise ValueError(f"{field} raster dimensions exceed max_side")
         expected_dimensions = raster_dimensions_for_max_side(
-            Path(source["resolved_path"]), max_side
+            source_path, max_side
         )
         if (width, height) != expected_dimensions:
             raise ValueError(
@@ -628,18 +654,19 @@ def _validate_transport(
             )
         if image_dimensions(path, media_type) != (width, height):
             raise ValueError(f"{field} raster dimensions differ from PNG bytes")
-        with tempfile.TemporaryDirectory(prefix="cpb-verify-svg-raster-") as temporary:
-            recomputed_path = Path(temporary) / "recomputed.png"
-            render_svg(
-                Path(source["resolved_path"]),
-                recomputed_path,
-                width=width,
-                height=height,
-            )
-            if recomputed_path.read_bytes() != path.read_bytes():
-                raise ValueError(
-                    f"{field} PNG bytes do not match deterministic CairoSVG rasterization"
+        if context.active:
+            with tempfile.TemporaryDirectory(prefix="cpb-verify-svg-raster-") as temporary:
+                recomputed_path = Path(temporary) / "recomputed.png"
+                render_svg(
+                    source_path,
+                    recomputed_path,
+                    width=width,
+                    height=height,
                 )
+                if recomputed_path.read_bytes() != path.read_bytes():
+                    raise ValueError(
+                        f"{field} PNG bytes do not match deterministic CairoSVG rasterization"
+                    )
         normalized_derivation = {
             "mode": "svg-rasterization",
             "renderer_id": "cairosvg",
@@ -754,7 +781,7 @@ def canonical_reference_preamble(
     return base + instructions(transport_mode, selected_references, single_board)
 
 
-def _validated_reference_use_plan(value: Any) -> dict[str, Any]:
+def _validated_reference_use_plan(value: Any, *, context: _ReferenceContext = _LIVE_REFERENCES) -> dict[str, Any]:
     if not isinstance(value, dict) or value.get("artifact_type") != "reference-use-plan":
         raise ValueError("reference_use_plan must be a reference-use-plan artifact")
     report = validate_artifact(value)
@@ -781,14 +808,15 @@ def _validated_reference_use_plan(value: Any) -> dict[str, Any]:
             "invalid reference-use-plan contract: "
             + "; ".join(contract_report.get("errors", []))
         )
-    active_report = validate_active_reference_use_plan(value)
-    if not active_report.get("ok"):
-        raise ValueError(
-            "invalid active reference-use-plan: "
-            + "; ".join(active_report.get("errors", []))
-        )
+    if context.active:
+        active_report = validate_active_reference_use_plan(value)
+        if not active_report.get("ok"):
+            raise ValueError(
+                "invalid active reference-use-plan: "
+                + "; ".join(active_report.get("errors", []))
+            )
     for index, item in enumerate(value.get("reference_items", [])):
-        source = _validate_source(item.get("source"), f"reference_items[{index}].source")
+        source = _validate_source(item.get("source"), f"reference_items[{index}].source", context=context)
         if source != item.get("source"):
             raise ValueError(f"reference_items[{index}].source is not canonical")
     return copy.deepcopy(value)
@@ -827,13 +855,23 @@ def _validated_reference_selection(value: Any) -> dict[str, Any]:
     return copy.deepcopy(value)
 
 
-def validate_prepared_references(
+def validate_prepared_references(value: Any, *, model: str,
+                                 reference_selection: dict[str, Any] | None = None,
+                                 reference_use_plan: dict[str, Any] | None = None,
+                                 package_root: Path | None = None) -> list[dict[str, Any]]:
+    return _validate_prepared_references(value, model=model,
+        reference_selection=reference_selection, reference_use_plan=reference_use_plan,
+        package_root=package_root)
+
+
+def _validate_prepared_references(
     value: Any,
     *,
     model: str,
     reference_selection: dict[str, Any] | None = None,
     reference_use_plan: dict[str, Any] | None = None,
     package_root: Path | None = None,
+    context: _ReferenceContext = _LIVE_REFERENCES,
 ) -> list[dict[str, Any]]:
     """Validate every prepared byte, authority, and optional state/plan scope."""
 
@@ -846,7 +884,7 @@ def validate_prepared_references(
         selection = _validated_reference_selection(reference_selection)
         selection_rows = selection["selected_references"]
     if reference_use_plan is not None:
-        plan = _validated_reference_use_plan(reference_use_plan)
+        plan = _validated_reference_use_plan(reference_use_plan, context=context)
         plan_items = plan["reference_items"]
         if len(value) != len(plan_items):
             raise ValueError(
@@ -885,7 +923,7 @@ def validate_prepared_references(
             )
         expected_state_rows = selection_rows
     allowed_media = (
-        model_reference_media_types(model, required=True) if value else frozenset()
+        model_reference_media_types(model, required=True) if value and context.active else frozenset()
     )
     validated: list[dict[str, Any]] = []
     for index, raw in enumerate(value):
@@ -899,15 +937,15 @@ def validate_prepared_references(
         )
         _require_exact_fields(raw, expected_fields, field)
         role = _require_string(raw.get("role"), f"{field}.role", ROLE_RE)
-        source = _validate_source(raw.get("source"), f"{field}.source")
+        source = _validate_source(raw.get("source"), f"{field}.source", context=context)
         transport = _validate_transport(
             raw.get("transport"),
             source,
             f"{field}.transport",
-            package_root=package_root,
+            package_root=package_root, context=context,
         )
         authority = _validate_authority(raw.get("authority"), f"{field}.authority")
-        if transport["media_type"] not in allowed_media:
+        if context.active and transport["media_type"] not in allowed_media:
             raise ValueError(
                 f"{field} transport media type {transport['media_type']!r} is not declared "
                 f"by model {model!r}"
@@ -1151,11 +1189,28 @@ def _validate_single_board(
     }
 
 
-def validate_prepared_reference_set(
+def validate_prepared_reference_set(value: Any, *, model: str | None = None,
+                                    package_root: Path | None = None) -> dict[str, Any]:
+    """Validate source activity, target constraints and every delivered byte."""
+    return _validate_prepared_reference_set(value, model=model, package_root=package_root)
+
+
+def validate_prepared_reference_content(value: Any, *, model: str | None = None,
+                                        package_root: Path | None = None) -> dict[str, Any]:
+    """Verify recorded bytes and relations without approving a new delivery."""
+    from build_generation_payload import validate_generation_package_carrier_paths
+    companion = validate_generation_package_carrier_paths(value, package_root=package_root)
+    archive = (package_root / companion / 'sources') if package_root is not None and companion else None
+    return _validate_prepared_reference_set(value, model=model, package_root=package_root,
+                                            context=_ReferenceContext(False, archive))
+
+
+def _validate_prepared_reference_set(
     value: Any,
     *,
     model: str | None = None,
     package_root: Path | None = None,
+    context: _ReferenceContext = _LIVE_REFERENCES,
 ) -> dict[str, Any]:
     """Validate the sole canonical reference-set artifact and every referenced byte."""
 
@@ -1214,7 +1269,7 @@ def validate_prepared_reference_set(
         plan_hash = None
         surface_hash = None
     else:
-        plan = _validated_reference_use_plan(plan_value)
+        plan = _validated_reference_use_plan(plan_value, context=context)
         plan_hash = _require_sha256(plan_hash_value, "reference_use_plan_sha256")
         surface_hash = _require_sha256(
             surface_hash_value, "surface_lighting_plan_sha256"
@@ -1254,14 +1309,14 @@ def validate_prepared_reference_set(
     if plan is None and prompt_artifacts:
         raise ValueError("plan-null prepared references must not contain prompt_artifacts")
     effective_model = target_model or model or ""
-    references = validate_prepared_references(
+    references = _validate_prepared_references(
         value.get("selected_references"),
         model=effective_model,
-        reference_selection=selection,
+        reference_selection=selection, context=context,
         reference_use_plan=(plan if mode in {"multi-image", "single-board"} else None),
         package_root=package_root,
     )
-    if mode in {"multi-image", "single-board"}:
+    if context.active and mode in {"multi-image", "single-board"}:
         model_id, model_record = resolve_model_record(str(target_model))
         if model_record.get("operation_kind") == "upscale":
             raise ValueError(
@@ -1337,9 +1392,10 @@ def validate_prepared_reference_set(
     if mode == "single-board":
         if not references or board is None:
             raise ValueError("single-board transport requires selected references and a board")
-        allowed_media = model_reference_media_types(str(target_model), required=True)
-        if PNG_MEDIA_TYPE not in allowed_media:
-            raise ValueError("target model does not accept the single-board PNG transport")
+        if context.active:
+            allowed_media = model_reference_media_types(str(target_model), required=True)
+            if PNG_MEDIA_TYPE not in allowed_media:
+                raise ValueError("target model does not accept the single-board PNG transport")
 
     concrete_hash = _require_sha256(
         value.get("prepared_reference_set_sha256"), "prepared_reference_set_sha256"

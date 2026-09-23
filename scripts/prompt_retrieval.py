@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Validate a prompt retrieval record against `schemas/prompt-retrieval-record.schema.json`."""
+"""Mark, validate and settle a prompt retrieval record (`schemas/prompt-retrieval-record.schema.json`).
+
+`catalog_cli.py --record` appends the lookups; this tool records each element's outcome."""
 from __future__ import annotations
 
 import argparse
@@ -161,6 +163,64 @@ def settle_retrieval_record(value: Any, *, prompt: str, plot: dict[str, Any]) ->
     return result
 
 
+def _draft(path: Path, pack_state: str | None) -> dict[str, Any]:
+    value = (json.loads(path.read_text(encoding="utf-8")) if path.exists()
+             else {"artifact_type": ARTIFACT_TYPE, "elements": []})
+    if not isinstance(value, dict) or value.get("artifact_type") != ARTIFACT_TYPE or not isinstance(value.get("elements"), list):
+        raise ValueError(f"not a prompt retrieval record: {path}")
+    if value.get("settled"):
+        raise ValueError(f"{path} is settled; record new lookups in a new file")
+    if pack_state is not None and value.setdefault("pack_state", pack_state) != pack_state:
+        raise ValueError(f"the pack runtime changed since {path} began; repeat retrieval into a new record")
+    return value
+
+
+def check_recordable(path: Path, pack_state: str | None) -> None:
+    """Refuse before a lookup runs when its result could not be recorded."""
+    _draft(path, pack_state)
+
+
+def record_lookup(path: Path, element: str, *, queries: Sequence[str] = (),
+                  inspected: Sequence[str] = (), pack_state: str | None = None) -> dict[str, Any]:
+    """Append the queries and inspected records one lookup actually ran."""
+    if not isinstance(element, str) or not element.strip():
+        raise ValueError("a recorded lookup needs a non-empty element name")
+    value = _draft(path, pack_state)
+    entry = next((item for item in value["elements"] if item.get("element") == element), None)
+    if entry is None:
+        entry = {"element": element, "queries": [], "inspected_records": []}
+        value["elements"].append(entry)
+    for field, items in (("queries", queries), ("inspected_records", inspected)):
+        for item in items:
+            if item not in entry.setdefault(field, []):
+                entry[field].append(item)
+    from pack_manager import atomic_write_json
+    atomic_write_json(path, value)
+    return value
+
+
+def mark_outcome(value: Any, element: str, *, adopted: str | None = None,
+                 composed: str | None = None, reason: str | None = None) -> dict[str, Any]:
+    """Record the author's decision for one element: adopted wording or composed wording."""
+    if not isinstance(value, dict) or value.get("settled"):
+        raise ValueError("mark outcomes on an unsettled retrieval record")
+    entry = next((item for item in value.get("elements", []) if item.get("element") == element), None)
+    if entry is None:
+        raise ValueError(f"no recorded lookup for element {element!r}")
+    if adopted and composed is None and reason is None:
+        if adopted not in entry.get("inspected_records", []):
+            raise ValueError(f"{adopted!r} was not inspected for element {element!r}")
+        entry.pop("composed_wording", None)
+        entry.pop("reason", None)
+        entry.update(outcome="adopted", adopted_record=adopted)
+    elif adopted is None and composed and reason:
+        entry.pop("adopted_record", None)
+        entry.update(outcome="composed", composed_wording=composed, reason=reason)
+    else:
+        raise ValueError("mark an element with --adopted ID, or with --composed TEXT and --reason TEXT")
+    return value
+
+
 def require_generation_retrieval(value: Any, *, prompt: str, plot: dict[str, Any]) -> dict[str, Any]:
     report = validate_prompt_retrieval_record(value)
     if not report["ok"]:
@@ -179,9 +239,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--prompt-file", type=Path)
     parser.add_argument("--plot-file", type=Path)
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--element", help="Mark this element's outcome in the record, in place")
+    parser.add_argument("--adopted", metavar="ID", help="The inspected record whose wording the prompt uses")
+    parser.add_argument("--composed", metavar="TEXT", help="Wording written because no inspected record fits")
+    parser.add_argument("--reason", help="Why no inspected record fits the composed wording")
     args = parser.parse_args(argv)
     try:
         value = json.loads(args.record.read_text(encoding="utf-8"))
+        if args.element is not None:
+            if args.settle or any((args.prompt_file, args.plot_file, args.out)):
+                raise ValueError("mark outcomes before settling, in a separate command")
+            mark_outcome(value, args.element, adopted=args.adopted, composed=args.composed, reason=args.reason)
+            from pack_manager import atomic_write_json
+            atomic_write_json(args.record, value)
+            remaining = validate_prompt_retrieval_record(value)["errors"]
+            print(json.dumps({"ok": True, "marked": args.element, "remaining": remaining},
+                             ensure_ascii=False, indent=2))
+            return 0
+        if any(x is not None for x in (args.adopted, args.composed, args.reason)):
+            raise ValueError("--adopted, --composed and --reason require --element")
         if args.settle:
             if not args.prompt_file or not args.plot_file or not args.out:
                 raise ValueError("--settle requires --prompt-file, --plot-file and --out")

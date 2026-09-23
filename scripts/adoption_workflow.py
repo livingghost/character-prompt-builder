@@ -54,8 +54,8 @@ def validate_approval(value: Any, character: str, row: dict[str, Any]) -> dict[s
     if not isinstance(value, dict):
         raise ValueError("adoption requires an explicit approval object")
     required = {"scope", "influence", "character", "iteration_id", "slot", "image_sha256", "by", "at"}
-    if required - set(value) or set(value) - required - {"note", "license", "registration_record_sha256"}:
-        raise ValueError("approval fields must be scope, influence, character, iteration_id, slot, image_sha256, by, at; optional note, license and registration_record_sha256")
+    if required - set(value) or set(value) - required - {"note", "license", "registration_record_sha256", "continuity_decision"}:
+        raise ValueError("approval fields must be scope, influence, character, iteration_id, slot, image_sha256, by, at; optional note, license, registration_record_sha256 and continuity_decision")
     if value["scope"] not in SCOPES or value["influence"] not in INFLUENCES:
         raise ValueError("unknown adoption scope or influence")
     expected = {"character": character, "iteration_id": row["iteration_id"], "slot": row["slot"],
@@ -213,6 +213,9 @@ def adopt(root: Path, character: str, iteration: str, approval: Any, *,
         if not row.get("package"):
             raise ValueError("sheet adoption needs the recorded generation package")
         safe_file(root, row["package"]["path"], row["package"]["sha256"])
+        if confirmed['influence'] == 'identity':
+            from visual_continuity import adoption_subject
+            adoption_subject(root, character, row, confirmed)
         if confirmed["scope"] == "catalog":
             if not isinstance(registration_record, dict) or pack_dir is None or settings is None:
                 raise ValueError("catalog adoption requires --registration-record, --pack-dir and a resolved pack runtime")

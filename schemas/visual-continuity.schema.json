@@ -1,0 +1,118 @@
+{
+  "type": "object",
+  "properties": {
+    "purpose": {
+      "enum": [
+        "sheet-panel",
+        "image"
+      ]
+    },
+    "basis": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "locator"
+      ],
+      "additionalProperties": false
+    },
+    "subjects": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "continuity": {
+            "enum": [
+              "recurring",
+              "one-off",
+              "undecided"
+            ]
+          },
+          "character_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "studio_character": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "identity_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slot": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "iteration_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "reference_number": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "slot",
+                "iteration_id",
+                "source_sha256",
+                "reference_number"
+              ],
+              "additionalProperties": false
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "continuity",
+          "character_id",
+          "studio_character",
+          "identity_refs"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "purpose",
+    "basis",
+    "subjects"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Visual continuity input"
+}

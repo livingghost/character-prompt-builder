@@ -13,8 +13,13 @@ Start at the request itself: a world, theme, agent, event, form or local revisio
 workspace, and the complete
 [Persona Template](../templates/narrative/personas/persona-template.md) when individualized
 behavior or dialogue is designed or materially revised; unpeopled work skips it. Read existing
-records before proposing changes. A conversation can remain text; a series directory, image
-prompt, model, pack activation or Studio is optional.
+records before proposing changes. A one-off answer stays in the conversation. Once a draft will be
+reused or revised, create the series directory and the studio work trail before the next dependent
+draft, and save what that draft depends on: the instruction, the draft shown, the decisions with
+their scope, and the open questions. Saving needs no image prompt, model, pack activation, sheet or
+finished persona. A series directory may sit inside a studio, for example
+`<studio>/story/narrative/`, so the files and the trail share one home;
+[Studio Runtime](runtime/studio.md) owns the trail and its checkpoints.
 
 An agent may draft for the author; an implementation consumes approved intent rather than
 inventing it or its approval. Preserve user anchors, proposals, adopted scope, rejected options
@@ -100,6 +105,11 @@ than alternate creation sources. Other kinds receive prompts appropriate to thei
 Adding a persona leaves the narrative character, phase history and adoption to the author: set the
 narrative's pointers explicitly. Keep phase-specific knowledge and choices in the correct file; a
 current pointer is no permission to use the final persona in an earlier scene.
+
+A person the agent proposes is a candidate in the design ledger until the author admits it; create
+the persona entity and set the pointers after that decision, once.
+[Cast Admission and Persona Depth](runtime/cast-and-persona-depth.md) owns the candidate, the scope
+of a confirmation and the depth a use needs.
 
 `rename` changes the entity filename and ID, declared front-matter references, narrative persona
 pointers and supported scene location references; arbitrary prose, ledger entries and Markdown

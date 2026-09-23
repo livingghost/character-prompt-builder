@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "character-prompt-builder"
-version = "2026.9.20.1"
+version = "2026.9.23.1"
 description = "Art-direction-first prompt construction, visual-state, and reference-evidence tools."
 readme = "README.md"
 requires-python = ">=3.11"

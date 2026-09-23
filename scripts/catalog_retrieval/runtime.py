@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import OrderedDict
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -70,6 +71,23 @@ def configure_pack_runtime(settings: PackSettings | None) -> None:
     global _PACK_SETTINGS
     _PACK_SETTINGS = settings
     clear_runtime_caches()
+
+
+@contextmanager
+def using_pack_runtime(settings: PackSettings | None):
+    """Use one explicit runtime for a bounded operation, then restore its caller."""
+    previous = _PACK_SETTINGS
+    configure_pack_runtime(settings)
+    try:
+        yield
+    finally:
+        configure_pack_runtime(previous)
+
+
+def selected_pack_settings() -> PackSettings:
+    """Expose the selected runtime paths without creating or changing activation."""
+    from pack_manager import default_settings
+    return _PACK_SETTINGS or default_settings()
 
 
 def begin_catalog_request() -> RuntimePackCatalog:

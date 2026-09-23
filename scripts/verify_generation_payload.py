@@ -32,6 +32,7 @@ VALID_INTEGRATED_METHODS = {
 }
 VALID_NATIVE_METHODS = {"verbatim-native-subset", "no-negative-required", "unavailable"}
 GENERATION_CONTRACT_FIELDS = {
+    "route_reading_sha256", "visual_continuity_sha256", "request_validation_sha256", "input_snapshots_sha256",
     "forward_verified_prompt_transport",
     "forward_verified_negative_transport",
     "forward_ordered_reference_transports",
@@ -50,6 +51,8 @@ GENERATION_CONTRACT_FIELDS = {
     "prompt_recommendations_sha256",
 }
 GENERATION_PACKAGE_FIELDS = {
+    "route_reading", "route_reading_sha256", "visual_continuity", "visual_continuity_sha256",
+    "request_validation", "request_validation_sha256", "input_snapshots", "input_snapshots_sha256",
     "production_binding",
     "status",
     "model",
@@ -292,28 +295,34 @@ def _selected_rendition(mode: str, transports: dict[str, Any]) -> dict[str, Any]
     return rendition
 
 
-def _effective_model_prompt(
-    reference_preamble: str,
-    mode: str,
-    rendition: dict[str, Any],
-) -> str:
-    prompt_field = "text" if mode in {"integrated-critical", "retained-only"} else "prompt"
-    prompt = rendition.get(prompt_field)
-    if not isinstance(prompt, str) or not prompt:
-        raise ValueError("selected prompt transport is empty")
-    if not reference_preamble:
-        return prompt
-    return reference_preamble.rstrip("\n") + "\n\n" + prompt
-
-
-def verify(
+def _verify(
     data: dict[str, Any],
     *,
     package_root: Path | None = None,
+    live: bool,
+    project: Path | None = None,
+    reading_ledgers: list[Path] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("generation package must be an object")
     _require_exact_fields(data, GENERATION_PACKAGE_FIELDS, "generation package")
+    import input_contracts
+    input_reader, validation_report = input_contracts.verify_fields(data, root=project or package_root, live=live)
+    input_reader.basis(data['visual_continuity']['basis'])
+    for field in ('request_validation_sha256','input_snapshots_sha256'):
+        if data['generation_contract'].get(field) != data[field]:
+            raise ValueError('generation contract '+field+' mismatch')
+    from route_reading import require_route_reading, validate_record_content, GENERATION_ROUTES
+    validate_record_content(data["route_reading"])
+    if live:
+        require_route_reading(data["route_reading"], project=project, ledgers=reading_ledgers,
+                              package_root=package_root, routes=GENERATION_ROUTES)
+    reading_hash = sha256_json(data["route_reading"])
+    if data["route_reading_sha256"] != reading_hash or data["generation_contract"].get("route_reading_sha256") != reading_hash:
+        raise ValueError("route reading hash mismatch")
+    if (data.get("state_lineage") or {}).get("mode") == "state-aware":
+        if data["route_reading"]["route"] != "state-series" and "state-series" not in data["route_reading"]["features"]:
+            raise ValueError("state-aware generation requires the state-series reading")
     from production_binding import validate as validate_production_binding
     validate_production_binding(data["production_binding"], data.get("composition_prompt", ""))
     non_finite = find_non_finite_numbers(data)
@@ -362,7 +371,7 @@ def verify(
         "generation_payload.prompt_recommendations",
     )
     recommendation_entry_fields = {
-        "declared", "applied", "mode", "reason", "recommended_text"
+        "declared", "applied", "mode", "reason", "recommended_text", "source_text", "limit", "segments"
     }
     for name in ("positive", "negative"):
         entry = recommendation_audit.get(name)
@@ -380,6 +389,11 @@ def verify(
             integrated_audit, recommendation_entry_fields,
             "generation_payload.prompt_recommendations.integrated",
         )
+    from model_contract import validate_recommendation_audit
+    validate_recommendation_audit(recommendation_audit['positive'],payload['prompt'])
+    validate_recommendation_audit(recommendation_audit['negative'],payload['negative_prompt'])
+    if integrated_audit is not None:
+        validate_recommendation_audit(integrated_audit,payload['transports']['integrated']['text'])
     recommendation_hash = sha256_json(recommendation_audit)
     for location, value in (
         (
@@ -405,57 +419,65 @@ def verify(
     parameters = payload.get("parameters")
     if not isinstance(parameters, dict):
         raise ValueError("generation parameters must be an object")
-    try:
-        from build_generation_payload import resolve_model_record
-
-        model_id, model_record = resolve_model_record(model)
-    except ValueError:
-        model_id = model
-        model_record = None
-    if model_record is not None:
-        if model_record.get("operation_kind") == "upscale":
-            raise ValueError(
-                f"model record {model_id!r} is an upscaler and is invalid in a Generation Package"
+    model_id = model
+    model_record = None
+    offering = None
+    if live:
+        try:
+            from build_generation_payload import resolve_model_record
+    
+            model_id, model_record = resolve_model_record(model)
+        except ValueError:
+            model_id = model
+            model_record = None
+        if model_record is not None:
+            if model_record.get("operation_kind") == "upscale":
+                raise ValueError(
+                    f"model record {model_id!r} is an upscaler and is invalid in a Generation Package"
+                )
+            from prepare_generation_references import model_pack_root
+    
+            # The same check the builder made, from what the package carries: the
+            # record's limits, then the offering's observed schema over the request
+            # as the service would see it.
+            reference_set = data.get("prepared_reference_set") or {}
+            references = reference_set.get("selected_references") or [] if isinstance(reference_set, dict) else []
+            mode = (payload.get("negative_transport") or {}).get("mode")
+            declared = payload.get("service")
+            if declared is not None and not isinstance(declared, dict):
+                raise ValueError("generation_payload.service must be an object or null")
+            selected = select_offering(model_record, (declared or {}).get("id"))
+            offering = validate_generation_parameters(
+                model_record,
+                parameters,
+                service=(declared or {}).get("id"),
+                pack_root=model_pack_root(model_id),
+                prompt=str(payload.get("prompt") or ""),
+                negative_prompt=str(payload.get("negative_prompt") or "") if mode == "separate-field" else None,
+                media_counts=None if selected is None else generation_media_counts(
+                    selected, 1 if reference_set.get("single_board") else len(references)
+                ),
             )
-        from prepare_generation_references import model_pack_root
-
-        # The same check the builder made, from what the package carries: the
-        # record's limits, then the offering's observed schema over the request
-        # as the service would see it.
-        reference_set = data.get("prepared_reference_set") or {}
-        references = reference_set.get("selected_references") or [] if isinstance(reference_set, dict) else []
-        mode = (payload.get("negative_transport") or {}).get("mode")
-        declared = payload.get("service")
-        if declared is not None and not isinstance(declared, dict):
-            raise ValueError("generation_payload.service must be an object or null")
-        selected = select_offering(model_record, (declared or {}).get("id"))
-        offering = validate_generation_parameters(
-            model_record,
-            parameters,
-            service=(declared or {}).get("id"),
-            pack_root=model_pack_root(model_id),
-            prompt=str(payload.get("prompt") or ""),
-            negative_prompt=str(payload.get("negative_prompt") or "") if mode == "separate-field" else None,
-            media_counts=None if selected is None else generation_media_counts(
-                selected, 1 if reference_set.get("single_board") else len(references)
-            ),
-        )
-        expected = None if offering is None else {
-            "id": offering["service"],
-            "model_identifier": offering["model_identifier"],
-            "observed_at": offering["observed_at"],
-            "schema_snapshot": offering.get("schema_snapshot"),
-        }
-        if declared != expected:
-            raise ValueError(
-                f"generation_payload.service is {declared!r}, and the model record's offering says {expected!r}"
-            )
-        positive_limit = model_record.get("max_positive_prompt_chars")
-        negative_limit = model_record.get("max_negative_prompt_chars")
-        if isinstance(positive_limit, int) and len(str(payload.get("prompt") or "")) > positive_limit:
-            raise ValueError("prompt exceeds the active model character limit")
-        if isinstance(negative_limit, int) and len(str(payload.get("negative_prompt") or "")) > negative_limit:
-            raise ValueError("negative prompt exceeds the active model character limit")
+            expected = None if offering is None else {
+                "id": offering["service"],
+                "model_identifier": offering["model_identifier"],
+                "observed_at": offering["observed_at"],
+                "schema_snapshot": offering.get("schema_snapshot"),
+            }
+            if declared != expected:
+                raise ValueError(
+                    f"generation_payload.service is {declared!r}, and the model record's offering says {expected!r}"
+                )
+            positive_limit = model_record.get("max_positive_prompt_chars")
+            negative_limit = model_record.get("max_negative_prompt_chars")
+            if isinstance(positive_limit, int) and len(str(payload.get("prompt") or "")) > positive_limit:
+                raise ValueError("prompt exceeds the active model character limit")
+            if isinstance(negative_limit, int) and len(str(payload.get("negative_prompt") or "")) > negative_limit:
+                raise ValueError("negative prompt exceeds the active model character limit")
+        if model_record is not None:
+            require_route_reading(data['route_reading'], project=project, ledgers=reading_ledgers,
+                package_root=package_root, routes=GENERATION_ROUTES,
+                dialect=model_record.get('prompt_dialect'))
     prompt = payload.get("prompt")
     negative = payload.get("negative_prompt")
     native_negative = payload.get("native_negative")
@@ -560,12 +582,22 @@ def verify(
     if state_context.get("mode") != state_lineage.get("mode"):
         raise ValueError("production specification state mode differs from lineage")
 
-    reference_set = validate_prepared_reference_set(
+    from prepare_generation_references import validate_prepared_reference_content
+    reference_validator = validate_prepared_reference_set if live else validate_prepared_reference_content
+    reference_set = reference_validator(
         data.get("prepared_reference_set"),
         model=model,
         package_root=package_root,
     )
     validate_generation_package_carrier_paths(reference_set, package_root=package_root)
+    from visual_continuity import validate_content as validate_visual_content, require as require_visual
+    validate_visual_content(data['visual_continuity'], production_spec)
+    visual_hash = sha256_json(data['visual_continuity'])
+    if data['visual_continuity_sha256'] != visual_hash or contract['visual_continuity_sha256'] != visual_hash:
+        raise ValueError('visual continuity hash mismatch')
+    if live:
+        require_visual(data['visual_continuity'], production_spec=production_spec,
+                       prepared=reference_set, root=project or package_root)
     reference_set_hash = require_concrete_sha256(
         reference_set.get("prepared_reference_set_sha256"),
         "prepared_reference_set.prepared_reference_set_sha256",
@@ -678,19 +710,13 @@ def verify(
         "instruction": instruction,
         "rendition": rendition,
     }
-    effective_prompt = _effective_model_prompt(
-        reference_set["reference_preamble"],
-        mode,
-        rendition,
-    )
-    from production_binding import effective as production_effective
-    binding = data["production_binding"]
-    if binding is not None and binding['consumer']['transport'] == 'bounded-context':
-        from prepare_generation_references import resolve_model_record
-        _, bound_model = resolve_model_record(model)
-        if bound_model.get('prompt_dialect') not in {None, 'natural-language', 'instruction-edit'}:
-            raise ValueError('declared prompt dialect requires an authored-rendition; do not prepend structured context')
-    effective_prompt = production_effective(data["production_binding"], effective_prompt)
+    if not live:
+        return {'content_verified': True, 'generation_input_sha256': generation_input_hash,
+                'production_spec': production_spec, 'prepared_reference_set': reference_set,
+                'route_reading_sha256': reading_hash,
+                'unmeasured': ['Current execution eligibility', 'Current source ownership',
+                               'Visual meaning and suitability', 'Current renderer reproducibility']}
+    effective_prompt = rendition['text' if mode in {'integrated-critical','retained-only'} else 'prompt']
     host_forwarding = {
         "model": model,
         "parameters": parameters,
@@ -704,7 +730,15 @@ def verify(
         ),
         "generation_input_sha256": generation_input_hash,
     }
+    from request_renderer import prepare_forwarding
+    rendered_input = prepare_forwarding(data, {'selected_transport':selected_transport,'host_forwarding':host_forwarding},
+        root=project or package_root, model_id=model_id, model=model_record, offering=offering)
+    if rendered_input['input_snapshots'] != data['input_snapshots']:
+        raise ValueError('execution policy evidence is not completely captured in the generation input')
+    host_forwarding = rendered_input['host_forwarding']
     return {
+        **{key:rendered_input[key] for key in ('bindings','review_requirements','execution_policy')},
+        'request_validation_report': validation_report,
         "verified": True,
         "model": model,
         "prompt": prompt,
@@ -731,15 +765,28 @@ def verify(
     }
 
 
+def verify(data: dict[str, Any], *, package_root: Path | None = None,
+           project: Path | None = None, reading_ledgers: list[Path] | None = None) -> dict[str, Any]:
+    """Verify a current execution input using active sources and reading evidence."""
+    return _verify(data, package_root=package_root, live=True, project=project,
+                   reading_ledgers=reading_ledgers)
+
+
+def verify_content(data: dict[str, Any], *, package_root: Path | None = None) -> dict[str, Any]:
+    """Verify recorded content; this result does not authorize a new execution."""
+    return _verify(data, package_root=package_root, live=False)
+
+
 def emit_paste_for_target(
     data: dict[str, Any],
     target: str,
     *,
     package_root: Path | None = None,
+    project: Path | None = None,
 ) -> dict[str, Any]:
     """Export only the already committed transport; never infer a new one."""
 
-    result = verify(data, package_root=package_root)
+    result = verify(data, package_root=package_root, project=project)
     if target != result["model"]:
         raise ValueError(
             f"requested target {target!r} differs from committed model {result['model']!r}"
@@ -780,6 +827,7 @@ def emit_paste_for_target(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Verify an exact Character Prompt Builder payload.")
     parser.add_argument("payload")
+    parser.add_argument("--studio-root", type=Path, help="Source and studio root for live visual checks")
     parser.add_argument("--prompt-out")
     parser.add_argument("--negative-out")
     parser.add_argument("--native-negative-out")
@@ -799,12 +847,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         data = load_payload(Path(args.payload))
         payload_path = Path(args.payload).resolve()
-        result = verify(data, package_root=payload_path.parent)
+        result = verify(data, package_root=payload_path.parent, project=args.studio_root)
         if args.target:
             result["paste"] = emit_paste_for_target(
                 data,
                 args.target,
                 package_root=payload_path.parent,
+                project=args.studio_root,
             )
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         result = {

@@ -6,6 +6,28 @@ Author the purpose, selected expression, evidence criteria and authority rather 
 them from the existence of files. Selection is not adoption, preparation is not consent, and
 hash equality is not artistic success. Discussion without an artifact does not require a run.
 
+## Assemble authored choices
+
+Use [Craft consultation](preset-consultation.md) while deciding what to write or revise. The lookup, application source, and authored review questions stay connected to the current task. Input inspection provides the concrete entry action.
+
+
+`inspect-inputs` shows declared sources, recorded candidates, and required choices.
+`draft-inputs` creates an unanswered choices document in a new directory.
+The author supplies continuity and acceptance decisions; the operator supplies quotations, applications, and explicit source selections.
+`build-inputs` resolves those selections through the existing contract builders.
+It derives document hashes, image hashes, adoption selectors, and reference positions from recorded evidence.
+
+Each output directory is published after all required judgments and current evidence validate.
+An incomplete selection returns named unresolved fields and preserves existing files.
+The original task and source artifacts remain unchanged.
+Construction returns formal inputs, their provenance, and arguments for the next operation.
+Preparation, final request rendering, review, and authorization follow through their own commands.
+
+Use `--from-run` to name a saved run from the same work task.
+Copied reading applications retain their origin and require assessment for the current work.
+Choose current visual references and validation evidence explicitly.
+The [synthetic input assembly example](../../examples/input-assembly/README.md) contains complete commands, choice fields, and actual output.
+
 ## Inputs and preparation
 
 Start the work task with `scripts/work_ledger.py --studio PROJECT begin --goal TEXT --step TEXT`.
@@ -20,15 +42,16 @@ optional verified `world_views`/`moment_views`, `direction`, `authority`, `artif
 result binary to avoid image checks. Route features determine required source roles and reads.
 
 ```text
-python scripts/execution_routes.py inspect development
+python scripts/execution_routes.py read development --root PROJECT
 python scripts/production_workflow.py prepare --root PROJECT --task task.json
 python scripts/production_workflow.py status --root PROJECT --run RUN
 ```
 
-Preparation pins task, full source bytes, verified bounded state views, implementation/read
-contract, authority and its evidence, and the bounded consumer. It creates a UUIDv7 run under
+Preparation pins task, full source bytes, verified bounded state views, authority and its
+evidence, and the bounded consumer. It pins the installed implementation and read contract by
+digest without copying them, so a later change to either requires a new preparation. It creates a UUIDv7 run under
 `production/` and links it to the open work task. No runtime import depends on another product.
-`delivery.transport=authored-rendition` sends the authored text with selected expression directives.
+`delivery.transport=authored-rendition` preserves the authored rendition. The operator applies selected directives while authoring it.
 `bounded-context` also sends explicitly bounded criteria and state views. Neither sends private
 dossiers or rejected options. This projection does not replace careful prompt authoring.
 
@@ -48,8 +71,8 @@ recipient and prepared consumer are bound to this direction authorization.
 
 For an external tool, get `external-intent --count N`, authorize its submit request, then use
 `claim-external --count N --authorization SHA` before the host executes the exact bounded input.
-For dispatcher generation, build a package with `--production-root PROJECT --production-run RUN`.
-A dispatcher dry run prints the JSON under "production submission intent (not permission)"; save and authorize that exact payload with
+For dispatcher generation, build a package with `--production-root PROJECT`; the builder binds it to the open work task's current run.
+A dispatcher dry run with `--intent-out intent.json` saves the exact submission intent; authorize that exact payload with
 an actual quoted upper bound, then send with `--production-authorization SHA`. Existing pack,
 reference, plot, target capability and service checks remain in force. A package without the
 production binding is a low-level artifact, not completion of a routed task.
@@ -129,9 +152,13 @@ images, draft reviews or a task with no selected actual artifact are not finishe
 `impact` compares current sources, routed implementation and recorded outputs with their pinned
 bytes and reports declared dependency effects, including transitive decisions and criterion IDs.
 It does not infer meaning from a hash. It is distinct from `status`; both are read-only.
-`resume` reports the safe next step and never sends, spends or renders. Missing files, expired
-or exhausted authority, changed inputs and uncertain submissions require resolution, not a new
-automatic call. `recover-recording` resumes the same dispatcher journal from acquired bytes only.
+`status` and `resume` read frozen inputs and the receipt chain before comparing current dependencies.
+Their report separates integrity, freshness, retained artifacts, reservations, execution evidence and required actions.
+A source change preserves an uncertain submission and any acquired results in the report.
+A recorded send step marks an execution attempt; provider completion and charges remain separate facts.
+`recover-recording` downloads missing images from the saved answer and records them without a new service request.
+Current execution checks apply when creating new work; historical evidence remains inspectable.
+See the [synthetic resume example](../../examples/resume-recording/README.md) for an actual report before and after an input change.
 
 Executable fixtures in `examples/production-execution/` demonstrate these commands with explicit
 synthetic authority. They are processing tests, not user instructions or artwork-quality proof.
@@ -145,6 +172,8 @@ they neither grant real spending permission nor establish artistic quality.
 ```text
 python scripts/production_direction_smoke_test.py
 python scripts/production_workflow_smoke_test.py
+python scripts/production_resume_smoke_test.py
+python examples/resume-recording/build_example.py --check
 python examples/production-execution/run_example.py --help
 python examples/production-execution/repair_example.py --help
 ```
@@ -184,3 +213,17 @@ For observed host trials, use [Agent Evaluation](agent-evaluation.md); process s
 is not proof of task completion or expressive quality. For recurring failures, use
 [Repair Analysis](repair-analysis.md) over actual reviews, then the existing repair
 and authorization process. None of these commands automatically adopts or sends.
+
+## Exact request preview and variations
+
+A dispatcher preview uses the same renderer as its sending path and reports each transform's source.
+Use `--preview-out` to retain the sealed request, declared bindings, and validation report in a new file.
+Use `--intent-out` with the prepared production run to save the exact submit intent.
+Pass that file to `draft-authorization`; request hashes and binding IDs are derived from the saved request.
+The actor supplies the scope case, source of approval, rendition judgment, stop assessments, and cost bound.
+A new request within an explicit existing delegation receives a new exact authorization under the same cumulative budget.
+A scope change requires the missing principal decision; request equality alone does not authorize work.
+
+`draft-variation` prepares a new input draft from an exact recorded candidate and a structural field change map.
+It preserves the source candidate and prompts reassessment of copied reading applications for the changed work.
+The [model evidence workflow](model-evidence.md) describes schema imports and bounded comparison trials.

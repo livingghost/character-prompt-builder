@@ -44,13 +44,13 @@ The workflow:
 
 Historical iterations and unaffected slots stay as they were. `references` exports the exact supplied-file selection consumed by the existing reference preparer, in that preparer's own format.
 
-Completion states are `candidate-accepted`, `sheet-bound`, and `catalog-registered`. The durable `adoptions/<iteration>.json` records `next_action` and a failure when a step cannot finish. Repeat the same command with the same approval and destination to resume; it is idempotent and adds no image iteration. A pending pre-acceptance operation is visible too. If the process was killed while holding `studio.lock`, establish that every recorder has stopped before removing that stale lock, then repeat the approved command.
+Completion states are `candidate-accepted`, `sheet-bound`, and `catalog-registered`. The durable `adoptions/<iteration>.json` records `next_action` and a failure when a step cannot finish. Repeat the same command with the same approval and destination to resume; it is idempotent and adds no image iteration. A pending pre-acceptance operation is visible too. The operating system releases the recording lock when a process ends, even a killed one, so repeat the approved command and leave `.production.lock` in place.
 
 `studio status` and `validate_studio.py` report stale sheet bindings and incomplete adoption. Accepting a new image through candidate-only `studio accept` while an older image is bound leaves status incomplete; resolve adoption before sending. Before upload or send, the dispatcher checks that a package includes a current adopted identity source under identity authority and rejects superseded sources under their adopted influence. First-generation work, before any identity is adopted, is permitted. A package handed to an external host must pass this Studio check before leaving, because portable package verification alone sees only a Studio it was given.
 
 ## Register an image for mixed pack references
 
-The supplied-file path stays separate from pack-backed evidence; keep that provenance boundary intact and a locked user-library pack unedited. To combine this identity with pack pose/outfit/environment evidence in one ordinary Reference Use Plan, first obtain explicit `catalog` approval.
+The supplied-file path stays separate from pack-backed evidence; keep that provenance boundary intact and every locked pack unedited. To combine this identity with pack pose/outfit/environment evidence in one ordinary Reference Use Plan, first obtain explicit `catalog` approval.
 
 Write one canonical module record conforming to the module branch of `schemas/pack-record-file.schema.json`. Give it a globally distinct ID, supported meaning and search terms, and keep scene details out of identity. Example structure:
 
@@ -73,7 +73,7 @@ Compute its canonical digest with the same function used by the approval validat
 python -c "import json,sys; sys.path.insert(0,'scripts'); from revision_contract import digest; print(digest(json.load(open('registration-record.json',encoding='utf-8'))))"
 ```
 
-The new catalog approval must match the same character, iteration, slot and image, and include this value in `registration_record_sha256`. Choose a new pack directory, outside the existing commons and user-library packs:
+The new catalog approval must match the same character, iteration, slot and image, and include this value in `registration_record_sha256`. Choose a new pack directory, outside commons and every existing pack:
 
 ```bash
 python scripts/adoption_workflow.py --studio ./studio --character C01 \

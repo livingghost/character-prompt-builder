@@ -29,11 +29,12 @@ not from the working directory.
 ## Before anything reads a pack
 
 ```
-python scripts/pack_cli.py state-init
+python scripts/pack_cli.py ready
 ```
 
 Resolving the pack runtime is a session-entry precondition, not a maintenance
-step. `scripts/session_entry_points.py` is what a host runs on `SessionStart`; it
+step. `ready` exits 1 until the author settles each `decide:` line it prints.
+`scripts/session_entry_points.py` is what a host runs on `SessionStart`; it
 reports what the state file settles and says so where it cannot answer, because
 discovery reads every record in every root and that is the runtime's work.
 
@@ -43,7 +44,7 @@ discovery reads every record in every root and that is the runtime's work.
 python scripts/studio.py init --out <studio-dir> --studio-id <id> --title "<title>"
 python scripts/studio.py character add <character-id> --studio <studio-dir>
 python scripts/dispatch.py <generation-package.json> --studio <studio-dir> --character <character-id> --slot <slot>
-python scripts/dispatch.py <generation-package.json> --studio <studio-dir> --character <character-id> --slot <slot> --send
+python scripts/dispatch.py <generation-package.json> --studio <studio-dir> --character <character-id> --slot <slot> --production-authorization <receipt> --send
 ```
 
 A studio holds the sheet, every generated image with the exact request that
@@ -57,7 +58,9 @@ service would receive, and with `--send` sends it through the service the model
 record's offering names and records every returned image as an iteration by
 itself. A request is checked against the service's own parameter schema, stored
 in the pack as observed, before anything is sent. The credential is read from the
-environment variable the service record names and is never written anywhere.
+environment variable the service record names, or from that variable in an MCP
+server's `env` block in the host configuration, and is never written anywhere.
+It is sent only to the host the transport pins.
 
 ## What the Skill conforms to
 
@@ -77,6 +80,25 @@ without a token measurement. It also settles that every reference document is
 reachable from the `SKILL.md` link graph, and that every script entrypoint is
 named by routed documentation.
 
+## Source ownership and change discipline
+
+This repository owns its runtime, documentation, schemas, examples and tests.
+Data exchange follows explicit public artifact contracts.
+Implement the current format directly as the initial product contract.
+Update producers, validators, templates and fixtures together when that contract changes.
+
+- Keep implementation details local to their owning product and generate derived files from their declared sources.
+- Use explicit identifiers, evidence and declared constraints for mechanical checks; the responsible author evaluates meaning and acceptance.
+- Place neutral synthetic examples under `examples/` and preserve the user's project material in its own workspace.
+- Give each text-encoding test one necessary non-ASCII fixture, distributing script coverage across tests.
+- Report executed checks separately from unverified behavior, including incomplete runs and environmental failures.
+
+Prepare a release commit only after local validation and packaging agree.
+Keep its message and changelog focused on the initial product behavior.
+Squash intermediate maintenance edits into that release commit.
+Publish a UTC CalVer version with a push and inspect its matching CI run.
+Tags and hosted releases require a separate instruction.
+
 ## Working on this repository
 
 ```
@@ -84,6 +106,10 @@ python scripts/rebuild_metadata.py   regenerate the derived files
 python scripts/validate.py .         the repository-wide diagnostic
 python scripts/package.py            build, extract and revalidate the release
 ```
+
+The product's own tests and release checks run on a commons-only pack state
+(`pack_cli.py ready --only <commons-id>`), so a personal pack never changes
+their result.
 
 `.claude-plugin/`, `.codex-plugin/`, `.agents/`, `hooks/`, `MANIFEST.json`,
 `config/integration-capabilities.json` and the handoff envelope template are

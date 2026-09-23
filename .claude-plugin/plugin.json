@@ -1,6 +1,6 @@
 {
   "name": "character-prompt-builder",
-  "version": "2026.09.20.1",
+  "version": "2026.09.23.1",
   "description": "Turn a short character idea, a detailed production brief, or an approved recurring-character state into a coherent image-generation package: prompts, scoped negative prompts, and canonical reference material; send it to the service the model record names, and keep every generated image in a studio beside the request that produced it.",
   "author": {
     "name": "character-prompt-builder"

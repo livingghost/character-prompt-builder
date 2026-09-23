@@ -33,14 +33,20 @@ MODEL_RECORD_KEYS = frozenset(
     }
 )
 # An offering is how one service exposes the model: its identifier there, the
-# request key each media role occupies, the limits that service enforces, and
-# when that was observed. schema_snapshot points at the service's own parameter
+# request key each input occupies, the limits that service enforces, and when
+# that was observed. schema_snapshot points at the service's own parameter
 # schema for the model, stored in the pack as observed.
 OFFERING_KEYS = frozenset(
-    {"service", "model_identifier", "request_keys", "constraints", "observed_at", "schema_snapshot", "setting_keys", "parameter_keys"}
+    {"service", "model_identifier", "request_keys", "constraints", "observed_at", "schema_snapshot", "setting_keys", "parameter_keys", "schema_contract", "schema_acquisition", "parameter_observations", "reference_schemas", "production_context_transport", "reference_instruction_transport"}
 )
 OFFERING_REQUIRED = ("service", "model_identifier", "request_keys", "constraints", "observed_at")
 OBSERVED_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# The request_keys roles beside the media roles. Every generation offering names
+# its prompt key. An offering with no negative key says the target has no
+# negative field, and one with no model key says the address names the model.
+PROMPT_ROLE = "prompt"
+NEGATIVE_ROLE = "negative prompt"
+MODEL_ROLE = "model"
 # What stands in for an uploaded file when a request is checked before anything is uploaded.
 PLACEHOLDER_MEDIA = "00000000-0000-4000-8000-000000000000"
 # The roles a service can take prepared references on, best first. The offering
@@ -136,9 +142,11 @@ def _validate_offerings(record: Mapping[str, Any], errors: list[str]) -> None:
                         or not all(_nonempty_string(key) for key in mapped)
                     ):
                         errors.append(
-                            f"{where}.request_keys[{role!r}] must map a media role to a "
+                            f"{where}.request_keys[{role!r}] must map a role to a "
                             "non-empty array of request keys"
                         )
+                if record.get("operation_kind") in {"generation", "instruction-edit"} and PROMPT_ROLE not in keys:
+                    errors.append(f"{where}.request_keys must name the request key of the {PROMPT_ROLE!r}")
         if "constraints" in offering and not isinstance(offering["constraints"], Mapping):
             errors.append(f"{where}.constraints must be an object")
         observed = offering.get("observed_at")
@@ -146,6 +154,30 @@ def _validate_offerings(record: Mapping[str, Any], errors: list[str]) -> None:
             errors.append(f"{where}.observed_at must be a date written as YYYY-MM-DD")
         if "schema_snapshot" in offering and not _nonempty_string(offering["schema_snapshot"]):
             errors.append(f"{where}.schema_snapshot must be a non-empty path when declared")
+        from execution_contract import exact, sha, text
+        try:
+            def file_reference(ref):
+                exact(ref, {'path','sha256'}, 'offering evidence');text(ref['path'],'offering evidence path');sha(ref['sha256'])
+            for field in ('schema_contract','schema_acquisition'):
+                if field in offering:file_reference(offering[field])
+            if ('schema_contract' in offering) != ('schema_acquisition' in offering):
+                raise ValueError('schema contract and acquisition must be selected together')
+            for ref in offering.get('reference_schemas',[]):file_reference(ref)
+            for item in offering.get('parameter_observations',[]):
+                exact(item, {'observation','profile','target','outcome'}, 'offering observation')
+                file_reference(item['observation'])
+                if item['profile'] is not None:file_reference(item['profile'])
+                if item['outcome'] not in {'rejected','accepted','completed','indeterminate'}:raise ValueError('invalid observation outcome')
+                if item['target']['service']!=offering['service'] or item['target']['model_identifier']!=offering['model_identifier']:
+                    raise ValueError('observation belongs to another offering')
+            if 'production_context_transport' in offering and offering['production_context_transport'] not in {'none','prompt-prefix'}:
+                raise ValueError('unknown production context transport')
+            if 'reference_instruction_transport' in offering:
+                value=offering['reference_instruction_transport'];exact(value,{'mode','contract'},'reference instruction policy')
+                if value['mode'] not in {'native-fields','authored-rendition','prompt-prefix','not-supported'}:raise ValueError('unknown reference instruction transport')
+                file_reference(value['contract'])
+        except (ValueError,KeyError,TypeError) as exc:
+            errors.append(f"{where}: {exc}")
         setting_keys = offering.get("setting_keys")
         if "setting_keys" in offering and (
             not isinstance(setting_keys, Mapping)
@@ -365,39 +397,44 @@ def _merge_tag_lists(recommended: str, authored: str) -> str:
     return ", ".join(result)
 
 
-def _merge_one(
-    authored: str,
-    recommended: str,
-    *,
-    mode: str,
-    limit: int | None,
-    field: str,
-) -> tuple[str, dict[str, Any]]:
-    authored = authored.strip()
-    recommended = recommended.strip()
-    audit: dict[str, Any] = {
-        "declared": bool(recommended),
-        "applied": False,
-        "mode": mode,
-        "reason": "not-declared" if not recommended else "advisory-only",
-        "recommended_text": recommended,
-    }
-    if limit is not None and len(authored) > limit:
-        raise ValueError(f"{field} exceeds the model limit of {limit} characters")
-    if not recommended or mode == "advisory-only":
-        return authored, audit
-    if mode == "tag-list":
-        merged = _merge_tag_lists(recommended, authored)
-    elif mode == "prefix":
-        merged = recommended if not authored else f"{recommended}\n\n{authored}"
-    else:
-        raise ValueError(f"unsupported recommendation merge mode: {mode!r}")
-    if limit is not None and len(merged) > limit:
-        audit["reason"] = "model-limit-preserved-authored-prompt"
-        return authored, audit
-    audit["applied"] = True
-    audit["reason"] = "applied"
-    return merged, audit
+def _merge_one(authored: str, recommended: str, *, mode: str, limit: int | None, field: str) -> tuple[str, dict[str, Any]]:
+    authored=authored.strip();recommended=recommended.strip()
+    audit={'declared':bool(recommended),'applied':False,'mode':mode,
+        'reason':'not-declared' if not recommended else 'advisory-only', 'recommended_text':recommended,
+        'source_text':authored,'limit':limit,'segments':[]}
+    if limit is not None and len(authored)>limit:raise ValueError(f'{field} exceeds the model limit of {limit} characters')
+    def original():
+        audit['segments']=[{'source_kind':'authored','start':0,'end':len(authored),'text':authored}] if authored else []
+        return authored,audit
+    if not recommended or mode=='advisory-only':return original()
+    parts=[];segments=[];length=0
+    def append(text,kind):
+        nonlocal length
+        if text:
+            parts.append(text);segments.append({'source_kind':kind,'start':length,'end':length+len(text),'text':text});length+=len(text)
+    if mode=='prefix':
+        append(recommended,'model-setting')
+        if authored:append('\n\n','model-setting');append(authored,'authored')
+    elif mode=='tag-list':
+        seen=set()
+        for source,kind in ((recommended,'model-setting'),(authored,'authored')):
+            for item in _split_tags(source):
+                key=item.casefold()
+                if key in seen:continue
+                seen.add(key)
+                if parts:append(', ','model-setting')
+                append(item,kind)
+    else:raise ValueError('unsupported recommendation merge mode: '+mode)
+    merged=''.join(parts)
+    if limit is not None and len(merged)>limit:
+        audit['reason']='model-limit-preserved-authored-prompt';return original()
+    audit.update(applied=True,reason='applied',segments=segments)
+    return merged,audit
+
+
+def validate_recommendation_audit(entry: dict, actual: str) -> None:
+    expected,audit=_merge_one(entry['source_text'],entry['recommended_text'],mode=entry['mode'],limit=entry['limit'],field='prompt')
+    if actual!=expected or entry!=audit:raise ValueError('recommendation audit differs from its recorded transformation')
 
 
 def apply_positive_recommendation(
@@ -525,13 +562,29 @@ def offering_schema(offering: Mapping[str, Any], pack_root: Path | None) -> dict
 
 
 def place(instance: dict[str, Any], key_path: str, value: Any) -> None:
-    """Write a value at a request key, which may name a nested envelope such as inputs.referenceImages."""
+    """Write a value at a request key, whose dots name nested objects."""
 
     parts = key_path.split(".")
     target = instance
     for part in parts[:-1]:
         target = target.setdefault(part, {})
     target[parts[-1]] = value
+
+
+def request_key(offering: Mapping[str, Any], role: str) -> str | None:
+    """The request key the offering gives a role, or None where it records none."""
+
+    mapped = (offering.get("request_keys") or {}).get(role)
+    return str(mapped[0]) if mapped else None
+
+
+def required_request_key(offering: Mapping[str, Any], role: str) -> str:
+    """The request key the offering gives a role; a role with nowhere to go is refused."""
+
+    key = request_key(offering, role)
+    if key is None:
+        raise ValueError(f"the offering on {offering.get('service')!r} records no request key for the {role!r}")
+    return key
 
 
 def request_instance(
@@ -544,27 +597,26 @@ def request_instance(
 ) -> dict[str, Any]:
     """The request as the service would see it, from what the package declares.
 
-    Media are stood in for by placeholders, because the request is checked before
-    anything is uploaded. A role whose name ends in "images" occupies a list.
+    The model identifier, the prompt, the negative and each media role go on the
+    request keys the offering gives them. Media are stood in for by placeholders,
+    because the request is checked before anything is uploaded. A role whose name
+    ends in "images" occupies a list.
     """
 
-    instance: dict[str, Any] = {"model": offering.get("model_identifier")}
+    instance: dict[str, Any] = {}
+    model_key = request_key(offering, MODEL_ROLE)
+    if model_key is not None:
+        place(instance, model_key, offering.get("model_identifier"))
     if prompt is not None:
-        instance["positivePrompt"] = prompt
+        place(instance, required_request_key(offering, PROMPT_ROLE), prompt)
     if negative_prompt:
-        instance["negativePrompt"] = negative_prompt
+        place(instance, required_request_key(offering, NEGATIVE_ROLE), negative_prompt)
     for name, value in (parameters or {}).items():
         place(instance, str(name), value)
-    keys = offering.get("request_keys") or {}
     for role, count in (media_counts or {}).items():
-        if not count:
-            continue
-        mapped = keys.get(role)
-        if not mapped:
-            raise ValueError(
-                f"the offering on {offering.get('service')!r} records no request key for the media role {role!r}"
-            )
-        place(instance, str(mapped[0]), [PLACEHOLDER_MEDIA] * int(count) if role.endswith("images") else PLACEHOLDER_MEDIA)
+        if count:
+            key = required_request_key(offering, role)
+            place(instance, key, [PLACEHOLDER_MEDIA] * int(count) if role.endswith("images") else PLACEHOLDER_MEDIA)
     return instance
 
 
@@ -729,42 +781,45 @@ def validate_generation_parameters(
     prompt: str | None = None,
     negative_prompt: str | None = None,
     media_counts: Mapping[str, int] | None = None,
+    output_count: int | None = None,
 ) -> dict[str, Any] | None:
     """Refuse parameters the record or the service's observed schema refuses.
 
-    The record's own limits are checked first. Then the offering the request goes
-    through is selected, and when it points at an observed parameter schema the
-    request is built as the service would see it and evaluated against that
-    schema. Returns the offering, or None when the record is exposed on no
-    service here.
+    The record's own limits are checked first, the output count among them when
+    the caller knows it. Then the offering the request goes through is selected,
+    the request is built as the service would see it, and when the offering
+    points at an observed parameter schema it is evaluated against that schema.
+    Returns the offering, or None when the record is exposed on no service here.
     """
 
     limit = record.get("max_outputs")
-    if _is_positive_integer(limit):
-        for name in ("n", "count", "num_outputs", "number_of_images", "output_count", "numberResults"):
-            if name not in parameters:
-                continue
-            value = parameters[name]
-            if not _is_positive_integer(value):
-                raise ValueError(f"generation parameter {name!r} must be a positive integer")
-            if value > limit:
-                raise ValueError(f"generation parameter {name!r} exceeds model max_outputs={limit}")
+    if output_count is not None:
+        if not _is_positive_integer(output_count):
+            raise ValueError("the output count must be a positive integer")
+        if _is_positive_integer(limit) and output_count > limit:
+            raise ValueError(f"an output count of {output_count} exceeds model max_outputs={limit}")
     offering = select_offering(record, service)
     if offering is None:
         return None
-    found = offering_schema(offering, pack_root)
-    if found is None:
-        return offering
-    from state_protocol import validate_against_schema
-
     instance = request_instance(
         offering, parameters, prompt=prompt, negative_prompt=negative_prompt, media_counts=media_counts
     )
-    violations = list(dict.fromkeys(validate_against_schema(instance, found["schema"])))
+    validate_request_instance(offering, instance, pack_root)
+    return offering
+
+
+def validate_request_instance(offering: Mapping[str, Any], instance: Mapping[str, Any], pack_root: Path | None) -> None:
+    """Refuse a request the offering's observed parameter schema refuses; an offering without one refuses nothing."""
+
+    found = offering_schema(offering, pack_root)
+    if found is None:
+        return
+    from state_protocol import validate_against_schema
+
+    violations = list(dict.fromkeys(validate_against_schema(dict(instance), found["schema"])))
     if violations:
         raise ValueError(
             f"the service's parameter schema for {offering.get('model_identifier')!r} "
             f"(observed {found.get('observed_at') or 'undated'}) refuses this request: "
             + "; ".join(violations)
         )
-    return offering

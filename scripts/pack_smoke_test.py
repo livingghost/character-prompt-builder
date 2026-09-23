@@ -9,11 +9,12 @@ import os
 import shutil
 import stat
 import subprocess
+import sys
 import time
 import tempfile
 import warnings
 import zipfile
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,7 @@ from pack_cache import (
     cache_status,
     load_runtime_catalog,
     refresh_cache,
+    resource_warning,
     runtime_resource_provider_status,
 )
 from pack_cli import main as pack_cli_main
@@ -288,6 +290,446 @@ def _visual_bundle_fixture(root: Path) -> Path:
     return asset_path
 
 
+SCRIPTS = Path(__file__).resolve().parent
+# A child process that names one runtime and a directory for signals.
+_CHILD_PRELUDE = """
+import sys, time
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import pack_cache, pack_manager
+settings = pack_manager.default_settings(
+    state_file=Path(sys.argv[2]), cache_dir=Path(sys.argv[3]), managed_root=Path(sys.argv[4]),
+    default_enabled_packs=(), default_resource_providers={},
+)
+signal = Path(sys.argv[5])
+
+def hold():
+    (signal / "held").write_text("held", encoding="utf-8")
+    while not (signal / "release").exists():
+        time.sleep(0.02)
+"""
+_HOLD_CACHE_LOCK = _CHILD_PRELUDE + """
+with pack_cache._cache_lock(settings):
+    hold()
+"""
+_REBUILD_CACHE = _CHILD_PRELUDE + """
+pack_cache.refresh_cache(settings, force=True)
+"""
+_ADD_ROOT_PAUSED_BEFORE_SAVE = _CHILD_PRELUDE + """
+unpaused_save = pack_manager.save_state
+def paused_save(path, state):
+    hold()
+    unpaused_save(path, state)
+pack_manager.save_state = paused_save
+pack_manager.add_pack_root(settings, Path(sys.argv[6]))
+"""
+_ADD_ROOT = _CHILD_PRELUDE + """
+pack_manager.add_pack_root(settings, Path(sys.argv[6]))
+"""
+
+
+def _spawn(script: str, *arguments: Path) -> subprocess.Popen[str]:
+    return subprocess.Popen(
+        [sys.executable, "-c", script, str(SCRIPTS), *(str(value) for value in arguments)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUTF8": "1"},
+    )
+
+
+def _wait_for(path: Path, process: subprocess.Popen[str], seconds: float = 120.0) -> bool:
+    deadline = time.monotonic() + seconds
+    while not path.exists():
+        if process.poll() is not None or time.monotonic() > deadline:
+            return False
+        time.sleep(0.02)
+    return True
+
+
+def _finish(*processes: subprocess.Popen[str]) -> list[int | None]:
+    codes: list[int | None] = []
+    for process in processes:
+        try:
+            codes.append(process.wait(timeout=180))
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+            codes.append(None)
+        finally:
+            process.communicate()
+    return codes
+
+
+def _concurrency_checks(root: Path) -> tuple[int, list[str]]:
+    """Two processes on one cache and one state file: nobody is interrupted or lost."""
+
+    checks = 0
+    errors: list[str] = []
+    runtime = root / "concurrency"
+    state_file = runtime / "state" / "pack-state.json"
+    save_state(state_file, {"pack_roots": [], "enabled_packs": [], "resource_providers": {}})
+    paths = (state_file, runtime / "cache", runtime / "managed")
+
+    # A build waits for a live holder of the cache lock and leaves it running.
+    signal = runtime / "live-holder"
+    signal.mkdir(parents=True)
+    holder = _spawn(_HOLD_CACHE_LOCK, *paths, signal)
+    builder: subprocess.Popen[str] | None = None
+    waited = False
+    if _wait_for(signal / "held", holder):
+        builder = _spawn(_REBUILD_CACHE, *paths, signal)
+        time.sleep(1.5)
+        waited = builder.poll() is None and holder.poll() is None
+    (signal / "release").write_text("go", encoding="utf-8")
+    codes = _finish(holder, *([builder] if builder else []))
+    if not waited or codes != [0, 0]:
+        errors.append(
+            "a cache build did not wait for a live lock holder, or interrupted it: "
+            f"waited={waited} exit codes={codes}"
+        )
+    else:
+        checks += 1
+
+    # A holder that dies releases the lock, so the next build proceeds.
+    signal = runtime / "dead-holder"
+    signal.mkdir(parents=True)
+    holder = _spawn(_HOLD_CACHE_LOCK, *paths, signal)
+    held = _wait_for(signal / "held", holder)
+    holder.kill()
+    _finish(holder)
+    builder = _spawn(_REBUILD_CACHE, *paths, signal)
+    codes = _finish(builder)
+    if not held or codes != [0]:
+        errors.append(f"a cache lock outlived its dead holder: held={held} exit codes={codes}")
+    else:
+        checks += 1
+
+    # Two root registrations at once: the second waits for the first to save,
+    # then reads what it saved, so the state keeps both.
+    signal = runtime / "state-writers"
+    signal.mkdir(parents=True)
+    first_root = runtime / "roots" / "first"
+    second_root = runtime / "roots" / "second"
+    first_root.mkdir(parents=True)
+    second_root.mkdir(parents=True)
+    first = _spawn(_ADD_ROOT_PAUSED_BEFORE_SAVE, *paths, signal, first_root)
+    second: subprocess.Popen[str] | None = None
+    waited = False
+    if _wait_for(signal / "held", first):
+        second = _spawn(_ADD_ROOT, *paths, signal, second_root)
+        time.sleep(1.5)
+        waited = second.poll() is None
+    (signal / "release").write_text("go", encoding="utf-8")
+    codes = _finish(first, *([second] if second else []))
+    saved = json.loads(state_file.read_text(encoding="utf-8"))["pack_roots"]
+    expected = sorted(str(path.resolve()) for path in (first_root, second_root))
+    if not waited or codes != [0, 0] or sorted(saved) != expected:
+        errors.append(
+            "concurrent state changes lost one another: "
+            f"waited={waited} exit codes={codes} roots={saved}"
+        )
+    else:
+        checks += 1
+
+    # The state reaches the disk before it replaces the previous file.
+    flushed: list[int] = []
+    unflushed_fsync = os.fsync
+    with patch.object(pack_manager_module.os, "fsync", lambda descriptor: (flushed.append(descriptor), unflushed_fsync(descriptor))):
+        save_state(state_file, {"pack_roots": [], "enabled_packs": [], "resource_providers": {}})
+    if not flushed:
+        errors.append("the pack state was published without being flushed to disk")
+    else:
+        checks += 1
+    return checks, errors
+
+
+def _run_pack_cli(argv: list[str]) -> tuple[int, str, str]:
+    stdout, stderr = io.StringIO(), io.StringIO()
+    with redirect_stdout(stdout), redirect_stderr(stderr):
+        code = pack_cli_main(argv)
+    return code, stdout.getvalue(), stderr.getvalue()
+
+
+def _run_ready(argv: list[str]) -> tuple[list[str], int, list[str]]:
+    """The printed summary, the exit status, and what went to standard error."""
+    code, stdout, stderr = _run_pack_cli(argv)
+    return stdout.splitlines(), code, stderr.splitlines()
+
+
+def _provider_pack(root: Path, name: str, resources: tuple[str, ...]) -> str:
+    """A small pack with one record that provides each named resource."""
+    manifest = initialize_pack(root, name=name)
+    manifest["content"]["resource_globs"] = ["resources/**/*"]
+    manifest["content"]["resource_bindings"] = {
+        resource: f"resources/{resource}.json" for resource in resources
+    }
+    atomic_write_json(root / "pack.json", manifest)
+    for resource in resources:
+        atomic_write_json(root / "resources" / f"{resource}.json", {"resource": resource})
+    _record_file(root / "records" / "record.json", f"{root.name}-record", f"{root.name} quiet light")
+    return str(manifest["pack_id"])
+
+
+def _left_out_pack_checks(root: Path) -> tuple[int, list[str]]:
+    """Disabling clears provider choices; a left-out pack gets one line everywhere; ready asks."""
+
+    base = root / "left-out"
+    # The runtime discovers the packs beside its own code, so the fixture
+    # packs stand there and nothing of the project's own packs is read.
+    with patch.object(pack_manager_module, "ROOT", base):
+        return _left_out_pack_sections(base)
+
+
+def _left_out_pack_sections(base: Path) -> tuple[int, list[str]]:
+    checks = 0
+    errors: list[str] = []
+    shelf = base / "packs"
+    kept_id = _provider_pack(shelf / "kept-shelf", "Kept Shelf", ("fixture-shared",))
+    spare_id = _provider_pack(shelf / "spare-shelf", "Spare Shelf", ("fixture-shared",))
+    broken_id = _provider_pack(
+        shelf / "broken-shelf", "Broken Shelf", ("fixture-note", "fixture-guide")
+    )
+    write_lock(shelf / "broken-shelf")
+    atomic_write_json(shelf / "broken-shelf" / "resources" / "extra.json", {"extra": True})
+    vanished_id = generate_uuid7()
+    state_file = base / "state" / "pack-state.json"
+    selectors = [
+        "--state-file", str(state_file),
+        "--cache-dir", str(base / "cache"),
+        "--managed-root", str(base / "managed"),
+    ]
+    settings = default_settings(
+        state_file=state_file, cache_dir=base / "cache", managed_root=base / "managed"
+    )
+    command = pack_manager_module.pack_cli_command(settings)
+
+    def start(enabled: list[str], providers: dict[str, str], disabled: list[str] = ()) -> None:
+        save_state(state_file, {
+            "pack_roots": [], "enabled_packs": enabled,
+            "disabled_packs": list(disabled), "resource_providers": providers,
+        })
+
+    # An invalid enabled pack is left out with one line: the pack, the reason,
+    # the fix. Its provider choices belong to that line, not to lines of their own.
+    start(
+        [kept_id, broken_id],
+        {"fixture-shared": kept_id, "fixture-note": broken_id, "fixture-guide": broken_id},
+    )
+    expected = (
+        "pack broken-shelf is invalid (lock-extra-files: files not in pack.lock.json); "
+        f"remove the extra files or disable it: {command} disable {broken_id}"
+    )
+    printed = io.StringIO()
+    with redirect_stderr(printed):
+        catalog = load_runtime_catalog(settings)
+        load_runtime_catalog(settings)
+    if printed.getvalue().splitlines() != [f"warning: {expected}"]:
+        errors.append(f"an invalid pack was not reported in one line, once: {printed.getvalue()!r}")
+    elif resource_warning(catalog, "fixture-note") != expected:
+        errors.append("a resource of an invalid pack did not name the pack's own line")
+    elif catalog.active_pack_count != 1:
+        errors.append("an invalid pack was not left out of the catalog")
+    else:
+        checks += 1
+
+    # An enabled pack the catalog cannot use is the author's decision, first
+    # and in one line; its provider choices belong to that line.
+    lines, code, _ = _run_ready([*selectors, "ready"])
+    if code != 1 or not lines or lines[0] != f"decide: {expected}" or sum(
+        broken_id in line for line in lines
+    ) != 1:
+        errors.append(f"ready did not put the invalid pack first as one decision: {lines}")
+    else:
+        checks += 1
+
+    # Disabling clears the provider choices the pack owned and says which.
+    code, stdout, _ = _run_pack_cli([*selectors, "disable", broken_id])
+    disabled = json.loads(stdout)
+    if code != 0 or disabled.get("cleared_providers") != ["fixture-guide", "fixture-note"] or (
+        set(disabled["state"]["resource_providers"]) != {"fixture-shared"}
+    ):
+        errors.append(f"disable left provider choices pointing at the pack: {disabled}")
+    else:
+        checks += 1
+
+    # A discovered pack nobody has decided about is a decision; a pack the
+    # author disabled is not asked about again.
+    lines, code, _ = _run_ready([*selectors, "ready"])
+    if code != 1 or not lines[0].startswith("decide: pack spare-shelf ") or "is new and not enabled" not in lines[0] or (
+        f"left out: broken-shelf {broken_id} (disabled)" not in lines
+    ):
+        errors.append(f"ready did not tell a new pack from a disabled one: {lines}")
+    else:
+        checks += 1
+    _run_ready([*selectors, "ready", "--without", spare_id])
+    lines, code, _ = _run_ready([*selectors, "ready"])
+    if code != 0 or lines[0] != "ready: retrieval can use 1 pack(s)" or not {
+        f"left out: broken-shelf {broken_id} (disabled)", f"left out: spare-shelf {spare_id} (disabled)",
+    } <= set(lines):
+        errors.append(f"a pack disabled on purpose was asked about again: {lines}")
+    else:
+        checks += 1
+
+    # Enabling forgets the decision to leave the pack out.
+    _run_pack_cli([*selectors, "enable", spare_id])
+    recorded = pack_manager_module.load_state(state_file)
+    if spare_id not in recorded["enabled_packs"] or recorded["disabled_packs"] != [broken_id]:
+        errors.append(f"enable after disable kept the disable record: {recorded}")
+    else:
+        checks += 1
+
+    # A pack that appears after the state exists is still the author's decision.
+    newcomer_id = _provider_pack(shelf / "new-shelf", "New Shelf", ("fixture-new",))
+    lines, code, _ = _run_ready([*selectors, "ready"])
+    if code != 1 or not any(
+        line.startswith(f"decide: pack new-shelf {newcomer_id} is new and not enabled") for line in lines
+    ):
+        errors.append(f"ready passed with a newly discovered pack: {lines}")
+    else:
+        checks += 1
+
+    # Choices that point at a pack nobody uses are one line, and disabling that
+    # pack, though it is not enabled, clears them.
+    start([kept_id], {"fixture-shared": kept_id, "fixture-a": vanished_id, "fixture-b": vanished_id})
+    catalog = load_runtime_catalog(settings, quiet=True)
+    dangling = [line for line in catalog.warnings if vanished_id in line]
+    code, stdout, _ = _run_pack_cli([*selectors, "disable", vanished_id])
+    cleared = json.loads(stdout).get("cleared_providers")
+    if len(dangling) != 1 or not dangling[0].startswith("2 resource provider selection(s)") or cleared != [
+        "fixture-a", "fixture-b"
+    ]:
+        errors.append(f"selections of an unused pack were not one line and one fix: {dangling} {cleared}")
+    else:
+        checks += 1
+
+    # Two providers and no choice between them is the author's decision.
+    start([kept_id, spare_id], {}, disabled=[broken_id, newcomer_id])
+    lines, code, _ = _run_ready([*selectors, "ready"])
+    if code != 1 or not lines[0].startswith("decide: resource fixture-shared has no provider selected"):
+        errors.append(f"ready passed with a resource nobody chose a provider for: {lines}")
+    else:
+        checks += 1
+
+    # A pack whose pack.json cannot be read does not stop first use: it is left
+    # out and named, and the readable packs are enabled.
+    first_use = replace(
+        _test_settings(
+            roots=(shelf,),
+            state_file=base / "first-use" / "pack-state.json",
+            cache_dir=base / "first-use" / "cache",
+            managed_root=base / "first-use" / "managed",
+        ),
+        initialize_all_discovered=True,
+    )
+    (shelf / "unreadable").mkdir()
+    (shelf / "unreadable" / "pack.json").write_text("{broken", encoding="utf-8")
+    first_state = load_effective_state(first_use)
+    printed = io.StringIO()
+    with redirect_stderr(printed):
+        load_runtime_catalog(first_use)
+    if kept_id not in first_state["enabled_packs"] or not any(
+        line.startswith(f"warning: pack at {(shelf / 'unreadable').resolve()} has an invalid pack.json")
+        for line in printed.getvalue().splitlines()
+    ):
+        errors.append(f"an unreadable pack stopped first use or went unnamed: {printed.getvalue()!r}")
+    else:
+        checks += 1
+    return checks, errors
+
+
+def _personal_pack_checks(root: Path) -> tuple[int, list[str]]:
+    """A personal pack is one command from use; a runtime can name exactly its packs."""
+
+    base = root / "personal"
+    with patch.object(pack_manager_module, "ROOT", base):
+        return _personal_pack_sections(base)
+
+
+def _personal_pack_sections(base: Path) -> tuple[int, list[str]]:
+    checks = 0
+    errors: list[str] = []
+    skill_packs = base / "packs"
+    kept_id = _provider_pack(skill_packs / "kept-shelf", "Kept Shelf", ("fixture-shared",))
+    heavy_id = _provider_pack(skill_packs / "heavy-shelf", "Heavy Shelf", ("fixture-heavy",))
+    write_lock(skill_packs / "heavy-shelf")
+    (skill_packs / "heavy-shelf" / "NOTES.txt").write_text("late\n", encoding="utf-8")
+    state_file = base / "home" / "pack-state.json"
+    selectors = ["--state-file", str(state_file), "--cache-dir", str(base / "home" / "cache")]
+    settings = default_settings(state_file=state_file, cache_dir=base / "home" / "cache")
+
+    # A new state can name exactly the packs it enables. The others are left
+    # out, and nothing but their pack.json is read.
+    opened: list[Path] = []
+    unrecorded_validate = pack_cache_module.validate_pack
+    unrecorded_snapshot = pack_manager_module.quick_pack_snapshot
+    with patch.object(pack_cache_module, "validate_pack", lambda path, **options: (opened.append(Path(path).resolve()), unrecorded_validate(path, **options))[1]), \
+            patch.object(pack_manager_module, "quick_pack_snapshot", lambda pack: (opened.append(pack.root.resolve()), unrecorded_snapshot(pack))[1]):
+        lines, code, _ = _run_ready([*selectors, "ready", "--only", kept_id])
+    heavy_root = (skill_packs / "heavy-shelf").resolve()
+    enabled = json.loads(state_file.read_text(encoding="utf-8"))["enabled_packs"]
+    if code != 0 or enabled != [kept_id] or heavy_root in opened or not any(
+        line.startswith("left out: heavy-shelf ") for line in lines
+    ):
+        errors.append(f"ready --only did not make a runtime of exactly the named pack: {code} {enabled} {lines}")
+    else:
+        checks += 1
+    # The packs --only left out stay left out: the next session is not asked.
+    lines, code, _ = _run_ready([*selectors, "ready"])
+    if code != 0 or f"left out: heavy-shelf {heavy_id} (disabled)" not in lines:
+        errors.append(f"a pack --only left out was asked about in the next session: {lines}")
+    else:
+        checks += 1
+    lines, code, _ = _run_ready([*selectors, "ready", "--only", heavy_id])
+    if code != 2 or not lines[0].startswith("error: ") or "--only chooses the packs of a new state" not in lines[0]:
+        errors.append(f"ready --only rewrote an existing state: {lines}")
+    else:
+        checks += 1
+
+    # init creates the pack where the author wants it, registers that place
+    # when no pack root holds it, and enables it: a record added next is used
+    # without validate or build-lock.
+    elsewhere = base / "drafts" / "field-notes"
+    code, stdout, _ = _run_pack_cli([*selectors, "init", str(elsewhere), "--name", "Field Notes"])
+    created = json.loads(stdout)
+    _record_file(elsewhere / "records" / "note.json", "field-notes-note", "field notes quiet dusk")
+    catalog = load_runtime_catalog(settings, quiet=True)
+    if code != 0 or not created.get("root_registered") or not created.get("enabled") or not any(
+        entry.record.get("id") == "field-notes-note" for entry in catalog.entries
+    ):
+        errors.append(f"init did not make a pack usable in one command: {created}")
+    else:
+        checks += 1
+
+    # Enabling validates the pack being enabled, not every enabled pack: the
+    # invalid heavy pack elsewhere does not stop it, and is not read in full.
+    code, stdout, _ = _run_pack_cli([*selectors, "init", str(settings.managed_root / "beside"), "--name", "Beside"])
+    beside = json.loads(stdout)
+    if code != 0 or beside.get("root_registered") or not beside.get("enabled"):
+        errors.append(f"a pack in the packs folder beside the state was registered again: {beside}")
+    else:
+        checks += 1
+    save_state(state_file, {**load_effective_state(settings), "enabled_packs": [kept_id, heavy_id]})
+    opened.clear()
+    with patch.object(pack_manager_module, "validate_pack", lambda path, **options: (opened.append(Path(path).resolve()), unrecorded_validate(path, **options))[1]):
+        code, stdout, _ = _run_pack_cli([*selectors, "enable", str(beside["pack_id"])])
+    if code != 0 or heavy_root in opened:
+        errors.append(f"enabling one pack validated every enabled pack: {code} {stdout[-300:]}")
+    else:
+        checks += 1
+
+    # A default root that is also registered is one root, not two copies.
+    save_state(state_file, {**load_effective_state(settings), "pack_roots": [str(settings.managed_root)]})
+    discovered, issues = discover_packs(settings)
+    roots = pack_manager_module.configured_roots(settings)
+    if len(roots) != len(set(roots)) or beside["pack_id"] not in discovered or issues:
+        errors.append(f"a registered default root was counted twice: {roots} {[issue.to_dict() for issue in issues]}")
+    else:
+        checks += 1
+    return checks, errors
+
+
 def run() -> dict[str, Any]:
     checks = 0
     errors: list[str] = []
@@ -323,8 +765,13 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "default-cache",
                 default_enabled_packs=(),
             )
-            if default_managed.managed_root != project_pack_root.resolve():
-                errors.append("default managed pack root is not the project packs directory")
+            # Installed and personal packs live beside the state, outside the
+            # Skill directory a plugin update replaces; the Skill's own packs/
+            # is still discovered.
+            if default_managed.managed_root != (root / "packs").resolve():
+                errors.append("default managed pack root is not the packs folder beside the state")
+            elif default_managed.roots[:2] != (project_pack_root.resolve(), (root / "packs").resolve()):
+                errors.append(f"the Skill packs and the packs beside the state are not both discovered: {default_managed.roots}")
             else:
                 checks += 1
 
@@ -346,6 +793,8 @@ def run() -> dict[str, Any]:
                 errors.append("flag-free settings do not resolve the data-home state file")
             elif flag_free.cache_dir != (data_home / "cache").resolve():
                 errors.append("flag-free settings do not resolve the data-home cache directory")
+            elif flag_free.managed_root != (data_home / "packs").resolve():
+                errors.append("flag-free settings do not install packs into the data-home packs folder")
             else:
                 checks += 1
 
@@ -386,48 +835,46 @@ def run() -> dict[str, Any]:
             else:
                 checks += 1
 
-            state_init_project = root / "state-init-project"
-            state_init_packs = state_init_project / "packs"
-            shutil.copytree(project_pack_root / "commons", state_init_packs / "commons")
-            state_init_extra = initialize_pack(
-                state_init_packs / "extra",
+            first_use_project = root / "first-use-project"
+            first_use_packs = first_use_project / "packs"
+            shutil.copytree(project_pack_root / "commons", first_use_packs / "commons")
+            first_use_extra = initialize_pack(
+                first_use_packs / "extra",
                 name="State Init Extra Pack",
             )
-            state_init_argv = [
+            first_use_argv = [
                 "--state-file",
-                str(root / "state-init" / "pack-state.json"),
+                str(root / "first-use" / "pack-state.json"),
                 "--cache-dir",
-                str(root / "state-init" / "cache"),
+                str(root / "first-use" / "cache"),
                 "--managed-root",
-                str(root / "state-init" / "managed"),
-                "state-init",
+                str(root / "first-use" / "managed"),
+                "ready",
             ]
-            with patch.object(pack_manager_module, "ROOT", state_init_project):
-                first_init_output = io.StringIO()
-                with redirect_stdout(first_init_output):
-                    first_init_exit = pack_cli_main(state_init_argv)
-                first_init = json.loads(first_init_output.getvalue())
-                second_init_output = io.StringIO()
-                with redirect_stdout(second_init_output):
-                    second_init_exit = pack_cli_main(state_init_argv)
-                second_init = json.loads(second_init_output.getvalue())
-            if first_init_exit != 0 or second_init_exit != 0:
+            with patch.object(pack_manager_module, "ROOT", first_use_project):
+                first_ready, first_ready_exit, first_ready_progress = _run_ready(first_use_argv)
+                second_ready, second_ready_exit, _ = _run_ready(first_use_argv)
+            persisted_ready = json.loads(
+                (root / "first-use" / "pack-state.json").read_text(encoding="utf-8")
+            )
+            if first_ready_exit != 0 or second_ready_exit != 0:
                 errors.append(
-                    "state-init exited nonzero: "
-                    f"{first_init_exit}/{second_init_exit}: {first_init}"
+                    f"ready exited nonzero: {first_ready_exit}/{second_ready_exit}: {first_ready}"
                 )
-            elif not first_init.get("created") or second_init.get("created"):
-                errors.append("state-init did not create the state file exactly once")
-            elif not (root / "state-init" / "pack-state.json").is_file():
-                errors.append("state-init did not persist the resolved state file")
-            elif first_init.get("enabled_packs") != sorted(set(shipped_initial["enabled_packs"]) | {state_init_extra["pack_id"]}):
-                errors.append("state-init did not enable the core and discovered extra pack")
-            elif state_init_extra["pack_id"] in (
-                first_init.get("disabled_discovered_packs") or []
-            ):
-                errors.append("state-init left a discovered pack disabled")
-            elif default_pack_id in (first_init.get("disabled_discovered_packs") or []):
-                errors.append("state-init reported an enabled pack as disabled")
+            elif first_ready[0] != "ready: retrieval can use 2 pack(s)":
+                errors.append(f"ready did not open with its verdict: {first_ready}")
+            elif not first_ready[-1].endswith("(created now)") or second_ready[-1].endswith("(created now)"):
+                errors.append("ready did not create the state file exactly once")
+            elif persisted_ready["enabled_packs"] != sorted(set(shipped_initial["enabled_packs"]) | {first_use_extra["pack_id"]}):
+                errors.append("ready did not enable the core and discovered extra pack")
+            elif sum(line.startswith("in use: ") for line in first_ready) != 2:
+                errors.append(f"ready did not list both packs in use: {first_ready}")
+            elif first_ready_progress != [
+                "scanning packs in "
+                f"{(first_use_packs).resolve()}, {(root / 'first-use' / 'managed').resolve()}"
+            ]:
+                # One line when discovery starts, naming what it reads, and no more.
+                errors.append(f"ready did not announce its scan in one line: {first_ready_progress}")
             else:
                 checks += 1
 
@@ -2067,7 +2514,6 @@ def run() -> dict[str, Any]:
             # reading it. The name is the fingerprint of the inputs, so a build
             # renames into a name nothing holds, and a reader takes no lock.
             cache_file = Path(refreshed["cache_path"])
-            lock_file = pack_cache_module._cache_lock_path(settings)
             if cache_file.name == "catalog.sqlite3" or refreshed["fingerprint"] not in cache_file.name:
                 errors.append(
                     "the published cache is not named after the inputs it was built from"
@@ -2076,15 +2522,15 @@ def run() -> dict[str, Any]:
                 checks += 1
 
             locked_while_reading: list[bool] = []
-            unpatched_connect = pack_cache_module.sqlite3.connect
+            unpatched_lock = pack_cache_module._cache_lock
 
-            def _recording_connect(database, *arguments, **keywords):
-                locked_while_reading.append(lock_file.is_file())
-                return unpatched_connect(database, *arguments, **keywords)
+            def _recording_lock(lock_settings):
+                locked_while_reading.append(True)
+                return unpatched_lock(lock_settings)
 
-            with patch.object(pack_cache_module.sqlite3, "connect", _recording_connect):
+            with patch.object(pack_cache_module, "_cache_lock", _recording_lock):
                 load_runtime_catalog(settings)
-            if not locked_while_reading or any(locked_while_reading):
+            if any(locked_while_reading):
                 errors.append("reading the catalog took the build lock")
             else:
                 checks += 1
@@ -3132,8 +3578,13 @@ def run() -> dict[str, Any]:
                     )
                 else:
                     checks += 1
+        with tempfile.TemporaryDirectory(prefix="cpb-pack-smoke-") as temp:
+            for section in (_concurrency_checks, _left_out_pack_checks, _personal_pack_checks):
+                section_checks, section_errors = section(Path(temp))
+                checks += section_checks
+                errors.extend(section_errors)
     except Exception as exc:  # noqa: BLE001
-        errors.append(f"unexpected exception: {exc}")
+        errors.append(f"unexpected exception: {exc!r}")
     return {"ok": not errors, "checks": checks, "errors": errors}
 
 

@@ -3,11 +3,18 @@
 
 Usage:
   python scripts/dispatch.py <generation-package.json> --studio DIR --character ID --slot SLOT
-      [--service ID] [--seed N] [--count N] [--note "..."]        show the request, send nothing
-  python scripts/dispatch.py ... --send                            send it and record every result
+      [--service ID] [--seed N] [--count N] [--note "..."]
+      [--preview-out FILE] [--intent-out FILE]                     show the request, send nothing
+  python scripts/dispatch.py ... --production-authorization RECEIPT --send
+                                                                   send it and record every result
 
   python scripts/dispatch.py --upscale --model ID --source <image> --scale N [--settings '{...}']
-      [--guidance "..."] --studio DIR --character ID --slot SLOT [--service ID] [--send]
+      [--guidance "..."] --request-validation-file FILE --studio DIR --character ID --slot SLOT
+      [--service ID] [--production-authorization RECEIPT --send]
+
+The studio is the production root. A Generation Package bound to a production
+run names that run; an upscale goes under the run prepared for the studio's
+open task.
 
 A Generation Package is verified first, so what is sent is exactly the host
 forwarding the verifier settled: the effective prompt, the negative on the
@@ -18,48 +25,103 @@ with each setting placed on the request key the offering's `setting_keys` gives
 it; the Upscale Package is built from the source and the returned image and
 recorded with them.
 
-The service-specific half is `transport_<service>.py` beside this file; the
-service record (endpoint, auth, operations) is the `service-profiles` resource;
-the per-model identifier and request keys are the model record's offering.
+The service record (endpoint, auth, operations) is the `service-profiles`
+resource, and the model's identifier and request keys on that service are the
+model record's offering. The rest of a service is one module beside this file,
+`transport_<service>.py`, named by the service's key with dashes as underscores.
+It defines these names, and the dispatcher refuses a transport that lacks one:
 
-Every result is recorded as an iteration of the character by this script, with
-the request as sent, the answer, the package, and the file, and the studio's
-gallery is rewritten with it. Nothing is recorded by hand. Every sent run is
-journaled under the studio's runs/ before upload. The exact
-request, answer, package and downloaded images survive a later recording failure;
-a refusal or an empty answer is retained too.
+    OPERATIONS
+        The service's operation name for each model record `operation_kind` it
+        sends. `compile_upscale` is needed only where it names "upscale".
 
-The dry run prints the exact request, so the user approves the thing that would
-be sent rather than a description of it. No byte leaves the machine without
-`--send`.
+    RESULT_HOSTS
+        The hosts a returned image URL may name; the image is fetched over https.
+
+    endpoint(service) -> str
+        The service record's endpoint, refused unless the credential may go there.
+
+    compile_request(verified, offering, service, media_ids, seed, count) -> dict
+        {"request", "layout", "request_trace"}: the request as it would be
+        sent, the source of each field, and a layout naming where each part
+        sits, as request_contract.validate_layout reads it: the model and the
+        operation (null where the address carries them), the prompt, the
+        negative, the output count, the seed, each media item, and the
+        identifiers of this one run. `media_ids` is empty for the preview.
+
+    compile_upscale(model_identifier, source_path, scale, settings, offering,
+                    service, media_ids, guidance) -> dict
+        The same for an upscale of one image.
+
+    added_parameters(offering, seed, count) -> dict
+        The seed and the count the dispatch adds, on this service's keys.
+
+    upload_bytes(data, media_type, service, key) -> str
+        Register one image and return the id the request carries.
+
+    send(request, service, key) -> dict
+        Perform the request and return the answer as a JSON object.
+
+    rejections(answer) -> list[dict]
+        The service's refusals, empty when it accepted the request.
+
+    results(answer) -> list[dict]
+        One entry per returned image with its "seed" and "id", and either its
+        "url" or its bytes as base64 text in "data".
+
+    observation_outcome(answer) -> str
+        "rejected", "accepted" or "indeterminate".
+
+Every returned image is saved and recorded as its own iteration of the
+character, with the request as sent, the answer, the package, and the file, and
+the studio's gallery is rewritten with it. An image the answer carries inline is
+decoded from it; one it names by URL is downloaded. That holds when the service
+refuses part of the request, when it returns a different number of images than
+the authorization allows, and when another image fails to arrive. Every sent run
+is journaled under the studio's runs/ before upload, with the expected and
+received counts, any refusal, and any failed download. `production_workflow.py
+recover-recording` saves the missing images from the saved answer; nothing is
+sent again.
+
+The dry run prints the model, the service and its endpoint, the output count,
+whether the negative prompt is sent, the cost, and then the exact request, so
+the user approves the thing that would be sent rather than a description of it.
+No byte leaves the machine without `--send`.
 """
 from __future__ import annotations
 from io_budget import environment_seconds
 
 import argparse
+import base64
 import contextlib
+import copy
 import hashlib
+import http.client
 import importlib
+import itertools
 import json
 import os
 import shutil
 import sys
 import tempfile
 import urllib.request
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import execution_contract  # noqa: E402
 import service_profile  # noqa: E402
 import studio  # noqa: E402
 from catalog_cli import configure_pack_runtime  # noqa: E402
 from build_generation_payload import validate_generation_package_carrier_paths  # noqa: E402
-from model_contract import generation_media_counts, select_offering, validate_generation_parameters  # noqa: E402
+from model_contract import (  # noqa: E402
+    NEGATIVE_ROLE, generation_media_counts, request_key, select_offering, validate_generation_parameters,
+    validate_request_instance,
+)
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime  # noqa: E402
 from prepare_generation_references import model_pack_root, resolve_model_record  # noqa: E402
 from upscale_package import build_upscale_package, validate_settings  # noqa: E402
@@ -70,59 +132,146 @@ def stamp() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+# The names every transport defines; the module docstring states what each does.
+TRANSPORT_NAMES = ("OPERATIONS", "RESULT_HOSTS", "endpoint", "compile_request", "added_parameters", "upload_bytes",
+                   "send", "rejections", "results", "observation_outcome")
+
+
 def load_transport(service_id: str):
+    """The service's transport module, refused when it lacks a name the transport contract requires."""
+    name = f"transport_{service_id.replace('-', '_')}"
     try:
-        return importlib.import_module(f"transport_{service_id.replace('-', '_')}")
-    except ModuleNotFoundError:
+        module = importlib.import_module(name)
+    except ModuleNotFoundError as exc:
+        if exc.name != name:
+            raise
         raise SystemExit(
-            f"no transport for the service {service_id!r}. Write scripts/transport_{service_id}.py "
-            "against the contract in transport_runware.py, or send by hand and record "
-            "the result with scripts/studio.py iterate."
-        )
+            f"no transport for the service {service_id!r}. Write scripts/{name}.py against the transport "
+            "contract in the scripts/dispatch.py docstring, or send by hand and record the result with "
+            "scripts/studio.py iterate."
+        ) from None
+    operations = getattr(module, "OPERATIONS", None)
+    required = [*TRANSPORT_NAMES, *(["compile_upscale"] if isinstance(operations, dict) and "upscale" in operations else [])]
+    missing = [item for item in required if not hasattr(module, item)]
+    if missing:
+        raise SystemExit(f"{name} lacks {', '.join(missing)}, which the transport contract in the "
+                         "scripts/dispatch.py docstring requires")
+    return module
 
 
 def api_key(service: dict[str, Any]) -> str:
-    """The credential, from the environment or the host's own configuration; never from a file of this suite."""
+    """The credential, from the environment or from an MCP server's env block in the host's configuration."""
     variable = ((service.get("auth") or {}).get("env_var") or "").strip()
     if not variable:
         raise SystemExit("the service record names no auth.env_var")
-    key = os.environ.get(variable, "").strip()
+    key = os.environ.get(variable, "").strip() or mcp_server_credential(Path.home() / ".claude.json", variable)
     if key:
         return key
-    host = Path.home() / ".claude.json"
-    if host.is_file():
-        try:
-            found = _find_env(json.loads(host.read_text(encoding="utf-8")), variable)
-        except (OSError, json.JSONDecodeError):
-            found = None
-        if found:
-            return found
     raise SystemExit(f"the credential is not in the environment. Set {variable} and run again.")
 
 
-def _find_env(node: Any, variable: str) -> str | None:
-    if isinstance(node, dict):
-        value = node.get(variable)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-        for child in node.values():
-            found = _find_env(child, variable)
-            if found:
-                return found
-    elif isinstance(node, list):
-        for child in node:
-            found = _find_env(child, variable)
-            if found:
-                return found
-    return None
+def mcp_server_credential(path: Path, variable: str) -> str | None:
+    """The value MCP server env blocks give the variable, top-level or per project, and nothing else in the file."""
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(config, dict):
+        return None
+    blocks = [config.get("mcpServers")]
+    projects = config.get("projects")
+    if isinstance(projects, dict):
+        blocks.extend(project.get("mcpServers") for project in projects.values() if isinstance(project, dict))
+    values = set()
+    for servers in blocks:
+        for server in servers.values() if isinstance(servers, dict) else ():
+            env = server.get("env") if isinstance(server, dict) else None
+            value = env.get(variable) if isinstance(env, dict) else None
+            if isinstance(value, str) and value.strip():
+                values.add(value.strip())
+    if len(values) > 1:
+        raise SystemExit(f"MCP servers in {path} give {variable} different values. Set {variable} in the environment and run again.")
+    return values.pop() if values else None
 
 
-def save(url: str, destination: Path) -> str:
-    with urllib.request.urlopen(url, timeout=environment_seconds("PRODUCTION_HTTP_TIMEOUT_SECONDS")) as response:
-        data = response.read()
+def result_url(url: str, hosts: Iterable[str]) -> str:
+    """The URL of a returned image, only where it is https on a host the transport declares."""
+    hosts = frozenset(hosts)
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or (parsed.hostname or "").lower() not in hosts or parsed.username or parsed.password:
+        raise ValueError(f"refused to download {url!r}: returned images are fetched over https from "
+                         f"{', '.join(sorted(hosts)) or 'no declared host'} only")
+    return url
+
+
+class _ResultRedirect(urllib.request.HTTPRedirectHandler):
+    """Follow a redirect only to https on a declared result host."""
+
+    def __init__(self, hosts: Iterable[str]) -> None:
+        super().__init__()
+        self.hosts = frozenset(hosts)
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        result_url(newurl, self.hosts)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _opener(hosts: Iterable[str]):
+    return urllib.request.build_opener(_ResultRedirect(hosts))
+
+
+def _is_image(head: bytes) -> bool:
+    return (head.startswith(b"\x89PNG\r\n\x1a\n") or head.startswith(b"\xff\xd8\xff")
+            or (head[:4] == b"RIFF" and head[8:12] == b"WEBP"))
+
+
+def save(url: str, destination: Path, hosts: Iterable[str]) -> str:
+    """Download one returned image to destination and return its SHA-256.
+
+    The body streams to a temporary file beside the destination. It replaces the
+    destination only when it begins like a PNG, JPEG or WebP image and its length
+    matches a declared Content-Length.
+    """
+    result_url(url, hosts)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(data)
-    return hashlib.sha256(data).hexdigest()
+    descriptor, temporary = tempfile.mkstemp(prefix=".download-", dir=destination.parent)
+    digest = hashlib.sha256()
+    size = 0
+    head = b""
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            request = urllib.request.Request(url, method="GET")
+            with _opener(hosts).open(request, timeout=environment_seconds("PRODUCTION_HTTP_TIMEOUT_SECONDS")) as response:
+                declared = response.headers.get("Content-Length")
+                for chunk in iter(lambda: response.read(1024 * 1024), b""):
+                    head = (head + chunk)[:12] if len(head) < 12 else head
+                    digest.update(chunk)
+                    size += len(chunk)
+                    stream.write(chunk)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if declared is not None and (not declared.strip().isdigit() or int(declared) != size):
+            raise ValueError(f"{url} declared a Content-Length of {declared!r} and sent {size} bytes")
+        if not _is_image(head):
+            raise ValueError(f"{url} did not return a PNG, JPEG or WebP image")
+        os.replace(temporary, destination)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+    return digest.hexdigest()
+
+
+def inline_image(data: Any) -> bytes:
+    """The bytes of an image the answer carries as base64 text, only where they begin like a PNG, JPEG or WebP image."""
+    if not isinstance(data, str):
+        raise ValueError("inline image data is not base64 text")
+    raw = base64.b64decode(data, validate=True)
+    if not _is_image(raw[:12]):
+        raise ValueError("the inline image data is not a PNG, JPEG or WebP image")
+    return raw
+
+
+def image_suffix(raw: bytes) -> str:
+    return ".png" if raw.startswith(b"\x89PNG") else ".webp" if raw.startswith(b"RIFF") else ".jpg"
 
 
 def offering_summary(offering: dict[str, Any], model_id: str | None = None,
@@ -174,14 +323,16 @@ def require_guidance_key(offering: dict[str, Any], guidance: str | None) -> str 
 
 
 def service_for(offering: dict[str, Any], profiles_arg: str | None, settings: Any = None):
+    """The service record and its transport; the transport refuses an endpoint it does not send to."""
     service_id = str(offering["service"])
     # The same runtime the model record came from: a record and the service it
     # names must not be read from two different sets of packs.
     profiles = service_profile.resolve_path(profiles_arg, state_file=None, cache_dir=None, managed_root=None,
                                             settings=settings)
     service = service_profile.load_service(service_id, profiles)
-    print(f"service {service_id} at {(service.get('endpoint') or {}).get('base_url')} (record observed {service.get('observed_at')}, read from {profiles})")
-    return service_id, service, load_transport(service_id)
+    transport = load_transport(service_id)
+    transport.endpoint(service)
+    return service_id, service, transport
 
 
 def check_request(verified: dict[str, Any], record: dict[str, Any], offering: dict[str, Any], model_id: str,
@@ -207,15 +358,75 @@ def check_request(verified: dict[str, Any], record: dict[str, Any], offering: di
         prompt=forwarding["effective_prompt"],
         negative_prompt=negative if selected.get("mode") in ("separate-field", "native-subset") else None,
         media_counts=generation_media_counts(offering, len(forwarding.get("selected_references") or [])),
+        output_count=count,
     )
+
+
+def check_upscale(rendered: dict[str, Any], offering: dict[str, Any], model_id: str) -> None:
+    """Put the built upscale request to the service's observed schema before anything is uploaded.
+
+    The fields that only address the operation or name this one run are left
+    out, because the schema describes the model's own parameters.
+    """
+    import request_contract as rc
+    import request_renderer
+    instance = copy.deepcopy(rendered["request"])
+    for path in request_renderer.envelope_fields(rendered):
+        rc.remove(instance, path)
+    validate_request_instance(offering, instance, model_pack_root(model_id))
+
+
+def negative_line(verified: dict[str, Any], rendered: dict[str, Any], offering: dict[str, Any]) -> str:
+    """Whether the authored negative prompt travels, in words a person approving the request reads."""
+    field = rendered["layout"].get("negative_text")
+    if field:
+        return "sent on " + ".".join(str(part) for part in field)
+    if not str(verified.get("negative_prompt") or "").strip():
+        return "none authored"
+    if request_key(offering, NEGATIVE_ROLE) is None:
+        return "not sent; this target has no negative field, so the authored negative stays in the package"
+    mode = ((verified.get("host_forwarding") or {}).get("selected_transport") or {}).get("mode")
+    return f"not sent under the record's {mode} negative transport; the authored negative stays in the package"
+
+
+def show_preview(*, model_id: str, offering: dict[str, Any], service_id: str, service: dict[str, Any],
+                 rendered: dict[str, Any], negative: str, production_run: str | None,
+                 review: list[dict[str, Any]], args: argparse.Namespace) -> None:
+    """A few plain lines a person can check, then the exact request; the long trace goes to --preview-out."""
+    pricing = offering.get("pricing") or service.get("pricing")
+    saved = [f"{label} in {path}" for label, path in (("trace and validation", getattr(args, "preview_out", None)),
+                                                      ("submission intent", getattr(args, "intent_out", None))) if path]
+    lines = [
+        f"model: {model_id} as {offering['model_identifier']} (offering observed {offering.get('observed_at')})",
+        f"service: {service_id} at {(service.get('endpoint') or {}).get('base_url')} (record observed {service.get('observed_at')})",
+        f"outputs: {rendered['output_count']}",
+        f"negative prompt: {negative}",
+        "cost: " + (json.dumps(pricing, ensure_ascii=False) if pricing else "unknown"),
+        f"production run: {production_run}" if production_run else "production run: none, so --send is refused",
+        *[f"review: {item.get('statement')}" for item in review],
+        *([] if args.send else ["saved: " + "; ".join(saved) if saved else
+           "more: --preview-out FILE saves the trace and validation; --intent-out FILE saves the submission intent to authorize",
+           "shown, not sent"]),
+        f"request (sha256 {rendered['request_sha256']}):",
+    ]
+    print("\n".join(lines))
+    print(json.dumps(rendered["request"], ensure_ascii=False, indent=2))
 
 
 def record_refusal(root: Path, name: str, request: dict[str, Any], refused: list[dict[str, Any]], **facts: Any) -> Path:
     runs = root / "runs"
     runs.mkdir(parents=True, exist_ok=True)
-    path = runs / f"{name}-{request['taskUUID'][:8]}-refused.json"
-    path.write_text(json.dumps({"at": stamp(), **facts, "submitted": request, "refused": refused}, ensure_ascii=False, indent=2) + "\n",
-                    encoding="utf-8", newline="\n")
+    body = (json.dumps({"at": stamp(), **facts, "submitted": request, "refused": refused}, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    base = f"{name}-{execution_contract.content_id(request)[:8]}-refused"
+    # A resent request can be refused again; each refusal keeps its own file.
+    for number in itertools.count(1):
+        path = runs / (f"{base}.json" if number == 1 else f"{base}-{number}.json")
+        try:
+            with path.open("xb") as stream:
+                stream.write(body)
+            break
+        except FileExistsError:
+            continue
     print(f"refused by the service: {json.dumps(refused, ensure_ascii=False)}")
     print(f"recorded {path}")
     return path
@@ -224,12 +435,22 @@ def record_refusal(root: Path, name: str, request: dict[str, Any], refused: list
 class RunJournal:
     """Durable local evidence, created before the first upload or paid request."""
 
-    def __init__(self, root: Path, **facts: Any) -> None:
+    def __init__(self, path: Path, document: dict[str, Any]) -> None:
+        self.path = path
+        self.document = document
+
+    @classmethod
+    def create(cls, root: Path, **facts: Any) -> "RunJournal":
         from pack_manager import generate_uuid7
-        self.path = root / "runs" / generate_uuid7()
-        self.path.mkdir(parents=False, exist_ok=False)
-        self.document: dict[str, Any] = {"at": stamp(), **facts, "status": "preparing", "iterations": []}
-        self.update()
+        path = root / "runs" / generate_uuid7()
+        path.mkdir(parents=False, exist_ok=False)
+        journal = cls(path, {"at": stamp(), **facts, "status": "preparing", "iterations": []})
+        journal.update()
+        return journal
+
+    @classmethod
+    def open(cls, path: Path) -> "RunJournal":
+        return cls(path, json.loads((path / "run.json").read_text(encoding="utf-8")))
 
     def write(self, name: str, value: Any) -> Path:
         target = self.path / name
@@ -260,7 +481,7 @@ class RunJournal:
 
 @contextlib.contextmanager
 def recorded_run(root: Path, **facts: Any):
-    journal = RunJournal(root, **facts)
+    journal = RunJournal.create(root, **facts)
     print(f"run evidence: {journal.path}")
     try:
         yield journal
@@ -275,30 +496,223 @@ def recorded_run(root: Path, **facts: Any):
         raise
 
 
-def require_submission_context(args: argparse.Namespace, root: Path) -> None:
-    if not args.send:
-        return
-    production_root = getattr(args, 'production_root', None)
-    if production_root is None or not getattr(args, 'production_run', None) or not getattr(args, 'production_authorization', None):
-        raise ValueError('submission requires production root, prepared run and exact authorization receipt')
-    if production_root.resolve() != root.resolve():
-        raise ValueError('production root must be the receiving Studio root')
+def acquire(run: RunJournal, transport: Any) -> dict[str, Any]:
+    """Save every image the saved answer returns that the journal does not hold yet.
+
+    An image the answer carries inline is decoded from it, and one it names by
+    URL is downloaded. A result already in the journal is complete, because its
+    file is replaced only when whole. One failed image leaves the others.
+    """
+    upscale = run.document["operation"] == "upscale"
+    answer = json.loads((run.path / "answer.json").read_text(encoding="utf-8"))
+    entries = [entry for entry in transport.results(answer) if entry.get("url") or entry.get("data")]
+    refused = transport.rejections(answer)
+    run.update(status="downloading", received=len(entries), refused=refused)
+    folder, stem = (run.path / "upscale.references", "output") if upscale else (run.path, "result")
+    acquired, failed, downloaded = [], [], 0
+    for index, entry in enumerate(entries, 1):
+        response = run.path / f"response-{index}.json"
+        if not response.is_file():
+            run.write(response.name, {"at": stamp(), "seed": entry.get("seed"), "id": entry.get("id"),
+                                      "url": entry.get("url"), "answer": answer})
+        try:
+            if entry.get("data"):
+                raw = inline_image(entry["data"])
+                result = folder / f"{stem}-{index}{image_suffix(raw)}"
+                if not result.is_file():
+                    execution_contract.atomic(result, raw, replace=True)
+            else:
+                result = folder / f"{stem}-{index}{suffix_of(entry['url'])}"
+                if not result.is_file():
+                    save(entry["url"], result, transport.RESULT_HOSTS)
+                    downloaded += 1
+        except (OSError, ValueError, http.client.HTTPException) as exc:
+            # No credential goes to a result host, so the reason is kept.
+            failed.append({"index": index, "error": f"{type(exc).__name__}: {exc}"})
+            continue
+        acquired.append((index, result, response))
+    run.update(failed_downloads=failed)
+    return {"entries": len(entries), "refused": refused, "acquired": acquired, "failed": failed, "downloaded": downloaded}
+
+
+def upscale_result_package(run: RunJournal, index: int, output: Path) -> Path:
+    """The Upscale Package of one returned image, built once from the source and the declared operation."""
+    path = run.path / f"upscale-package-{index}.json"
+    if path.is_file():
+        return path
+    declared = json.loads((run.path / "package.json").read_text(encoding="utf-8"))
+    source = run.document["upscale"]["source"]
+    package = build_upscale_package(
+        model=declared["model"], source_image=run.path / source, output_image=output, package_root=run.path,
+        source_stored_path=source, output_stored_path=output.relative_to(run.path).as_posix(),
+        scale_factor=float(declared["scale_factor"]), settings=declared["settings"],
+        guidance_prompt=declared["guidance_prompt"], audit_status=run.document["upscale"]["audit_status"],
+        audit_notes=[],
+    )
+    return run.write(path.name, package)
+
+
+def recorded_iteration(root: Path, character: str, slot: str, paths: tuple[Path, Path, Path]) -> str | None:
+    """The iteration already holding this result, request and response, if a recording finished before."""
+    wanted = [studio.sha256_file(path) for path in paths]
+    for row in studio.read_iterations(studio.character_dir(root, character)):
+        if row.get("slot") == slot and [(row.get(key) or {}).get("sha256") for key in ("result", "request", "response")] == wanted:
+            return row["iteration_id"]
+    return None
+
+
+def settle(root: Path, run: RunJournal, acquisition: dict[str, Any], *, recovering: bool) -> str:
+    """Write the production result and the studio iterations for what was acquired; return the run's status.
+
+    The production run receives its dispatch result only when every returned
+    image arrived and their number is the authorized one. Every image that
+    arrived becomes a studio iteration either way.
+    """
+    facts = run.document
+    acquired = acquisition["acquired"]
+    packages: dict[int, Path] = {}
+    if facts["operation"] == "upscale":
+        run.update(status="building-package")
+        packages = {index: upscale_result_package(run, index, result) for index, result, _ in acquired}
+    expected = facts["expected"]
+    if acquisition["entries"] and not acquisition["failed"] and acquisition["entries"] == expected:
+        from production_workflow import record_dispatch_results
+        package = json.loads((run.path / "package.json").read_text(encoding="utf-8"))
+        record_dispatch_results(root, facts["production_run"], package, run.path,
+                                [result for _, result, _ in acquired], expected)
+    run.update(status="recording")
+    recorded = list(facts.get("iterations") or [])
+    request = run.path / "request.json"
+    layout = json.loads((run.path / "request-contract.json").read_text(encoding="utf-8"))["layout"]
+    companion = run.path / facts["companion"] if facts.get("companion") else None
+    audit = (facts.get("upscale") or {}).get("audit_status")
+    for index, result, response in acquired:
+        found = recorded_iteration(root, facts["character"], facts["slot"], (result, request, response)) if recovering else None
+        if found is None:
+            row = studio.iterate(root, facts["character"], facts["slot"], result,
+                                 package=packages.get(index, run.path / "package.json"), request=request,
+                                 response=response, note=facts.get("note"), service=facts.get("offering"),
+                                 package_companion=companion, layout=layout)
+            found = row["iteration_id"]
+            detail = f"({'identity audit pending' if audit == 'pending' else 'ready'})" if audit else f"seed {row.get('seed')}"
+            print(f"  recorded {found} {detail} -> {row['result']['path']}")
+        if found not in recorded:
+            recorded.append(found)
+            run.update(iterations=list(recorded))
+    if acquisition["failed"]:
+        status = "download-incomplete"
+    elif not acquisition["entries"]:
+        status = "refused" if acquisition["refused"] else "no-results"
+    elif acquisition["entries"] != expected:
+        status = "count-mismatch"
+    else:
+        status = "complete"
+    run.update(status=status)
+    return status
+
+
+def report_outcome(root: Path, run: RunJournal, status: str) -> int:
+    """Say what the service's answer left in the studio; 0 only for every authorized image with no refusal."""
+    facts = run.document
+    if status == "download-incomplete":
+        print(f"error: {len(facts['failed_downloads'])} of {facts['received']} returned images were not saved; "
+              f"the answer and every image that was are kept in {run.path}. Save the rest without sending "
+              f"again: python scripts/production_workflow.py recover-recording --root {root} --run {facts['production_run']}",
+              file=sys.stderr)
+    elif status == "count-mismatch":
+        print(f"error: the service returned {facts['received']} images where the authorization allows "
+              f"{facts['expected']}. Every returned image is recorded in the studio; none is a result of "
+              f"production run {facts['production_run']}.", file=sys.stderr)
+    elif status == "no-results":
+        print(f"error: the service answered with no result file; answer retained in {run.path}", file=sys.stderr)
+    return 0 if status == "complete" and not facts.get("refused") else 1
+
+
+def recover(root: Path, production_run: str, journal: Path) -> int:
+    """Save what the saved answer returns and the journal lacks, then record it; nothing is sent again.
+
+    `production_workflow.py recover-recording` calls this for a claimed run that
+    has no dispatch result yet. Returns the number of images downloaded now; an
+    image the answer carries inline is decoded without a connection.
+    """
+    import execution_contract as c
+    if not (journal / "run.json").is_file():
+        raise ValueError(f"{journal} holds no dispatch journal, so nothing can be recovered from it")
+    run = RunJournal.open(journal)
+    if run.document.get("production_run") != production_run:
+        raise ValueError("the dispatch journal belongs to another production run")
+    if not (journal / "answer.json").is_file():
+        raise ValueError("the send has no saved answer, so its outcome is unknown; recovery sends nothing, "
+                         "so no image can be recovered from this run")
+    acquisition = acquire(run, load_transport(run.document["service"]))
+    with c.lock(root):
+        status = settle(root, run, acquisition, recovering=True)
+    if status == "download-incomplete":
+        raise ValueError(f"{len(acquisition['failed'])} returned images are still not saved; "
+                         f"see {journal / 'run.json'} and run recover-recording again")
+    if status == "count-mismatch":
+        raise ValueError(f"the service returned {acquisition['entries']} images where the authorization allows "
+                         f"{run.document['expected']}; every returned image is recorded in the studio, and none is a production result")
+    if status in {"refused", "no-results"}:
+        raise ValueError(f"the saved answer holds no image; it is kept in {journal}")
+    return acquisition["downloaded"]
+
+
+def write_preview_outputs(args: argparse.Namespace, rendered: dict, validation: dict, submission: dict | None) -> None:
+    """Save an explicitly requested preview without reserving or executing work."""
+    import execution_contract as c
+    preview_out = getattr(args, 'preview_out', None)
+    intent_out = getattr(args, 'intent_out', None)
+    if intent_out is not None and submission is None:
+        raise ValueError('--intent-out requires a prepared production run')
+    if args.send and (preview_out is not None or intent_out is not None):
+        raise ValueError('save preview files before selecting --send')
+    destinations = [Path(value).absolute() for value in (preview_out, intent_out) if value is not None]
+    if len(set(destinations)) != len(destinations):
+        raise ValueError('preview and intent need distinct new files')
+    for path in destinations:
+        if path.exists():
+            raise FileExistsError('preview destination already exists: ' + str(path))
+    if preview_out is not None:
+        c.atomic(Path(preview_out), c.encoded({'request_contract': rendered, 'validation': validation,
+            'execution_ready': False, 'external_effect': False, 'budget_effect': 'none'}))
+    if intent_out is not None:
+        c.atomic(Path(intent_out), c.encoded(submission))
+
+
+def require_submission(args: argparse.Namespace, production_run: str | None) -> None:
+    """A send needs a prepared production run and the receipt of its exact authorization."""
+    if args.send and (production_run is None or not getattr(args, "production_authorization", None)):
+        raise ValueError("--send needs a prepared production run and --production-authorization with the receipt "
+                         "of its exact authorization")
+
+
+def open_run(root: Path) -> str | None:
+    """The production run prepared for the studio's open task, which an upscale goes under."""
+    import work_ledger
+    return (work_ledger.read_current(root) or {}).get("production_run")
+
+
+def read_package(path: Path) -> tuple[Path, dict[str, Any]]:
+    package_path = path.resolve()
+    if not package_path.is_file():
+        raise ValueError(f"there is no Generation Package at {path}; check the path")
+    return package_path, json.loads(package_path.read_text(encoding="utf-8"))
 
 
 def dispatch_generation(args: argparse.Namespace, root: Path) -> int:
+    package_path, package = read_package(args.package)
     studio.validate_recording_target(root, args.character, args.slot, writable=args.send)
-    require_submission_context(args, root)
-    package_path = args.package.resolve()
-    package = json.loads(package_path.read_text(encoding="utf-8"))
-    verified = verify(package, package_root=package_path.parent)
+    verified = verify(package, package_root=package_path.parent, project=root)
     from production_binding import validate_live
-    production_root = getattr(args, "production_root", None)
-    production_run = getattr(args, "production_run", None)
-    validate_live(production_root, production_run, package)
-    if production_root is not None and production_root.resolve() != root.resolve():
-        raise ValueError("production root must be the receiving Studio root")
-    from adoption_workflow import validate_for_generation
-    validate_for_generation(root, args.character, package)
+    binding = package.get("production_binding")
+    production_run = binding["run"] if binding is not None else None
+    validate_live(root if binding is not None else None, production_run, package)
+    require_submission(args, production_run)
+    from visual_continuity import require as require_visual
+    require_visual(package["visual_continuity"], production_spec=package["production_spec"],
+                   prepared=package["prepared_reference_set"], root=root,
+                   recording_character=args.character, recording_slot=args.slot)
     # The companion holding the carriers the package names, so that every
     # iteration keeps a package that can still be read beside its references.
     companion_name = validate_generation_package_carrier_paths(
@@ -314,85 +728,83 @@ def dispatch_generation(args: argparse.Namespace, root: Path) -> int:
         )
     service_id, service, transport = service_for(offering, args.profiles, getattr(args, "pack_settings", None))
     check_request(verified, record, offering, model_id, transport, args.seed, args.count)
-    preview = transport.build(verified, offering, service, {}, args.seed, args.count)
-    print(f"model {model_id} as {offering['model_identifier']} (offering observed {offering.get('observed_at')})")
-    print(json.dumps(preview, ensure_ascii=False, indent=2))
+    import request_contract as rc
+    import request_renderer
+    import runtime_evidence
+    rendered = request_renderer.generation(package, verified, record, offering, service, transport,
+                                           seed=args.seed, count=args.count)
+    reader = runtime_evidence.reader(root, snapshots=copy.deepcopy(package['input_snapshots']))
+    validation = request_renderer.check_final(package['request_validation'], reader, rendered)
+    preview = rendered['request']
     submission = None
     if production_run is not None:
         from production_workflow import submission_intent
-        submission = submission_intent(package, seed=args.seed, count=args.count, offering=offering, service=service)
-        print("production submission intent (not permission):")
-        print(json.dumps(submission, ensure_ascii=False, indent=2))
+        submission = submission_intent(package, rendered=rendered, seed=args.seed, count=args.count, offering=offering, service=service)
+    write_preview_outputs(args, rendered, validation, submission)
+    show_preview(model_id=model_id, offering=offering, service_id=service_id, service=service, rendered=rendered,
+                 negative=negative_line(verified, rendered, offering), production_run=production_run,
+                 review=verified.get("review_requirements") or [], args=args)
     if not args.send:
-        print("shown, not sent. Add --send once the user has approved this request.")
         return 0
 
-    authorization = getattr(args, "production_authorization", None)
-    if production_run is None or not authorization:
-        raise ValueError("submission requires a prepared production run and exact authorization receipt")
+    authorization = args.production_authorization
     key = api_key(service)
     with recorded_run(root, operation="generation", character=args.character, slot=args.slot,
-                      service=service_id, model=model_id) as run:
+                      service=service_id, model=model_id, production_run=production_run, expected=args.count,
+                      note=args.note, offering=offering_summary(offering, model_id, record),
+                      companion=companion.name if companion is not None else None) as run:
         stored_package = run.keep(package_path, "package.json")
-        stored_companion = run.keep(companion, companion.name) if companion is not None else None
+        if companion is not None:
+            run.keep(companion, companion.name)
         saved_package = json.loads(stored_package.read_text(encoding="utf-8"))
         if saved_package != package:
             raise ValueError("generation package changed while the dispatch snapshot was being saved")
         # Revalidate beside the saved carriers and upload those copies, not files
         # an author could change after the preflight. The durable package must
         # describe the same carrier bytes that actually leave this machine.
-        saved_verified = verify(saved_package, package_root=run.path)
-        if production_run is not None:
-            from production_workflow import claim_dispatch
-            claim_dispatch(root, production_run, saved_package, saved_verified, run.path, submission, authorization)
+        saved_verified = verify(saved_package, package_root=run.path, project=root)
+        saved_rendered = request_renderer.generation(saved_package, saved_verified, record, offering, service, transport,
+                                                     seed=args.seed, count=args.count)
+        if rc.receipt_projection(saved_rendered) != rc.receipt_projection(rendered):
+            raise ValueError('request changed while saving its input snapshots')
+        # Retain the preview's declared management identifiers as well as its semantic request.
+        for field in saved_rendered['layout']['management']:
+            rc.put(saved_rendered['request'], field, rc.get(rendered['request'], field))
+        rc.validate_seal(saved_rendered)
+        request_renderer.check_final(saved_package['request_validation'],
+            runtime_evidence.reader(root, snapshots=copy.deepcopy(saved_package['input_snapshots'])), saved_rendered)
+        run.write('request-contract.json', saved_rendered)
+        from production_workflow import claim_dispatch
+        claim = claim_dispatch(root, production_run, saved_package, saved_verified, run.path, submission, authorization, rendered=saved_rendered)
         run.write("preview.json", preview)
         run.update(status="uploading")
-        media_ids = {path: transport.upload(path, service, key) for path in transport.media_paths(saved_verified)}
-        request = transport.build(saved_verified, offering, service, media_ids, args.seed, args.count)
-        request_path = run.write("request.json", request)
+        import reservation_lifecycle
+        media_ids = {}
+        for index, item in enumerate(saved_rendered['media']):
+            raw = Path(item['path']).read_bytes()
+            if len(raw) != item['size'] or hashlib.sha256(raw).hexdigest() != item['sha256']:
+                raise ValueError('saved upload bytes differ from the sealed request')
+            reservation_lifecycle.begin_step(root, production_run, authorization, claim=claim['sha256'],
+                                             step=f'upload:{index}', operation='upload')
+            media_ids[index] = transport.upload_bytes(raw, item['media_type'], service, key)
+            run.write(f'upload-{index + 1:03d}.json', {'index': index, 'source': item['path'],
+                      'source_sha256': item['sha256'], 'provider_id': media_ids[index]})
+        request = rc.materialize(saved_rendered, media_ids)
+        rc.validate_wire(saved_rendered, request, media_ids)
+        run.write("request.json", request)
         run.update(status="sending")
+        reservation_lifecycle.begin_step(root, production_run, authorization, claim=claim['sha256'], step='send', operation='send')
         answer = transport.send(request, service, key)
-        run.write("answer.json", answer)
+        answer_path = run.write("answer.json", answer)
+        run.write('transport-outcome.json', {'outcome': transport.observation_outcome(answer),
+                  'response_sha256': hashlib.sha256(answer_path.read_bytes()).hexdigest()})
         run.update(status="answered")
         refused = transport.rejections(answer)
         if refused:
-            run.update(status="refused", refused=refused)
             record_refusal(root, package_path.stem, request, refused, package=str(stored_package),
                            character=args.character, slot=args.slot, service=service_id)
-            return 1
-        recorded = []
-        acquired = []
-        entries = [entry for entry in transport.results(answer) if entry.get("url")]
-        if production_run is not None and len(entries) != args.count:
-            run.update(status="response-count-mismatch", expected=args.count, received=len(entries))
-            raise ValueError("returned output count differs from the authorized count")
-        for index, entry in enumerate(entries):
-            response_path = run.write(f"response-{index + 1}.json", {
-                "at": stamp(), "seed": entry.get("seed"), "id": entry.get("id"),
-                "url": entry["url"], "answer": answer,
-            })
-            result_path = run.path / f"result-{index + 1}{suffix_of(entry['url'])}"
-            run.update(status="downloading")
-            save(entry["url"], result_path)
-            acquired.append((result_path, response_path))
-        if production_run is not None:
-            from production_workflow import record_dispatch_results
-            record_dispatch_results(root, production_run, saved_package, run.path,
-                                    [p for p, _ in acquired], args.count)
-        for result_path, response_path in acquired:
-            run.update(status="recording")
-            row = studio.iterate(root, args.character, args.slot, result_path, package=stored_package,
-                                 request=request_path, response=response_path, note=args.note,
-                                 service=offering_summary(offering, model_id, record),
-                                 package_companion=stored_companion)
-            recorded.append(row["iteration_id"])
-            run.update(iterations=list(recorded))
-            print(f"  recorded {row['iteration_id']} seed {row.get('seed')} -> {row['result']['path']}")
-        run.update(status="complete" if recorded else "no-results")
-        if not recorded:
-            print(f"the service answered with no result file; answer retained in {run.path}")
-            return 1
-    return 0
+        status = settle(root, run, acquire(run, transport), recovering=False)
+        return report_outcome(root, run, status)
 
 
 def suffix_of(url: str) -> str:
@@ -402,7 +814,8 @@ def suffix_of(url: str) -> str:
 
 def dispatch_upscale(args: argparse.Namespace, root: Path) -> int:
     studio.validate_recording_target(root, args.character, args.slot, writable=args.send)
-    require_submission_context(args, root)
+    production_run = open_run(root)
+    require_submission(args, production_run)
     source = args.source.resolve()
     if not source.is_file():
         raise SystemExit(f"{source} is not a file")
@@ -423,97 +836,91 @@ def dispatch_upscale(args: argparse.Namespace, root: Path) -> int:
             f"model record {model_id!r} is exposed on no service here; upscale by hand, build the package with "
             "scripts/build_upscale_package.py, and record the result with scripts/studio.py iterate"
         )
-    guidance = require_guidance_key(offering, args.guidance)
+    require_guidance_key(offering, args.guidance)
     placed = mapped_settings(record, offering, settings)
-    # The request the service will see, against its observed schema, before anything is uploaded.
-    validate_generation_parameters(record, {"upscaleFactor": int(args.scale) if float(args.scale).is_integer() else args.scale, "outputFormat": "PNG", **placed,
-                                            **({guidance: args.guidance} if guidance and args.guidance else {})},
-                                   service=offering["service"], pack_root=model_pack_root(model_id),
-                                   media_counts={"input image": 1})
     service_id, service, transport = service_for(offering, args.profiles, getattr(args, "pack_settings", None))
-    preview = transport.build_upscale(offering["model_identifier"], str(source), args.scale, placed, offering, service, {}, args.guidance)
-    print(f"model {model_id} as {offering['model_identifier']} (offering observed {offering.get('observed_at')})")
-    print(json.dumps(preview, ensure_ascii=False, indent=2))
-    if getattr(args, 'production_run', None):
-        from production_binding import upscale_request, validate_upscale_live
-        from production_workflow import submission_intent
-        declared = upscale_request(root, source, model_id, args.scale, settings, args.guidance)
-        validate_upscale_live(root, args.production_run, declared)
-        print('production submission intent (not permission):')
-        print(json.dumps(submission_intent(declared, seed=None, count=1, offering=offering, service=service), indent=2))
+    from production_binding import upscale_request, validate_upscale_live
+    from production_workflow import submission_intent, claim_dispatch
+    import execution_contract as c
+    import request_contract as rc
+    import request_renderer
+    import runtime_evidence
+    validation_file = getattr(args, 'request_validation_file', None)
+    if validation_file is None:
+        raise ValueError('upscale requires an explicit --request-validation-file')
+    declared = upscale_request(root, source, model_id, args.scale, settings, args.guidance,
+                               request_validation=c.load(validation_file))
+    if production_run is not None:
+        validate_upscale_live(root, production_run, declared)
+    rendered = request_renderer.upscale(declared, record, offering, service, transport, source, placed, root=root)
+    check_upscale(rendered, offering, model_id)
+    validation = request_renderer.check_final(declared['request_validation'],
+        runtime_evidence.reader(root, snapshots=copy.deepcopy(declared['input_snapshots'])), rendered)
+    preview = rendered['request']
+    submission = None
+    if production_run is not None:
+        submission = submission_intent(declared, rendered=rendered, seed=None, count=1, offering=offering, service=service)
+    write_preview_outputs(args, rendered, validation, submission)
+    show_preview(model_id=model_id, offering=offering, service_id=service_id, service=service, rendered=rendered,
+                 negative="none; an upscale takes no negative prompt", production_run=production_run,
+                 review=[], args=args)
     if not args.send:
-        print("shown, not sent. Add --send once the user has approved this request.")
         return 0
 
-    from production_binding import upscale_request, validate_upscale_live
-    from production_workflow import submission_intent, claim_dispatch, record_dispatch_results
-    production_run = args.production_run
-    declared = upscale_request(root, source, model_id, args.scale, settings, args.guidance)
-    validate_upscale_live(root, production_run, declared)
-    submission = submission_intent(declared, seed=None, count=1, offering=offering, service=service)
     key = api_key(service)
+    audit = "pending" if record.get("upscaler_class") in {"generative", "creative"} else "not-required"
     with recorded_run(root, operation="upscale", character=args.character, slot=args.slot,
-                      service=service_id, model=model_id) as run:
+                      service=service_id, model=model_id, production_run=production_run, expected=1,
+                      note=args.note, offering=offering_summary(offering, model_id, record),
+                      companion="upscale.references") as run:
         # Keep both images beside the package and copy them into the iteration
         # under the same relative companion path, so either copy is recoverable.
         companion = run.path / "upscale.references"
         companion.mkdir()
         staged_source = companion / f"source{source.suffix.lower()}"
         shutil.copyfile(source, staged_source)
-        from execution_contract import digest, read
-        if digest(read(staged_source)) != declared['source']['sha256']:
+        run.update(upscale={"source": staged_source.relative_to(run.path).as_posix(), "audit_status": audit})
+        if c.digest(c.read(staged_source)) != declared['source']['sha256']:
             raise ValueError('upscale source changed while saving the dispatch snapshot')
         run.write('package.json', declared)
-        claim_dispatch(root, production_run, declared, {}, run.path, submission, args.production_authorization)
+        saved_rendered = request_renderer.upscale(declared, record, offering, service, transport, staged_source, placed, root=root)
+        if rc.receipt_projection(saved_rendered) != rc.receipt_projection(rendered):
+            raise ValueError('upscale request changed while saving its input snapshot')
+        for field in saved_rendered['layout']['management']:
+            rc.put(saved_rendered['request'], field, rc.get(rendered['request'], field))
+        rc.validate_seal(saved_rendered)
+        request_renderer.check_final(declared['request_validation'],
+            runtime_evidence.reader(root, snapshots=copy.deepcopy(declared['input_snapshots'])), saved_rendered)
+        run.write('request-contract.json', saved_rendered)
+        claim = claim_dispatch(root, production_run, declared, {}, run.path, submission, args.production_authorization,
+                               rendered=saved_rendered)
         run.write("preview.json", preview)
         run.update(status="uploading")
-        media_ids = {str(source): transport.upload(str(staged_source), service, key)}
-        request = transport.build_upscale(offering["model_identifier"], str(source), args.scale,
-                                          placed, offering, service, media_ids, args.guidance)
-        request_path = run.write("request.json", request)
+        import reservation_lifecycle
+        raw = staged_source.read_bytes()
+        item = saved_rendered['media'][0]
+        if len(raw) != item['size'] or hashlib.sha256(raw).hexdigest() != item['sha256']:
+            raise ValueError('upscale upload bytes differ from the sealed input')
+        reservation_lifecycle.begin_step(root, production_run, args.production_authorization, claim=claim['sha256'], step='upload:0', operation='upload')
+        media_ids = {0: transport.upload_bytes(raw, item['media_type'], service, key)}
+        run.write('upload-001.json', {'index': 0, 'source': str(staged_source),
+                  'source_sha256': item['sha256'], 'provider_id': media_ids[0]})
+        request = rc.materialize(saved_rendered, media_ids)
+        rc.validate_wire(saved_rendered, request, media_ids)
+        run.write("request.json", request)
         run.update(status="sending")
+        reservation_lifecycle.begin_step(root, production_run, args.production_authorization, claim=claim['sha256'], step='send', operation='send')
         answer = transport.send(request, service, key)
-        run.write("answer.json", answer)
+        answer_path = run.write('answer.json', answer)
+        run.write('transport-outcome.json', {'outcome': transport.observation_outcome(answer),
+                  'response_sha256': hashlib.sha256(answer_path.read_bytes()).hexdigest()})
         run.update(status="answered")
         refused = transport.rejections(answer)
         if refused:
-            run.update(status="refused", refused=refused)
             record_refusal(root, f"upscale-{source.stem}", request, refused, source=str(staged_source),
                            model=model_id, character=args.character, slot=args.slot, service=service_id)
-            return 1
-        entries = [entry for entry in transport.results(answer) if entry.get("url")]
-        if len(entries) != 1:
-            run.update(status="response-count-mismatch", expected=1, received=len(entries))
-            raise ValueError('upscale returned output count differs from the authorized count')
-        recorded = []
-        required = record.get("upscaler_class") in {"generative", "creative"}
-        for index, entry in enumerate(entries, 1):
-            response_path = run.write(f"response-{index}.json", {
-                "at": stamp(), "seed": entry.get("seed"), "id": entry.get("id"),
-                "url": entry["url"], "answer": answer,
-            })
-            output = companion / f"output-{index}{suffix_of(entry['url'])}"
-            run.update(status="downloading")
-            save(entry["url"], output)
-            run.update(status="building-package")
-            package = build_upscale_package(
-                model=model_id, source_image=staged_source, output_image=output, package_root=run.path,
-                source_stored_path=staged_source.relative_to(run.path).as_posix(),
-                output_stored_path=output.relative_to(run.path).as_posix(), scale_factor=float(args.scale),
-                settings=settings, guidance_prompt=args.guidance, audit_status="pending" if required else "not-required",
-                audit_notes=[],
-            )
-            package_path = run.write(f"upscale-package-{index}.json", package)
-            record_dispatch_results(root, production_run, declared, run.path, [output], 1)
-            run.update(status="recording")
-            row = studio.iterate(root, args.character, args.slot, output, package=package_path,
-                                 request=request_path, response=response_path, note=args.note,
-                                 service=offering_summary(offering, model_id, record), package_companion=companion)
-            recorded.append(row["iteration_id"])
-            run.update(iterations=list(recorded))
-            print(f"  recorded {row['iteration_id']} -> {row['result']['path']} ({'identity audit pending' if required else 'ready'})")
-        run.update(status="complete")
-    return 0
+        status = settle(root, run, acquire(run, transport), recovering=False)
+        return report_outcome(root, run, status)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -534,10 +941,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scale", type=float, help="With --upscale: the factor, one the record declares")
     parser.add_argument("--settings", default="{}", help="With --upscale: JSON object of the settings the record declares")
     parser.add_argument("--guidance", help="With --upscale: a guidance prompt, where the record accepts one")
+    parser.add_argument("--request-validation-file", type=Path, help="With --upscale: explicit validation record and evidence.")
+    parser.add_argument('--preview-out', type=Path, help='New local file for the sealed request, its trace and the validation report; preview only.')
+    parser.add_argument('--intent-out', type=Path, help='New local file for the exact submission intent to authorize; preview only.')
     add_pack_runtime_arguments(parser)
-    parser.add_argument("--production-root", type=Path)
-    parser.add_argument("--production-run")
-    parser.add_argument("--production-authorization", help="Exact submit authorization receipt for a bound production run.")
+    parser.add_argument("--production-authorization", help="With --send: the receipt of the exact authorization of this request.")
     args = parser.parse_args(argv)
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)

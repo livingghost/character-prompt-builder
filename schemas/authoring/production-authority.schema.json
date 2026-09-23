@@ -129,6 +129,23 @@
                 "type": "null"
               }
             ]
+          },
+          "request_scope": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "submission_validation_modes": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "target-schema",
+                "bounded-probe",
+                "observed-profile"
+              ]
+            },
+            "uniqueItems": true
           }
         },
         "required": [
@@ -139,7 +156,9 @@
           "targets",
           "limits",
           "protected_criteria",
-          "expires_at"
+          "expires_at",
+          "request_scope",
+          "submission_validation_modes"
         ],
         "additionalProperties": false
       },

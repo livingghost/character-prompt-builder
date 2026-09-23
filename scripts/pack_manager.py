@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import codecs
+import functools
 import hashlib
 import json
 import math
@@ -21,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
+from execution_contract import fsync_dir, lock
 from package_metadata import calver_key
 from model_contract import recommended_parameter_issues, validate_model_record
 from resource_policy import KNOWN_RESOURCE_VALIDATORS, validate_known_resource
@@ -53,6 +55,7 @@ class PackIssue:
     code: str
     message: str
     path: str | None = None
+    pack_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         output: dict[str, Any] = {
@@ -62,6 +65,8 @@ class PackIssue:
         }
         if self.path:
             output["path"] = self.path
+        if self.pack_id:
+            output["pack_id"] = self.pack_id
         return output
 
 
@@ -182,15 +187,16 @@ def sha256_file(path: Path) -> str:
 
 
 def atomic_write_json(path: Path, value: Any) -> None:
+    """Replace `path` with `value` whole, flushed to disk before it is published."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}")
     try:
-        temporary.write_text(
-            json.dumps(value, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
+        with temporary.open("w", encoding="utf-8", newline="\n") as stream:
+            stream.write(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
         os.replace(temporary, path)
+        fsync_dir(path.parent)
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -1307,7 +1313,9 @@ def default_settings(
         resolved_cache_dir = (resolved_state_file.parent / "cache").resolve()
     else:
         resolved_cache_dir = (state_home / "cache").resolve()
-    managed = (managed_root or ROOT / "packs").resolve()
+    # Personal packs live beside the state, outside the Skill directory, so a
+    # Skill update that replaces its own packs/ leaves them in place.
+    managed = (managed_root or resolved_state_file.parent / "packs").resolve()
     roots: list[Path] = [ROOT / "packs", managed]
     roots.extend(Path(value) for value in extra_roots)
     unique: list[Path] = []
@@ -1354,6 +1362,35 @@ def default_settings(
             default_enabled_packs is None
             and load_json(PACK_INITIALIZATION_PATH)["enable_all_discovered"] is True
         ),
+    )
+
+
+def state_lock(settings: PackSettings):
+    """Hold the state file for one read-modify-write, across threads and processes."""
+    return lock(settings.state_file.parent)
+
+
+def _under_state_lock(operation):
+    """Run one change to the state file while holding its lock, so none is lost."""
+
+    @functools.wraps(operation)
+    def locked(settings: PackSettings, *arguments: Any, **options: Any) -> Any:
+        with state_lock(settings):
+            return operation(settings, *arguments, **options)
+
+    return locked
+
+
+def pack_cli_command(settings: PackSettings) -> str:
+    """The `pack_cli.py` invocation that acts on this runtime, for a printed fix."""
+    home = _user_data_home()
+    selected = (settings.state_file, settings.cache_dir, settings.managed_root)
+    if selected == (home / "pack-state.json", home / "cache", home / "packs"):
+        return "python scripts/pack_cli.py"
+    quoted = [f'"{path}"' if " " in str(path) else str(path) for path in selected]
+    return (
+        f"python scripts/pack_cli.py --state-file {quoted[0]} "
+        f"--cache-dir {quoted[1]} --managed-root {quoted[2]}"
     )
 
 
@@ -1437,6 +1474,7 @@ def _discover_pack_locations(
                     "error",
                     "duplicate-pack-id",
                     f"Pack ID {pack_id!r} appears at multiple roots and every candidate is inactive: {rendered}.",
+                    pack_id=pack_id,
                 )
             )
             continue
@@ -1464,6 +1502,7 @@ def load_state(
         return {
             "pack_roots": [],
             "enabled_packs": [str(value) for value in default_enabled_packs],
+            "disabled_packs": [],
             "resource_providers": {
                 str(name): str(pack_id)
                 for name, pack_id in (default_resource_providers or {}).items()
@@ -1477,7 +1516,7 @@ def load_state(
         raise PackError(
             f"Pack state failed schema validation: {schema_errors[0].message}: {path}"
         )
-    unexpected = sorted(set(value) - {"pack_roots", "enabled_packs", "resource_providers"})
+    unexpected = sorted(set(value) - {"pack_roots", "enabled_packs", "disabled_packs", "resource_providers"})
     if unexpected:
         raise PackError(f"Pack state contains unexpected fields {unexpected}: {path}")
     enabled = value.get("enabled_packs")
@@ -1500,23 +1539,45 @@ def load_state(
     return {
         "pack_roots": normalized_roots,
         "enabled_packs": list(enabled),
+        # The packs the author chose to leave out. A discovered pack in neither
+        # list has appeared since, and nobody has decided about it yet.
+        "disabled_packs": [str(item) for item in value.get("disabled_packs") or []],
         "resource_providers": dict(sorted(providers.items())),
     }
 
 
-def load_effective_state(settings: PackSettings) -> dict[str, Any]:
-    """Load user state or the shipped initial state when no user state exists."""
+def load_effective_state(
+    settings: PackSettings,
+    *,
+    only: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """Load user state, or the first-use state when no user state exists.
+
+    First use enables every discovered pack, or exactly the packs in `only`.
+    """
     state = load_state(
         settings.state_file,
         default_enabled_packs=settings.default_enabled_packs,
         default_resource_providers=dict(settings.default_resource_providers),
     )
-    if not settings.state_file.is_file() and settings.initialize_all_discovered:
-        discovered, issues = discover_packs(settings, state)
-        failures = [issue.message for issue in issues if issue.severity == "error"]
-        if failures:
-            raise PackError("Initial discovery failed: " + "; ".join(failures))
-        state["enabled_packs"] = sorted(set(state["enabled_packs"]) | set(discovered))
+    if not settings.state_file.is_file() and (settings.initialize_all_discovered or only is not None):
+        # A pack discovery cannot read is left out here and reported by every
+        # command that loads the catalog, like any other unusable pack.
+        discovered, _ = discover_packs(settings, state)
+        if only is not None:
+            unknown = sorted(set(only) - set(discovered))
+            if unknown:
+                raise PackError(f"Unknown pack ID: {', '.join(unknown)}")
+            state["disabled_packs"] = sorted(set(discovered) - set(only))
+            discovered = {pack_id: discovered[pack_id] for pack_id in only}
+            state["enabled_packs"] = sorted(discovered)
+            state["resource_providers"] = {
+                name: owner
+                for name, owner in state["resource_providers"].items()
+                if owner in discovered
+            }
+        else:
+            state["enabled_packs"] = sorted(set(state["enabled_packs"]) | set(discovered))
         candidates: dict[str, list[str]] = {}
         for pack_id, pack in discovered.items():
             for name in pack.manifest.get("content", {}).get("resource_bindings", {}):
@@ -1543,27 +1604,27 @@ def save_state(path: Path, state: Mapping[str, Any]) -> None:
         str(name): str(pack_id)
         for name, pack_id in sorted((state.get("resource_providers") or {}).items())
     }
-    value = {
+    value: dict[str, Any] = {
         "pack_roots": roots,
         "enabled_packs": enabled,
         "resource_providers": providers,
     }
+    disabled = sorted(set(str(item) for item in state.get("disabled_packs") or []) - set(enabled))
+    if disabled:
+        value["disabled_packs"] = disabled
     schema_errors = _schema_issues(value, PACK_STATE_SCHEMA_PATH, path)
     if schema_errors:
         raise PackError(f"Pack state failed schema validation: {schema_errors[0].message}: {path}")
     atomic_write_json(path, value)
 
 
+@_under_state_lock
 def add_pack_root(settings: PackSettings, root: Path) -> dict[str, Any]:
     state = load_effective_state(settings)
     resolved = root.expanduser().resolve()
     if not resolved.is_dir():
         raise PackError(f"Pack root is not a directory: {resolved}")
-    proposed = {
-        "pack_roots": [*state["pack_roots"], str(resolved)],
-        "enabled_packs": state["enabled_packs"],
-        "resource_providers": state["resource_providers"],
-    }
+    proposed = {**state, "pack_roots": [*state["pack_roots"], str(resolved)]}
     discovered, _ = discover_packs(settings, proposed)
     missing = sorted(set(proposed["enabled_packs"]) - set(discovered))
     if missing:
@@ -1575,6 +1636,7 @@ def add_pack_root(settings: PackSettings, root: Path) -> dict[str, Any]:
     return load_effective_state(settings)
 
 
+@_under_state_lock
 def remove_pack_root(settings: PackSettings, root: Path) -> dict[str, Any]:
     state = load_effective_state(settings)
     resolved_key = os.path.normcase(str(root.expanduser().resolve()))
@@ -1583,11 +1645,7 @@ def remove_pack_root(settings: PackSettings, root: Path) -> dict[str, Any]:
         for value in state["pack_roots"]
         if os.path.normcase(str(Path(value).resolve())) != resolved_key
     ]
-    proposed = {
-        "pack_roots": retained,
-        "enabled_packs": state["enabled_packs"],
-        "resource_providers": state["resource_providers"],
-    }
+    proposed = {**state, "pack_roots": retained}
     discovered, _ = discover_packs(settings, proposed)
     missing = sorted(set(proposed["enabled_packs"]) - set(discovered))
     if missing:
@@ -1714,6 +1772,7 @@ def resolve_enabled_lenient(
                     "error",
                     "enabled-pack-unavailable",
                     f"Enabled pack is missing or has an invalid manifest: {pack_id}",
+                    pack_id=pack_id,
                 )
             )
         else:
@@ -1721,6 +1780,7 @@ def resolve_enabled_lenient(
     return selected, issues
 
 
+@_under_state_lock
 def enable_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
     if not PACK_ID_RE.fullmatch(pack_id):
         raise PackError(f"Pack ID must be a lowercase UUIDv7: {pack_id!r}")
@@ -1734,17 +1794,38 @@ def enable_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
     if missing:
         raise PackError(f"Enable required dependencies first: {missing}")
     proposed = {
-        "pack_roots": state["pack_roots"],
+        **state,
         "enabled_packs": sorted({*state["enabled_packs"], pack_id}),
-        "resource_providers": state["resource_providers"],
+        "disabled_packs": [value for value in state["disabled_packs"] if value != pack_id],
     }
-    resolve_enabled(settings, proposed)
+    # The pack being enabled and the packs it requires are validated. Every
+    # other enabled pack keeps its own standing, which the catalog reports; a
+    # large pack elsewhere is not read in full to enable a small one.
+    closure: dict[str, DiscoveredPack] = {}
+    waiting = [pack_id]
+    while waiting:
+        current = waiting.pop()
+        if current in closure:
+            continue
+        if current not in discovered:
+            raise PackError(f"Enabled pack {pack_id!r} requires enabled pack {current!r}, which is missing.")
+        closure[current] = discovered[current]
+        waiting.extend(sorted(_required_pack_ids(discovered[current].manifest)))
+    for pack in closure.values():
+        require_valid(validate_pack(pack.root))
+    cycles = required_dependency_cycles(
+        {key: discovered[key] for key in proposed["enabled_packs"] if key in discovered}
+    )
+    if any(pack_id in cycle for cycle in cycles):
+        rendered = [" -> ".join((*cycle, cycle[0])) for cycle in cycles if pack_id in cycle]
+        raise PackError("Required dependency cycles are forbidden: " + "; ".join(rendered))
     if pack_id in state["enabled_packs"]:
         return state
     save_state(settings.state_file, proposed)
     return proposed
 
 
+@_under_state_lock
 def disable_pack(settings: PackSettings, pack_id: str, *, cascade: bool = False) -> dict[str, Any]:
     if not PACK_ID_RE.fullmatch(pack_id):
         raise PackError(f"Pack ID must be a lowercase UUIDv7: {pack_id!r}")
@@ -1757,7 +1838,18 @@ def disable_pack(settings: PackSettings, pack_id: str, *, cascade: bool = False)
     state = load_effective_state(settings)
     enabled = set(state["enabled_packs"])
     if pack_id not in enabled:
-        return state
+        # Disabling a pack that is not enabled records the decision, so the
+        # pack is not asked about again, and clears any provider selections it
+        # still owns, from an edited state or a pack that vanished.
+        proposed = {
+            **state,
+            "disabled_packs": sorted({*state["disabled_packs"], pack_id}),
+            "resource_providers": _providers_without(state["resource_providers"], {pack_id}),
+        }
+        if proposed == state:
+            return state
+        save_state(settings.state_file, proposed)
+        return proposed
     discovered, _ = discover_packs(settings)
     dependents = {
         current_id
@@ -1780,14 +1872,21 @@ def disable_pack(settings: PackSettings, pack_id: str, *, cascade: bool = False)
                     removal.add(current_id)
                     changed = True
     proposed = {
-        "pack_roots": state["pack_roots"],
+        **state,
         "enabled_packs": sorted(enabled - removal),
-        "resource_providers": state["resource_providers"],
+        "disabled_packs": sorted({*state["disabled_packs"], *removal}),
+        "resource_providers": _providers_without(state["resource_providers"], removal),
     }
     save_state(settings.state_file, proposed)
     return proposed
 
 
+def _providers_without(providers: Mapping[str, str], pack_ids: set[str]) -> dict[str, str]:
+    """The provider selections that remain once `pack_ids` stop providing anything."""
+    return {name: owner for name, owner in providers.items() if owner not in pack_ids}
+
+
+@_under_state_lock
 def select_resource_provider(
     settings: PackSettings,
     name: str,
@@ -1809,15 +1908,12 @@ def select_resource_provider(
     report = require_valid(validate_pack(discovered[pack_id].root))
     if name not in report.resource_bindings:
         raise PackError(f"Pack {pack_id} does not provide logical resource {name!r}.")
-    proposed = {
-        "pack_roots": state["pack_roots"],
-        "enabled_packs": state["enabled_packs"],
-        "resource_providers": {**state["resource_providers"], name: pack_id},
-    }
+    proposed = {**state, "resource_providers": {**state["resource_providers"], name: pack_id}}
     save_state(settings.state_file, proposed)
     return load_effective_state(settings)
 
 
+@_under_state_lock
 def clear_resource_provider(settings: PackSettings, name: str) -> dict[str, Any]:
     """Remove the explicit provider selection for one logical resource."""
     if not RESOURCE_NAME_RE.fullmatch(name):
@@ -1825,11 +1921,7 @@ def clear_resource_provider(settings: PackSettings, name: str) -> dict[str, Any]
     state = load_effective_state(settings)
     providers = dict(state["resource_providers"])
     providers.pop(name, None)
-    proposed = {
-        "pack_roots": state["pack_roots"],
-        "enabled_packs": state["enabled_packs"],
-        "resource_providers": providers,
-    }
+    proposed = {**state, "resource_providers": providers}
     save_state(settings.state_file, proposed)
     return load_effective_state(settings)
 
@@ -2133,6 +2225,7 @@ def install_pack(
         }
 
 
+@_under_state_lock
 def remove_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
     if not PACK_ID_RE.fullmatch(pack_id):
         raise PackError(f"Pack ID must be a lowercase UUIDv7: {pack_id!r}")
@@ -2164,6 +2257,14 @@ def remove_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
         f"{pack_id}-{release_token}-removed-{int(time.time())}-{uuid.uuid4().hex[:8]}"
     )
     os.replace(target, quarantine)
+    providers = _providers_without(state["resource_providers"], {pack_id})
+    remaining = {
+        **state,
+        "disabled_packs": [value for value in state["disabled_packs"] if value != pack_id],
+        "resource_providers": providers,
+    }
+    if remaining != state:
+        save_state(settings.state_file, remaining)
     return {
         "ok": True,
         "operation": "remove",
@@ -2171,6 +2272,7 @@ def remove_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
         "release": release,
         "quarantine_path": str(quarantine),
         "recoverable": True,
+        "cleared_providers": sorted(set(state["resource_providers"]) - set(providers)),
     }
 
 
@@ -2253,30 +2355,20 @@ def _catalog_diagnostics(settings: PackSettings) -> list[dict[str, Any]]:
         return []
 
 
-def initialize_state_file(settings: PackSettings) -> dict[str, Any]:
-    """Persist the resolved state file when absent, then report discovery.
+@_under_state_lock
+def initialize_state_file(settings: PackSettings, *, only: Sequence[str] | None = None) -> bool:
+    """Persist the first-use state when the state file is absent; say whether it was.
 
-    The effective state is the existing state file when present, otherwise the
-    shipped initial state. Persisting it makes the resolved location the
-    durable activation authority for later commands that omit an explicit
-    state path. The operation never rewrites an existing state file.
+    `only` names the packs a new state enables instead of every discovered one.
+    An existing state file is never rewritten, so deliberate disabling and
+    provider choices survive.
     """
-    created = not settings.state_file.is_file()
-    if created:
-        save_state(settings.state_file, load_effective_state(settings))
-    inventory = list_packs(settings)
-    return {
-        "ok": inventory["ok"],
-        "operation": "state-init",
-        "created": created,
-        "state_file": inventory["state_file"],
-        "cache_dir": str(settings.cache_dir),
-        "managed_root": str(settings.managed_root),
-        "enabled_packs": inventory["enabled_packs"],
-        "resource_providers": inventory["resource_providers"],
-        "disabled_discovered_packs": [
-            row["pack_id"] for row in inventory["packs"] if not row["enabled"]
-        ],
-        "packs": inventory["packs"],
-        "discovery_issues": inventory["discovery_issues"],
-    }
+    if settings.state_file.is_file():
+        if only is not None and set(load_state(settings.state_file)["enabled_packs"]) != set(only):
+            raise PackError(
+                f"{settings.state_file} already exists and enables other packs; "
+                "--only chooses the packs of a new state"
+            )
+        return False
+    save_state(settings.state_file, load_effective_state(settings, only=only))
+    return True

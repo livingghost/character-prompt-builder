@@ -2737,7 +2737,7 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "9f31340ac750927ae98868e8908144710b70b0240a3d1d0004c4f745a5795c43",
+  "generation_input_sha256": "40bd59b19a4ebb25f5362b58921ffa5ca2c0bd4a02138621433165f6e563093f",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -2802,21 +2802,51 @@
         "applied": false,
         "mode": "advisory-only",
         "reason": "not-declared",
-        "recommended_text": ""
+        "recommended_text": "",
+        "source_text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+        "limit": null,
+        "segments": [
+          {
+            "source_kind": "authored",
+            "start": 0,
+            "end": 1009,
+            "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague."
+          }
+        ]
       },
       "negative": {
         "declared": false,
         "applied": false,
         "mode": "advisory-only",
         "reason": "not-declared",
-        "recommended_text": ""
+        "recommended_text": "",
+        "source_text": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
+        "limit": null,
+        "segments": [
+          {
+            "source_kind": "authored",
+            "start": 0,
+            "end": 182,
+            "text": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings"
+          }
+        ]
       },
       "integrated": {
         "declared": false,
         "applied": false,
         "mode": "advisory-only",
         "reason": "not-declared",
-        "recommended_text": ""
+        "recommended_text": "",
+        "source_text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
+        "limit": null,
+        "segments": [
+          {
+            "source_kind": "authored",
+            "start": 0,
+            "end": 1082,
+            "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant."
+          }
+        ]
       },
       "negative_preset": "",
       "resolved_model_id": "gpt-image-2.5-flare"
@@ -2829,7 +2859,7 @@
     "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
     "negative_prompt_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",
     "native_negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "prompt_recommendations_sha256": "46884d57b7319ffc073fe83da8fd3f98cccafb00e28405ad6a4196db6b4fe672"
+    "prompt_recommendations_sha256": "20c5e4ead228a3c6caffbb7bcef7661104c7cb1a00aed405cb7946dd6635bf09"
   },
   "generation_contract": {
     "forward_verified_prompt_transport": true,
@@ -2840,14 +2870,192 @@
     "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
     "negative_prompt_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",
     "native_negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "prompt_recommendations_sha256": "46884d57b7319ffc073fe83da8fd3f98cccafb00e28405ad6a4196db6b4fe672",
+    "prompt_recommendations_sha256": "20c5e4ead228a3c6caffbb7bcef7661104c7cb1a00aed405cb7946dd6635bf09",
     "production_spec_sha256": "3c74d567085c332a1bb719f9eab52c33829959bed1f97c58f004bd27edf317d8",
     "plot_sha256": "12379b02bc4cc79db80bbd6ce9f74dec157a0f59150965c2928125733acdff4f",
     "retrieval_record_sha256": "5b311ba9ba9fb2a8096168c558878d540b9d17b15b2e22c65c753d70a04a2dac",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-    "generation_input_sha256": "9f31340ac750927ae98868e8908144710b70b0240a3d1d0004c4f745a5795c43",
-    "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language."
+    "generation_input_sha256": "40bd59b19a4ebb25f5362b58921ffa5ca2c0bd4a02138621433165f6e563093f",
+    "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
+    "visual_continuity_sha256": "4f99d48f2b415e826c076d18aafa8bd692e4ed5cc4c326088e12bdfcebcc6146",
+    "route_reading_sha256": "7c1e4bd13b3248025aed64b02c7284947f265f174b4966893d7b171116a64f72",
+    "request_validation_sha256": "7f3e001a72070b03f5fcaf686341b43ccb0b66bd69eb5a9e7afeb938dafd1421",
+    "input_snapshots_sha256": "4ed9a6cf37d1fec78fb483cfa6eca8acb1372cb1e08e6b60148ef414c46b2125"
   },
-  "production_binding": null
+  "visual_continuity": {
+    "purpose": "image",
+    "basis": {
+      "path": "fixture-visual-basis.txt",
+      "sha256": "c9ba7582a90b2b90578e1f3ecd9b21a6665606a86f9f088659aff08d3b126cf0",
+      "locator": "whole"
+    },
+    "subjects": {
+      "C01": {
+        "continuity": "undecided",
+        "character_id": "C01",
+        "studio_character": null,
+        "identity_refs": []
+      }
+    }
+  },
+  "visual_continuity_sha256": "4f99d48f2b415e826c076d18aafa8bd692e4ed5cc4c326088e12bdfcebcc6146",
+  "route_reading": {
+    "documents": [
+      {
+        "path": "references/runtime/production-direction.md",
+        "sha256": "a47f8536b936f154cd6090d0ba0ff3a0ea552c441b5192510df1d6f6159f9ba6"
+      },
+      {
+        "path": "references/runtime/production-permissions.md",
+        "sha256": "ebca318898d5994c255f473a493e08af80436f2e423872923ab1d74371219b39"
+      },
+      {
+        "path": "references/runtime/production-execution.md",
+        "sha256": "2ba6a025a618aa2685cf2934b43c7b6cccd4512d53aedc342d2522c08731815f"
+      },
+      {
+        "path": "references/runtime/state-aware-series.md",
+        "sha256": "260acb39c8a234ce0835e52515a0cc11627dcaffec8ca1452d9f5cea347ac6a8"
+      },
+      {
+        "path": "references/runtime/prompt-writing-guide.md",
+        "sha256": "97371861a5aef8b712f3eeee1c6babea707f2c9e7d990ace4eb32588672fd39a"
+      },
+      {
+        "path": "references/runtime/reference-delivery.md",
+        "sha256": "aef43a9afa3c551f79694cc898528e1af2669ac242afdf4f494370e47096ea0c"
+      },
+      {
+        "path": "references/runtime/studio.md",
+        "sha256": "f87e5490c4d6b4ab1923053a9475fa492d085fba0b55e4c66c51129a7c69493c"
+      },
+      {
+        "path": "references/runtime/world-realization.md",
+        "sha256": "fcd5facacdca24ac1c71783c1248d860b6ab7ba2d99b40e902ff29eb297a5c1f"
+      }
+    ],
+    "features": [
+      "prompt-dialect",
+      "reference-delivery",
+      "studio",
+      "world-view"
+    ],
+    "resources": {
+      "prompt-writing-guide": {
+        "status": "present",
+        "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+        "path": "resources/prompt-writing-guide/guide.json",
+        "sha256": "a1293db4650c73779abd2dbec78766696099989dbd6fc52447d323fbbc31f754"
+      },
+      "prompt-dialects": {
+        "status": "present",
+        "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
+        "path": "resources/prompt-dialects/dialects.json",
+        "sha256": "0a127b223dade799e890d6d93425fd2b4fe037ae0da3e8d51903b5f3d58bd8d2"
+      }
+    },
+    "route": "state-series",
+    "reading_key": "fb105273a3e764fb5398c8beab667295",
+    "applied": [
+      {
+        "path": "references/runtime/state-aware-series.md",
+        "quote": "Use this document for recurring characters, temporal continuity, visible consequences of off-screen events, rendered identity references from other scenes, or an arriving shot-request. For a one-off image with no continuity state, use a stateless Production Specification and skip this document.",
+        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+      },
+      {
+        "path": "references/runtime/prompt-writing-guide.md",
+        "quote": "Use this runtime when a final prompt must be rendered for a named model or interface, or when the user asks about any of these:",
+        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+      },
+      {
+        "path": "references/runtime/reference-delivery.md",
+        "quote": "Read this when preparing or inspecting model-facing reference attachments. The prepared reference set remains the single committed input, not a new reference ledger.",
+        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+      },
+      {
+        "path": "references/runtime/studio.md",
+        "quote": "Activate this document when character work will outlive one session: a character whose sheet is filled over days, images that are generated again and again until one is accepted, and decisions that get reversed. A studio is where that work lives, with its trail. Authoring that accumulates decisions a later draft reuses is such work, with or without an image: it gets its studio before the first draft that will be revised, and a narrative series can live inside it. Ordinary one-off prompt work and a one-off answer need no studio.",
+        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+      },
+      {
+        "path": "references/runtime/world-realization.md",
+        "quote": "For one moment outside a planned unit, use [Story Context](story-context.md). It selects the same base, ledger and process records at an explicit coordinate and can feed its bounded view into a production task. Keep the unit plan for a sequence of openings, closings and continuity links.",
+        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+      }
+    ],
+    "resource_applied": [
+      {
+        "resource": "prompt-writing-guide",
+        "pointer": "/sections/0/rules/0",
+        "quote": "Render the model-facing prompt in English unless the active model record or interface provides better evidence for another language.",
+        "why": "Synthetic fixture exercises the complete decoded rule and its source pointer."
+      }
+    ]
+  },
+  "route_reading_sha256": "7c1e4bd13b3248025aed64b02c7284947f265f174b4966893d7b171116a64f72",
+  "production_binding": null,
+  "request_validation": {
+    "mode": "target-schema",
+    "target": {
+      "service": "synthetic-host",
+      "model_identifier": "gpt-image-2.5-flare",
+      "operation": "generation"
+    },
+    "service_execution_sha256": "e2c94ad4f0fa1f9f6c2e9590a0e0be44a49c1e392533176adff057306a476841",
+    "offering_contract_sha256": "ca657805d9f60e39ec28ff0f602a46ad3609f10df432453800a8e848eeff407a",
+    "transport_sha256": "537497e38db64967626468278cf291b1aadae40bda7bc8294da1ae01c300606f",
+    "contract": {
+      "path": "synthetic-validation/84eedb1297c51362/contract.json",
+      "sha256": "8fc608f33f28192b0dc1ffc42e79a48503645c3b623d735c5b9120be58574450"
+    },
+    "evidence": {
+      "path": "synthetic-validation/84eedb1297c51362/acquisition.json",
+      "sha256": "8385e2ca4330f38a146318b6986e78770a1e4dc3e67baa1ee2053a5453b92a28"
+    },
+    "execution_policy": {
+      "path": "synthetic-validation/84eedb1297c51362/policy.json",
+      "sha256": "059bdb05e8023d936660f4e5c7c37f2000ea7a8cc92458d5a1f5aff60a393f81"
+    },
+    "unmeasured": []
+  },
+  "request_validation_sha256": "7f3e001a72070b03f5fcaf686341b43ccb0b66bd69eb5a9e7afeb938dafd1421",
+  "input_snapshots": {
+    "synthetic-validation/84eedb1297c51362/contract.json": {
+      "sha256": "8fc608f33f28192b0dc1ffc42e79a48503645c3b623d735c5b9120be58574450",
+      "size": 306,
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoibW9kZWwtc2NoZW1hLWNvbnRyYWN0IiwibG9jYWxfb3ZlcmxheSI6bnVsbCwicmVzcG9uc2VfcG9pbnRlciI6Ii9zY2hlbWEiLCJzY2hlbWEiOnsidHlwZSI6Im9iamVjdCJ9LCJzY2hlbWFfc2hhMjU2IjoiOTA5MWE4MTY0Zjk3ZWFjYTE4MmIzZDA2ZDBlNWE1OWU5MjNjODgwZWJjMDE0ODA1NmM0NTNjNjUxZjViNDZjYiIsInRhcmdldCI6eyJtb2RlbF9pZGVudGlmaWVyIjoiZ3B0LWltYWdlLTIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRpb24iLCJzZXJ2aWNlIjoic3ludGhldGljLWhvc3QifX0K"
+    },
+    "synthetic-validation/84eedb1297c51362/acquisition.json": {
+      "sha256": "8385e2ca4330f38a146318b6986e78770a1e4dc3e67baa1ee2053a5453b92a28",
+      "size": 484,
+      "base64": "eyJhY3F1aXJlZF9hdCI6IjIwMDAtMDEtMDFUMDA6MDA6MDBaIiwiYXJ0aWZhY3RfdHlwZSI6InNjaGVtYS1hY3F1aXNpdGlvbiIsInJlc3BvbnNlIjp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi84NGVlZGIxMjk3YzUxMzYyL2ludGVyZmFjZS5qc29uIiwic2hhMjU2IjoiN2I1MGYzMGMwOTE5MTJhYTU4YjIxYWJiNDE4YjYzNTJhODE2NGZjNWQxMmQyNzUwN2FiN2IyODE3NGJjY2FlOCJ9LCJzb3VyY2UiOnsiaWRlbnRpZmllciI6IlN5bnRoZXRpYyBvZmZsaW5lIGludGVyZmFjZSBmaXh0dXJlIiwia2luZCI6ImRvY3VtZW50IiwibG9jYXRvciI6InNjaGVtYSBtZW1iZXIifSwic3RhdHVzIjp7ImRvY3VtZW50X3N0YXR1cyI6InNjaGVtYS1wcm92aWRlZCJ9LCJ0YXJnZXQiOnsibW9kZWxfaWRlbnRpZmllciI6ImdwdC1pbWFnZS0yLjUtZmxhcmUiLCJvcGVyYXRpb24iOiJnZW5lcmF0aW9uIiwic2VydmljZSI6InN5bnRoZXRpYy1ob3N0In19Cg=="
+    },
+    "synthetic-validation/84eedb1297c51362/policy.json": {
+      "sha256": "059bdb05e8023d936660f4e5c7c37f2000ea7a8cc92458d5a1f5aff60a393f81",
+      "size": 584,
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoiZXhlY3V0aW9uLXBvbGljeSIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi84NGVlZGIxMjk3YzUxMzYyL2Jhc2lzLnR4dCIsInNoYTI1NiI6ImY2YmJjM2EwM2ExNDlmYjEzMjI5OTkyMzFmODUwNDk5ZDhiNGM1OGIzZjJmMjMzZDRhNTNmNzVhYjU3MGI2NDMifSwicHJvZHVjdGlvbl9jb250ZXh0X3RyYW5zcG9ydCI6Im5vbmUiLCJyZWZlcmVuY2VfaW5zdHJ1Y3Rpb25fdHJhbnNwb3J0Ijp7ImNvbnRyYWN0Ijp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi84NGVlZGIxMjk3YzUxMzYyL3JlZmVyZW5jZXMuanNvbiIsInNoYTI1NiI6IjVlNDA4ZGVhMTJkYzUwYjM4ZjJiN2UxYWI3M2E5ZmU4Y2IyOTM0MTNiZTk1YWYzOGEyMTI0NmMyYTMxY2IzM2EifSwibW9kZSI6InByb21wdC1wcmVmaXgifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJncHQtaW1hZ2UtMi41LWZsYXJlIiwib3BlcmF0aW9uIjoiZ2VuZXJhdGlvbiIsInNlcnZpY2UiOiJzeW50aGV0aWMtaG9zdCJ9LCJ0ZXh0X2RpYWxlY3QiOiJzeW50aGV0aWMtcHJvc2UifQo="
+    },
+    "synthetic-validation/84eedb1297c51362/interface.json": {
+      "sha256": "7b50f30c091912aa58b21abb418b6352a8164fc5d12d27507ab7b28174bccae8",
+      "size": 46,
+      "base64": "eyJzY2hlbWEiOnsidHlwZSI6Im9iamVjdCJ9LCJzeW50aGV0aWMiOnRydWV9Cg=="
+    },
+    "synthetic-validation/84eedb1297c51362/basis.txt": {
+      "sha256": "f6bbc3a03a149fb1322999231f850499d8b4c58b3f2f233d4a53f75ab570b643",
+      "size": 68,
+      "base64": "U3ludGhldGljIG9mZmxpbmUgaW50ZXJmYWNlIGRlY2xhcmF0aW9uLiBObyBwcm92aWRlciB3YXMgY29udGFjdGVkLgo="
+    },
+    "synthetic-validation/84eedb1297c51362/references.json": {
+      "sha256": "5e408dea12dc50b38f2b7e1ab73a9fe8cb293413be95af38a21246c2a31cb33a",
+      "size": 409,
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoicmVmZXJlbmNlLXJlbmRlci1jb250cmFjdCIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi84NGVlZGIxMjk3YzUxMzYyL2Jhc2lzLnR4dCIsInNoYTI1NiI6ImY2YmJjM2EwM2ExNDlmYjEzMjI5OTkyMzFmODUwNDk5ZDhiNGM1OGIzZjJmMjMzZDRhNTNmNzVhYjU3MGI2NDMifSwiZGlhbGVjdHMiOlsic3ludGhldGljLXByb3NlIl0sImZpZWxkcyI6W10sIm1vZGUiOiJwcm9tcHQtcHJlZml4IiwicmVuZGVyZXIiOiJyZWZlcmVuY2UtZGVsaXZlcnkiLCJ0YXJnZXQiOnsibW9kZWxfaWRlbnRpZmllciI6ImdwdC1pbWFnZS0yLjUtZmxhcmUiLCJvcGVyYXRpb24iOiJnZW5lcmF0aW9uIiwic2VydmljZSI6InN5bnRoZXRpYy1ob3N0In19Cg=="
+    },
+    "fixture-visual-basis.txt": {
+      "sha256": "c9ba7582a90b2b90578e1f3ecd9b21a6665606a86f9f088659aff08d3b126cf0",
+      "size": 88,
+      "base64": "U3ludGhldGljIG9mZmxpbmUgdmlzdWFsIGRlY2lzaW9ucyBmb3Igb25lIGRlY2xhcmVkIHRlc3QgaW5wdXQuIE5vdCBhbiBhdXRob3IgYXBwcm92YWwuCg=="
+    }
+  },
+  "input_snapshots_sha256": "4ed9a6cf37d1fec78fb483cfa6eca8acb1372cb1e08e6b60148ef414c46b2125"
 }

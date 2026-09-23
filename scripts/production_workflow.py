@@ -16,6 +16,7 @@ from typing import Any
 import uuid
 
 import execution_contract as c
+import reservation_lifecycle as lifecycle
 import execution_routes
 from pack_manager import generate_uuid7
 import production_evidence as media
@@ -25,17 +26,21 @@ import production_plan as plan
 ROOT = Path(__file__).resolve().parents[1]
 EVENTS = {'authorization', 'handoff', 'external-claim', 'dispatch-claim',
           'dispatch-results', 'candidate', 'review', 'selection', 'edit',
-          'adoption-claim', 'adoption-result', 'image-edit-claim', 'image-edit-output', 'completion'}
+          'adoption-claim', 'adoption-result', 'image-edit-claim', 'image-edit-output', 'completion'} | lifecycle.EVENTS
 
 
-def run_dir(root: Path, run: str, *, exists: bool = True) -> Path:
+def run_identifier(run: Any) -> str:
     try:
         identifier = uuid.UUID(run)
     except (ValueError, AttributeError, TypeError) as exc:
         raise ValueError('run must be a UUIDv7') from exc
     if identifier.version != 7 or str(identifier) != run:
         raise ValueError('run must be a canonical UUIDv7')
-    return c.local(root, 'production/' + run, exists=exists)
+    return run
+
+
+def run_dir(root: Path, run: str, *, exists: bool = True) -> Path:
+    return c.local(root, 'production/' + run_identifier(run), exists=exists)
 
 
 def schema_check(value: Any, name: str) -> None:
@@ -51,6 +56,7 @@ def schema_check(value: Any, name: str) -> None:
 
 def validate_task(task: Any) -> dict:
     schema_check(task, 'task')
+    production_identifier(task['production_id'])
     route = execution_routes.resolve(task['route'], task['features'])
     plan.strings(task['features'], 'features')
     if bool(task.get('scene_materials', [])) != ('scene-persona' in route['features']):
@@ -97,6 +103,9 @@ def snapshot(root: Path, task_path: str) -> tuple[dict, dict, list[dict], dict[s
         return raw
     if add(root, task_path) != task_bytes:
         raise ValueError('task changed during preparation')
+    import route_reading
+    reading = c.decode(add(root, task['route_reading']))
+    issuance = route_reading.require_route_reading(reading, project=root, routes={task['route']}, features=task['features'])
     for source in task['sources']:
         add(root, source['path'])
     delivery = add(root, task['delivery']['path']).decode('utf-8')
@@ -105,6 +114,13 @@ def snapshot(root: Path, task_path: str) -> tuple[dict, dict, list[dict], dict[s
     schema_check(authority, 'authority')
     permissions.validate(authority, task['task_id'])
     add(root, authority['evidence']['path'])
+    from input_evidence import InputEvidence
+    import request_scope
+    scope_reader = InputEvidence(root)
+    for grant in authority['grants']:
+        request_scope.verify_sources(grant['request_scope'], None, scope_reader)
+    for path in sorted(scope_reader.read_paths):
+        add(root, path)
     known_criteria = {x['id'] for x in task['criteria']}
     for grant in authority['grants']:
         if set(grant['protected_criteria']) - known_criteria:
@@ -149,19 +165,67 @@ def snapshot(root: Path, task_path: str) -> tuple[dict, dict, list[dict], dict[s
                 raise ValueError('moment bundle changed during preparation')
     import scene_persona
     authoring_materials = scene_persona.consume(root, task.get('scene_materials', []), add)
+    # The installed implementation is pinned by digest; its bytes stay in the installation.
     skill_files = {execution_routes.MANIFEST, 'package-manifest.toml'} | {r['path'] for r in route['reads']}
     for parent, glob in [('scripts', '*.py'), ('scripts', '*.json'), ('schemas', '*.json')]:
         skill_files.update(f.relative_to(ROOT).as_posix() for f in (ROOT / parent).rglob(glob))
     for path in sorted(skill_files):
-        add(ROOT, path, 'skill')
+        key, size = c.file_digest(ROOT, path)
+        dependencies[('skill', path)] = {'space': 'skill', 'path': path, 'sha256': key, 'size': size}
     consumer = {'route': task['route'], 'transport': task['delivery']['transport'],
                 'instructions': delivery, 'criteria': task['criteria'],
                 'direction': plan.consumer(task['direction']),
                 'world_views': views, 'moment_views': moments, 'authoring_materials': authoring_materials}
     prepared = {'task_path': task_path, 'task': task, 'route': route, 'authority': authority,
+                'route_reading': reading, 'route_reading_sha256': c.content_id(reading), 'reading_issuance': issuance,
                 'dependencies': sorted(dependencies.values(), key=lambda x: (x['space'], x['path'])),
                 'consumer_sha256': c.content_id(consumer)}
     return prepared, consumer, prepared['dependencies'], blobs
+
+
+def production_identifier(value: Any) -> str:
+    try:
+        identifier = uuid.UUID(value)
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValueError('production_id must be an explicitly assigned UUIDv7') from exc
+    if identifier.version != 7 or str(identifier) != value:
+        raise ValueError('production_id must be a canonical UUIDv7')
+    return value
+
+
+def criteria_predecessor(root: Path, predecessor: str | None, task: dict) -> str | None:
+    """Find the nearest immutable run in this work task and production series."""
+    seen = set()
+    current = predecessor
+    while current is not None:
+        if current in seen:
+            raise ValueError('production predecessor chain is cyclic')
+        seen.add(current)
+        _, older, _, _ = load_run(root, current)
+        if older['task']['task_id'] != task['task_id']:
+            raise ValueError('predecessor crosses the work task boundary')
+        if older['task']['production_id'] == task['production_id']:
+            return current
+        current = older['predecessor']
+    return None
+
+
+def validate_protected_criteria(root: Path, prepared: dict, grant: dict, *, revised: dict | None = None) -> None:
+    """Compare protected criteria in one explicit production series."""
+    if revised is not None:
+        older, newer = prepared['task'], revised
+        if older['production_id'] != newer['production_id']:
+            raise ValueError('a revision preserves its production_id')
+    else:
+        expected = criteria_predecessor(root, prepared['predecessor'], prepared['task'])
+        if expected != prepared['criteria_predecessor']:
+            raise ValueError('criteria predecessor differs from the production series')
+        if expected is None:
+            return
+        older, newer = load_run(root, expected)[1]['task'], prepared['task']
+    before, after = ({x['id']: x for x in t['criteria']} for t in (older, newer))
+    if any(before.get(key) != after.get(key) for key in grant['protected_criteria']):
+        raise ValueError('protected criterion changed; obtain explicit authority for the change')
 
 
 def _prepare(root: Path, task_path: str, *, parent: dict | None = None, identity: str | None = None) -> dict:
@@ -173,6 +237,10 @@ def _prepare(root: Path, task_path: str, *, parent: dict | None = None, identity
         raise ValueError('task is not the open work-ledger task')
     run = identity or generate_uuid7()
     prepared['parent'] = parent
+    if parent is not None:
+        original = load_run(root, parent['parent_run'])[1]
+        if original['task']['production_id'] != prepared['task']['production_id']:
+            raise ValueError('a revision preserves its production_id')
     prepared['predecessor'] = current.get('production_run')
     if prepared['predecessor'] == run:
         # A retried revision resumes the already published child, not itself.
@@ -181,6 +249,7 @@ def _prepare(root: Path, task_path: str, *, parent: dict | None = None, identity
             raise ValueError('revised child no longer matches the recorded edit')
         return {'run': run, 'input_sha256': existing[1]['input_sha256'],
                 'consumer': str(existing[0] / 'consumer.json')}
+    prepared['criteria_predecessor'] = criteria_predecessor(root, prepared['predecessor'], prepared['task'])
     prepared['input_sha256'] = c.content_id(prepared)
     production = c.local(root, 'production', exists=False)
     production.mkdir(exist_ok=True)
@@ -224,6 +293,8 @@ def load_run(root: Path, run: str) -> tuple[Path, dict, dict, list[dict]]:
     if c.content_id(check) != expected or c.content_id(consumer) != prepared['consumer_sha256']:
         raise ValueError('prepared input or consumer integrity mismatch')
     for dependency in prepared['dependencies']:
+        if dependency['space'] == 'skill':
+            continue
         raw = c.object_read(directory, dependency['sha256'])
         if len(raw) != dependency['size']:
             raise ValueError('source snapshot size mismatch')
@@ -245,15 +316,30 @@ def load_run(root: Path, run: str) -> tuple[Path, dict, dict, list[dict]]:
             raise ValueError('unknown receipt event')
         records.append(row)
         previous = key
+    if prepared.get('predecessor')==run or prepared.get('criteria_predecessor')==run:
+        raise ValueError('a production run cannot precede itself')
+    lifecycle.completion_tail(records, prepared, run)
+    for row in records:
+        for item in row['data'].get('files', []) + row['data'].get('evidence', []):
+            if len(c.object_read(directory,item['sha256']))!=item['size']:
+                raise ValueError('recorded artifact snapshot size mismatch')
     return directory, prepared, consumer, records
+
+
+def current_sha256(root: Path, dependency: dict) -> str:
+    """Hash the current bytes behind one pinned dependency."""
+    if dependency['space'] == 'skill':
+        return c.file_digest(ROOT, dependency['path'])[0]
+    return c.digest(c.read(c.local(root, dependency['path'])))
 
 
 def assert_current(root: Path, run: str) -> tuple[Path, dict, dict, list[dict]]:
     loaded = load_run(root, run)
     directory, prepared, _, rows = loaded
+    import route_reading
+    route_reading.require_route_reading(prepared['route_reading'], project=root, routes={prepared['task']['route']}, features=prepared['task']['features'])
     for dependency in prepared['dependencies']:
-        base = ROOT if dependency['space'] == 'skill' else root
-        if c.digest(c.read(c.local(base, dependency['path']))) != dependency['sha256']:
+        if current_sha256(root, dependency) != dependency['sha256']:
             raise ValueError(f'changed {dependency["space"]} input: {dependency["path"]}; prepare a new run')
     for row in rows:
         for item in row['data'].get('files', []) + row['data'].get('evidence', []):
@@ -272,12 +358,14 @@ def append_record(directory: Path, prepared: dict, records: list[dict], event: s
     for row in reversed(records):
         if row['event'] == event and row['data'] == data:
             return row
-    require_mutable(records)
+    if event != 'reservation-release':
+        require_mutable(records)
     if event not in EVENTS:
         raise ValueError('unknown event')
     row = {'sequence': len(records) + 1, 'previous': records[-1]['sha256'] if records else None,
            'input_sha256': prepared['input_sha256'], 'event': event, 'data': data}
     row['sha256'] = c.content_id(row)
+    lifecycle.completion_tail([*records,row],prepared,directory.name)
     c.atomic(directory / 'records' / f'{row["sequence"]:06d}-{row["sha256"]}.json', c.encoded(row))
     return row
 
@@ -294,19 +382,44 @@ def file_record(root: Path, directory: Path, path: str) -> dict:
     return {'path': path, 'sha256': c.object_store(directory, raw), 'size': len(raw)}
 
 
+def run_task(root: Path, run: str) -> str | None:
+    """Name the work task of a run whose preparation record is intact, or None."""
+    try:
+        prepared = c.load(c.local(run_dir(root, run), 'prepared.json'))
+        check = dict(prepared)
+        expected = check.pop('input_sha256', None)
+        if c.content_id(check) != expected:
+            return None
+        return c.text(prepared['task']['task_id'], 'task_id')
+    except (ValueError, OSError, KeyError, TypeError, UnicodeError):
+        return None
+
+
 def reservations(root: Path, task_id: str, *, exclude: str | None = None) -> list[dict]:
+    """Collect the unreleased reservations of every run in one work task.
+
+    Entries that are not run directories are skipped, and so is a run whose
+    intact preparation names another task. Every other run is loaded in full,
+    so damage to a run of this task, or to one that cannot be attributed, fails.
+    """
     result = []
     folder = c.local(root, 'production', exists=False)
     if not folder.exists():
         return result
     for child in sorted(folder.iterdir()):
-        if child.name.startswith('.pending-'):
+        try:
+            run_identifier(child.name)
+        except ValueError:
+            continue
+        owner = run_task(root, child.name)
+        if owner is not None and owner != task_id:
             continue
         _, prepared, _, rows = load_run(root, child.name)
         if prepared['task']['task_id'] != task_id:
             continue
+        states=lifecycle.derive(rows,prepared,child.name)
         for row in rows:
-            if row['event'] == 'authorization' and row['sha256'] != exclude:
+            if row['event'] == 'authorization' and row['sha256'] != exclude and states[row['sha256']]['status']!='released':
                 result.append(row['data']['request'])
     return result
 
@@ -316,9 +429,8 @@ def assert_authority_current(root: Path, prepared: dict) -> None:
     paths = {prepared['task']['authority'], prepared['authority']['evidence']['path']}
     for entry in prepared['dependencies']:
         if entry['space'] == 'skill' or entry['path'] in paths:
-            base = ROOT if entry['space'] == 'skill' else root
-            if c.digest(c.read(c.local(base, entry['path']))) != entry['sha256']:
-                raise ValueError('authority or implementation changed; prepare with current authority')
+            if current_sha256(root, entry) != entry['sha256']:
+                raise ValueError(f'authority or implementation changed: {entry["path"]}; prepare with current authority')
 
 
 def authorization_context(root: Path, run: str, operation: str) -> tuple:
@@ -336,12 +448,27 @@ def authorize(root: Path, run: str, request_file: str) -> dict:
         if c.object_read(directory, record['sha256']) != request_bytes:
             raise ValueError('authorization changed during reservation')
         schema_check(request, 'authorization')
-        data = {'files': [record], 'request': request}
+        files = [record]
+        if prepared['task']['execution'] == 'dispatcher' and request['operation'] == 'submit':
+            from production_request import check_authorization
+            matches = [g for g in prepared['authority']['grants'] if g['id'] == request['grant']]
+            if len(matches) != 1:
+                raise ValueError('authorization must select one declared grant')
+            _, refs = check_authorization(root, prepared, request, matches[0])
+            files.extend(file_record(root, directory, ref['path']) for ref in refs if ref['path'] != request_file)
+        elif request.get('request_decision') is not None:
+            raise ValueError('only a model dispatcher submission carries a model request decision')
+        data = {'files': files, 'request': request}
         for row in rows:
             if row['event'] == 'authorization' and row['data'] == data:
+                lifecycle.require_active(rows,prepared,run,row['sha256'])
                 return row
         require_mutable(rows)
-        permissions.check(prepared['authority'], request, reservations(root, prepared['task']['task_id']))
+        if any(r['event']=='reservation-release' for r in rows):
+            raise ValueError('prepare a new run for authorization after a reservation release')
+        grant = permissions.check(prepared['authority'], request, reservations(root, prepared['task']['task_id']))
+        if request['operation'] == 'direction':
+            validate_protected_criteria(root, prepared, grant)
         return append_record(directory, prepared, rows, 'authorization', data)
 
 
@@ -349,6 +476,8 @@ def _permission(root: Path, prepared: dict, rows: list[dict], identifier: str,
                 operation: str, targets: list[str], payload: dict) -> dict:
     assert_authority_current(root, prepared)
     row = find(rows, 'authorization', identifier)
+    if any(r['event']=='reservation-release' and r['data']['reservation']['authorization_sha256']==identifier for r in rows):
+        raise ValueError('authorization reservation was released')
     for item in row['data']['files']:
         if c.digest(c.read(c.local(root, item['path']))) != item['sha256']:
             raise ValueError('authorization request changed')
@@ -357,14 +486,11 @@ def _permission(root: Path, prepared: dict, rows: list[dict], identifier: str,
         raise ValueError('authorization does not match this exact operation')
     grant = permissions.check(prepared['authority'], request,
                               reservations(root, prepared['task']['task_id'], exclude=identifier))
-    # An explicit grant may protect particular criteria from delegated changes.
-    predecessor = prepared['predecessor']
-    if predecessor and operation == 'direction' and grant['protected_criteria']:
-        older = load_run(root, predecessor)[1]['task']
-        old = {x['id']: x for x in older['criteria']}
-        new = {x['id']: x for x in prepared['task']['criteria']}
-        if any(old.get(key) != new.get(key) for key in grant['protected_criteria']):
-            raise ValueError('protected criterion changed; obtain explicit authority for the change')
+    if operation == 'direction':
+        validate_protected_criteria(root, prepared, grant)
+    if operation == 'submit' and prepared['task']['execution'] == 'dispatcher':
+        from production_request import check_authorization
+        check_authorization(root, prepared, request, grant)
     return request
 
 
@@ -388,7 +514,7 @@ def handoff(root: Path, run: str, recipient: str, method: str, authorization: st
         prior = [r for r in rows if r['event'] == 'handoff']
         if prior and prior[0]['data'] != data:
             raise ValueError('run already has a different handoff')
-        return append_record(directory, prepared, rows, 'handoff', data)
+        return lifecycle.commit_effect(root,run,'handoff',data,[authorization],effect='external-handoff')
 
 
 def external_intent(root: Path, run: str, count: int) -> dict:
@@ -411,7 +537,7 @@ def claim_external(root: Path, run: str, count: int, authorization: str) -> dict
         previous = [r for r in rows if r['event'] == 'external-claim']
         if previous and previous[0]['data'] != data:
             raise ValueError('external call already claimed; resolve its outcome before new work')
-        return append_record(directory, prepared, rows, 'external-claim', data)
+        return lifecycle.commit_effect(root,run,'external-claim',data,[authorization],effect='external-handoff')
 
 
 def capture(root: Path, run: str, artifact: str, note: str) -> dict:
@@ -436,11 +562,14 @@ def capture(root: Path, run: str, artifact: str, note: str) -> dict:
 
 
 def draft_review(root: Path, run: str, candidate: str) -> dict:
-    _, prepared, _, rows = assert_current(root, run)
+    directory, prepared, _, rows = assert_current(root, run)
     find(rows, 'candidate', candidate)
+    from preset_consultation import review_questions
+    questions = review_questions(root, prepared['task'], directory=directory, dependencies=prepared['dependencies'])
     return {'input_sha256': prepared['input_sha256'], 'candidate': candidate, 'reviewer': '',
             'evidence': [], 'observations': [],
-            'checks': [{'criterion': x['id'], 'verdict': 'not-assessed', 'observation_indices': [], 'reason': ''}
+            'checks': [{'criterion': x['id'], 'verdict': 'not-assessed', 'observation_indices': [],
+                        'reason': '\n'.join(questions.get(x['id'], []))}
                        for x in prepared['task']['criteria']],
             'repairs': [], 'unresolved': [], 'conclusion': ''}
 
@@ -569,8 +698,9 @@ def select(root: Path, run: str, selection_file: str) -> dict:
                 raise ValueError('Studio adoption requires its owned receipt')
             for path in confirm_studio_adoption(root, data['adoption'], candidate['data']['files'][0]['sha256']):
                 files.append(file_record(root, directory, path.relative_to(root).as_posix()))
-        return append_record(directory, prepared, rows, 'selection',
-                             {'files': files, 'selection': data, 'authorizations': [data['authorization']]})
+        return lifecycle.commit_effect(root,run,'selection',
+            {'files':files,'selection':data,'authorizations':[data['authorization']]},
+            [data['authorization']],effect='local-action')
 
 
 def complete(root: Path, run: str) -> dict:
@@ -596,7 +726,8 @@ def verify_completion(root: Path, run: str, task_id: str) -> dict:
     done = find(rows, 'completion')
     if prepared['task']['task_id'] != task_id or done['data']['task_id'] != task_id or done['data']['run'] != run:
         raise ValueError('completion belongs to another task')
-    if rows[-1]['event'] != 'completion' or done['data']['selection'] != find(rows, 'selection')['sha256']:
+    lifecycle.completion_tail(rows,prepared,run)
+    if done['data']['selection'] != find(rows, 'selection')['sha256']:
         raise ValueError('completion is not the terminal selected state')
     selected = find(rows, 'selection')['data']['selection']
     reviewed = latest_review(rows, selected['candidate'])
@@ -621,9 +752,8 @@ def impact(root: Path, run: str) -> dict:
         records += [{**f, 'space': 'artifact', 'receipt': row['sha256']}
                     for row in rows for f in row['data'].get('files', []) + row['data'].get('evidence', [])]
         for item in records:
-            base = ROOT if item['space'] == 'skill' else root
             try:
-                actual = c.digest(c.read(c.local(base, item['path'])))
+                actual = current_sha256(root, item)
                 if actual == item['sha256']:
                     continue
                 changes.append({**item, 'actual_sha256': actual, 'status': 'changed'})
@@ -639,46 +769,8 @@ def impact(root: Path, run: str) -> dict:
 
 
 def status(root: Path, run: str) -> dict:
-    with c.lock(root):
-        try:
-            _, prepared, _, rows = assert_current(root, run)
-        except (ValueError, OSError, KeyError, UnicodeError) as exc:
-            return {'ok': False, 'run': run, 'next': 'prepare', 'reason': str(exc),
-                    'resume_action': 'Preserve evidence; inspect impact and prepare from revised sources.'}
-        events = {r['event'] for r in rows}
-        next_stage = 'authorize-direction-and-handoff'
-        if 'handoff' in events:
-            next_stage = 'capture'
-            if prepared['task']['execution'] == 'external' and 'external-claim' not in events:
-                next_stage = 'authorize-external-submission'
-            if prepared['task']['execution'] == 'dispatcher' and 'dispatch-claim' not in events:
-                next_stage = 'authorize-dispatch'
-        if 'candidate' in events:
-            candidate = find(rows, 'candidate')
-            next_stage = 'review'
-            try:
-                reviewed = latest_review(rows, candidate['sha256'])
-                eligible(prepared, reviewed)
-                next_stage = 'authorize-selection'
-            except ValueError:
-                if any(r['event'] == 'review' and r['data']['candidate'] == candidate['sha256'] for r in rows):
-                    next_stage = 'review-or-revise-candidate'
-        if 'selection' in events:
-            chosen = find(rows, 'selection')['data']['selection']
-            try:
-                reviewed = latest_review(rows, chosen['candidate'])
-                eligible(prepared, reviewed)
-                next_stage = 'complete' if reviewed['sha256'] == chosen['review'] else 'authorize-selection'
-            except ValueError:
-                next_stage = 'review-or-revise-candidate'
-        if 'dispatch-claim' in events and 'dispatch-results' not in events:
-            next_stage = 'recover-recording-or-resolve-remote-status'
-        if 'completion' in events:
-            verify_completion(root, run, prepared['task']['task_id'])
-            next_stage = 'done'
-        return {'ok': True, 'run': run, 'input_sha256': prepared['input_sha256'], 'next': next_stage,
-                'events': len(rows), 'reads': prepared['route']['reads'],
-                'scope': 'Structural evidence only; resume never executes, spends or adopts.'}
+    from production_resume import report
+    return report(root, run)
 
 
 def changed_scopes(before: dict, after: dict) -> list[str]:
@@ -727,6 +819,8 @@ def revision_intent(root: Path, run: str, task: str, candidate: str, repair: str
     revised, _, _, _ = snapshot(root, task)
     if revised['task']['task_id'] != prepared['task']['task_id']:
         raise ValueError('revision must remain within the current work task')
+    if revised['task']['production_id'] != prepared['task']['production_id']:
+        raise ValueError('a revision preserves its production_id')
     scopes = changed_scopes(prepared, revised)
     if not scopes:
         raise ValueError('repair contains no changed production inputs')
@@ -753,33 +847,27 @@ def revise(root: Path, run: str, task: str, candidate: str, repair: str, authori
         request = _permission(root, prepared, rows, authorization, **intent)
         grant = next(g for g in prepared['authority']['grants'] if g['id'] == request['grant'])
         new_task = c.load(c.local(root, task))
-        old_criteria = {x['id']: x for x in prepared['task']['criteria']}
-        new_criteria = {x['id']: x for x in new_task['criteria']}
-        if any(old_criteria.get(k) != new_criteria.get(k) for k in grant['protected_criteria']):
-            raise ValueError('repair changes a protected criterion')
+        validate_protected_criteria(root, prepared, grant, revised=new_task)
         existing = [r for r in rows if r['event'] == 'edit' and authorization in r['data']['authorizations']]
         if existing:
             edit = existing[-1]
             if edit['data']['intent'] != intent:
                 raise ValueError('edit authorization was already used for different work')
         else:
-            edit = append_record(directory, prepared, rows, 'edit',
-                                 {'intent': intent, 'child': generate_uuid7(), 'authorizations': [authorization]})
+            edit = lifecycle.commit_effect(root,run,'edit',
+                {'intent':intent,'child':generate_uuid7(),'authorizations':[authorization]},[authorization],effect='local-action')
         parent = {**intent['payload'], 'edit': edit['sha256']}
         return _prepare(root, task, parent=parent, identity=edit['data']['child'])
 
 
-def submission_intent(package: dict, *, seed: int | None, count: int, offering: dict, service: dict) -> dict:
-    if type(count) is not int or count < 1 or (seed is not None and type(seed) is not int):
-        raise ValueError('invalid submission seed or output count')
-    return {'operation': 'submit', 'targets': ['delivery'],
-            'payload': {'package_sha256': c.content_id(package), 'seed': seed, 'count': count,
-                        'service': offering['service'], 'model_identifier': offering['model_identifier'],
-                        'offering_sha256': c.content_id(offering), 'service_sha256': c.content_id(service)}}
+def submission_intent(package: dict, *, rendered: dict, seed: int | None,
+                      count: int, offering: dict, service: dict) -> dict:
+    from production_request import intent
+    return intent(package, rendered, seed=seed, count=count, offering=offering, service=service)
 
 
 def claim_dispatch(root: Path, run: str, package: dict, verified: dict, journal: Path,
-                   intent: dict, authorization: str) -> dict:
+                   intent: dict, authorization: str, *, rendered: dict) -> dict:
     with c.lock(root):
         directory, prepared, _, rows = assert_current(root, run)
         hand = find(rows, 'handoff')
@@ -795,8 +883,11 @@ def claim_dispatch(root: Path, run: str, package: dict, verified: dict, journal:
         if intent.get('operation') != 'submit' or intent.get('targets') != ['delivery']:
             raise ValueError('dispatch requires a submission intent')
         payload = intent['payload']
-        c.exact(payload, {'package_sha256', 'seed', 'count', 'service', 'model_identifier',
-                          'offering_sha256', 'service_sha256'}, 'submission payload')
+        import request_contract as rc
+        from production_request import validate_payload
+        validate_payload(payload)
+        if payload['request_contract'] != rc.receipt_projection(rendered):
+            raise ValueError('claim differs from the rendered and reviewed request')
         if payload['package_sha256'] != c.content_id(package):
             raise ValueError('submission intent belongs to a different package')
         request = _permission(root, prepared, rows, authorization, **intent)
@@ -814,7 +905,7 @@ def claim_dispatch(root: Path, run: str, package: dict, verified: dict, journal:
 def record_dispatch_results(root: Path, run: str, package: dict, journal: Path,
                             result_paths: list[Path], expected_count: int) -> dict:
     with c.lock(root):
-        directory, prepared, _, rows = assert_current(root, run)
+        directory, prepared, _, rows = load_run(root, run)
         claim = find(rows, 'dispatch-claim')
         if c.content_id(package) != claim['data']['package_sha256']:
             raise ValueError('dispatch package changed')
@@ -828,7 +919,21 @@ def record_dispatch_results(root: Path, run: str, package: dict, journal: Path,
             raise ValueError('repeated dispatch output path')
         for item in files:
             media.inspect(c.object_read(directory, item['sha256']), prepared['task']['artifact'])
-        evidence = [file_record(root, directory, base + '/' + name) for name in ('package.json', 'request.json', 'answer.json')]
+        import request_contract as rc
+        rendered = c.load(journal / 'request-contract.json')
+        if rc.receipt_projection(rendered) != claim['data']['intent']['payload']['request_contract']:
+            raise ValueError('recorded request differs from the dispatch claim')
+        media_ids = {}
+        for index, item in enumerate(rendered['media']):
+            upload = c.load(journal / f'upload-{index + 1:03d}.json')
+            if upload.get('index') != index or upload.get('source_sha256') != item['sha256']:
+                raise ValueError('upload receipt differs from the sealed input bytes')
+            media_ids[index] = upload['provider_id']
+        rc.validate_wire(rendered, c.load(journal / 'request.json'), media_ids)
+        evidence = [file_record(root, directory, base + '/' + name)
+                    for name in ('package.json', 'request-contract.json', 'request.json', 'answer.json')]
+        evidence.extend(file_record(root, directory, base + f'/upload-{index + 1:03d}.json')
+                        for index in range(len(rendered['media'])))
         if package.get('artifact_type') == 'upscale-request':
             if expected_count != 1:
                 raise ValueError('one declared upscale permits exactly one result')
@@ -879,10 +984,21 @@ def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str) ->
 
 
 def recover_recording(root: Path, run: str) -> dict[str,Any]:
-    """Restore Studio bookkeeping only from completely acquired, pinned results."""
+    """Finish recording a claimed dispatch from its saved answer; nothing is sent again.
+
+    Images the answer names but the journal lacks are downloaded first. Studio
+    bookkeeping is then restored only from completely acquired, pinned results.
+    """
     import studio
     with c.lock(root):
-        directory,p,_,rows=assert_current(root,run); claim=find(rows,'dispatch-claim'); result=find(rows,'dispatch-results')
+        _,_,_,rows=load_run(root,run); claim=find(rows,'dispatch-claim')
+        acquired=any(r['event']=='dispatch-results' and r['data'].get('claim')==claim['sha256'] for r in rows)
+    downloads=0
+    if not acquired:
+        import dispatch
+        downloads=dispatch.recover(root,run,c.local(root,claim['data']['journal']))
+    with c.lock(root):
+        directory,p,_,rows=load_run(root,run); claim=find(rows,'dispatch-claim'); result=find(rows,'dispatch-results')
         for item in result['data']['evidence']:
             if c.digest(c.read(c.local(root,item['path'])))!=item['sha256']:
                 raise ValueError('dispatch evidence changed; cannot recover recording')
@@ -892,8 +1008,8 @@ def recover_recording(root: Path, run: str) -> dict[str,Any]:
         if c.content_id(package)!=claim['data']['package_sha256']: raise ValueError('recovery package mismatch')
         if info['operation'] == 'generation':
             from build_generation_payload import validate_generation_package_carrier_paths
-            from verify_generation_payload import verify
-            verify(package,package_root=journal)
+            from verify_generation_payload import verify_content
+            verify_content(package,package_root=journal)
             companion=validate_generation_package_carrier_paths(package['prepared_reference_set'],package_root=journal)
             recorded_package = journal / 'package.json'
         else:
@@ -924,13 +1040,14 @@ def recover_recording(root: Path, run: str) -> dict[str,Any]:
                             raise ValueError('existing Studio artifact changed')
                     ids.append(found[0]['iteration_id']); continue
                 row=studio._record_iteration(root,info['character'],info['slot'],c.local(root,item['path']),package=recorded_package,
-                    request=journal/'request.json',response=response,note='Recovered acquired result; no network call.',
-                    package_companion=(journal/companion) if companion else None)
+                    request=journal/'request.json',response=response,note='Recovered from the saved dispatch; nothing was sent again.',
+                    service=info.get('offering'),package_companion=(journal/companion) if companion else None,
+                    layout=c.load(journal/'request-contract.json')['layout'])
                 existing.append(row); ids.append(row['iteration_id'])
             studio.write_gallery(root)
         info.update(status='complete',iterations=ids)
         c.atomic(journal/'run.json',c.encoded(info),replace=True)
-        return {'ok':True,'iterations':ids,'network_calls':0}
+        return {'ok':True,'iterations':ids,'network_calls':downloads}
 
 
 
@@ -983,6 +1100,11 @@ def adopt(root: Path, run: str, candidate: str, character: str, iteration: str,
         completed = [r for r in rows if r['event'] == 'adoption-result' and r['data']['claim'] == claim['sha256']]
         if completed:
             return completed[-1]
+        if not prior:
+            lifecycle.begin(root,run,authorization,effect='local-action',claim=claim['sha256'])
+        elif lifecycle.require_active(rows,prepared,run,authorization)['status']!='started':
+            lifecycle.begin(root,run,authorization,effect='local-action',claim=claim['sha256'])
+        directory,prepared,_,rows=load_run(root,run)
         import adoption_workflow
         result = adoption_workflow.adopt(root, character, iteration, approval,
                                         registration_record=registration_record, pack_dir=pack_dir, settings=settings)
@@ -996,25 +1118,42 @@ def draft_authorization(root: Path, run: str, grant_id: str, intent: dict) -> di
     if len(matches) != 1:
         raise ValueError('unknown grant id')
     c.exact(intent, {'operation', 'targets', 'payload'}, 'operation intent')
-    return {'grant': grant_id, 'actor': matches[0]['actor'], **intent,
+    result = {'grant': grant_id, 'actor': matches[0]['actor'], **intent,
             'outputs': intent['payload'].get('count', 0) if intent['operation'] == 'submit' else 0,
             'cost': None, 'reason': '',
             'stop_assessments': [{'id': s['id'], 'clear': False, 'evidence': ''}
                                  for s in prepared['authority']['stop_conditions']]}
+    if intent['operation'] == 'submit' and prepared['task']['execution'] == 'dispatcher':
+        from production_request import draft_decision, validate_payload
+        validate_payload(intent['payload'])
+        result['request_decision'] = draft_decision(intent['payload']['request_contract'], actor=result['actor'])
+    return result
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
+    import production_inputs
+    production_inputs.add_arguments(sub)
+    import preset_consultation
+    preset_consultation.add_arguments(sub)
+    import production_variation
+    production_variation.add_arguments(sub)
+    sub.add_parser('new-production-id', help='Assign an explicit stable identity to a new production series.')
     commands = ['prepare', 'handoff-intent', 'handoff', 'external-intent', 'claim-external',
                 'draft-authorization', 'authorize', 'capture', 'draft-review', 'review',
                 'draft-selection', 'selection-intent', 'select', 'revision-intent', 'revise',
-                'adoption-intent', 'adopt', 'complete', 'status', 'impact', 'resume', 'recover-recording']
+                'adoption-intent', 'adopt', 'complete', 'status', 'impact', 'resume', 'recover-recording',
+                'release-reservation','draft-release']
     for name in commands:
         p = sub.add_parser(name)
         p.add_argument('--root', type=Path, required=True)
         if name != 'prepare':
             p.add_argument('--run', required=True)
+        if name=='release-reservation':p.add_argument('--request',required=True)
+        if name=='draft-release':
+            p.add_argument('--reservation',required=True)
+            p.add_argument('--out',required=True)
         if name in {'prepare', 'revision-intent', 'revise'}:
             p.add_argument('--task', required=True)
         if name in {'handoff', 'handoff-intent'}:
@@ -1047,10 +1186,26 @@ def main() -> int:
             from pack_runtime_cli import add_pack_runtime_arguments
             add_pack_runtime_arguments(p)
     args = parser.parse_args()
-    root = args.root.absolute()
+    if args.command == 'new-production-id':
+        print(json.dumps({'production_id': generate_uuid7()}))
+        return 0
+    # Resolve once, so a symbolic link above the project (macOS /tmp) is not
+    # mistaken for one inside it. Links inside the project are still refused.
+    args.root = root = args.root.resolve()
     try:
         name = args.command
-        if name == 'prepare':
+        if name in preset_consultation.COMMANDS:
+            result = preset_consultation.command(args, parser)
+        elif name == 'draft-variation':
+            result = production_variation.command(args, parser)
+        elif name in production_inputs.COMMANDS:
+            result = production_inputs.command(args, parser)
+        elif name=='release-reservation':
+            result=lifecycle.release(root,args.run,args.request)
+        elif name=='draft-release':
+            result=lifecycle.draft_release(root,args.run,args.reservation)
+            c.atomic(c.local(root,args.out,exists=False),c.encoded(result))
+        elif name == 'prepare':
             result = prepare(root, args.task)
         elif name == 'handoff-intent':
             result = handoff_intent(root, args.run, args.recipient, args.method)

@@ -131,12 +131,40 @@ ROOT_REQUIRED = (
     'scripts/render_character_sheet.py',
     'scripts/harvest_sheet_render.py',
     'scripts/character_sheet_smoke_test.py',
+    'scripts/session_entry_smoke_test.py',
     'scripts/pack_release_identity_smoke_test.py',
     'scripts/bundled_pack_gate_smoke_test.py',
     'scripts/build_state_generation_package.py',
     'scripts/state_generation_smoke_test.py',
     'scripts/feature_workflow_smoke_test.py',
     'scripts/adoption_workflow.py',
+    'scripts/production_resume.py',
+    'scripts/production_resume_smoke_test.py',
+    'scripts/production_inputs.py',
+    'scripts/preset_consultation.py',
+    'scripts/preset_consultation_smoke_test.py',
+    'references/runtime/preset-consultation.md',
+    'examples/preset-consultation/README.md',
+    'examples/preset-consultation/build_example.py',
+    'examples/preset-consultation/report.json',
+    'scripts/production_input_adapters.py',
+    'scripts/production_inputs_smoke_test.py',
+    'scripts/production_input_model_smoke_test.py',
+    'scripts/dispatch_preview_smoke_test.py',
+    'scripts/schema_observation_smoke_test.py',
+    'scripts/production_variation_smoke_test.py',
+    'scripts/runtime_evidence.py',
+    'scripts/execution_policy.py',
+    'scripts/request_validation.py',
+    'scripts/request_scope.py',
+    'scripts/request_renderer.py',
+    'scripts/model_observation.py',
+    'scripts/schema_observation.py',
+    'scripts/production_variation_adapter.py',
+    'scripts/production_variation.py',
+    'scripts/production_request.py',
+    'schemas/authoring/production-input-draft.schema.json',
+    'scripts/studio_recipe_smoke_test.py',
     'scripts/revision_contract.py',
     'config/pack-initialization.json',
     'scripts/verify_generation_payload.py',
@@ -481,6 +509,7 @@ FRESH_SESSION_RUNTIME_DOCUMENTS = (
 )
 SKILL_ROUTER_LINKS = (
     "references/runtime/narrative-development.md",
+    "references/runtime/cast-and-persona-depth.md",
     "references/runtime/prompt-composition.md",
     "references/runtime/sparse-discovery.md",
     "references/runtime/prompt-writing-guide.md",
@@ -608,6 +637,15 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "## Checks and limits",
         "not a questionnaire",
         "Neither can establish",
+    ),
+    "references/runtime/cast-and-persona-depth.md": (
+        "# Cast Admission and Persona Depth",
+        "## Four separate questions",
+        "## Admission: the author decides who joins the cast",
+        "## One Persona structure, depth by use",
+        "## After an appearance",
+        "joins the active cast only after the author confirms that candidate",
+        "One line proves no habitual voice",
     ),
     "references/runtime/prompt-composition.md": (
         "# Prompt Composition Runtime",
@@ -1980,6 +2018,7 @@ def validate(
         "agent_evaluation_smoke_test.py": "unittest",
         "resource_handling_smoke_test.py": "unittest",
         "reimplementation_smoke_test.py": "unittest",
+        "preset_consultation_smoke_test.py": "unittest",
     }
     for name, output_format in regressions.items():
         result = run_standalone_regression(root, name, output_format=output_format)
@@ -2608,23 +2647,8 @@ def validate(
     if transport.get("mode") not in {"separate-field", "integrated-critical", "native-subset", "retained-only"}:
         errors.append("generation package template has invalid negative transport mode")
     contract_template = payload_template.get("generation_contract", {})
-    expected_generation_contract_fields = {
-        "forward_verified_prompt_transport",
-        "forward_verified_negative_transport",
-        "forward_ordered_reference_transports",
-        "do_not_reconstruct_from_chat",
-        "negative_transport_mode",
-        "prompt_sha256",
-        "negative_prompt_sha256",
-        "native_negative_sha256",
-        "production_spec_sha256",
-        "state_lineage_sha256",
-        "prepared_reference_set_sha256",
-        "generation_input_sha256",
-        "prompt_recommendations_sha256",
-        "retrieval_record_sha256",
-        "negative_transport_instruction",
-    }
+    from verify_generation_payload import GENERATION_CONTRACT_FIELDS
+    expected_generation_contract_fields = GENERATION_CONTRACT_FIELDS
     if set(contract_template) != expected_generation_contract_fields:
         errors.append(
             "generation package template generation_contract fields are invalid: "

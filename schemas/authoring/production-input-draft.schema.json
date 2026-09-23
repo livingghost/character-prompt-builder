@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Production input choices draft",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "state",
+    "choices",
+    "unresolved",
+    "derived_from",
+    "external_effect",
+    "budget_effect"
+  ],
+  "properties": {
+    "state": {
+      "const": "draft"
+    },
+    "external_effect": {
+      "const": false
+    },
+    "budget_effect": {
+      "const": "none"
+    },
+    "derived_from": {
+      "type": "object"
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "code"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "minLength": 1
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "choices": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reading",
+        "visual",
+        "validation",
+        "source_run"
+      ],
+      "properties": {
+        "reading": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "visual": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "validation": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "source_run": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

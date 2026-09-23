@@ -1,4 +1,38 @@
 {
+  "bindings": [],
+  "review_requirements": [],
+  "execution_policy": {
+    "artifact_type": "execution-policy",
+    "basis": {
+      "locator": "whole",
+      "path": "synthetic-validation/84eedb1297c51362/basis.txt",
+      "sha256": "f6bbc3a03a149fb1322999231f850499d8b4c58b3f2f233d4a53f75ab570b643"
+    },
+    "production_context_transport": "none",
+    "reference_instruction_transport": {
+      "contract": {
+        "path": "synthetic-validation/84eedb1297c51362/references.json",
+        "sha256": "5e408dea12dc50b38f2b7e1ab73a9fe8cb293413be95af38a21246c2a31cb33a"
+      },
+      "mode": "prompt-prefix"
+    },
+    "target": {
+      "model_identifier": "gpt-image-2.5-flare",
+      "operation": "generation",
+      "service": "synthetic-host"
+    },
+    "text_dialect": "synthetic-prose"
+  },
+  "request_validation_report": {
+    "mode": "target-schema",
+    "target": {
+      "service": "synthetic-host",
+      "model_identifier": "gpt-image-2.5-flare",
+      "operation": "generation"
+    },
+    "checked": [],
+    "unmeasured": []
+  },
   "verified": true,
   "model": "gpt-image-2.5-flare",
   "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
@@ -2676,7 +2710,7 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "9f31340ac750927ae98868e8908144710b70b0240a3d1d0004c4f745a5795c43",
+  "generation_input_sha256": "40bd59b19a4ebb25f5362b58921ffa5ca2c0bd4a02138621433165f6e563093f",
   "parameters": {
     "size": "1024x1024",
     "quality": "high"
@@ -2715,7 +2749,26 @@
     "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
     "effective_prompt_sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1",
     "selected_references": [],
-    "generation_input_sha256": "9f31340ac750927ae98868e8908144710b70b0240a3d1d0004c4f745a5795c43"
+    "generation_input_sha256": "40bd59b19a4ebb25f5362b58921ffa5ca2c0bd4a02138621433165f6e563093f",
+    "prompt_trace": [
+      {
+        "source_kind": "authored",
+        "source_refs": [
+          {
+            "kind": "generation-rendition",
+            "sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1"
+          }
+        ],
+        "transform_id": "authored-rendition",
+        "target_field": null,
+        "target_range": {
+          "start": 0,
+          "end": 1082
+        },
+        "binding_ids": []
+      }
+    ],
+    "native_reference_controls": []
   },
   "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
   "negative_prompt_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",

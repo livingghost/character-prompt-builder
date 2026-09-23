@@ -75,3 +75,7 @@ A repeated failure proves nothing about whether the scene is too complex, whethe
 - permanent negative-prompt learning.
 
 The report analyzes the latest review per candidate; earlier review receipts remain in the original run, untouched by the summary. Inspect them when the history of changing judgments matters.
+
+## Consult reusable corrections
+
+Use the returned consultation action to investigate a craft question drawn from the recorded failure. Read [Craft consultation](preset-consultation.md) for complete sources, scoped application, and reviewer questions. Preserve the observed evidence and protected requirements when choosing a correction.

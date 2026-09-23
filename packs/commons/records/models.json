@@ -157,6 +157,12 @@
           "service": "runware",
           "model_identifier": "xai:grok-imagine@image-2.0",
           "request_keys": {
+            "model": [
+              "model"
+            ],
+            "prompt": [
+              "positivePrompt"
+            ],
             "reference images": [
               "inputs.referenceImages"
             ]

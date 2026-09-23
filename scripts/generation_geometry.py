@@ -5,7 +5,8 @@ Usage:
   python scripts/generation_geometry.py --model <model-id> --list
   python scripts/generation_geometry.py --model <model-id> --ratio 2:3
   python scripts/generation_geometry.py --model <model-id> --width 832 --height 1216
-      [--service ID] [--multiple N] [--pixels N] [--pack-root DIR]
+      [--service ID] [--multiple N] [--pixels N]
+      [--state-file PATH --cache-dir DIR --managed-root DIR [--pack-root DIR]]
 
 Sizes in a record are declared choices, not proof of a model's training
 resolution. A matching declared ratio uses that recorded choice. For other
@@ -36,7 +37,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from catalog_retrieval.runtime import configure_pack_runtime  # noqa: E402
 from model_contract import offering_schema, request_instance, select_offering  # noqa: E402
+from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime  # noqa: E402
 from prepare_generation_references import model_pack_root, resolve_model_record  # noqa: E402
 
 SIZE = re.compile(r"([1-9]\d*)\s*[x×]\s*([1-9]\d*)")
@@ -144,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--height", type=int)
     parser.add_argument("--multiple", type=int, help="Explicit pixel grid for a ratio not declared by the record; no model-family default")
     parser.add_argument("--pixels", type=int, help="The pixel count to resolve at, instead of the record's own")
-    parser.add_argument("--pack-root", type=Path, help="The pack holding the record, instead of the resolved one")
+    add_pack_runtime_arguments(parser)
     args = parser.parse_args(argv)
     if args.multiple is not None and args.multiple < 1:
         parser.error("--multiple must be at least 1")
@@ -152,7 +155,14 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--width and --height go together")
     if not args.list and args.ratio is None and args.width is None:
         parser.error("one of --list, --ratio, or --width with --height")
+    configure_pack_runtime(resolve_pack_runtime(parser, args).settings)
+    try:
+        return settle(parser, args)
+    finally:
+        configure_pack_runtime(None)
 
+
+def settle(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
     model_id, record = resolve_model_record(args.model)
     sizes = declared_sizes(record)
     if args.list and args.ratio is None and args.width is None:
@@ -190,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             width, height = resolve(ratio, pixels, args.multiple)
             source = f"proposed at {pixels} pixels using " + ("the explicitly supplied budget" if args.pixels is not None else "the median declared area (a proposal, not a training guarantee)")
-    refusals, service = schema_refusals(record, args.service, model_id, width, height, args.pack_root)
+    refusals, service = schema_refusals(record, args.service, model_id, width, height, None)
     report: dict[str, Any] = {
         "model": model_id,
         "requested_ratio": requested,

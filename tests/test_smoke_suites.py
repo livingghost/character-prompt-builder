@@ -63,22 +63,34 @@ def test_suite_inventory():
     assert all((SCRIPT_DIR / name).is_file() for name in registered)
 
 
+def _default_packs_only(selectors, env):
+    """Create a pack state that enables the shipped default packs alone, whatever other packs the working tree holds."""
+    defaults = json.loads(
+        (SCRIPT_DIR.parent / "config" / "default-pack-state.json").read_text(encoding="utf-8")
+    )["enabled_packs"]
+    subprocess.run(
+        [sys.executable, str(SCRIPT_DIR / "pack_cli.py"), *selectors, "ready",
+         *(item for pack_id in defaults for item in ("--only", pack_id))],
+        check=True, capture_output=True, text=True, encoding="utf-8", env=env,
+    )
+
+
 def _resolve_args(args, tmp_path):
     resolved = []
     for arg in args:
         if arg is RUNTIME_DIRS:
             runtime_root = tmp_path / "pack-runtime"
             runtime_root.mkdir(parents=True, exist_ok=False)
-            resolved.extend(
-                [
-                    "--state-file",
-                    str(runtime_root / "pack-state.json"),
-                    "--cache-dir",
-                    str(runtime_root / "cache"),
-                    "--managed-root",
-                    str(runtime_root / "managed"),
-                ]
-            )
+            selectors = [
+                "--state-file",
+                str(runtime_root / "pack-state.json"),
+                "--cache-dir",
+                str(runtime_root / "cache"),
+                "--managed-root",
+                str(runtime_root / "managed"),
+            ]
+            _default_packs_only(selectors, {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUTF8": "1"})
+            resolved.extend(selectors)
         else:
             resolved.append(arg)
     return resolved
@@ -91,6 +103,12 @@ def test_smoke_suite(repo_root, tmp_path, script, args):
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONUTF8"] = "1"
     env["NO_COLOR"] = "1"
+    # Each suite gets its own home, so the pack state and host configuration of
+    # the person running the tests never reach it.
+    home = tmp_path / "home"
+    home.mkdir()
+    env["HOME"] = env["USERPROFILE"] = str(home)
+    _default_packs_only([], env)
     try:
         result = subprocess.run(
             command,

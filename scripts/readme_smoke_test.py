@@ -22,7 +22,7 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 SUITE = Path(__file__).resolve().parents[1]
 EXAMPLES = {"production-lifecycle", "core-check", "public-exchange", "authoring-material"}
 SEND_EXAMPLES = {"upscale", "generation"}
-SEND_FLAGS = ["--production-root", "--production-run", "--production-authorization", "--send"]
+SEND_FLAGS = ["--production-authorization", "--send"]
 OFFLINE_SCRIPTS = {
     "scripts/scene_persona.py",
     "examples/production-execution/run_example.py",

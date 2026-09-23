@@ -259,6 +259,7 @@ class FailureTests(unittest.TestCase):
     def report(self, run="run", text="Preserve the declared condition."):
         return {
             "run": run,
+            "task_path": "task.json",
             "input_sha256": "a" * 64,
             "receipt_head": "b" * 64,
             "current": True,

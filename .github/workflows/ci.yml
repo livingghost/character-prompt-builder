@@ -89,8 +89,13 @@ jobs:
       - name: Rebuild canonical pilot
         run: python examples/state-aware-pilot/build_example.py
 
+      # An untracked file is a generated artifact too, so the working tree must
+      # be exactly the checkout, not only free of modifications.
       - name: Verify generated artifacts are committed and reproducible
-        run: git diff --exit-code
+        run: |
+          git status --porcelain --untracked-files=all
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=all)"
 
       - name: Validate state protocol
         run: python scripts/validate_state_protocol.py .
@@ -110,6 +115,9 @@ jobs:
       - name: Validate routed documentation contract
         run: python scripts/documentation_contract_smoke_test.py
 
+      - name: Validate session entry and the work trail
+        run: python scripts/session_entry_smoke_test.py
+
       - name: Validate persona-led narrative workflow
         run: python scripts/persona_workflow_smoke_test.py
       - name: Validate contextual voice and performance authoring
@@ -121,6 +129,23 @@ jobs:
         run: |
           python scripts/execution_routes.py validate
           python scripts/production_workflow_smoke_test.py
+          python scripts/production_resume_smoke_test.py
+          python scripts/production_inputs_smoke_test.py
+          python scripts/preset_consultation_smoke_test.py
+          python examples/preset-consultation/build_example.py --check
+          python scripts/production_input_model_smoke_test.py
+          python scripts/dispatch_preview_smoke_test.py
+          python scripts/schema_observation_smoke_test.py
+          python scripts/production_variation_smoke_test.py
+          python scripts/route_reading_smoke_test.py
+          python scripts/visual_continuity_smoke_test.py
+          python scripts/request_contract_smoke_test.py
+          python scripts/request_validation_smoke_test.py
+          python scripts/reservation_lifecycle_smoke_test.py
+          python scripts/production_series_smoke_test.py
+          python examples/input-assembly/build_example.py --check
+          python examples/model-evidence/build_example.py --check
+          python examples/resume-recording/build_example.py --check
           python scripts/scene_material_smoke_test.py
           python scripts/reimplementation_smoke_test.py
           python scripts/world_realization_smoke_test.py
@@ -144,9 +169,14 @@ jobs:
           python scripts/feature_workflow_smoke_test.py
           python scripts/dispatch_smoke_test.py
           python scripts/studio_smoke_test.py
+          python scripts/studio_recipe_smoke_test.py
+          python examples/candidate-recipe/build_example.py --check
 
       - name: Audit default-pack authoring conformance
-        run: python scripts/audit_preset_quality.py . --state-file "${{ runner.temp }}/cpb-audit/pack-state.json" --cache-dir "${{ runner.temp }}/cpb-audit/cache" --managed-root "${{ runner.temp }}/cpb-audit/managed"
+        run: |
+          runtime=(--state-file "${{ runner.temp }}/cpb-audit/pack-state.json" --cache-dir "${{ runner.temp }}/cpb-audit/cache" --managed-root "${{ runner.temp }}/cpb-audit/managed")
+          python scripts/pack_cli.py "${runtime[@]}" ready --only 01a0043b-2250-720d-87b7-f1e6fd7ed230
+          python scripts/audit_preset_quality.py . "${runtime[@]}"
 
       - name: Validate repository structure and contracts
         run: python scripts/validate.py .

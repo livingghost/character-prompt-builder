@@ -218,7 +218,7 @@ def main() -> int:
     packs_doc = (ROOT / "PACKS.md").read_text(encoding="utf-8")
     check(
         "pack documentation distinguishes owner data from core fixtures without excluding it",
-        "Owner-maintained libraries" in packs_doc
+        "Personal packs" in packs_doc
         and "without deleting, moving, renaming, or excluding" in packs_doc
         and "full-package construction and catalog export may preserve" in packs_doc,
     )

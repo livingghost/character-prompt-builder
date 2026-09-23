@@ -4,8 +4,6 @@
 
 Use this runtime when the image direction is already understood but the agent needs broader English wording, an alternate phrase, category browsing, or a compact image-prompt term. It supplements catalog records; it does not replace art direction, canonical-record inspection, model adaptation, or the agent's judgment. The lookup is not optional polish: during prompt assembly, run one vocabulary search per distinct visual element before the wording is final, prefer a fitting dictionary term as the compact model-legible tag, and keep hand-composed wording wherever no term fits or prose carries the meaning (see [Prompt Composition Runtime](prompt-composition.md), Prompt assembly and review).
 
-This runtime is part of the mandatory retrieval-before-composition gate defined in SKILL.md: attempt vocabulary and catalog retrieval before hand-composing wording, in every domain, and fold confirmed effective new phrases back into the owning dictionary as terms only.
-
 A prompt-vocabulary resource is ordinary pack-owned knowledge. It does not decide which entries are appropriate, label entries for exclusion, or inject search results automatically. The Skill-using agent selects, combines, rewrites, or ignores results according to the request and active image interface. After term selection, use the [Prompt Writing Guide Runtime](prompt-writing-guide.md) for final ordering, supported weighting syntax, and model-facing rendition.
 
 ## Resolve the active dictionary
@@ -22,8 +20,10 @@ Pass the resolved file to the search command. When no enabled provider supplies 
 
 ```bash
 python scripts/search_prompt_vocabulary.py "low angle" \
-  --dictionary DICTIONARY_JSON
+  --dictionary DICTIONARY_JSON --record lookups.json --element camera
 ```
+
+`--record` appends the query and its returned terms to the retrieval record under that element.
 
 Restrict an ambiguous lookup by category:
 

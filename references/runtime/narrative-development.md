@@ -135,6 +135,51 @@ enough world for the present work and its likely continuations. State which depe
 checked, deferred or judged inapplicable. Let detail density follow causal and expressive
 importance rather than headcount.
 
+### Claims, mechanisms and what sustains them
+
+A compressed description is an entry point rather than a finished design: a long trust, a weekly
+visit, a private ritual, a reputation, a refusal, an attachment to a place. Inspect what the claim
+asserts, which conditions let it exist, what began it, what repeats it and what keeps it possible
+now. These are exploration tools, never a questionnaire returned to the user.
+
+Do not answer an open basis with a synonym; "they cooperate because they trust each other" has not
+said how trust operates. Propose mechanisms that differ in kind before choosing a draft direction:
+repeated ordinary contact, a shared practice, an institutional assignment, a material constraint,
+a valued difference, a changed opportunity, one incident, or an accumulation with no identifiable
+onset. Options that differ only in intensity or wording are not alternatives. Keep the comparison
+and the chosen reason as authored notes.
+
+For a consequential recurring condition, these roles are distinct; they may share an event or have
+none:
+
+| Role | Question |
+|---|---|
+| Opportunity | What makes contact or action possible here? |
+| Formation | What experience, process or predisposition contributes? |
+| First instance | What starts this practice, where an identifiable start matters? |
+| Repetition | Why does it happen again? |
+| Current maintenance | Which present conditions and choices sustain it now? |
+| Recognition | When does the person reinterpret what already exists? |
+| Presentation | What does the audience learn, and when? |
+
+A reaction is not its own origin, a display of loyalty does not establish how loyalty formed, and
+one experience does not produce a whole personality. Before asserting a cause, instantiate it:
+who was present, what was possible, what was known, what happened or recurred, and what endured.
+Omit an irrelevant question rather than invent content for it.
+
+Each step backward returns sideways: the same period's work, other relationships, travel, hours,
+tools, money, places, institutions and seasons, to the extent the work needs. Give a supporting
+person a present purpose of their own and a consequential place usable conditions; a background
+process stays impersonal, and not every thread returns as a clue or a lesson. Before adding a
+person, follow [Cast Admission and Persona Depth](cast-and-persona-depth.md). Then move forward
+from the proposed circumstances and ask what they would produce without assuming the wanted
+payoff. A stable center is optional, and an outward reversal proves no unchanged essence.
+
+Test the design in an ordinary situation with an immediate task, real objects, a time and the
+information available, and then at a boundary: a colleague trusted while their proposal is
+refused, a routine outliving its first practical reason. A sample tests a proposal; it is neither a
+prior event nor evidence for its own rule.
+
 ### World, society and material conditions
 
 For a consequential rule, identify its subject, scope, trigger, operation, effects, persistence
@@ -162,7 +207,9 @@ For each relevant agent, connect wants, values, competence, knowledge, habits, s
 to their circumstances while keeping the person larger than them. Distinguish self-image,
 observable behavior and outside perception, and an immediate feeling from the action that
 follows. Category labels, physique, reputation and social role leave temperament open. An agent
-needs an existence beyond a plot function or a contrast with another agent.
+needs an existence beyond a plot function or a contrast with another agent. Who joins the cast, on
+whose decision, and how much of a person each use needs:
+[Cast Admission and Persona Depth](cast-and-persona-depth.md).
 
 For individualized voice and embodied expression, activate
 [Character Performance](character-performance.md). It binds persona section 2 to the governing
@@ -249,6 +296,16 @@ problem, classify it:
 - a scoped exception;
 - an unresolved dependency;
 - an intentional unknown.
+
+Look also for these failures:
+
+- a label used as its own explanation;
+- a display or a recognition mistaken for formation;
+- a new event that silently rewrites an accepted person;
+- every independent thread converging on one wanted conclusion;
+- present knowledge leaking backward in time;
+- a supporting person with no purpose except steering the main cast;
+- a new proposal reported as an old decision.
 
 Coherence leaves most things unconnected and most minor choices unexplained; work on the
 interfaces that matter. The review stays a scoped inspection rather than a universal score or a

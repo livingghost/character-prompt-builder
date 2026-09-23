@@ -2,6 +2,8 @@
 """Exercise the exact prepared-reference generation commitment end to end."""
 from __future__ import annotations
 
+from visual_fixtures import fixture_visual, fixture_root
+from reading_fixtures import fixture_reading
 import contextlib
 import copy
 import io
@@ -43,20 +45,24 @@ from prepare_generation_references import (
 from reference_contract import build_reference_item
 from reference_runtime import build_reference_use_plan, execute_reference_use_plan
 from state_protocol import finalize_artifact, validate_artifact
-from verify_generation_payload import (
-    emit_paste_for_target,
-    main as verify_main,
-    verify,
-    verify_transports,
-)
+from verify_generation_payload import main as _verify_main, verify_transports
+from visual_fixtures import emit_paste_for_target, verify
 from visual_evidence import render_svg
 
 
 from smoke_fixtures import fixture_retrieval, cli_with_fixture_retrieval
 
 
+def verify_main(argv):
+    from catalog_retrieval import runtime
+    with runtime.using_pack_runtime(runtime._PACK_SETTINGS):
+        return _verify_main([*argv, "--studio-root", str(fixture_root())])
+
+
 def build_main(argv):
-    return cli_with_fixture_retrieval(_build_main, argv)
+    from catalog_retrieval import runtime
+    with runtime.using_pack_runtime(runtime._PACK_SETTINGS):
+        return cli_with_fixture_retrieval(_build_main, argv)
 
 
 PACK_ID = "0198b360-1234-7abc-8def-0123456789ab"
@@ -123,11 +129,11 @@ PILOT_PRODUCTION_SPEC = (
 )
 _UNSET = object()
 
-PROMPT = "A poised black panther character in quiet studio light."
+PROMPT = "A poised synthetic character in quiet studio light."
 NEGATIVE = "unintended text, malformed anatomy"
 NATIVE_NEGATIVE = "text, malformed anatomy"
 INTEGRATED_PROMPT = (
-    "A poised black panther character with coherent anatomy in quiet, clean, "
+    "A poised synthetic character with coherent anatomy in quiet, clean, "
     "text-free studio light."
 )
 NEGATIVE_PROVENANCE = {
@@ -223,7 +229,7 @@ def _write_fixture_pack(pack_root: Path) -> Path:
             "content": {
                 "record_globs": ["records/**/*.json"],
                 "resource_globs": ["resources/**/*"],
-                "resource_bindings": {},
+                "resource_bindings": {"service-profiles": "resources/service-profiles.json"},
             },
             "capabilities": ["model-adapters", "visual-reference-assets"],
             "dependencies": [],
@@ -231,6 +237,15 @@ def _write_fixture_pack(pack_root: Path) -> Path:
             "replaces": [],
             "license": "GPL-3.0-only",
         },
+    )
+    atomic_write_json(
+        pack_root / "resources" / "service-profiles.json",
+        {"services": {"runware": {
+            "label": "Synthetic offline image interface",
+            "endpoint": {"base_url": "https://example.invalid/synthetic", "method": "POST"},
+            "auth": {"env_var": "SYNTHETIC_OFFLINE_KEY"},
+            "operations": {"imageInference": {}},
+        }}},
     )
     atomic_write_json(
         pack_root / "records" / "canonical.json",
@@ -316,9 +331,11 @@ def _write_fixture_pack(pack_root: Path) -> Path:
                     "recommended_parameters": {"steps": 20, "guidance": [3, 5]},
                     "offerings": [
                         {
-                            "service": "svc",
+                            "service": "runware",
                             "model_identifier": "vendor:offered@1",
-                            "request_keys": {"reference images": ["inputs.referenceImages"]},
+                            "request_keys": {"model": ["model"], "prompt": ["positivePrompt"],
+                                             "negative prompt": ["negativePrompt"],
+                                             "reference images": ["inputs.referenceImages"]},
                             "parameter_keys": {"steps": "steps"},
                             "constraints": {"reference_images": {"max": 1}, "geometry": "1024x1024 only"},
                             "observed_at": "2026-09-13",
@@ -334,9 +351,10 @@ def _write_fixture_pack(pack_root: Path) -> Path:
                     ),
                     "offerings": [
                         {
-                            "service": "svc",
+                            "service": "runware",
                             "model_identifier": "vendor:seeded@1",
-                            "request_keys": {"seed image": ["seedImage"]},
+                            "request_keys": {"model": ["model"], "prompt": ["positivePrompt"],
+                                             "negative prompt": ["negativePrompt"], "seed image": ["seedImage"]},
                             "constraints": {"reference_images": {"max": 1}, "geometry": "1024x1024 only"},
                             "observed_at": "2026-09-13",
                             "schema_snapshot": SEED_SNAPSHOT,
@@ -351,7 +369,7 @@ def _write_fixture_pack(pack_root: Path) -> Path:
         {
             "artifact_type": "observed-parameter-schema",
             "model_id": OFFERED_MODEL_ID,
-            "service": "svc",
+            "service": "runware",
             "model_identifier": "vendor:offered@1",
             "observed_at": "2026-09-13",
             "source": "the fixture service's model schema endpoint",
@@ -364,7 +382,7 @@ def _write_fixture_pack(pack_root: Path) -> Path:
         {
             "artifact_type": "observed-parameter-schema",
             "model_id": SEED_MODEL_ID,
-            "service": "svc",
+            "service": "runware",
             "model_identifier": "vendor:seeded@1",
             "observed_at": "2026-09-13",
             "source": "the fixture service's model schema endpoint",
@@ -513,7 +531,22 @@ def _package(
         if production_spec_override is _UNSET
         else production_spec_override
     )
-    return build_payload(
+    from request_validation_fixtures import fixture_validation
+    if model == UNKNOWN_EXPLICIT_MODEL_ID:
+        from request_validation_fixtures import interface_validation
+        import request_renderer
+        validation = interface_validation(
+            fixture_root(),
+            target={"service": "synthetic-host", "model_identifier": model, "operation": "generation"},
+            record={}, offering={},
+            service_record={"id": "synthetic-host", "endpoint": {"base_url": "https://example.invalid/synthetic-interface"},
+                            "operations": {"generation": {}}},
+            transport=request_renderer, reference_mode="prompt-prefix",
+        )
+    else:
+        validation = fixture_validation(fixture_root(), model, reference_mode='prompt-prefix')
+
+    return build_payload(request_validation=validation, input_root=fixture_root(), visual_continuity=fixture_visual(production_spec), visual_root=fixture_root(), route_reading=fixture_reading(route='generation'), 
         retrieval_record=fixture_retrieval(PROMPT, APPROVED_PLOT),
         plot=copy.deepcopy(APPROVED_PLOT),
         model=model,
@@ -531,6 +564,32 @@ def _package(
         prepared_reference_set=prepared_reference_set,
         prepared_reference_root=prepared_reference_root,
     )
+
+
+def _forwarding_preserves_declared_parts(verified: dict[str, Any], prompt: str, reference_count: int) -> bool:
+    """Check the declared transform's coverage without recognizing prompt words."""
+    forwarded = verified["host_forwarding"]
+    text = forwarded["effective_prompt"]
+    cursor = 0
+    authored = []
+    reference_parts = []
+    for item in forwarded["prompt_trace"]:
+        start, end = item["target_range"]["start"], item["target_range"]["end"]
+        if start != cursor or not start <= end <= len(text):
+            return False
+        cursor = end
+        if item["source_kind"] in {"authored", "model-setting"}:
+            authored.append(text[start:end])
+        elif item["source_kind"] == "reference-binding":
+            if item["transform_id"] != "reference-delivery" or not item["source_refs"] or end == start:
+                return False
+            reference_parts.append(item)
+        else:
+            return False
+    expected = ["reference:" + str(i+1) for i in range(reference_count)]
+    actual = [binding for part in reference_parts for binding in part["binding_ids"]]
+    return (cursor == len(text) and "".join(authored) == prompt and actual == expected
+            and len(reference_parts) == (1 if reference_count else 0))
 
 
 def _verify_rejected(
@@ -587,7 +646,7 @@ def run() -> dict[str, Any]:
                 {
                     "pack_roots": [],
                     "enabled_packs": [PACK_ID],
-                    "resource_providers": {},
+                    "resource_providers": {"service-profiles": PACK_ID},
                 },
             )
             checked(state_file.is_file(), "explicit pack state was not written")
@@ -607,7 +666,7 @@ def run() -> dict[str, Any]:
                 cache_dir=cache_dir,
                 managed_root=managed_root,
                 default_enabled_packs=(),
-                default_resource_providers={},
+                default_resource_providers={"service-profiles": PACK_ID},
             )
 
             configure_pack_runtime(settings)
@@ -912,16 +971,10 @@ def run() -> dict[str, Any]:
                     ),
                     f"{count}-reference host forwarding exposed source/provenance fields",
                 )
-                expected_effective_prompt = (
-                    prepared["reference_preamble"].rstrip("\n") + "\n\n" + PROMPT
-                    if prepared["reference_preamble"]
-                    else PROMPT
-                )
                 checked(
-                    verified["host_forwarding"]["effective_prompt"]
-                    == expected_effective_prompt
-                    and verified["paste"]["paste_prompt"] == expected_effective_prompt,
-                    f"{count}-reference authority preamble was not integrated into the model prompt",
+                    _forwarding_preserves_declared_parts(verified, PROMPT, count)
+                    and verified["paste"]["paste_prompt"] == verified["host_forwarding"]["effective_prompt"],
+                    f"{count}-reference declared conversion or authored rendition was not preserved",
                 )
                 verified_round_trips.append(verified)
 
@@ -1340,8 +1393,7 @@ def run() -> dict[str, Any]:
             )
             runtime_verified = verify(runtime_package, package_root=runtime_package_root)
             checked(
-                runtime_verified["host_forwarding"]["effective_prompt"]
-                == runtime_set["reference_preamble"].rstrip("\n") + "\n\n" + PROMPT
+                _forwarding_preserves_declared_parts(runtime_verified, PROMPT, len(runtime_set["selected_references"]))
                 and len(runtime_verified["host_forwarding"]["selected_references"]) == 1,
                 "runtime plan did not reach verified Generation Package host forwarding",
             )
@@ -1367,7 +1419,7 @@ def run() -> dict[str, Any]:
             checked(
                 offered_package["generation_payload"]["service"]
                 == {
-                    "id": "svc",
+                    "id": "runware",
                     "model_identifier": "vendor:offered@1",
                     "observed_at": "2026-09-13",
                     "schema_snapshot": OFFERED_SNAPSHOT,
@@ -2512,6 +2564,8 @@ def run() -> dict[str, Any]:
                 native_verify_exit == 0 and native_verified_file.is_file(),
                 "native-subset CLI verification failed",
             )
+            configure_pack_runtime(settings)
+            catalog_cli.clear_runtime_caches()
             native_verified = json.loads(native_verified_file.read_text(encoding="utf-8"))
             checked(
                 native_verified["verified"] is True
@@ -2820,14 +2874,14 @@ def run() -> dict[str, Any]:
             else:
                 integrated_tamper_verify_error = ""
             checked(
-                "integrated transport hash mismatch" in integrated_tamper_verify_error,
-                "full verification accepted or misreported integrated rendition tampering",
+                "recommendation audit differs from its recorded transformation" in integrated_tamper_verify_error,
+                "full verification did not reject the rendition against its recorded transformation: " + integrated_tamper_verify_error,
             )
             mutation_count += 1
 
             missing_coverage = copy.deepcopy(integrated_package)
             missing_coverage_text = (
-                "A poised black panther character in a clean text-free quiet studio light."
+                "A poised synthetic character in a clean text-free quiet studio light."
             )
             missing_coverage["generation_payload"]["transports"]["integrated"][
                 "text"
@@ -2852,10 +2906,8 @@ def run() -> dict[str, Any]:
             else:
                 missing_coverage_verify_error = ""
             checked(
-                expected_coverage_error in missing_coverage_verify_error
-                and "integrated transport hash mismatch"
-                not in missing_coverage_verify_error,
-                "full verification accepted or misreported missing affirmative coverage",
+                "recommendation audit differs from its recorded transformation" in missing_coverage_verify_error,
+                "full verification did not reject the changed rendition against its transformation: " + missing_coverage_verify_error,
             )
             mutation_count += 1
 
@@ -2968,9 +3020,117 @@ def run() -> dict[str, Any]:
         catalog_cli.clear_runtime_caches()
 
 
+def run_derived_inputs() -> dict[str, Any]:
+    """Derived CLI inputs equal hand-supplied ones, and a changed run or package fails closed."""
+    import production_fixtures
+    import production_workflow
+    import request_contract
+    import request_validation
+    import runtime_evidence
+    import service_profile
+    import studio
+    import transport_runware
+    from catalog_retrieval.runtime import load_pack_catalog
+    from prepare_generation_references import resolve_model_record
+    from verify_generation_payload import verify as verify_live
+    from visual_continuity import file_ref
+
+    checked = CheckCounter()
+    model = "grok-imagine-image-2.0"
+    commons = json.loads((Path(__file__).resolve().parents[1] / "packs/commons/pack.json").read_text(encoding="utf-8"))["pack_id"]
+    schema_path = "@pack/" + commons + "/resources/observed-schemas/grok-imagine-image-2.0.runware.json"
+    try:
+        with tempfile.TemporaryDirectory(prefix="cpb-derived-") as temporary:
+            base = Path(temporary).resolve()
+            state = base / "pack-state.json"
+            save_state(state, {"pack_roots": [], "enabled_packs": [commons], "resource_providers": {
+                name: commons for name in ("service-profiles", "prompt-writing-guide", "prompt-dialects")}})
+            runtime = ["--state-file", str(state), "--cache-dir", str(base / "cache"), "--managed-root", str(base / "managed")]
+            configure_pack_runtime(default_settings(state_file=state, cache_dir=base / "cache", managed_root=base / "managed"))
+            project = studio.init(base / "project", "derived-inputs", "Derived input checks")
+            run_id = production_fixtures.prepare_dispatch(project, PROMPT)
+            (base / "prompt.txt").write_text(PROMPT + "\n", encoding="utf-8")
+            for name, value in {"plot.json": APPROVED_PLOT, "retrieval.json": fixture_retrieval(PROMPT, APPROVED_PLOT),
+                                "spec.json": _production_spec(model, _stateless_lineage())}.items():
+                atomic_write_json(base / name, value)
+            common = ["--model", model, "--prompt-file", str(base / "prompt.txt"), "--plot-file", str(base / "plot.json"),
+                      "--retrieval-record-file", str(base / "retrieval.json"), "--production-spec-file", str(base / "spec.json"),
+                      "--parameters", json.dumps({"width": 832, "height": 1248}), "--production-root", str(project), *runtime]
+
+            def build(name: str, *extra: str) -> dict[str, Any]:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    checked(_build_main([*common, "--out", str(base / name), *extra]) == 0, name + " was refused")
+                return json.loads((base / name).read_text(encoding="utf-8"))
+
+            def refused(pattern: str, *extra: str) -> None:
+                try:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        _build_main([*common, "--out", str(base / "refused.json"), *extra])
+                except ValueError as exc:
+                    checked(pattern in str(exc), f"expected {pattern!r}, got {exc}")
+                    return
+                raise SmokeFailure("builder accepted " + " ".join(extra))
+
+            derived = build("derived.json", "--continuity", "C01=one-off")
+            record = derived["request_validation"]
+            checked(record["mode"] == "target-schema" and record["contract"] == record["evidence"]
+                    and record["contract"]["path"] == schema_path, "derived request check does not name the pack schema")
+            checked(derived["production_binding"]["run"] == run_id, "package is not bound to the open task's run")
+            checked(derived["route_reading"] == production_workflow.load_run(project, run_id)[1]["route_reading"],
+                    "route reading differs from the prepared run")
+
+            # The same records written by hand give the identical generation input.
+            model_id, model_record = resolve_model_record(model)
+            offering = model_record["offerings"][0]
+            service = service_profile.load_service("runware", Path(load_pack_catalog().resources["service-profiles"].path))
+            hand_validation = request_validation.build_record(
+                {"mode": "target-schema", "contract": schema_path, "evidence": schema_path, "execution_policy": None},
+                runtime_evidence.reader(project),
+                expected_target={"service": "runware", "model_identifier": "xai:grok-imagine@image-2.0", "operation": "imageInference"},
+                execution=request_contract.execution_hashes(service, offering, Path(transport_runware.__file__), model=model_record, policy=None))
+            basis = derived["visual_continuity"]["basis"]["path"]
+            hand_visual = {"purpose": "image", "basis": file_ref(project, basis, locator="whole"), "subjects": {
+                "C01": {"continuity": "one-off", "character_id": None, "studio_character": None, "identity_refs": []}}}
+            atomic_write_json(base / "hand-validation.json", hand_validation)
+            atomic_write_json(base / "hand-visual.json", hand_visual)
+            hand = build("hand.json", "--request-validation-file", str(base / "hand-validation.json"),
+                         "--visual-continuity-file", str(base / "hand-visual.json"), "--production-run", run_id)
+            checked(hand["generation_input_sha256"] == derived["generation_input_sha256"]
+                    and hand["request_validation"] == record and hand["visual_continuity"] == derived["visual_continuity"],
+                    "derived inputs differ from the hand-supplied records")
+
+            # Decisions stay explicit, and derivation refuses what it cannot prove.
+            refused("state each production subject")
+            refused("already states continuity", "--continuity", "C01=one-off", "--visual-continuity-file", str(base / "hand-visual.json"))
+            refused("studio character", "--continuity", "C01=recurring")
+            refused("each production subject", "--continuity", "C02=one-off")
+            with mock.patch("production_workflow.assert_current", return_value=(None, {"route_reading": derived["route_reading"]},
+                                                                                 {"transport": "bounded-context"}, [])):
+                refused("bounded production context", "--continuity", "C01=one-off")
+
+            # A tampered package or a changed prepared run fails closed.
+            verify_live(derived, package_root=base, project=project)
+            tampered = copy.deepcopy(derived)
+            snapshot = tampered["input_snapshots"][schema_path]
+            snapshot["base64"] = snapshot["base64"][:-4] + ("AAAA" if not snapshot["base64"].endswith("AAAA") else "BBBB")
+            try:
+                accepted = verify_live(tampered, package_root=base, project=project).get("verified") is True
+            except ValueError:
+                accepted = False
+            checked(not accepted, "verifier accepted a tampered pack schema snapshot")
+            (project / "fixture-delivery.txt").write_text(PROMPT + " changed", encoding="utf-8")
+            refused("prepare a new run", "--continuity", "C01=one-off")
+    finally:
+        configure_pack_runtime(None)
+        catalog_cli.clear_runtime_caches()
+    return {"ok": True, "checks": checked.count}
+
+
 def main() -> int:
     try:
         result = run()
+        derived = run_derived_inputs()
+        result["derived_input_checks"] = derived["checks"]
     except (SmokeFailure, ValueError, OSError, RuntimeError, json.JSONDecodeError) as exc:
         result = {"ok": False, "errors": [str(exc)]}
         print(json.dumps(result, ensure_ascii=False, indent=2))

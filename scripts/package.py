@@ -124,12 +124,12 @@ EXPECTED_FRESH_SESSION_RUNTIME_CHECKS = len(
 # it is read off the suite. They exist because a suite that silently stops running
 # cases still exits zero, and nothing else would notice. A count that falls behind
 # fails the release loudly, which is the only direction it can be wrong in.
-EXPECTED_DOCUMENTATION_CONTRACT_TESTS = 35
+EXPECTED_DOCUMENTATION_CONTRACT_TESTS = 36
 EXPECTED_RELEASE_FILE_OPERATION_CHECKS = 84
 EXPECTED_PACKAGE_SECURITY_CHECKS = 16
-EXPECTED_PACK_MANAGEMENT_CHECKS = 96
+EXPECTED_PACK_MANAGEMENT_CHECKS = 117
 EXPECTED_CATALOG_HTML_CHECKS = 29
-EXPECTED_CATALOG_CLI_RUNTIME_TESTS = 40
+EXPECTED_CATALOG_CLI_RUNTIME_TESTS = 44
 EXPECTED_SEARCH_DISCOVERY_TESTS = 18
 EXPECTED_EVAL_RUNTIME_CHECK_IDS = (
     "temporary-pack-is-valid-and-locked",
@@ -159,7 +159,7 @@ EXPECTED_EVAL_RUNTIME_FIXTURE = {
 }
 EXPECTED_PACK_RELEASE_GATE_CHECKS = 53
 EXPECTED_GENERATION_PAYLOAD_CHECKS = 180
-EXPECTED_MODEL_CONTRACT_CHECKS = 52
+EXPECTED_MODEL_CONTRACT_CHECKS = 55
 EXPECTED_UPSCALE_PACKAGE_CHECKS = 18
 EXPECTED_CHARACTER_SHEET_CHECKS = 151
 EXPECTED_PACK_RELEASE_IDENTITY_CHECKS = 9
@@ -1561,6 +1561,17 @@ def validate_stage(
         "--managed-root",
         str(managed_root),
     ]
+    # Every gate below reads one runtime that enables the default packs alone,
+    # whatever other packs sit beside them.
+    progress(f"{prefix}: default-pack runtime")
+    created = subprocess.run(
+        [python, "scripts/pack_cli.py", *runtime_args, "ready",
+         *(item for pack_id in metadata.default_pack_ids for item in ("--only", pack_id))],
+        cwd=str(stage_root), text=True, capture_output=True, check=False,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    if created.returncode != 0:
+        raise RuntimeError(f"{prefix}: the default-pack runtime is not ready: {created.stdout}{created.stderr}")
     progress(f"{prefix}: exact tested dependency validation")
     dependencies = run_json_gate(
         [python, "scripts/check_dependencies.py", "--tested"], stage_root
