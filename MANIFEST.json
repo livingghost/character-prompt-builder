@@ -1,6 +1,6 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.09.23.6",
+  "version": "2026.09.23.7",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
   "generated_at": "2026-09-23",
@@ -83,7 +83,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 840,
-  "total_bytes_excluding_manifest": 13451212,
+  "total_bytes_excluding_manifest": 13451089,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -98,12 +98,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "ce44c20106757849a6fb24f6186b8dbe5380ec5ef6632dc81e172592e627fa27"
+      "sha256": "965b7374a8a98ef25987bbfd32b10c9918fe6581b6e30ec03474144e06f88546"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "e9732f41424f3b109a495835861d86477a0f6aed3781526c9dd751fb4b9aec45"
+      "sha256": "0e556cdb575ab78613234beeff35930feaf6baad2627fb2d0397dfc4c4fb46f3"
     },
     {
       "path": ".gitignore",
@@ -112,18 +112,18 @@
     },
     {
       "path": "AGENTS.md",
-      "bytes": 7817,
-      "sha256": "e17eb1b5cf9c2df32df360f4aa5e9adf49a6e3e84299800e362009f2f9489d61"
+      "bytes": 7825,
+      "sha256": "9b0cd5780fd022dcad434294d64d384b15d3d12a102e6d01967f64067c3de1ff"
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 13649,
-      "sha256": "833dc077db889393355b2a6cb6f669136cc475f20b501580c378d30bf1114073"
+      "bytes": 11872,
+      "sha256": "efe4dcf22fcab90063acfed13d9227d914d1007d9b2055dc76baf49affebfcc9"
     },
     {
       "path": "CLAUDE.md",
-      "bytes": 7817,
-      "sha256": "e17eb1b5cf9c2df32df360f4aa5e9adf49a6e3e84299800e362009f2f9489d61"
+      "bytes": 7825,
+      "sha256": "9b0cd5780fd022dcad434294d64d384b15d3d12a102e6d01967f64067c3de1ff"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -1272,13 +1272,13 @@
     },
     {
       "path": "hosts/shared/repository-guide.md.template",
-      "bytes": 7477,
-      "sha256": "6cc358acf69e10031de8d8de6cf9023813c2cded795492aab511f9d4568fc6e8"
+      "bytes": 7485,
+      "sha256": "34fd8d802a5812cd43c48aac7e967d3d24ac20e1da5d1b952d1ef9775fa40b6b"
     },
     {
       "path": "package-manifest.toml",
       "bytes": 2078,
-      "sha256": "268a6ca1775de691cf65a3d8b5d506e8660793ba9119e0a6b0cf461d281e1335"
+      "sha256": "28d7c2d95a7402190618f614d1df32ac9103ad257c8132b2dce879d3db3b92e9"
     },
     {
       "path": "packs/commons/pack.json",
@@ -1553,7 +1553,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 613,
-      "sha256": "3056a7da6429bc1365d2e8bbb3fe9d0b08ba0d503355660f73ad047ac78fdd9d"
+      "sha256": "d4bf0770f71a838e2136a7ba0f9086987cfc6e1f0d4ed8c4aa8afcc2e13ba55e"
     },
     {
       "path": "references/adapters/flux.md",
@@ -3422,8 +3422,8 @@
     },
     {
       "path": "scripts/release_contract.py",
-      "bytes": 8061,
-      "sha256": "c5561a0375ab63931d02f04a8ab4cfc939d7f4a194a6da9f9ef6e4995227def4"
+      "bytes": 9087,
+      "sha256": "9a126a5f4846347690788047dbf9e6ca99ea6adacec8d92230e526a68418588c"
     },
     {
       "path": "scripts/release_file_operations_smoke_test.py",
@@ -3432,8 +3432,8 @@
     },
     {
       "path": "scripts/release_management_smoke_test.py",
-      "bytes": 7180,
-      "sha256": "8547d1a4d60d62ee5267754668139b33c52feb1b340a1645184b74c65fe4dab2"
+      "bytes": 8081,
+      "sha256": "ca31efc8df40e3d93d826da1c7a7d4dc0ecc2b629fb4da8eedf4b67d58a1c864"
     },
     {
       "path": "scripts/release_startup_smoke_test.py",
@@ -3727,8 +3727,8 @@
     },
     {
       "path": "scripts/validate.py",
-      "bytes": 134551,
-      "sha256": "9a7dda599608476e266d8376cc2a295f1e107376b0c52d7b4a986bc4b1e37612"
+      "bytes": 134254,
+      "sha256": "fdd80e6b9ec3a7935a65d6db644d84eddd752317e65abc76975df335e6e04d69"
     },
     {
       "path": "scripts/validate_catalog_site.py",

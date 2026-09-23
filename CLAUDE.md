@@ -94,7 +94,7 @@ Update producers, validators, templates and fixtures together when that contract
 - Report executed checks separately from unverified behavior, including incomplete runs and environmental failures.
 
 Prepare a release commit only after local validation and packaging agree.
-Keep its message and changelog focused on the initial product behavior.
+Add its CHANGELOG section above the earlier ones, with what changed for a user.
 Squash intermediate maintenance edits into that release commit.
 Publish a UTC CalVer version with a push and inspect its matching CI run.
 Tags and hosted releases require a separate instruction.

@@ -1321,19 +1321,10 @@ def check_documentation(root: Path, errors: list[str]) -> dict[str, Any]:
 
 
 def newest_changelog_release(text: str) -> str | None:
-    """Return the topmost released CHANGELOG heading, ignoring `## Unreleased`.
+    """Return the topmost CHANGELOG heading, the newest release, which must equal the package version."""
 
-    CONTRIBUTING.md requires a new entry at the top, so the newest release
-    heading is the one that must equal the package version. An `## Unreleased`
-    section is allowed and skipped rather than rejected.
-    """
-
-    for match in re.finditer(r"^##\s+([^\s:]+)", text, re.M):
-        heading = match.group(1)
-        if heading.casefold() == "unreleased":
-            continue
-        return heading
-    return None
+    match = re.search(r"^##\s+([^\s:]+)", text, re.M)
+    return match.group(1) if match else None
 
 
 def check_version_consistency(root: Path, errors: list[str]) -> dict[str, Any]:

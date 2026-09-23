@@ -59,6 +59,13 @@ def main() -> int:
         expect(bool(validate_changelog(text.replace("Initial release.", "").replace("Product changes.", "" ).replace("- \n", "\n"), "2026.09.19.1", style=style)), f"{style}: heading-only current section rejected")
         expect(bool(validate_changelog(text.replace(heading, "Current capabilities"), "2026.09.19.1", style=style)), f"{style}: dated release required")
         expect(bool(validate_changelog(text + f"\n## {heading}\nDuplicate.\n", "2026.09.19.1", style=style)), f"{style}: duplicate current entry rejected")
+        older = "2026.09.18.2" if style == "plain" else "[2026.09.18.2] - 2026-09-18"
+        history = text + f"\n## {older}\n\n- Earlier changes.\n"
+        expect(not validate_changelog(history, "2026.09.19.1", style=style), f"{style}: earlier releases follow the current one")
+        expect(bool(validate_changelog(history, "2026.09.18.2", style=style)), f"{style}: the newest section is the current release")
+        expect(bool(validate_changelog(f"# Changelog\n\n## {older}\n\n- Earlier.\n\n## {heading}\n\n- Later.\n", "2026.09.19.1", style=style)), f"{style}: releases run newest first")
+        expect(bool(validate_changelog(history.replace("- Earlier changes.", ""), "2026.09.19.1", style=style)), f"{style}: every release has notes")
+        expect(bool(validate_changelog(history + "\n## Notes\n\n- Loose text.\n", "2026.09.19.1", style=style)), f"{style}: every section is a release")
     expect(bool(validate_changelog("# Log\n## [2026.09.19.1] - 2026-09-18\nChanges.\n", "2026.09.19.1", style="dated")), "explicit date must match CalVer date")
     # Check actual distributed product files via the CLI, not only parser units.
     cli = subprocess.run([sys.executable, str(Path(__file__).with_name("release_contract.py")), "--root", str(root), "--tag", "v" + version], capture_output=True, text=True, encoding="utf-8")
