@@ -25,15 +25,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from pathlib import Path
 from typing import Any
 
 from execution_contract import now
 
+SCRIPT = Path(__file__).resolve()
 WORK_DIR = "work"
 CURRENT = "current.json"
 LEDGER = "ledger.jsonl"
+
+
+def begin_command(root: Path) -> str:
+    """The command that opens a task in this studio, with every argument it requires."""
+    return (f"python {shlex.quote(str(SCRIPT))} begin --studio {shlex.quote(str(root))}"
+            ' --goal "<goal>" --step "<step>" --step "<step>"')
 
 
 def work_dir(root: Path) -> Path:
@@ -132,7 +140,7 @@ def _begin_locked(root: Path, goal: str, steps: list[str]) -> dict[str, Any]:
 def require_open(root: Path) -> dict[str, Any]:
     task = read_current(root)
     if task is None:
-        raise ValueError("no task is open")
+        raise ValueError(f"no task is open; open one with: {begin_command(root)}")
     return task
 
 
@@ -258,10 +266,12 @@ def show(root: Path) -> str:
         return "\n".join(lines)
     finished = [entry for entry in read_ledger(root) if entry.get("event") in ("finished", "abandoned")]
     if not finished:
-        return "no task is open, and none has been recorded; open one before work that takes more than one step"
-    lines.append("no task is open; the last recorded:")
-    for entry in finished[-3:]:
-        lines.append(f"  {entry.get('at')} {entry.get('event')} {entry.get('task_id')}: {entry.get('text')}")
+        lines.append("no task is open, and none has been recorded")
+    else:
+        lines.append("no task is open; the last recorded:")
+        for entry in finished[-3:]:
+            lines.append(f"  {entry.get('at')} {entry.get('event')} {entry.get('task_id')}: {entry.get('text')}")
+    lines.append(f"open a task before work that takes more than one step: {begin_command(root)}")
     return "\n".join(lines)
 
 

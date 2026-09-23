@@ -1,6 +1,6 @@
 [package]
 name = "character-prompt-builder"
-version = "2026.09.23.4"
+version = "2026.09.23.5"
 version_scheme = "YYYY.MM.DD.N"
 release_timezone = "UTC"
 license = "GPL-3.0-only"
@@ -21,7 +21,7 @@ license_file = "LICENSE"
 changelog = "CHANGELOG.md"
 
 [release]
-output = "dist/character-prompt-builder-2026.09.23.4.zip"
+output = "dist/character-prompt-builder-2026.09.23.5.zip"
 include = [
   ".gitignore",
   ".agents",

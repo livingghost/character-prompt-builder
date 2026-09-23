@@ -454,7 +454,9 @@ def main() -> int:
         production.complete(root, run)
         work_ledger.finish(root)
         check("a finished task leaves no open task and stays in the ledger", work_ledger.read_current(root) is None and any(e["event"] == "finished" for e in work_ledger.read_ledger(root)))
-        check("show reports the trail when nothing is open", "no task is open; the last recorded" in work_ledger.show(root))
+        shown = work_ledger.show(root)
+        check("show reports the trail when nothing is open, and the command that opens the next task",
+              "no task is open; the last recorded" in shown and shown.splitlines()[-1].endswith(work_ledger.begin_command(root)), shown)
         work_ledger.begin(root, "C02 base front", ["one"])
         work_ledger.abandon(root, "the owner changed the brief")
         check("an abandoned task records what was left", any(e["event"] == "abandoned" and e.get("left") == ["one"] for e in work_ledger.read_ledger(root)))

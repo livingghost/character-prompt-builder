@@ -1,6 +1,6 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.09.23.4",
+  "version": "2026.09.23.5",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
   "generated_at": "2026-09-23",
@@ -83,7 +83,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 838,
-  "total_bytes_excluding_manifest": 13369972,
+  "total_bytes_excluding_manifest": 13371046,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -98,12 +98,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "cfb00e3f0a38eff7af33c87e275f1242509d68f858230787ca4d57f0a8945b46"
+      "sha256": "11ea526f3de790a16c43674c5bca75276bcc4193981cf069b082be6c272a8993"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "bd676cb889c774cf3f8901302252b3bdd3733075b739b793e0bbc10bf787a3d9"
+      "sha256": "dca1b0eb331e029087b9ad7064c3b7db91d2372f84bc8852a3ac08f765cada96"
     },
     {
       "path": ".gitignore",
@@ -117,8 +117,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 12107,
-      "sha256": "3ab487c8d74ecc7bf63767bed1d5c6972af2a0e672efd34e0ea749091ff10edb"
+      "bytes": 12269,
+      "sha256": "78f068c251e3768738a00c594c9e4a43e42b79caf1e78e613b3251a5c7ae736f"
     },
     {
       "path": "CLAUDE.md",
@@ -1273,7 +1273,7 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2078,
-      "sha256": "adc0abebfbbe06758a880e3e0d43445b542c27fe65c736e32a1b7e5445d3a2ab"
+      "sha256": "713a4e66ee981acec34b087a35fcb525a3ba6e69e915b185df0793a14b531678"
     },
     {
       "path": "packs/commons/pack.json",
@@ -1548,7 +1548,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 613,
-      "sha256": "68feefa06ad3b097f7cf302d1e8353219750e030157ce6fe8c680a4f64a61683"
+      "sha256": "d30e459316c3c4e4a2d96c10c0808f441cc49eb69aae861316bd0ead04c40b02"
     },
     {
       "path": "references/adapters/flux.md",
@@ -3327,8 +3327,8 @@
     },
     {
       "path": "scripts/protocol_contract.py",
-      "bytes": 64450,
-      "sha256": "baea833ddbe8ec9dae71d65f5a49b10abef35bb15f0d9f568185c75f7cd799f4"
+      "bytes": 64794,
+      "sha256": "be544ee26c9d4d07b8dd7d83a5bc3e8f0d6412a3f76ef52883e2a5b0598808ea"
     },
     {
       "path": "scripts/protocol_contract_smoke_test.py",
@@ -3632,8 +3632,8 @@
     },
     {
       "path": "scripts/state_protocol.py",
-      "bytes": 147507,
-      "sha256": "c9e95b719b89e60ef0b1965cffe3b627b4a9450203b2b7d7b4670bd415c085b7"
+      "bytes": 147851,
+      "sha256": "85dc35ac0900affce4cce71c511ccfaf8d48d63aa1a08b410d408c1f8de0cda3"
     },
     {
       "path": "scripts/stdio_encoding_smoke_test.py",
@@ -3667,8 +3667,8 @@
     },
     {
       "path": "scripts/studio.py",
-      "bytes": 48743,
-      "sha256": "5205176c1db974697c65b7a78c6b3147cbe952374463a4500ed970083725b2f3"
+      "bytes": 48370,
+      "sha256": "cb40d2471db46fbb0ae8babc3d1874aeec1df3211e0892a8d788bd5bb382d28a"
     },
     {
       "path": "scripts/studio_recipe_smoke_test.py",
@@ -3677,8 +3677,8 @@
     },
     {
       "path": "scripts/studio_smoke_test.py",
-      "bytes": 40347,
-      "sha256": "d15d56c7a9da9a597d8a19e544e5d1cfb706f77335a0a389c3ca29d30843dc4b"
+      "bytes": 40501,
+      "sha256": "55a2e6db1356198bcdaadd44d52ca0bae24c11a7398c818c6e0a5fbe55a20d62"
     },
     {
       "path": "scripts/style_family_audit.py",
@@ -3802,8 +3802,8 @@
     },
     {
       "path": "scripts/work_ledger.py",
-      "bytes": 14611,
-      "sha256": "b081a4d4bc0e2f7f200f81f7ca766df0e2927738ef1b9e2c2c66868d0748522d"
+      "bytes": 15054,
+      "sha256": "debf0b27330bee6aba0fa3959a0b21cfe2f364937132954b1960c11f15b83c21"
     },
     {
       "path": "scripts/world_coherence_smoke_test.py",

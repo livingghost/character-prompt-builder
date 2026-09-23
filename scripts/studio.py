@@ -83,12 +83,6 @@ def init_command() -> str:
     return f"python {shlex.quote(str(ROOT / 'scripts' / 'studio.py'))} {INIT_COMMAND}"
 
 
-def begin_command(root: Path) -> str:
-    """The command that opens a task in this studio, with every argument it requires."""
-    return (f"python {shlex.quote(str(ROOT / 'scripts' / 'work_ledger.py'))} begin --studio {shlex.quote(str(root))}"
-            ' --goal "<goal>" --step "<step>" --step "<step>"')
-
-
 def studio_root(start: Path) -> Path | None:
     """The studio a directory belongs to: the nearest ancestor holding the manifest."""
     for candidate in (start, *start.parents):
@@ -943,7 +937,6 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "init":
             root = init(args.out, args.studio_id, args.title)
             print(status(root))
-            print(f"open a task with: {begin_command(root)}")
             return 0
         root = require_studio(args.studio or Path.cwd())
         if args.command == "status":

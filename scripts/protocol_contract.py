@@ -412,6 +412,13 @@ def unsupported_schema_keywords(schema: Any, path: str = "$") -> list[str]:
 
 
 
+def _no_alternative(path: str, branch_errors: list[list[str]]) -> str:
+    """One line naming what each alternative still needs, in schema order."""
+    needs = [item[0].removeprefix(f"{path}: ") for item in branch_errors if item]
+    detail = f": {'; or '.join(needs)}" if needs else ""
+    return f"{path}: value matches none of the {len(branch_errors)} alternatives{detail}"
+
+
 def validate_against_schema(
     value: Any,
     schema: dict[str, Any],
@@ -443,9 +450,7 @@ def validate_against_schema(
             if isinstance(branch, dict)
         ]
         if not branch_errors or not any(not item for item in branch_errors):
-            details = [item[0] for item in branch_errors if item]
-            suffix = f"; first branch errors: {details}" if details else ""
-            errors.append(f"{path}: value does not satisfy anyOf{suffix}")
+            errors.append(_no_alternative(path, branch_errors))
 
     one_of = schema.get("oneOf")
     if isinstance(one_of, list):
@@ -455,9 +460,11 @@ def validate_against_schema(
             if isinstance(branch, dict)
         ]
         matching = sum(1 for item in branch_errors if not item)
-        if matching != 1:
+        if matching == 0:
+            errors.append(_no_alternative(path, branch_errors))
+        elif matching > 1:
             errors.append(
-                f"{path}: value must satisfy exactly one oneOf branch, matched {matching}"
+                f"{path}: value matches {matching} of the {len(branch_errors)} alternatives; exactly one must match"
             )
 
     not_schema = schema.get("not")
