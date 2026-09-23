@@ -30,6 +30,7 @@ from catalog_cli import (
     configure_pack_runtime,
     load_pack_catalog,
 )
+from execution_contract import atomic_write_json, sha256_file
 from package_metadata import calver_key
 from model_contract import model_reference_limit
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
@@ -144,14 +145,6 @@ def canonical_json(value: Any) -> str:
         separators=(",", ":"),
         allow_nan=False,
     )
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _require_exact_fields(value: Mapping[str, Any], expected: frozenset[str], field: str) -> None:
@@ -1971,20 +1964,11 @@ def read_json_object(path: Path) -> dict[str, Any]:
 
 
 def write_json_atomic(path: Path, value: Any) -> None:
+    """Write an output JSON file whole into a folder that already exists."""
     path = Path(path)
     if not path.parent.is_dir():
         raise ValueError(f"output JSON parent does not exist: {path.parent}")
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        temporary.write_text(
-            json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
-        os.replace(temporary, path)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
+    atomic_write_json(path, value)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

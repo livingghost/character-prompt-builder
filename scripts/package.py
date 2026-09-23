@@ -24,6 +24,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from execution_contract import sha256_file
 from package_metadata import (
     CORE_RELEASE_REGRESSION_CONTRACT,
     DEVELOPMENT_ARTIFACT_SUFFIXES,
@@ -124,7 +125,7 @@ EXPECTED_FRESH_SESSION_RUNTIME_CHECKS = len(
 # it is read off the suite. They exist because a suite that silently stops running
 # cases still exits zero, and nothing else would notice. A count that falls behind
 # fails the release loudly, which is the only direction it can be wrong in.
-EXPECTED_DOCUMENTATION_CONTRACT_TESTS = 36
+EXPECTED_DOCUMENTATION_CONTRACT_TESTS = 37
 EXPECTED_RELEASE_FILE_OPERATION_CHECKS = 84
 EXPECTED_PACKAGE_SECURITY_CHECKS = 16
 EXPECTED_PACK_MANAGEMENT_CHECKS = 117
@@ -159,9 +160,9 @@ EXPECTED_EVAL_RUNTIME_FIXTURE = {
 }
 EXPECTED_PACK_RELEASE_GATE_CHECKS = 53
 EXPECTED_GENERATION_PAYLOAD_CHECKS = 180
-EXPECTED_MODEL_CONTRACT_CHECKS = 55
+EXPECTED_MODEL_CONTRACT_CHECKS = 62
 EXPECTED_UPSCALE_PACKAGE_CHECKS = 18
-EXPECTED_CHARACTER_SHEET_CHECKS = 151
+EXPECTED_CHARACTER_SHEET_CHECKS = 152
 EXPECTED_PACK_RELEASE_IDENTITY_CHECKS = 9
 EXPECTED_BUNDLED_PACK_GATE_CHECKS = 8
 EXPECTED_GENERATION_MUTATIONS_REJECTED = 27
@@ -260,14 +261,6 @@ EXCLUDED_DIR_NAMES = {
     ".mypy_cache",
 } | set(VCS_DIR_NAMES)
 EXCLUDED_SUFFIXES = set(DEVELOPMENT_ARTIFACT_SUFFIXES)
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 _WRITABLE_FILE_MODE = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
@@ -1728,9 +1721,17 @@ def validate_stage(
     for name, report in reports.items():
         write_json(reports_dir / f"{prefix}-{name.replace('_', '-')}.json", report)
     if gate_contract.get("ok") is not True:
+        # The error output of each failed gate travels with the failure, so a CI
+        # log alone says why a gate stopped.
+        stderr = [
+            f"{name} stderr: ...{str(report['stderr'])[-1500:]}"
+            for name, report in reports.items()
+            if isinstance(report, dict) and report.get("ok") is not True and report.get("stderr")
+        ]
         raise RuntimeError(
             f"{prefix} core release gate contract failed: "
             + "; ".join(str(value) for value in gate_contract.get("errors", [])[:12])
+            + "".join("\n" + line for line in stderr)
         )
     return reports, dict(gate_contract["coverage"])
 

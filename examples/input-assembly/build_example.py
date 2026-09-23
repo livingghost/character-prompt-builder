@@ -53,8 +53,6 @@ def build():
         choices['reading']['reading_key'] = reading['reading_key']
         choices['reading']['applied'] = reading['applied']
         choices['reading']['resource_applied'] = reading['resource_applied']
-        choices['visual'] = {'applicability': 'not-applicable', 'reason': 'This synthetic task produces only local text.'}
-        choices['validation'] = {'applicability': 'not-applicable', 'reason': 'This synthetic task sends no model request.'}
         (root / draft['choices_file']).write_bytes(c.encoded(authored))
         result = command(root, 'build-inputs', '--choices', draft['choices_file'], '--out-dir', 'built')
         correct = all(c.digest((root / ref['path']).read_bytes()) == ref['sha256'] for ref in result['inputs'].values())

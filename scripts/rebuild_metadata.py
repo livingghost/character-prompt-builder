@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import os
 import tempfile
 from collections import Counter
 from pathlib import Path
@@ -20,6 +18,7 @@ from catalog_cli import (
     named_resource_path,
     record_tier,
 )
+from execution_contract import atomic, sha256_file
 from integration_contract import (
     content_hash,
     profile_hash,
@@ -61,34 +60,7 @@ def write_text_atomic(path: Path, text: str) -> None:
     if _CAPTURED is not None:
         _CAPTURED[path] = text
         return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle = tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        newline="\n",
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        dir=path.parent,
-        delete=False,
-    )
-    temporary = Path(handle.name)
-    try:
-        with handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
-
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    atomic(path, text.encode("utf-8"), replace=True)
 
 
 REPOSITORY_GUIDE_TEMPLATE = "hosts/shared/repository-guide.md.template"
@@ -315,7 +287,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             {
                 "path": path.relative_to(ROOT).as_posix(),
                 "bytes": path.stat().st_size,
-                "sha256": sha256(path),
+                "sha256": sha256_file(path),
             }
             for path in sorted(files, key=lambda value: value.relative_to(ROOT).as_posix())
         ]

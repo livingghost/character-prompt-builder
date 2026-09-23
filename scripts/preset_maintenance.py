@@ -25,6 +25,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 sys.dont_write_bytecode = True
 
+from execution_contract import TEMPORARY_PREFIX
 from pack_manager import (
     PackError,
     PackRecord,
@@ -41,10 +42,10 @@ from search_discovery import infer_discovery_group, infer_variant_of
 
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 EVIDENCE_ASSET_ID_RE = re.compile(r"^visual-evidence-[a-f0-9]{16}$")
-# ``pack_manager.atomic_write_json`` writes ``.{name}.tmp-{pid}-{uuid4hex}`` beside
-# its destination. A process killed between the write and the rename leaves that
+# ``execution_contract.atomic`` writes the prefix and sixteen hex digits beside its
+# destination. A process killed between the write and the rename leaves that
 # file behind, and the lock inventory then refuses the pack.
-ORPHAN_TEMPORARY_RE = re.compile(r"^\.(.+)\.tmp-\d+-[0-9a-f]{32}$")
+ORPHAN_TEMPORARY_RE = re.compile("^" + re.escape(TEMPORARY_PREFIX) + "[0-9a-f]{16}$")
 IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"})
 SOFT_REFERENCE_FIELDS = frozenset({"distinct_from"})
 # Pack trees are never read by the report-only external scan: one of them is the

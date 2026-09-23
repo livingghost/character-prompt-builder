@@ -2,7 +2,6 @@
 """Build and verify committed, portable CPB Upscale Packages."""
 from __future__ import annotations
 
-import hashlib
 import json
 import mimetypes
 import re
@@ -11,6 +10,7 @@ from typing import Any, Mapping
 
 from PIL import Image
 
+from execution_contract import sha256_file
 from model_contract import validate_model_record
 from prepare_generation_references import resolve_model_record
 from state_protocol import artifact_hash, finalize_artifact, sha256_json, validate_artifact
@@ -22,14 +22,6 @@ IMAGE_MEDIA_TYPES = {
     ".webp": "image/webp",
 }
 SETTING_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def canonical_record_sha256(record: Mapping[str, Any]) -> str:

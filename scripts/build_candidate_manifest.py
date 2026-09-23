@@ -8,12 +8,12 @@ selection of canonical reference images.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import struct
 from pathlib import Path
 from typing import Any, Sequence
 
+from execution_contract import sha256_file
 from state_protocol import finalize_artifact, load_json, validate_artifact, write_json
 
 
@@ -34,13 +34,6 @@ def require_string_array(value: Any, field: str) -> list[str]:
     if len(result) != len(set(result)):
         raise ValueError(f"{field} must contain unique values")
     return result
-
-
-def sha256_file(path: Path) -> str:
-    h=hashlib.sha256()
-    with path.open('rb') as f:
-        for chunk in iter(lambda:f.read(1024*1024),b''): h.update(chunk)
-    return h.hexdigest()
 
 
 def image_dimensions(path: Path) -> tuple[int,int]:

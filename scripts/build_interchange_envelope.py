@@ -77,7 +77,8 @@ def main() -> int:
         if not report["ok"]:
             raise ValueError("; ".join(report["errors"]))
         for path in temporary.iterdir():
-            with path.open("rb") as handle: os.fsync(handle.fileno())
+            # Windows flushes a file only through a handle that may write to it.
+            with path.open("r+b") as handle: os.fsync(handle.fileno())
         temporary.rename(output)
         temporary = None
         print(json.dumps({"ok":True, "out":str(output), "envelope_sha256":value["envelope_sha256"], "canonical_adoption":False}, indent=2))

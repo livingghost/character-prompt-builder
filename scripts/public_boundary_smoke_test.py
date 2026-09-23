@@ -21,7 +21,7 @@ FIX=ROOT/'examples/protocol-exchange/fixtures'
 class Boundary(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(prefix='public-data-');self.addCleanup(self.temp.cleanup)
-        self.root=Path(self.temp.name)
+        self.root=Path(self.temp.name).resolve()
         self.caps=contract.load_capabilities(ROOT)
         self.kind='shot-request'
         self.raw=(FIX/(self.kind+'.json')).read_bytes()

@@ -105,7 +105,6 @@ import shutil
 import sys
 import tempfile
 import urllib.request
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlparse
@@ -126,10 +125,6 @@ from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime  #
 from prepare_generation_references import model_pack_root, resolve_model_record  # noqa: E402
 from upscale_package import build_upscale_package, validate_settings  # noqa: E402
 from verify_generation_payload import verify  # noqa: E402
-
-
-def stamp() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 # The names every transport defines; the module docstring states what each does.
@@ -416,7 +411,7 @@ def show_preview(*, model_id: str, offering: dict[str, Any], service_id: str, se
 def record_refusal(root: Path, name: str, request: dict[str, Any], refused: list[dict[str, Any]], **facts: Any) -> Path:
     runs = root / "runs"
     runs.mkdir(parents=True, exist_ok=True)
-    body = (json.dumps({"at": stamp(), **facts, "submitted": request, "refused": refused}, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    body = (json.dumps({"at": execution_contract.now(), **facts, "submitted": request, "refused": refused}, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     base = f"{name}-{execution_contract.content_id(request)[:8]}-refused"
     # A resent request can be refused again; each refusal keeps its own file.
     for number in itertools.count(1):
@@ -444,7 +439,7 @@ class RunJournal:
         from pack_manager import generate_uuid7
         path = root / "runs" / generate_uuid7()
         path.mkdir(parents=False, exist_ok=False)
-        journal = cls(path, {"at": stamp(), **facts, "status": "preparing", "iterations": []})
+        journal = cls(path, {"at": execution_contract.now(), **facts, "status": "preparing", "iterations": []})
         journal.update()
         return journal
 
@@ -467,7 +462,7 @@ class RunJournal:
         return target
 
     def update(self, **facts: Any) -> None:
-        self.document.update(facts, updated_at=stamp())
+        self.document.update(facts, updated_at=execution_contract.now())
         self.write("run.json", self.document)
 
     def keep(self, source: Path, name: str) -> Path:
@@ -502,9 +497,14 @@ def acquire(run: RunJournal, transport: Any) -> dict[str, Any]:
     An image the answer carries inline is decoded from it, and one it names by
     URL is downloaded. A result already in the journal is complete, because its
     file is replaced only when whole. One failed image leaves the others.
+
+    The answer stays once, in answer.json. Each image's response-N.json names
+    its place among the returned images and the answer's SHA-256, with the seed,
+    the id and the URL the transport read there.
     """
     upscale = run.document["operation"] == "upscale"
-    answer = json.loads((run.path / "answer.json").read_text(encoding="utf-8"))
+    body = (run.path / "answer.json").read_bytes()
+    answer, answer_sha256 = json.loads(body.decode("utf-8")), hashlib.sha256(body).hexdigest()
     entries = [entry for entry in transport.results(answer) if entry.get("url") or entry.get("data")]
     refused = transport.rejections(answer)
     run.update(status="downloading", received=len(entries), refused=refused)
@@ -513,8 +513,13 @@ def acquire(run: RunJournal, transport: Any) -> dict[str, Any]:
     for index, entry in enumerate(entries, 1):
         response = run.path / f"response-{index}.json"
         if not response.is_file():
-            run.write(response.name, {"at": stamp(), "seed": entry.get("seed"), "id": entry.get("id"),
-                                      "url": entry.get("url"), "answer": answer})
+            run.write(response.name, {"at": execution_contract.now(), "answer_sha256": answer_sha256, "index": index,
+                                      "seed": entry.get("seed"), "id": entry.get("id"), "url": entry.get("url")})
+        else:
+            named = json.loads(response.read_text(encoding="utf-8"))
+            if (named.get("answer_sha256"), named.get("index")) != (answer_sha256, index):
+                raise ValueError(f"{response} names another answer or image than answer.json holds; "
+                                 "the saved evidence changed, so nothing is recorded from it")
         try:
             if entry.get("data"):
                 raw = inline_image(entry["data"])
@@ -591,8 +596,8 @@ def settle(root: Path, run: RunJournal, acquisition: dict[str, Any], *, recoveri
         if found is None:
             row = studio.iterate(root, facts["character"], facts["slot"], result,
                                  package=packages.get(index, run.path / "package.json"), request=request,
-                                 response=response, note=facts.get("note"), service=facts.get("offering"),
-                                 package_companion=companion, layout=layout)
+                                 response=response, answer=run.path / "answer.json", note=facts.get("note"),
+                                 service=facts.get("offering"), package_companion=companion, layout=layout)
             found = row["iteration_id"]
             detail = f"({'identity audit pending' if audit == 'pending' else 'ready'})" if audit else f"seed {row.get('seed')}"
             print(f"  recorded {found} {detail} -> {row['result']['path']}")

@@ -273,7 +273,7 @@ def _prepare(root: Path, task_path: str, *, parent: dict | None = None, identity
                 shutil.rmtree(staging)
     current['production_run'] = run
     work_ledger.write_current(root, current)
-    work_ledger.append(root, {'at': work_ledger.now(), 'task_id': current['task_id'],
+    work_ledger.append(root, {'at': c.now(), 'task_id': current['task_id'],
                              'event': 'note', 'text': 'prepared production run ' + run})
     return {'run': run, 'input_sha256': prepared['input_sha256'], 'consumer': str(target / 'consumer.json')}
 
@@ -970,7 +970,7 @@ def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str) ->
         raise ValueError('Studio reference index does not confirm the chosen image')
     paths=[owner_path,home/'iterations.jsonl',home/'sheet/sheet-data.json',c.local(root,row['result']['path'])]
     # Bind owned copies and the chosen binding sidecars as well as the journal.
-    for field in ('result','package','request','response'):
+    for field in ('result','package','request','response','answer'):
         item=row.get(field)
         if item:
             path=c.local(root,item['path'])
@@ -1034,13 +1034,15 @@ def recover_recording(root: Path, run: str) -> dict[str,Any]:
                        and r['character']==info['character'] and r['slot']==info['slot']]
                 if len(found)>1: raise ValueError('ambiguous existing Studio result; review manually')
                 if found:
-                    for key in ('result','request','response','package'):
-                        artifact=found[0][key]
+                    artifacts=[found[0][key] for key in ('result','request','response','package')]
+                    artifacts+=[found[0]['answer']] if found[0].get('answer') else []
+                    for artifact in artifacts:
                         if c.digest(c.read(c.local(root,artifact['path'])))!=artifact['sha256']:
                             raise ValueError('existing Studio artifact changed')
                     ids.append(found[0]['iteration_id']); continue
                 row=studio._record_iteration(root,info['character'],info['slot'],c.local(root,item['path']),package=recorded_package,
-                    request=journal/'request.json',response=response,note='Recovered from the saved dispatch; nothing was sent again.',
+                    request=journal/'request.json',response=response,answer=journal/'answer.json',
+                    note='Recovered from the saved dispatch; nothing was sent again.',
                     service=info.get('offering'),package_companion=(journal/companion) if companion else None,
                     layout=c.load(journal/'request-contract.json')['layout'])
                 existing.append(row); ids.append(row['iteration_id'])

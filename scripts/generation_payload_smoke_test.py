@@ -50,7 +50,9 @@ from visual_fixtures import emit_paste_for_target, verify
 from visual_evidence import render_svg
 
 
-from smoke_fixtures import fixture_retrieval, cli_with_fixture_retrieval
+from smoke_fixtures import fixture_retrieval, cli_with_fixture_retrieval, isolate_home
+
+isolate_home()
 
 
 def verify_main(argv):

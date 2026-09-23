@@ -78,10 +78,8 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
     files: dict[str, bytes] = {}
     changes: list[dict] = []
     for dep in prepared['dependencies']:
-        base = workflow.ROOT if dep['space'] == 'skill' else root
         try:
-            current_hash = c.digest(c.read(c.local(base, dep['path'])))
-            if current_hash != dep['sha256']:
+            if workflow.current_sha256(root, dep) != dep['sha256']:
                 changes.append({'space': dep['space'], 'path': dep['path'], 'reason': 'content changed'})
         except (OSError, ValueError):
             changes.append({'space': dep['space'], 'path': dep['path'], 'reason': 'missing or unreadable'})

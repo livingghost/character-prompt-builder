@@ -87,7 +87,7 @@ def inspect_inputs(root: Path, task_path: str, *, from_run: str | None = None) -
             'candidates': adapters.inventory(root, task),
             'craft_lookup': craft,
             'authority': adapters.authority(root, task, saved),
-            'required_choices': ['reading', 'visual', 'validation'],
+            'required_choices': ['reading', *(['validation'] if adapters.validation_required(task) else [])],
             'choice_templates': {'visual': adapters.visual_template(task),
                                  'validation': adapters.validation_template(task)},
             'judgments': 'Select the route applications, subjects and evidence. Existing choices require current assessment.',
@@ -98,10 +98,10 @@ def draft_choices(task: dict, *, from_run: str | None = None) -> dict:
     applications = {'snapshot_id': None, 'reading_key': None, 'applied': []}
     if route_reading.RECORD_RESOURCE_FIELDS:
         applications['resource_applied'] = []
-    # Null in the draft is an unanswered question, not a one-off subject or an
-    # automatic decision that a model contract is unnecessary.
-    return {'reading': applications, 'visual': adapters.visual_template(task),
-            'validation': adapters.validation_template(task),
+    # A null visual or validation choice builds no record here: the Generation
+    # Package builder takes continuity decisions and derives request validation.
+    return {'reading': applications, 'visual': None,
+            'validation': adapters.validation_template(task) if adapters.validation_required(task) else None,
             'source_run': from_run}
 
 
@@ -123,10 +123,8 @@ def _missing(choices: dict) -> list[dict]:
             elif not isinstance(reading[key], list):
                 raise ValueError('reading.' + key + ' must be an array')
     for field in ('visual', 'validation'):
-        if choices[field] is None:
-            unresolved.append({'field': field, 'code': 'applicability-choice-required'})
-        elif not isinstance(choices[field], dict):
-            raise ValueError(field + ' choices must be an object')
+        if choices[field] is not None and not isinstance(choices[field], dict):
+            raise ValueError(field + ' choices must be an object or null')
     if isinstance(choices['visual'], dict):
         subjects = choices['visual'].get('subjects')
         if subjects is not None and not isinstance(subjects, dict):
@@ -136,6 +134,13 @@ def _missing(choices: dict) -> list[dict]:
                 unresolved.append({'field': 'visual.subjects.' + identifier + '.continuity',
                                    'code': 'continuity-choice-required'})
     unresolved.extend(adapters.unresolved_choices(choices))
+    return unresolved
+
+
+def _unresolved(choices: dict, task: dict) -> list[dict]:
+    unresolved = _missing(choices)
+    if choices['validation'] is None and adapters.validation_required(task):
+        unresolved.append({'field': 'validation', 'code': 'selection-required'})
     return unresolved
 
 
@@ -198,7 +203,7 @@ def draft_inputs(root: Path, task_path: str, out_dir: str, *, from_run: str | No
         choices['reading']['applied'] = copy.deepcopy(previous['applied'])
         if route_reading.RECORD_RESOURCE_FIELDS:
             choices['reading']['resource_applied'] = copy.deepcopy(previous['resource_applied'])
-    result = {'state': 'draft', 'choices': choices, 'unresolved': _missing(choices),
+    result = {'state': 'draft', 'choices': choices, 'unresolved': _unresolved(choices, task),
               'derived_from': {'task': task_ref, 'source_run': saved},
               'external_effect': False, 'budget_effect': 'none'}
     _validate_draft(result)
@@ -231,7 +236,7 @@ def build_inputs(root: Path, task_path: str, choices_path: str, out_dir: str, *,
     task, route, task_ref = _task(root, task_path, reader)
     choices_ref = reader.select(choices_path)
     choices = read_choices(reader.json(choices_ref))
-    missing = _missing(choices)
+    missing = _unresolved(choices, task)
     if missing:
         return {'state': 'draft', 'ok': False, 'inputs': {}, 'unresolved': missing,
                 'derived_from': {'task': task_ref, 'choices': choices_ref},
@@ -240,7 +245,7 @@ def build_inputs(root: Path, task_path: str, choices_path: str, out_dir: str, *,
     if choices['source_run'] != from_run:
         raise ValueError('choices.source_run must match the explicitly selected --from-run')
     saved = _source_run(root, from_run, task)
-    if choices['validation'].get('applicability') != 'not-applicable':
+    if choices['validation'] is not None:
         import runtime_evidence
         original = reader
         reader = runtime_evidence.reader(root, snapshots=original.snapshots)
@@ -264,8 +269,6 @@ def build_inputs(root: Path, task_path: str, choices_path: str, out_dir: str, *,
     from production_workflow import validate_task
     validate_task(copied_task)
     content['production-task.json'] = copied_task
-    adapters.attach_outputs(content, visual, validation, visual_context, reader, out_dir)
-    validate_task(content['production-task.json'])
     content['input-snapshots.json'] = copy.deepcopy(reader.snapshots)
     encoded = {name: c.encoded(value) for name, value in content.items()}
     inputs = {name.removesuffix('.json'): {'path': (Path(out_dir) / name).as_posix(),

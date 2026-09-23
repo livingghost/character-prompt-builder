@@ -28,7 +28,7 @@ Keep judgment and automation separate. The agent owns meaning, ambiguity, intent
 This gate governs image prompts, not prose or brainstorming. Never hand-compose prompt wording before retrieval has been attempted: wrong or competing tags can cancel requested content.
 
 1. For every distinct visual element (pose, action, expression, camera, lighting, wardrobe, body feature, effect, and any specialized domain), search the catalog (`catalog_cli.py search`, then `inspect` the closest record) and, for tag-level wording, the prompt vocabulary (`pack_cli.py resource prompt-vocabulary` plus `search_prompt_vocabulary.py`). Add `--record lookups.json --element NAME` to every search and inspection; in `batch`, each `request_id` names its element.
-2. Mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID`, or with `--composed TEXT --reason TEXT`. Generation builders require that record settled against the authored prompt and approved plot (`prompt_retrieval.py --settle`). When retrieval cannot run, state the reason instead; never fabricate retrieval or approval.
+2. Mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID`, or with `--composed TEXT --reason TEXT`. When retrieval cannot run, state the reason instead; never fabricate retrieval or approval.
 3. Compose new wording only when retrieval finds nothing suitable; [Prompt-Only Core](references/runtime/prompt-only-core.md) gives the wording checks.
 4. When a newly composed phrase is confirmed effective in a finished image, add it back to the owning pack resource (dictionary entry or module record) as terms and wording only, with no session history, seeds, or run parameters.
 
@@ -38,11 +38,11 @@ Before prompt, reference, sheet, generation or visual-state series work (not per
 
 - Exit 0: retrieval can proceed. Tell the user each `warning:` line.
 - Exit 1: each `decide:` line is the author's decision and names the command that settles it. Put new or unusable packs to the user before continuing; never continue on bundled commons alone while a discovered pack awaits that decision. Run the command the author chooses, then `ready` again. A pack the author disabled stays disabled and is not asked about again.
-- If a pack or provider changes after retrieval has begun, discard the earlier results and restart from the image intent. Use that one runtime through retrieval, planning, packaging, generation and verification.
+- If a pack or provider changes after retrieval has begun, discard the earlier results and restart from the image intent.
 
 ## Artifact-bearing production gate
 
-For saved deliverables and multistep production, read the route with `python scripts/execution_routes.py read ROUTE --root PROJECT`, adding `--feature NAME` for each applicable feature named below. It prints [Production Execution](references/runtime/production-execution.md) and every document the route needs, then a reading key; `--page-bytes N` pages a long read and `--continue CURSOR` resumes it. Follow Production Execution through completion, and run `production_workflow.py status` or `resume` before continuing after an interruption.
+For saved deliverables and multistep production, read the route with `python scripts/execution_routes.py read ROUTE --root PROJECT`, adding `--feature NAME` for each applicable feature named below and, once the target is chosen, `--model MODEL` to read only its family's guide sections. It prints [Production Execution](references/runtime/production-execution.md) and every document the route needs, then the path of the reading record to complete; `--page-bytes N` pages a long read and `--continue CURSOR` resumes it. Follow Production Execution through completion, and run `production_workflow.py status` or `resume` before continuing after an interruption.
 
 ## Choose a runtime path
 
@@ -60,7 +60,7 @@ Each item names its route or `--feature`. Activate selectively:
 - sparse brief or difficult emotion, activity, situation, relationship, or theme retrieval: feature `sparse-retrieval`, [Sparse-Brief Discovery Runtime](references/runtime/sparse-discovery.md);
 - craft knowledge for open axes or an observed failure: feature `craft-consultation`, [Craft consultation](references/runtime/preset-consultation.md);
 - terminology lookup, alternate wording or category browsing: feature `vocabulary`, [Prompt Vocabulary Runtime](references/runtime/prompt-vocabulary.md);
-- final prompt ordering, weighting, LoRA notation, negative syntax or term comparison: feature `prompt-dialect`, [Prompt Writing Guide Runtime](references/runtime/prompt-writing-guide.md); resolve the model's family first with `scripts/prompt_dialect.py`;
+- final prompt ordering, weighting, LoRA notation, negative syntax or term comparison: feature `prompt-dialect`, [Prompt Writing Guide Runtime](references/runtime/prompt-writing-guide.md);
 - linked evidence, or a prompt plus references without generation: route `reference-artifacts` or feature `references`, [Prompt Artifact Reference Runtime](references/runtime/reference-prompt-artifacts.md);
 - model-facing reference transports: feature `reference-delivery`, [Exact Reference Delivery](references/runtime/reference-delivery.md);
 - generation or model transport: route `generation`, [Image Generation Runtime](references/runtime/image-generation.md), plus the feature for exactly one of [GPT Image](references/adapters/gpt-image.md) `gpt-image`, [Midjourney and Niji](references/adapters/midjourney-niji.md) `midjourney`, [FLUX](references/adapters/flux.md) `flux`, [SDXL and ComfyUI](references/adapters/sdxl-comfyui.md) `sdxl`, [NovelAI](references/adapters/novelai.md) `novelai`, [Grok Imagine](references/adapters/grok-imagine.md) `grok`, [Instruction-Edit](references/adapters/instruction-edit.md) `instruction-edit`, or the [Unlisted Image Interface](references/adapters/unlisted-interface.md) `unlisted-interface`;
@@ -100,7 +100,7 @@ For image work:
 3. Retrieve under the gate above; consult craft (feature `craft-consultation`) before settling open axes or after an observed failure. Inspect every selected canonical record in full. Inspect complete records and asset details together with `inspect-many` (or `inspect` plus `asset-lookup`). Adopt evidence only when it has a relevant authority role.
 4. Draft the plot and wording without inventing approval; a prompt-only draft may omit the plot. Present the plot for actual approval, then settle retrieval against it and the prompt. Preparation grants no permission to execute or change canon.
 5. Choose a target; report plot requirements it cannot meet to the approving person. Run `python scripts/validate_prompt_semantics.py` on a compact semantic plan before delivery.
-6. Select the target's adapter, resolve the optional `prompt-writing-guide`, and read the complete selected guide before final rendition. Apply only rules the active interface supports; the agent chooses what is useful.
+6. Select the target's adapter, resolve the optional `prompt-writing-guide`, and read the complete selected guide before final rendition.
 7. Compose and review under the route's documents.
 
 ## Identity and scene-state authority
@@ -134,8 +134,8 @@ Activate these documents only when changing the library or distributing the proj
 - pack creation, installation, update, removal, lock, or lifecycle: [Pack Maintenance](references/maintenance/packs.md);
 - core or pack publication and complete gates: [Release Validation](references/release/validation.md).
 
-Do not read maintenance, pack-release, release-validation, state-aware, or unselected-model documents during an ordinary reference-free prompt-only task. Release archives exclude caches. Development handoffs preserve Git history, settings, packs and the working index; release exclusions require approval. Never report Library storage until the completed body ZIP is uploaded and a Library listing confirms it.
+Do not read maintenance, pack-release, release-validation, state-aware, or unselected-model documents during an ordinary reference-free prompt-only task.
 
 ## Resource handling
 
-Read complete material by default. For reads, imports, evaluation, review exports or execution budgets, use [Resource handling](references/resource-handling.md): an explicit operating budget never silently shortens a definition or turns incomplete evidence into success.
+Read complete material by default. For reads, imports, evaluation, review exports or execution budgets, use [Resource handling](references/resource-handling.md).

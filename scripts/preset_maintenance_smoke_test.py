@@ -449,7 +449,7 @@ class PresetMaintenanceTest(unittest.TestCase):
             self.assertEqual("2026.08.23.2", _release(root))
             self.assertEqual(["fixture-light-survivor"], _record_ids(root))
 
-            orphan = root / "records" / (".lighting.json.tmp-1-" + "a" * 32)
+            orphan = root / "records" / (".pending-" + "a" * 16)
             orphan.write_text("{}\n", encoding="utf-8", newline="\n")
 
             completed = subprocess.run(

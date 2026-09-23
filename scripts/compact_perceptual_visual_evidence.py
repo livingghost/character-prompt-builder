@@ -20,6 +20,8 @@ from rasterio.features import shapes
 from skimage.color import deltaE_ciede2000, rgb2lab
 from skimage.metrics import structural_similarity
 
+from execution_contract import sha256_file
+
 PROFILES: tuple[dict[str, Any], ...] = (
     {"id": "compact-96", "colors": 96, "filter": "meanshift", "sp": 3, "sr": 8, "median": 3},
     {"id": "balanced-128", "colors": 128, "filter": "meanshift", "sp": 3, "sr": 8, "median": 3},
@@ -46,14 +48,6 @@ def hash_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def hash_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def verify_source_content(source: Path, entry: dict[str, Any]) -> str:
     """Return the declared digest after verifying the exact source bytes."""
 
@@ -63,7 +57,7 @@ def verify_source_content(source: Path, entry: dict[str, Any]) -> str:
     source_sha = str(entry.get("source_sha256") or "")
     if len(source_sha) != 64 or any(character not in "0123456789abcdef" for character in source_sha):
         raise ValueError("entry.source_sha256 must be a lowercase 64-character SHA-256")
-    if hash_file(source) != source_sha:
+    if sha256_file(source) != source_sha:
         raise ValueError("entry.source_sha256 does not match source content")
     return source_sha
 
@@ -381,7 +375,7 @@ def extract_audit_layers(source_rgb: np.ndarray, derived: Path, source_ref: str,
                 "role": role,
                 "path": f"derived-visual/{path.name}",
                 "media_type": "application/json" if path.suffix == ".json" else "image/svg+xml",
-                "sha256": hash_file(path),
+                "sha256": sha256_file(path),
             }
         )
     audit = {
@@ -413,7 +407,7 @@ def extract_audit_layers(source_rgb: np.ndarray, derived: Path, source_ref: str,
             "role": "audit-extraction-set",
             "path": "derived-visual/audit-extraction-set.json",
             "media_type": "application/json",
-            "sha256": hash_file(audit_path),
+            "sha256": sha256_file(audit_path),
         }
     )
     return artifacts, audit
@@ -452,7 +446,7 @@ def process_one(job: tuple[str, dict[str, Any], str]) -> dict[str, Any]:
     profile, labels, palette, candidate, accepted_metrics = selected
     archival_path = derived / "faithful-archival.svg"
     archival_stats = write_label_svg(labels, palette, archival_path)
-    archival_sha = hash_file(archival_path)
+    archival_sha = sha256_file(archival_path)
 
     record_refs = [str(value) for value in entry.get("canonical_record_ids") or []]
     semantic = {
@@ -572,14 +566,14 @@ def process_one(job: tuple[str, dict[str, Any], str]) -> dict[str, Any]:
             "role": "vectorization-result",
             "path": "derived-visual/vectorization-result.json",
             "media_type": "application/json",
-            "sha256": hash_file(vector_path),
+            "sha256": sha256_file(vector_path),
         },
         {
             "artifact_id": "semantic-regions",
             "role": "semantic-region-map",
             "path": "derived-visual/semantic-regions.json",
             "media_type": "application/json",
-            "sha256": hash_file(semantic_path),
+            "sha256": sha256_file(semantic_path),
         },
     ]
     artifacts.extend(layer_b_artifacts)
@@ -589,7 +583,7 @@ def process_one(job: tuple[str, dict[str, Any], str]) -> dict[str, Any]:
             "role": "runtime-attachment-build",
             "path": "derived-visual/runtime-attachment-build.json",
             "media_type": "application/json",
-            "sha256": hash_file(runtime_path),
+            "sha256": sha256_file(runtime_path),
         }
     )
 

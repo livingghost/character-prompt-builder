@@ -49,22 +49,20 @@ def authority(root: Path, task: dict, saved: dict | None) -> dict:
             'eligibility_evaluated': False}
 
 
-def _not_applicable(choices: dict, task: dict, field: str) -> bool:
-    if choices.get('applicability') != 'not-applicable':
-        return False
-    c.exact(choices, {'applicability', 'reason'}, field + ' applicability choice')
-    c.text(choices['reason'], field + ' applicability reason')
-    if field == 'visual' and task.get('route') == 'upscale' and task.get('artifact') == 'image' and task.get('execution') == 'dispatcher':
-        return True
-    if field == 'visual' and (task.get('artifact') in {'image', 'video'} or task.get('route') in {'generation', 'state-series', 'repose', 'character-sheet'}):
-        raise ValueError('an image production requires explicit visual choices')
-    if field == 'validation' and task.get('execution') == 'dispatcher':
-        raise ValueError('a dispatcher production requires explicit request validation')
-    return True
+def validation_required(task: dict) -> bool:
+    """Whether request validation must come from an input choice.
+
+    An upscale and bounded production context always take it from here. For an
+    authored rendition, the Generation Package builder derives it from the observed
+    schema, and a package with selected references takes a validation choice from here.
+    The builder takes visual continuity as its own --continuity decisions.
+    """
+    return task.get('execution') == 'dispatcher' and (
+        task.get('route') == 'upscale' or (task.get('delivery') or {}).get('transport') != 'authored-rendition')
 
 
-def build_visual(choices: dict, task: dict, reader, root: Path) -> tuple[dict | None, dict]:
-    if _not_applicable(choices, task, 'visual'):
+def build_visual(choices: dict | None, task: dict, reader, root: Path) -> tuple[dict | None, dict]:
+    if choices is None:
         return None, {}
     fields = {'purpose', 'basis', 'subjects', 'production_spec', 'prepared_reference_set'}
     c.exact(choices, fields, 'visual input choices')
@@ -81,8 +79,10 @@ def build_visual(choices: dict, task: dict, reader, root: Path) -> tuple[dict | 
                     'prepared_reference_set': prepared_ref}
 
 
-def build_validation(choices: dict, task: dict, reader, root: Path) -> tuple[dict | None, dict]:
-    if _not_applicable(choices, task, 'validation'):
+def build_validation(choices: dict | None, task: dict, reader, root: Path) -> tuple[dict | None, dict]:
+    if choices is None:
+        if validation_required(task):
+            raise ValueError('this dispatcher production needs its request validation choice')
         return None, {}
     c.exact(choices, {'mode', 'model', 'target', 'service_profiles', 'contract', 'evidence',
                       'execution_policy'}, 'validation input choices')
@@ -139,10 +139,9 @@ def cross_check(visual: dict, validation: dict) -> None:
         raise ValueError('prepared references and validation select different models')
 
 
-def attach_outputs(content: dict, visual, validation, context: dict, reader, out_dir: str) -> None:
-    # The Generation Package builder takes these records as explicit inputs.
-    # Its remaining authored inputs stay in their existing contracts.
-    return None
+STATE_BUILDER_FILES = ['state-lineage-file', 'species-profile-file', 'individual-morphology-file',
+                       'identity-contract-file', 'state-snapshot-file', 'scene-context-file',
+                       'visual-projection-file', 'asset-render-spec-file', 'references-file']
 
 
 def next_actions(inputs: dict, task: dict, root: Path, *, runtime_arguments: dict | None = None) -> list[dict]:
@@ -150,24 +149,30 @@ def next_actions(inputs: dict, task: dict, root: Path, *, runtime_arguments: dic
                 'args': {'root': str(root), 'task': inputs['production-task']['path']},
                 'external_effect': False, 'budget_effect': 'none',
                 'requires': ['Complete the declared delivery, source and authority files.']}]
-    if task.get('route') == 'upscale' and validation_needed(task):
+    if task.get('execution') != 'dispatcher':
+        return actions
+    if task.get('route') == 'upscale':
         actions.insert(0, {'operation': 'build-upscale-request', 'script': 'scripts/production_binding.py',
             'args': {'root': str(root), 'request-validation-file': str(root / inputs['request-validation']['path'])},
             'requires': ['Select source, model, scale and settings.',
                          'Write the declaration to the task delivery path before prepare.'],
             'external_effect': False, 'budget_effect': 'none'})
-    elif validation_needed(task):
-        actions.append({'operation': 'build-generation-payload', 'script': 'scripts/build_generation_payload.py',
-                        'args': {**{key + '-file': str(root / inputs[key]['path']) for key in
-                                  ('visual-continuity', 'request-validation') if key in inputs},
-                                 'production-root': str(root), **(runtime_arguments or {})},
-                        'requires': ['Select the remaining rendition, plot, retrieval and prepared-reference inputs.'],
-                        'external_effect': False, 'budget_effect': 'none'})
+        return actions
+    required = ['model', 'prompt-file', 'plot-file', 'retrieval-record-file', 'production-spec-file']
+    script = 'scripts/build_generation_payload.py'
+    if 'state-series' in [task.get('route'), *task.get('features', [])]:
+        # A state-aware package has its own builder and artifact graph.
+        script = 'scripts/build_state_generation_package.py'
+        required += STATE_BUILDER_FILES
+    if 'visual-continuity' not in inputs:
+        required.append('continuity')
+    required.append('out')
+    actions.append({'operation': 'build-generation-payload', 'script': script,
+                    'args': {**{key + '-file': str(root / inputs[key]['path']) for key in
+                              ('visual-continuity', 'request-validation') if key in inputs},
+                             'production-root': str(root), **(runtime_arguments or {})},
+                    'required_args': required, 'external_effect': False, 'budget_effect': 'none'})
     return actions
-
-
-def validation_needed(task: dict) -> bool:
-    return task.get('execution') == 'dispatcher'
 
 
 def add_runtime_arguments(parser) -> None:
@@ -209,7 +214,7 @@ def unresolved_choices(choices: dict) -> list[dict]:
     output = []
     for field in ('visual', 'validation'):
         value = choices.get(field)
-        if not isinstance(value, dict) or value.get('applicability') == 'not-applicable':
+        if not isinstance(value, dict):
             continue
         template = visual_template({'artifact': 'image', 'execution': 'dispatcher'}) if field == 'visual' else validation_template({'artifact': 'image', 'execution': 'dispatcher'})
         for key in template:

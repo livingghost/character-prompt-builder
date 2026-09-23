@@ -2,24 +2,16 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import shutil
 from pathlib import Path
 from typing import Any
 
+from execution_contract import sha256_file
 from prompt_plot import load_prompt_plot
 from prompt_retrieval import load_prompt_retrieval_record
 from validate_prompt_semantics import validate_plan
-
-
-def sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def copy_artifact(source: Path, destination: Path) -> dict[str, Any]:
@@ -27,7 +19,7 @@ def copy_artifact(source: Path, destination: Path) -> dict[str, Any]:
         raise FileNotFoundError(source)
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, destination)
-    return {"path": destination.name, "bytes": destination.stat().st_size, "sha256": sha256(destination)}
+    return {"path": destination.name, "bytes": destination.stat().st_size, "sha256": sha256_file(destination)}
 
 
 def selected_reference_count(path: Path | None) -> int:
@@ -195,7 +187,7 @@ def main() -> int:
         if semantic_report is not None:
             semantic_path = staging / "semantic-preflight.json"
             semantic_path.write_text(json.dumps(semantic_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            included.append({"path": semantic_path.name, "bytes": semantic_path.stat().st_size, "sha256": sha256(semantic_path)})
+            included.append({"path": semantic_path.name, "bytes": semantic_path.stat().st_size, "sha256": sha256_file(semantic_path)})
 
         if args.reference_use_plan and ref_count > 0:
             included.append(copy_artifact(args.reference_use_plan, staging / "reference-use-plan.json"))
@@ -205,7 +197,7 @@ def main() -> int:
         if args.revision_contract:
             included.append(copy_artifact(args.revision_contract, staging / "revision-contract.json"))
             (staging / "revision-report.json").write_text(json.dumps(revision_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            included.append({"path": "revision-report.json", "bytes": (staging / "revision-report.json").stat().st_size, "sha256": sha256(staging / "revision-report.json")})
+            included.append({"path": "revision-report.json", "bytes": (staging / "revision-report.json").stat().st_size, "sha256": sha256_file(staging / "revision-report.json")})
         if args.plot:
             included.append(copy_artifact(args.plot, staging / "prompt-plot.json"))
         else:

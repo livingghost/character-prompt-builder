@@ -15,7 +15,7 @@ from typing import Any
 from unittest.mock import patch
 
 from catalog_cli import configure_pack_runtime
-from check_dependencies import check_profile
+from check_dependencies import check_profile, install_command
 from pack_manager import PackSettings, write_lock
 from prepare_generation_references import (
     host_reference_transports,
@@ -1227,7 +1227,7 @@ def run() -> dict[str, Any]:
                         and exc.report.get("check_command")
                         == "python scripts/check_dependencies.py --profile visual"
                         and exc.report.get("install_command")
-                        == "python -m pip install -r requirements-visual.txt"
+                        == install_command("visual")[0]
                     )
                 _record(
                     checks,

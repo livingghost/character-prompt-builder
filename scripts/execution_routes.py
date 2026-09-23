@@ -87,7 +87,7 @@ def main() -> int:
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='command',required=True)
     p=sub.add_parser('inspect'); p.add_argument('route'); p.add_argument('--feature',action='append',default=[])
-    reading = sub.add_parser('read', help='Read the complete route documents and record issuance')
+    reading = sub.add_parser('read', help='Read the complete route documents, record issuance and write the reading record to complete')
     from route_reading import add_read_arguments, read_command
     add_read_arguments(reading)
     sub.add_parser('validate')

@@ -5,10 +5,16 @@ from __future__ import annotations
 import argparse
 import importlib
 import importlib.metadata
+import importlib.util
 import io
 import json
+import os
 import re
+import shlex
+import shutil
+import subprocess
 import sys
+import sysconfig
 import tomllib
 from pathlib import Path
 from typing import Any, Sequence
@@ -50,11 +56,36 @@ PROFILE_CHECK_COMMANDS = {
     "full": "python scripts/check_dependencies.py --profile full",
     "tested": "python scripts/check_dependencies.py --tested",
 }
-PROFILE_INSTALL_COMMANDS = {
-    "visual": "python -m pip install -r requirements-visual.txt",
-    "full": "python -m pip install -r requirements.txt",
-    "tested": "python -m pip install -r requirements-tested.txt",
-}
+INSTALLABLE_PROFILES = frozenset({"visual", "full", "tested"})
+
+
+def externally_managed() -> bool:
+    """Whether the system owns the running Python's packages (PEP 668), so pip refuses to install into it."""
+    if sys.prefix != sys.base_prefix:
+        return False
+    return (Path(sysconfig.get_path("stdlib")) / "EXTERNALLY-MANAGED").is_file()
+
+
+def install_command(profile: str) -> tuple[str | None, str | None]:
+    """The command that installs a profile into the Python running this check, or the reason there is none.
+
+    pip installs where this Python has it. A virtual environment that uv creates has no pip,
+    so uv installs into it.
+    """
+    if profile not in INSTALLABLE_PROFILES:
+        return None, None
+    if externally_managed():
+        return None, ("the system manages this Python's packages (PEP 668); create a virtual environment "
+                      "with python -m venv DIR or uv venv DIR, then run this check with that environment's Python")
+    requirements = str(PROFILE_PATHS[profile])
+    if importlib.util.find_spec("pip") is not None:
+        command = [sys.executable, "-m", "pip", "install", "-r", requirements]
+    elif shutil.which("uv") is not None:
+        command = ["uv", "pip", "install", "--python", sys.executable, "-r", requirements]
+    else:
+        return None, ("this Python has no pip and uv is not on the executable search path; "
+                      "install pip for it, or use a virtual environment")
+    return (subprocess.list2cmdline(command) if os.name == "nt" else shlex.join(command)), None
 
 
 def version_tuple(value: str) -> tuple[int, ...]:
@@ -289,10 +320,12 @@ def check_profile(profile: str) -> dict[str, Any]:
         and row.get("installed") is not None
         and row.get("constraint_ok") is not True
     )
+    command, note = install_command(profile)
     return {
         **report,
         "check_command": PROFILE_CHECK_COMMANDS[profile],
-        "install_command": PROFILE_INSTALL_COMMANDS.get(profile),
+        "install_command": command,
+        **({"install_note": note} if note else {}),
         "missing_packages": missing,
         "incompatible_packages": incompatible,
     }

@@ -2,7 +2,9 @@
 
 Discovers every `scripts/*smoke_test.py` suite and the reference-runtime CLI
 contract suite, runs each as a subprocess from the repository root, and asserts
-exit code 0. New suites are included automatically. An inventory test rejects
+exit code 0. Each suite gets a scratch home whose pack state enables a missing
+pack, and a suite whose output names that pack fails. New suites are included
+automatically. An inventory test rejects
 duplicate registrations and stale invocation or slow-marker overrides.
 
 This directory is intentionally outside the release inventory: never add

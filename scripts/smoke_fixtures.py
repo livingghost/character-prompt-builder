@@ -1,10 +1,35 @@
-"""Explicitly synthetic retrieval data for offline smoke tests, never production defaults."""
+"""Explicitly synthetic retrieval data and a scratch home for offline smoke tests, never production defaults."""
 from __future__ import annotations
+import atexit
 import json
+import os
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
 from prompt_retrieval import settle_retrieval_record
+
+_HOME: Path | None = None
+
+
+def isolate_home() -> Path:
+    """Point HOME and USERPROFILE at a fresh directory whose pack state enables the shipped default packs alone.
+
+    Tools this process and its subprocesses call without explicit pack paths
+    then read that state, never the pack state or host configuration of the
+    person running the suite. A second call returns the same home.
+    """
+    global _HOME
+    if _HOME is None:
+        import pack_manager
+        _HOME = Path(tempfile.mkdtemp(prefix="cpb-smoke-home-"))
+        atexit.register(shutil.rmtree, _HOME, True)
+        os.environ["HOME"] = os.environ["USERPROFILE"] = str(_HOME)
+        pack_manager.initialize_state_file(
+            pack_manager.default_settings(),
+            only=pack_manager.load_state(pack_manager.DEFAULT_PACK_STATE_PATH)["enabled_packs"],
+        )
+    return _HOME
 
 
 def fixture_retrieval(prompt: str, plot: dict[str, Any]) -> dict[str, Any]:

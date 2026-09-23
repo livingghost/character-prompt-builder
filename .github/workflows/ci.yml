@@ -16,6 +16,9 @@ env:
   # The scripts emit JSON with ensure_ascii=False; force UTF-8 stdout so the
   # Windows runner does not fail on its default ANSI code page.
   PYTHONUTF8: "1"
+  # A native crash, such as an abort inside the Cairo library, prints the Python
+  # stack of every thread instead of ending the process silently.
+  PYTHONFAULTHANDLER: "1"
 
 jobs:
   checks:
@@ -58,127 +61,323 @@ jobs:
       # The Character Sheet gate renders CJK design text through resolved
       # font files. The Windows image ships Meiryo, Malgun Gothic and
       # Microsoft YaHei; the Linux image ships no CJK font and the raster
-      # layer fails closed without one. The resolver's known paths match the
-      # apt layout of the fonts-noto-cjk package.
+      # layer fails closed without one. Where the resolver's known paths are
+      # absent, it asks fontconfig, as this step does.
       - name: Install the CJK fonts
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
-          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
-          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc
+          fc-list --format '%{file}\n' ':lang=ja:weight=regular' | grep .
+          fc-list --format '%{file}\n' ':lang=ja:weight=bold' | grep .
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      # Every check after the install runs and reports even when an earlier
+      # one failed, and a step with several commands runs all of them, so one
+      # run names every failure. The job still fails when any check failed.
       - name: Install tested release dependencies
-        run: python -m pip install -r requirements-tested.txt
+        id: install
+        run: uv pip install --system -r requirements-tested.txt
 
       - name: Validate exact tested dependencies
-        run: python scripts/check_dependencies.py --tested
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          python scripts/check_dependencies.py --tested
+          python scripts/dependency_check_smoke_test.py
 
       - name: Validate product identity, documentation and process evidence
-        shell: bash
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
-          python scripts/release_contract.py
-          python scripts/release_management_smoke_test.py
-          python scripts/readme_smoke_test.py
-          python scripts/agent_evaluation_smoke_test.py
-          python scripts/resource_handling_smoke_test.py
+          failed=()
+          for command in \
+            "python scripts/release_contract.py" \
+            "python scripts/release_management_smoke_test.py" \
+            "python scripts/release_startup_smoke_test.py" \
+            "python scripts/readme_smoke_test.py" \
+            "python scripts/agent_evaluation_smoke_test.py" \
+            "python scripts/resource_handling_smoke_test.py" \
+            ; do
+            echo "::group::$command"
+            $command || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
 
       - name: Rebuild generated metadata
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: python scripts/rebuild_metadata.py
 
       - name: Rebuild canonical pilot
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: python examples/state-aware-pilot/build_example.py
 
       # An untracked file is a generated artifact too, so the working tree must
       # be exactly the checkout, not only free of modifications.
       - name: Verify generated artifacts are committed and reproducible
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
           git status --porcelain --untracked-files=all
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=all)"
 
       - name: Validate state protocol
-        run: python scripts/validate_state_protocol.py .
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          failed=()
+          for command in \
+            "python scripts/validate_state_protocol.py ." \
+            "python scripts/state_pointer_smoke_test.py" \
+            "python scripts/shot_request_smoke_test.py" \
+            "python scripts/default_only_example_resolution_smoke_test.py" \
+            ; do
+            echo "::group::$command"
+            $command || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
 
       - name: Validate integration contracts
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: python scripts/validate_integration.py
 
       - name: Validate protocol exchange conformance
-        run: python scripts/protocol_contract_smoke_test.py
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          failed=()
+          for command in \
+            "python scripts/protocol_contract_smoke_test.py" \
+            "python scripts/interchange_envelope_smoke_test.py" \
+            "python scripts/public_boundary_smoke_test.py" \
+            ; do
+            echo "::group::$command"
+            $command || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
 
-      - name: Validate visual-reference activation
-        run: python scripts/reference_runtime_smoke_test.py
+      - name: Validate visual-reference activation and evidence
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          failed=()
+          for command in \
+            "python scripts/reference_runtime_smoke_test.py" \
+            "python scripts/visual_evidence_smoke_test.py" \
+            "python scripts/reference_delivery_smoke_test.py" \
+            "python scripts/evidence_tools_smoke_test.py" \
+            ; do
+            echo "::group::$command"
+            $command || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
 
       - name: Validate reference-runtime CLI contract
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: python scripts/reference_runtime_cli_contract_test.py
 
       - name: Validate routed documentation contract
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: python scripts/documentation_contract_smoke_test.py
 
+      - name: Validate prompt composition, vocabulary and catalog retrieval
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          failed=()
+          for command in \
+            "python scripts/prompt_artifact_smoke_test.py" \
+            "python scripts/prompt_plot_smoke_test.py" \
+            "python scripts/prompt_vocabulary_smoke_test.py" \
+            "python scripts/prompt_writing_guide_smoke_test.py" \
+            "python scripts/prompt_dialect_smoke_test.py" \
+            "python scripts/check_tag_prompt_smoke_test.py" \
+            "python scripts/fresh_session_runtime_smoke_test.py" \
+            "python scripts/catalog_cli_runtime_smoke_test.py" \
+            "python scripts/catalog_html_smoke_test.py" \
+            "python scripts/search_discovery_smoke_test.py" \
+            "python scripts/model_contract_smoke_test.py" \
+            ; do
+            echo "::group::$command"
+            $command || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
+
       - name: Validate session entry and the work trail
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: python scripts/session_entry_smoke_test.py
 
       - name: Validate persona-led narrative workflow
-        run: python scripts/persona_workflow_smoke_test.py
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          failed=()
+          for command in \
+            "python scripts/persona_workflow_smoke_test.py" \
+            "python scripts/narrative_contract_smoke_test.py" \
+            "python scripts/narrative_authoring_smoke_test.py" \
+            "python scripts/scene_plot_contract_smoke_test.py" \
+            ; do
+            echo "::group::$command"
+            $command || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
+
       - name: Validate contextual voice and performance authoring
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: python scripts/character_performance_smoke_test.py
+
       - name: Validate authorial intent and identity bindings
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: python scripts/authorial_intent_smoke_test.py
 
       - name: Validate artifact-bearing execution routes and production
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
-          python scripts/execution_routes.py validate
-          python scripts/production_workflow_smoke_test.py
-          python scripts/production_resume_smoke_test.py
-          python scripts/production_inputs_smoke_test.py
-          python scripts/preset_consultation_smoke_test.py
-          python examples/preset-consultation/build_example.py --check
-          python scripts/production_input_model_smoke_test.py
-          python scripts/dispatch_preview_smoke_test.py
-          python scripts/schema_observation_smoke_test.py
-          python scripts/production_variation_smoke_test.py
-          python scripts/route_reading_smoke_test.py
-          python scripts/visual_continuity_smoke_test.py
-          python scripts/request_contract_smoke_test.py
-          python scripts/request_validation_smoke_test.py
-          python scripts/reservation_lifecycle_smoke_test.py
-          python scripts/production_series_smoke_test.py
-          python examples/input-assembly/build_example.py --check
-          python examples/model-evidence/build_example.py --check
-          python examples/resume-recording/build_example.py --check
-          python scripts/scene_material_smoke_test.py
-          python scripts/reimplementation_smoke_test.py
-          python scripts/world_realization_smoke_test.py
-          python scripts/story_context_smoke_test.py
-          python scripts/world_coherence_smoke_test.py
+          failed=()
+          for command in \
+            "python scripts/execution_routes.py validate" \
+            "python scripts/production_workflow_smoke_test.py" \
+            "python scripts/production_resume_smoke_test.py" \
+            "python scripts/production_inputs_smoke_test.py" \
+            "python scripts/preset_consultation_smoke_test.py" \
+            "python examples/preset-consultation/build_example.py --check" \
+            "python scripts/production_input_model_smoke_test.py" \
+            "python scripts/dispatch_preview_smoke_test.py" \
+            "python scripts/schema_observation_smoke_test.py" \
+            "python scripts/production_variation_smoke_test.py" \
+            "python scripts/route_reading_smoke_test.py" \
+            "python scripts/visual_continuity_smoke_test.py" \
+            "python scripts/request_contract_smoke_test.py" \
+            "python scripts/request_validation_smoke_test.py" \
+            "python scripts/reservation_lifecycle_smoke_test.py" \
+            "python scripts/production_series_smoke_test.py" \
+            "python scripts/production_direction_smoke_test.py" \
+            "python scripts/image_edit_smoke_test.py" \
+            "python examples/input-assembly/build_example.py --check" \
+            "python examples/model-evidence/build_example.py --check" \
+            "python examples/resume-recording/build_example.py --check" \
+            "python scripts/scene_material_smoke_test.py" \
+            "python scripts/reimplementation_smoke_test.py" \
+            "python scripts/world_realization_smoke_test.py" \
+            "python scripts/story_context_smoke_test.py" \
+            "python scripts/world_coherence_smoke_test.py" \
+            ; do
+            echo "::group::$command"
+            $command || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
 
       - name: Validate batch generation plans
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: python scripts/batch_plan_smoke_test.py
 
       - name: Validate Generation Package construction
-        run: python scripts/generation_payload_smoke_test.py
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          failed=()
+          for command in \
+            "python scripts/generation_payload_smoke_test.py" \
+            "python scripts/generation_geometry_smoke_test.py" \
+            "python scripts/upscale_package_smoke_test.py" \
+            ; do
+            echo "::group::$command"
+            $command || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
 
       - name: Validate state-aware generation
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: python scripts/state_generation_smoke_test.py
 
-      - name: Validate growth authority and dispatch recovery
+      - name: Validate the Character Sheet
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
-          python scripts/growth_resolution_smoke_test.py
-          python scripts/structure_neutrality_smoke_test.py
-          python scripts/dispatch_recovery_smoke_test.py
-          python scripts/feature_workflow_smoke_test.py
-          python scripts/dispatch_smoke_test.py
-          python scripts/studio_smoke_test.py
-          python scripts/studio_recipe_smoke_test.py
-          python examples/candidate-recipe/build_example.py --check
+          failed=()
+          for command in \
+            "python scripts/character_sheet_smoke_test.py" \
+            "python scripts/character_sheet_editor_dom_smoke_test.py" \
+            ; do
+            echo "::group::$command"
+            $command || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
 
-      - name: Audit default-pack authoring conformance
+      - name: Validate growth authority and dispatch recovery
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          failed=()
+          for command in \
+            "python scripts/growth_resolution_smoke_test.py" \
+            "python scripts/structure_neutrality_smoke_test.py" \
+            "python scripts/dispatch_recovery_smoke_test.py" \
+            "python scripts/feature_workflow_smoke_test.py" \
+            "python scripts/dispatch_smoke_test.py" \
+            "python scripts/studio_smoke_test.py" \
+            "python scripts/studio_recipe_smoke_test.py" \
+            "python examples/candidate-recipe/build_example.py --check" \
+            ; do
+            echo "::group::$command"
+            $command || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
+
+      - name: Validate pack lifecycle and release packaging
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          failed=()
+          for command in \
+            "python scripts/pack_smoke_test.py" \
+            "python scripts/pack_release_gate_smoke_test.py" \
+            "python scripts/pack_release_identity_smoke_test.py" \
+            "python scripts/bundled_pack_gate_smoke_test.py" \
+            "python scripts/nondefault_pack_isolation_smoke_test.py" \
+            "python scripts/preset_maintenance_smoke_test.py" \
+            "python scripts/eval_runtime_smoke_test.py" \
+            "python scripts/package_security_smoke_test.py" \
+            "python scripts/release_file_operations_smoke_test.py" \
+            ; do
+            echo "::group::$command"
+            $command || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
+
+      - name: Audit the default packs
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
           runtime=(--state-file "${{ runner.temp }}/cpb-audit/pack-state.json" --cache-dir "${{ runner.temp }}/cpb-audit/cache" --managed-root "${{ runner.temp }}/cpb-audit/managed")
           python scripts/pack_cli.py "${runtime[@]}" ready --only 01a0043b-2250-720d-87b7-f1e6fd7ed230
-          python scripts/audit_preset_quality.py . "${runtime[@]}"
+          failed=()
+          for command in \
+            "python scripts/audit_preset_quality.py ." \
+            "python scripts/default_release_smoke_test.py ." \
+            ; do
+            echo "::group::$command"
+            $command "${runtime[@]}" || failed+=("$command")
+            echo "::endgroup::"
+          done
+          for command in "${failed[@]}"; do echo "::error::failed: $command"; done
+          test ${#failed[@]} -eq 0
 
       - name: Validate repository structure and contracts
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: python scripts/validate.py .
 
   package:
@@ -222,18 +421,21 @@ jobs:
       # The Character Sheet gate renders CJK design text through resolved
       # font files. The Windows image ships Meiryo, Malgun Gothic and
       # Microsoft YaHei; the Linux image ships no CJK font and the raster
-      # layer fails closed without one. The resolver's known paths match the
-      # apt layout of the fonts-noto-cjk package.
+      # layer fails closed without one. Where the resolver's known paths are
+      # absent, it asks fontconfig, as this step does.
       - name: Install the CJK fonts
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
-          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
-          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc
+          fc-list --format '%{file}\n' ':lang=ja:weight=regular' | grep .
+          fc-list --format '%{file}\n' ':lang=ja:weight=bold' | grep .
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: Install tested release dependencies
-        run: python -m pip install -r requirements-tested.txt
+        run: uv pip install --system -r requirements-tested.txt
 
       - name: Validate exact tested dependencies
         run: python scripts/check_dependencies.py --tested
@@ -254,6 +456,15 @@ jobs:
           cat "$OUT.sha256"
           cp "$RUNNER_TEMP/reports/archive-check.json" dist/archive-check.json
           python -c 'import json; print("content_sha256", json.load(open("dist/archive-check.json"))["content_sha256"])'
+
+      - name: Keep the gate reports of a failed build
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-reports-${{ matrix.os }}
+          path: ${{ runner.temp }}/reports
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload platform archive for reproducibility comparison
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

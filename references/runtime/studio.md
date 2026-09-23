@@ -71,7 +71,7 @@ python scripts/studio.py iterate --studio <dir> --character C02 --slot base.fron
   --note "heavier build than it-0003"
 ```
 
-The iteration keeps a copy of the result, the Generation Package it was built from, the request exactly as it was sent (model identifier, every parameter, the seed, the media by id), and what the service answered. Each copy is hashed. The service and the seed are read from those files, so an iteration says precisely how to make its image again.
+The iteration keeps a copy of the result, the Generation Package it was built from, the request exactly as it was sent (model identifier, every parameter, the seed, the media by id), and what the service answered: the image's response, and the whole answer, kept once for every image it returned. Each copy is hashed. The service and the seed are read from those files, so an iteration says precisely how to make its image again.
 
 A slot is what an image is for: `base.front`, `outfit.back`, `expression.calm`. Accepting an iteration for its slot copies the image to `accepted/` and marks the previously accepted one superseded, never deleted. Each acceptance is kept with its time and the iteration it replaced, so accepting an earlier image again is one more entry and the slot's history stays readable:
 
@@ -108,8 +108,8 @@ access. A dry run reads these inputs without creating a run or sending media.
 Each send creates a unique `runs/<run-id>/` directory before the first upload.
 `run.json` records progress and the iterations already saved. `request.json` is
 written before submission; `answer.json` is written before interpreting or
-fetching results. The package, reference companion, individual responses and
-completed downloads remain there after later failures. Upscales retain the source
+fetching results. The package, reference companion, the answer, each image's
+response and completed downloads remain there after later failures. Upscales retain the source
 and each output under `upscale.references/`, with relative paths that also resolve
 inside the recorded iteration. Authentication credentials are not journaled.
 

@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import os
 import re
-import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
+from execution_contract import atomic_write_json, sha256_file
 from state_protocol import parse_json, validate_against_schema
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,14 +16,6 @@ SCHEMA_PATH = ROOT / "schemas" / "character-sheet-data.schema.json"
 BLANK_TEMPLATE_PATH = ROOT / "templates" / "character-sheet-data.blank.json"
 PLACEHOLDERS = frozenset({"", "-", "unknown", "tbd", "n/a", "not applicable", "unspecified"})
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def meaningful_identity(value: Any) -> bool:
@@ -236,20 +226,7 @@ def initialize_sidecar(sheet_dir: Path, *, profile: str = "") -> Path:
     output_path = target_dir / "sheet-data.json"
     if output_path.exists():
         raise ValueError(f"refusing to overwrite existing sidecar: {output_path}")
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=".sheet-data.json.", suffix=".tmp", dir=target_dir
-    )
-    os.close(descriptor)
-    temporary = Path(temporary_name)
-    try:
-        temporary.write_text(
-            json.dumps(normalized, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
-        os.replace(temporary, output_path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write_json(output_path, normalized)
     return output_path
 
 
@@ -297,20 +274,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise ValueError("--out must not overwrite the input sidecar")
         if not output_path.parent.is_dir():
             raise ValueError("--out parent directory does not exist")
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=f".{output_path.name}.", suffix=".tmp", dir=output_path.parent
-        )
-        os.close(descriptor)
-        temporary = Path(temporary_name)
-        try:
-            temporary.write_text(
-                json.dumps(result, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-                newline="\n",
-            )
-            os.replace(temporary, output_path)
-        finally:
-            temporary.unlink(missing_ok=True)
+        atomic_write_json(output_path, result)
     print(json.dumps({"ok": True, "sheet_status": result["sheet_status"]}, indent=2))
     return 0
 

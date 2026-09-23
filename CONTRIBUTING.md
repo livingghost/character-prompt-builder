@@ -28,7 +28,7 @@ Read the documents relevant to the change:
 - [Reference Corpus Visual Technique Observation](references/reference-corpus-visual-technique-observation.md)
 - [Shared State Protocol](references/state-protocol.md)
 
-Use Python 3.11 or newer. Core scripts use the standard library only. [Release Validation](references/release/validation.md) exclusively owns the exact publication environment and sequence.
+Use Python 3.11 or newer. Core scripts use the standard library only. [Release Validation](references/release/validation.md) exclusively owns the exact publication environment and sequence, including the uv commands that create CI's Python 3.12 environment.
 
 [`requirements-core.txt`](requirements-core.txt) and [`requirements-visual.txt`](requirements-visual.txt) own the supported profiles; [`requirements.txt`](requirements.txt) is the complete compatible set, and [`requirements-tested.txt`](requirements-tested.txt) records release-validation pins. Update the affected profile, the complete and tested definitions, `pyproject.toml`, and `DEPENDENCIES.md` together when a distributed script changes a third-party import. Do not list transitive packages unless package code imports them directly.
 

@@ -18,6 +18,9 @@ from input_evidence import InputEvidence
 import production_inputs as tool
 import production_input_adapters as adapters
 import route_reading as reading
+from smoke_fixtures import isolate_home
+
+isolate_home()
 
 
 class InputToolsTests(unittest.TestCase):
@@ -54,8 +57,6 @@ class InputToolsTests(unittest.TestCase):
         self.choices = tool.draft_choices(self.task)
         self.choices['reading']['reading_key'] = self.issued['reading_key']
         self.choices['reading']['applied'] = applied
-        self.choices['visual'] = {'applicability': 'not-applicable', 'reason': 'This synthetic task produces local text.'}
-        self.choices['validation'] = {'applicability': 'not-applicable', 'reason': 'This synthetic task uses no model service.'}
         self.save_choices()
 
     def save_choices(self):
@@ -223,17 +224,52 @@ class InputToolsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.build('../escaped')
 
-    def test_visual_not_applicable_cannot_replace_required_visual_contract(self):
+    def dispatcher_task(self, transport='authored-rendition', route='development'):
         task = copy.deepcopy(self.task)
-        task['artifact'] = 'image'
-        with self.assertRaises(ValueError):
-            adapters.build_visual(self.choices['visual'], task, InputEvidence(self.root), self.root)
+        task.update(artifact='image', execution='dispatcher', route=route)
+        task['delivery']['transport'] = transport
+        (self.root / 'task.json').write_bytes(c.encoded(task))
+        return task
 
-    def test_model_not_applicable_cannot_replace_required_validation(self):
-        task = copy.deepcopy(self.task)
-        task['execution'] = 'dispatcher'
-        with self.assertRaises(ValueError):
-            adapters.build_validation(self.choices['validation'], task, InputEvidence(self.root), self.root)
+    def test_image_dispatcher_draft_asks_only_for_the_reading(self):
+        task = self.dispatcher_task()
+        draft = tool.draft_inputs(self.root, 'task.json', 'draft')
+        self.assertEqual((draft['choices']['visual'], draft['choices']['validation']), (None, None))
+        self.assertEqual([x['field'] for x in draft['unresolved']], ['reading.reading_key'])
+        self.assertEqual(tool.inspect_inputs(self.root, 'task.json')['required_choices'], ['reading'])
+        self.assertEqual(adapters.build_visual(None, task, InputEvidence(self.root), self.root), (None, {}))
+        self.assertEqual(adapters.build_validation(None, task, InputEvidence(self.root), self.root), (None, {}))
+
+    def test_bounded_context_dispatcher_needs_its_validation_choice(self):
+        task = self.dispatcher_task('bounded-context')
+        draft = tool.draft_inputs(self.root, 'task.json', 'draft')
+        self.assertIn('validation.mode', [x['field'] for x in draft['unresolved']])
+        self.choices['validation'] = None
+        self.save_choices()
+        self.assertIn({'field': 'validation', 'code': 'selection-required'}, self.build()['unresolved'])
+        with self.assertRaisesRegex(ValueError, 'request validation choice'):
+            adapters.build_validation(None, task, InputEvidence(self.root), self.root)
+        self.assertFalse((self.root / 'built').exists())
+
+    def test_builder_action_names_the_builder_for_the_task(self):
+        inputs = {'production-task': {'path': 'built/production-task.json', 'sha256': '0' * 64}}
+        usage = {}
+        for route, features, script in (
+                ('generation', [], 'scripts/build_generation_payload.py'),
+                ('state-series', [], 'scripts/build_state_generation_package.py'),
+                ('generation', ['state-series'], 'scripts/build_state_generation_package.py')):
+            task = {'route': route, 'features': features, 'execution': 'dispatcher'}
+            action = adapters.next_actions(inputs, task, self.root)[-1]
+            self.assertEqual((action['operation'], action['script']), ('build-generation-payload', script))
+            if script not in usage:
+                usage[script] = subprocess.run([sys.executable, str(tool.ROOT / script), '--help'],
+                                               capture_output=True, text=True, check=True).stdout
+            for name in action['required_args']:
+                self.assertIn('--' + name + ' ', usage[script], (script, name))
+
+    def test_upscale_dispatcher_needs_its_validation_choice(self):
+        self.dispatcher_task(route='upscale')
+        self.assertEqual(tool.inspect_inputs(self.root, 'task.json')['required_choices'], ['reading', 'validation'])
 
     def prepared_source(self):
         import work_ledger

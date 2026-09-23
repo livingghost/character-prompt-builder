@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from build_asset_render_spec import build_render_spec  # noqa: E402
 from build_reference_bundle import build_plan  # noqa: E402
 from build_state_generation_package import build_package  # noqa: E402
+from execution_contract import LOCK_FILE  # noqa: E402
 from prepare_generation_references import build_prepared_reference_set  # noqa: E402
 from production_spec import validate as validate_production_spec  # noqa: E402
 from state_protocol import (  # noqa: E402
@@ -887,7 +888,7 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
     checked_artifact(plan, "reference-bundle-plan")
 
     # The project lock the build took is released by now and is not pilot output.
-    (generated / ".production.lock").unlink(missing_ok=True)
+    (generated / LOCK_FILE).unlink(missing_ok=True)
     return sorted(
         (path.relative_to(generated) for path in generated.rglob("*") if path.is_file()),
         key=lambda value: value.as_posix(),

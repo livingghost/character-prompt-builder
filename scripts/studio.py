@@ -32,7 +32,6 @@ from __future__ import annotations
 import argparse
 import contextlib
 import copy
-import hashlib
 import json
 import os
 import re
@@ -41,7 +40,6 @@ import shutil
 import sys
 import tempfile
 from collections.abc import Iterator
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +48,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import execution_contract  # noqa: E402
 import work_ledger  # noqa: E402
+# A record is replaced whole: a reader sees the old record or the new one, never a torn one.
+from execution_contract import atomic_write_json as write_json, now, sha256_file  # noqa: E402
 
 MANIFEST = "studio.json"
 STUDIO_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]+$")
@@ -63,8 +63,6 @@ ITERATION_ID = re.compile(r"^it-([0-9]+)$")
 DIRECTORIES = ("characters", "packages", "runs", "prompts", "work")
 CHARACTER_DIRECTORIES = ("sheet", "iterations", "accepted")
 STATUSES = ("candidate", "accepted", "rejected", "superseded")
-# The file execution_contract.lock holds in the directory it locks.
-PROJECT_LOCK_FILE = ".production.lock"
 INIT_COMMAND = 'init --out <dir> --studio-id <id> --title "<title>"'
 
 README = {
@@ -74,24 +72,6 @@ README = {
     "prompts": "Reviewed prompt artifacts and prompt-only work that belongs to no single iteration.\n",
     "work": "The open task (current.json) and the trail of tasks (ledger.jsonl). A session reads current.json first.\n",
 }
-
-
-def now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def write_json(path: Path, value: Any) -> None:
-    """Replace the file whole: a reader sees the old record or the new one, never a torn one."""
-    raw = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-    execution_contract.atomic(path, raw, replace=True)
 
 
 def read_json(path: Path) -> Any:
@@ -131,7 +111,7 @@ def recording_lock(root: Path) -> Iterator[None]:
 # The manifest and the layout.
 
 def _entries(directory: Path) -> list[Path]:
-    return [path for path in directory.iterdir() if path.name != PROJECT_LOCK_FILE]
+    return [path for path in directory.iterdir() if path.name != execution_contract.LOCK_FILE]
 
 
 def init(out: Path, studio_id: str, title: str) -> Path:
@@ -284,6 +264,25 @@ def _keep(root: Path, home: Path, iteration_id: str, source: Path | None, name: 
     return {"path": target.relative_to(root).as_posix(), "sha256": sha256_file(target)}
 
 
+def _keep_answer(root: Path, home: Path, rows: list[dict[str, Any]], iteration_id: str, answer: Path,
+                 response: Path | None) -> dict[str, Any]:
+    """Keep the service's whole answer once; each image of one answer names the same copy.
+
+    The response of the image names the answer by its SHA-256, so the two are
+    refused when they do not belong together.
+    """
+    digest = sha256_file(answer.resolve())
+    named = read_json(Path(response)) if response is not None else None
+    if not isinstance(named, dict) or named.get("answer_sha256") != digest:
+        raise ValueError(f"the response does not name the answer {answer} by its sha256")
+    for row in rows:
+        kept = row.get("answer")
+        if isinstance(kept, dict) and kept.get("sha256") == digest and (root / str(kept.get("path"))).is_file() \
+                and sha256_file(root / kept["path"]) == digest:
+            return dict(kept)
+    return _keep(root, home, iteration_id, answer, "answer")
+
+
 def _keep_companion(home: Path, iteration_id: str, companion: Path) -> Path:
     """Copy a package's .references companion into the iteration under its own name.
 
@@ -390,25 +389,28 @@ def validate_recording_target(root: Path, character: str, slot: str, *, writable
 
 def iterate(root: Path, character: str, slot: str, result: Path, *, package: Path | None, request: Path | None,
             response: Path | None, note: str | None, service: dict[str, Any] | None = None,
-            package_companion: Path | None = None, layout: dict[str, Any] | None = None) -> dict[str, Any]:
+            package_companion: Path | None = None, layout: dict[str, Any] | None = None,
+            answer: Path | None = None) -> dict[str, Any]:
     with recording_lock(root):
         return _record_iteration(root, character, slot, result, package=package, request=request,
                                  response=response, note=note, service=service,
-                                 package_companion=package_companion, layout=layout)
+                                 package_companion=package_companion, layout=layout, answer=answer)
 
 
 def _record_iteration(root: Path, character: str, slot: str, result: Path, *, package: Path | None,
                       request: Path | None, response: Path | None, note: str | None,
                       service: dict[str, Any] | None = None,
                       package_companion: Path | None = None,
-                      layout: dict[str, Any] | None = None) -> dict[str, Any]:
+                      layout: dict[str, Any] | None = None,
+                      answer: Path | None = None) -> dict[str, Any]:
     home = validate_recording_target(root, character, slot)
-    _check_inputs({"result": result, "package": package, "request": request, "response": response},
-                  package_companion)
+    _check_inputs({"result": result, "package": package, "request": request, "response": response,
+                   "answer": answer}, package_companion)
     if layout is not None:
         check_request_layout(layout, read_json(Path(request)) if request is not None else None)
     rows = read_iterations(home)
     iteration_id = next_iteration_id(home, rows)
+    kept_answer = _keep_answer(root, home, rows, iteration_id, answer, response) if answer is not None else None
     row: dict[str, Any] = {
         "iteration_id": iteration_id,
         "at": now(),
@@ -421,6 +423,7 @@ def _record_iteration(root: Path, character: str, slot: str, result: Path, *, pa
         "request": _keep(root, home, iteration_id, request, "request"),
         "request_layout": copy.deepcopy(layout),
         "response": _keep(root, home, iteration_id, response, "response"),
+        **({"answer": kept_answer} if kept_answer is not None else {}),
         "service": None,
         "seed": None,
         "note": note.strip() if note else None,
@@ -565,7 +568,7 @@ def recipe(root: Path, character: str, slot: str, *, iteration: str | None = Non
 
     witnessed = {}
     bodies = {}
-    for name in ("request", "response", "result", "package"):
+    for name in ("request", "response", "answer", "result", "package"):
         item = row.get(name)
         if item is None:
             continue

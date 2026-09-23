@@ -39,7 +39,7 @@ def inputs(root,out,prepared,package,rendered,proposed,difference,reader):
     if rendered['layout']['seed'] is not None:dispatch_args['seed']=rc.get(proposed['request'],rendered['layout']['seed'])
     dispatch_args['count']=proposed['output_count']
     if package.get('artifact_type')=='upscale-request':
-        choices['visual']={'applicability':'not-applicable','reason':'An explicitly declared upscale retains its recorded source image.'}
+        choices['visual']=None
         settings=copy.deepcopy(package['settings']);scale=package['scale_factor'];upscale_source=package['source']['path']
         for change in difference:
             name=change['field']

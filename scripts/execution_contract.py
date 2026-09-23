@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic integrity, safe local I/O and locking for production records."""
+"""Deterministic integrity, safe local I/O and locking that every script shares."""
 from __future__ import annotations
 
 import contextlib
@@ -9,14 +9,23 @@ import json
 import os
 import re
 import stat
-import tempfile
 import time
 import threading
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator
 
 from io_budget import read_stream
 SHA = re.compile(r"^[0-9a-f]{64}$")
+# The file `lock` holds in the directory it locks.
+LOCK_FILE = ".cpb.lock"
+# The name `atomic` writes under before it publishes; one left behind is from an interrupted write.
+TEMPORARY_PREFIX = ".pending-"
+# How a file system without hard links refuses one: FAT and exFAT answer EPERM
+# on Linux and ENOTSUP on macOS, some network and synced file systems EOPNOTSUPP
+# or ENOSYS, and Windows ERROR_INVALID_FUNCTION (1) or ERROR_NOT_SUPPORTED (50).
+_NO_LINKS_ERRNOS = frozenset({errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP, errno.ENOSYS})
+_NO_LINKS_WINERRORS = frozenset({1, 50})
 
 
 def encoded(value: Any) -> bytes:
@@ -25,6 +34,20 @@ def encoded(value: Any) -> bytes:
 
 def digest(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    """Hash a file to its end, one chunk at a time."""
+    hasher = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def now() -> str:
+    """The current UTC time to the second, as ISO 8601 text ending in Z."""
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def content_id(value: Any) -> str:
@@ -156,25 +179,70 @@ def fsync_dir(path: Path) -> None:
             os.close(descriptor)
 
 
-def atomic(path: Path, raw: bytes, *, replace: bool = False) -> None:
-    if path.is_symlink():
-        raise ValueError("cannot write through symbolic link")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=".pending-", dir=path.parent)
-    temp = Path(temporary)
+def _create(path: Path, raw: bytes) -> None:
+    """Create `path` only when it is absent, write `raw` and flush it to disk.
+
+    The file gets the ordinary creation mode. A failed write removes it again.
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+    descriptor = os.open(path, flags, 0o666)
     try:
-        with os.fdopen(fd, "wb") as stream:
+        with os.fdopen(descriptor, "wb") as stream:
             stream.write(raw)
             stream.flush()
             os.fsync(stream.fileno())
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+
+
+def _no_hard_links(error: OSError) -> bool:
+    """True when os.link failed because the file system makes no hard links."""
+    if isinstance(error, FileExistsError):
+        return False
+    winerror = getattr(error, "winerror", None)
+    if winerror is not None:
+        return winerror in _NO_LINKS_WINERRORS
+    return error.errno in _NO_LINKS_ERRNOS
+
+
+def atomic(path: Path, raw: bytes, *, replace: bool = False) -> None:
+    """Write `raw` to `path` whole: replace it, or create it only when it is absent.
+
+    The bytes reach the disk under a temporary name first. A replacement is a
+    rename and a new name is a hard link, so a reader sees the old file or the
+    whole new one. Without hard links, Windows renames the temporary file, which
+    refuses an existing name. Elsewhere a rename would replace, so the new name
+    is created exclusively and written in place.
+    """
+    if path.is_symlink():
+        raise ValueError("cannot write through symbolic link")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.parent / (TEMPORARY_PREFIX + os.urandom(8).hex())
+    try:
+        _create(temp, raw)
         if replace:
             os.replace(temp, path)
         else:
-            # Exclusive atomic publication. The caller holds the project lock.
-            os.link(temp, path)
+            # Exclusive publication. The caller holds the project lock.
+            try:
+                os.link(temp, path)
+            except OSError as error:
+                if not _no_hard_links(error):
+                    raise
+                if os.name == "nt":
+                    os.rename(temp, path)
+                else:
+                    _create(path, raw)
         fsync_dir(path.parent)
     finally:
         temp.unlink(missing_ok=True)
+
+
+def atomic_write_json(path: Path, value: Any) -> None:
+    """Replace `path` with `value` as indented JSON, whole and flushed to disk."""
+    raw = (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")
+    atomic(path, raw, replace=True)
 
 
 def publish_directory(staging: Path, target: Path, *, patience: float = 10.0) -> None:
@@ -239,7 +307,7 @@ def lock(root: Path) -> Iterator[None]:
 def _os_lock(root: Path) -> Iterator[None]:
     """Cross-process advisory lock; a process crash releases the OS lock."""
     root.mkdir(parents=True, exist_ok=True)
-    path = local(root, ".production.lock", exists=False)
+    path = local(root, LOCK_FILE, exists=False)
     with path.open("a+b") as stream:
         if os.name == "nt":
             import msvcrt

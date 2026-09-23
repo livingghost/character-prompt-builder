@@ -85,6 +85,11 @@ def _derive(source:dict)->dict:
         if result['data']['expected_count']!=1 or len(result['data']['files'])!=1:raise ValueError('one complete output is required')
         required={c.digest(journal[name]) for name in ('request-contract.json','request.json','answer.json')}
         if not required<={f['sha256'] for f in result['data']['evidence']}:raise ValueError('result receipt does not bind the rendered request and response')
+        # The one image's response names its place in the saved answer and that answer's hash.
+        responses=[f['sha256'] for f in result['data']['evidence'] if f['path'].endswith('/response-1.json')]
+        named=c.decode(_read_object(source['objects'][responses[0]])) if len(responses)==1 and responses[0] in source['objects'] else None
+        if not isinstance(named,dict) or named.get('answer_sha256')!=c.digest(response) or named.get('index')!=1:
+            raise ValueError('result receipt does not bind its image to the saved provider response')
         for item in result['data']['files']:
             raw=_read_object(source['objects'][item['sha256']])
             _inspect_output(raw,item,prepared)

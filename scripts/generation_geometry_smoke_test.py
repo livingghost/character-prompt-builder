@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import generation_geometry as geometry  # noqa: E402
 
-EXPECTED_CHECKS = 23
+EXPECTED_CHECKS = 32
 
 # One megapixel with both sides a multiple of 8, the size table published for
 # this lineage. Two rows are labelled 4:3 because the table resolves one of them
@@ -36,8 +36,27 @@ PUBLISHED = {
     "1.618:1": (1296, 800),
 }
 SNAPSHOT = "resources/observed-schemas/fixture.svc.json"
-# Where the fixture service takes the model identifier and the prompt.
-KEYS = {"model": ["model"], "prompt": ["prompt"]}
+# Where the fixture service takes the model identifier, the prompt and the two sides.
+KEYS = {"model": ["model"], "prompt": ["prompt"], "width": ["width"], "height": ["height"]}
+# A service that takes the size as one text field and refuses any key it does not name.
+TEXT_SNAPSHOT = "resources/observed-schemas/fixture.text.json"
+TEXT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["prompt"],
+    "properties": {
+        "prompt": {"type": "string", "minLength": 1},
+        "size": {"enum": ["1024x1024", "1024x1536", "1536x1024"]},
+    },
+}
+# A service that takes an aspect ratio in place of a size.
+RATIO_SNAPSHOT = "resources/observed-schemas/fixture.ratio.json"
+RATIO_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {"input": {"type": "object", "additionalProperties": False, "properties": {
+        "prompt": {"type": "string"}, "aspect_ratio": {"enum": ["1:1", "2:3", "16:9"]}}}},
+}
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -87,6 +106,23 @@ def fixture_record(offerings: list[dict[str, Any]] | None = None) -> dict[str, A
     }
 
 
+def write_snapshot(pack: Path, relative: str, service: str, model_identifier: str, schema: dict[str, Any]) -> None:
+    (pack / relative).parent.mkdir(parents=True, exist_ok=True)
+    (pack / relative).write_text(json.dumps({
+        "artifact_type": "observed-parameter-schema", "model_id": "fixture-model", "service": service,
+        "model_identifier": model_identifier, "observed_at": "2026-09-13",
+        "source": "the fixture service's model schema endpoint", "unenforced": [], "schema": schema,
+    }), encoding="utf-8")
+
+
+def ratio_offering() -> dict[str, Any]:
+    """An offering on a service that takes an aspect ratio inside an input object."""
+
+    return {"service": "ratio", "model_identifier": "vendor/fixture", "observed_at": "2026-09-13",
+            "request_keys": {"prompt": ["input.prompt"], "size": ["input.aspect_ratio"]},
+            "size_format": "{ratio_width}:{ratio_height}", "constraints": {}, "schema_snapshot": RATIO_SNAPSHOT}
+
+
 def runtime_pack(folder: Path) -> list[str]:
     """One enabled pack holding one model record, and the selectors that name its runtime."""
 
@@ -94,8 +130,9 @@ def runtime_pack(folder: Path) -> list[str]:
 
     models = json.loads((ROOT / "packs/commons/records/models.json").read_text(encoding="utf-8"))
     record = {**models["records"][0], "id": "fixture-runtime-model", "aliases": ["fixture runtime model"],
-              "offerings": [], "size_hints": {"1:1": "1024x1024", "2:3": "832x1216"}}
+              "offerings": [ratio_offering()], "size_hints": {"1:1": "1024x1024", "2:3": "832x1216", "16:9": "1360x768"}}
     manifest = initialize_pack(folder / "packs" / "fixture", name="Geometry Runtime Fixture")
+    write_snapshot(folder / "packs" / "fixture", RATIO_SNAPSHOT, "ratio", "vendor/fixture", RATIO_SCHEMA)
     atomic_write_json(folder / "packs" / "fixture" / "records" / "models.json", {"kind": "model", "records": [record]})
     save_state(folder / "state.json", {"pack_roots": [str(folder / "packs")],
                                         "enabled_packs": [manifest["pack_id"]], "resource_providers": {}})
@@ -167,6 +204,41 @@ def main() -> int:
             check(f"a pair outside every bucket is refused as a pair ({width}x{height})",
                   len(refusals) == 1 and refusals[0].startswith(f"{width}x{height}: "), refusals)
 
+        # Services that name the size differently: one text field, or an aspect ratio.
+        write_snapshot(pack, TEXT_SNAPSHOT, "text", "vendor/fixture", TEXT_SCHEMA)
+        text_offering = {"service": "text", "model_identifier": "vendor/fixture", "observed_at": "2026-09-13",
+                         "request_keys": {"prompt": ["prompt"], "size": ["size"]}, "size_format": "{width}x{height}",
+                         "constraints": {}, "schema_snapshot": TEXT_SNAPSHOT}
+        text = fixture_record([text_offering])
+        refusals, service = geometry.schema_refusals(text, None, "fixture-model", 1024, 1536, pack)
+        check("a service that takes the size as one text field accepts a size it lists",
+              refusals == [] and service["size_fields"] == {"size": "1024x1536"}, (refusals, service))
+        refusals, _ = geometry.schema_refusals(text, None, "fixture-model", 832, 1216, pack)
+        check("a size that service does not list is refused on its size field alone",
+              len(refusals) == 1 and refusals[0].startswith("size 832x1216: "), refusals)
+        write_snapshot(pack, RATIO_SNAPSHOT, "ratio", "vendor/fixture", RATIO_SCHEMA)
+        ratios = fixture_record([ratio_offering()])
+        refusals, service = geometry.schema_refusals(ratios, None, "fixture-model", 1360, 768, pack, ("16", "9"))
+        check("a service that takes an aspect ratio is asked for the ratio named, not the sides reduced",
+              refusals == [] and service["size_fields"] == {"input.aspect_ratio": "16:9"}, (refusals, service))
+        refusals, _ = geometry.schema_refusals(ratios, None, "fixture-model", 1360, 768, pack)
+        check("with no ratio named, the sides in lowest terms are asked for and a ratio the service lacks is refused",
+              len(refusals) == 1 and refusals[0].startswith("input.aspect_ratio 85:48: "), refusals)
+        keyless = fixture_record([{**offering, "request_keys": {"model": ["model"], "prompt": ["prompt"]}}])
+        refusals, service = geometry.schema_refusals(keyless, None, "fixture-model", 4096, 64, pack)
+        check("an offering that records no size key leaves the size unchecked",
+              refusals == [] and service["size_fields"] is None, (refusals, service))
+
+    # The commons offering on Runware takes the sides on its width and height keys.
+    models = json.loads((ROOT / "packs/commons/records/models.json").read_text(encoding="utf-8"))
+    offered = next(record for record in models["records"] if record["offerings"])
+    refusals, service = geometry.schema_refusals(offered, None, offered["id"], 832, 1248, ROOT / "packs/commons")
+    check("the commons offering puts a listed pair on its width and height keys and accepts it",
+          refusals == [] and service["size_fields"] == {"width": 832, "height": 1248}, (refusals, service))
+    refusals, _ = geometry.schema_refusals(offered, None, offered["id"], 832, 1216, ROOT / "packs/commons")
+    check("the commons offering refuses a pair its observed schema does not list",
+          len(refusals) == 1 and refusals[0].startswith("832x1216: "), refusals)
+
     # The runtime selectors go together, as everywhere else, and name the runtime
     # the model record is read from.
     with tempfile.TemporaryDirectory(prefix="cpb-geometry-") as tmp:
@@ -176,11 +248,19 @@ def main() -> int:
             code = geometry.main([*selectors, "--model", "fixture-runtime-model", "--list"])
         listed = json.loads(printed.getvalue()) if code == 0 else {}
         check("the runtime selectors choose the runtime the model record is read from",
-              code == 0 and [(row["width"], row["height"]) for row in listed.get("declared_sizes", [])]
-              == [(1024, 1024), (832, 1216)], printed.getvalue()[-400:])
+              code == 0 and sorted((row["width"], row["height"]) for row in listed.get("declared_sizes", []))
+              == [(832, 1216), (1024, 1024), (1360, 768)], printed.getvalue()[-400:])
         with contextlib.redirect_stderr(io.StringIO()):
             check("one runtime selector without the others is refused",
                   refused(lambda: geometry.main([*selectors[:2], "--model", "fixture-runtime-model", "--list"])))
+        for arguments, label in ((["--ratio", "16:9"], "a requested ratio"),
+                                 (["--width", "1360", "--height", "768"], "a size declared under a ratio")):
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                code = geometry.main([*selectors, "--model", "fixture-runtime-model", *arguments])
+            report = json.loads(printed.getvalue())
+            check(f"{label} reaches an aspect-ratio service as the ratio the record declares",
+                  code == 0 and report["service"]["size_fields"] == {"input.aspect_ratio": "16:9"}, report)
 
     passed = sum(1 for row in results if row["passed"])
     report = {"ok": len(results) == EXPECTED_CHECKS and passed == len(results), "checks": len(results),

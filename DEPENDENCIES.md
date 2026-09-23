@@ -34,12 +34,7 @@ python scripts/check_dependencies.py --profile core
 python scripts/check_dependencies.py --profile visual
 ```
 
-Run only the applicable command. If Visual fails and the task authorizes environment mutation, install and recheck:
-
-```bash
-python -m pip install -r requirements-visual.txt
-python scripts/check_dependencies.py --profile visual
-```
+Run only the applicable command. If Visual fails and the task authorizes environment mutation, run the `install_command` the check printed, then check again. It installs into the Python that ran the check: through pip where that Python has pip, and through `uv pip install --python` in an environment uv created, which has no pip.
 
 If environment mutation is not authorized, report the exact missing package and installation command, then stop. Never omit a selected reference, send raw SVG to a raster-only model, substitute another artifact, drop to text-only, or change transport silently.
 

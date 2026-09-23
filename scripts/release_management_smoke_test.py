@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -71,6 +72,14 @@ def main() -> int:
             expect("release_management_smoke_test.py" in text, f"{name}: CalVer regressions must execute")
             if name == "release.yml":
                 expect('--tag "$GITHUB_REF_NAME"' in text, "publication must bind the tag to the product")
+            if name == "ci.yml":
+                # The checks job runs every regression suite itself, so a new suite cannot sit unrun.
+                checks_job = re.search(r"^  checks:\n(.*?)(?=^  \S)", text, re.M | re.S)
+                commands = set(re.findall(r"python scripts/(\w+\.py)", checks_job.group(1) if checks_job else ""))
+                suites = {suite.name for suite in (root / "scripts").glob("*smoke_test.py")}
+                suites.add("reference_runtime_cli_contract_test.py")
+                unrun = sorted(suites - commands)
+                expect(not unrun, f"ci.yml: the checks job runs no command for {unrun}")
     # Mutate only a small isolated fixture: no edits to the installed product.
     with tempfile.TemporaryDirectory(prefix="product-release-check-") as td:
         fixture=Path(td)

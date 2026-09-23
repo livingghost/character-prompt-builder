@@ -26,17 +26,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from execution_contract import now
 
 WORK_DIR = "work"
 CURRENT = "current.json"
 LEDGER = "ledger.jsonl"
-
-
-def now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def work_dir(root: Path) -> Path:
@@ -307,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--studio", type=Path, default=Path.cwd(), help="The studio directory (default: the working directory)")
     # The studio may also be named after the command, as Studio Runtime writes it.
     after = argparse.ArgumentParser(add_help=False)
-    after.add_argument("--studio", type=Path, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    after.add_argument("--studio", type=Path, default=argparse.SUPPRESS, help="The studio directory (default: the working directory)")
     commands = parser.add_subparsers(dest="command", required=True)
     begin_parser = commands.add_parser("begin", help="open a task", parents=[after])
     begin_parser.add_argument("--goal", required=True)

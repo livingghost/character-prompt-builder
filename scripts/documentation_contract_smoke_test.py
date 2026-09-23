@@ -2,9 +2,13 @@
 """Regression tests for the lean SKILL router and routed documentation contract."""
 from __future__ import annotations
 
+import concurrent.futures
+import functools
+import html
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -662,6 +666,153 @@ class ReadmeReleaseExplanationTests(unittest.TestCase):
         with patch.object(Path, "read_text", without_manifest_link):
             check_documentation(ROOT, errors)
         self.assertIn("README must link to package-manifest.toml", errors)
+
+
+DOCUMENTED_COMMAND = re.compile(r"\bpython3? scripts/(\w+)\.py\b")
+FENCE = re.compile(r"^(```|~~~)[^\n]*\n(.*?)^\1[ \t]*$", re.M | re.S)
+SHELL_BREAKS = {"|", "||", "&&", ";", ">", ">>", "<", "&"}
+
+
+def documented_commands() -> list[tuple[str, str]]:
+    """Every `python scripts/<name>.py ...` command in the routed documents, with the document that shows it."""
+
+    documents = [ROOT / "README.md", ROOT / "SKILL.md", *sorted((ROOT / "references").rglob("*.md"))]
+    documents += sorted(path for path in (ROOT / "templates").rglob("*") if path.suffix in {".md", ".html"})
+    commands: list[tuple[str, str]] = []
+    for document in documents:
+        text = document.read_text(encoding="utf-8")
+        if document.suffix == ".html":
+            text = html.unescape(text)
+        # A fenced line that ends in a continuation character goes on to the next line.
+        lines = [line for fence in FENCE.finditer(text)
+                 for line in re.sub(r"[ \t]*[\\`^]\n[ \t]*", " ", fence.group(2)).splitlines()]
+        lines += re.findall(r"`([^`\n]+)`", FENCE.sub("", text))
+        for line in lines:
+            for match in DOCUMENTED_COMMAND.finditer(line):
+                command = re.split(r"\s#", line[match.start():], maxsplit=1)[0].strip()
+                commands.append((document.relative_to(ROOT).as_posix(), command))
+    return commands
+
+
+def is_value(word: str) -> bool:
+    """A placeholder in angle brackets or capitals, a shell variable, or an ellipsis stands for a value."""
+
+    return "<" in word or "$" in word or word == "..." or bool(re.fullmatch(r"[A-Z][A-Z0-9_]*", word))
+
+
+def parses_arguments(script: Path) -> bool:
+    """Whether the script, or the module whose main it runs, reads its command line with argparse."""
+
+    text = script.read_text(encoding="utf-8")
+    if "argparse" in text:
+        return True
+    for module, names in re.findall(r"^from (\w+) import (\([^)]*\)|[^\n]*)", text, re.M):
+        source = script.with_name(module + ".py")
+        if re.search(r"\bmain\b", names) and source.is_file() and "argparse" in source.read_text(encoding="utf-8"):
+            return True
+    return False
+
+
+@functools.lru_cache(maxsize=None)
+def script_help(words: tuple[str, ...]) -> str:
+    """The --help of a script, or of one of its subcommands; empty when --help fails."""
+
+    result = subprocess.run(
+        [sys.executable, f"scripts/{words[0]}.py", *words[1:], "--help"],
+        cwd=ROOT, check=False, capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env={**UNPAINTED, "COLUMNS": "200", "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    return result.stdout if result.returncode == 0 else ""
+
+
+def subcommand_choices(help_text: str) -> set[str]:
+    positional = help_text.partition("positional arguments:")[2].partition("options:")[0]
+    match = re.search(r"^\s+\{([^}]+)\}", positional, re.M)
+    return set(match.group(1).split(",")) if match else set()
+
+
+def option_arity(help_text: str, option: str) -> str:
+    """'' for a switch, 'one' for an option that takes a value, 'many' for one that takes a list."""
+
+    match = re.search(re.escape(option) + r"(?:[ =]([A-Z_{<\[][^\s,]*)( \[[^\]]*\.\.\.\])?)?(?=[\s,\]])", help_text)
+    if not match or not match.group(1):
+        return ""
+    return "many" if match.group(2) else "one"
+
+
+def command_problems(command: str) -> list[str]:
+    """Check one documented command against the --help of its script and of each subcommand it names."""
+
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        words = command.split()
+    for index, word in enumerate(words):
+        if word in SHELL_BREAKS or word.startswith((">", "2>")):
+            words = words[:index]
+            break
+    name = re.fullmatch(r"scripts/(\w+)\.py", words[1]).group(1)
+    script = ROOT / "scripts" / f"{name}.py"
+    if not script.is_file():
+        return [f"scripts/{name}.py does not exist"]
+    arguments = words[2:]
+    if not arguments:
+        return []
+    if not parses_arguments(script):
+        return [f"{name}.py reads no options"] if any(word.startswith("-") for word in arguments) else []
+    level: tuple[str, ...] = (name,)
+    text = script_help(level)
+    if not text:
+        return [f"{name}.py --help failed"]
+    problems: list[str] = []
+    choosing = True
+    index = 0
+    while index < len(arguments):
+        word = arguments[index].strip("[]")
+        index += 1
+        if re.fullmatch(r"--?[A-Za-z][\w-]*(=.*)?", word):
+            option = word.split("=", 1)[0]
+            if not re.search(r"(?<![\w-])" + re.escape(option) + r"(?![\w-])", text):
+                problems.append(f"{' '.join(level)} --help names no option {option}")
+                continue
+            arity = "" if "=" in word else option_arity(text, option)
+            if arity == "one":
+                index += 1
+            elif arity == "many":
+                while index < len(arguments) and not arguments[index].startswith("-"):
+                    index += 1
+            continue
+        choices = subcommand_choices(text) if choosing else set()
+        if not choices:
+            continue
+        if is_value(word):
+            break
+        if word not in choices:
+            problems.append(f"{' '.join(level)} --help names no subcommand {word}")
+            break
+        child = script_help((*level, word))
+        if re.search(r"^usage: \S+ " + re.escape(" ".join((*level[1:], word))) + r"\b", child, re.M):
+            level, text = (*level, word), child
+        else:
+            # The choice was the value of a positional argument, not a subcommand.
+            choosing = False
+    return problems
+
+
+class DocumentedCommandTests(unittest.TestCase):
+    maxDiff = None
+
+    def test_documented_commands_match_each_script_help(self) -> None:
+        commands = documented_commands()
+        self.assertTrue(commands, "no documented command was found")
+        unique = sorted({command for _, command in commands})
+        with concurrent.futures.ThreadPoolExecutor(8) as pool:
+            problems = dict(zip(unique, pool.map(command_problems, unique)))
+        self.assertEqual(
+            [],
+            [f"{document}: {command}: {problem}" for document, command in commands for problem in problems[command]],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

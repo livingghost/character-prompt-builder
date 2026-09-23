@@ -31,6 +31,9 @@ SUITE_TIMEOUT = 600
 # package.py builds a fresh pack runtime root for suites that need one.
 RUNTIME_DIRS = object()
 
+# A pack the home of the person running the tests enables and no suite may find.
+MISSING_PACK_ID = "0199aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee"
+
 SLOW = pytest.mark.slow
 
 # Discover the entire inventory; a new suite must never be silently omitted.
@@ -104,11 +107,20 @@ def test_smoke_suite(repo_root, tmp_path, script, args):
     env["PYTHONUTF8"] = "1"
     env["NO_COLOR"] = "1"
     # Each suite gets its own home, so the pack state and host configuration of
-    # the person running the tests never reach it.
+    # the person running the tests never reach it. That home's pack state enables
+    # a pack and registers a root that do not exist; a suite that reads it
+    # instead of its own names the missing pack in a warning.
     home = tmp_path / "home"
-    home.mkdir()
+    (home / ".character-prompt-builder").mkdir(parents=True)
+    defaults = json.loads(
+        (SCRIPT_DIR.parent / "config" / "default-pack-state.json").read_text(encoding="utf-8")
+    )
+    (home / ".character-prompt-builder" / "pack-state.json").write_text(json.dumps({
+        **defaults,
+        "pack_roots": [str(tmp_path / "missing-pack-root")],
+        "enabled_packs": [*defaults["enabled_packs"], MISSING_PACK_ID],
+    }), encoding="utf-8")
     env["HOME"] = env["USERPROFILE"] = str(home)
-    _default_packs_only([], env)
     try:
         result = subprocess.run(
             command,
@@ -134,6 +146,9 @@ def test_smoke_suite(repo_root, tmp_path, script, args):
             ),
             pytrace=False,
         )
+    assert MISSING_PACK_ID not in result.stdout + result.stderr, (
+        f"{script} read the pack state of the person running it; call smoke_fixtures.isolate_home()"
+    )
 
     if script in {"growth_resolution_smoke_test.py", "dispatch_recovery_smoke_test.py", "feature_workflow_smoke_test.py", "structure_neutrality_smoke_test.py"}:
         # These suites feed the release gate as JSON, not only as exit codes.

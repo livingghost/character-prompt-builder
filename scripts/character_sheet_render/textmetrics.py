@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import base64
+import functools
 import html
 import io
 import os
+import shutil
+import subprocess
 import textwrap
 import unicodedata
 from pathlib import Path
@@ -128,6 +131,41 @@ def cjk_font_candidates(role: str) -> list[Path]:
     ]
 
 
+FONTCONFIG_LANGUAGES = ("ja", "ko", "zh-cn", "zh-tw")
+
+
+@functools.lru_cache(maxsize=None)
+def fontconfig_cjk_font_files(role: str) -> tuple[Path, ...]:
+    """Font files fontconfig lists for CJK text at the role's weight.
+
+    Japanese fonts come first, then Korean, Simplified and Traditional
+    Chinese, each language's files in path order. Without fc-list the list
+    is empty.
+    """
+
+    fc_list = shutil.which("fc-list")
+    if fc_list is None:
+        return ()
+    weight = "bold" if role == "bold" else "regular"
+    files: list[Path] = []
+    for language in FONTCONFIG_LANGUAGES:
+        try:
+            listed = subprocess.run(
+                [fc_list, "--format", "%{file}\\n", f":lang={language}:weight={weight}"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+        except OSError:
+            break
+        for line in sorted({line.strip() for line in listed.stdout.splitlines()} - {""}):
+            if Path(line) not in files:
+                files.append(Path(line))
+    return tuple(files)
+
+
 _PROBE_FONTS: dict[Path, Any] = {}
 _GLYPH_COVERAGE: dict[tuple[Path, str], bool] = {}
 
@@ -140,11 +178,9 @@ def _probe_font(path: Path) -> Any:
     return _PROBE_FONTS[path]
 
 
-def usable_cjk_font_files(role: str) -> list[Path]:
-    """The candidate font files that exist and load, in preference order."""
-
+def _loadable(candidates: Sequence[Path]) -> list[Path]:
     usable: list[Path] = []
-    for candidate in cjk_font_candidates(role):
+    for candidate in candidates:
         if not candidate.is_file():
             continue
         try:
@@ -153,6 +189,16 @@ def usable_cjk_font_files(role: str) -> list[Path]:
             continue
         usable.append(candidate)
     return usable
+
+
+def usable_cjk_font_files(role: str) -> list[Path]:
+    """The font files that exist and load, in preference order.
+
+    The known paths come first. When none of them loads, fontconfig names
+    the installed CJK fonts, wherever the distribution put them.
+    """
+
+    return _loadable(cjk_font_candidates(role)) or _loadable(fontconfig_cjk_font_files(role))
 
 
 def font_has_glyph(path: Path, character: str) -> bool:

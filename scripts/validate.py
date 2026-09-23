@@ -34,6 +34,7 @@ from catalog_cli import (
 )
 import catalog_cli as catalog_cli_module
 from pack_manager import PackSettings, validate_pack
+from execution_contract import sha256_file
 from validate_state_protocol import validate as validate_state_protocol
 from validate_reference_corpus import validate as validate_reference_corpus
 from check_dependencies import TESTED as TESTED_REQUIREMENTS, check as check_dependencies
@@ -799,14 +800,6 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
 }
 
 
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def iter_jsonl(path: Path) -> Iterable[tuple[int, Any]]:
     for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if raw.strip():
@@ -1455,7 +1448,7 @@ def verify_release_manifest(
             findings.append(
                 f"MANIFEST byte count mismatch for {relative}: expected {size}, got {row.get('bytes')!r}"
             )
-        digest = sha256(path)
+        digest = sha256_file(path)
         if row.get("sha256") != digest:
             findings.append(f"MANIFEST SHA-256 mismatch for {relative}")
     if manifest.get("file_count_excluding_manifest") != len(expected_files):
@@ -2840,7 +2833,7 @@ def validate(
         "errors": errors,
         "warnings": warnings,
         "hashes": {
-            path.relative_to(root).as_posix(): sha256(path)
+            path.relative_to(root).as_posix(): sha256_file(path)
             for path in (
                 root / "SKILL.md",
                 root / "README.md",

@@ -14,12 +14,13 @@ from __future__ import annotations
 
 import argparse
 import copy
-import hashlib
 import json
 import re
 import sys
 from pathlib import Path
 from typing import Any, Sequence
+
+from execution_contract import sha256_file
 
 RESULT_STATUSES = ("accepted", "rejected", "pending", "failed")
 
@@ -28,14 +29,6 @@ def _require_string(value: Any, label: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{label} must be a nonempty string")
     return value
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _load_json_file(path: Path, label: str) -> Any:
@@ -108,7 +101,7 @@ def _validate_job(index: int, raw: Any, root: Path) -> dict[str, Any]:
         "target_model": target_model,
         "transport": transport if transport is not None else "default",
         "generation_package": package_relative,
-        "generation_package_sha256": _sha256_file(resolved),
+        "generation_package_sha256": sha256_file(resolved),
         "count": count,
         "parameters": parameters if parameters is not None else {},
         "seeds": seeds,
@@ -220,7 +213,7 @@ def _validate_result_entry(variant_id: str, raw: Any, root: Path) -> dict[str, A
     if resolved.stat().st_size == 0:
         raise ValueError(f"result {variant_id} image file is empty: {image_relative}")
     entry["image_path"] = image_relative
-    entry["image_sha256"] = _sha256_file(resolved)
+    entry["image_sha256"] = sha256_file(resolved)
     return entry
 
 
@@ -306,7 +299,7 @@ def build_batch_ledger(
                 f"batch plan job {job_id} generation_package is missing or outside the "
                 f"plan directory: {package_relative}; replan the batch before recording"
             )
-        package_actual_sha = _sha256_file(package_resolved)
+        package_actual_sha = sha256_file(package_resolved)
         if package_actual_sha != package_sha:
             raise ValueError(
                 f"batch plan job {job_id} generation_package content no longer matches its "
@@ -475,7 +468,7 @@ def build_batch_ledger(
         )
     return {
         "label": plan.get("label"),
-        "batch_plan_sha256": _sha256_file(plan_path),
+        "batch_plan_sha256": sha256_file(plan_path),
         "summary": summary,
         "jobs": jobs_ledger,
     }

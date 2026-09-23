@@ -51,12 +51,13 @@ python scripts/check_dependencies.py --profile core
 ```
 <!-- end-readme-example -->
 
-This checks the environment and installs nothing. For image work, install and check the visual profile:
+This checks the environment and installs nothing. For image work, check the visual profile, run the `install_command` it prints, and check again:
 
 ```sh
-python -m pip install -r requirements-visual.txt
 python scripts/check_dependencies.py --profile visual
 ```
+
+The command installs into the Python that ran the check: through pip where that Python has pip, and through `uv pip install --python` in an environment uv created, which has no pip.
 
 CairoSVG needs the native Cairo runtime as well as its Python package, and character-sheet text rendering needs an installed font. [DEPENDENCIES.md](DEPENDENCIES.md) explains each dependency and the native-library notes. The [core](requirements-core.txt), [visual](requirements-visual.txt) and [combined](requirements.txt) requirement files define the supported profiles; the [tested requirements](requirements-tested.txt) pin the release-validation environment.
 

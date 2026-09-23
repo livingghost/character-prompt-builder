@@ -17,12 +17,14 @@ Use this document only for publishing a core release or a pack release. Ordinary
 
 ## Core release environment
 
-Install and verify the exact Tested profile:
+Install and verify the exact Tested profile with the Python 3.12 that CI uses. uv creates that environment and installs into it:
 
 ```bash
-python -m pip install -r requirements-tested.txt
-python scripts/check_dependencies.py --tested
+uv venv --python 3.12 ../cpb-tested
+uv pip install --python ../cpb-tested -r requirements-tested.txt
 ```
+
+Run every check with that environment's Python, starting with `python scripts/check_dependencies.py --tested`. Where pip is the installer, `python -m pip install -r requirements-tested.txt` installs the same pins.
 
 Core and Visual profiles support development and task-specific runtime; only the Tested profile validates publication. Each of these blocks publication:
 
@@ -58,9 +60,10 @@ python scripts/documentation_contract_smoke_test.py
 python scripts/validate.py .
 ```
 
-These regression-only entrypoints remain individually discoverable for targeted diagnosis; the complete validator and packager decide which run in a publication gate:
+These regression-only entrypoints remain individually discoverable for targeted diagnosis; CI runs every one of them, and the complete validator and packager decide which run in a publication gate:
 
 ```bash
+python scripts/dependency_check_smoke_test.py
 python scripts/catalog_html_smoke_test.py
 python scripts/default_release_smoke_test.py --state-file config/default-pack-state.json --cache-dir <dedicated-cache-dir> --managed-root <existing-managed-dir>
 python scripts/eval_runtime_smoke_test.py
@@ -230,6 +233,10 @@ After the exact Tested environment passes the full sequence above:
 
 The packager rejects symbolic links at source, staging, tree-hash, and ZIP boundaries. Regenerate canonical metadata and manifests after file moves, then verify the staged and extracted trees contain exactly the declared release inventory and each routed document appears exactly once.
 
+Release archives exclude caches.
+A complete development handoff is a separate distribution that preserves Git history, settings, packs and the working index; release exclusions require approval.
+Report Library storage only after the completed body ZIP is uploaded and a Library listing confirms it.
+
 Commit release metadata only after code, documentation, tests, pack locks, and generated inventories agree. Canonical pack records and visual evidence stay unchanged when the goal is merely to make a core documentation or runtime test pass.
 
 ## First-use activation and bundled integrity
@@ -243,6 +250,7 @@ The actual bundled `packs/commons` directory with the commons UUID is core-manag
 For the artifact-bearing execution path, run:
 
 - `python scripts/execution_routes.py validate`
+- `python scripts/production_direction_smoke_test.py`
 - `python scripts/production_workflow_smoke_test.py`
 - `python scripts/production_resume_smoke_test.py`
 - `python scripts/production_inputs_smoke_test.py`
@@ -258,8 +266,11 @@ For the artifact-bearing execution path, run:
 - `python examples/resume-recording/build_example.py --check`
 - `python examples/candidate-recipe/build_example.py --check`
 - `python examples/production-execution/run_example.py --out <new-directory>`
+- `python examples/production-execution/repair_example.py --out <new-directory>`
 
-`scripts/execution_contract.py` owns integrity/I/O; `scripts/production_binding.py` connects the package builder, verifier and dispatcher. Run `python scripts/runtime_read_footprint.py` to measure actual manifest-selected reads. A release profile and a complete development handoff remain distinct distributions.
+The production fixtures supply explicitly synthetic authority; they grant no spending permission and establish no artistic quality.
+
+`scripts/execution_contract.py` owns integrity/I/O; `scripts/production_binding.py` connects the package builder, verifier and dispatcher. Run `python scripts/runtime_read_footprint.py` to measure actual manifest-selected reads.
 
 The moment path is covered by `python scripts/story_context_smoke_test.py` and
 `python examples/story-context/run_example.py --out EXAMPLE_DIRECTORY`. The latter
@@ -279,7 +290,7 @@ CI and the repository validator run this same test. Passing examples leave prose
 completeness, Persona understanding, expressive quality and the full tested
 dependency environment uncertified.
 
-Validate a supplied reading record with `python scripts/route_reading.py RECORD --root PROJECT`.
+Validate a completed reading record with `python scripts/route_reading.py RECORD --root PROJECT`.
 The checker reports issuance and quotation integrity; the operator assesses its application to the current task.
 
 ## Model request workflow checks

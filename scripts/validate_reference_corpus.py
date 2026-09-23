@@ -12,6 +12,7 @@ from typing import Any, Mapping
 
 sys.dont_write_bytecode = True
 
+from execution_contract import sha256_file
 from visual_evidence import validate_bundle
 from catalog_cli import load_pack_catalog
 from pack_manager import validate_pack
@@ -74,14 +75,6 @@ def _owning_pack_root(manifest_path: Path) -> Path | None:
         if (parent / "pack.json").is_file():
             return parent
     return None
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        while chunk := handle.read(1024 * 1024):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _has_webp_signature(path: Path) -> bool:
@@ -153,7 +146,7 @@ def _declared_catalog_thumbnails(
         if not _has_webp_signature(candidate):
             errors.append(f"{prefix} content is not WebP")
         expected_sha = str(raw_entry.get("sha256") or "")
-        if expected_sha != _sha256_file(candidate):
+        if expected_sha != sha256_file(candidate):
             errors.append(f"{prefix} sha256 mismatch")
     return declared, errors
 

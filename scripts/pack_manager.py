@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
-from execution_contract import fsync_dir, lock
+from execution_contract import atomic_write_json, lock, sha256_file
 from package_metadata import calver_key
 from model_contract import recommended_parameter_issues, validate_model_record
 from resource_policy import KNOWN_RESOURCE_VALIDATORS, validate_known_resource
@@ -176,29 +176,6 @@ def canonical_json(value: Any) -> str:
 
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def atomic_write_json(path: Path, value: Any) -> None:
-    """Replace `path` with `value` whole, flushed to disk before it is published."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}")
-    try:
-        with temporary.open("w", encoding="utf-8", newline="\n") as stream:
-            stream.write(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
-        fsync_dir(path.parent)
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
 def generate_uuid7() -> str:

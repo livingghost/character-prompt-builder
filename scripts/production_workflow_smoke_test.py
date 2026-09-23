@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import copy
 import contextlib
+import errno
 import io
 import json
 import os
@@ -258,6 +259,46 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(w.status(self.root,run)['next'],'authorize-direction-and-handoff')
     def test_idempotent_object(self):
         run=self.prepare(); path=w.run_dir(self.root,run); self.assertEqual(c.object_store(path,b'abc'),c.object_store(path,b'abc'))
+    def no_hard_links(self):
+        """The refusal of os.link on FAT and exFAT: ERROR_INVALID_FUNCTION on Windows, EPERM on Linux."""
+        if os.name=='nt': return patch.object(c.os,'link',side_effect=OSError(None,'Incorrect function',None,1))
+        return patch.object(c.os,'link',side_effect=PermissionError(errno.EPERM,'Operation not permitted'))
+    def published(self):
+        folder=self.root/'published'; folder.mkdir(exist_ok=True); return folder
+    def test_exclusive_write_publishes_a_new_name_whole_without_hard_links(self):
+        folder=self.published()
+        with self.no_hard_links(): c.atomic(folder/'record.json',b'{"a":1}\n')
+        self.assertEqual((folder/'record.json').read_bytes(),b'{"a":1}\n')
+        self.assertEqual([p.name for p in folder.iterdir()],['record.json'])
+    def test_exclusive_write_refuses_an_existing_name_with_and_without_hard_links(self):
+        folder=self.published(); (folder/'record.json').write_bytes(b'first\n')
+        with self.no_hard_links(), self.assertRaises(FileExistsError): c.atomic(folder/'record.json',b'second\n')
+        with self.assertRaises(FileExistsError): c.atomic(folder/'record.json',b'second\n')
+        self.assertEqual((folder/'record.json').read_bytes(),b'first\n')
+        self.assertEqual([p.name for p in folder.iterdir()],['record.json'])
+    def test_exclusive_write_raises_other_link_errors(self):
+        folder=self.published()
+        if os.name=='nt': failure=OSError(None,'Too many links',None,1142)
+        else: failure=OSError(errno.EMLINK,'Too many links')
+        with patch.object(c.os,'link',side_effect=failure):
+            with self.assertRaises(OSError) as raised: c.atomic(folder/'record.json',b'{}\n')
+        self.assertIs(raised.exception,failure); self.assertEqual(list(folder.iterdir()),[])
+    def test_failed_publication_without_hard_links_leaves_no_file(self):
+        folder=self.published()
+        if os.name=='nt': failing=patch.object(c.os,'rename',side_effect=OSError(errno.EIO,'Input/output error'))
+        else:
+            real=os.fsync; calls=[]
+            def second_fails(descriptor):
+                calls.append(descriptor)
+                if len(calls)==2: raise OSError(errno.EIO,'Input/output error')
+                return real(descriptor)
+            failing=patch.object(c.os,'fsync',side_effect=second_fails)
+        with self.no_hard_links(), failing, self.assertRaises(OSError): c.atomic(folder/'record.json',b'x\n')
+        self.assertEqual(list(folder.iterdir()),[])
+    def test_object_store_works_without_hard_links(self):
+        folder=self.published()
+        with self.no_hard_links(): key=c.object_store(folder,b'payload'); again=c.object_store(folder,b'payload')
+        self.assertEqual((key,c.object_read(folder,key)),(again,b'payload'))
     def test_skill_files_are_pinned_without_copies(self):
         run=self.prepare(); directory=w.run_dir(self.root,run); prepared=c.load(directory/'prepared.json')
         skill=[d for d in prepared['dependencies'] if d['space']=='skill']

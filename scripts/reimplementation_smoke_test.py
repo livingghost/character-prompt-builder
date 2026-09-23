@@ -27,6 +27,9 @@ import work_ledger
 import studio
 import dispatch
 from create_authoring_example import create
+from smoke_fixtures import isolate_home
+
+isolate_home()
 
 
 class SceneIntegration(unittest.TestCase):

@@ -16,6 +16,8 @@ import execution_routes
 
 ROOT = Path(__file__).resolve().parents[1]
 _NO_MODEL = object()
+# A reading made without a model holds every family's guide sections.
+EVERY_FAMILY = object()
 
 
 def _hex(value: Any, length: int, label: str) -> str:
@@ -144,9 +146,33 @@ def ledger_candidates(*, project: Path | None = None, package_root: Path | None 
     return list(dict.fromkeys(output))
 
 
-def _capture_resources(manifest: dict, bodies: list) -> None:
+def _family(name: str, value: dict, dialect: str | None) -> bytes:
+    """The resource as one model family reads it. Another family's section keeps its name and families."""
+    if name == 'prompt-writing-guide':
+        value = {**value, 'sections': [section if not section.get('dialects') or dialect in section['dialects']
+                                       else {'id': section['id'], 'dialects': section['dialects']}
+                                       for section in value['sections']]}
+    else:
+        rows = [row for row in value['dialects'] if row['id'] == dialect]
+        if dialect is not None and not rows:
+            raise ValueError('model dialect is absent from the active resource: ' + dialect)
+        value = {**value, 'dialects': rows}
+    return (json.dumps(value, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+
+
+def bound_dialect(value: dict) -> Any:
+    """The model family a reading holds the guide for, or EVERY_FAMILY."""
+    found = {json.dumps(item['dialect']) for item in value['resources'].values() if 'dialect' in item}
+    if len(found) > 1:
+        raise ValueError('reading resources name different model families')
+    return json.loads(found.pop()) if found else EVERY_FAMILY
+
+
+def _capture_resources(manifest: dict, bodies: list, dialect: Any) -> None:
     manifest['resources'] = {}
     if 'prompt-dialect' not in manifest['features']:
+        if dialect is not EVERY_FAMILY:
+            raise ValueError('a model selects prompt-writing guide sections; the reading has no prompt-dialect feature')
         return
     from catalog_retrieval.runtime import load_pack_catalog
     from pack_cache import resource_warning
@@ -172,10 +198,15 @@ def _capture_resources(manifest: dict, bodies: list) -> None:
         if len(roots) != 1:
             raise ValueError('resource provider must identify exactly one pack root: ' + name)
         relative = path.relative_to(next(iter(roots))).as_posix()
-        raw = c.read(c.local(next(iter(roots)), relative)); c.decode(raw)
+        raw = c.read(c.local(next(iter(roots)), relative))
         meta = {'status': 'present', 'source_pack': resource.source_pack, 'path': relative, 'sha256': c.digest(raw)}
+        if dialect is not EVERY_FAMILY:
+            meta['dialect'] = dialect
+            raw = _family(name, c.decode(raw), dialect)
+        c.decode(raw)
         manifest['resources'][name] = meta
-        bodies.append(({'kind': 'resource', 'resource': name, **meta}, raw))
+        # The delivered bytes carry their own digest; the manifest binds the source file.
+        bodies.append(({'kind': 'resource', 'resource': name, **meta, 'sha256': c.digest(raw)}, raw))
 
 
 def _validate_resources(value: dict) -> None:
@@ -183,15 +214,20 @@ def _validate_resources(value: dict) -> None:
     expected = {'prompt-writing-guide', 'prompt-dialects'} if 'prompt-dialect' in value['features'] else set()
     if not isinstance(resources, dict) or set(resources) != expected:
         raise ValueError('reading resource set differs from its feature requirements')
+    fields = {'status', 'source_pack', 'path', 'sha256'}
     for item in resources.values():
         if isinstance(item, dict) and item.get('status') == 'unavailable':
             c.exact(item, {'status'}, 'unavailable resource')
         else:
-            c.exact(item, {'status', 'source_pack', 'path', 'sha256'}, 'reading resource')
+            c.exact(item, fields | {'dialect'} if isinstance(item, dict) and 'dialect' in item else fields,
+                    'reading resource')
             if item['status'] != 'present':
                 raise ValueError('invalid resource status')
             c.sha(item['sha256']); c.text(item['source_pack'], 'resource provider')
             c.local(ROOT, item['path'], exists=False)
+            if 'dialect' in item and item['dialect'] is not None:
+                c.text(item['dialect'], 'reading model family')
+    bound_dialect(value)
 
 
 def _require_resource_applications(record: dict, bodies: list, dialect: str | None) -> None:
@@ -199,6 +235,10 @@ def _require_resource_applications(record: dict, bodies: list, dialect: str | No
     if not isinstance(applications, list):
         raise ValueError('resource applications must be an array')
     available = {meta['resource']: c.decode(raw) for meta, raw in bodies if meta['kind'] == 'resource'}
+    bound = bound_dialect(record)
+    if dialect is not _NO_MODEL and bound is not EVERY_FAMILY and bound != dialect:
+        raise ValueError(f'the reading holds the prompt-writing guide for the {bound!r} model family; '
+                         'read the route again with --model for this model')
     if dialect is not _NO_MODEL and dialect is not None:
         ids = {x['id'] for x in available.get('prompt-dialects', {}).get('dialects', [])}
         if dialect not in ids:
@@ -292,7 +332,8 @@ def _validate_manifest(value: dict[str, Any]) -> None:
     _validate_resources(value)
 
 
-def capture(route: str, features: list[str] | None = None, *, root: Path = ROOT) -> tuple[dict, list[tuple[dict, bytes]]]:
+def capture(route: str, features: list[str] | None = None, *, root: Path = ROOT,
+            dialect: Any = EVERY_FAMILY) -> tuple[dict, list[tuple[dict, bytes]]]:
     resolved = execution_routes.resolve(route, features, root=root)
     bodies = []
     for entry in resolved['reads']:
@@ -302,7 +343,7 @@ def capture(route: str, features: list[str] | None = None, *, root: Path = ROOT)
             raise ValueError('document changed while reading: ' + entry['path'])
         bodies.append(({'kind': 'document', **entry}, raw))
     manifest = {'route': resolved['route'], 'features': resolved['features'], 'documents': resolved['reads']}
-    _capture_resources(manifest, bodies)
+    _capture_resources(manifest, bodies, dialect)
     return manifest, bodies
 
 
@@ -323,18 +364,19 @@ def _issue(manifest: dict, ledger: Path, *, key: str | None = None, at: str | No
 
 def issue(route: str, features: list[str] | None = None, *, root: Path = ROOT,
           project: Path | None = None, ledger: Path | None = None, stream: TextIO | None = None,
-          key: str | None = None, at: str | None = None, cwd: str | None = None) -> dict:
+          key: str | None = None, at: str | None = None, cwd: str | None = None,
+          dialect: Any = EVERY_FAMILY) -> dict:
     """Output all bytes before issuing evidence. Fixed key/time are fixture inputs."""
     stream = sys.stdout if stream is None else stream
     target = ledger if ledger is not None else ledger_candidates(project=project)[0]
-    manifest, bodies = capture(route, features, root=root)
+    manifest, bodies = capture(route, features, root=root, dialect=dialect)
     for meta, raw in bodies:
         stream.write('--- ' + json.dumps(meta, ensure_ascii=False) + ' ---\n')
         stream.write(raw.decode('utf-8'))
         stream.write('\n')
     stream.flush()
     with c.lock(target.parent):
-        current, _ = capture(route, features, root=root)
+        current, _ = capture(route, features, root=root, dialect=dialect)
         if manifest != current:
             raise ValueError('reading sources changed; read the current documents')
         issued = _issue(manifest, target, key=key, at=at, cwd=cwd)
@@ -369,8 +411,8 @@ def validate_record_content(record: Any) -> None:
         raise ValueError('reading applications must be an array')
     for item in record['applied']:
         c.exact(item, {'path', 'quote', 'why'}, 'document application')
-        c.text(item['quote'], 'quotation')
-        c.text(item['why'], 'application reason')
+        c.text(item['quote'], f"{item['path']}: quotation")
+        c.text(item['why'], f"{item['path']}: application reason")
         if item['path'] not in available:
             raise ValueError('quotation document is absent from the recorded edition')
     if RECORD_RESOURCE_FIELDS:
@@ -379,7 +421,7 @@ def validate_record_content(record: Any) -> None:
         for item in record['resource_applied']:
             c.exact(item, {'resource', 'pointer', 'quote', 'why'}, 'resource application')
             for field in item:
-                c.text(item[field], field)
+                c.text(item[field], 'resource application ' + field)
             if item['resource'] not in record['resources']:
                 raise ValueError('quotation resource is absent from the recorded edition')
 
@@ -396,7 +438,7 @@ def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path]
         expected_features = execution_routes.resolve(record['route'], features, root=root)['features']
         if expected_features != record['features']:
             raise ValueError('reading features do not match the execution features')
-    current, bodies = capture(record['route'], record['features'], root=root)
+    current, bodies = capture(record['route'], record['features'], root=root, dialect=bound_dialect(record))
     for field in current:
         if record[field] != current[field]:
             raise ValueError('reading ' + field + ' differs from the current sources; read again')
@@ -513,7 +555,8 @@ def _position(snapshot: dict, offset: int) -> tuple[int, int]:
 def read_page(*, route: str | None = None, features: list[str] | None = None,
               cursor: str | None = None, replay: bool = False, page_bytes: int = 16384,
               root: Path = ROOT, project: Path | None = None, ledger: Path | None = None,
-              stream: TextIO | None = None, runtime: dict | None = None) -> dict:
+              stream: TextIO | None = None, runtime: dict | None = None,
+              dialect: Any = EVERY_FAMILY) -> dict:
     """Deliver an immutable page, then record its exact byte range under a lock."""
     if isinstance(page_bytes, bool) or not isinstance(page_bytes, int) or page_bytes < 4:
         raise ValueError('page-bytes must be an integer of at least four')
@@ -523,7 +566,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         if cursor is None:
             if route is None:
                 raise ValueError('a route is required to start reading')
-            manifest, bodies = capture(route, features, root=root)
+            manifest, bodies = capture(route, features, root=root, dialect=dialect)
             snapshot = {'manifest': manifest, 'root': str(root.absolute()), 'runtime': runtime,
                         'nonce': secrets.token_hex(16), 'bodies': [dict(meta, size=len(raw)) for meta, raw in bodies]}
             sid = c.content_id(snapshot)
@@ -534,8 +577,8 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
                 c.object_store(folder, raw)
             start = 0
         else:
-            if route is not None or features:
-                raise ValueError('a cursor fixes its route and features')
+            if route is not None or features or dialect is not EVERY_FAMILY:
+                raise ValueError('a cursor fixes its route, features and model')
             folder, snapshot, page = _cursor(ledger, cursor)
             sid = c.content_id(snapshot)
             if str(root.absolute()) != snapshot['root']:
@@ -596,7 +639,8 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
                 reach = max(reach, high)
             if reach != total:
                 raise ValueError('reading snapshot is incomplete')
-            current, _ = capture(snapshot['manifest']['route'], snapshot['manifest']['features'], root=root)
+            current, _ = capture(snapshot['manifest']['route'], snapshot['manifest']['features'], root=root,
+                                 dialect=bound_dialect(snapshot['manifest']))
             if current != snapshot['manifest']:
                 raise ValueError('sources changed during reading; start a new read')
             result['issued'] = _issue(current, ledger)
@@ -607,10 +651,36 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
     return result
 
 
+def draft_record(issued: dict, *, root: Path = ROOT) -> dict:
+    """The reading record with every derived field filled and each authored field null."""
+    row = issued['row']
+    always = set(c.load(c.local(root, execution_routes.MANIFEST))['always_read'])
+    guide = row['resources'].get('prompt-writing-guide', {}).get('status') == 'present'
+    return {'route': row['route'], 'features': row['features'], 'reading_key': issued['reading_key'],
+            'documents': row['documents'], 'resources': row['resources'],
+            'applied': [{'path': item['path'], 'quote': None, 'why': None}
+                        for item in row['documents'] if item['path'] not in always],
+            'resource_applied': [{'resource': 'prompt-writing-guide', 'pointer': None, 'quote': None, 'why': None}]
+                                if guide else []}
+
+
+def write_draft(issued: dict, ledger: Path, *, root: Path = ROOT) -> Path:
+    """Write the draft beside the ledger once; an existing file keeps what the author wrote."""
+    row = issued['row']
+    path = ledger.parent / 'readings' / (row['route'] + '-' + row['key_sha256'][:16] + '.json')
+    raw = (json.dumps(draft_record(issued, root=root), ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+    try:
+        c.atomic(path, raw)
+    except FileExistsError:
+        pass
+    return path
+
+
 def add_read_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('route', nargs='?')
     parser.add_argument('--feature', action='append', default=[])
     parser.add_argument('--root', type=Path, help='Project or studio root for the reading ledger')
+    parser.add_argument('--model', help="Read only the prompt-writing guide sections for this model's family")
     parser.add_argument('--page-bytes', type=int)
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--continue', dest='cursor')
@@ -619,14 +689,28 @@ def add_read_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
+    """Read, then write the draft reading record for the issued key and print its path."""
     runtime = _configure_runtime(args, parser)
+    ledger = ledger_candidates(project=args.root)[0]
+    dialect = EVERY_FAMILY
+    if args.model is not None:
+        from prepare_generation_references import resolve_model_record
+        dialect = resolve_model_record(args.model)[1].get('prompt_dialect')
     if args.cursor or args.replay or args.page_bytes is not None:
-        return read_page(route=args.route, features=args.feature, cursor=args.cursor or args.replay,
-                         replay=bool(args.replay), page_bytes=16384 if args.page_bytes is None else args.page_bytes,
-                         project=args.root, runtime=runtime)
-    if args.route is None:
+        result = read_page(route=args.route, features=args.feature, cursor=args.cursor or args.replay,
+                           replay=bool(args.replay), page_bytes=16384 if args.page_bytes is None else args.page_bytes,
+                           ledger=ledger, runtime=runtime, dialect=dialect)
+        issued = result.get('issued')
+    elif args.route is None:
         raise ValueError('read requires a route or a continuation cursor')
-    return issue(args.route, args.feature, project=args.root)
+    else:
+        result = issued = issue(args.route, args.feature, ledger=ledger, dialect=dialect)
+    if issued is not None:
+        path = write_draft(issued, ledger)
+        project = args.root.absolute() if args.root is not None else None
+        shown = path.relative_to(project).as_posix() if project is not None and path.is_relative_to(project) else str(path)
+        print('reading-record: ' + shown, flush=True)
+    return result
 
 
 def main() -> int:

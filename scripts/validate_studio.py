@@ -28,7 +28,8 @@ import work_ledger  # noqa: E402
 MANIFEST_FIELDS = {"studio_id", "title", "created_at", "characters"}
 ITERATION_FIELDS = {
     "iteration_id", "at", "character", "slot", "status", "acceptances", "result", "package", "request",
-    "request_layout", "response", "service", "seed", "note", "accepted_path", "superseded_by", "rejected_at", "reason",
+    "request_layout", "response", "answer", "service", "seed", "note", "accepted_path", "superseded_by", "rejected_at",
+    "reason",
 }
 
 
@@ -44,6 +45,19 @@ def check_file_reference(root: Path, reference: Any, label: str, errors: list[st
         return
     if studio.sha256_file(path) != reference["sha256"]:
         errors.append(f"{label}: {reference['path']} no longer matches its recorded sha256")
+
+
+def check_answer(root: Path, row: dict[str, Any], label: str, errors: list[str]) -> None:
+    """The response of an iteration that keeps the service's answer names that answer by its sha256."""
+    answer, response = row.get("answer"), row.get("response")
+    if not isinstance(answer, dict):
+        return
+    try:
+        named = studio.read_json(root / str((response or {}).get("path")))
+    except (OSError, ValueError):
+        named = None
+    if not isinstance(named, dict) or named.get("answer_sha256") != answer.get("sha256"):
+        errors.append(f"{label}: the response does not name the kept answer by its sha256")
 
 
 def check_character_ids(listed: list[Any], on_disk: list[str], errors: list[str]) -> None:
@@ -163,8 +177,9 @@ def validate(root: Path) -> list[str]:
             if not isinstance(row.get("slot"), str) or not studio.SLOT.match(row.get("slot") or ""):
                 errors.append(f"{label}: slot is not a slot name")
             ids.append(str(row.get("iteration_id")))
-            for name in ("result", "package", "request", "response"):
+            for name in ("result", "package", "request", "response", "answer"):
                 check_file_reference(root, row.get(name), f"{label} {name}", errors)
+            check_answer(root, row, label, errors)
             check_layout(root, row, label, errors)
             if row.get("status") == "accepted":
                 if row["slot"] in accepted_slots:

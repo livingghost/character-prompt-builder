@@ -7,6 +7,9 @@ import request_contract as rc
 import request_contract_smoke_test as fixture
 from input_evidence import InputEvidence
 import production_variation as variation
+from smoke_fixtures import isolate_home
+
+isolate_home()
 
 class FieldTests(fixture.RequestContractTests):
     def test_variation_seed_changes_exact_tuple(self):

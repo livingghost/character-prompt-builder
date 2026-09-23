@@ -5,6 +5,7 @@ import copy
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import artifact_review as ar
 import evaluation_evidence as ev
@@ -56,6 +57,22 @@ class EvidenceToolsTests(unittest.TestCase):
         self.assertTrue(data['sources'][0]['file']['download'] in files)
         self.assertEqual(len(data['candidates']), 1)
         self.assertFalse(data['completion_recorded'])
+
+    def test_review_reuses_the_digest_of_unchanged_installed_files(self):
+        run, _ = self.captured()
+        dependencies = w.load_run(self.root, run)[1]['dependencies']
+        self.assertTrue(any(item['space'] == 'skill' for item in dependencies))
+        installed = w.ROOT.resolve()
+        original_read = c.read
+
+        def read(path, *args, **kwargs):
+            if Path(path).resolve().is_relative_to(installed):
+                raise AssertionError(f'an unchanged installed file was read again: {path}')
+            return original_read(path, *args, **kwargs)
+
+        with patch.object(c, 'read', read):
+            data, _ = ar.build(self.root, run)
+        self.assertTrue(data['current'], data['changed_dependencies'])
 
     def test_no_artifact_is_not_a_generated_result(self):
         run = self.fixture.prepare()

@@ -10,23 +10,13 @@ sheet remains candidate material until the owner accepts it.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import os
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from character_sheet import sheet_status, validate_sidecar
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+from execution_contract import atomic_write_json, sha256_file
 
 
 def load_json_object(path: Path, *, label: str) -> dict[str, Any]:
@@ -124,22 +114,6 @@ def ensure_output_inside_sheet(out_dir: Path, *, sheet_root: Path) -> None:
             raise ValueError("--out must not traverse a symbolic link")
 
 
-def write_json_atomic(path: Path, value: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    os.close(descriptor)
-    temporary = Path(temporary_name)
-    try:
-        temporary.write_text(
-            json.dumps(value, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
 def sidecar_slot_id(sidecar: Mapping[str, Any], box: Mapping[str, Any]) -> str:
     slots = sidecar.get("slots")
     if isinstance(slots, Mapping):
@@ -181,7 +155,7 @@ def bind_slot_images(
         slot.pop("generation_package_sha256", None)
     normalized["sheet_status"] = sheet_status(normalized)
     validate_sidecar(normalized, sheet_root=sheet_root, verify_files=False)
-    write_json_atomic(sidecar_path, normalized)
+    atomic_write_json(sidecar_path, normalized)
     return {
         "path": str(sidecar_path),
         "sha256": sha256_file(sidecar_path),
@@ -371,7 +345,7 @@ def harvest_sheet(
         "sidecar_update": sidecar_report,
     }
     manifest_path = out_dir / "harvest-manifest.json"
-    write_json_atomic(manifest_path, manifest)
+    atomic_write_json(manifest_path, manifest)
     return {
         "manifest": manifest_path,
         "crops": manifest_crops,

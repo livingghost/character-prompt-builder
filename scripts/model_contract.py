@@ -8,7 +8,9 @@ without creating an import cycle.
 from __future__ import annotations
 
 import json
+import math
 import re
+import string
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -37,7 +39,7 @@ MODEL_RECORD_KEYS = frozenset(
 # that was observed. schema_snapshot points at the service's own parameter
 # schema for the model, stored in the pack as observed.
 OFFERING_KEYS = frozenset(
-    {"service", "model_identifier", "request_keys", "constraints", "observed_at", "schema_snapshot", "setting_keys", "parameter_keys", "schema_contract", "schema_acquisition", "parameter_observations", "reference_schemas", "production_context_transport", "reference_instruction_transport"}
+    {"service", "model_identifier", "request_keys", "constraints", "observed_at", "schema_snapshot", "setting_keys", "parameter_keys", "schema_contract", "schema_acquisition", "parameter_observations", "reference_schemas", "production_context_transport", "reference_instruction_transport", "size_format"}
 )
 OFFERING_REQUIRED = ("service", "model_identifier", "request_keys", "constraints", "observed_at")
 OBSERVED_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -47,6 +49,14 @@ OBSERVED_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 PROMPT_ROLE = "prompt"
 NEGATIVE_ROLE = "negative prompt"
 MODEL_ROLE = "model"
+# The roles that carry the image size: the width and the height on two keys, or
+# both on one key as the text the offering's size_format writes. In that text,
+# {width} and {height} are the sides in pixels, and {ratio_width} and
+# {ratio_height} are the two numbers of the aspect ratio, such as 2 and 3.
+WIDTH_ROLE = "width"
+HEIGHT_ROLE = "height"
+SIZE_ROLE = "size"
+SIZE_PLACEHOLDERS = frozenset({"width", "height", "ratio_width", "ratio_height"})
 # What stands in for an uploaded file when a request is checked before anything is uploaded.
 PLACEHOLDER_MEDIA = "00000000-0000-4000-8000-000000000000"
 # The roles a service can take prepared references on, best first. The offering
@@ -147,6 +157,7 @@ def _validate_offerings(record: Mapping[str, Any], errors: list[str]) -> None:
                         )
                 if record.get("operation_kind") in {"generation", "instruction-edit"} and PROMPT_ROLE not in keys:
                     errors.append(f"{where}.request_keys must name the request key of the {PROMPT_ROLE!r}")
+                errors.extend(f"{where}: {issue}" for issue in _size_key_issues(offering, keys))
         if "constraints" in offering and not isinstance(offering["constraints"], Mapping):
             errors.append(f"{where}.constraints must be an object")
         observed = offering.get("observed_at")
@@ -585,6 +596,49 @@ def required_request_key(offering: Mapping[str, Any], role: str) -> str:
     if key is None:
         raise ValueError(f"the offering on {offering.get('service')!r} records no request key for the {role!r}")
     return key
+
+
+def _size_key_issues(offering: Mapping[str, Any], keys: Mapping[str, Any]) -> list[str]:
+    """What is wrong with the way an offering records the image size."""
+
+    issues: list[str] = []
+    if (WIDTH_ROLE in keys) != (HEIGHT_ROLE in keys):
+        issues.append("request_keys names 'width' and 'height' together")
+    if SIZE_ROLE in keys and WIDTH_ROLE in keys:
+        issues.append("request_keys records the size on 'width' and 'height' or on one 'size' key, not both")
+    template = offering.get("size_format")
+    if (SIZE_ROLE in keys) != ("size_format" in offering):
+        issues.append("size_format and request_keys['size'] go together: the format writes the text of that key")
+    if "size_format" in offering:
+        try:
+            fields = [row for row in string.Formatter().parse(template) if row[1] is not None] if isinstance(template, str) else []
+        except ValueError:
+            fields = []
+        if not fields or any(name not in SIZE_PLACEHOLDERS or spec or conversion for _, name, spec, conversion in fields):
+            issues.append(f"size_format must be text naming only {sorted(SIZE_PLACEHOLDERS)} in braces, such as '{{width}}x{{height}}'")
+    return issues
+
+
+def size_fields(
+    offering: Mapping[str, Any], width: int, height: int, ratio: tuple[str, str] | None = None
+) -> dict[str, Any] | None:
+    """The image size on the request keys the offering gives it, or None where it records none.
+
+    `ratio` is the aspect ratio as its two numbers are written, such as ("2", "3").
+    Without it, the sides in lowest terms stand in.
+    """
+
+    width_key, height_key, size_key = (request_key(offering, role) for role in (WIDTH_ROLE, HEIGHT_ROLE, SIZE_ROLE))
+    if width_key and height_key:
+        return {width_key: width, height_key: height}
+    template = offering.get("size_format")
+    if not size_key or not isinstance(template, str):
+        return None
+    if ratio is None:
+        divisor = math.gcd(width, height)
+        ratio = (str(width // divisor), str(height // divisor))
+    values = {"width": width, "height": height, "ratio_width": ratio[0], "ratio_height": ratio[1]}
+    return {size_key: template.format_map(values)}
 
 
 def request_instance(

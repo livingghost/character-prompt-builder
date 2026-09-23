@@ -2737,7 +2737,7 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "40bd59b19a4ebb25f5362b58921ffa5ca2c0bd4a02138621433165f6e563093f",
+  "generation_input_sha256": "b033e54c04b5da11fabb3457f492cbf42526161c574e79fa7309f34287cf1a29",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -2876,10 +2876,10 @@
     "retrieval_record_sha256": "5b311ba9ba9fb2a8096168c558878d540b9d17b15b2e22c65c753d70a04a2dac",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-    "generation_input_sha256": "40bd59b19a4ebb25f5362b58921ffa5ca2c0bd4a02138621433165f6e563093f",
+    "generation_input_sha256": "b033e54c04b5da11fabb3457f492cbf42526161c574e79fa7309f34287cf1a29",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
     "visual_continuity_sha256": "4f99d48f2b415e826c076d18aafa8bd692e4ed5cc4c326088e12bdfcebcc6146",
-    "route_reading_sha256": "7c1e4bd13b3248025aed64b02c7284947f265f174b4966893d7b171116a64f72",
+    "route_reading_sha256": "80ee4ef29b3f80fa403462b2a9b9335b7b3efd7ff37537118b8dcc849b679978",
     "request_validation_sha256": "7f3e001a72070b03f5fcaf686341b43ccb0b66bd69eb5a9e7afeb938dafd1421",
     "input_snapshots_sha256": "4ed9a6cf37d1fec78fb483cfa6eca8acb1372cb1e08e6b60148ef414c46b2125"
   },
@@ -2912,7 +2912,7 @@
       },
       {
         "path": "references/runtime/production-execution.md",
-        "sha256": "2ba6a025a618aa2685cf2934b43c7b6cccd4512d53aedc342d2522c08731815f"
+        "sha256": "293e7488f9eb9445ed1d1f84f9b68f0a72c2873ee4f68effb6cf3f1ab26ddab8"
       },
       {
         "path": "references/runtime/state-aware-series.md",
@@ -2928,7 +2928,7 @@
       },
       {
         "path": "references/runtime/studio.md",
-        "sha256": "f87e5490c4d6b4ab1923053a9475fa492d085fba0b55e4c66c51129a7c69493c"
+        "sha256": "72d55768e462a0f69459d2f2e449e9e25cf2975b4b09d2d453d6627200750c62"
       },
       {
         "path": "references/runtime/world-realization.md",
@@ -2956,7 +2956,7 @@
       }
     },
     "route": "state-series",
-    "reading_key": "fb105273a3e764fb5398c8beab667295",
+    "reading_key": "6ae79a3b175a11e7617f4cedcbac125a",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
@@ -2993,7 +2993,7 @@
       }
     ]
   },
-  "route_reading_sha256": "7c1e4bd13b3248025aed64b02c7284947f265f174b4966893d7b171116a64f72",
+  "route_reading_sha256": "80ee4ef29b3f80fa403462b2a9b9335b7b3efd7ff37537118b8dcc849b679978",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",

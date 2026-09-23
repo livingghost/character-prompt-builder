@@ -8,24 +8,21 @@ hash equality is not artistic success. Discussion without an artifact does not r
 
 ## Assemble authored choices
 
-Use [Craft consultation](preset-consultation.md) while deciding what to write or revise. The lookup, application source, and authored review questions stay connected to the current task. Input inspection provides the concrete entry action.
+Use [Craft consultation](preset-consultation.md) while deciding what to write or revise.
 
+The route read writes a reading record at the path it prints, with the route, the key and every hash filled.
+Fill each null `quote` with twelve or more words of one paragraph of that document, and each `why` with how it applies to this task.
+A guide application takes a `pointer` such as `/sections/2/rules/0` and that rule's exact text.
+Name the completed file as the task's `route_reading`.
 
 `inspect-inputs` shows declared sources, recorded candidates, and required choices.
 `draft-inputs` creates an unanswered choices document in a new directory.
-The author supplies continuity and acceptance decisions; the operator supplies quotations, applications, and explicit source selections.
-`build-inputs` resolves those selections through the existing contract builders.
-It derives document hashes, image hashes, adoption selectors, and reference positions from recorded evidence.
-
-Each output directory is published after all required judgments and current evidence validate.
-An incomplete selection returns named unresolved fields and preserves existing files.
-The original task and source artifacts remain unchanged.
-Construction returns formal inputs, their provenance, and arguments for the next operation.
+`build-inputs` resolves those choices through the existing contract builders and derives image hashes, adoption selectors, and reference positions from recorded evidence.
+A dispatcher task needs a validation choice only for an upscale, bounded context or selected references; otherwise the Generation Package builder derives request validation and takes `--continuity` decisions.
+An incomplete selection returns named unresolved fields and publishes nothing; the task and its sources stay unchanged.
 Preparation, final request rendering, review, and authorization follow through their own commands.
 
-Use `--from-run` to name a saved run from the same work task.
-Copied reading applications retain their origin and require assessment for the current work.
-Choose current visual references and validation evidence explicitly.
+Use `--from-run` to name a saved run from the same work task; copied reading applications need assessment for the current work.
 The [synthetic input assembly example](../../examples/input-assembly/README.md) contains complete commands, choice fields, and actual output.
 
 ## Inputs and preparation
@@ -159,28 +156,6 @@ A recorded send step marks an execution attempt; provider completion and charges
 `recover-recording` downloads missing images from the saved answer and records them without a new service request.
 Current execution checks apply when creating new work; historical evidence remains inspectable.
 See the [synthetic resume example](../../examples/resume-recording/README.md) for an actual report before and after an input change.
-
-Executable fixtures in `examples/production-execution/` demonstrate these commands with explicit
-synthetic authority. They are processing tests, not user instructions or artwork-quality proof.
-
-
-## Processing regression checks
-
-Run these checks from the skill root. The fixtures supply explicitly synthetic authority;
-they neither grant real spending permission nor establish artistic quality.
-
-```text
-python scripts/production_direction_smoke_test.py
-python scripts/production_workflow_smoke_test.py
-python scripts/production_resume_smoke_test.py
-python examples/resume-recording/build_example.py --check
-python examples/production-execution/run_example.py --help
-python examples/production-execution/repair_example.py --help
-```
-
-The direction suite checks meaningful choices, bounded consumer instructions, media evidence,
-scoped authorization and reviewed repairs. The workflow suite also checks existing generation,
-recording, Studio adoption and completion boundaries. They use no peer skill installation.
 
 ## Deterministic pixel realization
 

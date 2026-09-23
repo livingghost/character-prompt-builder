@@ -19,8 +19,12 @@ the applicable model/service contract, or explicitly choose 1 for integer pixels
 
 Every answer is then put to the service's observed parameter schema, when the
 record's offering points at one, so a size is refused here rather than by the
-service. The width and the height are the only keys judged; the rest of the
-request is the package's business.
+service. The size goes on the keys the offering's request_keys give it: a
+width and a height, or one size text that the offering's size_format writes.
+An aspect ratio in that text is the one requested or declared, not the sides
+reduced. Only the size is judged; the rest of the request is the package's
+business. An offering that records no size key leaves the size unchecked, and
+the report's size_fields is null.
 
 Output is JSON on stdout. The exit status is 1 when a size is refused.
 """
@@ -38,7 +42,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from catalog_retrieval.runtime import configure_pack_runtime  # noqa: E402
-from model_contract import offering_schema, request_instance, select_offering  # noqa: E402
+from model_contract import offering_schema, request_instance, select_offering, size_fields  # noqa: E402
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime  # noqa: E402
 from prepare_generation_references import model_pack_root, resolve_model_record  # noqa: E402
 
@@ -99,17 +103,26 @@ def resolve(ratio: float, pixels: int, multiple: int) -> tuple[int, int]:
     return width, height
 
 
+def ratio_sides(text: str | None) -> tuple[str, str] | None:
+    """The two numbers of a ratio label as written, such as ("2", "3"), or None for text that is no ratio."""
+
+    found = RATIO.match(text or "")
+    return (found.group(1), found.group(2)) if found else None
+
+
 def schema_refusals(record: dict[str, Any], service: str | None, model_id: str, width: int, height: int,
-                    pack_root: Path | None) -> tuple[list[str], dict[str, Any] | None]:
-    """What the service's observed parameter schema says about this width and height."""
+                    pack_root: Path | None, ratio: tuple[str, str] | None = None
+                    ) -> tuple[list[str], dict[str, Any] | None]:
+    """What the service's observed parameter schema says about this size, on the keys the offering gives it."""
 
     offering = select_offering(record, service)
     if offering is None:
         return [], None
+    fields = size_fields(offering, width, height, ratio)
     found = offering_schema(offering, pack_root if pack_root is not None else model_pack_root(model_id))
     summary = {"service": offering["service"], "model_identifier": offering["model_identifier"],
-               "observed_at": offering.get("observed_at")}
-    if found is None:
+               "observed_at": offering.get("observed_at"), "size_fields": fields}
+    if found is None or fields is None:
         return [], summary
     from state_protocol import validate_against_schema
 
@@ -118,9 +131,10 @@ def schema_refusals(record: dict[str, Any], service: str | None, model_id: str, 
     # request is put to the schema twice, once carrying the size and once without
     # it, and only what the size adds is a refusal of the size: what the probe is
     # missing otherwise is the package's business and is subtracted here.
-    sized = request_instance(offering, {"width": width, "height": height}, prompt=PROBE_PROMPT)
+    sized = request_instance(offering, fields, prompt=PROBE_PROMPT)
     unsized = request_instance(offering, {}, prompt=PROBE_PROMPT)
     without = set(validate_against_schema(unsized, found["schema"]))
+    named = {f"$.{key}": f"{key} {value}" for key, value in fields.items()}
     refusals: list[str] = []
     for message in validate_against_schema(sized, found["schema"]):
         if message in without:
@@ -128,12 +142,7 @@ def schema_refusals(record: dict[str, Any], service: str | None, model_id: str, 
         where, separator, detail = message.partition(": ")
         if not separator:
             where, detail = "", message
-        if where == "$.width":
-            refusals.append(f"width {width}: {detail}")
-        elif where == "$.height":
-            refusals.append(f"height {height}: {detail}")
-        else:
-            refusals.append(f"{width}x{height}: {detail}")
+        refusals.append(f"{named.get(where, f'{width}x{height}')}: {detail}")
     return sorted(dict.fromkeys(refusals)), summary
 
 
@@ -200,7 +209,11 @@ def settle(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
                 )
             width, height = resolve(ratio, pixels, args.multiple)
             source = f"proposed at {pixels} pixels using " + ("the explicitly supplied budget" if args.pixels is not None else "the median declared area (a proposal, not a training guarantee)")
-    refusals, service = schema_refusals(record, args.service, model_id, width, height, None)
+    # A service that takes an aspect ratio is asked for the ratio requested, or
+    # the one the record declares this size under.
+    labels = [requested, *(row["declared_under"] for row in sizes if (row["width"], row["height"]) == (width, height))]
+    ratio_label = next((sides for label in labels if (sides := ratio_sides(label))), None)
+    refusals, service = schema_refusals(record, args.service, model_id, width, height, None, ratio_label)
     report: dict[str, Any] = {
         "model": model_id,
         "requested_ratio": requested,

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from character_sheet import validate_sidecar
+from execution_contract import sha256_file
 from state_protocol import parse_json
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,14 +22,6 @@ HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def json_bytes(value: Any) -> bytes:

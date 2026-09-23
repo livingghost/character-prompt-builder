@@ -129,11 +129,22 @@ class ModelInputTests(unittest.TestCase):
         result = inputs.build_inputs(self.root, 'task.json', 'choices.json', 'built', runtime_arguments=context)
         action = next(item for item in result['next_actions'] if item['operation'] == 'build-generation-payload')
         self.assertEqual(action['args']['production-root'], str(self.root))
+        self.assertNotIn('continuity', action['required_args'])
         for key, value in context.items():
             self.assertEqual(action['args'][key], value)
         saved = c.load(self.root / 'built/input-report.json')
         self.assertEqual(saved['next_actions'], result['next_actions'])
         self.assertFalse(result['execution_ready'])
+
+    def test_null_choices_leave_continuity_and_validation_to_the_builder(self):
+        self.choices['visual'] = None
+        self.choices['validation'] = None
+        result = self.build()
+        self.assertEqual(sorted(result['inputs']), ['input-snapshots', 'production-task', 'route-reading'])
+        action = next(item for item in result['next_actions'] if item['operation'] == 'build-generation-payload')
+        self.assertEqual({key for key in action['args'] if key.endswith('-file')}, set())
+        self.assertEqual(action['required_args'], ['model', 'prompt-file', 'plot-file', 'retrieval-record-file',
+                                                   'production-spec-file', 'continuity', 'out'])
 
     def test_side_effect_entrypoints_are_not_called(self):
         import production_workflow

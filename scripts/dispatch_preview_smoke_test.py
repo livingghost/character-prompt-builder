@@ -1,32 +1,20 @@
 #!/usr/bin/env python3
 """Synthetic public-preview outputs from the real compiled upscale request."""
-import atexit
 import contextlib
 import copy
 import io
 import json
-import os
 from pathlib import Path
-import shutil
-import tempfile
 import unittest
 
-# Read no pack state or host configuration of the person running the tests.
-HOME = tempfile.mkdtemp(prefix="cpb-preview-home-")
-atexit.register(shutil.rmtree, HOME, True)
-os.environ["HOME"] = os.environ["USERPROFILE"] = HOME
+from smoke_fixtures import isolate_home
+
+isolate_home()
 from unittest.mock import patch
 import execution_contract as c
 import production_workflow as workflow
 import production_request
 import reimplementation_smoke_test as fixture
-import pack_manager
-# The fresh home's pack runtime enables the shipped default packs alone,
-# whatever personal packs sit beside them.
-pack_manager.initialize_state_file(
-    pack_manager.default_settings(),
-    only=pack_manager.load_state(pack_manager.DEFAULT_PACK_STATE_PATH)["enabled_packs"],
-)
 
 class PreviewTests(unittest.TestCase):
     setUp=fixture.UpscaleIntegration.setUp

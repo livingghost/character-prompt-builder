@@ -15,13 +15,14 @@ from model_contract import (
     model_reference_limit,
     request_instance,
     select_offering,
+    size_fields,
     validate_generation_parameters,
     validate_model_record,
 )
 from model_contract import apply_recommended_parameters  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_CHECKS = 55
+EXPECTED_CHECKS = 62
 
 
 def load_core_models() -> tuple[dict[str, dict[str, Any]], list[str]]:
@@ -308,6 +309,32 @@ def main() -> int:
     promptless["offerings"] = [{**offering, "request_keys": {"reference images": ["inputs.referenceImages"]}}]
     check("a generation offering that names no prompt key is refused",
           any("request key of the 'prompt'" in row for row in validate_model_record(promptless)), validate_model_record(promptless))
+    # The image size goes on two keys, or on one key as the text size_format writes.
+    sized = copy.deepcopy(separate_edit)
+    sized["offerings"] = [{**offering, "request_keys": {"prompt": ["prompt"], "size": ["size"]}, "size_format": "{width}x{height}"},
+                          {**offering, "service": "ratio", "request_keys": {"prompt": ["prompt"], "size": ["input.aspect_ratio"]},
+                           "size_format": "{ratio_width}:{ratio_height}"},
+                          {**offering, "service": "sides", "request_keys": {"prompt": ["prompt"], "width": ["image_size.width"],
+                                                                             "height": ["image_size.height"]}}]
+    check("an offering may take the size on two keys or as one formatted text",
+          validate_model_record(sized) == validate_model_record(separate_edit), validate_model_record(sized))
+    placed_sizes = [size_fields(item, 832, 1248) for item in sized["offerings"]]
+    check("the size is written on the keys and in the text each offering records",
+          placed_sizes == [{"size": "832x1248"}, {"input.aspect_ratio": "2:3"}, {"image_size.width": 832, "image_size.height": 1248}]
+          and size_fields(sized["offerings"][1], 1360, 768, ("16", "9")) == {"input.aspect_ratio": "16:9"}
+          and size_fields(offering, 832, 1248) is None, placed_sizes)
+    for label, broken in (
+        ("a width without a height", {"request_keys": {"prompt": ["prompt"], "width": ["width"]}}),
+        ("both a size and the two sides", {"request_keys": {"prompt": ["prompt"], "size": ["size"], "width": ["w"], "height": ["h"]},
+                                           "size_format": "{width}x{height}"}),
+        ("a size key with no format", {"request_keys": {"prompt": ["prompt"], "size": ["size"]}}),
+        ("a format with no size key", {"size_format": "{width}x{height}"}),
+        ("a format naming an unknown value", {"request_keys": {"prompt": ["prompt"], "size": ["size"]}, "size_format": "{width.real}"}),
+    ):
+        wrong = copy.deepcopy(separate_edit)
+        wrong["offerings"] = [{**offering, **broken}]
+        check(f"an offering recording {label} is refused", len(validate_model_record(wrong)) > len(validate_model_record(separate_edit)),
+              validate_model_record(wrong))
     # The request as the service sees it puts each input on the key the offering gives it.
     placed = request_instance({"model_identifier": "vendor:model@1", "request_keys": {
         "prompt": ["input.text"], "negative prompt": ["input.avoid"], "reference images": ["refs"]}},

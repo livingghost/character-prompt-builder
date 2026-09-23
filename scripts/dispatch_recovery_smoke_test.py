@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import atexit
 import copy
 import hashlib
 import contextlib
 import io
 import json
 import os
-import shutil
 import sys
 import tempfile
 import unittest
@@ -18,23 +16,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-# Read no pack state or host configuration of the person running the tests.
-HOME = tempfile.mkdtemp(prefix="cpb-dispatch-home-")
-atexit.register(shutil.rmtree, HOME, True)
-os.environ["HOME"] = os.environ["USERPROFILE"] = HOME
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-import dispatch
-import pack_manager
-import studio
+from smoke_fixtures import isolate_home
 
-# The fresh home's pack runtime enables the shipped default packs alone,
-# whatever personal packs sit beside them.
-pack_manager.initialize_state_file(
-    pack_manager.default_settings(),
-    only=pack_manager.load_state(pack_manager.DEFAULT_PACK_STATE_PATH)["enabled_packs"],
-)
+isolate_home()
+import dispatch
+import studio
 
 
 class DispatchRecoveryTests(unittest.TestCase):
@@ -493,6 +481,44 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual([row["seed"] for row in studio.read_iterations(self.home)], [11, 12])
         self.assertEqual((self.transport.send.call_count, self.transport.upload_bytes.call_count), (1, 1))
 
+    def test_an_inline_answer_is_kept_once_and_each_response_names_its_place_in_it(self):
+        import base64
+        import validate_studio
+        encoded = base64.b64encode(self.result_bytes).decode("ascii")
+        self.answer["data"] = [{"imageBase64Data": encoded, "seed": 11}, {"imageBase64Data": encoded, "seed": 12}]
+        self.entries = [{"data": encoded, "id": "one", "seed": 11}, {"data": encoded, "id": "two", "seed": 12}]
+        self.assertEqual(self.call(), 0)
+        path, _ = self.journal()
+        answer_sha256 = hashlib.sha256((path / "answer.json").read_bytes()).hexdigest()
+        for index, name in ((1, "one"), (2, "two")):
+            named = json.loads((path / f"response-{index}.json").read_text())
+            self.assertEqual({key: value for key, value in named.items() if key != "at"},
+                             {"answer_sha256": answer_sha256, "index": index, "seed": 10 + index, "id": name, "url": None})
+        holding = lambda folder: sorted(p.name for p in folder.rglob("*.json") if encoded in p.read_text(encoding="utf-8"))
+        self.assertEqual(holding(path), ["answer.json"])
+        rows = studio.read_iterations(self.home)
+        self.assertEqual(rows[0]["answer"], rows[1]["answer"])
+        self.assertEqual(rows[0]["answer"]["sha256"], answer_sha256)
+        self.assertEqual(holding(self.home), ["answer.json"])
+        self.assertEqual(studio.recipe(self.root, "C01", "base.front", iteration="it-0002")["evidence"]["answer"]["sha256"],
+                         answer_sha256)
+        self.assertEqual([error for error in validate_studio.validate(self.root) if "answer" in error or "response" in error], [])
+
+    def test_recovery_refuses_a_response_that_names_another_answer(self):
+        import base64
+        encoded = base64.b64encode(self.result_bytes).decode("ascii")
+        self.entries = [{"data": encoded, "id": "one", "seed": 11}, {"data": encoded, "id": "two", "seed": 12}]
+        real = dispatch.inline_image
+        with patch.object(dispatch, "inline_image", side_effect=[real(encoded), OSError("offline disk failure")]):
+            self.assertEqual(self.call(), 1)
+        path, _ = self.journal()
+        response = path / "response-2.json"
+        response.write_text(json.dumps({**json.loads(response.read_text()), "answer_sha256": "0" * 64}), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "names another answer"):
+            dispatch.recover(self.root, "synthetic-boundary-stub", path)
+        self.assertFalse((path / "result-2.png").exists())
+        self.assertEqual(len(studio.read_iterations(self.home)), 1)
+
     def test_recording_failure_preserves_result_and_reference_companion_for_recovery(self):
         companion = self.base / "generation-package.references"
         companion.mkdir()
@@ -508,8 +534,15 @@ class DispatchRecoveryTests(unittest.TestCase):
         # Re-record the saved files locally, with no second service request.
         row = studio.iterate(self.root, "C01", "base.front", path / "result-1.png", package=path / "package.json",
                              request=path / "request.json", response=path / "response-1.json", note="recovered",
-                             package_companion=path / companion.name)
+                             package_companion=path / companion.name, answer=path / "answer.json")
         self.assertEqual(row["seed"], 11)
+        self.assertEqual(row["answer"]["sha256"], hashlib.sha256((path / "answer.json").read_bytes()).hexdigest())
+        other = self.base / "other-answer.json"
+        other.write_text('{"data": []}', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "does not name the answer"):
+            studio.iterate(self.root, "C01", "base.front", path / "result-1.png", package=path / "package.json",
+                           request=path / "request.json", response=path / "response-1.json", note="recovered",
+                           answer=other)
         self.assertEqual(self.transport.send.call_count, 1)
 
     def test_recovery_cli_keeps_saved_companion_without_resending(self):

@@ -212,6 +212,31 @@
         "constraints",
         "observed_at"
       ],
+      "if": {
+        "required": [
+          "size_format"
+        ]
+      },
+      "then": {
+        "properties": {
+          "request_keys": {
+            "required": [
+              "size"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "request_keys": {
+            "not": {
+              "required": [
+                "size"
+              ]
+            }
+          }
+        }
+      },
       "properties": {
         "service": {
           "type": "string",
@@ -224,7 +249,7 @@
         },
         "request_keys": {
           "type": "object",
-          "description": "The request key each input occupies, by role: model, prompt, negative prompt, reference images, seed image, mask image, input image, guidance prompt. The value is an array because a role may need more than one key; a role whose name ends in images occupies a list. A generation offering names its prompt; one without a negative prompt says the target has no negative field, and one without a model says the address names the model.",
+          "description": "The request key each input occupies, by role: model, prompt, negative prompt, reference images, seed image, mask image, input image, guidance prompt, and for the image size either width and height or one size key whose text size_format writes. The value is an array because a role may need more than one key; a role whose name ends in images occupies a list. A generation offering names its prompt; one without a negative prompt says the target has no negative field, and one without a model says the address names the model.",
           "propertyNames": {
             "$ref": "#/$defs/non-empty-string"
           },
@@ -234,7 +259,26 @@
             "items": {
               "$ref": "#/$defs/non-empty-string"
             }
+          },
+          "dependentRequired": {
+            "width": [
+              "height"
+            ],
+            "height": [
+              "width"
+            ]
+          },
+          "not": {
+            "required": [
+              "size",
+              "width"
+            ]
           }
+        },
+        "size_format": {
+          "type": "string",
+          "pattern": "\\{(width|height|ratio_width|ratio_height)\\}",
+          "description": "How the text of the size request key is written: {width} and {height} are the sides in pixels, {ratio_width} and {ratio_height} the two numbers of the aspect ratio, such as {width}x{height} or {ratio_width}:{ratio_height}."
         },
         "constraints": {
           "type": "object",

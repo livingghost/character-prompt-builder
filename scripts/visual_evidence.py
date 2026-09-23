@@ -8,6 +8,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from execution_contract import sha256_file
+
 _FORBIDDEN_ACTIVE_TAGS = (
     b"<image",
     b"<script",
@@ -132,14 +134,6 @@ def _contains_event_attribute(data: bytes) -> bytes | None:
                 return token + b"="
     return None
 
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def canonical_json(obj: Any) -> str:

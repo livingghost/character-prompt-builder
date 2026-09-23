@@ -13,7 +13,6 @@ to anything cut back out of the board.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -21,18 +20,11 @@ from typing import Any, Mapping, Sequence
 
 from PIL import Image, ImageOps
 
+from execution_contract import sha256_file
 from harvest_sheet_render import bind_slot_images, load_json_object, validate_layout
 
 COMPOSITOR_ID = "compose_sheet_panel_fills"
 PANEL_FILL_TRANSPORT = "panel-images"
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def resolve_committed_file(

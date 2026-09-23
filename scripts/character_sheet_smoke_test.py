@@ -7,13 +7,16 @@ import hashlib
 import json
 import shutil
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any, Callable, Mapping
+from unittest import mock
 
 from PIL import Image, ImageDraw, ImageFont
 
 from character_sheet import bind_sidecar, initialize_sidecar, sheet_status, validate_sidecar
+from character_sheet_render import textmetrics
 from character_sheet_render.textmetrics import font_has_glyph, segment_text_by_font
 from compose_sheet_panel_fills import compose_panel_fills
 from harvest_sheet_render import harvest_sheet
@@ -47,7 +50,7 @@ from render_character_sheet import (
 from state_protocol import validate_against_schema
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_CHECKS = 151
+EXPECTED_CHECKS = 152
 
 
 def expect_error(fn: Callable[[], Any], text: str) -> bool:
@@ -72,6 +75,58 @@ def panel_prompts(render_result: Mapping[str, Any]) -> list[tuple[dict[str, Any]
         )
         for request in manifest["requests"]
     ]
+
+
+def cjk_font_lookup_order() -> tuple[bool, dict[str, Any]]:
+    """Known font paths come first, fontconfig answers when none loads, and text without a font fails."""
+
+    regular = textmetrics.usable_cjk_font_files("regular")
+    bold = textmetrics.usable_cjk_font_files("bold")
+    if not regular or not bold:
+        return False, {"regular": [str(path) for path in regular], "bold": [str(path) for path in bold]}
+    pair = list(dict.fromkeys([*regular, *bold]))[:2]
+    early, late = min(pair), max(pair)
+    absent = [Path(tempfile.gettempdir()) / "cpb-absent-known-font.ttc"]
+    listings = {"ja": f"{absent[0]}\n{late}\n{late}\n", "ko": f"{early}\n{late}\n"}
+    queries: list[str] = []
+
+    def fake_fc_list(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        queries.append(command[-1])
+        language = command[-1].split(":")[1].removeprefix("lang=")
+        return subprocess.CompletedProcess(command, 0, stdout=listings.get(language, ""), stderr="")
+
+    which = mock.Mock(return_value="fc-list")
+    try:
+        textmetrics.fontconfig_cjk_font_files.cache_clear()
+        with mock.patch.object(textmetrics.shutil, "which", which), \
+                mock.patch.object(textmetrics.subprocess, "run", side_effect=fake_fc_list):
+            known = textmetrics.usable_cjk_font_files("regular")
+            known_asked_fontconfig = which.called
+            with mock.patch.object(textmetrics, "cjk_font_candidates", return_value=absent):
+                listed = textmetrics.usable_cjk_font_files("regular")
+                runs = segment_text_by_font("regular", "見本")
+        textmetrics.fontconfig_cjk_font_files.cache_clear()
+        with mock.patch.object(textmetrics.shutil, "which", return_value=None), \
+                mock.patch.object(textmetrics, "cjk_font_candidates", return_value=absent):
+            fails_closed = expect_error(lambda: segment_text_by_font("regular", "見本"), "no usable CJK font file")
+    finally:
+        textmetrics.fontconfig_cjk_font_files.cache_clear()
+    detail = {
+        "known": [str(path) for path in known],
+        "listed": [str(path) for path in listed],
+        "queries": queries,
+        "runs": [[str(path), text] for path, text in runs],
+        "fails_closed": fails_closed,
+    }
+    passed = (
+        known == regular
+        and not known_asked_fontconfig
+        and listed == list(dict.fromkeys([late, early]))
+        and queries == [f":lang={language}:weight=regular" for language in ("ja", "ko", "zh-cn", "zh-tw")]
+        and runs == [(late, "見本")]
+        and fails_closed
+    )
+    return passed, detail
 
 
 def generation_package() -> dict[str, Any]:
@@ -1139,6 +1194,10 @@ def main() -> int:
             and glyphs_are_real
             and name_has_ink,
             raster_text,
+        )
+        check(
+            "CJK fonts resolve from the known paths first, then from fontconfig, and fail closed without either",
+            *cjk_font_lookup_order(),
         )
         render_package = json.loads(scaffold["package"].read_text(encoding="utf-8"))
         check(
