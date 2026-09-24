@@ -44,6 +44,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime  # noqa: E402
+
 WEIGHT = re.compile(r"(?<!\\):\s*\d+(?:\.\d+)?")
 UNESCAPED = re.compile(r"(?<!\\)[\[\]]")
 BREAK = re.compile(r"(?:^|[\s,])BREAK(?:[\s,]|$)")
@@ -259,36 +261,43 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", help="A model record, to check the rendition against its declared limits and its family")
     parser.add_argument("--dialect", help="A model family by its id, for a family with no model record")
     parser.add_argument("--dialects", help="A prompt-dialects JSON file, instead of the active pack's")
+    add_pack_runtime_arguments(parser)
     args = parser.parse_args(argv)
     if not args.dictionary.is_file():
         raise SystemExit(f"{args.dictionary} is not a file")
-    record = None
-    dialect_id = args.dialect
-    if args.model:
-        from prepare_generation_references import resolve_model_record
+    from catalog_cli import configure_pack_runtime
+    runtime = resolve_pack_runtime(parser, args)
+    configure_pack_runtime(runtime.settings)
+    try:
+        record = None
+        dialect_id = args.dialect
+        if args.model:
+            from prepare_generation_references import resolve_model_record
 
-        model_id, record = resolve_model_record(args.model)
-        named = record.get("prompt_dialect")
-        if args.dialect and named and named != args.dialect:
-            raise SystemExit(f"model record {model_id!r} names the {named!r} family, not {args.dialect!r}")
-        dialect_id = dialect_id or named
-    dialect = None
-    if dialect_id:
-        from pack_manager import PackError
-        from prompt_dialect import find_dialect, resolve_resource
+            model_id, record = resolve_model_record(args.model)
+            named = record.get("prompt_dialect")
+            if args.dialect and named and named != args.dialect:
+                raise SystemExit(f"model record {model_id!r} names the {named!r} family, not {args.dialect!r}")
+            dialect_id = dialect_id or named
+        dialect = None
+        if dialect_id:
+            from pack_manager import PackError
+            from prompt_dialect import find_dialect, resolve_resource
 
-        try:
-            path = resolve_resource("prompt-dialects", args.dialects, state_file=None, cache_dir=None,
-                                    managed_root=None, required=bool(args.dialect))
-            dialect = find_dialect(dialect_id, path) if path is not None else None
-        except PackError as exc:
-            raise SystemExit(str(exc)) from None
-    findings = check(args.prompt, args.negative, load_vocabulary(args.dictionary), record, dialect)
-    problems = [row for row in findings if row["severity"] == "problem"]
-    print(json.dumps({"ok": not problems, "problems": len(problems), "notes": len(findings) - len(problems),
-                      "dialect": dialect["id"] if dialect else None, "findings": findings},
-                     ensure_ascii=False, indent=2))
-    return 1 if problems else 0
+            try:
+                path = resolve_resource("prompt-dialects", args.dialects, settings=runtime.settings,
+                                        required=bool(args.dialect))
+                dialect = find_dialect(dialect_id, path) if path is not None else None
+            except PackError as exc:
+                raise SystemExit(str(exc)) from None
+        findings = check(args.prompt, args.negative, load_vocabulary(args.dictionary), record, dialect)
+        problems = [row for row in findings if row["severity"] == "problem"]
+        print(json.dumps({"ok": not problems, "problems": len(problems), "notes": len(findings) - len(problems),
+                          "dialect": dialect["id"] if dialect else None, "findings": findings},
+                         ensure_ascii=False, indent=2))
+        return 1 if problems else 0
+    finally:
+        configure_pack_runtime(None)
 
 
 if __name__ == "__main__":

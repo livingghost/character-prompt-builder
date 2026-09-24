@@ -5,14 +5,14 @@
     "artifact_type": "execution-policy",
     "basis": {
       "locator": "whole",
-      "path": "synthetic-validation/84eedb1297c51362/basis.txt",
-      "sha256": "f6bbc3a03a149fb1322999231f850499d8b4c58b3f2f233d4a53f75ab570b643"
+      "path": "synthetic-validation/4c72e7d8bfef1fa9/basis.txt",
+      "sha256": "424db1c13f6c398026a9d9ae39d4e8f294e1274d4e2d1dec1ab501e7d61e06c5"
     },
     "production_context_transport": "none",
     "reference_instruction_transport": {
       "contract": {
-        "path": "synthetic-validation/84eedb1297c51362/references.json",
-        "sha256": "5e408dea12dc50b38f2b7e1ab73a9fe8cb293413be95af38a21246c2a31cb33a"
+        "path": "synthetic-validation/4c72e7d8bfef1fa9/references.json",
+        "sha256": "7f4029c012d031a8bfb181acb467c19ca27ee57bc5a6ad79b72150977e551d1a"
       },
       "mode": "prompt-prefix"
     },
@@ -34,6 +34,311 @@
     "unmeasured": []
   },
   "verified": true,
+  "render_contract": {
+    "artifact_type": "render-contract",
+    "intent": {
+      "artifact_type": "render-intent",
+      "preset": "anime-cel",
+      "axes": {
+        "medium": "2d-illustration",
+        "dimensionality": "drawn-volume",
+        "linework": "clean-variable-contours",
+        "shading": "cel-values-with-selective-gradients",
+        "surface": "designed-surface-marks",
+        "detail": "focal-detail-hierarchy"
+      },
+      "presentation": "single illustrated portrait",
+      "selection": {
+        "chosen_by": "agent",
+        "reason": "The synthetic example declares a soft-cel illustration."
+      },
+      "execution_mode": "text-to-image",
+      "prompt_expression": "cinematic 2D soft-cel office portrait",
+      "regional_overrides": []
+    },
+    "model_card": {
+      "model": "gpt-image-2.5-flare",
+      "service": null,
+      "model_identifier": "gpt-image-2.5-flare",
+      "ready_for_parameter_resolution": true,
+      "execution_profile": {
+        "basis": {
+          "kind": "curated-starting-point",
+          "limitations": [
+            "Host request validation supplies the actual callable interface. No sampling controls or image-quality outcome are asserted."
+          ],
+          "source": "Model record prompt_style, ordering and size_hints"
+        },
+        "id": "host-prose-image",
+        "modes": {
+          "instruction-edit": {
+            "controls": {
+              "CFGScale": {
+                "binding": "package",
+                "reason": "No guidance-scale control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "numberResults": {
+                "binding": "dispatch-count",
+                "reason": "Output count belongs to the selected host invocation.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "quality": {
+                "binding": "package",
+                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "seed": {
+                "binding": "dispatch-seed",
+                "reason": "This host-only record exposes no seed control.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "size": {
+                "binding": "package",
+                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "steps": {
+                "binding": "package",
+                "reason": "No sampling-step control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "strength": {
+                "binding": "package",
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
+                "recommendation": null,
+                "schema": null,
+                "status": "not-applicable"
+              }
+            },
+            "media": "references",
+            "parameter_schema": {}
+          },
+          "reference-guided": {
+            "controls": {
+              "CFGScale": {
+                "binding": "package",
+                "reason": "No guidance-scale control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "numberResults": {
+                "binding": "dispatch-count",
+                "reason": "Output count belongs to the selected host invocation.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "quality": {
+                "binding": "package",
+                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "seed": {
+                "binding": "dispatch-seed",
+                "reason": "This host-only record exposes no seed control.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "size": {
+                "binding": "package",
+                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "steps": {
+                "binding": "package",
+                "reason": "No sampling-step control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "strength": {
+                "binding": "package",
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
+                "recommendation": null,
+                "schema": null,
+                "status": "not-applicable"
+              }
+            },
+            "media": "references",
+            "parameter_schema": {}
+          },
+          "text-to-image": {
+            "controls": {
+              "CFGScale": {
+                "binding": "package",
+                "reason": "No guidance-scale control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "numberResults": {
+                "binding": "dispatch-count",
+                "reason": "Output count belongs to the selected host invocation.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "quality": {
+                "binding": "package",
+                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "seed": {
+                "binding": "dispatch-seed",
+                "reason": "This host-only record exposes no seed control.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "size": {
+                "binding": "package",
+                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "steps": {
+                "binding": "package",
+                "reason": "No sampling-step control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "strength": {
+                "binding": "package",
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
+                "recommendation": null,
+                "schema": null,
+                "status": "not-applicable"
+              }
+            },
+            "media": "none",
+            "parameter_schema": {}
+          }
+        },
+        "prompt_recipe": {
+          "guidance": [
+            "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
+            "Keep the chosen finish in the authored prompt. Preserve user anchors and reference authority."
+          ],
+          "order": [
+            "purpose",
+            "subject",
+            "composition",
+            "rendering",
+            "constraints"
+          ]
+        }
+      },
+      "recommended_parameters": {},
+      "recommended_positive_prompt": "",
+      "recommended_negative_prompt": "",
+      "recommendation_merge_mode": "advisory-only",
+      "size_choices": {
+        "16:9": "2048x1152",
+        "1:1": "1024x1024",
+        "2:3": "1024x1536",
+        "3:2": "1536x1024",
+        "4:5": "1024x1280",
+        "9:16": "1152x2048"
+      },
+      "note": "Recommendations are starting points. Interface validity and observed image quality are separate evidence."
+    },
+    "profile_sha256": "53005e9a9d2af9574f8f322dae0243e11e28a4c3664e191d0c207e29d39aad02",
+    "authored_parameters": {
+      "size": "1024x1024",
+      "quality": "high"
+    },
+    "parameters": {
+      "quality": "high",
+      "size": "1024x1024"
+    },
+    "parameter_decisions": [
+      {
+        "key": "CFGScale",
+        "status": "backend-managed",
+        "value": null,
+        "reason": "No guidance-scale control is declared by this host record."
+      },
+      {
+        "key": "numberResults",
+        "status": "backend-managed",
+        "value": null,
+        "reason": "Output count belongs to the selected host invocation."
+      },
+      {
+        "key": "quality",
+        "status": "explicit",
+        "value": "high",
+        "reason": "Choose output quality explicitly and validate it against the selected host interface."
+      },
+      {
+        "key": "seed",
+        "status": "backend-managed",
+        "value": null,
+        "reason": "This host-only record exposes no seed control."
+      },
+      {
+        "key": "size",
+        "status": "explicit",
+        "value": "1024x1024",
+        "reason": "Select the requested output geometry explicitly; consult the host size contract."
+      },
+      {
+        "key": "steps",
+        "status": "backend-managed",
+        "value": null,
+        "reason": "No sampling-step control is declared by this host record."
+      },
+      {
+        "key": "strength",
+        "status": "not-applicable",
+        "value": null,
+        "reason": "No denoising control is declared; reference input is not an img2img strength setting."
+      }
+    ],
+    "reference_count": 0,
+    "prompt_expression": "cinematic 2D soft-cel office portrait"
+  },
   "model": "gpt-image-2.5-flare",
   "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
   "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -74,10 +379,30 @@
       "domain-realization-anthropomorphic-animal-baseline",
       "profile-clear-2d-illustration"
     ],
-    "production_spec_sha256": "3c74d567085c332a1bb719f9eab52c33829959bed1f97c58f004bd27edf317d8",
+    "production_spec_sha256": "2ee7548df1fe2a8263cdb2f344acaaead8ef53afbf61684706f8c06b540e6fd0",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99"
   },
   "production_spec": {
+    "render_intent": {
+      "artifact_type": "render-intent",
+      "preset": "anime-cel",
+      "axes": {
+        "medium": "2d-illustration",
+        "dimensionality": "drawn-volume",
+        "linework": "clean-variable-contours",
+        "shading": "cel-values-with-selective-gradients",
+        "surface": "designed-surface-marks",
+        "detail": "focal-detail-hierarchy"
+      },
+      "presentation": "single illustrated portrait",
+      "selection": {
+        "chosen_by": "agent",
+        "reason": "The synthetic example declares a soft-cel illustration."
+      },
+      "execution_mode": "text-to-image",
+      "prompt_expression": "cinematic 2D soft-cel office portrait",
+      "regional_overrides": []
+    },
     "source_brief": "State-aware field-office scene after an offscreen ear injury and a prop transfer.",
     "target_model": "gpt-image-2.5-flare",
     "creative_latitude": "directed",
@@ -2660,7 +2985,7 @@
       "profile-clear-2d-illustration"
     ]
   },
-  "production_spec_sha256": "3c74d567085c332a1bb719f9eab52c33829959bed1f97c58f004bd27edf317d8",
+  "production_spec_sha256": "2ee7548df1fe2a8263cdb2f344acaaead8ef53afbf61684706f8c06b540e6fd0",
   "state_lineage": {
     "artifact_type": "state-lineage",
     "mode": "state-aware",
@@ -2713,10 +3038,10 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "7f81ad3f0c15b279e883d4fbf052891c1f3f7159e98cbd17f83ee0415772f059",
+  "generation_input_sha256": "25f6b36841cd68c78d80cf6470607fb1f3788e376f3e383cb22f8445fddf8a3e",
   "parameters": {
-    "size": "1024x1024",
-    "quality": "high"
+    "quality": "high",
+    "size": "1024x1024"
   },
   "selected_transport": {
     "mode": "integrated-critical",
@@ -2733,8 +3058,8 @@
   "host_forwarding": {
     "model": "gpt-image-2.5-flare",
     "parameters": {
-      "size": "1024x1024",
-      "quality": "high"
+      "quality": "high",
+      "size": "1024x1024"
     },
     "selected_transport": {
       "mode": "integrated-critical",
@@ -2752,7 +3077,7 @@
     "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
     "effective_prompt_sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1",
     "selected_references": [],
-    "generation_input_sha256": "7f81ad3f0c15b279e883d4fbf052891c1f3f7159e98cbd17f83ee0415772f059",
+    "generation_input_sha256": "25f6b36841cd68c78d80cf6470607fb1f3788e376f3e383cb22f8445fddf8a3e",
     "prompt_trace": [
       {
         "source_kind": "authored",
@@ -2771,7 +3096,8 @@
         "binding_ids": []
       }
     ],
-    "native_reference_controls": []
+    "native_reference_controls": [],
+    "reference_media_role": "none"
   },
   "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
   "negative_prompt_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",

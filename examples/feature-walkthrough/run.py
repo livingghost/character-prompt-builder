@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Walk one idea to a dispatch preview offline, never a production approval.
+"""Walk one idea to a dispatch preview, without submitting a generation request.
 
 python examples/feature-walkthrough/run.py --out /tmp/cpb-walkthrough
 
@@ -14,10 +14,13 @@ transcript.txt lists every command it ran with a short result.
   python scripts/studio.py character add C01 --studio PROJECT
   python scripts/work_ledger.py --studio PROJECT begin --goal GOAL --step STEP
   python scripts/execution_routes.py read generation --root PROJECT
+  python scripts/render_contract.py model --model grok-imagine-image-2.0 --service runware
   python scripts/production_workflow.py prepare --root PROJECT --task task.json
   python scripts/prompt_retrieval.py lookups.json --settle --prompt-file PROJECT/prompt.txt
       --plot-file plot.json --out retrieval.json
-  python scripts/production_spec.py draft production-spec.json --model grok-imagine-image-2.0
+  python scripts/render_contract.py intent --preset photographic --mode text-to-image --chosen-by agent
+      --reason TEXT --presentation portrait --prompt-expression TEXT --out render-intent.json
+  python scripts/production_spec.py draft production-spec.json --render-intent render-intent.json --model grok-imagine-image-2.0
       --brief TEXT --kind human --framing waist-up --continuity one-off
   python scripts/build_generation_payload.py --model grok-imagine-image-2.0 --prompt-file PROJECT/prompt.txt
       --plot-file plot.json --retrieval-record-file retrieval.json --production-spec-file production-spec.json
@@ -48,9 +51,9 @@ from prompt_plot import content_sha256
 
 MODEL = 'grok-imagine-image-2.0'
 COMMONS = c.load(ROOT / 'packs/commons/pack.json')['pack_id']
-SYNTHETIC = 'OFFLINE WALKTHROUGH FIXTURE - NOT REAL USER CONSENT'
+SYNTHETIC = 'SYNTHETIC WALKTHROUGH FIXTURE - NOT REAL USER CONSENT'
 BRIEF = 'A woman waits at a bus stop in light rain.'
-PROMPT = ('A woman in a green raincoat waits at a bus stop in light rain, seen waist-up at eye level, '
+PROMPT = ('Photographic portrait. A woman in a green raincoat waits at a bus stop in light rain, seen waist-up at eye level, '
           'soft grey daylight, the shelter glass beaded with drops behind her.')
 PLOT = {
     'artifact_type': 'prompt-plot',
@@ -140,7 +143,7 @@ def run(out: Path) -> dict:
 
     def refuse(*args, **kwargs):
         attempts.append(args[1:] or args)
-        raise OSError('the offline walkthrough makes no network connection')
+        raise OSError('this request-preview example forbids network connections')
 
     walk = Walkthrough(out)
     root = out / 'project'
@@ -152,8 +155,8 @@ def run(out: Path) -> dict:
         with patch.object(socket.socket, 'connect', refuse), patch.object(socket, 'create_connection', refuse), \
                 patch.dict(os.environ, environment, clear=True):
             # A studio with one character, an open work task, and a complete read of the generation route.
-            walk.run('studio', 'init', '--out', str(root), '--studio-id', 'offline-walkthrough',
-                     '--title', 'Offline walkthrough')
+            walk.run('studio', 'init', '--out', str(root), '--studio-id', 'request-preview-walkthrough',
+                     '--title', 'Request preview walkthrough')
             walk.run('studio', 'character', 'add', 'C01', '--studio', str(root))
             walk.run('work_ledger', '--studio', str(root), 'begin', '--goal', 'Preview one portrait request',
                      '--step', 'prepare', '--step', 'package', '--step', 'preview')
@@ -161,6 +164,7 @@ def run(out: Path) -> dict:
             reading = walk.run('execution_routes', 'read', 'generation', '--root', str(root), *runtime,
                                result=lambda text: f'{len(text)} characters read; ' + text.strip().splitlines()[-1])
             record = reading.strip().splitlines()[-1].removeprefix('reading-record: ')
+            walk.run('render_contract', 'model', '--model', MODEL, '--service', 'runware', *runtime)
             # The authored task, its prompt and the principal's authority.
             write(root / 'prompt.txt', PROMPT + '\n')
             write(root / 'authority-basis.txt', 'Synthetic walkthrough declaration, not a real user instruction.\n')
@@ -188,14 +192,19 @@ def run(out: Path) -> dict:
             run_id = json.loads(prepared)['run']
             # Approved plot, settled retrieval and the drafted production specification.
             write(out / 'plot.json', PLOT)
-            write(out / 'lookups.json', {'artifact_type': 'prompt-retrieval-record', 'pack_state': 'offline-walkthrough',
+            write(out / 'lookups.json', {'artifact_type': 'prompt-retrieval-record', 'pack_state': 'request-preview-walkthrough',
                 'elements': [{'element': 'rainy bus stop portrait', 'queries': ['woman raincoat bus stop rain'],
                               'inspected_records': [], 'outcome': 'composed', 'composed_wording': PROMPT,
                               'reason': SYNTHETIC}]})
             walk.note('wrote plot.json (approved by a synthetic principal) and lookups.json')
             walk.run('prompt_retrieval', str(out / 'lookups.json'), '--settle', '--prompt-file', str(root / 'prompt.txt'),
                      '--plot-file', str(out / 'plot.json'), '--out', str(out / 'retrieval.json'))
-            drafted = walk.run('production_spec', 'draft', str(out / 'production-spec.json'), '--model', MODEL,
+            walk.run('render_contract', 'intent', '--preset', 'photographic', '--mode', 'text-to-image',
+                     '--chosen-by', 'agent', '--reason', 'A photographic treatment supports the quiet rainy-day portrait.',
+                     '--presentation', 'waist-up portrait', '--prompt-expression', 'Photographic portrait.',
+                     '--out', str(out / 'render-intent.json'))
+            drafted = walk.run('production_spec', 'draft', str(out / 'production-spec.json'),
+                               '--render-intent', str(out / 'render-intent.json'), '--model', MODEL,
                                '--brief', BRIEF, '--kind', 'human', '--framing', 'waist-up', '--continuity', 'one-off')
             builder = ['--model', MODEL, '--prompt-file', str(root / 'prompt.txt'), '--plot-file', str(out / 'plot.json'),
                        '--retrieval-record-file', str(out / 'retrieval.json'), *json.loads(drafted)['build_with'],
@@ -211,7 +220,7 @@ def run(out: Path) -> dict:
         catalog_cli.configure_pack_runtime(None)
     built = c.load(package)
     shown = c.load(preview)
-    report = {'ok': True, 'offline_fixture': True, 'external_requests': len(attempts), 'sent': False,
+    report = {'ok': True, 'synthetic_fixture': True, 'external_requests': len(attempts), 'sent': False,
               'production_run': run_id, 'package_run': built['production_binding']['run'],
               'request_validation': {'mode': built['request_validation']['mode'],
                                      'contract': built['request_validation']['contract']['path']},

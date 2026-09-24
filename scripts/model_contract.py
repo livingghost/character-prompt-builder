@@ -22,7 +22,7 @@ MODEL_RECORD_KEYS = frozenset(
     {
         "curation_status", "description", "domains", "id", "label", "search_profile",
         "search_terms", "tags",
-        "aliases", "avoid_uses", "default_aspect_ratio_behavior",
+        "aliases", "avoid_uses", "default_aspect_ratio_behavior", "execution_profile",
         "input_image_count", "max_negative_prompt_chars", "max_outputs",
         "max_positive_prompt_chars", "max_reference_images", "negative_transport_mode",
         "negative_transport_notes", "offerings", "operation_kind", "ordering", "output_limits",
@@ -39,7 +39,7 @@ MODEL_RECORD_KEYS = frozenset(
 # that was observed. schema_snapshot points at the service's own parameter
 # schema for the model, stored in the pack as observed.
 OFFERING_KEYS = frozenset(
-    {"service", "model_identifier", "request_keys", "constraints", "observed_at", "schema_snapshot", "setting_keys", "parameter_keys", "schema_contract", "schema_acquisition", "parameter_observations", "reference_schemas", "production_context_transport", "reference_instruction_transport", "size_format"}
+    {"service", "model_identifier", "request_keys", "constraints", "observed_at", "schema_snapshot", "setting_keys", "parameter_keys", "schema_contract", "schema_acquisition", "parameter_observations", "reference_schemas", "production_context_transport", "reference_instruction_transport", "size_format", "execution_profile"}
 )
 OFFERING_REQUIRED = ("service", "model_identifier", "request_keys", "constraints", "observed_at")
 OBSERVED_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -198,11 +198,17 @@ def _validate_offerings(record: Mapping[str, Any], errors: list[str]) -> None:
         parameter_keys = offering.get("parameter_keys")
         if "parameter_keys" in offering and (
             not isinstance(parameter_keys, Mapping)
-            or not all(name in RECOMMENDED_PARAMETER_KEYS and _nonempty_string(key) for name, key in parameter_keys.items())
+            or not all(_nonempty_string(name) and _nonempty_string(key) for name, key in parameter_keys.items())
         ):
             errors.append(
-                f"{where}.parameter_keys must map names from {sorted(RECOMMENDED_PARAMETER_KEYS)} to non-empty request keys"
+                f"{where}.parameter_keys must map non-empty neutral names to non-empty request keys"
             )
+        if "execution_profile" in offering:
+            from render_contract_lib import validate_profile
+            try:
+                validate_profile(offering["execution_profile"])
+            except ValueError as exc:
+                errors.append(f"{where}: {exc}")
         service = offering.get("service")
         if service in services:
             errors.append(f"{where} repeats the service {service!r}")
@@ -251,6 +257,12 @@ def validate_model_record(record: Mapping[str, Any]) -> list[str]:
             f"recommendation_merge_mode must be one of {sorted(RECOMMENDATION_MERGE_MODES)}"
         )
     _validate_recommended_parameters(record, errors)
+    if "execution_profile" in record:
+        from render_contract_lib import validate_profile
+        try:
+            validate_profile(record["execution_profile"])
+        except ValueError as exc:
+            errors.append(str(exc))
 
     if operation_kind == "upscale":
         forbidden = sorted(
@@ -674,30 +686,23 @@ def request_instance(
     return instance
 
 
-def generation_media_counts(offering: Mapping[str, Any], count: int) -> dict[str, int]:
-    """The role this offering takes prepared references on, and how many go on it.
-
-    One answer for the builder, the verifier and the transport, so that what is
-    checked is what is sent. An offering that takes one image and a package that
-    selected several is refused here rather than losing the rest in transit.
-    """
-
+def generation_media_counts(offering: Mapping[str, Any], count: int, *, media_role: str) -> dict[str, int]:
+    """Use the deliberately selected media transport, never the first available key."""
+    if type(count) is not int or count < 0:
+        raise ValueError('reference count must be a nonnegative integer')
+    roles = {'none': None, 'seed-image': 'seed image', 'references': 'reference images', 'input-image': 'input image'}
+    if media_role not in roles:
+        raise ValueError('select the explicit generation media role')
+    role = roles[media_role]
     if not count:
+        if role is not None:
+            raise ValueError('selected media mode requires at least one reference')
         return {}
-    keys = offering.get("request_keys") or {}
-    for role in GENERATION_MEDIA_ROLES:
-        if not keys.get(role):
-            continue
-        if not role.endswith("images") and count > 1:
-            raise ValueError(
-                f"the offering on {offering.get('service')!r} takes prepared references as {role!r}, "
-                f"which is one image, and this package selects {count}; combine them into a single board"
-            )
-        return {role: int(count)}
-    raise ValueError(
-        f"the offering on {offering.get('service')!r} records no request key for prepared references; "
-        f"one of {list(GENERATION_MEDIA_ROLES)} is needed to send them"
-    )
+    if role is None or not (offering.get('request_keys') or {}).get(role):
+        raise ValueError('offering does not expose the selected media role: ' + media_role)
+    if role != 'reference images' and count != 1:
+        raise ValueError('selected source-image mode takes one image, not a reference collection')
+    return {role: count}
 
 
 def _validate_recommended_parameters(record: Mapping[str, Any], errors: list[str]) -> None:
@@ -708,8 +713,8 @@ def _validate_recommended_parameters(record: Mapping[str, Any], errors: list[str
         errors.append("recommended_parameters must be a non-empty object")
         return
     for name, item in value.items():
-        if name not in RECOMMENDED_PARAMETER_KEYS:
-            errors.append(f"recommended_parameters[{name!r}] is not one of {sorted(RECOMMENDED_PARAMETER_KEYS)}")
+        if not _nonempty_string(name):
+            errors.append(f"recommended_parameters[{name!r}] must have a non-empty name")
             continue
         if isinstance(item, list):
             ends_are_numbers = len(item) == 2 and all(
@@ -717,53 +722,8 @@ def _validate_recommended_parameters(record: Mapping[str, Any], errors: list[str
             )
             if not ends_are_numbers or item[0] > item[1]:
                 errors.append(f"recommended_parameters[{name!r}] must be a value or a two-number range [low, high]")
-        elif isinstance(item, bool) or not isinstance(item, (str, int, float)) or (isinstance(item, str) and not item.strip()):
+        elif not isinstance(item, (str, int, float, bool)) or (isinstance(item, str) and not item.strip()):
             errors.append(f"recommended_parameters[{name!r}] must be a value or a two-number range [low, high]")
-
-
-def recommended_request_parameters(record: Mapping[str, Any], offering: Mapping[str, Any]) -> dict[str, Any]:
-    """Each single-valued recommendation on the request key the offering gives it.
-
-    A range is a statement for the person choosing, and a name the offering gives
-    no key is not sent through that service.
-    """
-
-    keys = offering.get("parameter_keys") or {}
-    placed: dict[str, Any] = {}
-    for name, value in (record.get("recommended_parameters") or {}).items():
-        key = keys.get(name)
-        if key and not isinstance(value, list):
-            placed[str(key)] = value
-    return placed
-
-
-def _fillable(instance: Mapping[str, Any], key_path: str) -> bool:
-    """True when the key is unset and every branch above it is already there.
-
-    A recommendation fills a value the package left out. It does not switch a
-    feature on: a key under an envelope the package never asked for, such as the
-    upscaler of a second pass the package does not run, stays unwritten.
-    """
-
-    parts = key_path.split(".")
-    node: Any = instance
-    for part in parts[:-1]:
-        if not isinstance(node, Mapping) or part not in node:
-            return False
-        node = node[part]
-    return isinstance(node, Mapping) and parts[-1] not in node
-
-
-def apply_recommended_parameters(
-    record: Mapping[str, Any], offering: Mapping[str, Any], parameters: Mapping[str, Any]
-) -> dict[str, Any]:
-    """The parameters with the record's recommendations filled in where the package leaves them unset."""
-
-    merged: dict[str, Any] = json.loads(json.dumps(dict(parameters)))
-    for key_path, value in recommended_request_parameters(record, offering).items():
-        if _fillable(merged, key_path):
-            place(merged, key_path, value)
-    return merged
 
 
 def _branches(nodes: list[Mapping[str, Any]]) -> list[Mapping[str, Any]]:

@@ -129,7 +129,7 @@ def prepare_dispatch(root: Path, prompt: str, *, route: str = 'generation',
     """Explicit local test setup; never imported by an operational entrypoint."""
     import work_ledger
     import production_workflow as w
-    started = work_ledger.begin(root, 'Synthetic offline dispatch', ['prepare', 'render'])
+    started = work_ledger.begin(root, 'Synthetic dispatch', ['prepare', 'render'])
     (root / 'fixture-delivery.txt').write_text(prompt, encoding='utf-8')
     spec = {'task_id': started['task_id'], 'route': route, 'features': [],
             'sources': sources or [], 'delivery': {'path': 'fixture-delivery.txt',

@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "render-intent.schema.json",
+  "title": "Explicit image finish and operation",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "preset",
+    "axes",
+    "presentation",
+    "selection",
+    "execution_mode",
+    "prompt_expression",
+    "regional_overrides"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "render-intent"
+    },
+    "preset": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "axes": {
+      "type": "object",
+      "required": [
+        "medium",
+        "dimensionality",
+        "linework",
+        "shading",
+        "surface",
+        "detail"
+      ],
+      "properties": {
+        "medium": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimensionality": {
+          "type": "string",
+          "minLength": 1
+        },
+        "linework": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shading": {
+          "type": "string",
+          "minLength": 1
+        },
+        "surface": {
+          "type": "string",
+          "minLength": 1
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "presentation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selection": {
+      "type": "object",
+      "required": [
+        "chosen_by",
+        "reason"
+      ],
+      "properties": {
+        "chosen_by": {
+          "enum": [
+            "user",
+            "agent"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "execution_mode": {
+      "enum": [
+        "text-to-image",
+        "image-to-image",
+        "reference-guided",
+        "instruction-edit",
+        "upscale"
+      ]
+    },
+    "prompt_expression": {
+      "type": "string"
+    },
+    "regional_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "region",
+          "axes",
+          "reason",
+          "prompt_expression"
+        ],
+        "properties": {
+          "region": {
+            "type": "string",
+            "minLength": 1
+          },
+          "axes": {
+            "type": "object",
+            "required": [],
+            "properties": {
+              "medium": {
+                "type": "string",
+                "minLength": 1
+              },
+              "dimensionality": {
+                "type": "string",
+                "minLength": 1
+              },
+              "linework": {
+                "type": "string",
+                "minLength": 1
+              },
+              "shading": {
+                "type": "string",
+                "minLength": 1
+              },
+              "surface": {
+                "type": "string",
+                "minLength": 1
+              },
+              "detail": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false,
+            "minProperties": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "prompt_expression": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

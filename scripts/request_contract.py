@@ -361,7 +361,7 @@ def _semantic_fields(request: dict, normal: dict, layout: dict, sealed: dict) ->
     if layout['output_count'] is None:
         fields['count'] = {'kind': 'fixed', 'value': output_count(request, layout), 'field': None}
     for key, value in sealed['context'].items():
-        if key not in {'subjects', 'purpose', 'output_kind'}:
+        if key not in {'subjects', 'purpose', 'output_kind', 'render_contract'}:
             raise ValueError('unknown semantic context field')
         fields[key] = {'kind': 'fixed', 'value': copy.deepcopy(value), 'field': None}
     fields['reference_bindings'] = {'kind': 'fixed', 'value': sealed['bindings'], 'field': None}

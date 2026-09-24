@@ -19,7 +19,8 @@ from model_contract import (
     validate_generation_parameters,
     validate_model_record,
 )
-from model_contract import apply_recommended_parameters  # noqa: E402
+from render_contract_lib import resolve_parameters
+from render_contract_fixtures import profile, control
 
 ROOT = Path(__file__).resolve().parent.parent
 EXPECTED_CHECKS = 62
@@ -279,31 +280,36 @@ def main() -> int:
     check("recommended parameters with a parameters source add no error",
           validate_model_record(advised) == validate_model_record(separate_edit), validate_model_record(advised))
     misnamed = copy.deepcopy(advised)
-    misnamed["recommended_parameters"] = {"cfg": 7}
-    check("a recommended parameter outside the neutral names is refused",
-          any("recommended_parameters['cfg']" in row for row in validate_model_record(misnamed)))
+    misnamed["recommended_parameters"] = {"": 7}
+    check("an empty recommended parameter name is refused",
+          any("recommended_parameters" in row for row in validate_model_record(misnamed)))
     mapped = copy.deepcopy(advised)
     mapped["offerings"] = [{**offering, "parameter_keys": {"sampler": "scheduler", "steps": "steps", "guidance": "CFGScale"}}]
     check("an offering may map recommended parameters to request keys",
           validate_model_record(mapped) == validate_model_record(separate_edit), validate_model_record(mapped))
-    filled = apply_recommended_parameters(mapped, mapped["offerings"][0], {"width": 1024, "CFGScale": 6})
-    check("single-valued recommendations fill unset request keys and a range does not",
+    active = profile(required={"scheduler": control("required", schema={"type": "string"}, recommendation="sampler")})
+    filled, decisions = resolve_parameters(mapped, active, "text-to-image", {"width": 1024, "CFGScale": 6})
+    check("required scalar recommendations resolve with provenance while optional ranges remain unselected",
           filled == {"width": 1024, "CFGScale": 6, "scheduler": "Euler a"}, filled)
     nested = copy.deepcopy(advised)
     nested["recommended_parameters"] = {"hires_upscaler": "vendor:upscaler@1"}
-    nested["offerings"] = [{**offering, "parameter_keys": {"hires_upscaler": "hiresFix.model"}}]
-    closed = apply_recommended_parameters(nested, nested["offerings"][0], {"width": 1024})
-    check("a recommendation under an envelope the package never opened stays unwritten",
+    active = profile()
+    for mode in active["modes"].values():
+        del mode["controls"]["hiresFix"]
+        mode["controls"]["hiresFix.model"] = control(schema={"type": "string"}, recommendation="hires_upscaler")
+        mode["controls"]["hiresFix.steps"] = control(schema={"type": "integer", "minimum": 1})
+    closed, _ = resolve_parameters(nested, active, "text-to-image", {"width": 1024})
+    check("optional features are not activated by recommendations",
           closed == {"width": 1024}, closed)
-    opened = apply_recommended_parameters(nested, nested["offerings"][0], {"width": 1024, "hiresFix": {"steps": 12}})
-    check("the same recommendation fills the key once the package opens that envelope",
-          opened == {"width": 1024, "hiresFix": {"steps": 12, "model": "vendor:upscaler@1"}}, opened)
-    kept = apply_recommended_parameters(nested, nested["offerings"][0], {"hiresFix": {"model": "vendor:other@1"}})
-    check("a value the package already set inside the envelope is kept",
+    opened, _ = resolve_parameters(nested, active, "text-to-image", {"width": 1024, "hiresFix": {"steps": 12}})
+    check("opening an envelope does not silently select its optional model",
+          opened == {"width": 1024, "hiresFix": {"steps": 12}}, opened)
+    kept, _ = resolve_parameters(nested, active, "text-to-image", {"hiresFix": {"model": "vendor:other@1"}})
+    check("an explicit nested value is preserved",
           kept == {"hiresFix": {"model": "vendor:other@1"}}, kept)
     unmapped = copy.deepcopy(advised)
-    unmapped["offerings"] = [{**offering, "parameter_keys": {"cfg": "CFGScale"}}]
-    check("parameter_keys outside the neutral names are refused",
+    unmapped["offerings"] = [{**offering, "parameter_keys": {"guidance": ""}}]
+    check("an empty parameter request path is refused",
           any("parameter_keys" in row for row in validate_model_record(unmapped)))
     promptless = copy.deepcopy(separate_edit)
     promptless["offerings"] = [{**offering, "request_keys": {"reference images": ["inputs.referenceImages"]}}]

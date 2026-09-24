@@ -349,36 +349,50 @@ def main() -> int:
             except ValueError:
                 checks += 1
 
-        gitignore_text = (ROOT / ".gitignore").read_text(encoding="utf-8")
-        try:
-            validate_pack_gitignore_contract(gitignore_text)
-            checks += 1
-        except ValueError as exc:
-            errors.append(f"canonical pack .gitignore contract was rejected: {exc}")
-        gitignore_mutations = (
-            (
-                "non-default unignore",
-                gitignore_text + "\n!packs/third-party-fixture/**\n",
-            ),
-            (
-                "missing pack ignore",
-                gitignore_text.replace("/packs/*\n", "", 1),
-            ),
-            (
-                "reordered default unignores",
-                gitignore_text.replace(
-                    "!/packs/commons/\n!/packs/commons/**",
-                    "!/packs/commons/**\n!/packs/commons/",
-                    1,
-                ),
-            ),
-        )
-        for label, mutation in gitignore_mutations:
+        gitignore_path = ROOT / ".gitignore"
+        if gitignore_path.is_file():
+            gitignore_text = gitignore_path.read_text(encoding="utf-8")
             try:
-                validate_pack_gitignore_contract(mutation)
-                errors.append(f"pack .gitignore accepted {label}")
-            except ValueError:
+                validate_pack_gitignore_contract(gitignore_text)
                 checks += 1
+            except ValueError as exc:
+                errors.append(f"canonical pack .gitignore contract was rejected: {exc}")
+            gitignore_mutations = (
+                (
+                    "non-default unignore",
+                    gitignore_text + "\n!packs/third-party-fixture/**\n",
+                ),
+                (
+                    "missing pack ignore",
+                    gitignore_text.replace("/packs/*\n", "", 1),
+                ),
+                (
+                    "reordered default unignores",
+                    gitignore_text.replace(
+                        "!/packs/commons/\n!/packs/commons/**",
+                        "!/packs/commons/**\n!/packs/commons/",
+                        1,
+                    ),
+                ),
+            )
+            for label, mutation in gitignore_mutations:
+                try:
+                    validate_pack_gitignore_contract(mutation)
+                    errors.append(f"pack .gitignore accepted {label}")
+                except ValueError:
+                    checks += 1
+        else:
+            excluded_settings = (".gitignore", ".gitattributes", ".github")
+            retained = [name for name in excluded_settings if (ROOT / name).exists()]
+            if retained:
+                errors.append(f"staged release retains source-control settings: {retained}")
+            else:
+                checks += 1
+            for name in excluded_settings:
+                if (ROOT / name).exists():
+                    errors.append(f"staged release retains {name}")
+                else:
+                    checks += 1
 
         validate_source = (ROOT / "scripts" / "validate.py").read_text(
             encoding="utf-8"

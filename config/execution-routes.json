@@ -381,6 +381,12 @@
         "references/reference-corpus-visual-technique-observation.md"
       ],
       "source_roles": []
+    },
+    "render-contract": {
+      "reads": [
+        "references/runtime/render-contract.md"
+      ],
+      "source_roles": []
     }
   },
   "routes": {
@@ -436,7 +442,9 @@
       "reads": [
         "references/runtime/prompt-only-core.md"
       ],
-      "features": [],
+      "features": [
+        "render-contract"
+      ],
       "stages": [
         "prepare",
         "handoff",
@@ -450,7 +458,9 @@
       "reads": [
         "references/runtime/prompt-composition.md"
       ],
-      "features": [],
+      "features": [
+        "render-contract"
+      ],
       "stages": [
         "prepare",
         "handoff",
@@ -466,7 +476,8 @@
       ],
       "features": [
         "references",
-        "reference-delivery"
+        "reference-delivery",
+        "render-contract"
       ],
       "stages": [
         "prepare",
@@ -484,7 +495,8 @@
       "features": [
         "studio",
         "reference-delivery",
-        "prompt-dialect"
+        "prompt-dialect",
+        "render-contract"
       ],
       "stages": [
         "prepare",
@@ -503,7 +515,8 @@
         "world-view",
         "studio",
         "reference-delivery",
-        "prompt-dialect"
+        "prompt-dialect",
+        "render-contract"
       ],
       "stages": [
         "prepare",
@@ -520,7 +533,8 @@
       ],
       "features": [
         "studio",
-        "prompt-dialect"
+        "prompt-dialect",
+        "render-contract"
       ],
       "stages": [
         "prepare",
@@ -538,7 +552,8 @@
       "features": [
         "reference-delivery",
         "studio",
-        "prompt-dialect"
+        "prompt-dialect",
+        "render-contract"
       ],
       "stages": [
         "prepare",
@@ -554,7 +569,8 @@
         "references/adapters/upscale.md"
       ],
       "features": [
-        "studio"
+        "studio",
+        "render-contract"
       ],
       "stages": [
         "prepare",
@@ -572,7 +588,8 @@
       "features": [
         "authorial-intent",
         "reference-delivery",
-        "prompt-dialect"
+        "prompt-dialect",
+        "render-contract"
       ],
       "stages": [
         "prepare",
@@ -656,7 +673,9 @@
     "scripts/request_validation_smoke_test.py",
     "scripts/reservation_lifecycle_smoke_test.py",
     "scripts/production_series_smoke_test.py",
-    "scripts/craft_consultation_smoke_test.py"
+    "scripts/craft_consultation_smoke_test.py",
+    "scripts/render_contract_smoke_test.py",
+    "examples/render-contract/build_example.py"
   ],
   "operations": {
     "authorize": {

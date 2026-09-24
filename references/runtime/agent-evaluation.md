@@ -158,7 +158,7 @@ They establish nothing about a real host's performance or about improvement in a
 
 ## Production integration checks
 
-[`reimplementation_smoke_test.py`](../../scripts/reimplementation_smoke_test.py) exercises scene-material reuse, authoring-only delivery, approved upscale dispatch and offline recording recovery. These deterministic checks leave model quality and token use unmeasured.
+[`reimplementation_smoke_test.py`](../../scripts/reimplementation_smoke_test.py) exercises scene-material reuse, authoring-only delivery, approved upscale dispatch and recording recovery without resubmission. These deterministic checks leave model quality and token use unmeasured.
 
 ## Execution resources
 

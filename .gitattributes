@@ -19,6 +19,3 @@ references/catalog-index.md                linguist-generated=true
 packs/default/pack.lock.json               linguist-generated=true
 examples/state-aware-pilot/generated/**    linguist-generated=true
 
-# Files excluded from release archives (see package-manifest.toml)
-.gitattributes  export-ignore
-.github/        export-ignore

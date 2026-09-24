@@ -73,7 +73,7 @@ def validate_live(root: Path | None, run: str | None, package: dict[str,Any]) ->
 
 
 def upscale_request(root: Path, source: Path, model: str, scale: float,
-                    settings: dict, guidance: str | None, *, request_validation: dict) -> dict:
+                    settings: dict, guidance: str | None, *, request_validation: dict, render_intent: dict) -> dict:
     """Describe exact local inputs before the submit authorization is issued."""
     import math
     if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not math.isfinite(scale) or scale <= 0:
@@ -83,6 +83,10 @@ def upscale_request(root: Path, source: Path, model: str, scale: float,
         raise ValueError('upscale settings must be an object')
     if guidance is not None:
         c.text(guidance, 'upscale guidance')
+    from render_contract_lib import validate_intent
+    validate_intent(render_intent, for_generation=bool(guidance), prompt=guidance)
+    if render_intent['execution_mode'] != 'upscale':
+        raise ValueError('upscale request needs an upscale rendering intent')
     root = root.absolute()
     source = source.absolute()
     try:
@@ -93,7 +97,7 @@ def upscale_request(root: Path, source: Path, model: str, scale: float,
     value = {'artifact_type': 'upscale-request',
              'source': {'path': relative, 'sha256': c.digest(c.read(source))},
              'model': model, 'scale_factor': float(scale), 'settings': settings,
-             'guidance_prompt': guidance}
+             'guidance_prompt': guidance, 'render_intent': render_intent}
     import input_contracts
     reader, _ = input_contracts.capture_validation(request_validation, root=root)
     input_contracts.attach(value, request_validation, reader)
@@ -103,14 +107,14 @@ def upscale_request(root: Path, source: Path, model: str, scale: float,
 
 def validate_upscale_live(root: Path, run: str, request: dict) -> None:
     """The prepared delivery and source snapshot, not a chat description, authorize input."""
-    c.exact(request, {'artifact_type', 'source', 'model', 'scale_factor', 'settings', 'guidance_prompt',
+    c.exact(request, {'artifact_type', 'source', 'model', 'scale_factor', 'settings', 'guidance_prompt', 'render_intent',
                       'request_validation', 'request_validation_sha256', 'input_snapshots', 'input_snapshots_sha256'}, 'upscale request')
     if request['artifact_type'] != 'upscale-request':
         raise ValueError('expected an upscale-request declaration')
     c.exact(request['source'], {'path', 'sha256'}, 'upscale source')
     expected = upscale_request(root, c.local(root, request['source']['path']), request['model'],
                                request['scale_factor'], request['settings'], request['guidance_prompt'],
-                               request_validation=request['request_validation'])
+                               request_validation=request['request_validation'], render_intent=request['render_intent'])
     if request != expected:
         raise ValueError('upscale source differs from the prepared request')
     from production_workflow import assert_current
@@ -134,6 +138,7 @@ def main() -> int:
     parser.add_argument('--scale', required=True, type=float)
     parser.add_argument('--settings', default='{}')
     parser.add_argument('--guidance')
+    parser.add_argument('--render-intent', required=True, type=Path, help='Explicit source finish and upscale intent')
     parser.add_argument('--request-validation-file', required=True, type=Path,
                         help='Explicit validation record, with evidence paths relative to the project.')
     parser.add_argument('--out', required=True, help='New project-relative declaration file')
@@ -141,7 +146,7 @@ def main() -> int:
     try:
         value = upscale_request(args.root, c.local(args.root, args.source), args.model, args.scale,
                                 c.decode(args.settings.encode('utf-8')), args.guidance,
-                                request_validation=c.load(args.request_validation_file))
+                                request_validation=c.load(args.request_validation_file), render_intent=c.load(args.render_intent))
         c.atomic(c.local(args.root, args.out, exists=False), c.encoded(value))
         print(json.dumps({'ok': True, 'request': args.out, 'content_sha256': c.content_id(value)}, indent=2))
         return 0

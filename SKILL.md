@@ -23,6 +23,18 @@ Use plain ASCII punctuation in project documents, prompts, JSON text, and packag
 
 Keep judgment and automation separate. The agent owns meaning, ambiguity, intent, direction, visual authority, composition and review. Scripts own deterministic state, cache, retrieval, resolution, validation, materialization, dependency preflight, verification and dispatch. Never force unresolved meaning through keywords or duplicate script work. A script is usable only when routed documentation exposes activation, input, output, help or example, failures, and a regression test. Resolve paths from the installed `SKILL.md` directory, not the working directory.
 
+## Rendering and model controls
+
+For image work, resolve [Rendering choices and execution controls](references/runtime/render-contract.md), feature `render-contract`.
+Choose medium, dimensionality, linework, shading, surface, and detail explicitly, with the user's selection or the agent's reason.
+Keep presentation and subject identity separate. Use scoped overrides for mixed media; never invent body or age changes from a finish.
+After `pack_cli.py ready`, read `render_contract.py model --model MODEL` (and `--service SERVICE` when selected), or the guidance card from catalog inspection.
+Read its recommended prompts, parameters, recipe, evidence and mode-specific controls before target-specific composition.
+Retrieve the wording, then bind its exact rendering span in the Production Specification's `render_intent`.
+A Generation Package requires the exact interface's execution profile. Missing profiles, unresolved required values and wrong-mode controls block generation.
+Required scalar recommendations resolve with provenance; ranges require a choice. Unavailable controls are displayed, not sent.
+Use the verified request and its named provider. Display the rendering choice and complete final request before submission; never substitute a different engine.
+
 ## Mandatory retrieval-before-composition gate
 
 This gate governs image prompts, not prose or brainstorming. Never hand-compose prompt wording before retrieval has been attempted: wrong or competing tags can cancel requested content.
@@ -87,11 +99,11 @@ Persistent character production, sheets, and recorded generation live in a studi
 
 For image work:
 
-1. For saved work, read the route (see the production gate). Form one image intent, and separate anchors from creative space.
+1. For saved work, read the route (see the production gate). Form one image intent, separate anchors from creative space, and resolve the rendering choice.
 2. Develop one coherent direction; for a sparse brief, run `recommend` first.
 3. Retrieve under the gate above; consult craft (feature `craft-consultation`) before settling open axes or after an observed failure. Inspect every selected canonical record in full. Inspect complete records and asset details together with `inspect-many` (or `inspect` plus `asset-lookup`). Adopt evidence only when it has a relevant authority role.
 4. Draft the plot and wording without inventing approval; a prompt-only draft may omit the plot. Present the plot for actual approval, then settle retrieval against it and the prompt. Preparation grants no permission to execute or change canon.
-5. Choose a target; report plot requirements it cannot meet to the approving person. Run `python scripts/validate_prompt_semantics.py plan.json` before delivery; `--template` prints a plan to start from.
+5. Choose a target and read its model guidance card; report plot requirements it cannot meet to the approving person. Run `python scripts/validate_prompt_semantics.py plan.json` before delivery; `--template` prints a plan to start from.
 6. Select the target's adapter, resolve the optional `prompt-writing-guide`, and read the complete selected guide before final rendition.
 7. Compose and review under the route's documents.
 

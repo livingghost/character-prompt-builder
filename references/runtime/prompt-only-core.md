@@ -8,6 +8,11 @@ Identify the requested artifact: plain prompt text, prompt plus negative text, r
 
 Extract explicit anchors: subject domain, species or body plan, stable identity, count, role, situation, state, camera, medium, and any user-fixed appearance. Keep unmentioned axes open.
 
+Choose the rendering axes deliberately under [Rendering choices and execution controls](render-contract.md).
+Record user selection or the agent's reason. Keep the finish separate from subject identity and presentation.
+When a model is named, read its complete model guidance card before final wording.
+When no model is named, keep the prompt portable rather than inventing execution settings.
+
 ## 2. Retrieve only what is useful
 
 Use catalog recommendation for a sparse brief. Use atomic search for a named axis. Inspect selected records. Shared identity, occupation, mood, and situation requirements apply to every direction. Camera, lighting, environment, and rendering direction may vary only where the user left them open.

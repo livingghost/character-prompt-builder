@@ -1,4 +1,24 @@
 {
+  "render_intent": {
+    "artifact_type": "render-intent",
+    "preset": "anime-cel",
+    "axes": {
+      "medium": "2d-illustration",
+      "dimensionality": "drawn-volume",
+      "linework": "clean-variable-contours",
+      "shading": "cel-values-with-selective-gradients",
+      "surface": "designed-surface-marks",
+      "detail": "focal-detail-hierarchy"
+    },
+    "presentation": "single illustrated portrait",
+    "selection": {
+      "chosen_by": "agent",
+      "reason": "The synthetic example declares a soft-cel illustration."
+    },
+    "execution_mode": "text-to-image",
+    "prompt_expression": "cinematic 2D soft-cel office portrait",
+    "regional_overrides": []
+  },
   "source_brief": "State-aware field-office scene after an offscreen ear injury and a prop transfer.",
   "target_model": "gpt-image-2.5-flare",
   "creative_latitude": "directed",

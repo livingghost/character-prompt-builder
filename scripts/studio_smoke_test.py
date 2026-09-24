@@ -433,12 +433,12 @@ def main() -> int:
         (root / "delivery.txt").write_text("Deliver the selected test image.\n", encoding="utf-8")
         spec = {"task_id": task["task_id"], "route": "development", "features": [],
                 "sources": [], "world_views": [],
-                "delivery": {"path": "delivery.txt", "transport": "authored-rendition", "translation_notes": "Synthetic offline fixture."},
+                "delivery": {"path": "delivery.txt", "transport": "authored-rendition", "translation_notes": "Synthetic fixture."},
                 "criteria": [{"id": "fixture", "strength": "hard", "text": "Deliver the inspected image fixture."}]}
         production_fixtures.task(root,spec,artifact="binary")
         (root / "production-task.json").write_bytes(evidence.encoded(spec))
         run = production.prepare(root, "production-task.json")["run"]
-        production_fixtures.handoff(root, run, "offline fixture", "manual")
+        production_fixtures.handoff(root, run, "synthetic fixture", "manual")
         candidate = production.capture(root, run, again["accepted_path"], "Synthetic image bytes, not generated media.")
         review = production.draft_review(root, run, candidate["sha256"])
         review.update(reviewer="synthetic fixture reviewer", observations=[{"locator": {"kind": "whole"}, "observation": "Fixture bytes match the test result."}], conclusion="Synthetic test only.")

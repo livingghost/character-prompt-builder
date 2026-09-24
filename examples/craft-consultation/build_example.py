@@ -35,6 +35,10 @@ def build(root):
                     'action_slice': None, 'limitations': ['Synthetic local example, not a generated image.']})
     (root / 'task.json').write_bytes(c.encoded(task))
     spec = c.load(ROOT / 'templates/production-spec-template.json')
+    from render_contract_lib import make_intent
+    spec['render_intent'] = make_intent('painterly', mode='text-to-image', chosen_by='agent',
+        reason='A painted portrait study supports the declared lighting exercise.',
+        presentation='single portrait', prompt_expression='')
     spec['lighting']['key_light'] = 'A single side window with retained detail on the shadow side.'
     (root / 'spec.json').write_bytes(c.encoded(spec))
     original_task = (root / 'task.json').read_bytes()

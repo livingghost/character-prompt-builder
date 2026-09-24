@@ -7,8 +7,10 @@ pack, and a suite whose output names that pack fails. New suites are included
 automatically. An inventory test rejects
 duplicate registrations and stale invocation or slow-marker overrides.
 
-This directory is intentionally outside the release inventory: never add
-it to package-manifest.toml and never move these files under scripts/.
+This development-only bridge is included in source archives, not release archives.
+The release keeps the validation suites under scripts/ for its installed checks.
+Install pytest separately when using the bridge; individual suites can also
+be executed directly.
 
 Usage (from the repository root, sequential only; xdist is unsupported
 because suites configure global pack runtime state):

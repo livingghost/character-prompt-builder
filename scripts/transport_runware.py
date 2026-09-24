@@ -135,7 +135,12 @@ def compile_request(verified: dict, offering: dict, service: dict, media_ids: di
 
     paths = _media_paths(verified)
     if paths:
-        role = next(iter(generation_media_counts(offering, len(paths))))
+        media = forwarding.get('reference_media_role')
+        role = {'seed-image': 'seed image', 'references': 'reference images', 'input-image': 'input image'}.get(media)
+        if role is None or role not in offering['request_keys']:
+            raise ValueError('selected reference transport must be explicit and exposed by the offering')
+        if role != 'reference images' and len(paths) != 1:
+            raise ValueError('selected source-image transport takes exactly one image')
         field = path_parts(offering['request_keys'][role][0])
         values = [media_ids.get(path, MANAGEMENT_VALUE) for path in paths]
         many = role == 'reference images'
@@ -155,7 +160,6 @@ def compile_request(verified: dict, offering: dict, service: dict, media_ids: di
         write(['seed'], seed, 'model-setting', 'explicit-seed')
         layout['seed'] = ['seed']
         layout['fields'].append({'id': 'seed', 'field': ['seed'], 'kind': 'parameter'})
-    writer.defaults((offering.get('constraints') or {}).get('as_written') or {}, source)
     return {'request': writer.request, 'layout': layout, 'request_trace': writer.trace}
 
 
@@ -188,7 +192,7 @@ def compile_upscale(model_identifier: str, source_path: str, scale: float, setti
     write(['taskType'], operation, 'transport-envelope', 'operation')
     write(['taskUUID'], str(uuid.uuid4()), 'transport-envelope', 'task-identifier')
     write(['model'], model_identifier, 'model-setting', 'model-identifier')
-    write(['upscaleFactor'], int(scale) if float(scale).is_integer() else scale, 'model-setting', 'selected-scale')
+    write(['upscaleFactor'], scale, 'model-setting', 'selected-scale')
     image_field = path_parts(mapped[0])
     write(image_field, media_ids.get(source_path, MANAGEMENT_VALUE), 'reference-binding', 'upscale-source')
     layout = {
@@ -225,8 +229,6 @@ def compile_upscale(model_identifier: str, source_path: str, scale: float, setti
         field = path_parts(name)
         write(field, value, 'model-setting', 'selected-upscale-setting')
         layout['fields'].append({'id': 'parameter:' + name, 'field': field, 'kind': 'parameter'})
-    writer.defaults({'outputFormat': 'PNG'}, source)
-    writer.defaults((offering.get('constraints') or {}).get('as_written') or {}, source)
     return {'request': writer.request, 'layout': layout, 'request_trace': writer.trace}
 
 

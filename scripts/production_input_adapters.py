@@ -154,7 +154,7 @@ def next_actions(inputs: dict, task: dict, root: Path, *, runtime_arguments: dic
     if task.get('route') == 'upscale':
         actions.insert(0, {'operation': 'build-upscale-request', 'script': 'scripts/production_binding.py',
             'args': {'root': str(root), 'request-validation-file': str(root / inputs['request-validation']['path'])},
-            'requires': ['Select source, model, scale and settings.',
+            'requires': ['Select source, model, scale, settings, and render-intent.',
                          'Write the declaration to the task delivery path before prepare.'],
             'external_effect': False, 'budget_effect': 'none'})
         return actions

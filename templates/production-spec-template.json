@@ -66,5 +66,25 @@
     "consequential_assumptions": [],
     "construction_invariants": []
   },
-  "selected_preset_ids": []
+  "selected_preset_ids": [],
+  "render_intent": {
+    "artifact_type": "render-intent",
+    "preset": null,
+    "axes": {
+      "medium": "",
+      "dimensionality": "",
+      "linework": "",
+      "shading": "",
+      "surface": "",
+      "detail": ""
+    },
+    "presentation": "",
+    "selection": {
+      "chosen_by": "agent",
+      "reason": ""
+    },
+    "execution_mode": "text-to-image",
+    "prompt_expression": "",
+    "regional_overrides": []
+  }
 }

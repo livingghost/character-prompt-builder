@@ -81,6 +81,10 @@ def inspect_record(entries: Sequence[Entry], record_id: str) -> dict[str, Any]:
                     "own art direction; do not preserve this record as if it were one."
                 ),
             }
+            if entry.kind == "model":
+                from render_contract_lib import model_card
+                offers = entry.record.get("offerings") or []
+                result["execution_guidance"] = [model_card(entry.record, row) for row in offers] if offers else [model_card(entry.record)]
             return result
     raise SystemExit(f"Unknown preset id: {record_id}")
 

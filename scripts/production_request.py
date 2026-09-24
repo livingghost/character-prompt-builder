@@ -48,7 +48,7 @@ def intent(package: dict, rendered: dict, *, seed: int | None, count: int,
 
 
 def validate_payload(payload: Any, *, snapshots: dict | None = None) -> None:
-    """Verify a submission payload offline; given the input bytes, also verify them and the request against them.
+    """Verify a submission payload without sending it; also check any supplied input bytes against the request.
 
     The payload names each input file by path and SHA-256. The dispatcher holds
     the bytes in the package, so it verifies them when it writes the intent and

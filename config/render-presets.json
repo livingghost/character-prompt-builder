@@ -1,0 +1,173 @@
+{
+  "presets": [
+    {
+      "id": "anime-cel",
+      "label": "2D anime cel illustration",
+      "axes": {
+        "medium": "2d-illustration",
+        "dimensionality": "drawn-volume",
+        "linework": "clean-variable-contours",
+        "shading": "cel-values-with-selective-gradients",
+        "surface": "designed-surface-marks",
+        "detail": "focal-detail-hierarchy"
+      },
+      "guidance": "Keep drawn contours and value groups coherent; subject, anatomy and wardrobe remain separate choices."
+    },
+    {
+      "id": "flat-graphic",
+      "label": "Flat graphic illustration",
+      "axes": {
+        "medium": "2d-illustration",
+        "dimensionality": "flat-shapes",
+        "linework": "shape-edges",
+        "shading": "flat-fills",
+        "surface": "minimal-texture",
+        "detail": "graphic-hierarchy"
+      },
+      "guidance": "Use silhouette, spacing and color relationships instead of inferred physical depth."
+    },
+    {
+      "id": "painterly",
+      "label": "Painterly illustration",
+      "axes": {
+        "medium": "2d-painting",
+        "dimensionality": "painted-volume",
+        "linework": "selective-or-lost-edges",
+        "shading": "painted-values",
+        "surface": "visible-brush-marks",
+        "detail": "selective-finish"
+      },
+      "guidance": "Describe brushwork and edge handling without assigning a subject or historical artist."
+    },
+    {
+      "id": "watercolor",
+      "label": "Watercolor treatment",
+      "axes": {
+        "medium": "2d-painting",
+        "dimensionality": "wash-modeled-volume",
+        "linework": "selective-drawn-accents",
+        "shading": "layered-translucent-washes",
+        "surface": "paper-grain-and-pigment",
+        "detail": "selective-crisp-detail"
+      },
+      "guidance": "Reserve paper, control pigment edges and keep selected regions legible."
+    },
+    {
+      "id": "ink",
+      "label": "Ink drawing",
+      "axes": {
+        "medium": "2d-drawing",
+        "dimensionality": "line-modeled-volume",
+        "linework": "ink-contours-and-hatching",
+        "shading": "hatching-and-solid-black",
+        "surface": "paper-and-ink",
+        "detail": "structured-line-density"
+      },
+      "guidance": "Use line density and solid masses deliberately; a comic panel is a separate presentation choice."
+    },
+    {
+      "id": "pencil",
+      "label": "Pencil drawing",
+      "axes": {
+        "medium": "2d-drawing",
+        "dimensionality": "line-modeled-volume",
+        "linework": "graphite-strokes",
+        "shading": "tonal-hatching",
+        "surface": "paper-and-graphite",
+        "detail": "selective-mark-density"
+      },
+      "guidance": "Choose erased light, pressure and directional marks rather than photographic texture."
+    },
+    {
+      "id": "pixel",
+      "label": "Pixel art",
+      "axes": {
+        "medium": "2d-raster",
+        "dimensionality": "pixel-cluster-depth",
+        "linework": "pixel-cluster-edges",
+        "shading": "discrete-palette-steps",
+        "surface": "pixel-grid",
+        "detail": "cluster-level-detail"
+      },
+      "guidance": "Keep a deliberate pixel scale; distinguish artwork pixelation from output file resolution."
+    },
+    {
+      "id": "vector",
+      "label": "Vector illustration",
+      "axes": {
+        "medium": "vector-illustration",
+        "dimensionality": "flat-or-layered-shapes",
+        "linework": "precise-path-contours",
+        "shading": "solid-fills-and-declared-gradients",
+        "surface": "smooth-shapes",
+        "detail": "shape-economy"
+      },
+      "guidance": "A vector appearance does not establish that the provider returns a vector file."
+    },
+    {
+      "id": "stylized-3d",
+      "label": "Stylized 3D rendering",
+      "axes": {
+        "medium": "3d-render",
+        "dimensionality": "modeled-volume",
+        "linework": "silhouette-and-optional-toon-edges",
+        "shading": "stylized-light-response",
+        "surface": "designed-materials",
+        "detail": "selective-model-detail"
+      },
+      "guidance": "Choose modeled forms and material response without assuming photorealistic anatomy."
+    },
+    {
+      "id": "physical-3d",
+      "label": "Physically shaded 3D rendering",
+      "axes": {
+        "medium": "3d-render",
+        "dimensionality": "modeled-volume",
+        "linework": "geometry-edges",
+        "shading": "physically-based-light-response",
+        "surface": "declared-material-properties",
+        "detail": "scale-aware-detail"
+      },
+      "guidance": "Specify material response and lighting intentionally; this is not proof of a physical scene."
+    },
+    {
+      "id": "photographic",
+      "label": "Photographic presentation",
+      "axes": {
+        "medium": "photographic",
+        "dimensionality": "lens-projected-volume",
+        "linework": "optical-edges",
+        "shading": "exposure-and-scene-light",
+        "surface": "observable-surface-texture",
+        "detail": "optical-focus-hierarchy"
+      },
+      "guidance": "State capture and lighting intent; do not infer identity, age or scene facts from a finish choice."
+    },
+    {
+      "id": "crafted-object",
+      "label": "Crafted object presentation",
+      "axes": {
+        "medium": "physical-craft-presentation",
+        "dimensionality": "constructed-object-volume",
+        "linework": "cut-or-formed-edges",
+        "shading": "scene-lit-materials",
+        "surface": "declared-craft-material",
+        "detail": "construction-scale-detail"
+      },
+      "guidance": "Choose the actual craft material and construction; the preset does not imply a toy subject."
+    },
+    {
+      "id": "mixed-media",
+      "label": "Mixed media composition",
+      "axes": {
+        "medium": "mixed-media",
+        "dimensionality": "explicit-layered-depth",
+        "linework": "region-specific-edges",
+        "shading": "region-specific-values",
+        "surface": "region-specific-materials",
+        "detail": "shared-focal-hierarchy"
+      },
+      "guidance": "Declare the participating regions and their overrides rather than averaging incompatible finishes."
+    }
+  ]
+}

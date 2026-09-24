@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline feature contracts: scoped adoption, retrieval, revision, packs and bulk reads.
+"""Feature contract tests: scoped adoption, retrieval, revision, packs and bulk reads.
 
 python scripts/feature_workflow_smoke_test.py
 No image-generation service is contacted. Fixtures are synthetic, not real consent.
@@ -59,7 +59,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.work_context = tempfile.TemporaryDirectory(prefix='case-', dir=self.base)
         self.addCleanup(self.work_context.cleanup)
         self.work = Path(self.work_context.name)
-        self.root = studio.init(self.work/'studio', 'fixture-studio', 'Offline fixture')
+        self.root = studio.init(self.work/'studio', 'fixture-studio', 'Synthetic fixture')
         self.home = studio.add_character(self.root, 'C01', '')
         # Preserve the same actual source witnesses when changing the fixture root.
         from input_evidence import InputEvidence
@@ -78,7 +78,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         from PIL import Image
         path = self.work / ('image-' + color + '.png')
         Image.new('RGB', (24, 24), color).save(path)
-        return studio.iterate(self.root, 'C01', slot, path, package=self.package_path, request=None, response=None, note='Offline fixture')
+        return studio.iterate(self.root, 'C01', slot, path, package=self.package_path, request=None, response=None, note='Synthetic fixture')
 
     def approval(self, row, scope='sheet', influence='identity', **extra):
         if influence == 'identity':
@@ -89,7 +89,7 @@ class FeatureWorkflowTests(unittest.TestCase):
                 'by': 'SYNTHETIC PRINCIPAL, NOT HUMAN CONSENT', 'at': '2000-01-01T00:00:00Z'})
         return {'scope': scope, 'influence': influence, 'character': 'C01',
                 'iteration_id': row['iteration_id'], 'slot': row['slot'], 'image_sha256': row['result']['sha256'],
-                'by': 'OFFLINE TEST FIXTURE, NOT HUMAN CONSENT', 'at': '2026-09-15T00:00:00Z', **extra}
+                'by': 'SYNTHETIC TEST FIXTURE, NOT HUMAN CONSENT', 'at': '2026-09-15T00:00:00Z', **extra}
 
     def adopt(self, row, **kwargs):
         return adoption.adopt(self.root, 'C01', row['iteration_id'], self.approval(row), **kwargs)
@@ -110,7 +110,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertEqual(self.package['retrieval_record_sha256'], digest(self.package['retrieval_record']))
 
     def test_02_missing_unsettled_and_unavailable_retrieval_rejected(self):
-        for value in (None, {}, {'unavailable': 'offline'}, {'artifact_type': 'prompt-retrieval-record', 'elements': []}):
+        for value in (None, {}, {'unavailable': 'test lookup unavailable'}, {'artifact_type': 'prompt-retrieval-record', 'elements': []}):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 require_generation_retrieval(value, prompt=PROMPT, plot=APPROVED_PLOT)
         value = fixture_retrieval(PROMPT, APPROVED_PLOT); value['settled'] = False
@@ -325,7 +325,7 @@ class FeatureWorkflowTests(unittest.TestCase):
 
     def test_27_mock_dispatch_keeps_real_verifier_and_records_returned_result(self):
         options=argparse.Namespace(package=self.package_path,service=None,profiles=None,seed=7,count=1,send=True,
-                                   character='C01',slot='base.front',note='Offline fixture')
+                                   character='C01',slot='base.front',note='Synthetic fixture')
         transport=SimpleNamespace(build=Mock(return_value={'taskUUID':'fixture-task','prompt':PROMPT}),
             media_paths=Mock(return_value=[]),upload=Mock(side_effect=AssertionError('unexpected upload')),
             send=Mock(return_value={'data':'fixture'}),rejections=Mock(return_value=[]),
@@ -349,7 +349,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
             for name,kwargs in {'select_offering':{'return_value':offering},'service_for':{'return_value':('fixture',{},transport)},
-                'check_request':{},'api_key':{'return_value':'OFFLINE-NOT-A-CREDENTIAL'},'save':{'side_effect':save}}.items():
+                'check_request':{},'api_key':{'return_value':'TEST-NOT-A-CREDENTIAL'},'save':{'side_effect':save}}.items():
                 stack.enter_context(patch.object(dispatch,name,**kwargs))
             stack.enter_context(patch('request_renderer.generation',return_value=rendered))
             self.assertEqual(dispatch.dispatch_generation(options,self.root),0)
@@ -357,9 +357,9 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertEqual(rows[0]['seed'],7)
         self.adopt(rows[0]);self.assertTrue(self.index()['ok'])
 
-    def test_28_walkthrough_reaches_a_real_request_preview_offline(self):
+    def test_28_walkthrough_reaches_a_request_preview_without_sending(self):
         import importlib.util
-        spec=importlib.util.spec_from_file_location('offline_walkthrough',ROOT/'examples/feature-walkthrough/run.py')
+        spec=importlib.util.spec_from_file_location('request_preview_walkthrough',ROOT/'examples/feature-walkthrough/run.py')
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         result=module.run(self.work/'walkthrough output')
         self.assertEqual(result['external_requests'],0);self.assertFalse(result['sent']);self.assertEqual(result['iterations'],0)
@@ -367,6 +367,11 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertEqual(result['request']['model'],'xai:grok-imagine@image-2.0')
         self.assertEqual((result['request']['width'],result['request']['height']),(832,1248))
         self.assertEqual(result['validation']['checked'],['target-schema'])
+        self.assertEqual(result['request']['settings']['quality'],'medium')
+        rendering=pm.load_json(self.work/'walkthrough output'/'render-intent.json')
+        self.assertEqual(rendering['selection']['chosen_by'],'agent')
+        self.assertEqual(rendering['preset'],'photographic')
+        self.assertTrue(result['request']['positivePrompt'].startswith(rendering['prompt_expression']))
         self.assertTrue(result['request_validation']['contract'].startswith('@pack/'))
         args=pm.load_json(self.work/'walkthrough output'/'builder-arguments.json')
         for flag in ('--plot-file','--retrieval-record-file','--continuity','--production-root'):self.assertIn(flag,args)
@@ -379,8 +384,8 @@ class FeatureWorkflowTests(unittest.TestCase):
         lines=(self.work/'walkthrough output'/'transcript.txt').read_text(encoding='utf-8').splitlines()
         self.assertTrue(all(line.startswith(('$ python scripts/','  exit 0: ','# ')) for line in lines))
         self.assertEqual([line.split()[2] for line in lines if line.startswith('$ ')],
-                         ['scripts/'+name+'.py' for name in ('studio','studio','work_ledger','execution_routes',
-                          'production_workflow','prompt_retrieval','production_spec','build_generation_payload','dispatch')])
+                         ['scripts/'+name+'.py' for name in ('studio','studio','work_ledger','execution_routes','render_contract',
+                          'production_workflow','prompt_retrieval','render_contract','production_spec','build_generation_payload','dispatch')])
         self.assertLess(sum(map(len,lines)),8000)
         with self.assertRaises(ValueError):module.run(self.work/'walkthrough output')
 
@@ -394,17 +399,17 @@ class FeatureWorkflowTests(unittest.TestCase):
         return pm.load_json(out/'prompt-artifact-manifest.json')
 
     def test_29_unapproved_draft_needs_no_plot_or_studio_authorization(self):
-        manifest=self.prompt_artifacts(['--retrieval-unavailable','offline draft explicitly disclosed'])
+        manifest=self.prompt_artifacts(['--retrieval-unavailable','test lookup unavailability explicitly disclosed'])
         self.assertEqual(manifest['mode'],'prompt-only');self.assertFalse(manifest['plot']['approved'])
         self.assertFalse(manifest['execution_authorized']);self.assertFalse(manifest['canonical_update_authorized'])
-        with self.assertRaises(ValueError):self.prompt_artifacts(['--retrieval-unavailable','offline','--prepare-for-generation'],'blocked')
+        with self.assertRaises(ValueError):self.prompt_artifacts(['--retrieval-unavailable','test lookup unavailable','--prepare-for-generation'],'blocked')
 
     def test_30_draft_revision_contract_is_validated_and_preserved(self):
         path=self.work/'revision.json';pm.atomic_write_json(path,self.revision())
-        manifest=self.prompt_artifacts(['--retrieval-unavailable','offline draft','--revision-contract',str(path)])
+        manifest=self.prompt_artifacts(['--retrieval-unavailable','test lookup unavailable','--revision-contract',str(path)])
         self.assertTrue(manifest['revision']['ok']);self.assertIn('/scene/eyes',manifest['revision']['changed_paths'])
         changed=self.revision();changed['candidate']['scene']['lighting']='unrequested';pm.atomic_write_json(path,changed)
-        with self.assertRaisesRegex(ValueError,'revision'):self.prompt_artifacts(['--retrieval-unavailable','offline','--revision-contract',str(path)],'bad-revision')
+        with self.assertRaisesRegex(ValueError,'revision'):self.prompt_artifacts(['--retrieval-unavailable','test lookup unavailable','--revision-contract',str(path)],'bad-revision')
 
     def test_31_stateless_builder_itself_rejects_missing_retrieval(self):
         import generation_payload_smoke_test as fixture
@@ -425,7 +430,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         value['candidate']['identity']['fixed_wardrobe']='red coat';value['requested_paths']=['/identity/fixed_wardrobe']
         value['scope']='identity'
         self.assertFalse(validate_revision(value)['ok'])
-        value['canonical_approval']={'by':'OFFLINE FIXTURE','at':'2026-09-15T00:00:00Z',
+        value['canonical_approval']={'by':'SYNTHETIC FIXTURE','at':'2026-09-15T00:00:00Z',
               'baseline_sha256':digest(value['baseline']),'candidate_sha256':digest(value['candidate'])}
         self.assertTrue(validate_revision(value)['ok'])
         value['candidate']['identity']['fixed_wardrobe']='green coat';self.assertFalse(validate_revision(value)['ok'])

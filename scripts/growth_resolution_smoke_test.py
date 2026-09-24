@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline regression coverage for resolved growth authority and state handoff."""
+"""Regression coverage for resolved growth authority and state handoff."""
 from __future__ import annotations
 
 import copy

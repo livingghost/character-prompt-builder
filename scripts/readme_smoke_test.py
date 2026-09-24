@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the product README's offline commands, not its prose quality.
+"""Exercise the product README's example commands, not its prose quality.
 
 Only the explicitly marked local examples are executed. Live send examples are
 checked against CLI help and for required authority arguments, never sent. These
@@ -23,7 +23,7 @@ SUITE = Path(__file__).resolve().parents[1]
 EXAMPLES = {"production-lifecycle", "core-check", "public-exchange", "authoring-material"}
 SEND_EXAMPLES = {"upscale", "generation"}
 SEND_FLAGS = ["--production-authorization", "--send"]
-OFFLINE_SCRIPTS = {
+EXAMPLE_SCRIPTS = {
     "scripts/scene_persona.py",
     "examples/production-execution/run_example.py",
     "scripts/protocol_exchange.py",
@@ -175,9 +175,9 @@ def main() -> int:
             target = (REPOSITORY / unquote(value.path)).resolve()
             check(f"local link: {link}", target.is_relative_to(REPOSITORY) and target.exists())
         examples = blocks(text, "readme-example")
-        check("offline example inventory", set(examples) == EXAMPLES)
+        check("example inventory", set(examples) == EXAMPLES)
         if set(examples) != EXAMPLES:
-            raise ValueError("README offline example set is incomplete or unexpected")
+            raise ValueError("README example set is incomplete or unexpected")
         sends = blocks(text, "readme-send")
         check("live example inventory", set(sends) == SEND_EXAMPLES)
         for name, content in sends.items():
@@ -204,13 +204,13 @@ def main() -> int:
                     if not line.strip():
                         continue
                     tokens = shlex.split(line)
-                    if len(tokens) < 2 or tokens[0] != "python" or tokens[1] not in OFFLINE_SCRIPTS:
-                        raise ValueError(f"unapproved offline example command: {line}")
+                    if len(tokens) < 2 or tokens[0] != "python" or tokens[1] not in EXAMPLE_SCRIPTS:
+                        raise ValueError(f"unapproved example command: {line}")
                     if "--send" in tokens:
-                        raise ValueError("live send cannot be an offline example")
+                        raise ValueError("example commands must not submit generation requests")
                     argv = [sys.executable, "-B", *[mapping.get(t, t) for t in tokens[1:]]]
                     invoke(argv, env)
-                check(f"offline example executed: {name}", True)
+                check(f"example executed: {name}", True)
             authoring = temp / "authoring"
             for relative in (
                 "scene-material/persona.md",
@@ -289,7 +289,7 @@ def main() -> int:
                 "checks": len(checks),
                 "details": checks,
                 "commands": commands,
-                "limits": "Offline fixtures and CLI signatures only; no provider, real-agent or prose-quality assessment.",
+                "limits": "Synthetic fixtures and CLI signatures only; no provider, real-agent or prose-quality assessment.",
             },
             ensure_ascii=False,
             indent=2,

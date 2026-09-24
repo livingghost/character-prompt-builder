@@ -27,7 +27,7 @@ For every such image, including prompt-only delivery, draft the smallest valid s
 
 ```bash
 python scripts/production_spec.py draft production-spec.json --model grok-imagine-image-2.0 \
-  --brief "An old lighthouse keeper watches the sea from a window at dawn." \
+  --render-intent render-intent.json --brief "An old lighthouse keeper watches the sea from a window at dawn." \
   --kind human --framing upper-thigh --continuity undecided
 python scripts/production_spec.py validate production-spec.json --require-content
 ```
@@ -200,3 +200,11 @@ Do not allow body-build terms to decide the bone and surface character implicitl
 Run the part-measurement pass for every one-off or recurring subject when size, count, spacing, angle, coverage, color, or surface is load-bearing. Prefer a local relationship and tolerance over an unsupported absolute unit. Examples include tag width against nose width, hoop diameter against ear height, tail thickness against pelvis width, wing span against torso width, or a mechanical panel gap against local plate thickness.
 
 Accessory geometry is a first-class subject contract. A label such as `chain`, `dog tag`, `earring`, or `buckle` is not sufficient when reconstruction matters. Preserve the complete geometry, support path, attachment, repeated-element scale, material, color, layer order, pose response, and occlusion behavior.
+
+## Rendering intent
+
+Every current specification includes a resolved `render_intent`.
+Create it with `scripts/render_contract.py intent` under [Rendering choices and execution controls](runtime/render-contract.md).
+Draft prompt wording after retrieval, then validate with `--require-content` before building a Generation Package.
+The rendering choice owns finish; visual-language catalog references and art direction supply additional scoped evidence.
+Review them for agreement rather than silently rewriting either source.

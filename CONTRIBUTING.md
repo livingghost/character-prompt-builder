@@ -37,7 +37,7 @@ Use Python 3.11 or newer. Core scripts use the standard library only. [Release V
 - [SKILL.md](SKILL.md) owns the runtime router and core invariants; [references/runtime/](references/runtime/) owns conditional detailed runtime contracts.
 - [packs/commons/](packs/commons/) is the minimal shipped commons pack.
 - [PACKS.md](PACKS.md) defines the commons pack and independently authored additional packs.
-- [`.gitignore`](.gitignore) keeps the commons pack tracked while excluding every other pack below `packs/` unless project policy explicitly changes.
+- The repository-only `.gitignore` keeps the commons pack tracked while excluding every other pack below `packs/` unless project policy explicitly changes.
 - [references/](references/) owns stable method and authoring documentation.
 - [scripts/](scripts/) owns deterministic support and validation tools.
 - [examples/](examples/) owns canonical reproducible examples.
@@ -104,7 +104,7 @@ External target evidence may include an API version, model version, editor build
 
 ## Documentation
 
-Run `python scripts/readme_smoke_test.py` after changing user-facing examples. It executes the marked offline commands in temporary directories and verifies outputs and source-change behavior; live-send examples are checked without contacting a service. Keep the surrounding explanations accurate as well: executable commands do not establish prose completeness or artistic quality.
+Run `python scripts/readme_smoke_test.py` after changing user-facing examples. It executes the marked example commands in temporary directories and verifies outputs and source-change behavior; live-send examples are checked without contacting a service. Keep the surrounding explanations accurate as well: executable commands do not establish prose completeness or artistic quality.
 
 Keep the [README](README.md) focused on users, capabilities, installation, normal operation, evidence boundaries, and limitations. Contributor-only release and version-management details belong in this guide.
 
@@ -269,3 +269,10 @@ When changing temporal resolution or moment-backed production, run
 and `python scripts/production_workflow_smoke_test.py`. The [Story Context example](examples/story-context/README.md)
 exercises actual query commands and the prepare-to-complete path. Keep diagnostic
 output, consumer selections and approval decisions distinct.
+
+## Rendering contracts
+
+Model-interface changes update execution profiles, schemas, request transport, fixtures, and documentation together.
+Run `python scripts/render_contract_smoke_test.py` and `python examples/render-contract/build_example.py --check`.
+Then run model, generation, request, dispatch, and repository checks under the required dependency profile.
+Rendering presets are subject-neutral choices, not provider effectiveness claims.

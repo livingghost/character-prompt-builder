@@ -1,4 +1,4 @@
-"""Declare synthetic interfaces for offline tests and executable examples only.
+"""Declare synthetic interfaces for tests and executable examples only.
 
 The declarations exercise evidence binding. They are not observations of a live
 provider and are never constructed by an operational entrypoint.
@@ -42,7 +42,7 @@ def fixture_validation(root: Path, model: str, *, reference_mode: str,
 
 def interface_validation(root: Path, *, target: dict, record: dict, offering: dict,
                          service_record: dict, transport, reference_mode: str) -> dict:
-    """Declare an explicitly synthetic interface for an exact offline execution context."""
+    """Declare an explicitly synthetic interface for an exact test execution context."""
     prefix = 'synthetic-validation/' + c.content_id({'target': target, 'reference_mode': reference_mode, 'record': record,
         'offering': offering, 'service': service_record, 'transport': c.digest(Path(transport.__file__).read_bytes())})[:16]
     root.mkdir(parents=True, exist_ok=True)
@@ -56,13 +56,13 @@ def interface_validation(root: Path, *, target: dict, record: dict, offering: di
             if destination.read_bytes() != raw:
                 raise ValueError('synthetic interface evidence changed: ' + path)
         return {'path': path, 'sha256': c.digest(raw)}
-    basis = {**save('basis.txt', 'Synthetic offline interface declaration. No provider was contacted.\n'), 'locator': 'whole'}
+    basis = {**save('basis.txt', 'Synthetic interface declaration. No provider was contacted.\n'), 'locator': 'whole'}
     # This fixture accepts an object; concrete model constraints remain checked
     # by the normal model validator. It establishes no live provider capability.
     schema = {'type': 'object'}
     response = save('interface.json', {'synthetic': True, 'schema': schema})
     acquisition = save('acquisition.json', {'artifact_type': 'schema-acquisition', 'target': target,
-        'source': {'kind': 'document', 'identifier': 'Synthetic offline interface fixture', 'locator': 'schema member'},
+        'source': {'kind': 'document', 'identifier': 'Synthetic interface fixture', 'locator': 'schema member'},
         'acquired_at': '2000-01-01T00:00:00Z', 'response': response,
         'status': {'document_status': 'schema-provided'}})
     contract = save('contract.json', {'artifact_type': 'model-schema-contract', 'target': target,

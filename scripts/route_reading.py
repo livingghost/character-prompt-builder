@@ -700,6 +700,12 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
     dialect = EVERY_FAMILY if args.dialect is None else args.dialect
     if args.model is not None:
         dialect = _model_family(args.model)
+        from prepare_generation_references import resolve_model_record
+        from render_contract_lib import model_card
+        _, selected_model = resolve_model_record(args.model)
+        offers = selected_model.get('offerings') or []
+        cards = [model_card(selected_model, row) for row in offers] if offers else [model_card(selected_model)]
+        print('model-guidance: ' + json.dumps(cards, ensure_ascii=False, sort_keys=True), flush=True)
     if args.cursor or args.replay or args.page_bytes is not None:
         result = read_page(route=args.route, features=args.feature, cursor=args.cursor or args.replay,
                            replay=bool(args.replay), page_bytes=16384 if args.page_bytes is None else args.page_bytes,

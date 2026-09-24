@@ -63,7 +63,215 @@
         }
       ],
       "operation_kind": "generation",
-      "offerings": []
+      "offerings": [],
+      "execution_profile": {
+        "id": "host-prose-image",
+        "basis": {
+          "kind": "curated-starting-point",
+          "source": "Model record prompt_style, ordering and size_hints",
+          "limitations": [
+            "Host request validation supplies the actual callable interface. No sampling controls or image-quality outcome are asserted."
+          ]
+        },
+        "prompt_recipe": {
+          "order": [
+            "purpose",
+            "subject",
+            "composition",
+            "rendering",
+            "constraints"
+          ],
+          "guidance": [
+            "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
+            "Keep the chosen finish in the authored prompt. Preserve user anchors and reference authority."
+          ]
+        },
+        "modes": {
+          "text-to-image": {
+            "media": "none",
+            "controls": {
+              "size": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Select the requested output geometry explicitly; consult the host size contract."
+              },
+              "quality": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Choose output quality explicitly and validate it against the selected host interface."
+              },
+              "seed": {
+                "status": "backend-managed",
+                "binding": "dispatch-seed",
+                "schema": null,
+                "recommendation": null,
+                "reason": "This host-only record exposes no seed control."
+              },
+              "numberResults": {
+                "status": "backend-managed",
+                "binding": "dispatch-count",
+                "schema": null,
+                "recommendation": null,
+                "reason": "Output count belongs to the selected host invocation."
+              },
+              "steps": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No sampling-step control is declared by this host record."
+              },
+              "CFGScale": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No guidance-scale control is declared by this host record."
+              },
+              "strength": {
+                "status": "not-applicable",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting."
+              }
+            },
+            "parameter_schema": {}
+          },
+          "reference-guided": {
+            "media": "references",
+            "controls": {
+              "size": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Select the requested output geometry explicitly; consult the host size contract."
+              },
+              "quality": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Choose output quality explicitly and validate it against the selected host interface."
+              },
+              "seed": {
+                "status": "backend-managed",
+                "binding": "dispatch-seed",
+                "schema": null,
+                "recommendation": null,
+                "reason": "This host-only record exposes no seed control."
+              },
+              "numberResults": {
+                "status": "backend-managed",
+                "binding": "dispatch-count",
+                "schema": null,
+                "recommendation": null,
+                "reason": "Output count belongs to the selected host invocation."
+              },
+              "steps": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No sampling-step control is declared by this host record."
+              },
+              "CFGScale": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No guidance-scale control is declared by this host record."
+              },
+              "strength": {
+                "status": "not-applicable",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting."
+              }
+            },
+            "parameter_schema": {}
+          },
+          "instruction-edit": {
+            "media": "references",
+            "controls": {
+              "size": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Select the requested output geometry explicitly; consult the host size contract."
+              },
+              "quality": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Choose output quality explicitly and validate it against the selected host interface."
+              },
+              "seed": {
+                "status": "backend-managed",
+                "binding": "dispatch-seed",
+                "schema": null,
+                "recommendation": null,
+                "reason": "This host-only record exposes no seed control."
+              },
+              "numberResults": {
+                "status": "backend-managed",
+                "binding": "dispatch-count",
+                "schema": null,
+                "recommendation": null,
+                "reason": "Output count belongs to the selected host invocation."
+              },
+              "steps": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No sampling-step control is declared by this host record."
+              },
+              "CFGScale": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No guidance-scale control is declared by this host record."
+              },
+              "strength": {
+                "status": "not-applicable",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting."
+              }
+            },
+            "parameter_schema": {}
+          }
+        }
+      }
     },
     {
       "id": "grok-imagine-image-2.0",
@@ -188,9 +396,472 @@
             "inputs_envelope": "media keys sit inside an inputs object (inputs.referenceImages)"
           },
           "observed_at": "2026-09-13",
-          "schema_snapshot": "resources/observed-schemas/grok-imagine-image-2.0.runware.json"
+          "schema_snapshot": "resources/observed-schemas/grok-imagine-image-2.0.runware.json",
+          "execution_profile": {
+            "id": "prose-reference-image-interface",
+            "basis": {
+              "kind": "provider-documentation",
+              "source": "resources/observed-schemas/grok-imagine-image-2.0.runware.json",
+              "limitations": [
+                "The stored schema is dated interface evidence. It is not a quality benchmark or a current network verification.",
+                "This profile exposes its enumerated controls only. Custom upload destinations and advanced watermark composition require a separately authored and validated profile extension."
+              ]
+            },
+            "prompt_recipe": {
+              "order": [
+                "subject",
+                "performance",
+                "composition",
+                "rendering",
+                "environment",
+                "constraints"
+              ],
+              "guidance": [
+                "prose description of one still frame; a reference image supplies likeness and drawing style while frame geometry stays in the text",
+                "Write rendering and critical exclusions in the positive prose; this interface has no separate negative channel."
+              ]
+            },
+            "modes": {
+              "text-to-image": {
+                "media": "none",
+                "controls": {
+                  "width": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Width",
+                      "description": "Width of the generated media in pixels.",
+                      "type": "integer"
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "height": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Height",
+                      "description": "Height of the generated media in pixels.",
+                      "type": "integer"
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "resolution": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "The stored schema only exposes resolution presets with source media."
+                  },
+                  "includeCost": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Include Cost",
+                      "description": "Include task cost in the response.",
+                      "type": "boolean"
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "ttl": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "TTL",
+                      "description": "Time-to-live (TTL) in seconds for generated content. Only applies when `outputType` is `URL`.",
+                      "type": "integer",
+                      "minimum": 60
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "outputType": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Output Type",
+                      "description": "Image output type.",
+                      "type": "string",
+                      "enum": [
+                        "URL",
+                        "base64Data",
+                        "dataURI"
+                      ]
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "outputFormat": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Output Format",
+                      "description": "File format for the generated image.",
+                      "type": "string",
+                      "enum": [
+                        "JPG",
+                        "PNG",
+                        "WEBP"
+                      ]
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "outputQuality": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Output Quality",
+                      "description": "Compression quality of the output. Higher values preserve quality but increase file size.",
+                      "type": "integer",
+                      "minimum": 20,
+                      "maximum": 99
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "safety": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "type": "object",
+                      "title": "Safety Settings",
+                      "description": "Content safety checking configuration for image generation.",
+                      "properties": {
+                        "checkContent": {
+                          "title": "Check Content",
+                          "description": "Enable or disable content safety checking. Increases total generation time.",
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "settings.quality": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "type": "string",
+                      "title": "Quality",
+                      "description": "Image quality level.",
+                      "oneOf": [
+                        {
+                          "description": "Faster generation with acceptable quality for rapid iteration.",
+                          "const": "low"
+                        },
+                        {
+                          "description": "Balanced quality suitable for most use cases.",
+                          "const": "medium"
+                        }
+                      ]
+                    },
+                    "recommendation": "quality",
+                    "reason": "Resolve the documented quality choice explicitly before submission."
+                  },
+                  "numberResults": {
+                    "status": "required",
+                    "binding": "dispatch-count",
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "recommendation": null,
+                    "reason": "The dispatcher commits the explicit output count."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "The stored offering schema exposes no seed."
+                  },
+                  "steps": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "This control is not exposed by the stored offering schema."
+                  },
+                  "CFGScale": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "This control is not exposed by the stored offering schema."
+                  },
+                  "scheduler": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "This control is not exposed by the stored offering schema."
+                  },
+                  "promptWeighting": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "This control is not exposed by the stored offering schema."
+                  },
+                  "strength": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "This interface accepts references, not a denoising-strength field."
+                  }
+                },
+                "parameter_schema": {}
+              },
+              "reference-guided": {
+                "media": "references",
+                "controls": {
+                  "width": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Width",
+                      "description": "Width of the generated media in pixels.",
+                      "type": "integer"
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "height": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Height",
+                      "description": "Height of the generated media in pixels.",
+                      "type": "integer"
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "resolution": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Resolution",
+                      "description": "Resolution preset for the output. When used with input media, automatically matches the aspect ratio from the input.",
+                      "type": "string",
+                      "enum": [
+                        "1K",
+                        "2K"
+                      ]
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "includeCost": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Include Cost",
+                      "description": "Include task cost in the response.",
+                      "type": "boolean"
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "ttl": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "TTL",
+                      "description": "Time-to-live (TTL) in seconds for generated content. Only applies when `outputType` is `URL`.",
+                      "type": "integer",
+                      "minimum": 60
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "outputType": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Output Type",
+                      "description": "Image output type.",
+                      "type": "string",
+                      "enum": [
+                        "URL",
+                        "base64Data",
+                        "dataURI"
+                      ]
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "outputFormat": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Output Format",
+                      "description": "File format for the generated image.",
+                      "type": "string",
+                      "enum": [
+                        "JPG",
+                        "PNG",
+                        "WEBP"
+                      ]
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "outputQuality": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Output Quality",
+                      "description": "Compression quality of the output. Higher values preserve quality but increase file size.",
+                      "type": "integer",
+                      "minimum": 20,
+                      "maximum": 99
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "safety": {
+                    "status": "optional",
+                    "binding": "package",
+                    "schema": {
+                      "type": "object",
+                      "title": "Safety Settings",
+                      "description": "Content safety checking configuration for image generation.",
+                      "properties": {
+                        "checkContent": {
+                          "title": "Check Content",
+                          "description": "Enable or disable content safety checking. Increases total generation time.",
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "recommendation": null,
+                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
+                  },
+                  "settings.quality": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "type": "string",
+                      "title": "Quality",
+                      "description": "Image quality level.",
+                      "oneOf": [
+                        {
+                          "description": "Faster generation with acceptable quality for rapid iteration.",
+                          "const": "low"
+                        },
+                        {
+                          "description": "Balanced quality suitable for most use cases.",
+                          "const": "medium"
+                        }
+                      ]
+                    },
+                    "recommendation": "quality",
+                    "reason": "Resolve the documented quality choice explicitly before submission."
+                  },
+                  "numberResults": {
+                    "status": "required",
+                    "binding": "dispatch-count",
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "recommendation": null,
+                    "reason": "The dispatcher commits the explicit output count."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "The stored offering schema exposes no seed."
+                  },
+                  "steps": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "This control is not exposed by the stored offering schema."
+                  },
+                  "CFGScale": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "This control is not exposed by the stored offering schema."
+                  },
+                  "scheduler": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "This control is not exposed by the stored offering schema."
+                  },
+                  "promptWeighting": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "This control is not exposed by the stored offering schema."
+                  },
+                  "strength": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "This interface accepts references, not a denoising-strength field."
+                  }
+                },
+                "parameter_schema": {
+                  "oneOf": [
+                    {
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "not": {
+                        "required": [
+                          "resolution"
+                        ]
+                      }
+                    },
+                    {
+                      "required": [
+                        "resolution"
+                      ],
+                      "not": {
+                        "anyOf": [
+                          {
+                            "required": [
+                              "width"
+                            ]
+                          },
+                          {
+                            "required": [
+                              "height"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
         }
-      ]
+      ],
+      "recommended_parameters": {
+        "quality": "medium"
+      }
     }
   ]
 }

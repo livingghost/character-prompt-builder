@@ -63,7 +63,7 @@ def inputs(root,out,prepared,package,rendered,proposed,difference,reader):
         files['upscale-guidance.txt']=prompt.encode('utf-8');put('upscale-settings.json',settings)
         actions.append({'operation':'build-upscale-request','script':'scripts/production_binding.py',
             'args':{'root':str(root),'model':package['model'],'source':upscale_source,
-                    'scale':scale,'settings':settings,**({'guidance':prompt} if prompt else {})},
+                    'scale':scale,'settings':settings,'render-intent':put('render-intent.json', package['render_intent']),**({'guidance':prompt} if prompt else {})},
             'requires':['new request-validation file','out: write the new declaration to the draft task delivery path before prepare'],
             'external_effect':False,'budget_effect':'none'})
     else:

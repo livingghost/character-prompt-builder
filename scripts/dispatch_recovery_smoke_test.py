@@ -37,7 +37,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="cpb-dispatch-recovery-")
         self.addCleanup(self.temporary.cleanup)
         self.base = Path(self.temporary.name)
-        self.root = studio.init(self.base / "studio", "recovery-test", "Synthetic offline recovery tests")
+        self.root = studio.init(self.base / "studio", "recovery-test", "Synthetic recovery tests")
         self.home = studio.add_character(self.root, "C01", "")
         self.source = self.root / "source.png"
         Image.new("RGB", (8, 8)).save(self.source)
@@ -50,7 +50,19 @@ class DispatchRecoveryTests(unittest.TestCase):
             "service": "fixture", "model_identifier": "fixture-model", "observed_at": "2000-01-01",
             "request_keys": {"prompt": ["positivePrompt"], "negative prompt": ["negativePrompt"],
                              "reference images": ["inputs.referenceImages"], "input image": ["inputImage"]},
+            "parameter_keys": {"scale": "upscaleFactor"},
         }
+        from render_contract_fixtures import control, profile
+        execution_profile = profile(seed=True)
+        execution_profile["modes"]["upscale"] = {
+            "media": "input-image", "parameter_schema": {},
+            "controls": {
+                "upscaleFactor": control("required", schema={"type": "number", "enum": [2, 4]}),
+                "seed": control("backend-managed", binding="dispatch-seed"),
+                "numberResults": control("not-applicable", binding="dispatch-count"),
+            },
+        }
+        self.offering["execution_profile"] = execution_profile
         self.record = {"operation_kind": "upscale", "supported_scale_factors": [2],
                        "upscale_settings": {}, "upscaler_class": "deterministic"}
         self.service = {"id": "fixture", "transport": "fixture", "endpoint": {"base_url": "https://example.invalid"},
@@ -96,12 +108,17 @@ class DispatchRecoveryTests(unittest.TestCase):
             "role": "scene", "source": {"sha256": c.digest(self.source.read_bytes())},
             "authority": {"controls": ["lighting"], "must_not_control": ["identity"]},
         }]
+        from render_contract_fixtures import intent
+        import render_contract_lib as rendering
         package = {
             "generation_payload": {}, "production_binding": {"run": "synthetic-boundary-stub"},
             "composition_prompt": self.prompt,
             "visual_continuity": visual, "production_spec": {"subjects": [{"id": "subject"}]},
             "prepared_reference_set": {"transport_mode": "multi-image",
                                       "selected_references": self.reference_rows, "single_board": None},
+            "render_contract": rendering.compile_contract(
+                self.record, self.offering, intent(self.prompt, "reference-guided"), {},
+                prompt=self.prompt, reference_count=1),
         }
         input_contracts.attach(package, validation, reader)
         self.package = self.base / "generation-package.json"
@@ -114,11 +131,14 @@ class DispatchRecoveryTests(unittest.TestCase):
         )
         self.validation_file = self.root / "upscale-validation.json"
         self.validation_file.write_bytes(c.encoded(upscale_validation))
+        self.render_intent = intent("", "upscale")
+        self.render_intent_file = self.base / "render-intent.json"
+        self.render_intent_file.write_bytes(c.encoded(self.render_intent))
         self.options = argparse.Namespace(
             package=self.package, service=None, profiles=None, seed=7, count=2, send=True,
             character="C01", slot="base.front", note=None, source=self.source, model="fixture",
             scale=2, settings="{}", guidance=None, production_authorization="synthetic-receipt-stub",
-            request_validation_file=self.validation_file,
+            request_validation_file=self.validation_file, render_intent=self.render_intent_file,
         )
         self.request = {
             "taskType": "imageInference", "taskUUID": self.request_id, "model": "fixture-model",
@@ -148,7 +168,7 @@ class DispatchRecoveryTests(unittest.TestCase):
             "service_for": {"return_value": ("fixture", self.service, self.transport)},
             "check_request": {}, "validate_generation_parameters": {},
             "model_pack_root": {"return_value": self.base},
-            "api_key": {"return_value": "OFFLINE-CREDENTIAL-MUST-NEVER-BE-SAVED"},
+            "api_key": {"return_value": "TEST-CREDENTIAL-MUST-NEVER-BE-SAVED"},
             "save": {"side_effect": self.save},
             "open_run": {"return_value": "synthetic-boundary-stub"},
         }.items():
@@ -255,7 +275,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual(json.loads((path / "answer.json").read_text(encoding="utf-8")), self.answer)
         self.assertEqual([row["seed"] for row in studio.read_iterations(self.home)], [11, 12])
         for file in self.root.rglob("*.json"):
-            self.assertNotIn("OFFLINE-CREDENTIAL-MUST-NEVER-BE-SAVED", file.read_text(encoding="utf-8"))
+            self.assertNotIn("TEST-CREDENTIAL-MUST-NEVER-BE-SAVED", file.read_text(encoding="utf-8"))
 
     def test_generation_uploads_reverified_saved_carriers_not_live_author_files(self):
         companion = self.base / "fixture.references"
@@ -270,7 +290,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         run, _ = self.journal()
         self.assertEqual(self.patches["verify"].call_count, 2)
         self.transport.upload_bytes.assert_called_once_with(carrier, "image/png", self.service,
-                                                     "OFFLINE-CREDENTIAL-MUST-NEVER-BE-SAVED")
+                                                     "TEST-CREDENTIAL-MUST-NEVER-BE-SAVED")
         self.assertEqual((run / companion.name / "input.png").read_bytes(), carrier)
         sealed = json.loads((run / "request-contract.json").read_text(encoding="utf-8"))
         self.assertEqual(sealed["media"][0]["path"], str(run / companion.name / "input.png"))
@@ -291,7 +311,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertTrue((run / "package.json").is_file())
 
     def test_upload_failure_preserves_package_and_does_not_send(self):
-        self.transport.upload_bytes.side_effect = OSError("offline upload failure")
+        self.transport.upload_bytes.side_effect = OSError("simulated upload failure")
         with self.assertRaises(OSError):
             self.call()
         path, journal = self.journal()
@@ -301,7 +321,7 @@ class DispatchRecoveryTests(unittest.TestCase):
 
     def test_a_send_without_an_answer_is_indeterminate_kept_and_never_resent_in_both_modes(self):
         import transport_contract
-        failures = {"generation": OSError("offline network failure at 203.0.113.9"),
+        failures = {"generation": OSError("simulated network failure at 203.0.113.9"),
                     "upscale": transport_contract.Indeterminate("the service answered 502", status=502, body=b"bad gateway")}
         kept = {"generation": {"outcome": "indeterminate", "http_status": None, "body": None,
                                "reason": "the connection ended before a complete answer (OSError)"},
@@ -334,19 +354,19 @@ class DispatchRecoveryTests(unittest.TestCase):
 
     def test_service_refusal_preserves_exact_answer(self):
         self.entries = []
-        self.transport.rejections.return_value = [{"reason": "offline refusal"}]
+        self.transport.rejections.return_value = [{"reason": "simulated refusal"}]
         self.assertEqual(self.call(), 1)
         path, journal = self.journal()
         self.assertEqual(journal["status"], "refused")
-        self.assertEqual(journal["refused"], [{"reason": "offline refusal"}])
+        self.assertEqual(journal["refused"], [{"reason": "simulated refusal"}])
         self.assertEqual(json.loads((path / "answer.json").read_text(encoding="utf-8")), self.answer)
         self.assertEqual(studio.read_iterations(self.home), [])
 
     def test_images_beside_a_refusal_are_downloaded_and_recorded(self):
-        self.transport.rejections.return_value = [{"reason": "offline partial refusal"}]
+        self.transport.rejections.return_value = [{"reason": "simulated partial refusal"}]
         self.assertEqual(self.call(), 1)
         path, journal = self.journal()
-        self.assertEqual(journal["refused"], [{"reason": "offline partial refusal"}])
+        self.assertEqual(journal["refused"], [{"reason": "simulated partial refusal"}])
         self.assertEqual((journal["expected"], journal["received"]), (2, 2))
         self.assertEqual(journal["iterations"], ["it-0001", "it-0002"])
         self.assertTrue((path / "result-2.png").is_file())
@@ -376,7 +396,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual(self.transport.send.call_count, 2)
 
     def test_download_failure_preserves_answer_and_result_metadata(self):
-        self.patches["save"].side_effect = OSError("offline download failure")
+        self.patches["save"].side_effect = OSError("simulated download failure")
         self.assertEqual(self.call(), 1)
         path, journal = self.journal()
         self.assertEqual(journal["status"], "download-incomplete")
@@ -388,7 +408,7 @@ class DispatchRecoveryTests(unittest.TestCase):
     def test_one_failed_download_keeps_the_rest_and_recovery_fetches_it_without_sending(self):
         def second_fails(url, destination, hosts):
             if url.endswith("two.png"):
-                raise OSError("offline download failure")
+                raise OSError("simulated download failure")
             return self.save(url, destination, hosts)
         self.patches["save"].side_effect = second_fails
         self.assertEqual(self.call(), 1)
@@ -411,7 +431,7 @@ class DispatchRecoveryTests(unittest.TestCase):
             dispatch.recover(self.root, "01900000-0000-7000-8000-00000000000f", path)
 
     def test_upscale_download_failure_is_recovered_from_the_saved_answer(self):
-        self.patches["save"].side_effect = OSError("offline download failure")
+        self.patches["save"].side_effect = OSError("simulated download failure")
         with patch.object(dispatch, "build_upscale_package", side_effect=self.fake_upscale_builder):
             self.assertEqual(self.call("upscale"), 1)
             path, journal = self.journal()
@@ -432,7 +452,7 @@ class DispatchRecoveryTests(unittest.TestCase):
             dispatch.recover(self.root, "synthetic-boundary-stub", empty)
 
     def test_recovery_never_sends_when_the_answer_was_not_saved(self):
-        self.transport.send.side_effect = TimeoutError("offline network failure")
+        self.transport.send.side_effect = TimeoutError("simulated network failure")
         self.assertEqual(self.call(), 1)
         path, _ = self.journal()
         with self.assertRaisesRegex(ValueError, "outcome is unknown"):
@@ -454,15 +474,17 @@ class DispatchRecoveryTests(unittest.TestCase):
             self.assertEqual(self.call(), 0)
         text = output.getvalue()
         head, _, body = text.partition("request (sha256 ")
-        for line in ("model: fixture as fixture-model", "service: fixture at https://example.invalid", "outputs: 2",
+        render_head, _, plain_head = head.partition("model: fixture as fixture-model")
+        self.assertIn("Render contract", render_head)
+        for line in ("service: fixture at https://example.invalid", "outputs: 2",
                      "negative prompt: none authored", "cost: unknown", "production run: synthetic-boundary-stub",
                      "shown, not sent"):
-            self.assertIn(line, head)
+            self.assertIn(line, plain_head)
         request = json.loads(body.partition("\n")[2])
         self.assertEqual(request["positivePrompt"], self.prompt)
         self.assertNotIn("request_trace", text)
         self.assertNotIn("base64", text)
-        self.assertLess(len(head.splitlines()), 12)
+        self.assertLess(len(plain_head.splitlines()), 9)
 
     def test_preview_says_plainly_when_the_authored_negative_is_not_sent(self):
         verified = {"negative_prompt": "blurry",
@@ -487,7 +509,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         def second_fails(data):
             calls.append(data)
             if len(calls) == 2:
-                raise OSError("offline disk failure")
+                raise OSError("simulated disk failure")
             return real(data)
 
         with patch.object(dispatch, "inline_image", side_effect=second_fails):
@@ -532,7 +554,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         encoded = base64.b64encode(self.result_bytes).decode("ascii")
         self.entries = [{"data": encoded, "id": "one", "seed": 11}, {"data": encoded, "id": "two", "seed": 12}]
         real = dispatch.inline_image
-        with patch.object(dispatch, "inline_image", side_effect=[real(encoded), OSError("offline disk failure")]):
+        with patch.object(dispatch, "inline_image", side_effect=[real(encoded), OSError("simulated disk failure")]):
             self.assertEqual(self.call(), 1)
         path, _ = self.journal()
         response = path / "response-2.json"
@@ -545,9 +567,9 @@ class DispatchRecoveryTests(unittest.TestCase):
     def test_recording_failure_preserves_result_and_reference_companion_for_recovery(self):
         companion = self.base / "generation-package.references"
         companion.mkdir()
-        (companion / "reference.svg").write_text("offline reference", encoding="utf-8")
+        (companion / "reference.svg").write_text("synthetic reference", encoding="utf-8")
         self.patches["validate_generation_package_carrier_paths"].return_value = companion.name
-        with patch.object(studio, "iterate", side_effect=OSError("offline disk failure")):
+        with patch.object(studio, "iterate", side_effect=OSError("simulated disk failure")):
             with self.assertRaises(OSError):
                 self.call()
         path, journal = self.journal()
@@ -573,7 +595,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         path, _ = self.journal()
         companion = path / "saved.references"
         companion.mkdir()
-        (companion / "ref.svg").write_text("offline reference", encoding="utf-8")
+        (companion / "ref.svg").write_text("synthetic reference", encoding="utf-8")
         result = studio.main([
             "--studio", str(self.root), "iterate", "--character", "C01", "--slot", "recovered.front",
             "--result", str(path / "result-1.png"), "--package", str(path / "package.json"),
@@ -592,7 +614,7 @@ class DispatchRecoveryTests(unittest.TestCase):
             nonlocal count
             count += 1
             if count == 2:
-                raise OSError("offline second record failure")
+                raise OSError("simulated second record failure")
             return actual(*args, **kwargs)
         with patch.object(studio, "iterate", side_effect=fail_second):
             with self.assertRaises(OSError):
@@ -603,7 +625,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual(len(studio.read_iterations(self.home)), 1)
 
     def test_upscale_package_failure_preserves_source_output_and_answer(self):
-        with patch.object(dispatch, "build_upscale_package", side_effect=ValueError("offline invalid dimensions")):
+        with patch.object(dispatch, "build_upscale_package", side_effect=ValueError("simulated invalid dimensions")):
             with self.assertRaises(ValueError):
                 self.call("upscale")
         path, journal = self.journal()
@@ -755,6 +777,16 @@ class SecondServiceTests(unittest.TestCase):
         self.fixture.FeatureWorkflowTests.setUp(self)
         self.loopback = LoopbackService()
         self.addCleanup(self.loopback.__exit__)
+        import build_generation_payload
+        import prepare_generation_references
+        record_patcher = patch.object(build_generation_payload, "resolve_model_record",
+                                      side_effect=lambda model: (model, self.record))
+        record_patcher.start()
+        self.addCleanup(record_patcher.stop)
+        pack_root_patcher = patch.object(prepare_generation_references, "model_pack_root",
+                                         side_effect=lambda model: self.schema_pack)
+        pack_root_patcher.start()
+        self.addCleanup(pack_root_patcher.stop)
 
     def prepare(self):
         """The records, the bound package and its authorization for one send of two images through the second service."""
@@ -796,6 +828,21 @@ class SecondServiceTests(unittest.TestCase):
         offering = {"service": "second-fixture", "model_identifier": "vendor/second-model", "observed_at": "2026-09-23",
                     "request_keys": {"prompt": ["prompt"], "negative prompt": ["negative_prompt"]},
                     "constraints": {}, "schema_snapshot": snapshot}
+        from render_contract_fixtures import control
+        offering["execution_profile"] = {
+            "id": "second-fixture-interface",
+            "basis": {"kind": "synthetic", "source": "Synthetic second-service interface declaration.",
+                      "limitations": ["No provider capability or image quality is claimed."]},
+            "prompt_recipe": {"order": ["rendering", "subject", "composition", "constraints"],
+                              "guidance": ["Author a coherent rendering phrase after retrieval."]},
+            "modes": {"text-to-image": {"media": "none", "parameter_schema": {}, "controls": {
+                "size": control("required", schema={"type": "string"}),
+                "quality": control("required", schema={"type": "string"}),
+                "seed": control("optional", schema={"type": "integer"}, binding="dispatch-seed"),
+                "num_images": control("required", schema={"type": "integer", "minimum": 1, "maximum": 4},
+                                      binding="dispatch-count"),
+            }}},
+        }
         self.production_run = production_fixtures.prepare_dispatch(self.root, self.fixture.PROMPT)
         package = production_fixtures.bind_package(self.root, self.production_run, self.package)
         _, record = resolve_model_record(package["model"])
@@ -808,6 +855,14 @@ class SecondServiceTests(unittest.TestCase):
         reader, _ = input_contracts.capture_validation(validation, root=self.root)
         reader.basis(package["visual_continuity"]["basis"])
         input_contracts.attach(package, validation, reader)
+        from render_contract_lib import compile_contract
+        references = package["prepared_reference_set"].get("selected_references") or []
+        package["render_contract"] = compile_contract(self.record, offering,
+            package["production_spec"]["render_intent"], package["render_contract"]["authored_parameters"],
+            prompt=package["composition_prompt"],
+            reference_count=1 if package["prepared_reference_set"].get("single_board") else len(references))
+        package["generation_payload"]["service"] = {"id": "second-fixture", "model_identifier": "vendor/second-model",
+                                                    "observed_at": "2026-09-23", "schema_snapshot": snapshot}
         for key in ("request_validation_sha256", "input_snapshots_sha256"):
             package["generation_contract"][key] = package[key]
         package["generation_input_sha256"] = generation_input_sha256(package)
@@ -862,7 +917,7 @@ class SecondServiceTests(unittest.TestCase):
         def second_fails(data):
             calls.append(data)
             if len(calls) == 2:
-                raise OSError("offline disk failure")
+                raise OSError("simulated disk failure")
             return real(data)
 
         shown = io.StringIO()

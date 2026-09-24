@@ -25,6 +25,10 @@
       "sha256": "aef43a9afa3c551f79694cc898528e1af2669ac242afdf4f494370e47096ea0c"
     },
     {
+      "path": "references/runtime/render-contract.md",
+      "sha256": "796bb30a517406086cafd2cd61a77445141df1185642cf601c129d73e29f956a"
+    },
+    {
       "path": "references/runtime/studio.md",
       "sha256": "5e0f70d25113bca1a1db4d7ee87f4c1569115baae1fb67a50ddb013e498d43e6"
     },
@@ -36,6 +40,7 @@
   "features": [
     "prompt-dialect",
     "reference-delivery",
+    "render-contract",
     "studio",
     "world-view"
   ],
@@ -54,7 +59,7 @@
     }
   },
   "route": "state-series",
-  "reading_key": "814ef5ab9baf528114fffd4b795b024d",
+  "reading_key": "8754c0529fdac0cb0f84a24963b9b9f4",
   "applied": [
     {
       "path": "references/runtime/state-aware-series.md",

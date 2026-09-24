@@ -1,1 +1,0 @@
-Synthetic offline interface declaration. No provider was contacted.

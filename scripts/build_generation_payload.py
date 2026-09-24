@@ -25,7 +25,6 @@ from catalog_cli import configure_pack_runtime
 from model_contract import (
     apply_positive_recommendation,
     apply_prompt_recommendations,
-    apply_recommended_parameters,
     generation_media_counts,
     select_offering,
     validate_generation_parameters,
@@ -197,6 +196,7 @@ def generation_commitment_projection(data: dict[str, Any]) -> dict[str, Any]:
         "input_snapshots_sha256": data["input_snapshots_sha256"],
         "production_binding": data["production_binding"],
         "model": data.get("model"),
+        "render_contract": data["render_contract"],
         "parameters": parameters,
         "prompt": payload.get("prompt"),
         "negative_prompt": payload.get("negative_prompt"),
@@ -623,19 +623,25 @@ def build_payload(
     # record's own limits, and against the service's observed parameter schema
     # when the record's offering points at one. Nothing has been uploaded yet,
     # so media stand in as placeholders and only their number is judged.
+    from render_contract_lib import compile_contract
+    if model_record is None:
+        raise ValueError("generation requires a registered exact model with an execution profile")
+    selected_execution_offering = select_offering(model_record, service)
+    render_contract = compile_contract(model_record, selected_execution_offering,
+        production_spec["render_intent"], parameters, prompt=composition_prompt,
+        reference_count=1 if reference_set.get("single_board") else len(reference_set.get("selected_references") or []))
+    parameters = render_contract["parameters"]
     service_summary: dict[str, Any] | None = None
     offering = None
     if model_record is not None:
         references = reference_set.get("selected_references") or []
-        # The record's recommended sampling values fill what the package leaves
-        # unset, on the request keys the offering gives them, so that the
-        # package shows and commits exactly what will be sent.
+        # The render contract has already resolved every applicable package control.
         offering = select_offering(model_record, service)
         media_counts: dict[str, int] | None = None
         if offering is not None:
-            parameters = apply_recommended_parameters(model_record, offering, parameters)
             media_counts = generation_media_counts(
-                offering, 1 if reference_set.get("single_board") else len(references)
+                offering, 1 if reference_set.get("single_board") else len(references),
+                media_role=render_contract["model_card"]["execution_profile"]["modes"][production_spec["render_intent"]["execution_mode"]]["media"]
             )
         offering = validate_generation_parameters(
             model_record,
@@ -739,6 +745,7 @@ def build_payload(
     result = {
         "status": "ready",
         "model": model,
+        "render_contract": render_contract,
         "source_brief": brief.strip(),
         "creative_intent": creative_intent,
         "production_spec": production_spec,

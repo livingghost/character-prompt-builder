@@ -1,4 +1,4 @@
-"""Synthetic reading records for executable examples and offline tests only."""
+"""Synthetic reading records for executable examples and tests only."""
 from __future__ import annotations
 import io
 import os

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline regressions for declaration-based structure authoring and handoff.
+"""Regression tests for declaration-based structure authoring and handoff.
 
 Run: python scripts/structure_neutrality_smoke_test.py
 No network, rendering, credentials, generation or real consent is used.
@@ -229,6 +229,10 @@ class StructureNeutralityTests(unittest.TestCase):
         value = load_json(ROOT / "templates/production-spec-template.json")
         for row in value["subjects"]:
             self.assertFalse({"head_and_face", "hands", "legs_and_feet", "gaze_and_head"} & row.keys())
+        self.assertFalse(production_spec.validate(value)['ok'], 'unresolved rendering choices must not pass')
+        from render_contract_lib import make_intent
+        value['render_intent'] = make_intent('flat-graphic', mode='text-to-image', chosen_by='agent',
+            reason='Synthetic structure-neutral illustration.', presentation='one illustration', prompt_expression='')
         report = production_spec.validate(value)
         self.assertTrue(report["ok"], report["errors"])
 

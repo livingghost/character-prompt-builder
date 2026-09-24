@@ -1,4 +1,4 @@
-"""Explicit synthetic visual choices for offline tests and executable examples."""
+"""Explicit synthetic visual choices for tests and executable examples."""
 from __future__ import annotations
 import copy
 import tempfile
@@ -20,7 +20,7 @@ def fixture_visual(production_spec: dict, *, root: Path | None = None,
     root = root or fixture_root()
     path = root / 'fixture-visual-basis.txt'
     path.parent.mkdir(parents=True, exist_ok=True)
-    raw = b'Synthetic offline visual decisions for one declared test input. Not an author approval.\n'
+    raw = b'Synthetic visual decisions for one declared test input. Not an author approval.\n'
     if path.exists() and path.read_bytes() != raw:
         raise ValueError('synthetic basis path belongs to another file')
     path.write_bytes(raw)

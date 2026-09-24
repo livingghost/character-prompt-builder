@@ -67,6 +67,8 @@ python scripts/stdio_encoding_smoke_test.py
 python scripts/catalog_html_smoke_test.py
 python scripts/default_release_smoke_test.py --state-file config/default-pack-state.json --cache-dir <dedicated-cache-dir> --managed-root <existing-managed-dir>
 python scripts/eval_runtime_smoke_test.py
+python scripts/render_contract_smoke_test.py
+python examples/render-contract/build_example.py --check
 python scripts/model_contract_smoke_test.py
 python scripts/nondefault_pack_isolation_smoke_test.py
 python scripts/upscale_package_smoke_test.py
@@ -233,9 +235,14 @@ After the exact Tested environment passes the full sequence above:
 
 The packager rejects symbolic links at source, staging, tree-hash, and ZIP boundaries. Regenerate canonical metadata and manifests after file moves, then verify the staged and extracted trees contain exactly the declared release inventory and each routed document appears exactly once.
 
-Release archives exclude caches.
-A complete development handoff is a separate distribution that preserves Git history, settings, packs and the working index; release exclusions require approval.
-Report Library storage only after the completed body ZIP is uploaded and a Library listing confirms it.
+The release inventory applies only to the stage built by `scripts/package.py`.
+It includes runtime files, installed validation suites and their fixtures, plus host plugin metadata needed to load the skill.
+It excludes the development-only `tests/` bridge, `.github/`, `.gitattributes`, `.gitignore` and caches.
+
+Source archives preserve the development tree, including tests, CI workflows and source-control settings.
+Build them from the source tree, not from the release stage or `release.include`.
+Release exclusions never authorize deleting source files.
+Keep source archives and release archives separately named.
 
 Commit release metadata only after code, documentation, tests, pack locks, and generated inventories agree. Canonical pack records and visual evidence stay unchanged when the goal is merely to make a core documentation or runtime test pass.
 
@@ -281,7 +288,7 @@ requires a new output directory and records each command and artifact.
 Run `python scripts/readme_smoke_test.py` from the product root after changing
 user-facing instructions. The [README smoke test](../../scripts/readme_smoke_test.py):
 
-- executes the marked offline examples in fresh temporary directories;
+- executes the marked examples in fresh temporary directories;
 - verifies their files and source-change behavior;
 - checks local documentation links;
 - checks live command signatures without contacting a provider.

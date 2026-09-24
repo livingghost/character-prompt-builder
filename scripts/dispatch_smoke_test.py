@@ -40,7 +40,7 @@ OFFERING = {
     "service": "svc",
     "model_identifier": "vendor:model@1",
     "request_keys": {**TEXT_KEYS, "reference images": ["inputs.referenceImages"]},
-    "constraints": {"as_written": {"settings": {"promptExpansion": "disabled"}}},
+    "constraints": {},
     "observed_at": "2026-09-13",
 }
 SNAPSHOT = "resources/observed-schemas/fixture.svc.json"
@@ -62,12 +62,13 @@ ADDED_SCHEMA = {
 }
 
 
-def verified(mode: str, negative: str, references: int) -> dict[str, Any]:
+def verified(mode: str, negative: str, references: int, *, media_role: str | None = None) -> dict[str, Any]:
     return {
         "model": "fixture",
         "host_forwarding": {
             "effective_prompt": "a heron on a post",
             "parameters": {"width": 1024, "height": 1024, "settings": {"quality": "medium"}},
+            "reference_media_role": media_role or ("references" if references else "none"),
             "selected_transport": {"mode": mode, "rendition": {"negative": negative}},
             "selected_references": [
                 {"role": "identity", "resolved_path": f"C:/refs/ref-{index}.png", "media_type": "image/png", "sha256": "0" * 64}
@@ -238,14 +239,14 @@ def main() -> int:
     check("a separate-field negative travels on negativePrompt", task.get("negativePrompt") == "blurry")
     check("references are placed under the offering's request key by uploaded id", task["inputs"]["referenceImages"] == ["u0", "u1"])
     check("seed and count are sent", task["seed"] == 7 and task["numberResults"] == 2)
-    check("the offering's as_written keys are set where the parameters left them unset", task["settings"]["promptExpansion"] == "disabled")
+    check("transport does not inject unselected settings", "promptExpansion" not in task["settings"])
     integrated = generation_request(verified("integrated-critical", "blurry", 0), OFFERING, SERVICE, {}, None, 1)
     check("an integrated rendition sends no negative field and no media", "negativePrompt" not in integrated and "inputs" not in integrated and "seed" not in integrated and integrated["numberResults"] == 1)
     dry = generation_request(verified("native-subset", "low quality", 1), OFFERING, SERVICE, {}, None, 1)
     check("the dry run shows a placeholder where an upload id will go", dry["inputs"]["referenceImages"] == [MANAGEMENT_VALUE] and dry["negativePrompt"] == "low quality")
     keyless = copy.deepcopy(OFFERING)
     keyless["request_keys"] = dict(TEXT_KEYS)
-    check("an offering with no key for the media is refused before anything is sent", refused(lambda: generation_request(verified("separate-field", "", 1), keyless, SERVICE, {}, None, 1), "no request key"))
+    check("an offering with no key for the media is refused before anything is sent", refused(lambda: generation_request(verified("separate-field", "", 1), keyless, SERVICE, {}, None, 1), "reference transport"))
     # The prompt and the negative travel on the keys the offering gives them, and
     # an offering with no negative key has no field for a separate negative.
     renamed = {**OFFERING, "request_keys": {"prompt": ["input.text"], "negative prompt": ["input.avoid"]}}
@@ -259,11 +260,11 @@ def main() -> int:
     # An offering that takes the prepared references as one seed image rather
     # than a list: the same role selection the builder and the verifier made.
     seeded = {**OFFERING, "request_keys": {**TEXT_KEYS, "seed image": ["seedImage"]}}
-    seeded_task = generation_request(verified("separate-field", "", 1), seeded, SERVICE, {"C:/refs/ref-0.png": "u0"}, None, 1)
+    seeded_task = generation_request(verified("separate-field", "", 1, media_role="seed-image"), seeded, SERVICE, {"C:/refs/ref-0.png": "u0"}, None, 1)
     check("an offering that takes a seed image gets the one reference there, not in a list",
           seeded_task["seedImage"] == "u0" and "inputs" not in seeded_task, seeded_task)
     check("an offering that takes one image refuses a package that selected two",
-          refused(lambda: generation_request(verified("separate-field", "", 2), seeded, SERVICE, {}, None, 1), "one image"))
+          refused(lambda: generation_request(verified("separate-field", "", 2, media_role="seed-image"), seeded, SERVICE, {}, None, 1), "one image"))
 
     # The seed and the count come from the command line, so the package was never
     # checked carrying them. The transport names them and the dispatcher puts them
@@ -312,7 +313,7 @@ def main() -> int:
     placed = dispatch.mapped_settings(upscaler, up_offering, {"strength": "high"})
     task = upscale_request("vendor:up@1", "C:/src/a.png", 2.0, placed, up_offering, up_service, {"C:/src/a.png": "u9"})
     check("an upscale request carries the source by the input key, an integer factor, and the setting on its request key",
-          task["taskType"] == "imageUpscale" and task["inputs"]["image"] == "u9" and task["upscaleFactor"] == 2 and task["settings"]["enhancementStrength"] == "high" and task["outputFormat"] == "PNG", task)
+          task["taskType"] == "imageUpscale" and task["inputs"]["image"] == "u9" and task["upscaleFactor"] == 2 and task["settings"]["enhancementStrength"] == "high" and "outputFormat" not in task, task)
     check("a declared setting with no request key is refused before anything is sent",
           refused(lambda: dispatch.mapped_settings(upscaler, up_offering, {"variant": "general"}), "no request key for the setting"))
     check("a setting outside the record's contract is refused by the record first",

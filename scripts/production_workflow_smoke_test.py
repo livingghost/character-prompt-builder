@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Current-form offline tests for actual production evidence and execution edges."""
+"""Current-form tests for actual production evidence and execution edges."""
 from __future__ import annotations
 import argparse
 import copy
@@ -431,7 +431,7 @@ class PackageIntegrationTests(unittest.TestCase):
             default_enabled_packs=[c.load(ROOT/'packs/commons/pack.json')['pack_id']]))
         self.addCleanup(configure_pack_runtime, None)
         import studio
-        self.root=studio.init(self.base/'studio','production-test','Offline production tests'); studio.add_character(self.root,'C01','')
+        self.root=studio.init(self.base/'studio','production-test','Production workflow tests'); studio.add_character(self.root,'C01','')
         self.package=json.loads((ROOT/'examples/state-aware-pilot/generated/generation-package.json').read_text(encoding='utf-8'))
         self.composition=self.package['composition_prompt']
         task=ledger.begin(self.root,'Synthetic package test',['prepare','render'])
@@ -546,7 +546,7 @@ class PackageIntegrationTests(unittest.TestCase):
         fixture.claim(self.root,self.run,self.package,{'host_forwarding':{'effective_prompt_sha256':'a'*64}},journal)
         with self.assertRaises(ValueError): w.record_dispatch_results(self.root,self.run,self.package,journal,[],2)
         with self.assertRaises(ValueError): w.recover_recording(self.root,self.run)
-    def test_dispatch_then_recording_recovery_is_offline_and_idempotent(self):
+    def test_dispatch_then_recording_recovery_is_idempotent_without_resubmission(self):
         import dispatch,studio
         fixture.handoff(self.root,self.run,'test transport','dispatcher')
         options=argparse.Namespace(package=self.package_path,character='C01',slot='base.front',service=None,profiles=None,seed=None,count=2,send=True,note=None)
@@ -578,7 +578,7 @@ class PackageIntegrationTests(unittest.TestCase):
         self.assertEqual(first,second); self.assertEqual(first['network_calls'],0)
         original=(self.root/'delivery.txt').read_bytes()
         (self.root/'delivery.txt').write_text('Changed input after the recorded request completed.\n', encoding='utf-8')
-        with patch.object(dispatch,'api_key',side_effect=AssertionError('recording recovery must remain offline')):
+        with patch.object(dispatch,'api_key',side_effect=AssertionError('recording recovery must not read an API credential')):
             self.assertEqual(w.recover_recording(self.root,self.run),first)
         (self.root/'delivery.txt').write_bytes(original)
         self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'C01'))),2)

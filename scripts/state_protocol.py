@@ -31,6 +31,8 @@ SCHEMA_DIR = ROOT / "schemas"
 # This registry is the validation boundary for typed CPB artifacts.  Schema
 # selection must never be derived from an untrusted artifact_type string.
 ARTIFACT_SCHEMA_FILES = {
+    "render-intent": "render-intent.schema.json",
+    "render-contract": "render-contract.schema.json",
     "adoption-receipt": "adoption-receipt.schema.json",
     "appearance-adaptation-proposal": "appearance-adaptation-proposal.schema.json",
     "appearance-variant-contract": "appearance-variant-contract.schema.json",

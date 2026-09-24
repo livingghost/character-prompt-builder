@@ -4,7 +4,7 @@
 
 Character Prompt Builder turns a character idea, an existing design or a scene brief into a visual direction and the files that produce and review it. It can stop at a prompt, build a reusable character sheet, assemble reference images, or send an approved image request and keep every result beside the exact input that produced it.
 
-It is an Agent Skill: instructions the agent follows, plus local Python tools the agent runs. The author and the agent decide what an image is for and judge what comes back. The tools search the bundled production knowledge, check inputs, keep files and hashes, rebuild a character's state at any point in the story from recorded events, and track what was approved. Authoring and the offline examples below run without an API key.
+It is an Agent Skill: instructions the agent follows, plus local Python tools the agent runs. The author and the agent decide what an image is for and judge what comes back. The tools search the bundled production knowledge, check inputs, keep files and hashes, rebuild a character's state at any point in the story from recorded events, and track what was approved. Authoring and the examples below run without an API key.
 
 The same workflow serves people, ordinary animals, anthropomorphic subjects, creatures, machines and scenes with no cast at all. A single image and a long-running project follow the same principles, and a short request stays short.
 
@@ -20,10 +20,10 @@ A typical brief fixes the subject's build and recognizable details and leaves li
 brief, existing design or approved story state
   -> fixed details and open visual decisions
   -> options while meaningful decisions stay open
-  -> one selected direction
+  -> one selected direction and explicit rendering intent
   -> full reading of the production records it uses
   -> the character's current state and profile, when continuity matters
-  -> prompt and negative prompt
+  -> selected model guidance, prompt wording and resolved controls
   -> checked generation package with ordered references
   -> approved request and every returned image
   -> review, local repair, selection, and write-back
@@ -120,6 +120,52 @@ python scripts/catalog_cli.py inspect RECORD_ID
 ```
 
 The preparation record keeps the complete inspected record, the reason for using it and any deliberate new expression. [Sparse-Brief Discovery](references/runtime/sparse-discovery.md) describes how to compare complete alternatives; [Prompt Vocabulary](references/runtime/prompt-vocabulary.md) describes model-scoped wording.
+
+### Deliberate finish and explicit controls
+
+Choose the image's medium, dimensionality, linework, shading, surface and detail treatment before final prompt construction.
+These are independent axes: a subject's species, age, build and wardrobe do not follow from a rendering style.
+Choose a starting preset or author a custom intent, recording who chose it and why.
+Regional overrides describe mixed treatments and where each applies; presentation separately names the intended artifact.
+
+After `pack_cli.py ready` has resolved the active packs, inspect the available treatments and the selected interface:
+
+```sh
+python scripts/render_contract.py presets
+python scripts/render_contract.py model --model MODEL_ID --service SERVICE_ID
+```
+
+Replace `MODEL_ID` and `SERVICE_ID` with the selected catalog model and its offering.
+The model command prints recommended positive and negative wording, recipe guidance, parameter recommendations, evidence and operation-specific control policies.
+Catalog model inspection, prompt-dialect inspection and route reading with `--model` also display this guidance.
+Models from enabled personal or registered external packs use the same path as bundled models.
+Keep the same `--state-file`, `--cache-dir`, `--managed-root` and any `--pack-root` arguments throughout that work.
+
+Retrieve wording before composing the final prompt. The Production Specification's `render_intent` records the chosen treatment and its exact `prompt_expression`.
+The builder checks that this expression, including any regional expressions, appears in the authored prompt.
+That check establishes inclusion, not whether the words produce the intended image.
+
+The exact interface's execution profile defines the controls available for each operation:
+
+| Control policy | What preparation does |
+|---|---|
+| Required | Uses an explicit value or a single authored recommendation, recording its source. A range still needs a choice. |
+| Optional | Leaves the feature unselected unless a value is supplied. |
+| Not applicable | Reports the reason and rejects a transmitted value, including null. |
+| Backend managed | Reports that the interface exposes no control and invents no internal value. |
+
+A model without an execution profile remains inspectable, but generation waits for that profile and all required decisions.
+The Generation Package seals the resolved settings and their provenance. The request preview shows the rendering choice and the complete request.
+Dispatch verifies those values against the active interface and the final request; it does not choose a different provider or add sampling defaults.
+
+Run a complete example with a fictional model and synthetic settings, without generating an image:
+
+```sh
+python examples/render-contract/build_example.py --check
+```
+
+[Rendering choices and execution controls](references/runtime/render-contract.md) gives the intent, profile and compilation commands.
+The [rendering-contract example](examples/render-contract/README.md) includes the model, intent, parameters and prompt it verifies.
 
 ### Model-specific prompt construction
 
@@ -286,10 +332,12 @@ An upscale is its own prepared and approved task binding the source image, the u
 
 <!-- readme-send: upscale -->
 ```sh
-python scripts/dispatch.py --upscale --model UPSCALER_ID --source SOURCE_IMAGE --scale 2 --request-validation-file VALIDATION_JSON --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-authorization RECEIPT_SHA --send
+python scripts/dispatch.py --upscale --model UPSCALER_ID --source SOURCE_IMAGE --scale 2 --render-intent RENDER_INTENT_JSON --request-validation-file VALIDATION_JSON --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-authorization RECEIPT_SHA --send
 ```
 <!-- end-readme-send -->
 
+`RENDER_INTENT_JSON` declares `execution_mode: upscale` and the source finish to preserve.
+Use that same intent during request preparation and dispatch. A text-free upscaler takes an empty `prompt_expression`, not an invented prompt.
 Use a factor the selected record supports. A changed input, reference order, count or setting needs a new approval.
 
 ### Review Studio results and recover an interrupted run
@@ -362,13 +410,16 @@ python scripts/pack_cli.py init ~/.character-prompt-builder/packs/NAME --name "N
 
 **Sending is refused.** Check the prepared run, the exact approval, the service configuration and the credentials. The operation, input, output count and cost must fit the approval; `--send` alone approves nothing. An unknown remote result needs investigation before a new submission.
 
+**Model guidance is visible, but generation is refused.** Check the selected offering's execution profile and operation.
+A missing profile, unresolved required value or unavailable control needs an explicit correction; inspecting a model does not configure its execution.
+
 **Catalog resources are missing.** Check discovered packs, enabled UUIDs and which pack supplies the missing resource. A folder on disk is active only once its pack is enabled.
 
 **Visual preflight fails.** Install and check the named dependencies with the interpreter that runs the tools. Fonts install through the operating system rather than pip. Authoring keeps working while visual inspection waits.
 
 ## Validation
 
-The README smoke test runs the offline examples above in temporary directories, checks the local links and checks the live command signatures without contacting a service. The repository diagnostic covers structure, files, hashes, recorded state, authority, packaging and the executable workflows, and needs the release dependencies.
+The README smoke test runs the examples above in temporary directories, checks the local links and checks the live command signatures without contacting a service. The repository diagnostic covers structure, files, hashes, recorded state, authority, packaging and the executable workflows, and needs the release dependencies.
 
 ```sh
 python scripts/readme_smoke_test.py

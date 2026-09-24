@@ -1,0 +1,433 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "render-contract.schema.json",
+  "title": "Resolved rendering intent and exact interface decisions",
+  "type": "object",
+  "properties": {
+    "artifact_type": {
+      "const": "render-contract"
+    },
+    "intent": {
+      "title": "Explicit image finish and operation",
+      "type": "object",
+      "required": [
+        "artifact_type",
+        "preset",
+        "axes",
+        "presentation",
+        "selection",
+        "execution_mode",
+        "prompt_expression",
+        "regional_overrides"
+      ],
+      "properties": {
+        "artifact_type": {
+          "const": "render-intent"
+        },
+        "preset": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "axes": {
+          "type": "object",
+          "required": [
+            "medium",
+            "dimensionality",
+            "linework",
+            "shading",
+            "surface",
+            "detail"
+          ],
+          "properties": {
+            "medium": {
+              "type": "string",
+              "minLength": 1
+            },
+            "dimensionality": {
+              "type": "string",
+              "minLength": 1
+            },
+            "linework": {
+              "type": "string",
+              "minLength": 1
+            },
+            "shading": {
+              "type": "string",
+              "minLength": 1
+            },
+            "surface": {
+              "type": "string",
+              "minLength": 1
+            },
+            "detail": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "presentation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "selection": {
+          "type": "object",
+          "required": [
+            "chosen_by",
+            "reason"
+          ],
+          "properties": {
+            "chosen_by": {
+              "enum": [
+                "user",
+                "agent"
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "execution_mode": {
+          "enum": [
+            "text-to-image",
+            "image-to-image",
+            "reference-guided",
+            "instruction-edit",
+            "upscale"
+          ]
+        },
+        "prompt_expression": {
+          "type": "string"
+        },
+        "regional_overrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "region",
+              "axes",
+              "reason",
+              "prompt_expression"
+            ],
+            "properties": {
+              "region": {
+                "type": "string",
+                "minLength": 1
+              },
+              "axes": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "medium": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "dimensionality": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "linework": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "shading": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "surface": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "detail": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "prompt_expression": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "model_card": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "service": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_identifier": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ready_for_parameter_resolution": {
+          "const": true
+        },
+        "execution_profile": {
+          "title": "Mode-specific interface controls and prompt recipe",
+          "type": "object",
+          "required": [
+            "id",
+            "basis",
+            "prompt_recipe",
+            "modes"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "basis": {
+              "type": "object",
+              "required": [
+                "kind",
+                "source",
+                "limitations"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "provider-documentation",
+                    "curated-starting-point",
+                    "measured",
+                    "synthetic"
+                  ]
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "limitations": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "prompt_recipe": {
+              "type": "object",
+              "required": [
+                "order",
+                "guidance"
+              ],
+              "properties": {
+                "order": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "guidance": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "modes": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "object",
+                "required": [
+                  "media",
+                  "controls",
+                  "parameter_schema"
+                ],
+                "properties": {
+                  "media": {
+                    "enum": [
+                      "none",
+                      "seed-image",
+                      "references",
+                      "input-image"
+                    ]
+                  },
+                  "controls": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "required": [
+                        "status",
+                        "binding",
+                        "schema",
+                        "recommendation",
+                        "reason"
+                      ],
+                      "properties": {
+                        "status": {
+                          "enum": [
+                            "required",
+                            "optional",
+                            "not-applicable",
+                            "backend-managed"
+                          ]
+                        },
+                        "binding": {
+                          "enum": [
+                            "package",
+                            "dispatch-seed",
+                            "dispatch-count"
+                          ]
+                        },
+                        "schema": {
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "recommendation": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "reason": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "parameter_schema": {
+                    "type": "object"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "recommended_parameters": {
+          "type": "object"
+        },
+        "recommended_positive_prompt": {
+          "type": "string"
+        },
+        "recommended_negative_prompt": {
+          "type": "string"
+        },
+        "recommendation_merge_mode": {
+          "type": "string"
+        },
+        "size_choices": {},
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "model",
+        "service",
+        "model_identifier",
+        "ready_for_parameter_resolution",
+        "execution_profile",
+        "recommended_parameters",
+        "recommended_positive_prompt",
+        "recommended_negative_prompt",
+        "recommendation_merge_mode",
+        "size_choices",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "profile_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "authored_parameters": {
+      "type": "object"
+    },
+    "parameters": {
+      "type": "object"
+    },
+    "parameter_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "explicit",
+              "model-recommendation",
+              "not-selected",
+              "dispatch-required",
+              "not-applicable",
+              "backend-managed"
+            ]
+          },
+          "value": {},
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "key",
+          "status",
+          "value",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reference_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "prompt_expression": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_type",
+    "intent",
+    "model_card",
+    "profile_sha256",
+    "authored_parameters",
+    "parameters",
+    "parameter_decisions",
+    "reference_count",
+    "prompt_expression"
+  ],
+  "additionalProperties": false
+}

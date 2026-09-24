@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026.09.24.3
+
+- Keep development tests, CI workflows and source-control settings in source archives; apply release exclusions only when staging a release.
+- Describe examples and request checks by their operation: synthetic input, request preview, and recovery without resubmission.
+
+## 2026.09.24.2
+
+- Release archives retain executable tests and fixtures while excluding source-control and CI configuration.
+- Host plugin metadata stays in the release so installed skills remain discoverable.
+- Model wording guidance resolves the selected model and its resources through one active pack runtime, including external packs.
+
+## 2026.09.24.1
+
+- Resolve rendering intent across independent finish axes, with attributed selection and scoped mixed-media overrides.
+- Display model prompt guidance and mode-specific parameter policies during inspection and preparation.
+- Seal explicit parameter decisions into Generation Packages and verify them against the active interface and final request.
+- Reject unconfigured interfaces, implicit range selection, unavailable controls, and transport-side parameter injection.
+- Add synthetic examples and regression coverage for rendering and execution contracts.
+
 ## 2026.09.23.7
 
 - The changelog keeps one section per release, newest first. The release check requires the newest section to be the current release, and every section to be a release with notes, each once.
@@ -62,7 +81,7 @@
 - Release a reservation until its send step is recorded, so a failed upload returns its budget, and refuse automatic resubmission after an uncertain send.
 - Read a route's documents and active guides through one snapshot, with paged replay and source-bound application records. SKILL.md, which the host loads when the skill activates, names every route and feature.
 - Record each catalog and vocabulary lookup with `--record lookups.json --element NAME`; the author marks each element adopted or composed with `prompt_retrieval.py`.
-- Build a Generation Package from the prepared production run: the route reading comes from the run, the request check from the observed schema the active pack's offering names, and `--continuity SUBJECT=DECISION` states visual continuity. The feature walkthrough ends in an offline dispatch preview.
+- Build a Generation Package from the prepared production run: the route reading comes from the run, the request check from the observed schema the active pack's offering names, and `--continuity SUBJECT=DECISION` states visual continuity. The feature walkthrough ends in a dispatch preview.
 - Build formal inputs from explicit choices, accepted identities, reference bindings, and current evidence instead of copying hashes by hand.
 - Keep undecided visual exploration in single-subject candidates until the author supplies the decisions required for adoption or shared scenes.
 - Seal the final request and its transformation trace, then bind each execution to its validation mode and explicit authority assessment.

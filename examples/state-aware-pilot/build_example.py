@@ -150,7 +150,11 @@ def build_production_spec(
         "emotional_state": copy.deepcopy(state["emotional_state"]),
         "performance_state": copy.deepcopy(state["performance_state"]),
     }
+    from render_contract_lib import make_intent
     spec = {
+        "render_intent": make_intent("anime-cel", mode="text-to-image", chosen_by="agent",
+            reason="The synthetic example declares a soft-cel illustration.",
+            presentation="single illustrated portrait", prompt_expression="cinematic 2D soft-cel office portrait"),
         "source_brief": "State-aware field-office scene after an offscreen ear injury and a prop transfer.",
         "target_model": "gpt-image-2.5-flare",
         "creative_latitude": "directed",
@@ -826,7 +830,7 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
     write_json(generated / "prompt-plot.json", PLOT)
     from prompt_retrieval import settle_retrieval_record
     retrieval = settle_retrieval_record({
-        "artifact_type": "prompt-retrieval-record", "pack_state": "illustrative-offline-pilot",
+        "artifact_type": "prompt-retrieval-record", "pack_state": "illustrative-state-pilot",
         "elements": [{"element": "illustrative pilot composition", "queries": ["state-aware pilot composition"],
                       "inspected_records": [], "outcome": "composed", "composed_wording": PROMPT,
                       "reason": "Illustrative deterministic fixture, not evidence of a production retrieval session."}],

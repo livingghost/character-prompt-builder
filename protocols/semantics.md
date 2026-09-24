@@ -159,3 +159,13 @@ without supplied originals it cannot verify source bytes or extraction coverage.
 Local reuse additionally checks the original source hashes and deterministic
 rendering. Artifact identity uses content commitments and stable IDs, not a
 separate version or revision counter.
+
+## Rendering intent
+
+A Production Specification declares the intended medium, dimensionality, linework,
+shading, surface treatment and detail. Presentation remains separate from identity.
+The declaration records whether the user or agent selected the treatment and why.
+Regional overrides name their scope. A rendering choice grants no authority to
+change a subject, source state, wardrobe, proportions or accepted design.
+Each executable image operation resolves the exact interface profile and explicit
+controls. Unavailable controls remain distinguished from unselected features.

@@ -1,9 +1,7 @@
 """Configuration for the smoke-suite pytest bridge.
 
-This directory deliberately lives OUTSIDE the release inventory: it must
-never be added to package-manifest.toml and nothing here may move under
-scripts/ (everything under scripts/ ships in the release archive and is
-content-gated).
+The source distribution includes this bridge alongside the suites under
+scripts/. Pytest is an optional development runner, not a runtime dependency.
 
 Execution model: every suite is run as a subprocess from the repository
 root (python scripts/<name>.py), exactly as validate.py, package.py, and

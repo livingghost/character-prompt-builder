@@ -54,6 +54,7 @@ GENERATION_PACKAGE_FIELDS = {
     "route_reading", "route_reading_sha256", "visual_continuity", "visual_continuity_sha256",
     "request_validation", "request_validation_sha256", "input_snapshots", "input_snapshots_sha256",
     "production_binding",
+    "render_contract",
     "status",
     "model",
     "source_brief",
@@ -427,9 +428,8 @@ def _verify(
             from build_generation_payload import resolve_model_record
     
             model_id, model_record = resolve_model_record(model)
-        except ValueError:
-            model_id = model
-            model_record = None
+        except ValueError as exc:
+            raise ValueError('live generation verification needs the registered exact model') from exc
         if model_record is not None:
             if model_record.get("operation_kind") == "upscale":
                 raise ValueError(
@@ -455,7 +455,8 @@ def _verify(
                 prompt=str(payload.get("prompt") or ""),
                 negative_prompt=str(payload.get("negative_prompt") or "") if mode == "separate-field" else None,
                 media_counts=None if selected is None else generation_media_counts(
-                    selected, 1 if reference_set.get("single_board") else len(references)
+                    selected, 1 if reference_set.get("single_board") else len(references),
+                    media_role=data["render_contract"]["model_card"]["execution_profile"]["modes"][data["render_contract"]["intent"]["execution_mode"]]["media"]
                 ),
             )
             expected = None if offering is None else {
@@ -684,6 +685,11 @@ def _verify(
     if not isinstance(transport.get("critical_avoidance_integrated"), bool):
         raise ValueError("critical-avoidance integration declaration must be boolean")
 
+    from render_contract_lib import verify_contract
+    verify_contract(data["render_contract"], intent=production_spec["render_intent"],
+                    parameters=parameters, prompt=data["composition_prompt"],
+                    record=model_record, offering=offering,
+                    reference_count=1 if reference_set.get("single_board") else len(reference_set.get("selected_references") or []))
     generation_input_hash = generation_input_sha256(data)
     require_concrete_sha256(generation_input_hash, "computed generation_input_sha256")
     for location, value in (
@@ -729,6 +735,7 @@ def _verify(
         **{key:rendered_input[key] for key in ('bindings','review_requirements','execution_policy')},
         'request_validation_report': validation_report,
         "verified": True,
+        "render_contract": data["render_contract"],
         "model": model,
         "prompt": prompt,
         "negative_prompt": negative,

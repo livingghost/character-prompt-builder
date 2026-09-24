@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline structural regressions, not an evaluation of fictional individuality.
+"""Structural regression tests, not an evaluation of fictional individuality.
 
     python scripts/character_performance_smoke_test.py
 

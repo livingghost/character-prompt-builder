@@ -546,12 +546,13 @@ def _write_state_reference_pack(pack_root: Path) -> Path:
             ],
         },
     )
+    from render_contract_fixtures import decorate
     atomic_write_json(
         pack_root / "records" / "models.json",
         {
             "kind": "model",
             "records": [
-                {
+                decorate({
                     "id": "state-smoke-image-model",
                     "label": "State smoke image model",
                     "aliases": [STATE_REFERENCE_MODEL],
@@ -575,7 +576,7 @@ def _write_state_reference_pack(pack_root: Path) -> Path:
                             "source": "author",
                         }
                     ],
-                }
+                })
             ],
         },
     )
@@ -2524,8 +2525,12 @@ def run() -> dict[str, Any]:
                 staging_root=package_root,
                 companion_name=f"generation-package-{count}.references",
             )
-            payload = build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), 
-                **_payload_inputs(graph),
+            inputs = _payload_inputs(graph)
+            if count:
+                inputs["production_spec"] = copy.deepcopy(graph["production_spec"])
+                inputs["production_spec"]["render_intent"]["execution_mode"] = "reference-guided"
+            payload = build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'),
+                **inputs,
                 prepared_reference_set=packaged_reference_set,
                 prepared_reference_root=package_root,
             )

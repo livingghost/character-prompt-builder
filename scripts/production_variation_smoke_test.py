@@ -105,7 +105,15 @@ class GenerationVariationTests(unittest.TestCase):
         offering={'service':'synthetic','model_identifier':package['model'],
                   'request_keys':{'prompt':['positivePrompt'],'negative prompt':['negativePrompt']},
                   'observed_at':'2000-01-01','constraints':{}}
+        from render_contract_fixtures import profile
+        import render_contract_lib as rendering
+        offering['execution_profile']=profile(seed=True)
         record=copy.deepcopy(record);record['offerings']=[offering]
+        self.enterContext(patch('build_generation_payload.resolve_model_record',return_value=(package['model'],record)))
+        package['render_contract']=rendering.compile_contract(record,offering,package['production_spec']['render_intent'],
+            package['generation_payload']['parameters'],prompt=package['composition_prompt'],reference_count=0)
+        package['generation_payload']['service']={key:offering.get(key) for key in ('model_identifier','observed_at','schema_snapshot')}
+        package['generation_payload']['service']['id']=offering['service']
         service={'operations':{'imageInference':{}},'endpoint':{'base_url':'https://example.invalid/not-contacted'}}
         validation=interface_validation(self.root,target={'service':'synthetic','model_identifier':package['model'],
             'operation':'imageInference'},record=record,offering=offering,service_record=service,

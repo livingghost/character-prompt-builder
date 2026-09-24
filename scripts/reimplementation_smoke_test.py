@@ -130,7 +130,7 @@ class UpscaleIntegration(unittest.TestCase):
         from PIL import Image
         from upscale_package_smoke_test import model_rows
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        self.root=studio.init(Path(self.temp.name)/'studio','synthetic-upscale','Offline integrated fixture')
+        self.root=studio.init(Path(self.temp.name)/'studio','synthetic-upscale','Synthetic integrated fixture')
         studio.add_character(self.root,'subject','')
         self.source=self.root/'source.png';Image.new('RGB',(8,8)).save(self.source)
         self.record=model_rows()[0];self.model=self.record['id']
@@ -140,6 +140,18 @@ class UpscaleIntegration(unittest.TestCase):
         from request_validation_fixtures import interface_validation
         self.offering={'service':'synthetic','model_identifier':'fixture:model','observed_at':'2000-01-01',
                        'setting_keys':{'variant':'variant'},'request_keys':{'input image':['inputImage']}}
+        from render_contract_fixtures import profile, control, intent
+        profile_value=profile()
+        profile_value['modes']={'upscale':{'media':'input-image','parameter_schema':{},'controls':{
+            'upscaleFactor':control('required',schema={'type':'number','enum':[2,4]}),
+            'variant':control('required',schema={'type':'string'}),
+            'seed':control('backend-managed',binding='dispatch-seed'),
+            'numberResults':control('not-applicable',binding='dispatch-count')}}}
+        self.offering['parameter_keys']={'scale':'upscaleFactor'}
+        self.offering['execution_profile']=profile_value
+        self.render_intent=intent('', 'upscale')
+        self.render_intent_file=self.root/'render-intent.json'
+        self.render_intent_file.write_bytes(c.encoded(self.render_intent))
         self.service={'id':'synthetic','endpoint':{'base_url':'https://example.invalid'},'operations':{'imageUpscale':{}}}
         self.transport=SimpleNamespace(__file__=transport_runware.__file__, compile_upscale=transport_runware.compile_upscale,
             RESULT_HOSTS=frozenset({'example.invalid'}),
@@ -149,7 +161,7 @@ class UpscaleIntegration(unittest.TestCase):
         validation=interface_validation(self.root,target=target,record=self.record,offering=self.offering,
             service_record=self.service,transport=self.transport,reference_mode='authored-rendition')
         self.validation_file=self.root/'validation.json';self.validation_file.write_bytes(c.encoded(validation))
-        self.request=binding.upscale_request(self.root,self.source,self.model,2,self.settings,None,request_validation=validation)
+        self.request=binding.upscale_request(self.root,self.source,self.model,2,self.settings,None,request_validation=validation,render_intent=self.render_intent)
         sources=[{'id':'source','path':'source.png','role':'upscale-source','disposition':'applied','locator':'whole','reason':'Exact synthetic source image.'}]
         self.run=fixture.prepare_dispatch(self.root,c.encoded(self.request).decode(),route='upscale',sources=sources)
         rendered=request_renderer.upscale(self.request,self.record,self.offering,self.service,self.transport,self.source,self.settings,root=self.root)
@@ -158,7 +170,7 @@ class UpscaleIntegration(unittest.TestCase):
         self.options=argparse.Namespace(send=True,character='subject',slot='base.front',source=self.source,
             model=self.model,scale=2,settings=json.dumps(self.settings),guidance=None,service=None,profiles=None,note='Synthetic fixture only',
             production_authorization=self.authorization,
-            request_validation_file=self.validation_file)
+            request_validation_file=self.validation_file,render_intent=self.render_intent_file)
         self.entries=[{'url':'https://example.invalid/fixture.png','id':'fixture'}]
         def send(_request,*args):
             rows=workflow.load_run(self.root,self.run)[3]

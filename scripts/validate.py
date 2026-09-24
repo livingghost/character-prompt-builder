@@ -61,7 +61,6 @@ from runtime_read_footprint import count_words as _skill_word_count
 from io_budget import environment_seconds
 
 ROOT_REQUIRED = (
-    '.gitignore',
     'SKILL.md',
     'README.md',
     'CHANGELOG.md',
@@ -123,6 +122,14 @@ ROOT_REQUIRED = (
     'scripts/generation_payload_smoke_test.py',
     'scripts/model_contract.py',
     'scripts/model_contract_smoke_test.py',
+    'scripts/render_contract.py',
+    'scripts/render_contract_lib.py',
+    'scripts/render_contract_smoke_test.py',
+    'schemas/render-intent.schema.json',
+    'schemas/render-contract.schema.json',
+    'schemas/model-execution-profile.schema.json',
+    'config/render-presets.json',
+    'references/runtime/render-contract.md',
     'scripts/nondefault_pack_isolation_smoke_test.py',
     'scripts/upscale_package.py',
     'scripts/build_upscale_package.py',
@@ -2075,6 +2082,7 @@ def validate(
         "resource_handling_smoke_test.py": "unittest",
         "reimplementation_smoke_test.py": "unittest",
         "craft_consultation_smoke_test.py": "unittest",
+        "render_contract_smoke_test.py": "unittest",
     }
     for name, output_format in regressions.items():
         result = run_standalone_regression(root, name, output_format=output_format)
@@ -2623,7 +2631,7 @@ def validate(
     required_spec_fields = {
         "source_brief", "target_model", "creative_latitude",
         "image_promise", "art_direction", "state_context", "subjects", "scene", "camera",
-        "lighting", "visual_language", "constraints", "selected_preset_ids",
+        "lighting", "visual_language", "constraints", "selected_preset_ids", "render_intent",
     }
     if set(production_spec_template) != required_spec_fields:
         errors.append(

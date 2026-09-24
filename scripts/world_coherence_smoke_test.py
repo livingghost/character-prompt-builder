@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline regressions for world-coherent authoring, not a fiction-quality test.
+"""Regression tests for world-coherent authoring, not a fiction-quality test.
 
     python scripts/world_coherence_smoke_test.py
 

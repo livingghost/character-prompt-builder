@@ -201,6 +201,7 @@ jobs:
             "python scripts/catalog_cli_runtime_smoke_test.py" \
             "python scripts/catalog_html_smoke_test.py" \
             "python scripts/search_discovery_smoke_test.py" \
+            "python scripts/render_contract_smoke_test.py" \
             "python scripts/model_contract_smoke_test.py" \
             ; do
             echo "::group::$command"

@@ -6,7 +6,7 @@ Usage:
   python scripts/prompt_dialect.py --dialect <dialect-id>
   python scripts/prompt_dialect.py --model <model-id>
       [--dialects <dialects.json>] [--guide <guide.json>]
-      [--state-file PATH] [--cache-dir PATH] [--managed-root PATH]
+      [--state-file PATH] [--cache-dir PATH] [--managed-root PATH] [--pack-root PATH]
 
 Models do not read a prompt the same way. One family takes a rating term the
 next has never seen, spells a multi-word tag differently, wants a different
@@ -39,21 +39,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from pack_cache import load_runtime_catalog  # noqa: E402
-from pack_manager import PackError, default_settings  # noqa: E402
+from pack_manager import PackError, PackSettings  # noqa: E402
+from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime  # noqa: E402
 
 DIALECTS = "prompt-dialects"
 GUIDE = "prompt-writing-guide"
 
 
-def resolve_resource(name: str, explicit: str | None, *, state_file: str | None, cache_dir: str | None,
-                     managed_root: str | None, required: bool = True) -> Path | None:
+def resolve_resource(name: str, explicit: str | None, *, settings: PackSettings,
+                     required: bool = True) -> Path | None:
+    """Resolve wording resources in the same active pack set as the model."""
     if explicit:
         return Path(explicit)
-    settings = default_settings(
-        state_file=Path(state_file) if state_file else None,
-        cache_dir=Path(cache_dir) if cache_dir else None,
-        managed_root=Path(managed_root) if managed_root else None,
-    )
     resource = load_runtime_catalog(settings).resources.get(name)
     if resource is None:
         if required:
@@ -128,20 +125,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", help="A model record, whose own family is used")
     parser.add_argument("--dialects", help="A prompt-dialects JSON file, instead of the active pack's")
     parser.add_argument("--guide", help="A prompt-writing-guide JSON file, instead of the active pack's")
-    parser.add_argument("--state-file")
-    parser.add_argument("--cache-dir")
-    parser.add_argument("--managed-root")
+    add_pack_runtime_arguments(parser)
     args = parser.parse_args(argv)
     if not (args.list or args.dialect or args.model):
         parser.error("one of --list, --dialect, or --model")
 
-    scope = {"state_file": args.state_file, "cache_dir": args.cache_dir, "managed_root": args.managed_root}
-    path = resolve_resource(DIALECTS, args.dialects, **scope)
-    if args.list and not (args.dialect or args.model):
-        print(json.dumps({"dialects": [{"id": row["id"], "name": row["name"], "description": row["description"]}
-                                       for row in load_dialects(path).values()]}, ensure_ascii=False, indent=2))
-        return 0
+    from catalog_cli import configure_pack_runtime
+    runtime = resolve_pack_runtime(parser, args)
+    configure_pack_runtime(runtime.settings)
+    try:
+        return render_report(args, runtime.settings)
+    except (PackError, ValueError, OSError) as exc:
+        parser.exit(1, str(exc) + "\n")
+    finally:
+        configure_pack_runtime(None)
 
+
+def render_report(args: argparse.Namespace, settings: PackSettings) -> int:
+    """Print guidance from one resolved runtime, including external model packs."""
     record: dict[str, Any] | None = None
     model_id = None
     if args.model:
@@ -151,12 +152,14 @@ def main(argv: list[str] | None = None) -> int:
         dialect_id = record.get("prompt_dialect")
     else:
         dialect_id = args.dialect
-    try:
-        dialect = find_dialect(dialect_id, path) if dialect_id else None
-    except PackError as exc:
-        raise SystemExit(str(exc)) from None
-
-    guide_path = resolve_resource(GUIDE, args.guide, **scope, required=False)
+    path = resolve_resource(DIALECTS, args.dialects, settings=settings,
+                            required=bool(args.list or dialect_id))
+    if args.list and not (args.dialect or args.model):
+        print(json.dumps({"dialects": [{"id": row["id"], "name": row["name"], "description": row["description"]}
+                                       for row in load_dialects(path).values()]}, ensure_ascii=False, indent=2))
+        return 0
+    dialect = find_dialect(dialect_id, path) if dialect_id else None
+    guide_path = resolve_resource(GUIDE, args.guide, settings=settings, required=False)
     report: dict[str, Any] = {
         "model": model_id,
         "dialect": dialect,
@@ -164,6 +167,9 @@ def main(argv: list[str] | None = None) -> int:
         "guide": applicable_sections(guide_path, dialect_id),
     }
     if record is not None:
+        from render_contract_lib import model_card
+        offers = record.get("offerings") or []
+        report["execution_guidance"] = [model_card(record, row) for row in offers] if offers else [model_card(record)]
         report["record"] = {
             "prompt_style": record.get("prompt_style"),
             "ordering": record.get("ordering"),

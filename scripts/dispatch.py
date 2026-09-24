@@ -227,7 +227,10 @@ def mapped_settings(record: dict[str, Any], offering: dict[str, Any], settings: 
                 f"the offering on {offering.get('service')!r} records no request key for the setting {name!r}; "
                 "omit it, or add it to the offering's setting_keys"
             )
-        placed[str(key)] = value
+        from render_contract_lib import _get, _put
+        if _get(placed, str(key))[0]:
+            raise ValueError('two settings map to one request control')
+        _put(placed, str(key), value)
     return placed
 
 
@@ -287,7 +290,8 @@ def check_request(verified: dict[str, Any], record: dict[str, Any], offering: di
         pack_root=model_pack_root(model_id),
         prompt=forwarding["effective_prompt"],
         negative_prompt=negative if selected.get("mode") in ("separate-field", "native-subset") else None,
-        media_counts=generation_media_counts(offering, len(forwarding.get("selected_references") or [])),
+        media_counts=generation_media_counts(offering, len(forwarding.get("selected_references") or []),
+                                             media_role=forwarding["reference_media_role"]),
         output_count=count,
     )
 
@@ -705,6 +709,8 @@ def dispatch_generation(args: argparse.Namespace, root: Path) -> int:
         from production_workflow import submission_intent
         submission = submission_intent(package, rendered=rendered, seed=args.seed, count=args.count, offering=offering, service=service)
     write_preview_outputs(args, rendered, validation, submission)
+    from render_contract_lib import summary as render_summary
+    print(render_summary(package['render_contract']))
     show_preview(model_id=model_id, offering=offering, service_id=service_id, service=service, rendered=rendered,
                  negative=negative_line(verified, rendered, offering), production_run=production_run,
                  review=verified.get("review_requirements") or [], args=args)
@@ -812,13 +818,15 @@ def dispatch_upscale(args: argparse.Namespace, root: Path) -> int:
     if validation_file is None:
         raise ValueError('upscale requires an explicit --request-validation-file')
     declared = upscale_request(root, source, model_id, args.scale, settings, args.guidance,
-                               request_validation=c.load(validation_file))
+                               request_validation=c.load(validation_file), render_intent=c.load(args.render_intent))
     if production_run is not None:
         validate_upscale_live(root, production_run, declared)
     rendered = request_renderer.upscale(declared, record, offering, service, transport, source, placed, root=root)
     check_upscale(rendered, offering, model_id)
     validation = request_renderer.check_final(declared['request_validation'],
         runtime_evidence.reader(root, snapshots=copy.deepcopy(declared['input_snapshots'])), rendered)
+    from render_contract_lib import summary as render_summary
+    print(render_summary(rendered['sealed']['context']['render_contract']))
     preview = rendered['request']
     submission = None
     if production_run is not None:
@@ -902,6 +910,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source", type=Path, help="With --upscale: the image to enlarge")
     parser.add_argument("--scale", type=float, help="With --upscale: the factor, one the record declares")
     parser.add_argument("--settings", default="{}", help="With --upscale: JSON object of the settings the record declares")
+    parser.add_argument("--render-intent", type=Path, help="With --upscale: explicit rendering intent JSON")
     parser.add_argument("--guidance", help="With --upscale: a guidance prompt, where the record accepts one")
     parser.add_argument("--request-validation-file", type=Path, help="With --upscale: explicit validation record and evidence.")
     parser.add_argument('--preview-out', type=Path, help='New local file for the sealed request, its trace and the validation report; preview only.')
@@ -915,8 +924,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         root = studio.require_studio(args.studio)
         if args.upscale:
-            if not (args.model and args.source and args.scale):
-                parser.error("--upscale needs --model, --source, and --scale")
+            if not (args.model and args.source and args.scale and args.render_intent):
+                parser.error("--upscale needs --model, --source, --scale, and --render-intent")
             return dispatch_upscale(args, root)
         if args.package is None:
             parser.error("a Generation Package, or --upscale")

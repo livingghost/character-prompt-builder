@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline regressions for persona-led authoring, not a rating of fiction.
+"""Regression tests for persona-led authoring, not a rating of fiction.
 
     python scripts/persona_workflow_smoke_test.py
 

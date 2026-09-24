@@ -87,8 +87,8 @@ class ReadingTests(unittest.TestCase):
         manifest=c.load(r.ROOT/r.execution_routes.MANIFEST)
         prompt_only=r.execution_routes.resolve('prompt-only')
         self.assertEqual([x['path'] for x in prompt_only['reads']],
-                         manifest['always_read']+['references/runtime/prompt-only-core.md'])
-        self.assertEqual(r.execution_routes.resolve('repose')['features'],['prompt-dialect','reference-delivery','studio'])
+                         manifest['always_read']+['references/runtime/prompt-only-core.md','references/runtime/render-contract.md'])
+        self.assertEqual(r.execution_routes.resolve('repose')['features'],['prompt-dialect','reference-delivery','render-contract','studio'])
     def test_draft_holds_the_read_and_no_application(self):
         issued=self.issued()
         draft=r.draft_record(issued)

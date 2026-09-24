@@ -1,6 +1,311 @@
 {
   "status": "ready",
   "model": "gpt-image-2.5-flare",
+  "render_contract": {
+    "artifact_type": "render-contract",
+    "intent": {
+      "artifact_type": "render-intent",
+      "preset": "anime-cel",
+      "axes": {
+        "medium": "2d-illustration",
+        "dimensionality": "drawn-volume",
+        "linework": "clean-variable-contours",
+        "shading": "cel-values-with-selective-gradients",
+        "surface": "designed-surface-marks",
+        "detail": "focal-detail-hierarchy"
+      },
+      "presentation": "single illustrated portrait",
+      "selection": {
+        "chosen_by": "agent",
+        "reason": "The synthetic example declares a soft-cel illustration."
+      },
+      "execution_mode": "text-to-image",
+      "prompt_expression": "cinematic 2D soft-cel office portrait",
+      "regional_overrides": []
+    },
+    "model_card": {
+      "model": "gpt-image-2.5-flare",
+      "service": null,
+      "model_identifier": "gpt-image-2.5-flare",
+      "ready_for_parameter_resolution": true,
+      "execution_profile": {
+        "basis": {
+          "kind": "curated-starting-point",
+          "limitations": [
+            "Host request validation supplies the actual callable interface. No sampling controls or image-quality outcome are asserted."
+          ],
+          "source": "Model record prompt_style, ordering and size_hints"
+        },
+        "id": "host-prose-image",
+        "modes": {
+          "instruction-edit": {
+            "controls": {
+              "CFGScale": {
+                "binding": "package",
+                "reason": "No guidance-scale control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "numberResults": {
+                "binding": "dispatch-count",
+                "reason": "Output count belongs to the selected host invocation.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "quality": {
+                "binding": "package",
+                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "seed": {
+                "binding": "dispatch-seed",
+                "reason": "This host-only record exposes no seed control.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "size": {
+                "binding": "package",
+                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "steps": {
+                "binding": "package",
+                "reason": "No sampling-step control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "strength": {
+                "binding": "package",
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
+                "recommendation": null,
+                "schema": null,
+                "status": "not-applicable"
+              }
+            },
+            "media": "references",
+            "parameter_schema": {}
+          },
+          "reference-guided": {
+            "controls": {
+              "CFGScale": {
+                "binding": "package",
+                "reason": "No guidance-scale control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "numberResults": {
+                "binding": "dispatch-count",
+                "reason": "Output count belongs to the selected host invocation.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "quality": {
+                "binding": "package",
+                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "seed": {
+                "binding": "dispatch-seed",
+                "reason": "This host-only record exposes no seed control.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "size": {
+                "binding": "package",
+                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "steps": {
+                "binding": "package",
+                "reason": "No sampling-step control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "strength": {
+                "binding": "package",
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
+                "recommendation": null,
+                "schema": null,
+                "status": "not-applicable"
+              }
+            },
+            "media": "references",
+            "parameter_schema": {}
+          },
+          "text-to-image": {
+            "controls": {
+              "CFGScale": {
+                "binding": "package",
+                "reason": "No guidance-scale control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "numberResults": {
+                "binding": "dispatch-count",
+                "reason": "Output count belongs to the selected host invocation.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "quality": {
+                "binding": "package",
+                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "seed": {
+                "binding": "dispatch-seed",
+                "reason": "This host-only record exposes no seed control.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "size": {
+                "binding": "package",
+                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
+                "recommendation": null,
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": "required"
+              },
+              "steps": {
+                "binding": "package",
+                "reason": "No sampling-step control is declared by this host record.",
+                "recommendation": null,
+                "schema": null,
+                "status": "backend-managed"
+              },
+              "strength": {
+                "binding": "package",
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
+                "recommendation": null,
+                "schema": null,
+                "status": "not-applicable"
+              }
+            },
+            "media": "none",
+            "parameter_schema": {}
+          }
+        },
+        "prompt_recipe": {
+          "guidance": [
+            "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
+            "Keep the chosen finish in the authored prompt. Preserve user anchors and reference authority."
+          ],
+          "order": [
+            "purpose",
+            "subject",
+            "composition",
+            "rendering",
+            "constraints"
+          ]
+        }
+      },
+      "recommended_parameters": {},
+      "recommended_positive_prompt": "",
+      "recommended_negative_prompt": "",
+      "recommendation_merge_mode": "advisory-only",
+      "size_choices": {
+        "16:9": "2048x1152",
+        "1:1": "1024x1024",
+        "2:3": "1024x1536",
+        "3:2": "1536x1024",
+        "4:5": "1024x1280",
+        "9:16": "1152x2048"
+      },
+      "note": "Recommendations are starting points. Interface validity and observed image quality are separate evidence."
+    },
+    "profile_sha256": "53005e9a9d2af9574f8f322dae0243e11e28a4c3664e191d0c207e29d39aad02",
+    "authored_parameters": {
+      "size": "1024x1024",
+      "quality": "high"
+    },
+    "parameters": {
+      "quality": "high",
+      "size": "1024x1024"
+    },
+    "parameter_decisions": [
+      {
+        "key": "CFGScale",
+        "status": "backend-managed",
+        "value": null,
+        "reason": "No guidance-scale control is declared by this host record."
+      },
+      {
+        "key": "numberResults",
+        "status": "backend-managed",
+        "value": null,
+        "reason": "Output count belongs to the selected host invocation."
+      },
+      {
+        "key": "quality",
+        "status": "explicit",
+        "value": "high",
+        "reason": "Choose output quality explicitly and validate it against the selected host interface."
+      },
+      {
+        "key": "seed",
+        "status": "backend-managed",
+        "value": null,
+        "reason": "This host-only record exposes no seed control."
+      },
+      {
+        "key": "size",
+        "status": "explicit",
+        "value": "1024x1024",
+        "reason": "Select the requested output geometry explicitly; consult the host size contract."
+      },
+      {
+        "key": "steps",
+        "status": "backend-managed",
+        "value": null,
+        "reason": "No sampling-step control is declared by this host record."
+      },
+      {
+        "key": "strength",
+        "status": "not-applicable",
+        "value": null,
+        "reason": "No denoising control is declared; reference input is not an img2img strength setting."
+      }
+    ],
+    "reference_count": 0,
+    "prompt_expression": "cinematic 2D soft-cel office portrait"
+  },
   "source_brief": "State-aware field-office scene after an offscreen ear injury and a prop transfer.",
   "creative_intent": {
     "image_promise": "A polished close office portrait in which a familiar wolf maintains professional composure while subtle physical cues reveal fear, and every visible identity and state change matches the canonical timeline.",
@@ -20,10 +325,30 @@
       "domain-realization-anthropomorphic-animal-baseline",
       "profile-clear-2d-illustration"
     ],
-    "production_spec_sha256": "3c74d567085c332a1bb719f9eab52c33829959bed1f97c58f004bd27edf317d8",
+    "production_spec_sha256": "2ee7548df1fe2a8263cdb2f344acaaead8ef53afbf61684706f8c06b540e6fd0",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99"
   },
   "production_spec": {
+    "render_intent": {
+      "artifact_type": "render-intent",
+      "preset": "anime-cel",
+      "axes": {
+        "medium": "2d-illustration",
+        "dimensionality": "drawn-volume",
+        "linework": "clean-variable-contours",
+        "shading": "cel-values-with-selective-gradients",
+        "surface": "designed-surface-marks",
+        "detail": "focal-detail-hierarchy"
+      },
+      "presentation": "single illustrated portrait",
+      "selection": {
+        "chosen_by": "agent",
+        "reason": "The synthetic example declares a soft-cel illustration."
+      },
+      "execution_mode": "text-to-image",
+      "prompt_expression": "cinematic 2D soft-cel office portrait",
+      "regional_overrides": []
+    },
     "source_brief": "State-aware field-office scene after an offscreen ear injury and a prop transfer.",
     "target_model": "gpt-image-2.5-flare",
     "creative_latitude": "directed",
@@ -2606,11 +2931,11 @@
       "profile-clear-2d-illustration"
     ]
   },
-  "production_spec_sha256": "3c74d567085c332a1bb719f9eab52c33829959bed1f97c58f004bd27edf317d8",
+  "production_spec_sha256": "2ee7548df1fe2a8263cdb2f344acaaead8ef53afbf61684706f8c06b540e6fd0",
   "composition_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
   "retrieval_record": {
     "artifact_type": "prompt-retrieval-record",
-    "pack_state": "illustrative-offline-pilot",
+    "pack_state": "illustrative-state-pilot",
     "elements": [
       {
         "element": "illustrative pilot composition",
@@ -2629,7 +2954,7 @@
       "plot_content_sha256": "58dd32ffbba312183167b59baa25e737f7ea21de2e692b37db7b92f8790541fe"
     }
   },
-  "retrieval_record_sha256": "5b311ba9ba9fb2a8096168c558878d540b9d17b15b2e22c65c753d70a04a2dac",
+  "retrieval_record_sha256": "5b6d2fb640782c473f4731617628dc53f729fafdc784cb32dce2447a983cbbcb",
   "plot": {
     "artifact_type": "prompt-plot",
     "story": [
@@ -2737,7 +3062,7 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "7f81ad3f0c15b279e883d4fbf052891c1f3f7159e98cbd17f83ee0415772f059",
+  "generation_input_sha256": "25f6b36841cd68c78d80cf6470607fb1f3788e376f3e383cb22f8445fddf8a3e",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -2855,8 +3180,8 @@
       "resolved_model_id": "gpt-image-2.5-flare"
     },
     "parameters": {
-      "size": "1024x1024",
-      "quality": "high"
+      "quality": "high",
+      "size": "1024x1024"
     },
     "service": null,
     "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
@@ -2874,23 +3199,23 @@
     "negative_prompt_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",
     "native_negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "prompt_recommendations_sha256": "20c5e4ead228a3c6caffbb7bcef7661104c7cb1a00aed405cb7946dd6635bf09",
-    "production_spec_sha256": "3c74d567085c332a1bb719f9eab52c33829959bed1f97c58f004bd27edf317d8",
+    "production_spec_sha256": "2ee7548df1fe2a8263cdb2f344acaaead8ef53afbf61684706f8c06b540e6fd0",
     "plot_sha256": "12379b02bc4cc79db80bbd6ce9f74dec157a0f59150965c2928125733acdff4f",
-    "retrieval_record_sha256": "5b311ba9ba9fb2a8096168c558878d540b9d17b15b2e22c65c753d70a04a2dac",
+    "retrieval_record_sha256": "5b6d2fb640782c473f4731617628dc53f729fafdc784cb32dce2447a983cbbcb",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-    "generation_input_sha256": "7f81ad3f0c15b279e883d4fbf052891c1f3f7159e98cbd17f83ee0415772f059",
+    "generation_input_sha256": "25f6b36841cd68c78d80cf6470607fb1f3788e376f3e383cb22f8445fddf8a3e",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
-    "visual_continuity_sha256": "4f99d48f2b415e826c076d18aafa8bd692e4ed5cc4c326088e12bdfcebcc6146",
-    "route_reading_sha256": "41cb9587948861f7c90d9bea3f8fe2eb41c23581be1799b15774c4611bd6b717",
-    "request_validation_sha256": "7f3e001a72070b03f5fcaf686341b43ccb0b66bd69eb5a9e7afeb938dafd1421",
-    "input_snapshots_sha256": "4ed9a6cf37d1fec78fb483cfa6eca8acb1372cb1e08e6b60148ef414c46b2125"
+    "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
+    "route_reading_sha256": "177b395f440cb57c14f04da42965dd4658d03b3fee3c23ee1aa13d135e39f773",
+    "request_validation_sha256": "708aac1637f17bdfe2bc84a4efce946521298a1bca53bc734fe8273c43cb804e",
+    "input_snapshots_sha256": "c97d342668126ca1e21a05af6b7758462d6ae35c212e931bb9917349c1eeef15"
   },
   "visual_continuity": {
     "purpose": "image",
     "basis": {
       "path": "fixture-visual-basis.txt",
-      "sha256": "c9ba7582a90b2b90578e1f3ecd9b21a6665606a86f9f088659aff08d3b126cf0",
+      "sha256": "8214731768861c3035f864cd014f4f7256ab4f8cfdf94d186935321a01e4d683",
       "locator": "whole"
     },
     "subjects": {
@@ -2902,7 +3227,7 @@
       }
     }
   },
-  "visual_continuity_sha256": "4f99d48f2b415e826c076d18aafa8bd692e4ed5cc4c326088e12bdfcebcc6146",
+  "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
   "route_reading": {
     "documents": [
       {
@@ -2930,6 +3255,10 @@
         "sha256": "aef43a9afa3c551f79694cc898528e1af2669ac242afdf4f494370e47096ea0c"
       },
       {
+        "path": "references/runtime/render-contract.md",
+        "sha256": "796bb30a517406086cafd2cd61a77445141df1185642cf601c129d73e29f956a"
+      },
+      {
         "path": "references/runtime/studio.md",
         "sha256": "5e0f70d25113bca1a1db4d7ee87f4c1569115baae1fb67a50ddb013e498d43e6"
       },
@@ -2941,6 +3270,7 @@
     "features": [
       "prompt-dialect",
       "reference-delivery",
+      "render-contract",
       "studio",
       "world-view"
     ],
@@ -2959,7 +3289,7 @@
       }
     },
     "route": "state-series",
-    "reading_key": "814ef5ab9baf528114fffd4b795b024d",
+    "reading_key": "8754c0529fdac0cb0f84a24963b9b9f4",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
@@ -2976,7 +3306,7 @@
       }
     ]
   },
-  "route_reading_sha256": "41cb9587948861f7c90d9bea3f8fe2eb41c23581be1799b15774c4611bd6b717",
+  "route_reading_sha256": "177b395f440cb57c14f04da42965dd4658d03b3fee3c23ee1aa13d135e39f773",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",
@@ -2986,59 +3316,59 @@
       "operation": "generation"
     },
     "service_execution_sha256": "e2c94ad4f0fa1f9f6c2e9590a0e0be44a49c1e392533176adff057306a476841",
-    "offering_contract_sha256": "ca657805d9f60e39ec28ff0f602a46ad3609f10df432453800a8e848eeff407a",
-    "transport_sha256": "537497e38db64967626468278cf291b1aadae40bda7bc8294da1ae01c300606f",
+    "offering_contract_sha256": "4dfb9354091055653bef8fb190449e25c010f13a2729296c9ec5abbf632571de",
+    "transport_sha256": "0ac892f07cf233fa05e3625a4623ca2707c6863c3c207e6dda29711df7c3a64b",
     "contract": {
-      "path": "synthetic-validation/84eedb1297c51362/contract.json",
+      "path": "synthetic-validation/4c72e7d8bfef1fa9/contract.json",
       "sha256": "8fc608f33f28192b0dc1ffc42e79a48503645c3b623d735c5b9120be58574450"
     },
     "evidence": {
-      "path": "synthetic-validation/84eedb1297c51362/acquisition.json",
-      "sha256": "8385e2ca4330f38a146318b6986e78770a1e4dc3e67baa1ee2053a5453b92a28"
+      "path": "synthetic-validation/4c72e7d8bfef1fa9/acquisition.json",
+      "sha256": "f1035a528389f7024abb2223f671eb216270df3562d9b8db1c634510e124a499"
     },
     "execution_policy": {
-      "path": "synthetic-validation/84eedb1297c51362/policy.json",
-      "sha256": "059bdb05e8023d936660f4e5c7c37f2000ea7a8cc92458d5a1f5aff60a393f81"
+      "path": "synthetic-validation/4c72e7d8bfef1fa9/policy.json",
+      "sha256": "2122258b4b42dd87870107320c07769b5039725d1b9ed16dd3f2b7748d94d1d6"
     },
     "unmeasured": []
   },
-  "request_validation_sha256": "7f3e001a72070b03f5fcaf686341b43ccb0b66bd69eb5a9e7afeb938dafd1421",
+  "request_validation_sha256": "708aac1637f17bdfe2bc84a4efce946521298a1bca53bc734fe8273c43cb804e",
   "input_snapshots": {
-    "synthetic-validation/84eedb1297c51362/contract.json": {
+    "synthetic-validation/4c72e7d8bfef1fa9/contract.json": {
       "sha256": "8fc608f33f28192b0dc1ffc42e79a48503645c3b623d735c5b9120be58574450",
       "size": 306,
       "base64": "eyJhcnRpZmFjdF90eXBlIjoibW9kZWwtc2NoZW1hLWNvbnRyYWN0IiwibG9jYWxfb3ZlcmxheSI6bnVsbCwicmVzcG9uc2VfcG9pbnRlciI6Ii9zY2hlbWEiLCJzY2hlbWEiOnsidHlwZSI6Im9iamVjdCJ9LCJzY2hlbWFfc2hhMjU2IjoiOTA5MWE4MTY0Zjk3ZWFjYTE4MmIzZDA2ZDBlNWE1OWU5MjNjODgwZWJjMDE0ODA1NmM0NTNjNjUxZjViNDZjYiIsInRhcmdldCI6eyJtb2RlbF9pZGVudGlmaWVyIjoiZ3B0LWltYWdlLTIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRpb24iLCJzZXJ2aWNlIjoic3ludGhldGljLWhvc3QifX0K"
     },
-    "synthetic-validation/84eedb1297c51362/acquisition.json": {
-      "sha256": "8385e2ca4330f38a146318b6986e78770a1e4dc3e67baa1ee2053a5453b92a28",
-      "size": 484,
-      "base64": "eyJhY3F1aXJlZF9hdCI6IjIwMDAtMDEtMDFUMDA6MDA6MDBaIiwiYXJ0aWZhY3RfdHlwZSI6InNjaGVtYS1hY3F1aXNpdGlvbiIsInJlc3BvbnNlIjp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi84NGVlZGIxMjk3YzUxMzYyL2ludGVyZmFjZS5qc29uIiwic2hhMjU2IjoiN2I1MGYzMGMwOTE5MTJhYTU4YjIxYWJiNDE4YjYzNTJhODE2NGZjNWQxMmQyNzUwN2FiN2IyODE3NGJjY2FlOCJ9LCJzb3VyY2UiOnsiaWRlbnRpZmllciI6IlN5bnRoZXRpYyBvZmZsaW5lIGludGVyZmFjZSBmaXh0dXJlIiwia2luZCI6ImRvY3VtZW50IiwibG9jYXRvciI6InNjaGVtYSBtZW1iZXIifSwic3RhdHVzIjp7ImRvY3VtZW50X3N0YXR1cyI6InNjaGVtYS1wcm92aWRlZCJ9LCJ0YXJnZXQiOnsibW9kZWxfaWRlbnRpZmllciI6ImdwdC1pbWFnZS0yLjUtZmxhcmUiLCJvcGVyYXRpb24iOiJnZW5lcmF0aW9uIiwic2VydmljZSI6InN5bnRoZXRpYy1ob3N0In19Cg=="
+    "synthetic-validation/4c72e7d8bfef1fa9/acquisition.json": {
+      "sha256": "f1035a528389f7024abb2223f671eb216270df3562d9b8db1c634510e124a499",
+      "size": 476,
+      "base64": "eyJhY3F1aXJlZF9hdCI6IjIwMDAtMDEtMDFUMDA6MDA6MDBaIiwiYXJ0aWZhY3RfdHlwZSI6InNjaGVtYS1hY3F1aXNpdGlvbiIsInJlc3BvbnNlIjp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi80YzcyZTdkOGJmZWYxZmE5L2ludGVyZmFjZS5qc29uIiwic2hhMjU2IjoiN2I1MGYzMGMwOTE5MTJhYTU4YjIxYWJiNDE4YjYzNTJhODE2NGZjNWQxMmQyNzUwN2FiN2IyODE3NGJjY2FlOCJ9LCJzb3VyY2UiOnsiaWRlbnRpZmllciI6IlN5bnRoZXRpYyBpbnRlcmZhY2UgZml4dHVyZSIsImtpbmQiOiJkb2N1bWVudCIsImxvY2F0b3IiOiJzY2hlbWEgbWVtYmVyIn0sInN0YXR1cyI6eyJkb2N1bWVudF9zdGF0dXMiOiJzY2hlbWEtcHJvdmlkZWQifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJncHQtaW1hZ2UtMi41LWZsYXJlIiwib3BlcmF0aW9uIjoiZ2VuZXJhdGlvbiIsInNlcnZpY2UiOiJzeW50aGV0aWMtaG9zdCJ9fQo="
     },
-    "synthetic-validation/84eedb1297c51362/policy.json": {
-      "sha256": "059bdb05e8023d936660f4e5c7c37f2000ea7a8cc92458d5a1f5aff60a393f81",
+    "synthetic-validation/4c72e7d8bfef1fa9/policy.json": {
+      "sha256": "2122258b4b42dd87870107320c07769b5039725d1b9ed16dd3f2b7748d94d1d6",
       "size": 584,
-      "base64": "eyJhcnRpZmFjdF90eXBlIjoiZXhlY3V0aW9uLXBvbGljeSIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi84NGVlZGIxMjk3YzUxMzYyL2Jhc2lzLnR4dCIsInNoYTI1NiI6ImY2YmJjM2EwM2ExNDlmYjEzMjI5OTkyMzFmODUwNDk5ZDhiNGM1OGIzZjJmMjMzZDRhNTNmNzVhYjU3MGI2NDMifSwicHJvZHVjdGlvbl9jb250ZXh0X3RyYW5zcG9ydCI6Im5vbmUiLCJyZWZlcmVuY2VfaW5zdHJ1Y3Rpb25fdHJhbnNwb3J0Ijp7ImNvbnRyYWN0Ijp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi84NGVlZGIxMjk3YzUxMzYyL3JlZmVyZW5jZXMuanNvbiIsInNoYTI1NiI6IjVlNDA4ZGVhMTJkYzUwYjM4ZjJiN2UxYWI3M2E5ZmU4Y2IyOTM0MTNiZTk1YWYzOGEyMTI0NmMyYTMxY2IzM2EifSwibW9kZSI6InByb21wdC1wcmVmaXgifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJncHQtaW1hZ2UtMi41LWZsYXJlIiwib3BlcmF0aW9uIjoiZ2VuZXJhdGlvbiIsInNlcnZpY2UiOiJzeW50aGV0aWMtaG9zdCJ9LCJ0ZXh0X2RpYWxlY3QiOiJzeW50aGV0aWMtcHJvc2UifQo="
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoiZXhlY3V0aW9uLXBvbGljeSIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi80YzcyZTdkOGJmZWYxZmE5L2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwicHJvZHVjdGlvbl9jb250ZXh0X3RyYW5zcG9ydCI6Im5vbmUiLCJyZWZlcmVuY2VfaW5zdHJ1Y3Rpb25fdHJhbnNwb3J0Ijp7ImNvbnRyYWN0Ijp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi80YzcyZTdkOGJmZWYxZmE5L3JlZmVyZW5jZXMuanNvbiIsInNoYTI1NiI6IjdmNDAyOWMwMTJkMDMxYThiZmIxODFhY2I0NjdjMTljYTI3ZWU1N2JjNWE2YWQ3OWI3MjE1MDk3N2U1NTFkMWEifSwibW9kZSI6InByb21wdC1wcmVmaXgifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJncHQtaW1hZ2UtMi41LWZsYXJlIiwib3BlcmF0aW9uIjoiZ2VuZXJhdGlvbiIsInNlcnZpY2UiOiJzeW50aGV0aWMtaG9zdCJ9LCJ0ZXh0X2RpYWxlY3QiOiJzeW50aGV0aWMtcHJvc2UifQo="
     },
-    "synthetic-validation/84eedb1297c51362/interface.json": {
+    "synthetic-validation/4c72e7d8bfef1fa9/interface.json": {
       "sha256": "7b50f30c091912aa58b21abb418b6352a8164fc5d12d27507ab7b28174bccae8",
       "size": 46,
       "base64": "eyJzY2hlbWEiOnsidHlwZSI6Im9iamVjdCJ9LCJzeW50aGV0aWMiOnRydWV9Cg=="
     },
-    "synthetic-validation/84eedb1297c51362/basis.txt": {
-      "sha256": "f6bbc3a03a149fb1322999231f850499d8b4c58b3f2f233d4a53f75ab570b643",
-      "size": 68,
-      "base64": "U3ludGhldGljIG9mZmxpbmUgaW50ZXJmYWNlIGRlY2xhcmF0aW9uLiBObyBwcm92aWRlciB3YXMgY29udGFjdGVkLgo="
+    "synthetic-validation/4c72e7d8bfef1fa9/basis.txt": {
+      "sha256": "424db1c13f6c398026a9d9ae39d4e8f294e1274d4e2d1dec1ab501e7d61e06c5",
+      "size": 60,
+      "base64": "U3ludGhldGljIGludGVyZmFjZSBkZWNsYXJhdGlvbi4gTm8gcHJvdmlkZXIgd2FzIGNvbnRhY3RlZC4K"
     },
-    "synthetic-validation/84eedb1297c51362/references.json": {
-      "sha256": "5e408dea12dc50b38f2b7e1ab73a9fe8cb293413be95af38a21246c2a31cb33a",
+    "synthetic-validation/4c72e7d8bfef1fa9/references.json": {
+      "sha256": "7f4029c012d031a8bfb181acb467c19ca27ee57bc5a6ad79b72150977e551d1a",
       "size": 409,
-      "base64": "eyJhcnRpZmFjdF90eXBlIjoicmVmZXJlbmNlLXJlbmRlci1jb250cmFjdCIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi84NGVlZGIxMjk3YzUxMzYyL2Jhc2lzLnR4dCIsInNoYTI1NiI6ImY2YmJjM2EwM2ExNDlmYjEzMjI5OTkyMzFmODUwNDk5ZDhiNGM1OGIzZjJmMjMzZDRhNTNmNzVhYjU3MGI2NDMifSwiZGlhbGVjdHMiOlsic3ludGhldGljLXByb3NlIl0sImZpZWxkcyI6W10sIm1vZGUiOiJwcm9tcHQtcHJlZml4IiwicmVuZGVyZXIiOiJyZWZlcmVuY2UtZGVsaXZlcnkiLCJ0YXJnZXQiOnsibW9kZWxfaWRlbnRpZmllciI6ImdwdC1pbWFnZS0yLjUtZmxhcmUiLCJvcGVyYXRpb24iOiJnZW5lcmF0aW9uIiwic2VydmljZSI6InN5bnRoZXRpYy1ob3N0In19Cg=="
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoicmVmZXJlbmNlLXJlbmRlci1jb250cmFjdCIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi80YzcyZTdkOGJmZWYxZmE5L2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwiZGlhbGVjdHMiOlsic3ludGhldGljLXByb3NlIl0sImZpZWxkcyI6W10sIm1vZGUiOiJwcm9tcHQtcHJlZml4IiwicmVuZGVyZXIiOiJyZWZlcmVuY2UtZGVsaXZlcnkiLCJ0YXJnZXQiOnsibW9kZWxfaWRlbnRpZmllciI6ImdwdC1pbWFnZS0yLjUtZmxhcmUiLCJvcGVyYXRpb24iOiJnZW5lcmF0aW9uIiwic2VydmljZSI6InN5bnRoZXRpYy1ob3N0In19Cg=="
     },
     "fixture-visual-basis.txt": {
-      "sha256": "c9ba7582a90b2b90578e1f3ecd9b21a6665606a86f9f088659aff08d3b126cf0",
-      "size": 88,
-      "base64": "U3ludGhldGljIG9mZmxpbmUgdmlzdWFsIGRlY2lzaW9ucyBmb3Igb25lIGRlY2xhcmVkIHRlc3QgaW5wdXQuIE5vdCBhbiBhdXRob3IgYXBwcm92YWwuCg=="
+      "sha256": "8214731768861c3035f864cd014f4f7256ab4f8cfdf94d186935321a01e4d683",
+      "size": 80,
+      "base64": "U3ludGhldGljIHZpc3VhbCBkZWNpc2lvbnMgZm9yIG9uZSBkZWNsYXJlZCB0ZXN0IGlucHV0LiBOb3QgYW4gYXV0aG9yIGFwcHJvdmFsLgo="
     }
   },
-  "input_snapshots_sha256": "4ed9a6cf37d1fec78fb483cfa6eca8acb1372cb1e08e6b60148ef414c46b2125"
+  "input_snapshots_sha256": "c97d342668126ca1e21a05af6b7758462d6ae35c212e931bb9917349c1eeef15"
 }

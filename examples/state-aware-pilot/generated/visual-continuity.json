@@ -2,7 +2,7 @@
   "purpose": "image",
   "basis": {
     "path": "fixture-visual-basis.txt",
-    "sha256": "c9ba7582a90b2b90578e1f3ecd9b21a6665606a86f9f088659aff08d3b126cf0",
+    "sha256": "8214731768861c3035f864cd014f4f7256ab4f8cfdf94d186935321a01e4d683",
     "locator": "whole"
   },
   "subjects": {

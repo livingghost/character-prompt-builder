@@ -1,0 +1,807 @@
+{
+  "id": "synthetic-diffusion-interface",
+  "basis": {
+    "kind": "synthetic",
+    "source": "Synthetic interface declaration",
+    "limitations": [
+      "No provider capability or image quality is claimed."
+    ]
+  },
+  "prompt_recipe": {
+    "order": [
+      "rendering",
+      "subject",
+      "composition",
+      "environment"
+    ],
+    "guidance": [
+      "Author a coherent rendering phrase after retrieval. Keep content and finish decisions separate."
+    ]
+  },
+  "modes": {
+    "text-to-image": {
+      "media": "none",
+      "controls": {
+        "width": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "height": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "size": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "quality": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "steps": {
+          "status": "required",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 80
+          },
+          "recommendation": "steps",
+          "reason": "Synthetic interface choice."
+        },
+        "CFGScale": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "cfg": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "guidance": {
+          "status": "required",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "recommendation": "guidance",
+          "reason": "Synthetic interface choice."
+        },
+        "scheduler": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "sampler": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "promptWeighting": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "settings": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "object"
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "hiresFix": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "object"
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "clipSkip": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "outputFormat": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "outputType": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "seed": {
+          "status": "required",
+          "binding": "dispatch-seed",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "numberResults": {
+          "status": "required",
+          "binding": "dispatch-count",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "strength": {
+          "status": "not-applicable",
+          "binding": "package",
+          "schema": null,
+          "recommendation": null,
+          "reason": "This text-only synthetic operation has no denoising input."
+        }
+      },
+      "parameter_schema": {}
+    },
+    "image-to-image": {
+      "media": "seed-image",
+      "controls": {
+        "width": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "height": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "size": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "quality": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "steps": {
+          "status": "required",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 80
+          },
+          "recommendation": "steps",
+          "reason": "Synthetic interface choice."
+        },
+        "CFGScale": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "cfg": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "guidance": {
+          "status": "required",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "recommendation": "guidance",
+          "reason": "Synthetic interface choice."
+        },
+        "scheduler": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "sampler": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "promptWeighting": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "settings": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "object"
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "hiresFix": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "object"
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "clipSkip": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "outputFormat": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "outputType": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "seed": {
+          "status": "required",
+          "binding": "dispatch-seed",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "numberResults": {
+          "status": "required",
+          "binding": "dispatch-count",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "strength": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic source-image transformation control."
+        }
+      },
+      "parameter_schema": {}
+    },
+    "reference-guided": {
+      "media": "references",
+      "controls": {
+        "width": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "height": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "size": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "quality": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "steps": {
+          "status": "required",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 80
+          },
+          "recommendation": "steps",
+          "reason": "Synthetic interface choice."
+        },
+        "CFGScale": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "cfg": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "guidance": {
+          "status": "required",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "recommendation": "guidance",
+          "reason": "Synthetic interface choice."
+        },
+        "scheduler": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "sampler": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "promptWeighting": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "settings": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "object"
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "hiresFix": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "object"
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "clipSkip": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "outputFormat": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "outputType": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "seed": {
+          "status": "required",
+          "binding": "dispatch-seed",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "numberResults": {
+          "status": "required",
+          "binding": "dispatch-count",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "strength": {
+          "status": "not-applicable",
+          "binding": "package",
+          "schema": null,
+          "recommendation": null,
+          "reason": "This text-only synthetic operation has no denoising input."
+        }
+      },
+      "parameter_schema": {}
+    },
+    "instruction-edit": {
+      "media": "references",
+      "controls": {
+        "width": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "height": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "size": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "quality": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "steps": {
+          "status": "required",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 80
+          },
+          "recommendation": "steps",
+          "reason": "Synthetic interface choice."
+        },
+        "CFGScale": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "cfg": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "guidance": {
+          "status": "required",
+          "binding": "package",
+          "schema": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "recommendation": "guidance",
+          "reason": "Synthetic interface choice."
+        },
+        "scheduler": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "sampler": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "promptWeighting": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "settings": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "object"
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "hiresFix": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "object"
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "clipSkip": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "outputFormat": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "outputType": {
+          "status": "optional",
+          "binding": "package",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "seed": {
+          "status": "required",
+          "binding": "dispatch-seed",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "numberResults": {
+          "status": "required",
+          "binding": "dispatch-count",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "recommendation": null,
+          "reason": "Synthetic interface choice."
+        },
+        "strength": {
+          "status": "not-applicable",
+          "binding": "package",
+          "schema": null,
+          "recommendation": null,
+          "reason": "This text-only synthetic operation has no denoising input."
+        }
+      },
+      "parameter_schema": {}
+    }
+  }
+}

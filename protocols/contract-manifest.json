@@ -115,7 +115,7 @@
     },
     {
       "schema": "shared-state/production-spec.schema.json",
-      "sha256": "7475582b389fbb3bb7f7031c37644f24f078063a62ac345c10b50a7fa645cb85"
+      "sha256": "c555b1a1c11a7b34be2525f7d62f2157abd6a3b9271b28b6f39f7edda61a5190"
     },
     {
       "schema": "shared-state/reference-bundle-plan.schema.json",
@@ -414,7 +414,7 @@
   },
   "semantics": {
     "path": "protocols/semantics.md",
-    "sha256": "e16c7c578718a0ae5f96d51369c3735db85f57d09d55bfe9b8e1883a3b8b1d15"
+    "sha256": "66c9493cc37279641df3a64c21a1fa29c2e5d86743d30ea4aa21b1b194825d1a"
   },
-  "contract_set_sha256": "44bbad00c5ad76dad2d7d99d2f700725712dac6d7a71a2ceab497a068a2b72bb"
+  "contract_set_sha256": "da4864c01cb57361fddef4f023574fc98f83296537bb329ef272e1288d6986bb"
 }

@@ -300,7 +300,7 @@ Output is JSON on stdout: the width, the height, the pixel count, the ratio, whe
 An upscale goes the same way, from one image rather than a package. First prepare an upscale production task and authorize the exact source hash, model, factor and settings; use settings actually supported by the selected upscaler. The upscale goes under the run prepared for the studio's open task:
 
 ```bash
-python scripts/dispatch.py --upscale --model UPSCALER_ID --source SOURCE_IMAGE --scale 2 --settings SETTINGS_JSON --request-validation-file VALIDATION_JSON --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-authorization RECEIPT_SHA --send
+python scripts/dispatch.py --upscale --render-intent RENDER_INTENT_JSON --model UPSCALER_ID --source SOURCE_IMAGE --scale 2 --settings SETTINGS_JSON --request-validation-file VALIDATION_JSON --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-authorization RECEIPT_SHA --send
 ```
 
 The factor and the settings are checked against the upscaler record, each setting is placed on the request key the offering's `setting_keys` gives it (a declared setting with no key cannot be sent), `--guidance` is sent only where the offering records a `guidance prompt` request key and is refused before anything is uploaded where it does not, the request asks for a lossless PNG result, the request is checked against the observed schema, and after the service answers the Upscale Package is built from the source and the returned image under the studio's `packages/` and recorded as an iteration with the request and the answer. A generative or creative upscaler leaves the package's identity audit pending until [Upscale Adapter](../adapters/upscale.md) review passes.
@@ -334,3 +334,10 @@ When the user requests several images at once, across different models or as con
 ## Artifact evidence and completion
 
 For a saved deliverable, continue through [Production Execution](production-execution.md). Preserve this document's own interpretation, retrieval, approval and adoption boundaries. Prepare the exact inputs, capture the real output, bind review and selection to it, then complete and close the work task. `scripts/production_workflow.py status`, `impact` and `resume` recheck dependencies and artifact bytes. A progress checkbox, a search hit or a newly created image is not production completion or canonical adoption.
+
+## Explicit rendering and controls
+
+Read [Rendering choices and execution controls](render-contract.md) before preparing model-specific input.
+The builder requires a resolved intent and an interface execution profile.
+The verifier recomputes effective values and rejects changed model guidance.
+The dispatcher shows the choice and complete request, and rejects wire values that differ from the contract.

@@ -14,7 +14,7 @@ Generated file. Edit `hosts/shared/repository-guide.md.template`.
   .claude-plugin/ .codex-plugin/ .agents/ hooks/ MANIFEST.json      generated
   hosts/shared/                                   templates for the generated
   references/ scripts/ schemas/ templates/ config/ packs/ agents/
-  examples/ tests/ .github/
+  examples/ tests/ .github/ .gitattributes .gitignore
 ```
 
 `SKILL.md` sits at the plugin root rather than under a `skills/` directory. A
@@ -37,6 +37,14 @@ step. `ready` exits 1 until the author settles each `decide:` line it prints.
 `scripts/session_entry_points.py` is what a host runs on `SessionStart`; it
 reports what the state file settles and says so where it cannot answer, because
 discovery reads every record in every root and that is the runtime's work.
+
+## Choose rendering and inspect model controls
+
+Image work reads `references/runtime/render-contract.md`.
+Run `python scripts/render_contract.py presets` to inspect finish choices, then record who chose the intent and why.
+Run `python scripts/render_contract.py model --model MODEL_ID` to read the exact model's guidance card.
+The Production Specification owns `render_intent`; Generation Packages seal the resolved control decisions.
+Dispatch prints the intent and complete request and rejects unselected, unavailable, or mutated controls.
 
 ## Where character work lives, and how a result is made
 

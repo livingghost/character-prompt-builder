@@ -40,6 +40,9 @@ class ConsultationTests(unittest.TestCase):
         self.context = runtime.using_pack_runtime(self.settings)
         self.context.__enter__(); self.addCleanup(self.context.__exit__, None, None, None)
         self.spec = c.load(ROOT / 'templates/production-spec-template.json')
+        from render_contract_lib import make_intent
+        self.spec['render_intent'] = make_intent('painterly', mode='text-to-image', chosen_by='agent',
+            reason='Synthetic painted portrait study.', presentation='single portrait', prompt_expression='')
         self.spec['source_brief'] = 'Synthetic local scene.'
         self.spec['lighting']['key_light'] = 'One window source with a readable shadow side.'
         self.write('spec.json', self.spec)

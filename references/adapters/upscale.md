@@ -19,7 +19,7 @@ Build an Upscale Package containing the exact source and output paths, media typ
 When the upscaler record carries an offering, the dispatcher performs the upscale and builds the package in the studio in one step, as [Image Generation Runtime](../runtime/image-generation.md) describes:
 
 ```bash
-python scripts/dispatch.py --upscale --model <upscaler-id> --source <image> --scale <factor> --settings '{...}' --request-validation-file <validation.json> --studio <dir> --character <id> --slot <slot> --production-authorization <receipt> --send
+python scripts/dispatch.py --upscale --render-intent RENDER_INTENT_JSON --model <upscaler-id> --source <image> --scale <factor> --settings '{...}' --request-validation-file <validation.json> --studio <dir> --character <id> --slot <slot> --production-authorization <receipt> --send
 ```
 
 For an upscaler with no offering, or an upscale performed on a host with no transport, build and verify the package with the dedicated entrypoints rather than a Generation Package command, then record the result with `scripts/studio.py iterate`:
@@ -40,11 +40,11 @@ Native upscale submission requires a prepared `upscale` route, `artifact: "image
 list it among the task sources, and write the exact input declaration:
 
 ```sh
-python scripts/production_binding.py --root PROJECT --source images/input.png --model RESOLVED_MODEL --scale FACTOR --settings '{}' --out upscale-request.json
+python scripts/production_binding.py --root PROJECT --render-intent render-intent.json --source images/input.png --model RESOLVED_MODEL --scale FACTOR --settings '{}' --out upscale-request.json
 ```
 
 Use `upscale-request.json` as the task delivery. It fixes source hash, model, scale,
-settings and guidance. The dispatcher sends the upscale under the run prepared for
+settings, guidance and rendering intent. The dispatcher sends the upscale under the run prepared for
 the studio's open task, and its dry run with `--intent-out FILE` saves the exact
 submission intent. Authorize that intent with the selected grant and quoted cost,
 then provide the receipt to `dispatch.py`. The dispatcher reserves one output before

@@ -1,0 +1,20 @@
+{
+  "artifact_type": "render-intent",
+  "preset": "flat-graphic",
+  "axes": {
+    "medium": "2d-illustration",
+    "dimensionality": "flat-shapes",
+    "linework": "shape-edges",
+    "shading": "flat-fills",
+    "surface": "minimal-texture",
+    "detail": "graphic-hierarchy"
+  },
+  "presentation": "single illustration",
+  "selection": {
+    "chosen_by": "agent",
+    "reason": "Synthetic fixture choice."
+  },
+  "execution_mode": "text-to-image",
+  "prompt_expression": "Flat graphic illustration of an observatory, clear silhouette and a restrained night sky.",
+  "regional_overrides": []
+}

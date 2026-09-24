@@ -2,7 +2,7 @@
 
 This fixture exercises Shared State Protocol without claiming generated image quality. It includes an offscreen persistent injury, a temporary masked emotion, a healing process, an atomic cross-character prop transfer, a hot/humid environment adaptation proposal, a scene context, a visual projection, and a coverage-driven reference bundle plan.
 
-The generated request-validation record uses an explicitly synthetic offline
+The generated request-validation record uses an explicitly synthetic
 interface. Its schema and acquisition declaration exercise evidence binding;
 they are not observations of the named model or a live service. The source
 record is `generated/request-validation.json`, with its synthetic evidence in

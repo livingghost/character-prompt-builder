@@ -7,7 +7,7 @@ temporal canon live in separate contracts; a specification that uses them
 records their exact references.
 
     python scripts/production_spec.py draft production-spec.json --model MODEL \\
-        --brief TEXT --kind human --framing waist-up --continuity one-off
+        --render-intent render-intent.json --brief TEXT --kind human --framing waist-up --continuity one-off
     python scripts/production_spec.py validate production-spec.json --require-content
 """
 from __future__ import annotations
@@ -111,6 +111,12 @@ def validate(data: dict[str, Any], *, require_content: bool = False) -> dict[str
             if isinstance(subject_id, str):
                 seen.add(subject_id)
             errors.extend(_subject_errors(index, subject))
+    if isinstance(data, dict) and isinstance(data.get("render_intent"), dict):
+        from render_contract_lib import validate_intent
+        try:
+            validate_intent(data["render_intent"], for_generation=require_content)
+        except ValueError as exc:
+            errors.append(str(exc))
     if require_content and isinstance(data, dict):
         if isinstance(data.get("target_model"), str) and not data["target_model"].strip():
             errors.append("$.target_model is empty; name the model record")
@@ -153,9 +159,10 @@ def require_lineage(spec: dict[str, Any], lineage: dict[str, Any]) -> None:
         raise ValueError("production specification state-lineage hash mismatch")
 
 
-def draft(*, model: str, brief: str, subject: str, kind: str, framing: str) -> dict[str, Any]:
+def draft(*, model: str, brief: str, subject: str, kind: str, framing: str, render_intent: dict) -> dict[str, Any]:
     """The smallest specification the builder accepts for one subject."""
     spec = load(TEMPLATE)
+    spec["render_intent"] = render_intent
     spec["source_brief"] = brief
     spec["image_promise"] = brief
     spec["target_model"] = model
@@ -173,7 +180,7 @@ def draft(*, model: str, brief: str, subject: str, kind: str, framing: str) -> d
         "pose_and_body_geometry": UNSPECIFIED,
         "props_and_contacts": UNSPECIFIED,
     }]
-    require(spec)
+    require(spec, require_content=False)
     return spec
 
 
@@ -190,6 +197,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     make = sub.add_parser("draft", help="Write the smallest valid specification for one subject")
     make.add_argument("out", help="New file to write; an existing file is never replaced")
+    make.add_argument("--render-intent", required=True, help="Explicit finish choice JSON from render_contract.py intent")
     make.add_argument("--model", required=True, help="The model record the image is made with")
     make.add_argument("--brief", required=True, help="The request in one sentence")
     make.add_argument("--subject", default="C01", help="Subject ID the builder's --continuity names (default C01)")
@@ -217,7 +225,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if out.exists():
                 raise ValueError(f"{out} already exists; choose a new path")
             spec = draft(model=args.model, brief=args.brief, subject=args.subject,
-                         kind=args.kind, framing=args.framing)
+                         kind=args.kind, framing=args.framing, render_intent=load(Path(args.render_intent)))
             with out.open("x", encoding="utf-8", newline="\n") as handle:
                 handle.write(json.dumps(spec, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
             result = {"created": args.out, "sha256": digest(spec),

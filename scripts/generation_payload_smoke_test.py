@@ -130,7 +130,7 @@ SEED_SCHEMA = {
 }
 JPEG_ONLY_MODEL_ID = "fixture-jpeg-only-model"
 NO_MEDIA_MODEL_ID = "fixture-no-media-model"
-UNKNOWN_EXPLICIT_MODEL_ID = "fixture-unregistered-retained-model"
+RETAINED_MODEL_ID = "fixture-retained-model"
 ASSET_ID = "fixture-reference-asset"
 ARTIFACT_ID = "fixture-generic-svg"
 HOST_REFERENCE_FIELDS = ["role", "resolved_path", "media_type", "sha256"]
@@ -229,7 +229,8 @@ def _model_record(
     }
     if media_types is not None:
         record["reference_input_media_types"] = media_types
-    return record
+    from render_contract_fixtures import decorate
+    return decorate(record)
 
 
 def _write_fixture_pack(pack_root: Path) -> Path:
@@ -257,10 +258,10 @@ def _write_fixture_pack(pack_root: Path) -> Path:
     atomic_write_json(
         pack_root / "resources" / "service-profiles.json",
         {"services": {"runware": {
-            "label": "Synthetic offline image interface",
+            "label": "Synthetic image interface",
             "transport": "runware",
             "endpoint": {"base_url": "https://example.invalid/synthetic", "method": "POST"},
-            "auth": {"env_var": "SYNTHETIC_OFFLINE_KEY"},
+            "auth": {"env_var": "SYNTHETIC_PROVIDER_KEY"},
             "operations": {"imageInference": {}},
         }}},
     )
@@ -330,6 +331,12 @@ def _write_fixture_pack(pack_root: Path) -> Path:
                     negative_transport_mode="native-subset",
                 ),
                 _model_record(
+                    RETAINED_MODEL_ID,
+                    "Fixture retained-only model",
+                    ["image/png", "image/jpeg", "image/webp"],
+                    negative_transport_mode="retained-only",
+                ),
+                _model_record(
                     JPEG_ONLY_MODEL_ID,
                     "Fixture JPEG-only model",
                     ["image/jpeg"],
@@ -381,6 +388,11 @@ def _write_fixture_pack(pack_root: Path) -> Path:
             ],
         },
     )
+    from render_contract_fixtures import decorate
+    fixture_models_path = pack_root / "records" / "models.json"
+    fixture_models = json.loads(fixture_models_path.read_text(encoding="utf-8"))
+    fixture_models["records"] = [decorate(row) for row in fixture_models["records"]]
+    atomic_write_json(fixture_models_path, fixture_models)
     atomic_write_json(
         pack_root / OFFERED_SNAPSHOT,
         {
@@ -510,6 +522,8 @@ APPROVED_PLOT["approved"] = {
 def _production_spec(model: str) -> dict[str, Any]:
     """The pilot's full scene as a stateless one-off: no lineage and no contract references."""
     value = json.loads(PILOT_PRODUCTION_SPEC.read_text(encoding="utf-8"))
+    from render_contract_fixtures import intent
+    value["render_intent"] = intent(PROMPT)
     value["source_brief"] = "Exact one-off generation reference smoke test."
     value["target_model"] = model
     value["state_context"] = {"mode": "stateless", "notes": []}
@@ -544,20 +558,14 @@ def _package(
         if production_spec_override is _UNSET
         else production_spec_override
     )
+    if production_spec_override is _UNSET:
+        from render_contract_fixtures import intent
+        refs = prepared_reference_set if isinstance(prepared_reference_set, dict) else {}
+        has_refs = bool(refs.get("selected_references") or refs.get("single_board"))
+        selected_mode = ("image-to-image" if model == SEED_MODEL_ID else "reference-guided") if has_refs else "text-to-image"
+        production_spec["render_intent"] = intent(PROMPT, selected_mode)
     from request_validation_fixtures import fixture_validation
-    if model == UNKNOWN_EXPLICIT_MODEL_ID:
-        from request_validation_fixtures import interface_validation
-        import request_renderer
-        validation = interface_validation(
-            fixture_root(),
-            target={"service": "synthetic-host", "model_identifier": model, "operation": "generation"},
-            record={}, offering={},
-            service_record={"id": "synthetic-host", "endpoint": {"base_url": "https://example.invalid/synthetic-interface"},
-                            "operations": {"generation": {}}},
-            transport=request_renderer, reference_mode="prompt-prefix",
-        )
-    else:
-        validation = fixture_validation(fixture_root(), model, reference_mode='prompt-prefix')
+    validation = fixture_validation(fixture_root(), model, reference_mode='prompt-prefix')
 
     return build_payload(request_validation=validation, input_root=fixture_root(), visual_continuity=fixture_visual(production_spec), visual_root=fixture_root(), route_reading=fixture_reading(route='generation'), 
         retrieval_record=fixture_retrieval(PROMPT, APPROVED_PLOT),
@@ -2771,14 +2779,14 @@ def run() -> dict[str, Any]:
 
             retained_package = _package(
                 empty_stateless_reference_set(),
-                model=UNKNOWN_EXPLICIT_MODEL_ID,
-                production_target_model=UNKNOWN_EXPLICIT_MODEL_ID,
+                model=RETAINED_MODEL_ID,
+                production_target_model=RETAINED_MODEL_ID,
                 negative_transport="retained-only",
             )
             retained_payload = retained_package["generation_payload"]
             retained_rendition = retained_payload["transports"]["integrated"]
             checked(
-                retained_package["model"] == UNKNOWN_EXPLICIT_MODEL_ID
+                retained_package["model"] == RETAINED_MODEL_ID
                 and retained_payload["negative_transport"]["mode"] == "retained-only"
                 and retained_payload["negative_transport"]["channel"]
                 == "single_prompt_field"
@@ -2787,23 +2795,23 @@ def run() -> dict[str, Any]:
                 == generation_builder.sha256_text(NEGATIVE)
                 and retained_payload["transports"]["separate"]["negative"] == NEGATIVE
                 and retained_rendition == integrated_rendition,
-                "explicit retained-only build lost the unknown target or portable negative",
+                "explicit retained-only build lost the registered target or portable negative",
             )
             retained_verified = verify(retained_package)
             checked(
                 retained_verified["verified"] is True
-                and retained_verified["model"] == UNKNOWN_EXPLICIT_MODEL_ID
+                and retained_verified["model"] == RETAINED_MODEL_ID
                 and retained_verified["negative_transport_mode"] == "retained-only"
                 and retained_verified["negative_prompt"] == NEGATIVE
                 and retained_verified["selected_transport"]["rendition"]
                 == retained_rendition
                 and retained_verified["host_forwarding"]["effective_prompt"]
                 == INTEGRATED_PROMPT,
-                "explicit retained-only verification inferred a different unknown-model transport",
+                "explicit retained-only verification inferred a different registered-model transport",
             )
             retained_export = emit_paste_for_target(
                 retained_package,
-                UNKNOWN_EXPLICIT_MODEL_ID,
+                RETAINED_MODEL_ID,
             )
             checked(
                 set(retained_export)
@@ -2820,7 +2828,7 @@ def run() -> dict[str, Any]:
                     "paste_prompt_sha256",
                     "integration_method",
                 }
-                and retained_export["target"] == UNKNOWN_EXPLICIT_MODEL_ID
+                and retained_export["target"] == RETAINED_MODEL_ID
                 and retained_export["mode"] == "retained-only"
                 and retained_export["channel"] == "single_prompt_field"
                 and retained_export["paste_prompt"] == INTEGRATED_PROMPT
@@ -3061,9 +3069,11 @@ def run_derived_inputs() -> dict[str, Any]:
                 atomic_write_json(base / name, value)
             # A first image of a person needs only the drafted specification: no
             # morphology contract and no lineage hash.
+            from render_contract_fixtures import intent
+            atomic_write_json(base / 'render-intent.json', intent(PROMPT))
             drafted = io.StringIO()
             with contextlib.redirect_stdout(drafted):
-                draft_exit = production_spec.main(["draft", str(base / "spec.json"), "--model", model, "--brief", PROMPT,
+                draft_exit = production_spec.main(["draft", str(base / "spec.json"), "--render-intent", str(base / "render-intent.json"), "--model", model, "--brief", PROMPT,
                                                    "--kind", "human", "--framing", "upper-thigh", "--continuity", "one-off"])
             lean = json.loads((base / "spec.json").read_text(encoding="utf-8"))
             checked(draft_exit == 0 and json.loads(drafted.getvalue())["build_with"]
@@ -3076,7 +3086,7 @@ def run_derived_inputs() -> dict[str, Any]:
             graph = validate_state_artifact_graph(lineage=_stateless_lineage(), production_spec=lean)
             checked(graph["ok"], f"the stateless graph refuses the drafted specification: {graph['errors']}")
             with contextlib.redirect_stdout(io.StringIO()):
-                checked(production_spec.main(["draft", str(base / "spec.json"), "--model", model, "--brief", PROMPT,
+                checked(production_spec.main(["draft", str(base / "spec.json"), "--render-intent", str(base / "render-intent.json"), "--model", model, "--brief", PROMPT,
                                               "--kind", "human", "--framing", "upper-thigh", "--continuity", "one-off"]) == 1,
                         "the draft replaced an existing file")
             common = ["--model", model, "--prompt-file", str(base / "prompt.txt"), "--plot-file", str(base / "plot.json"),
