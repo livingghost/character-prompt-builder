@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.10.04.3
+
+- The studio copy fixture checks for a directory junction on Windows alone, with the names the platform defines. 2026.10.04.2 compared reparse tags through `getattr` with a fallback constant.
+
 ## 2026.10.04.2
 
 - The test fixture that copies a studio reads the Windows junction tag only where the platform defines it, so `scripts/run_checks.py` passes on Linux again. 2026.10.04.1 failed three suites of its Linux lane on that lookup.
