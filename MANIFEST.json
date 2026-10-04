@@ -1,6 +1,6 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.10.04.1",
+  "version": "2026.10.04.2",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
   "generated_at": "2026-10-04",
@@ -81,7 +81,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 886,
-  "total_bytes_excluding_manifest": 14548345,
+  "total_bytes_excluding_manifest": 14548609,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -96,12 +96,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "6fb654553f3de4f95af31fd9809f85e8d8387a86739370820e88e4607d6832a9"
+      "sha256": "40d11d487aa9a752cd7844a80356f8192bbdf90e526bebb27f1a393ce4a62902"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "28e49ceeb0d4e5e3e3e8e772e653e5e6b25b7764c6fbe7dc52efd772f55855f2"
+      "sha256": "541ea90dbbb4002e96b7a1c0474a4d76431c034d7cc19b9621d37403495dfa60"
     },
     {
       "path": "AGENTS.md",
@@ -110,8 +110,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 22885,
-      "sha256": "159c37d8ae936c6a6ae04c3b91fd08d01d1fbd87cbc47217bff250f0b6622a8a"
+      "bytes": 23127,
+      "sha256": "0904253f901eb31edafc65e6cf9f5643527109030df04999e266a5d8b753398b"
     },
     {
       "path": "CLAUDE.md",
@@ -1316,7 +1316,7 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2130,
-      "sha256": "5869fc0e5b3102e695fb14177648628bc80620690b7608b901d6640e120c97da"
+      "sha256": "03a28797bcaf112595d60b9d534b2c94bb9194240d483d2949715b1a4133bfc5"
     },
     {
       "path": "packs/commons/pack.json",
@@ -1586,7 +1586,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 613,
-      "sha256": "2a29386c50a29291016e354051e58e17e001c82701b8f5c41569bb35da734346"
+      "sha256": "b4dde813a73ff06871656d009726056a103ceca286e78921daac365a01e74a23"
     },
     {
       "path": "references/adapters/flux.md",
@@ -3315,8 +3315,8 @@
     },
     {
       "path": "scripts/production_case_fixtures.py",
-      "bytes": 21185,
-      "sha256": "2f34d0778b98f9827777270135bf7968a64c81e03b17764d4b5aab62940c53ab"
+      "bytes": 21207,
+      "sha256": "563e786b9c465f51774f6ca9e9440f66cf00a2ceee79627698badda50bf88b0a"
     },
     {
       "path": "scripts/production_compiler.py",

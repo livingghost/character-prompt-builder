@@ -178,7 +178,7 @@ def copy_studio(origin:Path,target:Path)->Path:
         with os.scandir(folders.pop()) as entries:
             for entry in entries:
                 info=entry.stat(follow_symlinks=False)
-                if getattr(info,'st_reparse_tag',0)==stat.IO_REPARSE_TAG_MOUNT_POINT:
+                if getattr(info,'st_reparse_tag',0)==getattr(stat,'IO_REPARSE_TAG_MOUNT_POINT',0xA0000003):
                     raise ValueError(f'{entry.path} is a directory junction; build this studio from an empty folder, '
                                      'because a copy holds a plain folder in its place.')
                 if stat.S_ISDIR(info.st_mode):folders.append(entry.path)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.10.04.2
+
+- The test fixture that copies a studio reads the Windows junction tag only where the platform defines it, so `scripts/run_checks.py` passes on Linux again. 2026.10.04.1 failed three suites of its Linux lane on that lookup.
+
 ## 2026.10.04.1
 
 - One public path runs an image task: `check`, `prepare`, `draft-execution`, `execute`, `resume`, `variant`, `repeat`, `retarget`, `status` and `logs`. `SKILL.md`, the routes, `--help` and the examples show the same command forms.
