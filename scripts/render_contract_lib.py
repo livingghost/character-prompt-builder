@@ -20,6 +20,16 @@ BINDINGS = {'package', 'dispatch-seed', 'dispatch-count'}
 MODES = {'text-to-image', 'image-to-image', 'reference-guided', 'instruction-edit', 'upscale'}
 MEDIA = {'none', 'seed-image', 'references', 'input-image'}
 KEY = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$')
+SHA256 = re.compile(r'^[0-9a-f]{64}$')
+BASIS_KINDS = {'provider-documentation', 'curated-starting-point', 'measured', 'synthetic'}
+# The diagnostic code each parameter problem status reports; any other status is an input defect.
+PROBLEM_CODES = {
+    'profile-missing': 'MODEL_PROFILE_MISSING',
+    'mode-not-exposed': 'MODEL_PROFILE_MISSING',
+    'undeclared': 'CONTROL_NOT_AVAILABLE',
+    'not-applicable': 'CONTROL_NOT_AVAILABLE',
+    'backend-managed': 'CONTROL_NOT_AVAILABLE',
+}
 
 
 def encoded(value: Any) -> bytes:
@@ -143,13 +153,37 @@ def _supported_schema(schema: dict, where: str) -> None:
         raise ValueError(where + ': schema defaults are not parameter decisions')
 
 
+def validate_basis(basis: Any) -> None:
+    """A measured basis names the adopted observed request profile it rests on; no other kind names one."""
+    kind = basis.get('kind') if isinstance(basis, dict) else None
+    if kind not in BASIS_KINDS:
+        raise ValueError('unknown profile evidence kind')
+    if kind == 'measured':
+        exact(basis, {'kind', 'source', 'limitations', 'observed_profile'}, 'measured profile basis')
+        reference = basis['observed_profile']
+        exact(reference, {'path', 'sha256'}, 'observed profile reference')
+        path = text(reference['path'], 'observed profile path')
+        parts = path.split('/')
+        if '\\' in path or path.startswith('/') or any(part in {'', '.', '..'} for part in parts):
+            raise ValueError('observed profile path must be a /-separated path inside the pack')
+        if not isinstance(reference['sha256'], str) or not SHA256.fullmatch(reference['sha256']):
+            raise ValueError('observed profile sha256 must be a lowercase SHA-256')
+    else:
+        exact(basis, {'kind', 'source', 'limitations'}, 'profile basis')
+    text(basis['source'], 'profile evidence source')
+
+
+def observed_profile_reference(profile: Mapping) -> dict | None:
+    """The adopted observed request profile a measured basis rests on, or None for any other basis."""
+    validate_basis(profile['basis'])
+    reference = profile['basis'].get('observed_profile')
+    return copy.deepcopy(reference) if reference is not None else None
+
+
 def validate_profile(profile: Any) -> None:
     exact(profile, {'id', 'basis', 'prompt_recipe', 'modes'}, 'execution profile')
     text(profile['id'], 'profile id')
-    exact(profile['basis'], {'kind', 'source', 'limitations'}, 'profile basis')
-    if profile['basis']['kind'] not in {'provider-documentation', 'curated-starting-point', 'measured', 'synthetic'}:
-        raise ValueError('unknown profile evidence kind')
-    text(profile['basis']['source'], 'profile evidence source')
+    validate_basis(profile['basis'])
     if not isinstance(profile['basis']['limitations'], list):
         raise ValueError('profile limitations must be an array')
     for item in profile['basis']['limitations']:
@@ -224,7 +258,8 @@ def selected_profile(record: Mapping, offering: Mapping | None) -> dict:
     owner = offering if offering is not None else record
     profile = owner.get('execution_profile')
     if profile is None:
-        raise ValueError('execution profile is missing for this exact interface; author it before generation')
+        raise ParameterErrors([problem('execution_profile', 'profile-missing',
+            'execution profile is missing for this exact interface; author it before generation')])
     validate_profile(profile)
     return copy.deepcopy(profile)
 
@@ -280,48 +315,92 @@ def _paths(tree: dict, controls: dict, prefix: str = '') -> set[str]:
     return found
 
 
+class ParameterErrors(ValueError):
+    """All independent control failures from a single parameter resolution.
+
+    Each problem names its `parameter`, its `status` and a `message`. The
+    status says why the control failed: `profile-missing` and
+    `mode-not-exposed` for an interface with no execution profile for the selected mode;
+    `undeclared`, `not-applicable` and `backend-managed` for a control the
+    interface does not take; `dispatch-option`, `value-required`,
+    `range-required` and `schema-invalid` for a value the author has to change.
+    """
+    def __init__(self, problems: list[dict]):
+        self.problems = problems
+        super().__init__('; '.join(item['message'] for item in problems))
+
+
+def problem(parameter: str, status: str, message: str) -> dict:
+    return {'parameter': parameter, 'status': status, 'message': message}
+
+
+def problem_code(status: str) -> str:
+    """The diagnostic code one problem status reports."""
+    return PROBLEM_CODES.get(status, 'INPUT_CONSISTENCY_ERROR')
+
+
+class _Problem(ValueError):
+    def __init__(self, status: str, message: str):
+        self.status = status
+        super().__init__(message)
+
+
+def _checked(value: Any, schema: dict, key: str) -> None:
+    try:
+        _schema(value, schema, key)
+    except ValueError as exc:
+        raise _Problem('schema-invalid', str(exc)) from None
+
+
 def resolve_parameters(record: Mapping, profile: dict, mode: str, parameters: dict) -> tuple[dict, list[dict]]:
     validate_profile(profile)
     if mode not in profile['modes']:
-        raise ValueError('mode not exposed by this execution profile: ' + mode)
+        raise ParameterErrors([problem('execution_profile.modes', 'mode-not-exposed',
+                                       'mode not exposed by this execution profile: ' + mode)])
     if not isinstance(parameters, dict):
         raise ValueError('parameters must be an object')
     encoded(parameters)
     controls = profile['modes'][mode]['controls']
     unknown = _paths(parameters, controls) - set(controls)
-    if unknown:
-        raise ValueError('undeclared parameters for ' + mode + ': ' + ', '.join(sorted(unknown)))
+    problems = [problem(key, 'undeclared', 'undeclared parameters for ' + mode + ': ' + key) for key in sorted(unknown)]
     result, decisions = {}, []
     recommendations = record.get('recommended_parameters') or {}
     for key, rule in sorted(controls.items()):
-        present, value = _get(parameters, key)
-        status = rule['status']
-        if rule['binding'] != 'package':
-            if present:
-                raise ValueError(key + ': supply this through the explicit dispatcher option')
-            source = 'dispatch-required' if status in {'required', 'optional'} else status
-            decisions.append({'key': key, 'status': source, 'value': None, 'reason': rule['reason']})
-            continue
-        if status in {'not-applicable', 'backend-managed'}:
-            if present:
-                raise ValueError(key + ': ' + status + ' in mode ' + mode)
-            decisions.append({'key': key, 'status': status, 'value': None, 'reason': rule['reason']})
-            continue
-        source = 'explicit'
-        if not present:
-            if status == 'optional':
-                decisions.append({'key': key, 'status': 'not-selected', 'value': None, 'reason': rule['reason']})
+        try:
+            present, value = _get(parameters, key)
+            status = rule['status']
+            if rule['binding'] != 'package':
+                if present:
+                    raise _Problem('dispatch-option', key + ': supply this through the explicit dispatcher option')
+                source = 'dispatch-required' if status in {'required', 'optional'} else status
+                decisions.append({'key': key, 'status': source, 'value': None, 'reason': rule['reason']})
                 continue
-            name = rule['recommendation']
-            if name is None or name not in recommendations:
-                raise ValueError(key + ': required explicit value has no recommendation')
-            value = recommendations[name]
-            if isinstance(value, list):
-                raise ValueError(key + ': recommendation is a range; choose one explicit value')
-            source = 'model-recommendation'
-        _schema(value, rule['schema'], key)
-        _put(result, key, value)
-        decisions.append({'key': key, 'status': source, 'value': copy.deepcopy(value), 'reason': rule['reason']})
+            if status in {'not-applicable', 'backend-managed'}:
+                if present:
+                    raise _Problem(status, key + ': ' + status + ' in mode ' + mode)
+                decisions.append({'key': key, 'status': status, 'value': None, 'reason': rule['reason']})
+                continue
+            source = 'explicit'
+            if not present:
+                if status == 'optional':
+                    decisions.append({'key': key, 'status': 'not-selected', 'value': None, 'reason': rule['reason']})
+                    continue
+                name = rule['recommendation']
+                if name is None or name not in recommendations:
+                    raise _Problem('value-required', key + ': required explicit value has no recommendation')
+                value = recommendations[name]
+                if isinstance(value, list):
+                    raise _Problem('range-required', key + ': recommendation is a range; choose one explicit value')
+                source = 'model-recommendation'
+            _checked(value, rule['schema'], key)
+            _put(result, key, value)
+            decisions.append({'key': key, 'status': source, 'value': copy.deepcopy(value), 'reason': rule['reason']})
+        except _Problem as exc:
+            problems.append(problem(key, exc.status, str(exc)))
+        except ValueError as exc:
+            problems.append(problem(key, 'schema-invalid', str(exc)))
+    if problems:
+        raise ParameterErrors(problems)
     _schema(result, profile['modes'][mode]['parameter_schema'], 'combined mode parameters')
     return result, decisions
 
@@ -387,6 +466,7 @@ def dispatch_values(contract: dict, *, seed: int | None, count: int) -> tuple[in
     """Resolve transport controls without silently using a provider's seed policy."""
     profile = contract['model_card']['execution_profile']
     rules = profile['modes'][contract['intent']['execution_mode']]['controls']
+    problems = []
     for key, rule in rules.items():
         binding = rule['binding']
         if binding == 'package':
@@ -394,13 +474,20 @@ def dispatch_values(contract: dict, *, seed: int | None, count: int) -> tuple[in
         value = seed if binding == 'dispatch-seed' else count
         if rule['status'] in {'backend-managed', 'not-applicable'}:
             if binding == 'dispatch-seed' and value is not None:
-                raise ValueError(key + ': seed is ' + rule['status'])
+                problems.append(problem(key, rule['status'], key + ': seed is ' + rule['status']))
             if binding == 'dispatch-count' and (type(value) is not int or value != 1):
-                raise ValueError(key + ': unavailable count accepts only one operation, not an invented batch')
+                problems.append(problem(key, rule['status'],
+                                        key + ': unavailable count accepts only one operation, not an invented batch'))
             continue
         if value is None:
-            raise ValueError(key + ': choose an explicit seed with --seed before preview or submission')
-        _schema(value, rule['schema'], key)
+            problems.append(problem(key, 'value-required', key + ': choose an explicit seed with --seed before preview or submission'))
+            continue
+        try:
+            _schema(value, rule['schema'], key)
+        except ValueError as exc:
+            problems.append(problem(key, 'schema-invalid', str(exc)))
+    if problems:
+        raise ParameterErrors(problems)
     return seed, count
 
 
@@ -419,12 +506,12 @@ def check_wire(contract: dict, request: dict, layout: dict | None = None, *,
             exists, value = _get(request, path)
             leaves = {path} if path in rules else (_paths(value, rules, path + '.') if isinstance(value, dict) else {path})
             if not exists or leaves - set(rules):
-                raise ValueError('wire request added an undeclared control: ' + path)
+                raise ParameterErrors([problem(path, 'undeclared', 'wire request added an undeclared control: ' + path)])
     for key, rule in rules.items():
         present, value = _get(request, key)
         if rule['status'] in {'not-applicable', 'backend-managed'}:
             if present:
-                raise ValueError('wire request supplied unavailable control: ' + key)
+                raise ParameterErrors([problem(key, rule['status'], 'wire request supplied unavailable control: ' + key)])
         elif rule['status'] == 'required' and not present:
             raise ValueError('wire request omitted required control: ' + key)
         if present:

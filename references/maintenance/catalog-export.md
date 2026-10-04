@@ -40,7 +40,7 @@ catalog/
     page-002.html                    additional static gallery pages
 
   linked-presets/
-    index.html                        presets with evidence, page 1
+    index.html                        records with evidence, page 1
     page-002.html                    additional static gallery pages
 
   browse/
@@ -54,16 +54,16 @@ catalog/
       <record-id>.html                one complete authored record
 ```
 
-`index.html` offers Visual Evidence, linked presets, record kinds, packs, and search as separate entry points. A user does not need to know an archetype ID or internal label before browsing. The Visual Evidence gallery starts from lightweight preview thumbnails; each evidence card links to the Visual Evidence record, every authored evidence artifact, and every linked canonical preset. The linked-preset gallery starts from preset thumbnails and opens the full preset page.
+`index.html` offers Visual Evidence, linked records, record kinds, packs, and search as separate entry points. A user does not need to know an archetype ID or internal label before browsing. The Visual Evidence gallery starts from lightweight preview thumbnails; each evidence card links to the Visual Evidence record, every authored evidence artifact, and every linked canonical record. The linked-record gallery starts from record thumbnails and opens the full record page.
 
 The interactive search page renders at most 60 cards at once. Its asset-presence filter has distinct meanings:
 
-- presets with linked visual evidence;
-- presets without linked visual evidence;
+- records with linked visual evidence;
+- records without linked visual evidence;
 - visual-evidence asset records;
-- presets linked to multiple evidence assets.
+- records linked to multiple evidence assets.
 
-The option labels contain the actual generated counts. Asset records are not counted as presets with linked evidence.
+The option labels contain the actual generated counts. Asset records are not counted as records with linked evidence.
 
 ## Record and Visual Evidence linkage
 
@@ -78,8 +78,8 @@ A record ID never contains a colon, so the bare and pack-qualified string forms 
 The exporter creates both directions:
 
 ```text
-canonical preset -> linked Visual Evidence record -> evidence artifacts
-Visual Evidence record -> linked canonical presets
+canonical record -> linked Visual Evidence record -> evidence artifacts
+Visual Evidence record -> linked canonical records
 ```
 
 For each relationship it records:
@@ -112,7 +112,7 @@ This copies referenced resources beneath `catalog/media/`. It can be large becau
 python scripts/package_full.py
 ```
 
-The full builder stages every validated pack from the explicit `packs/` tree, regenerates the catalog from that staged tree, runs the complete production gate set against the staged and extracted release trees, validates all local HTML and evidence-resource links, verifies `FULL-MANIFEST.json`, and builds a deterministic archive. Reports, checksum, and archive are published only after every gate succeeds. The ordinary `scripts/package.py` remains the minimal default-pack release.
+The full builder stages every validated pack from the explicit `packs/` tree. The shipped commons at `packs/commons` is verified by `MANIFEST.json` and has no lock; every other staged pack needs its lock. The builder regenerates the catalog from that staged tree, validates the stage once, validates all local HTML and evidence-resource links, verifies `FULL-MANIFEST.json`, and builds a deterministic archive. It compares the extracted archive with the stage by inventory and file hashes, then runs the installed smoke that [Release Validation](../release/validation.md#release-reports) describes. Reports, checksum, and archive are published only after every gate succeeds. The ordinary `scripts/package.py` remains the minimal default-pack release.
 
 Validate an already generated catalog independently with:
 
@@ -120,7 +120,7 @@ Validate an already generated catalog independently with:
 python scripts/validate_catalog_site.py catalog
 ```
 
-The validator walks every generated HTML page, preview thumbnail, stylesheet, script, preset-to-Visual-Evidence mapping, reverse mapping, and relative evidence-artifact target. It also rejects workspace path leaks and a direct-open landing page that loads the search index.
+The validator walks every generated HTML page, preview thumbnail, stylesheet, script, record-to-Visual-Evidence mapping, reverse mapping, and relative evidence-artifact target. It also rejects workspace path leaks and a direct-open landing page that loads the search index.
 
 ## Inspection scope
 

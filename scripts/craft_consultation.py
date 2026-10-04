@@ -63,8 +63,7 @@ def scope(settings=None, *, catalog=None, entries=None) -> dict:
                   for key, pack in sorted(discovered.items())],
         'active_pack_count': catalog.active_pack_count,
         'searchable': catalog_stats(entries),
-        'selected_providers': copy.deepcopy(state['resource_providers']),
-        'resolved_providers': {key: value.source_pack for key, value in sorted(catalog.resources.items())},
+        'resources': {key: value.source_pack for key, value in sorted(catalog.resources.items())},
         'diagnostics': [issue.to_dict() for issue in issues] + list(catalog.diagnostics),
         'coverage': 'Only this resolved catalog was searched. File presence is separate from activation.',
     }
@@ -226,7 +225,7 @@ def apply(root: Path, task_path: str, report_path: str, decisions_path: str,
         expected = {**current[identifier], 'requested': row['requested']}
         if c.content_id(row) != c.content_id(expected):
             raise ValueError('inspected record or linked asset evidence differs: ' + identifier)
-    c.exact(decisions, {'source_id', 'reason', 'uses', 'not_used'}, 'preset decisions')
+    c.exact(decisions, {'source_id', 'reason', 'uses', 'not_used'}, 'record decisions')
     source_id = c.text(decisions['source_id'], 'application source ID')
     c.text(decisions['reason'], 'application reason')
     if source_id in {row['id'] for row in task['sources']}:
@@ -253,7 +252,7 @@ def apply(root: Path, task_path: str, report_path: str, decisions_path: str,
                              'source': copy.deepcopy(originals[identifier])})
         selected.append(identifier)
     for unused in decisions['not_used']:
-        c.exact(unused, {'record_id', 'reason'}, 'unused preset')
+        c.exact(unused, {'record_id', 'reason'}, 'unused record')
         identifier = c.text(unused['record_id'], 'record ID'); c.text(unused['reason'], 'nonuse reason')
         if identifier not in originals or identifier in selected or identifier in rejected:
             raise ValueError('nonuse must name a distinct inspected, unselected record')
@@ -288,7 +287,7 @@ def apply(root: Path, task_path: str, report_path: str, decisions_path: str,
         'production_spec_sha256': production_spec.digest(changed_spec),
         'applications': applications, 'not_used': copy.deepcopy(decisions['not_used']),
         'assessment': 'Intended application only. Review the actual candidate against its declared criteria.'}
-    # Existing input publication rechecks all selected project bytes under its lock.
+    # Existing input publication rechecks all selected studio bytes under its lock.
     # Also retain witnesses of the selected pack files and activation state.
     settings = settings or runtime.selected_pack_settings()
     witnesses = {entry.source_root / entry.source_file: current[str(entry.record['id'])]['source_file_sha256']
@@ -297,7 +296,7 @@ def apply(root: Path, task_path: str, report_path: str, decisions_path: str,
     def recheck():
         now = settings.state_file.read_bytes() if settings.state_file.is_file() else None
         if now != state_bytes or any(c.digest(c.read(path)) != digest for path, digest in witnesses.items()):
-            raise ValueError('selected preset inputs changed before publication')
+            raise ValueError('selected record inputs changed before publication')
     files = {'preset-application.json': c.encoded(application), 'production-spec.json': c.encoded(changed_spec),
              'production-task.json': c.encoded(output_task), 'input-snapshots.json': c.encoded(reader.snapshots)}
     inputs._publish(root, out_dir, files, reader=reader, before_publish=recheck)
@@ -321,7 +320,7 @@ def review_questions(root: Path, task: dict, *, directory: Path | None = None,
             record = c.load(c.local(root, source['path']))
         else:
             matches = [item for item in dependencies or []
-                       if item['space'] == 'project' and item['path'] == source['path']]
+                       if item['space'] == 'studio' and item['path'] == source['path']]
             if len(matches) != 1:
                 raise ValueError('application source has no unique prepared dependency')
             record = c.decode(c.object_read(directory, matches[0]['sha256']))
@@ -339,15 +338,15 @@ def add_arguments(subparsers) -> None:
         parser = subparsers.add_parser(name, help='Consult craft assets or record their scoped application without execution.')
         parser.add_argument('--root', type=Path, required=True)
         parser.add_argument('--task', required=True)
-        parser.add_argument('--out-dir', required=True, help='New project-relative directory.')
+        parser.add_argument('--out-dir', required=True, help='New studio-relative directory.')
         add_pack_runtime_arguments(parser)
         if name == 'consult-presets':
             group = parser.add_mutually_exclusive_group()
             group.add_argument('--query', help='Agent-authored canonical craft question.')
-            group.add_argument('--questions', help='Project-relative array of explicit questions and focuses.')
+            group.add_argument('--questions', help='Studio-relative array of explicit questions and focuses.')
             parser.add_argument('--focus', choices=['all', *LAYERS], default='all')
             parser.add_argument('--inspect', nargs='*', default=[], metavar='ID')
-            parser.add_argument('--previous', help='Previous project-relative consultation report from this runtime.')
+            parser.add_argument('--previous', help='Previous studio-relative consultation report from this runtime.')
         else:
             parser.add_argument('--consultation', required=True)
             parser.add_argument('--decisions', required=True)

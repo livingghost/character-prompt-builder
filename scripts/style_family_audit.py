@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-"""Audit concrete style-family taxonomy boundaries.
+"""Audit the boundary evidence that every enabled style-family record carries.
 
-This validator checks structural evidence and separation of responsibilities. It
-cannot prove artistic quality, but it can prevent scene nouns from silently
-becoming canonical family IDs and prevent undocumented family boundary changes.
+Each style-family record states its review status, evidence, recurring finish
+axes, excluded scene attributes, nearest family and boundary. The audit reads
+the families of every enabled pack together, so a nearest family may live in
+another pack. It checks evidence structure; the author judges artistic quality.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
-import argparse
 import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from catalog_cli import configure_pack_runtime, load_entries, named_resource_path
+from catalog_cli import configure_pack_runtime, load_entries
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,95 +29,77 @@ RECURRING_AXES = {
     "background",
     "detail_hierarchy",
 }
+STATUSES = {"retained", "revised-and-generalized", "new"}
 REVISED_STATUSES = {"revised-and-generalized", "new"}
 
 
-def load_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
+def _strings(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
 def audit(root: Path = ROOT) -> dict[str, Any]:
+    """Audit the style-family records of the configured pack runtime.
+
+    ``root`` names the product tree that ``--write`` writes the report into;
+    the records come from the active catalog.
+    """
+    del root
     errors: list[str] = []
     warnings: list[str] = []
-    taxonomy_path = named_resource_path("style-family-taxonomy")
-    assert taxonomy_path is not None
-    families = [
-        entry.record
-        for entry in load_entries()
-        if entry.kind == "style-family"
-    ]
-    taxonomy = load_json(taxonomy_path)
-    family_ids = [str(row.get("id") or "") for row in families]
+    families = [entry.record for entry in load_entries() if entry.kind == "style-family"]
+    family_ids = [str(record.get("id") or "") for record in families]
     family_id_set = set(family_ids)
-
     if len(family_ids) != len(family_id_set):
         errors.append("enabled style-family records contain duplicate IDs")
 
-    taxonomy_rows = [row for row in taxonomy.get("families", []) if isinstance(row, Mapping)]
-    taxonomy_ids = [str(row.get("family_id") or "") for row in taxonomy_rows]
-    if taxonomy.get("count") != len(taxonomy_rows):
-        errors.append("style-family-taxonomy.json count is stale")
-    if len(taxonomy_ids) != len(set(taxonomy_ids)):
-        errors.append("style-family-taxonomy.json contains duplicate family_id values")
-    missing_rows = sorted(family_id_set - set(taxonomy_ids))
-    extra_rows = sorted(set(taxonomy_ids) - family_id_set)
-    if missing_rows:
-        errors.append(f"canonical style families missing taxonomy rows: {missing_rows}")
-    if extra_rows:
-        errors.append(f"taxonomy rows target noncanonical families: {extra_rows}")
-
-    by_id = {str(row.get("family_id") or ""): row for row in taxonomy_rows}
-    for family_id in sorted(family_id_set & set(by_id)):
-        row = by_id[family_id]
-        status = str(row.get("status") or "")
-        if status not in {"retained", "revised-and-generalized", "new"}:
-            errors.append(f"{family_id}: unknown taxonomy status `{status}`")
-        axes = {str(value) for value in row.get("recurring_axes") or []}
-        if len(axes & RECURRING_AXES) < 6:
-            errors.append(f"{family_id}: taxonomy needs at least six recurring visual axes")
-        excluded = [str(value).strip() for value in row.get("excluded_scene_attributes") or [] if str(value).strip()]
-        if len(excluded) < 2:
-            errors.append(f"{family_id}: taxonomy needs at least two excluded scene attributes")
-        if not str(row.get("boundary") or "").strip():
-            errors.append(f"{family_id}: taxonomy lacks nearest-family boundary")
-        evidence = [str(value).strip() for value in row.get("evidence_basis") or [] if str(value).strip()]
-        if status in REVISED_STATUSES and len(evidence) < 3:
-            errors.append(f"{family_id}: revised/new family needs at least three evidence items")
-        if status in REVISED_STATUSES and len(str(row.get("review_notes") or "").split()) < 8:
-            errors.append(f"{family_id}: review_notes are too short")
-
-    deferred = taxonomy.get("deferred_candidates") or []
-    if not isinstance(deferred, list):
-        errors.append("style-family-taxonomy.json deferred_candidates must be an array")
-        deferred = []
-    for row in deferred:
-        if not isinstance(row, Mapping):
-            errors.append("deferred style-family candidate must be an object")
-            continue
-        if str(row.get("decision") or "") != "deferred-not-canonical":
-            errors.append("deferred candidate must state decision deferred-not-canonical")
-        if not str(row.get("evidence_gap") or "").strip():
-            errors.append("deferred candidate must document the evidence gap")
-        candidate_id = str(row.get("candidate_id") or "")
-        if candidate_id and candidate_id in family_id_set:
-            errors.append(f"deferred candidate is also canonical: {candidate_id}")
+    deferred_count = 0
+    for record in families:
+        family_id = str(record.get("id") or "")
+        status = str(record.get("status") or "")
+        if status not in STATUSES:
+            errors.append(f"{family_id}: unknown status `{status}`")
+        axes = set(_strings(record.get("recurring_axes"))) & RECURRING_AXES
+        if len(axes) < 6:
+            errors.append(f"{family_id}: needs at least six recurring visual axes")
+        if len(_strings(record.get("excluded_scene_attributes"))) < 2:
+            errors.append(f"{family_id}: needs at least two excluded scene attributes")
+        nearest = str(record.get("nearest_family") or "")
+        if nearest == family_id or nearest not in family_id_set:
+            errors.append(
+                f"{family_id}: nearest_family `{nearest}` is not another enabled style family"
+            )
+        if not str(record.get("boundary") or "").strip():
+            errors.append(f"{family_id}: lacks a nearest-family boundary")
+        if status in REVISED_STATUSES:
+            if len(_strings(record.get("evidence_basis"))) < 3:
+                errors.append(f"{family_id}: a revised or new family needs at least three evidence items")
+            if len(str(record.get("review_notes") or "").split()) < 8:
+                errors.append(f"{family_id}: review_notes need at least eight words")
+        for candidate in record.get("deferred_candidates") or []:
+            deferred_count += 1
+            candidate_id = str(candidate.get("candidate_id") or "") if isinstance(candidate, Mapping) else ""
+            if candidate_id in family_id_set:
+                errors.append(f"{family_id}: deferred candidate `{candidate_id}` is also a style family")
 
     return {
         "audit": "style-family-taxonomy",
         "ok": not errors,
         "family_count": len(families),
-        "revised_family_count": sum(1 for row in taxonomy_rows if row.get("status") in REVISED_STATUSES),
-        "revised_or_new_family_count": sum(1 for row in taxonomy_rows if row.get("status") in REVISED_STATUSES),
-        "retained_family_count": sum(1 for row in taxonomy_rows if row.get("status") == "retained"),
-        "deferred_candidate_count": len(deferred),
+        "revised_or_new_family_count": sum(
+            1 for record in families if record.get("status") in REVISED_STATUSES
+        ),
+        "retained_family_count": sum(1 for record in families if record.get("status") == "retained"),
+        "deferred_candidate_count": deferred_count,
         "errors": errors,
         "warnings": warnings,
-        "quality_claim": "none; this audit checks taxonomy evidence structure, not artistic merit",
+        "quality_claim": "none; this audit checks family evidence structure, not artistic merit",
     }
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Audit style-family taxonomy boundaries")
+    parser = _operation_context.ArgumentParser(description="Audit style-family boundary evidence")
     add_pack_runtime_arguments(parser)
     parser.add_argument("root", nargs="?", default=str(ROOT))
     parser.add_argument("--write", action="store_true")
@@ -139,4 +122,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

@@ -53,7 +53,7 @@ span, smallest proposed correction and retained dimensions. Inspect previous
 and revised candidates under the same current inputs and criteria. Keep the
 previous candidate unless the revision is demonstrably better within the chosen
 criteria, and record unresolved tradeoffs for the creator. Set a bounded retry
-plan appropriate to the task rather than copying a paper's iteration count.
+plan appropriate to the task rather than copying a paper's round count.
 
 Judge against the adopted intention, not an aggregate score. A stylized
 movement or abrupt cut can be deliberate, and smoothness is one aim among
@@ -71,7 +71,7 @@ geometry, an era/form transition, temporary physical state and one realization
 have distinct owners, so a local change reaches other phases or timelines only
 by an explicit decision.
 
-For declared structures, separate a profile/attachment/count error, an
+For declared structures, separate an outline/attachment/count error, an
 individual marking or measurement error, a changed injury/form and an
 occlusion/crop problem, and correct the specific owner. A covered part is still
 present, and a species label leaves anatomy undeclared.

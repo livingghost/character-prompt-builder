@@ -284,7 +284,7 @@ references: []
 - **principle_application_refs**:
   <!-- Optional navigation to the design's selected portrayal-principle bindings and local interpretation. The library is not a personality type or canon. Record n/a with reason when no pattern is used; full rules remain here or in their world owner. -->
 - **state_and_disclosure_dependencies**:
-  <!-- Relevant event/knowledge/phase authorities for applying this profile. Do not copy one scene's current mood or a future reveal into the permanent core. An author-side context plan may resolve these dependencies; an actual consumer receives only its reviewed subset. -->
+  <!-- Relevant event/knowledge/phase authorities for applying this character profile. Do not copy one scene's current mood or a future reveal into the permanent core. An author-side context plan may resolve these dependencies; an actual consumer receives only its reviewed subset. -->
 
 ### Established Identity Facts
 
@@ -315,7 +315,7 @@ references: []
 
 ### Core-to-Performance Bindings
 
-<!-- Each materially used response, voice mode or bodily baseline refers to this profile and the relevant intent. Bindings explain the selection among otherwise plausible performances. The table points to rule owners, not duplicate instructions. Apply only the rows relevant to the task. -->
+<!-- Each materially used response, voice mode or bodily baseline refers to this character profile and the relevant intent. Bindings explain the selection among otherwise plausible performances. The table points to rule owners, not duplicate instructions. Apply only the rows relevant to the task. -->
 
 | Identity dimension / intent reference | Owning response, voice or body rule | What holds | What varies and why | Intended realization and review reference |
 |---|---|---|---|---|

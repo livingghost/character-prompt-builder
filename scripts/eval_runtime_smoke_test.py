@@ -59,10 +59,6 @@ class RuntimeFixture:
     managed_root: Path
     resource_paths: Mapping[str, Path]
 
-    @property
-    def resource_providers(self) -> dict[str, str]:
-        return {name: self.pack_id for name in self.resource_paths}
-
 
 def _record_file() -> dict[str, Any]:
     return {
@@ -127,22 +123,10 @@ def _case_document(case: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _save_fixture_state(
-    fixture: RuntimeFixture,
-    *,
-    resource_providers: Mapping[str, str] | None = None,
-) -> None:
+def _save_fixture_state(fixture: RuntimeFixture, *, enabled: bool = True) -> None:
     save_state(
         fixture.state_file,
-        {
-            "pack_roots": [],
-            "enabled_packs": [fixture.pack_id],
-            "resource_providers": dict(
-                fixture.resource_providers
-                if resource_providers is None
-                else resource_providers
-            ),
-        },
+        {"pack_roots": [], "enabled_packs": [fixture.pack_id] if enabled else []},
     )
 
 
@@ -291,9 +275,7 @@ def _no_root_fallback_probe(
     fixture: RuntimeFixture,
     runtime_context: PackRuntimeContext,
 ) -> dict[str, Any]:
-    providers = fixture.resource_providers
-    providers.pop(SEARCH_RESOURCE)
-    _save_fixture_state(fixture, resource_providers=providers)
+    _save_fixture_state(fixture, enabled=False)
     configure_pack_runtime(runtime_context.settings)
     try:
         try:
@@ -306,7 +288,7 @@ def _no_root_fallback_probe(
             }
         return {
             "rejected": False,
-            "diagnostic": "unselected resource unexpectedly resolved",
+            "diagnostic": "a resource of a disabled pack unexpectedly resolved",
             "resource": SEARCH_RESOURCE,
         }
     finally:
@@ -559,7 +541,7 @@ def run() -> dict[str, Any]:
             _record_check(
                 details,
                 errors,
-                "unselected-named-resource-has-no-root-fallback",
+                "disabled-pack-resource-has-no-root-fallback",
                 fallback_probe.get("rejected") is True
                 and fallback_probe.get("diagnostic")
                 == f"Required named pack resource is unavailable: {SEARCH_RESOURCE}",

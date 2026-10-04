@@ -176,7 +176,7 @@ The last question is a private review aid rather than automatic negative-prompt 
 
 ## Layered production knowledge
 
-After the direction exists, the library may help in three ways.
+After the direction exists, pack records may help in three ways.
 
 ### Universal aesthetic core
 
@@ -186,9 +186,9 @@ A core contributes cross-domain production judgment about appeal, hierarchy, vie
 
 A realization translates the direction into valid construction for the actual subject type. It supplies domain-specific identity, anatomy or body plan, expression or behavior, surface systems, locomotion, manipulation, and contact.
 
-### Rendering profile
+### Render profile
 
-A profile supplies medium mechanics: how line, value, color, surface, light, background, and detail are rendered.
+A [render profile](preset-system-contract.md#render-profile) supplies the medium mechanics.
 
 These layers answer different questions and remain distinct.
 
@@ -205,7 +205,7 @@ Creative additions are valuable when they:
 
 Additions are weak when they:
 
-- arrive because a nearby preset contains them;
+- arrive because a nearby record contains them;
 - add narrative unrelated to the intent;
 - force a profession, costume, or setting that changes the character;
 - average competing directions;
@@ -243,6 +243,6 @@ Read the final prompt alone and predict its output. Check:
 - surface and material logic
 - color-light coherence
 - detail hierarchy
-- unintended preset narrative
+- unintended narrative from a record
 
 Revise the prompt when the likely image is polished but conceptually wrong.

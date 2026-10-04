@@ -85,7 +85,7 @@ def table_entries(sheet: Mapping[str, Any], table_id: str) -> list[dict[str, Any
 def source_entry(
     box: Mapping[str, Any], sheet: Mapping[str, Any], table_id: str
 ) -> dict[str, Any] | None:
-    """Resolve a table-bound panel by persistent row id or profile source index."""
+    """Resolve a table-bound panel by persistent row id or layout profile source index."""
 
     entries = table_entries(sheet, table_id)
     source_row_id = meaningful(box.get("source_row_id", ""))
@@ -384,7 +384,7 @@ def color_rows(sheet: Mapping[str, Any]) -> list[dict[str, str]]:
 # design baseline, and the declared state rows in sheet-data complete it. Each
 # kind below covers one sheet-data state table, and every declared visual row
 # gets a same-kind panel frame as part of the sheet's initial state, with no
-# hand-editing of profile JSON. Resolved panels bind through persistent
+# hand-editing of layout profile JSON. Resolved panels bind through persistent
 # source_row_id (source_index is profile authoring metadata only), then pick up the
 # row's label and drawing details from apply_sheet_context, so coverage holds by
 # construction.

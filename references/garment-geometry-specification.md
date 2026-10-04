@@ -16,6 +16,6 @@ Keep the carrier complete beneath a covering where its identity says it is compl
 
 ## When detail is needed
 
-Use a structured garment contract when an opening, asymmetric construction, support path, layer boundary, clearance or motion response determines the requested design. A short prompt for an ordinary garment skips the exhaustive panel inventory. Use the minimum details that settle the actual construction rather than the shortest list from a preset.
+Use a structured garment contract when an opening, asymmetric construction, support path, layer boundary, clearance or motion response determines the requested design. A short prompt for an ordinary garment skips the exhaustive panel inventory. Use the minimum details that settle the actual construction rather than the shortest list from a record.
 
 Checks must preserve intended coverage, attachment and the declared topology. They must reject a missing referenced component or incompatible duplicate, and they must accept a garment that merely lacks a sleeve, waistband or inseam.

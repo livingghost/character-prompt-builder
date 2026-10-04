@@ -63,7 +63,7 @@ Reference Selection and Reference Use Plan have different, one-way responsibilit
 | Prepared files and forwarding scope | Prepared Reference Set and verified generation input |
 | Selected media and its lineage | Asset Registry and Adoption Receipt |
 | Observed result and discrepancy | Observed Render State and Drift Observation |
-| Reusable drawing repairs | Correction presets |
+| Reusable drawing repairs | Correction records |
 
 Create or revise these records under the relevant authoring, approval and observation procedures. Validation checks the declared content; it does not supply a missing author decision or media inspection.
 
@@ -163,7 +163,7 @@ after approval is refused.
 
 ## The arriving shot-request
 
-A `shot-request` may arrive under the sender's current viewpoint protocol. The request binds the scene and shot IDs, viewpoint profile, visible identity and state obligations, selected reference candidates, output framing, and hashes for the scene context, shot camera specification, and shot visual projection. It may also carry `scene_plot_sha256`, the approved scene plot the shot was planned in, and beside it `narrative_sha256`, the narrative whose chapter and arcs that scene belongs to. Both are optional, because a request may come from a project that has no scene plot; where `scene_plot_sha256` is present, the prompt plot written from it names the same artifact and hash as its `source`. Where it is absent, `scripts/shot_request.py` reports that as unmeasured rather than passing in silence, because a link nobody supplied is an unanswered question and not an answered one.
+A `shot-request` may arrive under the sender's current viewpoint protocol. The request binds the scene and shot IDs, viewpoint profile, visible identity and state obligations, selected reference candidates, output framing, and hashes for the scene context, shot camera specification, and shot visual projection. It may also carry `scene_plot_sha256`, the approved scene plot the shot was planned in, and beside it `narrative_sha256`, the narrative whose chapter and arcs that scene belongs to. Both are optional, because a request may come from a studio that has no scene plot; where `scene_plot_sha256` is present, the prompt plot written from it names the same artifact and hash as its `source`. Where it is absent, `scripts/shot_request.py` reports that as unmeasured rather than passing in silence, because a link nobody supplied is an unanswered question and not an answered one.
 
 The request and any supplied bound artifacts are validated with:
 
@@ -189,8 +189,8 @@ The Generation Package verifier resolves package-relative reference carriers aga
 
 ## Optional public data exchange
 
-A project may author visual contracts, chronology, scene plans and adoption
-records locally. Exchange is a separate, optional path for explicit public data.
+A studio may hold authored visual contracts, chronology, scene plans and
+adoption records. Exchange is a separate, optional path for explicit public data.
 It neither divides authoring responsibilities between applications nor discovers
 software. Private catalogs, persona stores and execution records stay local.
 

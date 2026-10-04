@@ -21,7 +21,7 @@ Gemini or Imagen, Firefly, Ideogram, Recraft, Leonardo, and future design-orient
 
 Choose the reference transport before installing anything:
 
-| Operation | Profile |
+| Operation | Dependencies |
 | --- | --- |
 | prompt only, no references | Core |
 | `prompt-artifacts` with existing SVG or raster sources | Core |
@@ -43,7 +43,7 @@ If the check fails:
 2. When environment mutation is not authorized, report the exact missing package and installation command, then stop.
 3. Never omit a selected reference, send raw SVG to a raster-only endpoint, substitute another artifact, downgrade to text-only, or silently change transport.
 
-Do not begin model-facing materialization until the required profile passes.
+Do not begin model-facing materialization until the dependency check passes.
 
 ## Prompt rendition gate
 
@@ -70,7 +70,7 @@ The supported negative modes are:
 
 The builder never appends literal negative text to the positive prompt. Every Generation Package commits all three renditions independently under `generation_payload.transports` rather than deriving one during forwarding: `generation_payload.transports.separate` commits its positive and portable-negative text with `prompt_sha256` and `negative_sha256`; `generation_payload.transports.integrated` commits the reviewed affirmative integrated text with `sha256`; and `generation_payload.transports.native_subset` commits its positive and concise native-negative text with `prompt_sha256` and `negative_sha256`. The verifier recomputes those hashes and selects the exact committed rendition for the target mode.
 
-On an `integrated-critical` interface, the selected family's and rendering profile's `negative_terms` form the medium's anti-drift boundary, but the interface never receives those terms as negative text. Restate each activated finish or construction requirement affirmatively inside the positive prompt, adjacent to the surface or structure it governs. In negative provenance, map every activated source record ID to its nonempty positive wording under `affirmative_translations`; verification must prove that every translation survived into the committed integrated rendition. The builder adds the render profile and style family the Production Specification selects to `activated_sources`, and on a target with no negative field it refuses an active source that has no entry there. When medium drift is diagnosed, search the active catalog for a matching correction and inspect the exact resolved record before use. Core runtime logic must not assume that any optional-pack correction ID exists. Never paste diagnostic or negative vocabulary into the positive prompt.
+On an `integrated-critical` interface, the selected family's and render profile's `negative_terms` form the medium's anti-drift boundary, but the interface never receives those terms as negative text. Restate each activated finish or construction requirement affirmatively inside the positive prompt, adjacent to the surface or structure it governs. In negative provenance, map every activated source record ID to its nonempty positive wording under `affirmative_translations`; verification must prove that every translation survived into the committed integrated rendition. The builder adds the render profile and style family the Production Specification selects to `activated_sources`, and on a target with no negative field it refuses an active source that has no entry there. When medium drift is diagnosed, search the active catalog for a matching correction and inspect the exact resolved record before use. Core runtime logic must not assume that any optional-pack correction ID exists. Never paste diagnostic or negative vocabulary into the positive prompt.
 
 ## Services and offerings
 
@@ -78,13 +78,20 @@ Three records change at different times, so they are three records.
 
 - A **service record** says how a service is called: the transport module that sends to it, endpoint, authentication shape, request envelope, operations, delivery and polling, error shape, and limits, with one `observed_at` and one `source` for the whole record. It is the `service-profiles` resource of the active pack runtime. `python scripts/service_profile.py <service-id>` prints it; print it beside anything sent, so an ageing record is seen before it fails. Nothing in this repository carries an endpoint of its own.
 - A **model record** says how a model behaves: prompt style, ordering, negative transport, accepted reference media, limits, notes. Nothing in it names an endpoint.
-- An **offering** inside the model record says how one service exposes that model: `service` (the key it has in the service record), `model_identifier` (its identifier there), `request_keys` (the request key each input occupies: `model` where the request body names the model, `prompt`, `negative prompt` where the target has a negative field, `reference images`, `seed image`, `mask image`, `input image`, on an upscaler that takes one, `guidance prompt`, and for the image size either `width` and `height` or one `size` key), `size_format` with a `size` key (how its text is written, such as `{width}x{height}` or `{ratio_width}:{ratio_height}`), `constraints` (the limits that service enforces, in words), `observed_at`, optionally `schema_snapshot`, `parameter_keys` (the request key each of the record's `recommended_parameters` occupies on this service), and for an upscaler `setting_keys` (the request key each setting the record declares occupies on this service). A record's `recommended_parameters` are the sampling values its author recommends, by service-neutral name (`sampler`, `steps`, `guidance`, `clip_skip`, and the `hires_` values); when a package leaves such a value unset, the builder fills it on the key the offering gives it, so the package shows and commits exactly what is sent. A two-number range is a statement for the person choosing and is never filled in, and a recommendation fills a value rather than switching a feature on: a key under an envelope the package never opened, such as the upscaler of a second pass it does not run, stays unwritten until the package asks for that pass. Every model record carries `offerings`; an empty array says no service here exposes the model, which is the state of a record used through a first-party interface or a local host.
+- An **offering** inside the model record says how one service exposes that model: `service` (the key it has in the service record), `model_identifier` (its identifier there), `request_keys` (the request key each input occupies: `model` where the request body names the model, `prompt`, `negative prompt` where the target has a negative field, `reference images`, `seed image`, `mask image`, `input image`, on an upscaler that takes one, `guidance prompt`, and for the image size either `width` and `height` or one `size` key), `size_format` with a `size` key (how its text is written, such as `{width}x{height}` or `{ratio_width}:{ratio_height}`), `constraints` (the limits that service enforces, in words), `observed_at`, optionally `schema_snapshot`, `parameter_keys` (the request key each of the record's `recommended_parameters` occupies on this service), and for an upscaler `setting_keys` (the request key each setting the record declares occupies on this service). A record's `recommended_parameters` are the sampling values its author recommends, by service-neutral name (`sampler`, `steps`, `guidance`, `clip_skip`, and the `hires_` values). When a package leaves a *required* control unset, resolution takes the single recommended value the execution profile ties to it. The package then commits exactly what is sent. An *optional* control stays unset, and a two-number range is never filled; [Rendering choices and execution controls](render-contract.md) owns those statuses. Every model record carries `offerings`; an empty array says no service here exposes the model, which is the state of a record used through a first-party interface or a local host.
 
 `schema_snapshot` points at the model's attributed parameter schema in its selected pack. The [model evidence workflow](model-evidence.md) imports acquired schemas, preserves reference sources, and attaches existing trial records. The `schema`, `reference`, and `attach-probe` operations publish a validated new local pack for explicit activation.
 
-`scripts/build_generation_payload.py` selects the offering the request goes through (`--service` when the record is exposed on more than one), builds the request as the service would see it from the committed prompt, the parameters, and the number of selected references, evaluates it against the observed schema, and refuses the package on any violation: a width and height pair the service does not accept, a preset given together with explicit dimensions, more references than the channel holds, a parameter the model does not take. The offering used is committed as `generation_payload.service` and the verifier makes the same check from the package. A record with no offering is checked against its own limits only.
+Preparation selects the offering the task's `generation.service` names; `scripts/build_generation_payload.py` takes `--service` when the record is exposed on more than one. Each builds the request as the service would see it from the committed prompt, the parameters and the number of selected references. It evaluates that request against the observed schema and refuses the package on any violation, such as:
 
-The checker evaluates the schema keywords `type`, `const`, `enum`, `required`, `properties`, `additionalProperties`, `dependentRequired`, `items`, `contains`, `minItems`, `maxItems`, `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `allOf`, `anyOf`, `oneOf`, `not`, and `if`/`then`/`else`. What a stored schema says with anything else is listed in its `unenforced` field and is settled by the service.
+- a width and height pair the service does not accept;
+- a preset given together with explicit dimensions;
+- more references than the channel holds;
+- a parameter the model does not take.
+
+The package commits the offering as `generation_payload.service`, and the verifier makes the same check from the package. A record with no offering is checked against its own limits only.
+
+The checker evaluates the schema keywords `$ref`, `$defs`, `type`, `const`, `enum`, `required`, `properties`, `additionalProperties`, `propertyNames`, `minProperties`, `maxProperties`, `dependentRequired`, `items`, `contains`, `minItems`, `maxItems`, `uniqueItems`, `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `allOf`, `anyOf`, `oneOf`, `not`, and `if`/`then`/`else`. Any other validation keyword appears in the request validation record's `unmeasured` list as `schema-keyword:KEYWORD`, and the service settles it.
 
 Adding a service is one record in `service-profiles`, an offering on every model record it exposes, and the module its `transport` names: `"transport": "runware"` selects `scripts/transport_runware.py`. A transport is written against `scripts/transport_contract.py`, which states what it defines and the network rules it keeps. Adding a model on a service that is already recorded is one offering.
 
@@ -133,52 +140,67 @@ The canonical prepared-reference-set commits target and transport mode, optional
 
 ## Generation Package
 
-The builder reads the prepared production run and derives what the run and the active pack already hold. The author supplies the prompt, the approved plot, the settled retrieval record, the Production Specification and the continuity decisions.
+Normal production compiles and publishes the package, request preview and execution plan together:
 
-Before packaging:
+```bash
+python scripts/production_workflow.py prepare --root STUDIO --task task.json
+```
 
-1. Prepare a production run for the studio's open work task, as [Production execution](production-execution.md) describes. The run pins the task, its route reading, and the prompt as its delivery.
-2. Save the final prompt and the approved plot as UTF-8 files, and draft the Production Specification with `python scripts/production_spec.py draft` as [Production Specification](../production-specification.md#stateless) shows. Add the portable negative and the image intent when they exist, and the negative provenance whenever a negative source is active. Omit `--state-lineage-file` for stateless work; the builder seals the stateless lineage.
-3. Run each catalog and vocabulary search with `--record lookups.json --element NAME`, and mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID` (or `--composed TEXT --reason TEXT`). Then run `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file prompt.txt --plot-file plot.json --out retrieval.json`. Unavailable or unsettled retrieval blocks packaging. Approval to prepare is not approval to send.
-4. Pass the canonical prepared-reference-set through `--references-file` when references are selected. Do not author another source list.
+The task names its input files, all authored before `prepare`. `execute` sends only that fixed request; [Production execution](production-execution.md) describes the run from preparation to completion. A different request needs a new variant, repeat or explicitly reassessed task, never an extra send on the same run.
+
+Before preparing:
+
+1. Save the final prompt and the approved plot as UTF-8 files, and draft the Production Specification with `python scripts/production_spec.py draft` as [Production Specification](../production-specification.md#stateless) shows. Add the portable negative and the image intent when they exist, and the negative provenance whenever a negative source is active. Stateless work names no state lineage.
+2. Run each catalog and vocabulary search with `--record lookups.json --element NAME`, and mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID` (or `--composed TEXT --reason TEXT`). Then run `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file prompt.txt --plot-file plot.json --out retrieval.json`. Unavailable or unsettled retrieval blocks packaging. Approval to prepare is not approval to send.
+3. Name the canonical prepared-reference-set in the task's `generation.references` when references are selected. Do not author another source list.
+
+Parameter objects are UTF-8 JSON files, for example `parameters.json` containing `{"width":832,"height":1248}`. Do not normalize prompt text as part of parameter loading.
+
+`scripts/build_generation_payload.py` builds the Generation Package of a prepared run again, to inspect or reconstruct it. It never changes the run's request:
+
+- The prompt is the run's delivery; there is no prompt option.
+- When the run's task declares `generation.production_spec`, `plot`, `retrieval_record` or `parameters`, the builder reads that document from the run's snapshot. Naming the matching option is refused.
+- `--model` defaults to the specification's `target_model`.
+- Every file argument is a `/`-separated path below `--production-root`, or an absolute path. `--parameters-file -` reads one JSON object from standard input.
+- An existing `--out` or companion is refused with `OUTPUT_ALREADY_EXISTS`; the builder never replaces a package.
+
+The synthetic run of `examples/generation/build_example.py` declares the specification, plot, retrieval record and parameters, and the builder reads those four from the run. It takes the runtime selectors of the printed `prepare_argv`, below the example's `--out` directory (`OUT`). It also takes `--request-validation-file`, because the synthetic offering names no observed schema:
 
 ```bash
 python scripts/build_generation_payload.py \
-  --model grok-imagine-image-2.0 \
-  --prompt-file prompt.txt \
-  --plot-file plot.json \
-  --retrieval-record-file retrieval.json \
-  --production-spec-file production-spec.json \
-  --negative-provenance-file negative-provenance.json \
-  --continuity C01=one-off \
-  --parameters '{"width":832,"height":1248}' \
-  --production-root PROJECT \
-  --out PROJECT/generation-package.json
+  --production-root STUDIO \
+  --production-run RUN \
+  --continuity robot=one-off \
+  --request-validation-file validation.json \
+  --state-file OUT/runtime/state.json --cache-dir OUT/runtime/cache \
+  --managed-root OUT/runtime/managed --pack-root OUT/runtime/packs/example \
+  --out rebuilt-package.json
 ```
 
 The builder derives the rest:
 
 - The run is the open work task's current run, or the one `--production-run` names.
 - The route reading is the one the run pinned.
-- The request check reads the observed parameter schema that the model record's offering names in the active pack. The package records that pack file by path and hash, with the hashes of the service record, offering, transport and model record. References and bounded production context need an execution policy, so such a package takes `--request-validation-file`. So does a model exposed on no service here.
-- Visual continuity comes from `--continuity SUBJECT=DECISION`, one `recurring`, `one-off` or `undecided` decision for each production subject. The builder writes the decisions under the project's `work/continuity/` as their basis. `--visual-continuity-file` supplies a complete record instead.
+- The request check is derived from the observed schema the offering names, when the offering names one and the request needs no execution policy. Otherwise `--request-validation-file` supplies an authored record, as [Model request evidence](model-evidence.md#the-request-validation-record) describes.
+- Visual continuity comes from `--continuity SUBJECT=DECISION`, one `recurring`, `one-off` or `undecided` decision for each production subject. The builder writes the decisions under the studio's `work/continuity/` as their basis. `--visual-continuity-file` supplies a complete record instead.
 
 The first images of a new character are `undecided` exploration. Once the author accepts one as its identity, later images are `recurring`. `--character SUBJECT=CHARACTER` records a subject under its studio character, which a recurring subject needs. That character's current accepted identity images must be among the prepared references, and the builder refuses `recurring` without one. `--sheet-panel` marks an image for a character sheet panel.
 
-A refused build prints each error once and exits 1 (a stateless specification that names a lineage hash):
+A refused build prints the common diagnostics and exits 2 for an input defect; [Production execution](production-execution.md) lists every exit status. Naming a document the synthetic run already holds:
 
 ```json
-{"ok": false, "errors": ["production specification: $.state_context.state_lineage_sha256: only a state-aware specification names this; the builder seals the stateless lineage"]}
+{"ok": false, "diagnostics": [{"code": "INPUT_CONSISTENCY_ERROR", "severity": "error", "phase": "arguments",
+  "file": "plot.json", "pointer": null, "message": "the prepared run holds its plot, so --plot-file competes with it",
+  "required_action": "Drop --plot-file; the builder reads the run's plot.", "blocked_checks": [], "option": "--plot-file"}]}
 ```
 
-For state-aware work, use `scripts/build_state_generation_package.py` with the same production arguments. It validates the supplied graph, story order, and selection identity, era, appearance, state hash, and references. A recurring subject that names the identity contract takes its character ID from that contract. `build_generation_payload.py` rejects state-aware lineage. Production Specification is mandatory for both paths.
+For state-aware work, use `scripts/build_state_generation_package.py` with the same production arguments. It reads the prompt from the run's delivery and reports a refusal in the same common diagnostics. It validates the supplied graph, story order, and selection identity, era, appearance, state hash, and references. A recurring subject that names the identity contract takes its character ID from that contract. `build_generation_payload.py` rejects state-aware lineage. Production Specification is mandatory for both paths.
 
 State-aware example:
 
 ```bash
 python scripts/build_state_generation_package.py \
   --model gpt-image-2.5-flare \
-  --prompt-file final-prompt.txt \
   --plot-file approved-plot.json \
   --retrieval-record-file retrieval-settled.json \
   --negative-file final-negative.txt \
@@ -198,8 +220,8 @@ python scripts/build_state_generation_package.py \
   --references-file prepared-reference-package/prepared-reference-set.json \
   --request-validation-file request-validation.json \
   --continuity C01=recurring --character C01=C01 \
-  --parameters '{"size":"1024x1536"}' \
-  --production-root PROJECT \
+  --parameters-file parameters.json \
+  --production-root STUDIO \
   --state-file PACK_STATE_JSON \
   --cache-dir CATALOG_CACHE \
   --managed-root MANAGED_PACKS \
@@ -207,7 +229,7 @@ python scripts/build_state_generation_package.py \
   --out generation-package.json
 ```
 
-The builder revalidates the prepared set, copies every committed model carrier into the named sibling `<generation-package-stem>.references` directory, rewrites only carrier paths to package-relative paths inside that exact companion, rebuilds reference and generation-input hashes, verifies the staged pair, and publishes with rollback protection.
+The builder revalidates the prepared set, copies every committed model carrier into the named sibling `<generation-package-stem>.references` directory, rewrites only carrier paths to package-relative paths inside that exact companion, rebuilds reference and generation-input hashes, verifies the staged pair, and publishes with rollback protection. Both builders refuse an existing package or companion, before building and again at publication.
 
 Move the Generation Package JSON and its named companion together. Every carrier, including a composite board, must use a relative path under that exact companion. Absolute paths, outside-companion paths, traversal, and inferred neighboring files are invalid. Source provenance remains tied to the active pack and is revalidated under the same runtime.
 
@@ -218,6 +240,7 @@ Verify and export the committed generation input:
 ```bash
 python scripts/verify_generation_payload.py \
   generation-package.json \
+  --studio-root STUDIO \
   --prompt-out verified-prompt.txt \
   --negative-out verified-negative.txt \
   --native-negative-out verified-native-negative.txt \
@@ -230,6 +253,17 @@ python scripts/verify_generation_payload.py \
 ```
 
 The verifier output retains the complete positive prompt, portable negative, native subset, all three independently hashed transport renditions, the complete `prepared_reference_set` and `prepared_reference_set_sha256`, its embedded canonical Reference Use Plan and plan hash, its nested Surface and Lighting Plan and hash, and the optional finalized reference-selection origin tied to State Lineage. It does not replace those objects with an abbreviated inventory.
+
+- A relative package or output path is below `--studio-root STUDIO`; an absolute path needs no root.
+- Each output (`--prompt-out`, `--negative-out`, `--native-negative-out`, `--payload-out`) must be a new file; an existing one is refused with `OUTPUT_ALREADY_EXISTS`.
+- A text output holds the verified text byte for byte, with no added newline.
+- A failure prints the common diagnostics and exits with the status its codes select, 2 for an input defect (synthetic, trimmed):
+
+```json
+{"ok": false, "diagnostics": [{"code": "OUTPUT_ALREADY_EXISTS", "phase": "output", "file": "vp.txt",
+  "message": "--prompt-out names an existing file, which is kept: vp.txt",
+  "required_action": "Choose a new --prompt-out.", "option": "--prompt-out"}]}
+```
 
 For every ordered prepared-reference row, preserve the complete source identity and source hash, bounded authority, intended influence, exact model-facing transport path, media type and transport hash, deterministic derivation, precedence, and, when state-aware, `binding_id`, `covers`, `review_dimensions`, `unsupported_or_occluded_state`, and `unsupported_assumptions`. Verification reopens current active-pack source bytes and every committed package-relative carrier byte; it also validates the optional board and its panel/source/transport hashes separately from the board hash. A pack-backed activated reference still requires its non-null embedded plan, while a supplied-file-only selection remains on the exclusive plan-null path.
 
@@ -244,37 +278,76 @@ Require all assertions to be true:
 
 Those four true assertions together with the verifier's structured `host_forwarding` object are the complete forwarding contract. The adapter must not supplement them from the sparse brief, chat history, source directories, adjacent files, or remembered model behavior.
 
-When the model record carries an offering, send through the dispatcher, which is what makes recording automatic:
+When the model record carries an offering, prepare the task, complete the execution decisions, and execute the run:
 
 ```bash
-python scripts/dispatch.py generation-package.json --studio <dir> --character <id> --slot <slot> [--service <id>] [--seed N] [--count N]
-python scripts/dispatch.py generation-package.json --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-authorization RECEIPT_SHA --send
-
-python scripts/dispatch.py generation-package.json --studio <dir> --character <id> --slot <slot> \
-  --state-file PACK_STATE_JSON \
-  --cache-dir CATALOG_CACHE \
-  --managed-root MANAGED_PACKS \
-  --pack-root ADDITIONAL_PACK_ROOT
+python scripts/production_workflow.py prepare --root STUDIO --task task.json
+python scripts/production_workflow.py draft-execution --root STUDIO --run RUN --grant GRANT --out decisions.json
+python scripts/production_workflow.py execute --root STUDIO --run RUN --decisions-file decisions.json
 ```
 
-The runtime selectors go together, as everywhere else: the model record and the service record it names are read from one runtime, never from two. Without them the dispatcher reads the default runtime, which is what a session that ran `pack_cli.py ready` already has.
+The seed, the output count and the service come from the task. [Production execution](production-execution.md) owns the decision file and the authority each operation needs.
 
-The dry run verifies the package, prints a few plain lines, and then prints the exact request the service would receive. The lines name:
+`scripts/dispatch.py` previews the run a package is bound to and sends nothing:
+
+```bash
+python scripts/dispatch.py PACKAGE --studio STUDIO --character SUBJECT_ID --slot SLOT_ID [--preview-out FILE]
+```
+
+The preview reads the model and service records from the runtime snapshot the run pinned, so it shows exactly what `execute` sends. A relative path is a `/`-separated path below the studio root.
+
+The preview refuses:
+
+- a package bound to no prepared run (`EXECUTION_NOT_APPLICABLE`);
+- a package or recording target that differs from the sealed run (`INPUT_CONSISTENCY_ERROR`);
+- a changed source (`SOURCE_CHANGED`) or a changed installation (`IMPLEMENTATION_CHANGED`);
+- a run that already owns an execution (`DISPATCH_ALREADY_CLAIMED`).
+
+Otherwise it prints the rendering choice, a few plain lines and the exact request the service would receive. The lines name:
 
 - the model and the service with its endpoint;
 - the output count;
-- whether the negative prompt is sent, said plainly when the target has no negative field;
-- the cost from the offering's or the service's price record; without one, `cost: unknown`, and the author states the upper bound in the authorization;
-- the production run, followed by `shown, not sent`.
+- whether a negative prompt is sent;
+- the run's quoted cost;
+- the production run;
+- each review requirement of the package;
+- where `--preview-out` saved the trace, or how to save it.
 
-`--preview-out FILE` saves the transformation trace and the validation report, and `--intent-out FILE` saves the submission intent to authorize. `--send` executes only under the actual direct or delegated authority for that exact request. Every live send requires a package bound to a prepared production run. The package names the run, and the studio is the production root. Reserve the submission intent and pass its receipt with `--production-authorization`. Upload and send occur only after the claim. The uppercase arguments above are operator-supplied paths and an actual authorization receipt, not values created by the dispatch command.
+A last line says `shown, not sent`. `--preview-out FILE` saves the sealed request, its transformation trace and the validation report. The synthetic run, trimmed:
 
-Every returned image is saved and recorded as an iteration with the request, its response, the answer, the package and the actual file, updating the Studio gallery. The answer is kept once, and each image's response names its place in that answer and the answer's SHA-256. That includes images beside a refusal and a count that differs from the authorization; the run journal under `runs/` records the expected and received counts, any refusal and any failed download. The production run receives a result only when the authorized count arrived in full. An image the answer carries inline is decoded from it, one it names by URL is downloaded only over https from a host the transport declares, and either is kept only when its bytes are an image. When one fails, the images that arrived stay recorded, and `python scripts/production_workflow.py recover-recording --root PROJECT --run RUN_ID` saves the rest from the saved answer without sending anything again. Direction, selection and canonical adoption require their separate authority; see [Production permissions](production-permissions.md). The credential is read from the environment variable the service record names, or from an MCP server's `env` block in the host's configuration, and is never written anywhere. The transport sends it only to the endpoint it accepts from the service record, over https or, for a local test service, over http on a loopback address, and never follows a redirect. A 5xx answer, a redirect, a timeout or a dropped connection leaves unknown whether the service carried out the request. The run journal records that send as indeterminate with its reason, the dispatcher stops, and nothing is sent again; check the service's own records before preparing a new run. The optional deadline is `PRODUCTION_HTTP_TIMEOUT_SECONDS`; see [Resource handling](../resource-handling.md). A model exposed on no service here is sent by hand, and its result is recorded with `studio.py iterate` before anything else is done with it.
+```text
+model: cpb-synthetic-image as synthetic:robot (offering observed 2000-01-01)
+service: synthetic at http://localhost/cpb-synthetic-no-network (record observed None)
+outputs: 1
+negative prompt: none authored
+cost: 0 USD at most (Aggregate ceiling for the explicitly listed external effects: send: Local synthetic transport performs no network request.)
+production run: 01a10323-7b8a-764e-8196-44f1fb79b46e
+review: Assess the selected direction against this exact rendition.
+more: --preview-out FILE saves the trace and validation
+shown, not sent; production_workflow.py execute sends it under the run's authorization
+request (sha256 71bece6826a2f6820a6e6ebe206474f9f741159fcc648754c41a1a9de700587f):
+{"count": 1, "height": 32, "model": "synthetic:robot", "operation": "generate", "prompt": "A flat graphic portrait of a simple synthetic robot standing against a plain background.", ...}
+```
 
-A send the service answered 503, as the run journal keeps it in `indeterminate.json` (synthetic, from `scripts/dispatch_recovery_smoke_test.py`):
+`execute` saves every returned image and records it as an iteration with the request, its response, the answer, the package and the actual file. Each recording rewrites the Studio gallery.
+
+- The answer is kept once, and each image's response names its place in that answer and the answer's SHA-256.
+- Images beside a refusal are kept, and so is a count that differs from the authorization. `run.json` in the journal records the expected and received counts, any refusal and any failed download.
+- Authorized and returned counts remain distinct; a mismatch is not successful completion.
+- An image the answer carries inline is decoded from it. One it names by URL is downloaded only over https from a host the transport declares. Either is kept only when its bytes are an image.
+
+When a download fails, the images that arrived stay recorded, and `python scripts/production_workflow.py resume --root STUDIO --run RUN_ID` saves the rest from the saved answer without sending again. Direction, selection and canonical adoption require their separate authority; see [Production permissions](production-permissions.md).
+
+The credential is read from the environment variable the service record names, or from an MCP server's `env` block in the host's configuration. It is never written anywhere. The transport sends it only to the endpoint it accepts from the service record. That endpoint uses https, or http on a loopback address for a local test service. It never follows a redirect.
+
+A 5xx answer, a redirect, a timeout or a dropped connection leaves unknown whether the service carried out the request. The run journal records that send as indeterminate with its reason, `execute` stops, and nothing is sent again. `resume` asks the provider once per call through the transport's lookup. When the provider holds no task, `draft-outcome` and `resume --outcome-file` record it, as [Production execution](production-execution.md#status-and-resume) shows. The optional deadline is `PRODUCTION_HTTP_TIMEOUT_SECONDS`; see [Resource handling](../resource-handling.md).
+
+A model exposed on no service here is sent by hand, and `studio.py iterate` records its result before anything else is done with it.
+
+A send a loopback service answered 503, as the run journal keeps it in `indeterminate.json` (synthetic, from `scripts/dispatch_recovery_smoke_test.py`):
 
 ```json
-{"outcome": "indeterminate", "reason": "the service answered 503", "http_status": 503, "body": "upstream busy"}
+{"body":"synthetic busy","http_status":503,"outcome":"indeterminate","reason":"the service answered 503"}
 ```
 
 ## The model's family
@@ -297,13 +370,20 @@ A ratio the record declares in `size_hints` uses the recorded size and label. A 
 
 Output is JSON on stdout: the width, the height, the pixel count, the ratio, where the answer came from, the offering it was checked against with the `size_fields` it put to the schema (null where the offering records no size key), and `refused_by_the_observed_schema`. The exit status is 1 when a size is refused, and the command exits with a message when the model is unknown, the ratio is not written as width and height, or the record declares no size and none was given. `scripts/generation_geometry_smoke_test.py` is its regression test.
 
-An upscale goes the same way, from one image rather than a package. First prepare an upscale production task and authorize the exact source hash, model, factor and settings; use settings actually supported by the selected upscaler. The upscale goes under the run prepared for the studio's open task:
+An upscale goes the same way, from one image rather than a package. Write its input declaration and prepare the upscale task as [Upscale Adapter](../adapters/upscale.md) shows, then execute the run like a generation. The dispatcher previews the upscale run of the studio's open task and refuses any input that differs from the sealed declaration:
 
 ```bash
-python scripts/dispatch.py --upscale --render-intent RENDER_INTENT_JSON --model UPSCALER_ID --source SOURCE_IMAGE --scale 2 --settings SETTINGS_JSON --request-validation-file VALIDATION_JSON --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-authorization RECEIPT_SHA --send
+python scripts/dispatch.py --upscale --model UPSCALER_ID --source SOURCE_IMAGE --scale 2 --settings-file SETTINGS_JSON --render-intent RENDER_INTENT_JSON --request-validation-file VALIDATION_JSON --studio STUDIO --character SUBJECT_ID --slot SLOT_ID
 ```
 
-The factor and the settings are checked against the upscaler record, each setting is placed on the request key the offering's `setting_keys` gives it (a declared setting with no key cannot be sent), `--guidance` is sent only where the offering records a `guidance prompt` request key and is refused before anything is uploaded where it does not, the request asks for a lossless PNG result, the request is checked against the observed schema, and after the service answers the Upscale Package is built from the source and the returned image under the studio's `packages/` and recorded as an iteration with the request and the answer. A generative or creative upscaler leaves the package's identity audit pending until [Upscale Adapter](../adapters/upscale.md) review passes.
+Preparation checks the upscale request:
+
+- the factor and the settings against the upscaler record;
+- each setting on the request key the offering's `setting_keys` gives it, refusing a declared setting with no key (`CONTROL_NOT_AVAILABLE`);
+- a guidance prompt only where the offering records a `guidance prompt` request key, refusing it otherwise;
+- the whole request against the observed schema.
+
+After the service answers, `execute` builds an Upscale Package from the source and each returned image in the send's journal. It records the package as an iteration with the request and the answer. A generative or creative upscaler leaves the package's identity audit pending until [Upscale Adapter](../adapters/upscale.md) review passes.
 
 `negative_transport_instruction` must equal the verifier-confirmed target instruction exactly. `host_forwarding.reference_preamble` remains separately visible for audit, while `host_forwarding.effective_prompt` is the already assembled transport prompt with that canonical preamble attached exactly once. Forward only `host_forwarding.effective_prompt`, the exact verified negative channel, `host_forwarding.parameters`, and `host_forwarding.selected_references`; never concatenate the separately exposed preamble again.
 
@@ -328,7 +408,7 @@ When the user requests several images at once, across different models or as con
 
 ## Executable walkthrough
 
-[Workflow Walkthrough](workflow-walkthrough.md) takes one idea to a dispatch preview for `grok-imagine-image-2.0` on Runware through the builder and dispatcher CLIs. It sends nothing and uses no credential. State-aware example commands above require both `--plot-file` and `--retrieval-record-file`; `examples/state-aware-pilot/build_example.py` supplies explicit illustrative lookup data for its generated package.
+[Workflow Walkthrough](workflow-walkthrough.md) takes one idea to a prepared run and its exact request for `grok-imagine-image-2.0` on Runware. It sends nothing and uses no credential. State-aware example commands above name `--plot-file` and `--retrieval-record-file` for a run whose task declares neither; `examples/state-aware-pilot/build_example.py` supplies explicit illustrative lookup data for its generated package.
 
 
 ## Artifact evidence and completion
@@ -340,4 +420,4 @@ For a saved deliverable, continue through [Production Execution](production-exec
 Read [Rendering choices and execution controls](render-contract.md) before preparing model-specific input.
 The builder requires a resolved intent and an interface execution profile.
 The verifier recomputes effective values and rejects changed model guidance.
-The dispatcher shows the choice and complete request, and rejects wire values that differ from the contract.
+Preparation rejects wire values that differ from the contract, and the dispatcher preview shows the choice and complete request.

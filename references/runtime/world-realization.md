@@ -68,7 +68,7 @@ design basis; an unexamined field is still a gap.
 | Address or owner | What it means | What it does not authorize |
 |---|---|---|
 | Subject/entity identity | Which recurring referent this is, within its continuity | A particular expression, role, costume or pose |
-| Persona/world identity profile | What maintains recognizable identity, including designed change | Knowledge of every future event |
+| Character profile or world identity | What maintains recognizable identity, including designed change | Knowledge of every future event |
 | State snapshot | Established conditions at an explicit target order and scene context | An artistic choice or proof that a generated output matches |
 | Role-specific reference key | This entity's explicitly chosen relevant facets for one use | Whole-person identity, canon adoption, model compatibility or a general quality score |
 | Asset hash/binding | Exact bytes, adopted scope and bounded influence of a reference | All visible source-state details as permanent identity |
@@ -137,7 +137,7 @@ unit can stay unchanged.
 
 A stable posture through distress and a switch from playful to assured delivery
 are different portrayal designs that can share one state label. Read the
-identity profile and contextual rules, then select words, voice, facial
+character profile and contextual rules, then select words, voice, facial
 expression, movement, timing and omissions. Persist adopted aftermath across
 line and scene boundaries. A simulated example leaves open whether its event
 happened. [Portrayal Principles](../portrayal-principles.md) can help design a
@@ -196,7 +196,7 @@ The [plan schema](../../schemas/authoring/world-realization-plan.schema.json) an
 [empty starter](../../templates/realization/world-realization-plan.json) describe
 a local coordination file, not a new shared-state interchange contract.
 Plans reference the existing base, `state-event` JSONL and `state-process` array
-by source ID; every source path is a literal project-relative path with the
+by source ID; every source path is a literal studio-relative path with the
 SHA-256 of the complete file bytes, and events remain the canonical mutation
 records.
 
@@ -205,10 +205,10 @@ a runnable structural example, not adopted world lore. From the installed
 `SKILL.md` directory:
 
 ```bash
-python scripts/world_realization.py inspect --root <project> --plan plan.json
-python scripts/world_realization.py build --root <project> --plan plan.json --out <new-output-directory>
-python scripts/world_realization.py verify --root <project> --plan plan.json --bundle <output-directory>
-python scripts/world_realization.py impact --root <project> --plan plan.json
+python scripts/world_realization.py inspect --root STUDIO --plan plan.json
+python scripts/world_realization.py build --root STUDIO --plan plan.json --out <new-output-directory>
+python scripts/world_realization.py verify --root STUDIO --plan plan.json --bundle <output-directory>
+python scripts/world_realization.py impact --root STUDIO --plan plan.json
 python scripts/world_realization.py --help
 python scripts/world_realization_smoke_test.py
 ```

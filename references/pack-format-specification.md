@@ -61,7 +61,7 @@ A released UUID and CalVer pair is immutable. Any content change requires a new 
 
 `record_globs` select JSON files below `records/`. `resource_globs` select non-record content such as SVGs, evidence bundles, thumbnails, lookup data, and pack-specific supporting documents. A resource glob may not select any file below `records/`, `pack.json`, or `pack.lock.json`. `resource_bindings` maps stable lowercase logical names to exact files selected by `resource_globs`.
 
-Globs and binding targets use forward-slash relative paths. They may not escape the pack root. At least one record or resource glob must be declared. Every binding target must exist and be covered by a resource glob. A mutable unlocked development pack may have no matched record or resource content and receives a warning. A released or locked pack with neither a matched record nor a matched resource is invalid.
+Globs and binding targets use forward-slash relative paths. They may not escape the pack root. At least one record or resource glob must be declared. Every binding target must exist and be covered by a resource glob. Every file below the pack root is the manifest, the lock, a top-level README, NOTICE or LICENSE, or a file a declared glob matches; any other file is a validation error, so a stray file cannot enter a lock. A mutable unlocked development pack may have no matched record or resource content and receives a warning. A released or locked pack with neither a matched record nor a matched resource is invalid.
 
 ### Dependencies
 
@@ -109,7 +109,7 @@ Record containers are validated with [pack-record-file.schema.json](../schemas/p
 }
 ```
 
-`kind` identifies the catalog role. Module files require `category`. Every record requires a canonical ID, and IDs must be unique within the pack and across the resolved enabled set.
+`kind` identifies the catalog role. Module files require `category`. A `species` module record also requires `scaffold`, its face-geometry family; `schemas/pack-record-file.schema.json` describes each family. Every record requires a canonical ID, and IDs must be unique within the pack and across the resolved enabled set.
 
 Canonical retrieval fields are English. Source-language text may be retained only in explicit provenance or opaque source metadata fields.
 
@@ -123,6 +123,8 @@ Rights are declared by the pack manifest's `license`, and provenance is carried 
 - `resource_refs`: one or more pack-relative resources, including `primary_resource`.
 
 Every referenced path must be selected by `resource_globs`. Multiple asset records may be selected together, so one record can provide identity geometry while others provide pose, clothing, finish, or evidence views. Resource relationships are explicit; the runtime does not silently choose one global SVG.
+
+A Visual Evidence record is an asset whose artifacts come from the bundle that [Derived Visual Evidence](derived-visual-evidence.md) lays out. An artifact uses SVG where a vector file is required. The feature is named for the evidence it carries, not for that file format.
 
 Every `artifacts` row must name a declared `resource_refs` path. Its media type and SHA-256 must match the corresponding lock row in a released pack, or the actual resource in an unlocked development pack. Artifact IDs and paths are unique within the asset.
 
@@ -141,14 +143,25 @@ Resources are pack-owned files that are not direct catalog records. Examples inc
 
 The lock inventories resources. Asset records describe searchable semantic roles, supported scopes, provenance, and relationships to canonical records. `resource_bindings` expose pack-owned policy or index files under stable logical names. Large resource contents are not copied into the lexical search database; searchable metadata, resource paths, and relationships are indexed instead.
 
-Several enabled packs may expose the same logical resource name. The required `resource_providers` state object selects the provider pack UUID for each resource the runtime should resolve. Only that selected provider is eligible. Missing selections and unavailable, invalid, disabled, dependency-excluded, or UUID-conflicted providers leave the resource unresolved and produce diagnostics. Root order and last-writer-wins precedence are never used.
+Each named resource resolves to the whole file of the highest-ranked enabled pack that binds that name. A lower-ranked pack supplies only the names no higher pack binds. Records merge across packs, and a record ID that several packs define resolves by the same rank. Packs rank by two rules:
+
+1. A pack outranks every pack it requires, directly or through their dependencies. A pack that requires the commons therefore supersedes the commons.
+2. Of two packs where neither requires the other, the one earlier in `pack_order` of the pack state outranks the later one.
+
+Two packs that neither rule orders may bind one name with identical files. When their files differ, the name is a conflict: the runtime leaves that resource out and keeps both packs in use. `pack_cli.py ready` prints one decision naming both packs (synthetic fixture):
+
+```text
+decide: packs 01a10705-c12f-7e46-93a8-fac87fe3af01, 01a10705-c144-7330-b426-1c9cbe41964b bind the same resources with different files (negative-policy) and neither requires the other; declare a required dependency of one pack on the other, or list the packs in pack_order in the pack state, where the earlier pack wins
+```
+
+Pack root order never decides which pack supplies a name.
 
 ## Lock inventory
 
 `pack.lock.json` is generated and validated with [pack-lock.schema.json](../schemas/pack-lock.schema.json). It contains:
 
 - pack UUID and release
-- every file except the lock itself
+- every file except the lock itself and the process lock file `.cpb.lock`, which coordinates concurrent commands and is never pack content
 - relative path
 - byte size
 - SHA-256
@@ -172,7 +185,7 @@ Resolution performs these checks in order:
 5. record-file validation
 6. canonical record-ID conflicts and explicit replacements
 7. resource inventory and asset references
-8. explicit named-resource provider resolution from state
+8. named-resource merging across the active packs
 
 Invalid packs and packs whose required dependencies are invalid are excluded from the generated cache. Other valid packs remain usable. Diagnostics retain exact UUIDs and paths.
 
@@ -184,4 +197,4 @@ Remove accepts only a lowercase UUIDv7, requires a disabled managed pack, and mo
 
 ## User state and shipped initial state
 
-`pack-state.json` contains exactly `pack_roots`, `enabled_packs`, and `resource_providers`. The last field maps lowercase logical resource names to provider pack UUIDv7 identities. The core ships [default-pack-state.json](../config/default-pack-state.json) as its minimal release seed, with commons and its required providers. When the selected state does not yet exist, [pack-initialization.json](../config/pack-initialization.json) adds every discovered pack and unambiguous additional provider. Explicit user state then becomes the sole activation and provider authority. It is not merged with the shipped file.
+`pack-state.json` contains `pack_roots` and `enabled_packs`, `disabled_packs` once the author leaves a pack out, and `pack_order` once the author orders packs that neither requires. The core ships [default-pack-state.json](../config/default-pack-state.json) as its minimal release seed, which enables commons. When the selected state does not yet exist, [pack-initialization.json](../config/pack-initialization.json) adds every discovered pack. Explicit user state then becomes the sole activation authority. It is not merged with the shipped file.

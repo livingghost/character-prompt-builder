@@ -1,6 +1,6 @@
 # Camera Framing Contract
 
-A camera label is not enough to reproduce a preset. The Camera Framing Contract records the subject-to-camera relationship, frame occupancy, crop landmarks, and perspective consequences that must remain stable across generations.
+A camera label cannot reproduce a record's framing. The Camera Framing Contract records the subject-to-camera relationship, frame occupancy, crop landmarks, and perspective consequences that must remain stable across generations.
 
 ## Why it exists
 

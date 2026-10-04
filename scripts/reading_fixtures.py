@@ -11,7 +11,7 @@ _WORK = tempfile.TemporaryDirectory(prefix='synthetic-reading-')
 
 
 def fixture_reading(*, route: str = 'generation', features: list[str] | None = None,
-                    project: Path | None = None, ledger: Path | None = None) -> dict:
+                    studio: Path | None = None, ledger: Path | None = None) -> dict:
     """Read full fixture documents, then author a labeled synthetic application of the route's own documents."""
     ledger = ledger or Path(os.environ.get('CPB_READS_LEDGER', str(Path(_WORK.name)/'reads.jsonl')))
     os.environ['CPB_READS_LEDGER'] = str(ledger.absolute())
@@ -41,7 +41,7 @@ def fixture_reading(*, route: str = 'generation', features: list[str] | None = N
 
 
 def task_reading(root: Path, task: dict) -> dict:
-    record = fixture_reading(route=task['route'], features=task['features'], project=root)
+    record = fixture_reading(route=task['route'], features=task['features'], studio=root)
     path = 'work/fixture-reading-' + c.content_id(record) + '.json'
     target = root/path; target.parent.mkdir(parents=True,exist_ok=True)
     target.write_bytes(c.encoded(record))

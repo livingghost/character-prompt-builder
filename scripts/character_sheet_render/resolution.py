@@ -903,7 +903,7 @@ def resolve_state_panels(
     def attach_editor_row_alias(
         box: dict[str, Any], table_id: str, row_id: str
     ) -> None:
-        """Let the profile-neutral HTML bind evidence before profile resolution."""
+        """Let the layout-neutral HTML bind evidence before layout profile resolution."""
 
         alias = f"row.{table_id}.{row_id}"
         if alias == box.get("slot_id"):
@@ -971,7 +971,7 @@ def resolve_state_panels(
         if len(view_entries) < 2:
             raise ValueError(
                 "the sheet's views table must declare at least two view rows: "
-                "declared views replace the profile's authored canonical view grid "
+                "declared views replace the layout profile's authored canonical view grid "
                 f"with one base panel per declared row, and {len(view_entries)} row "
                 "cannot form the minimum topology comparison grid"
             )
@@ -989,7 +989,7 @@ def resolve_state_panels(
             if box.get("kind") == "outfit_turnaround"
         ]
         if not canonical_templates:
-            raise ValueError("the selected profile has no canonical_view frame to resolve declared views")
+            raise ValueError("the selected layout profile has no canonical_view frame to resolve declared views")
 
         remaining_rows: list[dict[str, Any]] = []
         for profile_row in resolved["rows"]:
@@ -1045,7 +1045,7 @@ def resolve_state_panels(
         ]
         if outfit_entries and not outfit_templates:
             raise ValueError(
-                "outfit states and declared views exist, but the selected profile has no "
+                "outfit states and declared views exist, but the selected layout profile has no "
                 "outfit_turnaround frame to resolve their comparison grid"
             )
         outfit_boxes_by_row: list[tuple[str, list[dict[str, Any]]]] = []
@@ -1216,7 +1216,7 @@ def resolve_state_panels(
             used_part_rows.add(entry["row_id"])
 
     # The first declared outfit/equipment row is shown through every
-    # outfit_turnaround view authored by the selected profile. Additional
+    # outfit_turnaround view authored by the selected layout profile. Additional
     # outfit rows clone that complete profile-defined view set below; no
     # humanoid direction names or fixed view count are assumed here.
     for profile_row in resolved["rows"]:
@@ -1402,7 +1402,7 @@ def resolve_state_panels(
             needed = []
         if not needed:
             continue
-        # Continue the authored band's panel-code letter when the profile
+        # Continue the authored band's panel-code letter when the layout profile
         # already carries panels of this kind; otherwise take an unused letter.
         authored_codes = [
             meaningful(str(box.get("panel_code", "")))

@@ -45,7 +45,28 @@
           "weight": 1.0,
           "source": "author"
         }
-      ]
+      ],
+      "status": "retained",
+      "evidence_basis": [
+        "canonical family record shipped in the commons pack"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-quiet-editorial",
+      "boundary": "Centered, face-focused finish with compact values and confident contours; quiet editorial moves the balance off-center and thins the contextual detail.",
+      "review_notes": "Retained as a shipped commons family; its canonical record states the grammar."
     },
     {
       "id": "style-family-sculpted-presence",
@@ -91,7 +112,28 @@
           "weight": 1.0,
           "source": "author"
         }
-      ]
+      ],
+      "status": "retained",
+      "evidence_basis": [
+        "canonical family record shipped in the commons pack"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-clear-portrait",
+      "boundary": "Broad connected form masses, controlled perspective and restrained edge light carry the whole figure; clear portrait concentrates its finish on the face.",
+      "review_notes": "Retained as a shipped commons family; its canonical record states the grammar."
     },
     {
       "id": "style-family-quiet-editorial",
@@ -137,7 +179,28 @@
           "weight": 1.0,
           "source": "author"
         }
-      ]
+      ],
+      "status": "retained",
+      "evidence_basis": [
+        "canonical family record shipped in the commons pack"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-clear-portrait",
+      "boundary": "Off-center balance, gentle value transitions and sparse contextual detail; clear portrait keeps the subject centered with firmer contours.",
+      "review_notes": "Retained as a shipped commons family; its canonical record states the grammar."
     },
     {
       "id": "style-family-environmental-illustration",
@@ -183,7 +246,28 @@
           "weight": 1.0,
           "source": "author"
         }
-      ]
+      ],
+      "status": "retained",
+      "evidence_basis": [
+        "canonical family record shipped in the commons pack"
+      ],
+      "recurring_axes": [
+        "line",
+        "form",
+        "shadow_and_value",
+        "highlight",
+        "color",
+        "surface",
+        "background",
+        "detail_hierarchy"
+      ],
+      "excluded_scene_attributes": [
+        "subject identity",
+        "single pose or camera choice"
+      ],
+      "nearest_family": "style-family-quiet-editorial",
+      "boundary": "Foreground, middle-ground and background cues at descending detail levels around a readable design; quiet editorial keeps its context sparse rather than layered.",
+      "review_notes": "Retained as a shipped commons family; its canonical record states the grammar."
     }
   ]
 }

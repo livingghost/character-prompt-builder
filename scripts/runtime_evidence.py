@@ -1,4 +1,4 @@
-"""Use only project, skill and active catalog roots for local input evidence."""
+"""Use only studio, skill and active catalog roots for local input evidence."""
 from pathlib import Path
 from input_evidence import InputEvidence
 import execution_contract as c
@@ -13,13 +13,10 @@ def reader(root:Path|None,*,snapshots:dict|None=None,live:bool=True)->InputEvide
             name='@pack/'+entry.source_pack;path=Path(entry.source_root).resolve()
             if name in roots and roots[name]!=path:raise ValueError('active pack ID has multiple roots')
             roots[name]=path
-        for resource in catalog.resources.values():
-            name='@pack/'+resource.source_pack
-            if name in roots:continue
-            for path in Path(resource.path).parents:
-                manifest=path/'pack.json'
-                if manifest.is_file() and c.load(manifest).get('pack_id')==resource.source_pack:
-                    roots[name]=path.resolve();break
+        for pack_id,path in catalog.pack_roots.items():
+            name='@pack/'+pack_id;path=Path(path).resolve()
+            if name in roots and roots[name]!=path:raise ValueError('active pack ID has multiple roots')
+            roots[name]=path
     return InputEvidence(root,snapshots=snapshots,live=live,named_roots=roots)
 
 

@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
-from execution_contract import atomic_write_json, lock, sha256_file
+from execution_contract import LOCK_FILE, atomic_write_json, lock, sha256_file
 from package_metadata import calver_key
 from model_contract import recommended_parameter_issues, validate_model_record
 from resource_policy import KNOWN_RESOURCE_VALIDATORS, validate_known_resource
@@ -32,6 +32,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_ROOT = ROOT / "schemas"
 PACK_SCHEMA_PATH = SCHEMA_ROOT / "pack.schema.json"
 PACK_LOCK_SCHEMA_PATH = SCHEMA_ROOT / "pack-lock.schema.json"
+# The shipped commons pack. The core manifest verifies its files, so it has no lock.
+COMMONS_PACK_ID = "01a0043b-2250-720d-87b7-f1e6fd7ed230"
 PACK_RECORD_SCHEMA_PATH = SCHEMA_ROOT / "pack-record-file.schema.json"
 PACK_STATE_SCHEMA_PATH = SCHEMA_ROOT / "pack-state.schema.json"
 VISUAL_EVIDENCE_BUNDLE_SCHEMA_PATH = SCHEMA_ROOT / "visual-evidence-bundle.schema.json"
@@ -41,7 +43,6 @@ PACK_INITIALIZATION_PATH = ROOT / "config" / "pack-initialization.json"
 PACK_ID_RE = re.compile(
     r"^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
 )
-RESOURCE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9.-]*$")
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 
 
@@ -147,7 +148,6 @@ class PackSettings:
     managed_root: Path
     quarantine_root: Path
     default_enabled_packs: tuple[str, ...] = ()
-    default_resource_providers: tuple[tuple[str, str], ...] = ()
     # Two different jobs. ``default_enabled_packs`` seeds a runtime that has no
     # state file yet; ``protected_pack_ids`` stands as a floor under explicit
     # user state and refuses to let those packs be disabled. Only the runtime
@@ -273,6 +273,29 @@ def _schema_issues(value: Any, schema_path: Path, source_path: Path) -> list[Pac
     ]
 
 
+def species_scaffold_issues(records: Iterable[Mapping[str, Any]]) -> list[str]:
+    """Check that every species record names a known scaffold family.
+
+    The records may come from every enabled pack at once, so the check reads
+    the resolved catalog rather than one pack's files.
+    """
+    schema = _load_schema(PACK_RECORD_SCHEMA_PATH)
+    reference = {"$ref": "#/$defs/species-scaffold"}
+    issues: list[str] = []
+    for record in records:
+        record_id = str(record.get("id") or "")
+        if "scaffold" not in record:
+            issues.append(f"{record_id}: species record requires scaffold")
+            continue
+        issues.extend(
+            f"{record_id}: {message}"
+            for message in validate_against_schema(
+                record["scaffold"], reference, "scaffold", schema
+            )
+        )
+    return issues
+
+
 def _safe_relative_pattern(pattern: str) -> bool:
     if not pattern or "\\" in pattern or pattern.startswith("/"):
         return False
@@ -355,36 +378,50 @@ def _expand_globs(root: Path, patterns: Sequence[str]) -> tuple[list[Path], list
     return [files[key] for key in sorted(files)], issues
 
 
-def _snapshot_issues(root: Path, offering: dict[str, Any]) -> list[str]:
-    """What is wrong with the observed parameter schema an offering points at."""
+def declared_record_ids(root: Path, manifest: Mapping[str, Any]) -> set[str]:
+    """The record IDs a pack's record files declare, read without validating the pack.
 
-    relative = str(offering.get("schema_snapshot"))
-    path = (root / relative).resolve()
+    A run's freshness check uses this to see whether a newly enabled pack
+    declares a record the run uses. Unreadable files declare nothing here;
+    catalog validation reports them.
+    """
+
+    content = manifest.get("content") if isinstance(manifest.get("content"), Mapping) else {}
+    files, _ = _expand_globs(Path(root), [str(item) for item in content.get("record_globs") or []])
+    found: set[str] = set()
+    for path in files:
+        try:
+            document = load_json(path)
+        except (PackError, OSError, ValueError):
+            continue
+        rows = document.get("records") if isinstance(document, Mapping) else None
+        for row in rows if isinstance(rows, list) else []:
+            if isinstance(row, Mapping) and isinstance(row.get("id"), str):
+                found.add(row["id"])
+    return found
+
+
+def _snapshot_issues(root: Path, offering: dict[str, Any], model_id: str) -> list[str]:
+    """What is wrong with the observed parameter schema an offering of model record `model_id` points at.
+
+    The file must stay in the pack and meet the one observed-schema contract
+    that request building and request validation also apply.
+    """
+
+    from model_contract import observed_schema_issues, offering_expectation
+
+    where = f"offering on {offering.get('service')!r}: schema_snapshot {str(offering.get('schema_snapshot'))!r}"
+    path = (root / str(offering.get("schema_snapshot"))).resolve()
     if root.resolve() not in path.parents:
-        return [f"offering on {offering.get('service')!r}: schema_snapshot {relative!r} leaves the pack"]
+        return [f"{where} leaves the pack"]
     if not path.is_file():
-        return [f"offering on {offering.get('service')!r}: schema_snapshot {relative!r} is not in the pack"]
+        return [f"{where} is not in the pack"]
     try:
         snapshot = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        return [f"offering on {offering.get('service')!r}: schema_snapshot {relative!r} did not load: {exc}"]
-    issues: list[str] = []
-    schema = snapshot.get("schema") if isinstance(snapshot, dict) else None
-    if not isinstance(schema, dict):
-        return [f"offering on {offering.get('service')!r}: schema_snapshot {relative!r} carries no schema"]
-    for name in ("service", "model_identifier", "observed_at"):
-        if snapshot.get(name) != offering.get(name):
-            issues.append(
-                f"offering on {offering.get('service')!r}: schema_snapshot {relative!r} records "
-                f"{name} {snapshot.get(name)!r}, the offering {offering.get(name)!r}"
-            )
-    declared = ((schema.get("properties") or {}).get("model") or {}).get("const")
-    if declared is not None and declared != offering.get("model_identifier"):
-        issues.append(
-            f"offering on {offering.get('service')!r}: the observed schema is for {declared!r}, "
-            f"the offering names {offering.get('model_identifier')!r}"
-        )
-    return issues
+        return [f"{where} did not load: {exc}"]
+    expected, model_key = offering_expectation(model_id, offering)
+    return [f"{where}: {issue}" for issue in observed_schema_issues(snapshot, expected, model_key=model_key)]
 
 
 def _all_pack_files(root: Path) -> tuple[list[Path], list[PackIssue]]:
@@ -402,6 +439,9 @@ def _all_pack_files(root: Path) -> tuple[list[Path], list[PackIssue]]:
     def walk(directory: Path) -> None:
         for path in sorted(directory.iterdir(), key=lambda item: item.name):
             relative = path.relative_to(root).as_posix()
+            if relative == LOCK_FILE:
+                # The process lock coordinates concurrent commands; it is never pack content.
+                continue
             if _is_link(path):
                 issues.append(
                     PackIssue(
@@ -421,7 +461,16 @@ def _all_pack_files(root: Path) -> tuple[list[Path], list[PackIssue]]:
     return files, issues
 
 
+# A lock records one media type per file on every interpreter. The table of the
+# standard library differs between Python releases, so the types a pack commonly
+# holds are named here first.
+_MEDIA_TYPES = {".webp": "image/webp", ".avif": "image/avif", ".jsonl": "application/jsonl"}
+
+
 def _media_type(path: Path) -> str:
+    explicit = _MEDIA_TYPES.get(path.suffix.lower())
+    if explicit:
+        return explicit
     guessed, _ = mimetypes.guess_type(path.name)
     return guessed or "application/octet-stream"
 
@@ -485,7 +534,7 @@ def build_lock_data(root: Path) -> dict[str, Any]:
     }
 
 
-def is_project_pack(root: Path, manifest: Mapping[str, Any] | None = None) -> bool:
+def is_commons_pack(root: Path, manifest: Mapping[str, Any] | None = None) -> bool:
     """Only this checkout's commons is maintained by the core manifest.
 
     A third-party pack cannot opt out of locking by copying a UUID or setting
@@ -496,7 +545,7 @@ def is_project_pack(root: Path, manifest: Mapping[str, Any] | None = None) -> bo
     if root.is_symlink() or expected.is_symlink() or root.resolve() != expected.resolve():
         return False
     data = manifest if manifest is not None else load_json(root / "pack.json")
-    return data.get("pack_id") == "01a0043b-2250-720d-87b7-f1e6fd7ed230"
+    return data.get("pack_id") == COMMONS_PACK_ID
 
 
 def write_lock(root: Path) -> dict[str, Any]:
@@ -508,7 +557,7 @@ def write_lock(root: Path) -> dict[str, Any]:
     """
 
     root = root.resolve()
-    if is_project_pack(root):
+    if is_commons_pack(root):
         raise PackError("Bundled commons is core-managed and must not have pack.lock.json")
     data = build_lock_data(root)
     atomic_write_json(root / "pack.lock.json", data)
@@ -950,6 +999,23 @@ def validate_pack(
     resource_files, resource_glob_issues = _expand_globs(root, resource_patterns)
     report.issues.extend(record_glob_issues)
     report.issues.extend(resource_glob_issues)
+    # Every file below the root is declared, so a stray file cannot enter a lock.
+    declared = {"pack.json", "pack.lock.json"}
+    declared.update(path.relative_to(root).as_posix() for path in record_files)
+    declared.update(path.relative_to(root).as_posix() for path in resource_files)
+    for path in files:
+        relative = path.relative_to(root).as_posix()
+        if relative in declared or ("/" not in relative and _file_role(relative) in {"license", "documentation"}):
+            continue
+        report.issues.append(
+            PackIssue(
+                "error",
+                "undeclared-file",
+                "A file below the pack root is not the manifest, the lock, a top-level README, NOTICE or "
+                "LICENSE, or a file a declared glob matches.",
+                relative,
+            )
+        )
     eligible_resource_files: list[Path] = []
     for path in resource_files:
         relative = path.relative_to(root).as_posix()
@@ -1109,7 +1175,7 @@ def validate_pack(
                 for offering in record.get("offerings") or []:
                     if not isinstance(offering, dict) or not offering.get("schema_snapshot"):
                         continue
-                    for message in _snapshot_issues(root, offering):
+                    for message in _snapshot_issues(root, offering, str(record.get("id"))):
                         report.issues.append(
                             PackIssue("error", "observed-schema", message, relative)
                         )
@@ -1232,8 +1298,8 @@ def validate_pack(
                     "pack.json",
                 )
             )
-    project_owned = is_project_pack(root, manifest)
-    if require_lock and not report.lock_present and not project_owned:
+    commons_owned = is_commons_pack(root, manifest)
+    if require_lock and not report.lock_present and not commons_owned:
         report.issues.append(
             PackIssue(
                 "error",
@@ -1244,7 +1310,7 @@ def validate_pack(
         )
     elif report.lock_present and verify_lock:
         report.issues.extend(_validate_lock(root, manifest))
-    elif not report.lock_present and not project_owned:
+    elif not report.lock_present and not commons_owned:
         report.issues.append(
             PackIssue(
                 "warning",
@@ -1264,8 +1330,13 @@ def require_valid(report: PackValidation) -> PackValidation:
 
 
 def _user_data_home() -> Path:
-    """Return the platform-independent persistent runtime-state directory."""
-    return (Path.home() / ".character-prompt-builder").resolve()
+    """Return the configuration directory: CPB_HOME when it is set, ~/.character-prompt-builder otherwise.
+
+    The pack state, the catalog cache, the managed packs, the home reading
+    ledger and the operation logs live under it.
+    """
+    configured = os.environ.get("CPB_HOME", "").strip()
+    return (Path(configured) if configured else Path.home() / ".character-prompt-builder").resolve()
 
 
 def default_settings(
@@ -1275,7 +1346,6 @@ def default_settings(
     cache_dir: Path | None = None,
     managed_root: Path | None = None,
     default_enabled_packs: Sequence[str] | None = None,
-    default_resource_providers: Mapping[str, str] | None = None,
 ) -> PackSettings:
     state_home = _user_data_home()
     if state_file is not None:
@@ -1304,21 +1374,9 @@ def default_settings(
             seen.add(key)
             unique.append(resolved)
     if default_enabled_packs is None:
-        initial_state = load_state(DEFAULT_PACK_STATE_PATH)
-    if default_enabled_packs is None:
-        resolved_defaults = tuple(initial_state["enabled_packs"])
+        resolved_defaults = tuple(load_state(DEFAULT_PACK_STATE_PATH)["enabled_packs"])
     else:
         resolved_defaults = tuple(str(value) for value in default_enabled_packs)
-    if default_resource_providers is None:
-        resolved_default_providers = (
-            tuple(sorted(initial_state["resource_providers"].items()))
-            if default_enabled_packs is None
-            else ()
-        )
-    else:
-        resolved_default_providers = tuple(
-            sorted((str(name), str(pack_id)) for name, pack_id in default_resource_providers.items())
-        )
     # The floor belongs to the runtime that reads the user's own state file. A
     # runtime pointed at some other state file is an isolated one, and the
     # specification makes explicit user state the sole activation authority
@@ -1333,7 +1391,6 @@ def default_settings(
         managed_root=managed,
         quarantine_root=(managed / ".quarantine").resolve(),
         default_enabled_packs=resolved_defaults,
-        default_resource_providers=resolved_default_providers,
         protected_pack_ids=() if isolated else resolved_defaults,
         initialize_all_discovered=(
             default_enabled_packs is None
@@ -1473,17 +1530,13 @@ def load_state(
     path: Path,
     *,
     default_enabled_packs: Sequence[str] = (),
-    default_resource_providers: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     if not path.is_file():
         return {
             "pack_roots": [],
             "enabled_packs": [str(value) for value in default_enabled_packs],
             "disabled_packs": [],
-            "resource_providers": {
-                str(name): str(pack_id)
-                for name, pack_id in (default_resource_providers or {}).items()
-            },
+            "pack_order": [],
         }
     value = load_json(path)
     if not isinstance(value, dict):
@@ -1493,7 +1546,7 @@ def load_state(
         raise PackError(
             f"Pack state failed schema validation: {schema_errors[0].message}: {path}"
         )
-    unexpected = sorted(set(value) - {"pack_roots", "enabled_packs", "disabled_packs", "resource_providers"})
+    unexpected = sorted(set(value) - {"pack_roots", "enabled_packs", "disabled_packs", "pack_order"})
     if unexpected:
         raise PackError(f"Pack state contains unexpected fields {unexpected}: {path}")
     enabled = value.get("enabled_packs")
@@ -1507,19 +1560,14 @@ def load_state(
     normalized_roots = [str(Path(value).expanduser().resolve()) for value in pack_roots]
     if len(normalized_roots) != len(set(os.path.normcase(value) for value in normalized_roots)):
         raise PackError(f"pack_roots contains duplicate paths: {path}")
-    providers = value.get("resource_providers")
-    if not isinstance(providers, dict) or any(
-        not isinstance(name, str) or not isinstance(pack_id, str)
-        for name, pack_id in providers.items()
-    ):
-        raise PackError(f"resource_providers must map resource names to pack IDs: {path}")
     return {
         "pack_roots": normalized_roots,
         "enabled_packs": list(enabled),
         # The packs the author chose to leave out. A discovered pack in neither
         # list has appeared since, and nobody has decided about it yet.
         "disabled_packs": [str(item) for item in value.get("disabled_packs") or []],
-        "resource_providers": dict(sorted(providers.items())),
+        # Which of two packs that neither requires the other supplies a name; earlier wins.
+        "pack_order": [str(item) for item in value.get("pack_order") or []],
     }
 
 
@@ -1535,7 +1583,6 @@ def load_effective_state(
     state = load_state(
         settings.state_file,
         default_enabled_packs=settings.default_enabled_packs,
-        default_resource_providers=dict(settings.default_resource_providers),
     )
     if not settings.state_file.is_file() and (settings.initialize_all_discovered or only is not None):
         # A pack discovery cannot read is left out here and reported by every
@@ -1548,22 +1595,8 @@ def load_effective_state(
             state["disabled_packs"] = sorted(set(discovered) - set(only))
             discovered = {pack_id: discovered[pack_id] for pack_id in only}
             state["enabled_packs"] = sorted(discovered)
-            state["resource_providers"] = {
-                name: owner
-                for name, owner in state["resource_providers"].items()
-                if owner in discovered
-            }
         else:
             state["enabled_packs"] = sorted(set(state["enabled_packs"]) | set(discovered))
-        candidates: dict[str, list[str]] = {}
-        for pack_id, pack in discovered.items():
-            for name in pack.manifest.get("content", {}).get("resource_bindings", {}):
-                candidates.setdefault(name, []).append(pack_id)
-        for name, providers in candidates.items():
-            if name not in state["resource_providers"] and len(providers) == 1:
-                state["resource_providers"][name] = providers[0]
-        # Competing providers without a declared default remain unresolved;
-        # activation must never silently choose an arbitrary provider.
     return state
 
 
@@ -1577,18 +1610,16 @@ def save_state(path: Path, state: Mapping[str, Any]) -> None:
         if key not in seen:
             seen.add(key)
             roots.append(resolved)
-    providers = {
-        str(name): str(pack_id)
-        for name, pack_id in sorted((state.get("resource_providers") or {}).items())
-    }
     value: dict[str, Any] = {
         "pack_roots": roots,
         "enabled_packs": enabled,
-        "resource_providers": providers,
     }
     disabled = sorted(set(str(item) for item in state.get("disabled_packs") or []) - set(enabled))
     if disabled:
         value["disabled_packs"] = disabled
+    order = [str(item) for item in state.get("pack_order") or []]
+    if order:
+        value["pack_order"] = order
     schema_errors = _schema_issues(value, PACK_STATE_SCHEMA_PATH, path)
     if schema_errors:
         raise PackError(f"Pack state failed schema validation: {schema_errors[0].message}: {path}")
@@ -1816,12 +1847,10 @@ def disable_pack(settings: PackSettings, pack_id: str, *, cascade: bool = False)
     enabled = set(state["enabled_packs"])
     if pack_id not in enabled:
         # Disabling a pack that is not enabled records the decision, so the
-        # pack is not asked about again, and clears any provider selections it
-        # still owns, from an edited state or a pack that vanished.
+        # pack is not asked about again.
         proposed = {
             **state,
             "disabled_packs": sorted({*state["disabled_packs"], pack_id}),
-            "resource_providers": _providers_without(state["resource_providers"], {pack_id}),
         }
         if proposed == state:
             return state
@@ -1852,55 +1881,9 @@ def disable_pack(settings: PackSettings, pack_id: str, *, cascade: bool = False)
         **state,
         "enabled_packs": sorted(enabled - removal),
         "disabled_packs": sorted({*state["disabled_packs"], *removal}),
-        "resource_providers": _providers_without(state["resource_providers"], removal),
     }
     save_state(settings.state_file, proposed)
     return proposed
-
-
-def _providers_without(providers: Mapping[str, str], pack_ids: set[str]) -> dict[str, str]:
-    """The provider selections that remain once `pack_ids` stop providing anything."""
-    return {name: owner for name, owner in providers.items() if owner not in pack_ids}
-
-
-@_under_state_lock
-def select_resource_provider(
-    settings: PackSettings,
-    name: str,
-    pack_id: str,
-) -> dict[str, Any]:
-    """Select the sole enabled provider for one logical resource name."""
-    if not RESOURCE_NAME_RE.fullmatch(name):
-        raise PackError(f"Invalid logical resource name: {name!r}")
-    if not PACK_ID_RE.fullmatch(pack_id):
-        raise PackError(f"Pack ID must be a lowercase UUIDv7: {pack_id!r}")
-    state = load_effective_state(settings)
-    if pack_id not in state["enabled_packs"]:
-        raise PackError(f"Resource provider pack is not enabled: {pack_id}")
-    discovered, issues = discover_packs(settings, state)
-    if pack_id not in discovered:
-        matching = [issue.message for issue in issues if pack_id in issue.message]
-        detail = f" ({matching[0]})" if matching else ""
-        raise PackError(f"Resource provider pack is unavailable: {pack_id}{detail}")
-    report = require_valid(validate_pack(discovered[pack_id].root))
-    if name not in report.resource_bindings:
-        raise PackError(f"Pack {pack_id} does not provide logical resource {name!r}.")
-    proposed = {**state, "resource_providers": {**state["resource_providers"], name: pack_id}}
-    save_state(settings.state_file, proposed)
-    return load_effective_state(settings)
-
-
-@_under_state_lock
-def clear_resource_provider(settings: PackSettings, name: str) -> dict[str, Any]:
-    """Remove the explicit provider selection for one logical resource."""
-    if not RESOURCE_NAME_RE.fullmatch(name):
-        raise PackError(f"Invalid logical resource name: {name!r}")
-    state = load_effective_state(settings)
-    providers = dict(state["resource_providers"])
-    providers.pop(name, None)
-    proposed = {**state, "resource_providers": providers}
-    save_state(settings.state_file, proposed)
-    return load_effective_state(settings)
 
 
 def quick_pack_snapshot(pack: DiscoveredPack) -> dict[str, Any]:
@@ -1959,7 +1942,7 @@ def active_snapshot(settings: PackSettings, *, strict: bool = False) -> dict[str
     # nothing about building one.
     payload = {
         "enabled_packs": list(state.get("enabled_packs") or []),
-        "resource_providers": dict(sorted((state.get("resource_providers") or {}).items())),
+        "pack_order": list(state.get("pack_order") or []),
         "available_enabled_packs": [pack.pack_id for pack in selected],
         "discovery_issues": [issue.to_dict() for issue in issues],
         "packs": packs,
@@ -2234,11 +2217,9 @@ def remove_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
         f"{pack_id}-{release_token}-removed-{int(time.time())}-{uuid.uuid4().hex[:8]}"
     )
     os.replace(target, quarantine)
-    providers = _providers_without(state["resource_providers"], {pack_id})
     remaining = {
         **state,
         "disabled_packs": [value for value in state["disabled_packs"] if value != pack_id],
-        "resource_providers": providers,
     }
     if remaining != state:
         save_state(settings.state_file, remaining)
@@ -2249,7 +2230,6 @@ def remove_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
         "release": release,
         "quarantine_path": str(quarantine),
         "recoverable": True,
-        "cleared_providers": sorted(set(state["resource_providers"]) - set(providers)),
     }
 
 
@@ -2311,13 +2291,12 @@ def list_packs(
         "state_file": str(settings.state_file),
         "roots": [str(root) for root in configured_roots(settings, state)],
         "enabled_packs": sorted(enabled),
-        "resource_providers": state["resource_providers"],
         "packs": rows,
         "discovery_issues": [issue.to_dict() for issue in issues],
-        # An id claimed by more than one enabled pack is excluded from the
-        # catalog entirely, with no copy surviving, unless exactly one of them
-        # declares that it replaces the others'. That is settled where the packs
-        # are merged, however many there are, so it is reported here rather than
+        # An id claimed by more than one enabled pack resolves to the pack that
+        # outranks the others, or to the one that declares it replaces them;
+        # otherwise it is excluded from the catalog entirely. That is settled
+        # where the catalog is resolved, so it is reported here rather than
         # discovered by a lookup that comes back empty.
         "catalog_diagnostics": _catalog_diagnostics(settings),
     }
@@ -2337,8 +2316,7 @@ def initialize_state_file(settings: PackSettings, *, only: Sequence[str] | None 
     """Persist the first-use state when the state file is absent; say whether it was.
 
     `only` names the packs a new state enables instead of every discovered one.
-    An existing state file is never rewritten, so deliberate disabling and
-    provider choices survive.
+    An existing state file is never rewritten, so deliberate disabling survives.
     """
     if settings.state_file.is_file():
         if only is not None and set(load_state(settings.state_file)["enabled_packs"]) != set(only):

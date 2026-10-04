@@ -5,6 +5,7 @@ The selected direction stays unchanged. Repairs of direction or criteria use
 production_workflow.revise instead. Outputs are new candidates, never approvals.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import io
@@ -83,7 +84,7 @@ def _compile(root: Path, run: str, filename: str, *, allow_output: bool = False)
     if set(targets) - allowed:
         raise ValueError('pixel edits target delivery or declared decisions, not changes to the production contract')
     applied_paths = {s['path'] for s in prepared['task']['sources'] if s['disposition'] == 'applied'}
-    pinned = {d['path']: d['sha256'] for d in prepared['dependencies'] if d['space'] == 'project' and d['path'] in applied_paths}
+    pinned = {d['path']: d['sha256'] for d in prepared['dependencies'] if d['space'] == 'studio' and d['path'] in applied_paths}
     candidate_sources: dict[tuple[str, str], list[dict]] = {}
     for row in rows:
         if row['event'] == 'candidate':
@@ -95,7 +96,7 @@ def _compile(root: Path, run: str, filename: str, *, allow_output: bool = False)
         c.exact(spec, {'path', 'sha256'}, 'image source')
         c.sha(spec['sha256'])
         if pinned.get(spec['path']) != spec['sha256']:
-            raise ValueError('image sources must be pinned project inputs or captured candidates')
+            raise ValueError('image sources must be pinned studio inputs or captured candidates')
         data = c.read(c.local(root, spec['path']))
         if c.digest(data) != spec['sha256']:
             raise ValueError('image source changed')
@@ -265,7 +266,7 @@ def execute(root: Path, run: str, filename: str, authorization: str) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     for name in ('intent', 'execute'):
         sub = commands.add_parser(name)
@@ -287,4 +288,4 @@ def main() -> int:
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

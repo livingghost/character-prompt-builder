@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused contract tests for the independent one-pack release gate."""
+"""Focused contract tests for the pack release gate."""
 from __future__ import annotations
 
 import copy
@@ -13,6 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest import mock
+
 
 sys.dont_write_bytecode = True
 
@@ -29,7 +30,7 @@ from audit_preset_quality import (
     check_scene,
     check_style_family,
 )
-from pack_manager import validate_pack, write_lock
+from pack_manager import initialize_pack, validate_pack, write_lock
 from pack_release_gate import (
     _corpus_suite,
     _style_suite,
@@ -74,10 +75,6 @@ def _state(path: Path, pack: Path, *, extra_root: Path | None = None) -> None:
         {
             "pack_roots": roots,
             "enabled_packs": [manifest["pack_id"]],
-            "resource_providers": {
-                name: manifest["pack_id"]
-                for name in sorted(manifest["content"]["resource_bindings"])
-            },
         },
     )
 
@@ -519,31 +516,48 @@ def _correction_fixture() -> Record:
     )
 
 
-def _style_taxonomy_fixture(style_family_id: str) -> dict[str, Any]:
+def _style_boundary(nearest_family: str, *, status: str = "retained") -> dict[str, Any]:
     return {
-        "count": 1,
-        "families": [
-            {
-                "family_id": style_family_id,
-                "status": "new",
-                "recurring_axes": sorted(style_family_audit.RECURRING_AXES),
-                "excluded_scene_attributes": ["camera angle", "weather state"],
-                "boundary": "The family is separated from softer painterly work by its structured line and value systems.",
-                "evidence_basis": [
-                    "front character sheet",
-                    "three-quarter interaction study",
-                    "wide environment key art",
-                ],
-                "review_notes": "Three distinct compositions preserve the same authored systems across materially different scene demands.",
-            }
+        "status": status,
+        "evidence_basis": [
+            "front character sheet",
+            "three-quarter interaction study",
+            "wide environment key art",
         ],
-        "deferred_candidates": [
-            {
-                "candidate_id": "synthetic-one-scene-candidate",
-                "decision": "deferred-not-canonical",
-                "evidence_gap": "Only one scene exists, so recurrence across materially different compositions is not demonstrated.",
-            }
-        ],
+        "recurring_axes": sorted(style_family_audit.RECURRING_AXES),
+        "excluded_scene_attributes": ["camera angle", "weather state"],
+        "nearest_family": nearest_family,
+        "boundary": "Structured line and grouped values separate this family from softer painterly work.",
+        "review_notes": "Three distinct compositions preserve the same authored systems across materially different scene demands.",
+    }
+
+
+def _deferred_candidate(candidate_id: str) -> dict[str, Any]:
+    return {
+        "candidate_id": candidate_id,
+        "label": "Synthetic one-scene candidate",
+        "decision": "deferred-not-canonical",
+        "available_evidence": ["one beach portrait"],
+        "evidence_gap": "Only one scene exists, so recurrence across materially different compositions is not demonstrated.",
+        "reconsideration_condition": "Reconsider after three materially different scenes repeat the same finish.",
+    }
+
+
+def _style_family_record(record_id: str, nearest_family: str) -> dict[str, Any]:
+    """A schema-complete vocabulary style family for an on-disk synthetic pack."""
+    label = record_id.replace("-", " ")
+    return {
+        "id": record_id,
+        "label": label,
+        "curation_status": "vocabulary",
+        "medium_family": "illustration",
+        "style_promise": "Structured contours and grouped values.",
+        "integration_prompt": "Use structured contours, grouped values and restrained highlights.",
+        "base_render_profile_id": "synthetic-render-profile",
+        "domains": ["shared"],
+        "search_terms": [{"phrase": label, "facet": "style", "weight": 1.0, "source": "author"}],
+        "tags": ["structured-illustration"],
+        **_style_boundary(nearest_family),
     }
 
 
@@ -710,84 +724,84 @@ def run() -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="cpb-pack-release-gate-") as temporary:
         root = Path(temporary)
 
-        taxonomy_path = root / "synthetic-style-family-taxonomy.json"
-        taxonomy = _style_taxonomy_fixture(style_family.record["id"])
-        _write_json(taxonomy_path, taxonomy)
+        own_family = {
+            **copy.deepcopy(style_family.record),
+            **_style_boundary("synthetic-painterly-family", status="new"),
+            "deferred_candidates": [_deferred_candidate("synthetic-one-scene-candidate")],
+        }
+        other_family = {
+            "id": "synthetic-painterly-family",
+            "label": "Synthetic painterly family",
+            **_style_boundary(own_family["id"]),
+        }
         style_entries = [
-            SimpleNamespace(kind="style-family", record=style_family.record)
+            SimpleNamespace(kind="style-family", record=own_family, source_pack="synthetic-style-pack"),
+            SimpleNamespace(kind="style-family", record=other_family, source_pack="synthetic-dependency-pack"),
         ]
-        style_catalog = SimpleNamespace(
-            resources={
-                "style-family-taxonomy": SimpleNamespace(
-                    source_pack="synthetic-style-pack",
-                    path=taxonomy_path,
-                )
-            }
-        )
-        with (
-            mock.patch.object(
-                style_family_audit,
-                "named_resource_path",
-                return_value=taxonomy_path,
-            ),
-            mock.patch.object(
-                style_family_audit,
-                "load_entries",
-                return_value=style_entries,
-            ),
-        ):
-            taxonomy_report = style_family_audit.audit(root)
-            check(
-                taxonomy_report["ok"] is True
-                and taxonomy_report["family_count"] == 1
-                and taxonomy_report["revised_or_new_family_count"] == 1
-                and taxonomy_report["deferred_candidate_count"] == 1,
-                f"synthetic complete style taxonomy must pass the direct audit: {taxonomy_report}",
-            )
-            style_suite = _style_suite(
-                {
-                    "taxonomy_resource": "style-family-taxonomy",
-                    "expected_family_count": 1,
-                },
+        style_catalog = SimpleNamespace(entries=style_entries)
+
+        def style_suite() -> dict[str, Any]:
+            return _style_suite(
+                {"expected_family_count": 1},
                 style_catalog,
                 "synthetic-style-pack",
                 {"style_family_record_count": 1},
-            )
-            check(
-                style_suite["ok"] is True
-                and style_suite["coverage_complete"] is True
-                and style_suite["actual_family_count"] == 1,
-                f"synthetic complete style taxonomy must pass the release suite: {style_suite}",
             )
 
-            invalid_taxonomy = copy.deepcopy(taxonomy)
-            invalid_taxonomy["families"][0]["recurring_axes"] = ["line"]
-            _write_json(taxonomy_path, invalid_taxonomy)
-            invalid_taxonomy_report = style_family_audit.audit(root)
+        with mock.patch.object(style_family_audit, "load_entries", return_value=style_entries):
+            style_report = style_family_audit.audit(root)
             check(
-                invalid_taxonomy_report["ok"] is False
-                and any(
+                style_report["ok"] is True
+                and style_report["family_count"] == 2
+                and style_report["revised_or_new_family_count"] == 1
+                and style_report["retained_family_count"] == 1
+                and style_report["deferred_candidate_count"] == 1,
+                f"complete synthetic style families must pass the direct audit: {style_report}",
+            )
+            complete_suite = style_suite()
+            check(
+                complete_suite["ok"] is True
+                and complete_suite["coverage_complete"] is True
+                and complete_suite["actual_family_count"] == 1,
+                f"the style suite counts the pack's own families: {complete_suite}",
+            )
+
+            own_family["recurring_axes"] = ["line"]
+            check(
+                any(
                     "at least six recurring visual axes" in item
-                    for item in invalid_taxonomy_report["errors"]
+                    for item in style_family_audit.audit(root)["errors"]
                 ),
-                "synthetic style taxonomy with collapsed recurring evidence must be rejected by the direct audit",
+                "a family with collapsed recurring evidence is rejected by the direct audit",
             )
-            invalid_style_suite = _style_suite(
-                {
-                    "taxonomy_resource": "style-family-taxonomy",
-                    "expected_family_count": 1,
-                },
-                style_catalog,
-                "synthetic-style-pack",
-                {"style_family_record_count": 1},
-            )
+            collapsed_suite = style_suite()
             check(
-                invalid_style_suite["ok"] is False
+                collapsed_suite["ok"] is False
                 and any(
-                    "style audit produced" in item
-                    for item in invalid_style_suite["errors"]
+                    item.startswith("style audit:") and "six recurring" in item
+                    for item in collapsed_suite["errors"]
                 ),
-                "synthetic invalid style taxonomy must fail the pack release style suite",
+                f"the style suite reports the audit's errors: {collapsed_suite['errors']}",
+            )
+            own_family["recurring_axes"] = sorted(style_family_audit.RECURRING_AXES)
+
+            own_family["nearest_family"] = "synthetic-absent-family"
+            check(
+                any(
+                    "is not another enabled style family" in item
+                    for item in style_family_audit.audit(root)["errors"]
+                ),
+                "a nearest family outside the enabled families is rejected",
+            )
+            own_family["nearest_family"] = other_family["id"]
+
+            own_family["deferred_candidates"] = [_deferred_candidate(other_family["id"])]
+            check(
+                any(
+                    "is also a style family" in item
+                    for item in style_family_audit.audit(root)["errors"]
+                ),
+                "a deferred candidate that is an enabled family is rejected",
             )
 
         base = _copy_pack(root, "base-pack")
@@ -820,8 +834,91 @@ def run() -> dict[str, Any]:
         )
         check(ambient["ok"] is False, "an ambient discovery root must be rejected")
         check(
-            any("pack_roots must contain exactly" in item for item in ambient["errors"]),
+            any("pack_roots" in item for item in ambient["errors"]),
             "ambient-root failure must identify the exact state boundary",
+        )
+
+        # A pack runs its gate with its required dependencies, and with nothing else.
+        # The dependency holds one file and no records, so the two packs share no record ID.
+        required = root / "required-pack"
+        required_manifest = initialize_pack(required, name="Required pack", release="2026.08.24.1")
+        (required / "notice.txt").write_text("required fixture\n", encoding="utf-8", newline="\n")
+        required_manifest["content"]["resource_globs"] = ["*.txt"]
+        _write_json(required / "pack.json", required_manifest)
+        write_lock(required)
+        dependent = _copy_pack(root, "dependent-pack")
+        dependent_manifest = _manifest(dependent)
+        dependent_manifest["dependencies"] = [{"pack_id": _manifest(required)["pack_id"]}]
+        _write_json(dependent / "pack.json", dependent_manifest)
+        write_lock(dependent)
+        with_state, with_cache, with_managed = _runtime_paths(root, "with-dependency")
+        _write_json(with_state, {
+            "pack_roots": [str(dependent.resolve()), str(required.resolve())],
+            "enabled_packs": [dependent_manifest["pack_id"], _manifest(required)["pack_id"]],
+        })
+        with_dependency = run_release_gate(dependent, state_file=with_state, cache_dir=with_cache, managed_root=with_managed)
+        check(
+            with_dependency["checks"].get("runtime_cache", {}).get("ok") is True
+            and with_dependency["checks"]["runtime_cache"]["active_pack_count"] == 2,
+            "a pack's gate runs with its required dependency enabled",
+        )
+        check(with_dependency["pack"].get("required_dependencies") == [_manifest(required)["pack_id"]],
+              "the report names the required dependency")
+        alone_state, alone_cache, alone_managed = _runtime_paths(root, "without-dependency")
+        _state(alone_state, dependent)
+        alone = run_release_gate(dependent, state_file=alone_state, cache_dir=alone_cache, managed_root=alone_managed)
+        check(
+            alone["ok"] is False and any("each required dependency" in item for item in alone["errors"]),
+            "a state that leaves out a required dependency is refused",
+        )
+
+        # Style families merge across the enabled packs, so the dependent
+        # pack's family names its nearest family in the dependency.
+        source_root = root / "family-source-pack"
+        source = initialize_pack(source_root, name="Family source pack", release="2026.10.04.1")
+        _write_json(
+            source_root / "records" / "style-families.json",
+            {
+                "kind": "style-family",
+                "records": [
+                    _style_family_record("synthetic-source-line-family", "synthetic-source-wash-family"),
+                    _style_family_record("synthetic-source-wash-family", "synthetic-source-line-family"),
+                ],
+            },
+        )
+        write_lock(source_root)
+        user_root = root / "family-user-pack"
+        user = initialize_pack(user_root, name="Family user pack", release="2026.10.04.1")
+        user["dependencies"] = [{"pack_id": source["pack_id"]}]
+        _write_json(user_root / "pack.json", user)
+        _bind(user_root, "release-evaluation-contract", "resources/evals/release-evaluation-contract.json")
+        _write_json(
+            user_root / "resources" / "evals" / "release-evaluation-contract.json",
+            {"style_family": {"expected_family_count": 1}},
+        )
+        _write_json(
+            user_root / "records" / "style-families.json",
+            {
+                "kind": "style-family",
+                "records": [_style_family_record("synthetic-user-cel-family", "synthetic-source-line-family")],
+            },
+        )
+        write_lock(user_root)
+        family_state, family_cache, family_managed = _runtime_paths(root, "style-families")
+        _write_json(family_state, {
+            "pack_roots": [str(user_root.resolve()), str(source_root.resolve())],
+            "enabled_packs": [user["pack_id"], source["pack_id"]],
+        })
+        merged = run_release_gate(
+            user_root, state_file=family_state, cache_dir=family_cache, managed_root=family_managed
+        )
+        merged_suite = merged["suites"].get("style_family") or {}
+        check(
+            merged["ok"] is True
+            and merged_suite.get("actual_family_count") == 1
+            and merged_suite.get("retained_family_count") == 3,
+            "one audit holds both packs' families and resolves a nearest family in the dependency: "
+            f"{merged['errors']} {merged_suite}",
         )
 
         declared = _copy_pack(root, "declared-pack")
@@ -1086,28 +1183,6 @@ def run() -> dict[str, Any]:
             "noncanonical profile-alias rejection must identify the invariant",
         )
 
-        partial_state, partial_cache, partial_managed = _runtime_paths(root, "partial")
-        preserved_manifest = _manifest(preserved)
-        _write_json(
-            partial_state,
-            {
-                "pack_roots": [str(preserved.resolve())],
-                "enabled_packs": [preserved_manifest["pack_id"]],
-                "resource_providers": {},
-            },
-        )
-        partial = run_release_gate(
-            preserved,
-            state_file=partial_state,
-            cache_dir=partial_cache,
-            managed_root=partial_managed,
-        )
-        check(partial["ok"] is False, "partial resource-provider state must be rejected")
-        check(
-            any("every and only its named resources" in item for item in partial["errors"]),
-            "partial-state failure must identify the provider boundary",
-        )
-
         contract["preservation"]["expected_record_count"] = 0
         _write_json(contract_path, contract)
         write_lock(preserved)
@@ -1146,12 +1221,6 @@ def run() -> dict[str, Any]:
 
         cwd_pack = root / "cwd-quality-pack"
         shutil.copytree(DEFAULT_PACK, cwd_pack)
-        # This fixture exercises only the quality suite, so drop the bound
-        # style-family taxonomy that would otherwise require a style_family
-        # suite declaration in the release evaluation contract.
-        cwd_manifest = _manifest(cwd_pack)
-        cwd_manifest["content"]["resource_bindings"].pop("style-family-taxonomy", None)
-        _write_json(cwd_pack / "pack.json", cwd_manifest)
         _bind(
             cwd_pack,
             "release-evaluation-contract",
@@ -1234,6 +1303,7 @@ def run() -> dict[str, Any]:
             resources={
                 "reference-corpus-manifest": SimpleNamespace(
                     source_pack=corpus_pack_id,
+                    sources=((corpus_pack_id, "hostile-env-corpus-manifest.json"),),
                     path=corpus_manifest,
                 )
             }

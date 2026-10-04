@@ -8,6 +8,7 @@ same selected artifact; the preparer never substitutes another guide artifact
 and never falls back to text-only generation.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -1973,7 +1974,7 @@ def write_json_atomic(path: Path, value: Any) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = _operation_context.ArgumentParser(
         description="Prepare exact ordered caller-supplied image references."
     )
     selection_group = parser.add_mutually_exclusive_group(required=True)
@@ -2023,4 +2024,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

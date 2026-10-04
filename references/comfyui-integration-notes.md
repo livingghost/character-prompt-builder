@@ -16,7 +16,7 @@ This package redistributes none of that project's code, prompt database, or UI a
 
 ## Difference in this skill
 
-The modules are a later ingredient rather than the starting point. Character Prompt Builder first chooses a coherent art direction from the user's whole brief; presets and modular categories are then optional craft ingredients.
+The modules are a later ingredient rather than the starting point. Character Prompt Builder first chooses a coherent art direction from the user's whole brief; records and modular categories are then optional craft ingredients.
 
 This keeps the workflow from becoming:
 

@@ -95,9 +95,157 @@
       "minLength": 1
     },
     "request_decision": {
-      "type": [
-        "object",
-        "null"
+      "description": "Present on a model dispatcher submission. draft-execution derives the identifiers and leaves principal_approval null; the actual principal fills it, or a delegated case with its assessments stands in for it.",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "case": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "assessments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "criterion": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "request_sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "conclusion": {
+                    "enum": [
+                      "satisfied",
+                      "not-satisfied",
+                      "unmeasured"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "criterion",
+                  "request_sha256",
+                  "conclusion",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "principal_approval": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "request_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "principal": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "evidence": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "locator": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "sha256",
+                        "locator"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "request_sha256",
+                    "principal",
+                    "evidence"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "rendition_review": {
+              "type": "object",
+              "properties": {
+                "request_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "reviewer": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "conclusion": {
+                  "enum": [
+                    "satisfied",
+                    "not-satisfied",
+                    "unmeasured"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "binding_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "request_sha256",
+                "reviewer",
+                "conclusion",
+                "reason",
+                "binding_ids"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "case",
+            "assessments",
+            "principal_approval",
+            "rendition_review"
+          ],
+          "additionalProperties": false
+        }
       ]
     }
   },

@@ -51,11 +51,11 @@ python <skill>/scripts/narrative_index.py <series>
 
 The first uses the installed current full persona form and writes the entity front matter.
 Series initialization uses the same full-form creator for any explicitly requested teaching seed.
-Project copies of the template are reading material; creation reads the installed source.
+Series copies of the template are reading material; creation reads the installed source.
 
 ## The form
 
-`persona-template.md` beside this file is the blank form, and every project gets a copy.
+`persona-template.md` beside this file is the blank form, and every series gets a copy.
 It is one phase of one life in twenty sections, and its own instructions are written into
 it as comments beside each field: what belongs in the field, what does not, and what to
 write when the answer is not settled. Two of its rules are worth knowing before starting.
@@ -108,7 +108,7 @@ surface drafting gaps and repeated descriptions without changing any file or app
 
 Section 2 PORTRAYAL IDENTITY distinguishes the subject's inner core from the creator's portrayal
 aim. Bind it to the applicable authorial intent entries in a design record, and bind response,
-voice and bodily rules to that profile. Signature dynamics may be constant, contrasting or
+voice and bodily rules to that character profile. Signature dynamics may be constant, contrasting or
 intentionally indeterminate. A register switch is not automatically a break in identity.
 
 Review the actual span of outputs as well as isolated examples. Record deliberate departures,

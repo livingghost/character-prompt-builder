@@ -1,32 +1,33 @@
 #!/usr/bin/env python3
 """Build a verified generation package from one concrete state artifact graph."""
 from __future__ import annotations
+import operation_context as _operation_context
 
-import argparse
 import json
 from pathlib import Path
 from typing import Any, Sequence
 
 from build_generation_payload import (
+    TRANSPORT_MODES,
     add_production_arguments,
     build_payload,
     create_cli_package_staging,
-    generation_package_error_messages,
+    generation_inputs,
     generation_package_recovery_path,
     materialize_cli_reference_bundle,
+    prepared_run,
     production_inputs,
+    studio_document,
+    studio_text,
     publish_cli_generation_package,
-    read_json,
-    read_text,
     remove_cli_package_staging,
+    run_inputs,
 )
 from catalog_cli import configure_pack_runtime
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 from prepare_generation_references import validate_prepared_reference_set
 from state_protocol import (
     artifact_hash,
-    load_json,
-    parse_json,
     validate_state_artifact_graph,
     write_json,
 )
@@ -152,7 +153,7 @@ def build_package(
         production_root=production_root,
         production_run=production_run,
     )
-    verification = verify_package(payload, package_root=prepared_reference_root, project=visual_root or production_root or prepared_reference_root)
+    verification = verify_package(payload, package_root=prepared_reference_root, studio=visual_root or production_root or prepared_reference_root)
     if verification.get("verified") is not True:
         raise ValueError(
             "generated package failed verification: "
@@ -165,44 +166,51 @@ def verify_package(
     payload: dict[str, Any],
     *,
     package_root: Path | None = None,
-    project: Path | None = None,
+    studio: Path | None = None,
 ) -> dict[str, Any]:
     from verify_generation_payload import verify
 
-    return verify(payload, package_root=package_root, project=project)
+    return verify(payload, package_root=package_root, studio=studio)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Build an exact state-aware CPB generation package."
+    parser = _operation_context.ArgumentParser(
+        description="Build an exact state-aware Character Prompt Builder generation package from a prepared run.",
+        epilog="The prompt is the run's delivery. The run's production specification, plot, retrieval record and "
+        "parameters are read from its snapshot when its task declares them; the matching option names them otherwise. "
+        "A relative file argument is a /-separated path below --production-root.",
     )
-    parser.add_argument("--model", default="gpt-image-2.5-flare")
-    parser.add_argument("--prompt-file", required=True)
-    parser.add_argument("--negative-file")
-    parser.add_argument("--integrated-prompt-file")
-    parser.add_argument("--native-negative-file")
-    parser.add_argument("--negative-provenance-file")
-    parser.add_argument("--negative-transport", default="auto")
-    parser.add_argument("--critical-avoidance-integrated", action="store_true")
-    parser.add_argument("--brief", default="")
-    parser.add_argument("--brief-file")
-    parser.add_argument("--intent-file")
-    parser.add_argument("--production-spec-file", required=True)
-    parser.add_argument("--plot-file", required=True)
-    parser.add_argument("--retrieval-record-file", required=True)
-    parser.add_argument("--state-lineage-file", required=True)
-    parser.add_argument("--species-profile-file", required=True)
-    parser.add_argument("--individual-morphology-file", required=True)
-    parser.add_argument("--identity-contract-file", required=True)
-    parser.add_argument("--era-contract-file")
-    parser.add_argument("--form-contract-file")
-    parser.add_argument("--appearance-variant-file")
-    parser.add_argument("--state-snapshot-file", required=True)
-    parser.add_argument("--scene-context-file", required=True)
-    parser.add_argument("--visual-projection-file", required=True)
-    parser.add_argument("--asset-render-spec-file", required=True)
-    parser.add_argument("--visual-authority-file")
-    parser.add_argument("--visual-evidence-bundle-file")
+    parser.add_argument("--model", help="The model record; the production specification's target_model when omitted")
+    parser.add_argument("--negative-file", help="Portable negative prompt, a UTF-8 text file")
+    parser.add_argument("--integrated-prompt-file",
+                        help="Agent-authored affirmative rendition for single-prompt interfaces")
+    parser.add_argument("--native-negative-file", help="Concise native negative subset, a UTF-8 text file")
+    parser.add_argument("--negative-provenance-file", help="JSON object listing activated, retained, and translated negative sources")
+    parser.add_argument("--negative-transport", choices=sorted(TRANSPORT_MODES), default="auto",
+                        help="How the named target interface receives avoidance instructions")
+    parser.add_argument("--critical-avoidance-integrated", action="store_true",
+                        help="Certify that the primary positive prompt already contains the critical affirmative construction requirements")
+    brief = parser.add_mutually_exclusive_group()
+    brief.add_argument("--brief", default="", help="The request in words")
+    brief.add_argument("--brief-file", help="The request as a UTF-8 text file")
+    parser.add_argument("--intent-file", help="JSON containing image_promise, chosen_direction, and related notes")
+    parser.add_argument("--production-spec-file", help="Reviewed Production Specification JSON, when the run declares none")
+    parser.add_argument("--plot-file", help="The approved plot this picture was drawn from, when the run declares none")
+    parser.add_argument("--retrieval-record-file",
+                        help="Settled retrieval record bound to the run's prompt and the plot, when the run declares none")
+    parser.add_argument("--state-lineage-file", required=True, help="State lineage JSON with mode state-aware")
+    parser.add_argument("--species-profile-file", required=True, help="Species morphology profile JSON")
+    parser.add_argument("--individual-morphology-file", required=True, help="Individual morphology contract JSON")
+    parser.add_argument("--identity-contract-file", required=True, help="Character identity contract JSON")
+    parser.add_argument("--era-contract-file", help="Era contract JSON, when the character has one")
+    parser.add_argument("--form-contract-file", help="Form contract JSON, when the character has one")
+    parser.add_argument("--appearance-variant-file", help="Appearance variant JSON, when the scene uses one")
+    parser.add_argument("--state-snapshot-file", required=True, help="Character state snapshot JSON for this story order")
+    parser.add_argument("--scene-context-file", required=True, help="Scene context snapshot JSON")
+    parser.add_argument("--visual-projection-file", required=True, help="Visual state projection JSON")
+    parser.add_argument("--asset-render-spec-file", required=True, help="Asset render specification JSON")
+    parser.add_argument("--visual-authority-file", help="Visual authority JSON, when the graph names one")
+    parser.add_argument("--visual-evidence-bundle-file", help="Visual evidence bundle JSON, when the graph names one")
     parser.add_argument(
         "--references-file",
         required=True,
@@ -211,9 +219,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             "finalized reference-selection even when selected_references is empty."
         ),
     )
-    parser.add_argument("--parameters", default="{}")
-    parser.add_argument("--out", required=True)
+    parser.add_argument("--parameters-file",
+                        help="UTF-8 JSON parameter object file, or - for stdin, when the run declares none")
     add_pack_runtime_arguments(parser)
+    parser.add_argument("--out", required=True, help="New Generation Package file; an existing file is kept")
     add_production_arguments(parser)
     args = parser.parse_args(argv)
     runtime = resolve_pack_runtime(parser, args)
@@ -221,86 +230,84 @@ def main(argv: Sequence[str] | None = None) -> int:
     staging_root: Path | None = None
     pending_error: BaseException | None = None
     payload: dict[str, Any] | None = None
+    failure_phase = "package-construction"
     try:
-        parameters = parse_json(args.parameters)
-        if not isinstance(parameters, dict):
-            raise ValueError("--parameters must be a JSON object")
-        output_path = Path(args.out).resolve()
+        from production_binding import new_output, studio_file
+        root = args.production_root.absolute()
+        output_path = new_output(root, args.out, option="--out", root_option="--production-root")
+        loaded = prepared_run(root, args.production_run)
+        chosen = generation_inputs(args, root, run_inputs(loaded[1], loaded[2]))
+        production_spec = chosen["production_spec"]
+        model = args.model or production_spec.get("target_model")
+        if not isinstance(model, str) or not model.strip():
+            raise ValueError("the production specification names no target_model; pass --model")
+
+        def graph(option: str) -> dict[str, Any] | None:
+            return studio_document(root, getattr(args, option[2:].replace("-", "_")), option)
+
+        brief = studio_text(root, args.brief_file, "--brief-file") if args.brief_file else args.brief
         staging_root, staged_json, _staged_companion_path, final_companion = (
             create_cli_package_staging(output_path)
         )
-        references_path = Path(args.references_file).resolve(strict=True)
+        references_path = studio_file(root, args.references_file, option="--references-file",
+                                       root_option="--production-root").resolve(strict=True)
         staged_reference_set, staged_companion = materialize_cli_reference_bundle(
-            read_json(str(references_path)),
-            model=args.model,
+            studio_document(root, str(references_path), "--references-file"),
+            model=model,
             source_root=references_path.parent,
             staging_root=staging_root,
             companion_name=final_companion.name,
         )
-        production_spec = read_json(args.production_spec_file)
-        identity_contract = load_json(Path(args.identity_contract_file))
+        identity_contract = graph("--identity-contract-file")
         # A recurring subject that names this identity contract is that work character.
         identity_hash = artifact_hash(identity_contract)
         work_ids = {subject["id"]: identity_contract.get("character_id")
                     for subject in production_spec.get("subjects") or []
                     if isinstance(subject, dict) and isinstance(identity_contract.get("character_id"), str)
                     and (subject.get("identity_contract_ref") or {}).get("sha256") == identity_hash}
-        derived = production_inputs(args, model=args.model, production_spec=production_spec,
+        derived = production_inputs(args, model=model, production_spec=production_spec,
                                     prepared_reference_set=staged_reference_set, staging_root=staging_root,
-                                    work_ids=work_ids)
+                                    work_ids=work_ids, loaded=loaded)
         payload = build_package(
-            model=args.model,
-            prompt=read_text(args.prompt_file),
-            negative_prompt=read_text(args.negative_file),
-            integrated_prompt=read_text(args.integrated_prompt_file),
-            native_negative=read_text(args.native_negative_file),
-            negative_provenance=read_json(args.negative_provenance_file),
-            brief=read_text(args.brief_file) if args.brief_file else args.brief,
-            creative_intent=read_json(args.intent_file),
+            model=model,
+            prompt=loaded[3]["instructions"],
+            negative_prompt=studio_text(root, args.negative_file, "--negative-file"),
+            integrated_prompt=studio_text(root, args.integrated_prompt_file, "--integrated-prompt-file"),
+            native_negative=studio_text(root, args.native_negative_file, "--native-negative-file"),
+            negative_provenance=graph("--negative-provenance-file") or {},
+            brief=brief,
+            creative_intent=graph("--intent-file") or {},
             production_spec=production_spec,
-            plot=read_json(args.plot_file),
-            retrieval_record=read_json(args.retrieval_record_file),
+            plot=chosen["plot"],
+            retrieval_record=chosen["retrieval_record"],
             request_validation=derived["request_validation"], input_root=derived["root"],
             route_reading=derived["route_reading"],
             visual_continuity=derived["visual_continuity"],
             visual_root=derived["root"],
             reading_ledgers=[staging_root / "reads.jsonl"],
-            state_lineage=read_json(args.state_lineage_file),
-            species_profile=load_json(Path(args.species_profile_file)),
-            individual_morphology=load_json(Path(args.individual_morphology_file)),
+            state_lineage=graph("--state-lineage-file"),
+            species_profile=graph("--species-profile-file"),
+            individual_morphology=graph("--individual-morphology-file"),
             identity_contract=identity_contract,
-            era_contract=(
-                load_json(Path(args.era_contract_file)) if args.era_contract_file else None
-            ),
-            form_contract=(
-                load_json(Path(args.form_contract_file)) if args.form_contract_file else None
-            ),
-            appearance_variant=(
-                load_json(Path(args.appearance_variant_file))
-                if args.appearance_variant_file
-                else None
-            ),
-            state_snapshot=load_json(Path(args.state_snapshot_file)),
-            scene_context=load_json(Path(args.scene_context_file)),
-            visual_projection=load_json(Path(args.visual_projection_file)),
-            asset_render_spec=load_json(Path(args.asset_render_spec_file)),
-            visual_authority=(
-                load_json(Path(args.visual_authority_file)) if args.visual_authority_file else None
-            ),
-            visual_evidence_bundle=(
-                load_json(Path(args.visual_evidence_bundle_file))
-                if args.visual_evidence_bundle_file
-                else None
-            ),
+            era_contract=graph("--era-contract-file"),
+            form_contract=graph("--form-contract-file"),
+            appearance_variant=graph("--appearance-variant-file"),
+            state_snapshot=graph("--state-snapshot-file"),
+            scene_context=graph("--scene-context-file"),
+            visual_projection=graph("--visual-projection-file"),
+            asset_render_spec=graph("--asset-render-spec-file"),
+            visual_authority=graph("--visual-authority-file"),
+            visual_evidence_bundle=graph("--visual-evidence-bundle-file"),
             prepared_reference_set=staged_reference_set,
             prepared_reference_root=staging_root,
-            parameters=parameters,
+            parameters=chosen["parameters"],
             negative_transport=args.negative_transport,
             critical_avoidance_integrated=args.critical_avoidance_integrated,
             production_root=derived["root"],
             production_run=derived["run"],
         )
         write_json(staged_json, payload)
+        failure_phase = "publication"
         from route_reading import copy_issuance
         copy_issuance(derived["route_reading"], output_path.parent / "reads.jsonl", ledgers=[staging_root / "reads.jsonl"])
         publish_cli_generation_package(
@@ -310,7 +317,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             final_companion=final_companion,
             staging_root=staging_root,
         )
-    except (ValueError, OSError, json.JSONDecodeError) as exc:
+    except (ValueError, OSError) as exc:
         pending_error = exc
     except BaseException as exc:
         pending_error = exc
@@ -339,15 +346,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         finally:
             configure_pack_runtime(None)
     if pending_error is not None:
-        print(
-            json.dumps(
-                {"ok": False, "errors": generation_package_error_messages(pending_error)},
-                ensure_ascii=False,
-                indent=2,
-                allow_nan=False,
-            )
-        )
-        return 1
+        from production_binding import report_failure
+        return report_failure(pending_error, phase=failure_phase)
     if payload is None:
         raise RuntimeError("state-aware generation package completed without a payload")
     print(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False))
@@ -357,4 +357,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

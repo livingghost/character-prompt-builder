@@ -1,10 +1,16 @@
 # Adoption Workflow
 
-Activate this route when acceptance means "use this as the next reference" or "register this reference for reuse". Plain `studio.py accept` is candidate-only acceptance and leaves the sheet, catalog and canonical state contracts unchanged. The operator records actual owner consent; the CLI cannot check whether it is truthful.
+Activate this route when acceptance means "use this as the next reference" or "register this reference for reuse". Plain `studio.py accept` accepts an iteration for its slot and leaves the sheet, catalog and canonical state contracts unchanged. The operator records actual owner consent; the CLI cannot check whether it is truthful.
 
 ## Input and scope
 
-Use `python scripts/adoption_workflow.py --help` and `adopt --help`. Inputs are an existing Studio character, an iteration recorded with its source image and committed Generation Package, and a JSON approval. Record a missing package before adoption; file presence is not provenance. The approval contains exactly these required fields:
+Use `python scripts/adoption_workflow.py --help` and `adopt --help`. `adoption_workflow.py adopt` serves imported iterations. For a Production candidate it refuses and names `production_workflow.py adopt`, in the order [Studio Runtime](studio.md#selection-adoption-and-withdrawal) gives (synthetic, trimmed, exit 1):
+
+```json
+{"ok": false, "errors": ["it-0001 is a Production candidate; adopt it with production_workflow.py adopt under its own adopt authorization"]}
+```
+
+Inputs are an existing Studio character, an iteration recorded with its source image and committed Generation Package, and a JSON approval. Record a missing package before adoption; file presence is not provenance. The approval contains exactly these required fields:
 
 ```json
 {
@@ -37,7 +43,7 @@ The workflow:
 
 - holds the Studio recording lock;
 - validates image/package hashes and safe paths;
-- accepts the candidate;
+- accepts the iteration;
 - copies the full-size image and portable package companions into the sheet;
 - updates only the selected slot;
 - writes `sheet/active-references.json`.
@@ -46,7 +52,7 @@ Historical iterations and unaffected slots stay as they were. `references` expor
 
 Completion states are `candidate-accepted`, `sheet-bound`, and `catalog-registered`. The durable `adoptions/<iteration>.json` records `next_action` and a failure when a step cannot finish. Repeat the same command with the same approval and destination to resume; it is idempotent and adds no image iteration. A pending pre-acceptance operation is visible too. The operating system releases the recording lock when a process ends, even a killed one, so repeat the approved command and leave `.cpb.lock` in place.
 
-`studio status` and `validate_studio.py` report stale sheet bindings and incomplete adoption. Accepting a new image through candidate-only `studio accept` while an older image is bound leaves status incomplete; resolve adoption before sending. Before upload or send, the dispatcher checks that a package includes a current adopted identity source under identity authority and rejects superseded sources under their adopted influence. First-generation work, before any identity is adopted, is permitted. A package handed to an external host must pass this Studio check before leaving, because portable package verification alone sees only a Studio it was given.
+`studio status` and `validate_studio.py` report stale sheet bindings and incomplete adoption. Accepting a new image through a plain `studio accept` while an older image is bound leaves status incomplete; resolve adoption before preparing the next run. Preparation and the package builder check each subject recorded under a Studio character. They refuse an incomplete adoption, and a package without the character's current adopted identity image among its prepared references. First-generation work, before any identity is adopted, is permitted.
 
 ## Register an image for mixed pack references
 
@@ -63,7 +69,8 @@ Write one canonical module record conforming to the module branch of `schemas/pa
   "prompt": "REPLACE_WITH_THE_ACTUALLY_APPROVED_IDENTITY_DESCRIPTION",
   "domains": ["shared"],
   "tags": ["character identity"],
-  "search_terms": [{"phrase": "C01 character identity", "facet": "identity", "weight": 1, "source": "author"}]
+  "search_terms": [{"phrase": "C01 character identity", "facet": "identity", "weight": 1, "source": "author"}],
+  "scaffold": {"family": "direct-geometry-required", "confidence": "fallback"}
 }
 ```
 
@@ -84,7 +91,7 @@ python scripts/adoption_workflow.py --studio ./studio --character C01 \
 
 Output is a new UUID-identified pack with the canonical record, a linked raster asset, a `studio-adoption-receipt`, and a release lock. Its technical role is `adopted-reference`, not a falsely labeled archival vector. Both plan construction and active plan validation enforce the receipt-approved influence stored on the locked asset; other visual dimensions are excluded. New image registration defaults to `UNLICENSED`; an explicit license must be part of the approval, not inferred from the project's software license.
 
-The operation adds and enables that pack in the selected runtime; it never rewrites an existing pack or silently selects conflicting resource providers. A completed sheet adoption can be promoted to catalog scope with a new record-bound approval. After catalog activation:
+The operation adds and enables that pack in the selected runtime; it never rewrites an existing pack. A completed sheet adoption can be promoted to catalog scope with a new record-bound approval. After catalog activation:
 
 1. restart retrieval under the changed runtime;
 2. obtain the new record with `catalog_cli.py inspect-many`;
@@ -97,7 +104,18 @@ The local `studio-adoption-receipt` is distinct from the story-state `adoption-r
 
 Unknown characters/iterations, wrong hashes, altered sources, symlinks, invalid module records, mismatched approval, unsupported influence, competing pack IDs, incomplete registration and stale identity sources block the operation. An existing registration destination is accepted only when its locked pack and approval belong to this exact adoption; otherwise it is never overwritten. A failed registration retains the completed sheet binding and reports the remaining step, not complete adoption.
 
-Run `python scripts/feature_workflow_smoke_test.py`. It covers replacement, history, stale-source rejection, scope, path/hash changes, failure before and after acceptance, registration, retry, complete reference-plan preparation and verification, and mock dispatch against a mocked service. [Workflow Walkthrough](workflow-walkthrough.md) exercises the same public builder entrypoints.
+Run `python scripts/feature_workflow_smoke_test.py`. It covers:
+
+- replacement and history;
+- stale-source rejection;
+- scope;
+- path and hash changes;
+- failure before and after acceptance;
+- registration and retry;
+- complete reference-plan preparation and verification;
+- a synthetic `execute` that records its returned image.
+
+[Workflow Walkthrough](workflow-walkthrough.md) prepares a run through the same public entrypoints.
 
 
 ## Artifact evidence and completion

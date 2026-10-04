@@ -6,6 +6,25 @@ Derived Visual Evidence gives CPB a source-derived perceptual vector layer that 
 
 ## Three-layer contract
 
+Each admitted user-provided source hash has one portable bundle:
+
+```text
+visual-authority.json
+visual-evidence-bundle.json
+derived-visual/
+  faithful-archival.svg
+  vectorization-result.json
+  semantic-regions.json
+  subject-mask.svg
+  structural-line-tone.svg
+  color-audit.svg
+  saturation-rescue.svg
+  specular-audit.svg
+  palette-probes.json
+  audit-extraction-set.json
+  runtime-attachment-build.json
+```
+
 ### Layer A: source-derived perceptual vector projection
 
 `faithful-archival.svg` is a self-contained full-color path projection. The extractor:
@@ -13,11 +32,11 @@ Derived Visual Evidence gives CPB a source-derived perceptual vector layer that 
 - keeps the source width and height as the SVG canvas;
 - performs no preliminary resize or resampling for Layer A;
 - never embeds a raster payload or creates an external raster reference;
-- applies one profile uniformly to the complete frame;
+- applies the same settings to the whole frame;
 - starts with a compact palette and edge-preserving filter, then increases palette density for the whole image until every gate passes;
 - polygonizes connected accepted-color areas without semantic importance maps;
 - does not delete small connected regions or simplify contours after polygonization;
-- selects the first passing profile instead of reproducing JPEG/WebP noise pixel by pixel.
+- selects the first passing settings instead of reproducing JPEG/WebP noise pixel by pixel.
 
 This is a source-derived perceptual vector projection, not an exact source-raster archive or a pixel-identical replacement.
 
@@ -51,9 +70,11 @@ Mean absolute error:   6 or lower
 
 SSIM, tile SSIM, CIEDE2000, and edge measurements are evaluated at a bounded measurement resolution; PSNR and mean absolute error use the native-size candidate. These gates measure the accepted raster candidate from which connected-contour paths are emitted. They establish a bounded perceptual projection, not an exact source-raster archive. Managed SVGs are also hash-checked and fully scanned for prohibited active or external content.
 
+`scripts/validate_reference_corpus.py` compares each bundle's stored metrics with its stored thresholds and recomputes none of them. Its pass is therefore not a new fidelity result.
+
 ## Uniform quality
 
-All regions in one image use the same selected profile. Faces, backgrounds, accessories, textural surfaces, and empty regions do not receive different semantic quality budgets. The profile may differ between source images only because each complete image must clear the same gates.
+All regions in one image use the same selected settings. Faces, backgrounds, accessories, textural surfaces, and empty regions do not receive different semantic quality budgets. The settings may differ between source images only because each complete image must clear the same gates.
 
 ## Semantic regions
 
@@ -69,7 +90,7 @@ Managed SVGs reject scripts, `foreignObject`, event handlers, animation, embedde
 
 ## Product boundary
 
-Every evidence bundle remains in the same owning content pack as its searchable asset record, canonical-record relationships, policies, lock inventory, and rights declaration. The core release ships the extraction, validation, and prompt-authoring machinery plus the minimal commons pack; independently authored packs are distributed separately. This distribution boundary does not change the loose capability boundary the interchange envelope defines.
+Every evidence bundle remains in the same owning content pack as its searchable asset record, canonical-record relationships, policies, lock inventory, and rights declaration. A pack may bind display-only WebP thumbnails as its `catalog-thumbnails` resource. A thumbnail carries no prompt authority and never replaces the linked SVG evidence. The core release ships the extraction, validation, and prompt-authoring machinery plus the minimal commons pack; independently authored packs are distributed separately. This distribution boundary does not change the loose capability boundary the interchange envelope defines.
 
 ## Runtime activation and delivery
 

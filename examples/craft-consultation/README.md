@@ -11,7 +11,7 @@ python examples/craft-consultation/build_example.py
 python examples/craft-consultation/build_example.py --check
 ```
 
-Use `--workspace` with a new external path to retain the original task, consultation, authored decisions, and applied task.
+Use `--studio` with a new external path to retain the original task, consultation, authored decisions, and applied task.
 `report.json` records the complete-source check and the reviewer question carried to its declared criterion.
 The output has `execution_ready: false`, `external_effect: false`, and `budget_effect: none`.
 The real candidate still needs normal preparation, scoped authority, generation or capture, and review.

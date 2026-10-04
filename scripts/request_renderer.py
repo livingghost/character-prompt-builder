@@ -9,8 +9,8 @@ import runtime_evidence
 from execution_policy import load_policy
 
 
-def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,model:dict|None,offering:dict|None)->dict:
-    record=package['request_validation'];reader=runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots']))
+def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,model:dict|None,offering:dict|None,live_inputs:bool=True)->dict:
+    record=package['request_validation'];reader=runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots']),live=live_inputs)
     expected=record['target'];policy,local=load_policy(record,reader,expected,dialect=(model or {}).get('prompt_dialect'))
     if offering is not None:
         if expected['service']!=offering['service'] or expected['model_identifier']!=offering['model_identifier']:

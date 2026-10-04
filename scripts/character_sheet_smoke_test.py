@@ -52,6 +52,7 @@ from render_character_sheet import (
 )
 from state_protocol import validate_against_schema
 
+
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_CHECKS = 154
 
@@ -784,7 +785,7 @@ def main() -> int:
         single_view = copy.deepcopy(sidecar_value)
         single_view["tables"]["views"] = [declared_views["tables"]["views"][0]]
         check(
-            "a single declared view row names the sheet views table, not the profile",
+            "a single declared view row names the sheet views table, not the layout profile",
             expect_error(
                 lambda: render_sheet(
                     profile,
@@ -1787,7 +1788,7 @@ def main() -> int:
         }
         resolved_path, selection = select_profile_path(declared_sheet, None)
         check(
-            "profile selection resolves the declared bundled profile id",
+            "layout profile selection resolves the declared bundled layout profile id",
             resolved_path == ANTHRO_PROFILE_PATH and selection["method"] == "sheet-field",
         )
         authored_profile = {
@@ -1902,7 +1903,7 @@ def main() -> int:
             {"fields": {}, "tables": {}, "slots": {}}, Path("anthro")
         )
         check(
-            "--profile accepts a bundled profile id like the sheet field does",
+            "--profile accepts a bundled layout profile id like the sheet field does",
             explicit_id_path == ANTHRO_PROFILE_PATH
             and explicit_id_selection["method"] == "explicit-argument"
             and "anthro" in explicit_id_selection["reason"],
@@ -2907,7 +2908,7 @@ def main() -> int:
             humanoid_loaded, {"fields": {}, "tables": {"expressions": expression_sheet["tables"]["expressions"][:2]}, "slots": {}}
         )
         check(
-            "declared rows already covered by the profile resolve nothing",
+            "declared rows already covered by the layout profile resolve nothing",
             no_change_counts == {},
         )
         humanoid_resolved, humanoid_counts = resolve_state_panels(

@@ -1,6 +1,6 @@
 # Prompt-only core
 
-The shortest ordinary path from a user brief to prompt text. Preset maintenance, release operations, full morphology doctrine and model-facing visual transport apply only when a trigger requires them.
+The shortest ordinary path from a user brief to prompt text. Record maintenance, release operations, full morphology doctrine and model-facing visual transport apply only when a trigger requires them.
 
 ## 1. Resolve the request
 
@@ -31,7 +31,7 @@ Treat this as the master prompt. For a named model or interface, read its adapte
 
 ## 4. References and output
 
-If a selected preset has relevant Visual Evidence, inspect and use it without waiting for a reminder. Deliver the evidence artifact when it materially supports a reusable prompt result.
+If a selected record has relevant Visual Evidence, inspect and use it without waiting for a reminder. Deliver the evidence artifact when it materially supports a reusable prompt result.
 
 Do not create empty reference artifacts. Include `reference-use-plan.json` only when references are selected. Include `surface-lighting-plan.json` only when lighting or material transfer needs an explicit contract. Include `prepared-reference-set.json` and `reference-preamble.txt` only for a target-specific or generation-ready package.
 

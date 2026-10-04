@@ -6,15 +6,14 @@ Generated file. Edit `hosts/shared/repository-guide.md.template`.
 
 ```
 <repo>/
-  README.md CHANGELOG.md CONTRIBUTING.md DEPENDENCIES.md PACKS.md
-  VISUAL-CORPUS.md LICENSE package-manifest.toml pyproject.toml
-  requirements-core.txt requirements-visual.txt requirements.txt
-  requirements-tested.txt
+  README.md CHANGELOG.md CONTRIBUTING.md DEPENDENCIES.md LICENSE
+  package-manifest.toml pyproject.toml requirements-core.txt
+  requirements-visual.txt requirements.txt requirements-tested.txt
   SKILL.md                                        the skill, and the plugin root
   .claude-plugin/ .codex-plugin/ .agents/ hooks/ MANIFEST.json      generated
   hosts/shared/                                   templates for the generated
   references/ scripts/ schemas/ templates/ config/ packs/ agents/
-  examples/ tests/ .github/ .gitattributes .gitignore
+  examples/ .github/ .gitattributes .gitignore
 ```
 
 `SKILL.md` sits at the plugin root rather than under a `skills/` directory. A
@@ -44,28 +43,38 @@ Image work reads `references/runtime/render-contract.md`.
 Run `python scripts/render_contract.py presets` to inspect finish choices, then record who chose the intent and why.
 Run `python scripts/render_contract.py model --model MODEL_ID` to read the exact model's guidance card.
 The Production Specification owns `render_intent`; Generation Packages seal the resolved control decisions.
-Dispatch prints the intent and complete request and rejects unselected, unavailable, or mutated controls.
+Preparation shows the complete request and refuses an unselected or unavailable control.
+Execution verifies the sealed package again, so a changed control is refused before sending.
 
 ## Where character work lives, and how a result is made
 
 ```
-python scripts/studio.py init --out <studio-dir> --studio-id <id> --title "<title>"
-python scripts/studio.py character add <character-id> --studio <studio-dir>
-python scripts/dispatch.py <generation-package.json> --studio <studio-dir> --character <character-id> --slot <slot>
-python scripts/dispatch.py <generation-package.json> --studio <studio-dir> --character <character-id> --slot <slot> --production-authorization <receipt> --send
+python scripts/studio.py init --out STUDIO --studio-id <id> --title "<title>"
+python scripts/studio.py character add <character-id> --studio STUDIO
+python scripts/production_workflow.py check --root STUDIO --task <task.json>
+python scripts/production_workflow.py prepare --root STUDIO --task <task.json>
+python scripts/production_workflow.py draft-execution --root STUDIO --run <run-id> --grant <grant-id> --out <decisions.json>
+python scripts/production_workflow.py execute --root STUDIO --run <run-id> --decisions-file <decisions.json>
+python scripts/production_workflow.py resume --root STUDIO --run <run-id>
+python scripts/production_workflow.py status --root STUDIO --budget
 ```
 
-A studio holds the sheet, every generated image with the exact request that
-produced it, the accepted image per slot, a gallery that every recording command
-rewrites, and the open task a session resumes from. `scripts/session_entry_points.py`
-prints the studio the working directory belongs to and its open task first; when
-it reports none, `init` comes before any sheet or generation work.
+`references/runtime/studio.md` defines the studio, its iterations and its
+candidates, and `references/runtime/production-execution.md` defines the run.
+`scripts/session_entry_points.py` prints the studio the working directory
+belongs to and its open task first; when it reports none, `init` comes before
+any sheet or generation work.
 
-The dispatcher verifies the Generation Package, shows the exact request the
-service would receive, and with `--send` sends it through the service the model
-record's offering names and records every returned image as an iteration by
-itself. A request is checked against the service's own parameter schema, stored
-in the pack as observed, before anything is sent. The credential is read from the
+The task declares the character, slot and model inputs. `check` runs every check
+of `prepare` and creates no run. Preparation publishes the verified Generation
+Package, exact request and execution plan together. The author fills the drafted
+decision file from the actual approval. Execution checks current authority,
+reserves the budget, performs the declared handoff and records every returned
+image. `resume` recovers the same execution, and `status --budget` shows each
+run's next command and each grant's remaining amount. `variant` prepares changed
+input, and `repeat` prepares another run of the same input. A request is
+checked against the service's own parameter schema, stored in the pack as
+observed, before anything is sent. The credential is read from the
 environment variable the service record names, or from that variable in an MCP
 server's `env` block in the host configuration, and is never written anywhere.
 It is sent only to the host the transport pins.
@@ -86,7 +95,8 @@ every host reads and what every host refuses:
 `scripts/validate.py` refuses a body over 500 lines or over 5000 tokens,
 estimated as characters divided by four. It also settles that every reference
 document is reached from a `SKILL.md` link or from a route or feature `SKILL.md`
-names, and that every script entrypoint is named by routed documentation.
+names, and that every script entrypoint other than a test module is named by
+routed documentation. `scripts/run_checks.py` names every test module.
 
 ## Source ownership and change discipline
 
@@ -97,7 +107,7 @@ Update producers, validators, templates and fixtures together when that contract
 
 - Keep implementation details local to their owning product and generate derived files from their declared sources.
 - Use explicit identifiers, evidence and declared constraints for mechanical checks; the responsible author evaluates meaning and acceptance.
-- Place neutral synthetic examples under `examples/` and preserve the user's project material in its own workspace.
+- Place neutral synthetic examples under `examples/` and preserve the user's material in their own studio.
 - Give each text-encoding test one necessary non-ASCII fixture, distributing script coverage across tests.
 - Report executed checks separately from unverified behavior, including incomplete runs and environmental failures.
 
@@ -111,8 +121,9 @@ Tags and hosted releases require a separate instruction.
 
 ```
 python scripts/rebuild_metadata.py   regenerate the derived files
+python scripts/run_checks.py         run every test suite once, in parallel
 python scripts/validate.py .         the repository-wide diagnostic
-python scripts/package.py            build, extract and revalidate the release
+python scripts/package.py            build the release and check the extracted copy
 ```
 
 The product's own tests and release checks run on a commons-only pack state
@@ -121,8 +132,11 @@ their result.
 
 `.claude-plugin/`, `.codex-plugin/`, `.agents/`, `hooks/`, `MANIFEST.json`,
 `config/integration-capabilities.json` and the handoff envelope template are
-generated from `[package]` in `package-manifest.toml`. Edit the metadata and the
-templates, never the generated files.
+generated from `[package]` in `package-manifest.toml`, and
+`config/implementation-files.json` from the import closure of the production
+modules, with the digest of each module. A preparation refuses an index whose
+modules changed since it was written. Edit the metadata and the templates,
+never the generated files.
 
 The required checks are in [CONTRIBUTING.md](CONTRIBUTING.md), and
 [Release Validation](references/release/validation.md) is the sole authority for

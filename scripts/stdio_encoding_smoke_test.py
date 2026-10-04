@@ -22,7 +22,6 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import smoke_fixtures  # noqa: E402
 import stdio_utf8  # noqa: E402
 
 CONFIGURE_FIRST = [ast.dump(ast.parse(line).body[0]) for line in ("import stdio_utf8", "stdio_utf8.configure()")]
@@ -187,5 +186,4 @@ class Sources(unittest.TestCase):
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    smoke_fixtures.isolate_home()
     unittest.main(verbosity=2)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Evaluate sparse-brief discovery without relying on preset names or IDs in queries."""
+"""Evaluate sparse-brief discovery without relying on record names or IDs in queries."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -201,7 +202,7 @@ def evaluate() -> dict[str, Any]:
             for card in cards:
                 missing = [key for key in required_keys if key not in (card.get("preset_ids") or {})]
                 if missing:
-                    failures.append(f"card {card.get('id')} lacks preset IDs: {missing}")
+                    failures.append(f"card {card.get('id')} lacks record IDs: {missing}")
                 missing_fields = [field for field in required_fields if not card.get(field)]
                 if missing_fields:
                     failures.append(f"card {card.get('id')} lacks fields: {missing_fields}")
@@ -209,7 +210,7 @@ def evaluate() -> dict[str, Any]:
                 forbidden_overlap = forbidden_card_ids & selected_ids
                 if forbidden_overlap:
                     failures.append(
-                        f"card {card.get('id')} contains forbidden preset IDs: {sorted(forbidden_overlap)}"
+                        f"card {card.get('id')} contains forbidden record IDs: {sorted(forbidden_overlap)}"
                     )
 
         else:
@@ -246,7 +247,7 @@ def evaluate() -> dict[str, Any]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Evaluate sparse-brief preset discovery")
+    parser = _operation_context.ArgumentParser(description="Evaluate sparse-brief record discovery")
     add_pack_runtime_arguments(parser)
     parser.add_argument("--no-write", action="store_true")
     args = parser.parse_args(argv)
@@ -265,4 +266,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

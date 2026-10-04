@@ -10,6 +10,7 @@ import production_fixtures as fixture
 import work_ledger
 from pack_manager import generate_uuid7
 
+
 class SeriesTests(unittest.TestCase):
     def setUp(self):
         temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup);self.root=Path(temporary.name)
@@ -55,6 +56,11 @@ class SeriesTests(unittest.TestCase):
     def test_budget_uses_same_task_across_series(self):
         first=self.prepare();fixture.handoff(self.root,first,'synthetic operator','manual')
         self.task['production_id']=generate_uuid7();second=self.prepare('second.json');fixture.handoff(self.root,second,'synthetic operator','manual')
+        self.assertEqual(w.reservations(self.root,self.task['task_id']),[])
+        import reservation_lifecycle as life
+        for run in (first,second):
+            authorization=fixture.grant(self.root,run,{'operation':'submit','targets':['delivery'],'payload':{'count':1,'synthetic':True}})
+            life.reserve(self.root,run,authorization)
         self.assertEqual(len(w.reservations(self.root,self.task['task_id'])),2)
 
 if __name__=='__main__':

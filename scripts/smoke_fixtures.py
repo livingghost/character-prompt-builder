@@ -1,35 +1,10 @@
-"""Explicitly synthetic retrieval data and a scratch home for smoke tests, never production defaults."""
+"""Explicitly synthetic retrieval data for smoke tests, never production defaults."""
 from __future__ import annotations
-import atexit
 import json
-import os
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
 from prompt_retrieval import settle_retrieval_record
-
-_HOME: Path | None = None
-
-
-def isolate_home() -> Path:
-    """Point HOME and USERPROFILE at a fresh directory whose pack state enables the shipped default packs alone.
-
-    Tools this process and its subprocesses call without explicit pack paths
-    then read that state, never the pack state or host configuration of the
-    person running the suite. A second call returns the same home.
-    """
-    global _HOME
-    if _HOME is None:
-        import pack_manager
-        _HOME = Path(tempfile.mkdtemp(prefix="cpb-smoke-home-"))
-        atexit.register(shutil.rmtree, _HOME, True)
-        os.environ["HOME"] = os.environ["USERPROFILE"] = str(_HOME)
-        pack_manager.initialize_state_file(
-            pack_manager.default_settings(),
-            only=pack_manager.load_state(pack_manager.DEFAULT_PACK_STATE_PATH)["enabled_packs"],
-        )
-    return _HOME
 
 
 def fixture_retrieval(prompt: str, plot: dict[str, Any]) -> dict[str, Any]:
@@ -40,8 +15,13 @@ def fixture_retrieval(prompt: str, plot: dict[str, Any]) -> dict[str, Any]:
         prompt=prompt, plot=plot)
 
 
-def fixture_run(folder: Path, prompt: str, features: list[str]) -> tuple[Path, str]:
-    """Prepare a synthetic dispatcher run whose delivery is the prompt; no authorization is issued."""
+def fixture_external_delivery(folder: Path, prompt: str, features: list[str]) -> tuple[Path, str]:
+    """Prepare input for an independent package-construction test, not automatic dispatch.
+
+    These tests inspect reference/package bytes and never execute a service. The
+    external delivery contract does not claim to have compiled a provider request.
+    Complete automatic execution is covered by production_case_fixtures instead.
+    """
     import execution_contract as c
     import production_fixtures
     import production_workflow
@@ -49,13 +29,13 @@ def fixture_run(folder: Path, prompt: str, features: list[str]) -> tuple[Path, s
     import work_ledger
     root = studio.init(folder, 'synthetic-cli', 'Synthetic CLI fixture')
     started = work_ledger.begin(root, 'Synthetic package', ['prepare'])
-    (root / 'fixture-delivery.txt').write_text(prompt, encoding='utf-8')
+    (root / 'fixture-delivery.txt').write_bytes(prompt.encode('utf-8'))
     spec = {'task_id': started['task_id'], 'route': 'generation', 'features': features, 'sources': [],
             'delivery': {'path': 'fixture-delivery.txt', 'transport': 'authored-rendition',
                          'translation_notes': 'Exact synthetic test input.'},
             'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect actual fixture bytes.'}],
             'world_views': []}
-    production_fixtures.task(root, spec, artifact='image', execution='dispatcher')
+    production_fixtures.task(root, spec, artifact='image', execution='external')
     (root / 'fixture-task.json').write_bytes(c.encoded(spec))
     return root, production_workflow.prepare(root, 'fixture-task.json')['run']
 
@@ -79,7 +59,7 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
             if spec_path.exists() and prompt_path.is_file():
                 from render_contract_fixtures import intent
                 spec=json.loads(spec_path.read_text(encoding='utf-8'))
-                prompt=prompt_path.read_text(encoding='utf-8').strip()
+                prompt=prompt_path.read_bytes().decode('utf-8')
                 ref_mode='text-to-image'
                 if '--references-file' in args:
                     ref_path=Path(args[args.index('--references-file')+1])
@@ -93,9 +73,9 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
                 args[args.index('--production-spec-file')+1]=str(current)
         if '--production-root' not in args:
             prompt_path=Path(argv[argv.index('--prompt-file')+1])
-            prompt=prompt_path.read_text(encoding='utf-8').strip() if prompt_path.is_file() else ''
+            prompt=prompt_path.read_bytes().decode('utf-8') if prompt_path.is_file() else ''
             features=['state-series'] if main.__module__=='build_state_generation_package' else []
-            root,run=fixture_run(Path(temp)/'studio',prompt or 'synthetic absent prompt',features)
+            root,run=fixture_external_delivery(Path(temp)/'studio',prompt or 'synthetic absent prompt',features)
             args.extend(['--production-root',str(root),'--production-run',run])
         root=Path(args[args.index('--production-root')+1])
         # Later verification in these tests reads the shared fixture root, so
@@ -129,4 +109,7 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
                 value=fixture_retrieval(prompt_path.read_text(encoding='utf-8'),json.loads(plot_path.read_text(encoding='utf-8')))
             path.write_text(json.dumps(value),encoding='utf-8')
             args.extend(['--retrieval-record-file',str(path)])
+        if main.__module__=='build_generation_payload' and '--prompt-file' in args:
+            # The stateless builder reads the prompt from the run's delivery, which the prompt file became above.
+            index=args.index('--prompt-file');del args[index:index+2]
         return main(args)

@@ -24,6 +24,7 @@ import production_binding as binding
 import work_ledger as ledger
 import production_fixtures as fixture
 
+
 ROOT=Path(__file__).resolve().parents[1]
 
 
@@ -45,7 +46,7 @@ class ProductionTests(unittest.TestCase):
     def write(self,name,value):
         p=self.root/name; p.parent.mkdir(parents=True,exist_ok=True)
         if isinstance(value,bytes): p.write_bytes(value)
-        elif isinstance(value,str): p.write_text(value,encoding='utf-8')
+        elif isinstance(value,str): p.write_bytes(value.encode('utf-8'))
         else: p.write_bytes(c.encoded(value))
         return p
 
@@ -103,19 +104,19 @@ class ProductionTests(unittest.TestCase):
     def test_consumer_excludes_raw_dossier(self):
         run=self.prepare(); self.assertNotIn('PRIVATE_SOURCE_NOT_FOR_CONSUMER',c.read(w.run_dir(self.root,run)/'consumer.json').decode())
     def test_exact_binding(self):
-        run=self.prepare(); b=binding.create(self.root,run,'Describe one lamp.'); binding.validate(b,'Describe one lamp.')
+        run=self.prepare(); b=binding.create(self.root,run,'Describe one lamp.\n'); binding.validate(b,'Describe one lamp.\n')
     def test_wrong_delivery_binding(self):
         run=self.prepare()
         with self.assertRaises(ValueError): binding.create(self.root,run,'Another picture.')
     def test_binding_changed_without_digest(self):
-        run=self.prepare(); b=binding.create(self.root,run,'Describe one lamp.'); b['consumer']['instructions']='changed'
-        with self.assertRaises(ValueError): binding.validate(b,'Describe one lamp.')
+        run=self.prepare(); b=binding.create(self.root,run,'Describe one lamp.\n'); b['consumer']['instructions']='changed'
+        with self.assertRaises(ValueError): binding.validate(b,'Describe one lamp.\n')
     def test_authored_rendition_no_prefix(self):
-        run=self.prepare(); b=binding.create(self.root,run,'Describe one lamp.')
+        run=self.prepare(); b=binding.create(self.root,run,'Describe one lamp.\n')
         self.assertEqual(binding.effective(b,'TAG_1, TAG_2'),'TAG_1, TAG_2')
     def test_bounded_prefix_only_explicit_fields(self):
         self.spec['delivery']['transport']='bounded-context'; self.save_spec(); run=self.prepare()
-        b=binding.create(self.root,run,'Describe one lamp.'); text=binding.effective(b,'prompt',context_transport='prompt-prefix')
+        b=binding.create(self.root,run,'Describe one lamp.\n'); text=binding.effective(b,'prompt',context_transport='prompt-prefix')
         self.assertIn('Keep one lamp.',text); self.assertNotIn('PRIVATE_SOURCE',text)
     def test_no_handoff_no_capture(self):
         run=self.prepare(); self.write('out.txt','lamp')
@@ -130,13 +131,13 @@ class ProductionTests(unittest.TestCase):
         run=self.prepare(); fixture.handoff(self.root,run,'test','manual'); self.write('empty','')
         with self.assertRaises(ValueError): w.capture(self.root,run,'empty','test')
     def test_changed_source(self):
-        run=self.prepare(); self.write('brief.md','changed'); self.assertFalse(w.status(self.root,run)['ok'])
+        run=self.prepare(); self.write('brief.md','changed'); self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
     def test_changed_delivery(self):
-        run=self.prepare(); self.write('delivery.txt','changed'); self.assertFalse(w.status(self.root,run)['ok'])
+        run=self.prepare(); self.write('delivery.txt','changed'); self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
     def test_changed_criteria(self):
-        run=self.prepare(); self.spec['criteria'][0]['text']='changed'; self.save_spec(); self.assertFalse(w.status(self.root,run)['ok'])
+        run=self.prepare(); self.spec['criteria'][0]['text']='changed'; self.save_spec(); self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
     def test_changed_task_only_note(self):
-        run=self.prepare(); self.spec['delivery']['translation_notes']='Different meaning'; self.save_spec(); self.assertFalse(w.status(self.root,run)['ok'])
+        run=self.prepare(); self.spec['delivery']['translation_notes']='Different meaning'; self.save_spec(); self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
     def test_unknown_feature(self):
         self.spec['features']=['missing']; self.write('task.json',self.spec)
         with self.assertRaises(ValueError): self.prepare()
@@ -168,7 +169,16 @@ class ProductionTests(unittest.TestCase):
     def test_object_integrity(self):
         run=self.prepare(); p=next((w.run_dir(self.root,run)/'objects').iterdir()); p.write_bytes(b'bad'); self.assertFalse(w.status(self.root,run)['ok'])
     def test_receipt_integrity(self):
-        run,ca=self.candidate(); path=next((w.run_dir(self.root,run)/'records').iterdir()); path.write_text('{}',encoding='utf-8'); self.assertFalse(w.status(self.root,run)['ok'])
+        import production_store as store
+        run,ca=self.candidate()
+        with store.transaction(self.root) as connection:
+            connection.execute("UPDATE events SET body=? WHERE scope=? AND sequence=1",(b'{}',run))
+        report=w.status(self.root,run)
+        self.assertFalse(report['ok'])
+        diagnostic=report['runs'][0]['diagnostics'][0]
+        self.assertEqual(diagnostic['code'],'EVENT_CHAIN_CORRUPT')
+        self.assertEqual(diagnostic['run'],run)
+        self.assertEqual(diagnostic['event'],1)
     def test_unfinished_review_not_accepted(self):
         run,ca=self.candidate(); self.write('review.json',w.draft_review(self.root,run,ca['sha256']))
         with self.assertRaises(ValueError): w.review(self.root,run,'review.json')
@@ -207,15 +217,21 @@ class ProductionTests(unittest.TestCase):
     def test_unresolved_blocks_selection(self):
         run,ca=self.candidate(); d=self.review_data(run,ca); d['unresolved']=['Need an actual decision']; self.record_review(run,ca,d)
         with self.assertRaises(ValueError): self.select(run,ca)
-    def test_candidate_edit_after_review(self):
-        run,ca=self.candidate(); self.record_review(run,ca); self.write('output.txt','Changed output')
-        with self.assertRaises(ValueError): self.select(run,ca)
-    def test_review_edit_after_recording(self):
-        run,ca=self.candidate(); self.record_review(run,ca); self.write('review.json',{})
-        with self.assertRaises(ValueError): self.select(run,ca)
-    def test_selection_edit_after_recording(self):
-        run,ca=self.candidate(); self.record_review(run,ca); self.select(run,ca); self.write('selection.json',{})
-        with self.assertRaises(ValueError): w.complete(self.root,run)
+    def test_captured_candidate_survives_source_edit(self):
+        run,ca=self.candidate(); self.record_review(run,ca)
+        self.write('output.txt','Changed output')
+        self.select(run,ca)
+        saved=ca['data']['files'][0]
+        self.assertEqual(c.object_read(w.run_dir(self.root,run),saved['sha256']),b'One lamp.\n')
+    def test_recorded_review_survives_source_edit(self):
+        run,ca=self.candidate(); recorded=self.record_review(run,ca); self.write('review.json',{})
+        self.select(run,ca)
+        self.assertEqual(w.latest_review(w.load_run(self.root,run)[3],ca['sha256']),recorded)
+    def test_recorded_selection_survives_source_edit(self):
+        run,ca=self.candidate(); self.record_review(run,ca); selection=self.select(run,ca)
+        self.write('selection.json',{})
+        done=w.complete(self.root,run)
+        self.assertEqual(done['data']['selection'],selection['sha256'])
     def test_new_review_supersedes_selection(self):
         run,ca=self.candidate(); self.record_review(run,ca); self.select(run,ca)
         d=self.review_data(run,ca); d['checks'][0]['verdict']='fail'; d['unresolved']=['The latest observation leaves the criterion unresolved.']; self.record_review(run,ca,d,name='review2.json')
@@ -229,18 +245,18 @@ class ProductionTests(unittest.TestCase):
         run,ca=self.candidate(); self.assertEqual(ca,w.capture(self.root,run,'output.txt','Synthetic fixture'))
     def test_publish_directory_retries_a_transient_refusal(self):
         staging=self.root/'.pending-x'; staging.mkdir(); target=self.root/'published'
-        original=Path.rename; calls=[]
+        original=c._rename_directory_exclusive; calls=[]
         def flaky(path,destination):
             calls.append(1)
             if len(calls)==1: raise PermissionError(13,'Permission denied')
             return original(path,destination)
-        with patch.object(Path,'rename',flaky): c.publish_directory(staging,target)
+        with patch.object(c,'_rename_directory_exclusive',flaky): c.publish_directory(staging,target)
         self.assertTrue(target.is_dir()); self.assertFalse(staging.exists()); self.assertEqual(len(calls),2)
     def test_publish_directory_raises_a_persistent_refusal(self):
         staging=self.root/'.pending-y'; staging.mkdir(); target=self.root/'never'
         def refused(path,destination): raise PermissionError(13,'Permission denied')
-        with patch.object(Path,'rename',refused):
-            with self.assertRaises(PermissionError): c.publish_directory(staging,target,patience=0.3)
+        with patch.object(c,'_rename_directory_exclusive',refused):
+            with self.assertRaisesRegex(ValueError, 'ARTIFACT_PUBLISH_FAILED'): c.publish_directory(staging,target,patience=0.3)
         self.assertTrue(staging.is_dir()); self.assertFalse(target.exists())
     def test_lock_waits_longer_than_ten_seconds(self):
         import threading,time
@@ -271,16 +287,48 @@ class ProductionTests(unittest.TestCase):
         with self.assertRaises(ValueError): ledger.finish(self.root)
     def test_complete_then_ledger_close_and_resume(self):
         run,done=self.finish(); ledger.step_done(self.root,1); ledger.step_done(self.root,2); ledger.finish(self.root)
-        self.assertIsNone(ledger.read_current(self.root)); self.assertEqual(w.status(self.root,run)['next'],'done')
+        self.assertIsNone(ledger.read_current(self.root)); self.assertIsNone(w.status(self.root,run)['runs'][0]['next_action'])
     def test_wrong_task_completion(self):
         run,done=self.finish()
         with self.assertRaises(ValueError): w.verify_completion(self.root,run,'not-the-task')
     def test_unfinished_steps_still_block_finish(self):
         self.finish()
         with self.assertRaises(ValueError): ledger.finish(self.root)
-    def test_temp_receipt_has_no_phase_authority(self):
-        run=self.prepare(); (w.run_dir(self.root,run)/'records/.pending-fixture').write_bytes(b'partial')
-        self.assertEqual(w.status(self.root,run)['next'],'authorize-direction-and-handoff')
+    def test_unpublished_staging_has_no_phase_authority(self):
+        run=self.prepare()
+        pending=self.root/'production/staging/incomplete-operation'
+        pending.mkdir(parents=True)
+        (pending/'authorization.json').write_bytes(b'{"partial":')
+        report=w.status(self.root,run)
+        self.assertEqual(report['runs'][0]['next_action']['command'],'handoff')
+        self.assertIn('incomplete-operation',report['staging'])
+        self.assertEqual(w.load_run(self.root,run)[3],[])
+    def test_staging_cleanup_is_owner_scoped_and_dry_run_by_default(self):
+        from production_compiler import staging_cleanup
+        staging=self.root/'production/staging/abandoned'
+        staging.mkdir(parents=True)
+        self.write('production/staging/abandoned/owner.json', {
+            'operation_id':'op-abandoned','pid':99999999,'created_at':'2026-10-02T00:00:00+00:00','phase':'compiling'
+        })
+        report=staging_cleanup(self.root)
+        self.assertTrue(report['items'][0]['eligible']);self.assertTrue(staging.exists())
+        with self.assertRaises(ValueError):staging_cleanup(self.root,apply=True)
+        other=staging_cleanup(self.root,operation_id='op-other',apply=True)
+        self.assertEqual(other['deleted'],0);self.assertTrue(staging.exists())
+        own=staging_cleanup(self.root,operation_id='op-abandoned',apply=True)
+        self.assertEqual(own['deleted'],1);self.assertFalse(staging.exists())
+
+    def test_staging_cleanup_protects_a_live_owner(self):
+        from production_compiler import staging_cleanup
+        staging=self.root/'production/staging/live'
+        staging.mkdir(parents=True)
+        self.write('production/staging/live/owner.json', {
+            'operation_id':'op-live','pid':os.getpid(),'created_at':'2026-10-02T00:00:00+00:00','phase':'compiling'
+        })
+        report=staging_cleanup(self.root,operation_id='op-live',apply=True)
+        self.assertEqual(report['deleted'],0);self.assertTrue(staging.exists())
+        self.assertIn('active',report['items'][0]['reasons'][0])
+
     def test_idempotent_object(self):
         run=self.prepare(); path=w.run_dir(self.root,run); self.assertEqual(c.object_store(path,b'abc'),c.object_store(path,b'abc'))
     def no_hard_links(self):
@@ -328,19 +376,20 @@ class ProductionTests(unittest.TestCase):
         skill=[d for d in prepared['dependencies'] if d['space']=='skill']
         self.assertIn('scripts/production_workflow.py',{d['path'] for d in skill})
         self.assertEqual({p.name for p in (directory/'objects').iterdir()},
-                         {d['sha256'] for d in prepared['dependencies'] if d['space']=='project'})
-        # A copy of the pinned installation stands in for the skill, so one of its files can change.
+                         {d['sha256'] for d in prepared['dependencies'] if d['space']!='skill'})
         with tempfile.TemporaryDirectory() as temporary:
-            copy=Path(temporary)
+            copied=Path(temporary)
             for d in skill:
-                target=copy/d['path']; target.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(ROOT/d['path'],target)
-            changed=copy/'scripts/production_workflow.py'
-            with patch.object(w,'ROOT',copy):
+                target=copied/d['path']; target.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(ROOT/d['path'],target)
+            changed=copied/'scripts/production_workflow.py'
+            with patch.object(w,'ROOT',copied):
                 w.assert_current(self.root,run)
-                raw=changed.read_bytes(); changed.write_bytes(raw[:-1]+(b'\n' if raw[-1:]==b' ' else b' '))
-                with self.assertRaisesRegex(ValueError,'changed skill input: scripts/production_workflow.py'):
-                    w.assert_current(self.root,run)
-                self.assertFalse(w.status(self.root,run)['ok'])
+                changed.write_bytes(changed.read_bytes()+b'\n')
+                from production_diagnostics import ProductionError
+                with self.assertRaises(ProductionError) as caught: w.assert_current(self.root,run)
+                self.assertEqual(caught.exception.diagnostic.code,'IMPLEMENTATION_CHANGED')
+                self.assertEqual(caught.exception.diagnostic.file,'scripts/production_workflow.py')
+                self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
     def clone_run(self,run,task_id=None):
         from pack_manager import generate_uuid7
         target=self.root/'production'/generate_uuid7(); shutil.copytree(w.run_dir(self.root,run),target)
@@ -354,11 +403,16 @@ class ProductionTests(unittest.TestCase):
         (self.root/'production/.DS_Store').write_bytes(b'\x00\x01'); (self.root/'production/README').write_text('Notes.\n', encoding='utf-8')
         other=self.clone_run(run,task_id=str(uuid.uuid4())); next((other/'objects').iterdir()).write_bytes(b'damaged')
         self.assertEqual(fixture.handoff(self.root,run,'test','manual')['event'],'handoff')
-    def test_damaged_run_of_this_task_fails_closed(self):
-        run=self.prepare(); copy=self.clone_run(run); next((copy/'objects').iterdir()).write_bytes(b'damaged')
-        with self.assertRaises(ValueError): fixture.handoff(self.root,run,'test','manual')
-        (copy/'prepared.json').write_bytes(b'{}')
-        with self.assertRaises(ValueError): fixture.handoff(self.root,run,'test','manual')
+    def test_damaged_run_is_reported_without_hiding_other_runs(self):
+        run=self.prepare(); damaged=self.prepare()
+        (w.run_dir(self.root,damaged)/'prepared.json').write_bytes(b'{}')
+        report=w.status(self.root,budget=True)
+        self.assertFalse(report['ok'])
+        states={row['run']:row for row in report['runs']}
+        self.assertEqual(states[run]['integrity'],'intact')
+        self.assertEqual(states[damaged]['integrity'],'blocked')
+        self.assertFalse(report['budget']['complete'])
+        with self.assertRaises(ValueError): w.assert_current(self.root,damaged)
     @unittest.skipUnless(os.name=='nt','Windows byte-range lock')
     def test_lock_raises_an_error_other_than_contention(self):
         import errno,msvcrt
@@ -381,14 +435,14 @@ class ProductionTests(unittest.TestCase):
     def test_cli_resolves_a_linked_root(self):
         run=self.prepare()
         with tempfile.TemporaryDirectory() as temporary:
-            link=Path(temporary)/'linked-project'
+            link=Path(temporary)/'linked-studio'
             try: link.symlink_to(self.root,target_is_directory=True)
             except OSError: self.skipTest('symbolic links are unavailable')
             out=io.StringIO()
             with patch('sys.argv',['production_workflow.py','status','--root',str(link),'--run',run]),contextlib.redirect_stdout(out):
                 code=w.main()
         report=json.loads(out.getvalue())
-        self.assertTrue(report['integrity']['ok'],report); self.assertEqual(code,0)
+        self.assertEqual(report['runs'][0]['integrity'],'intact',report); self.assertEqual(code,0)
     def test_finish_resumes_after_journal_publish(self):
         run,_=self.finish(); ledger.step_done(self.root,1); ledger.step_done(self.root,2)
         original=ledger.write_current
@@ -416,175 +470,238 @@ class ProductionTests(unittest.TestCase):
         self.spec['route']='world-realization'; self.spec['world_views']=[{'plan':'plan.json','bundle':'bundle','unit_id':u['unit_id'],'view_id':v['view_id']}]; self.save_spec()
         run=self.prepare(); self.assertTrue(w.status(self.root,run)['ok'])
         plan=c.load(self.root/'plan.json'); plan['units'][0]['review_note']='Only this instruction changed.'; self.write('plan.json',plan)
-        self.assertFalse(w.status(self.root,run)['ok'])
+        self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
+
+
+class CopyProjectTests(unittest.TestCase):
+    """The shared helper that gives each test its own copy of a prepared studio."""
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.base=Path(self.temp.name);self.origin=self.base/'origin';(self.origin/'nested').mkdir(parents=True)
+        self.outside=self.base/'outside';self.outside.mkdir();(self.outside/'data.json').write_bytes(b'{}')
+
+    def test_a_symbolic_link_is_copied_as_a_link(self):
+        import production_case_fixtures as cases
+        try:(self.origin/'nested/linked').symlink_to(self.outside,target_is_directory=True)
+        except OSError:self.skipTest('symbolic links are unavailable')
+        copied=cases.copy_studio(self.origin,self.base/'copy')
+        self.assertTrue((copied/'nested/linked').is_symlink())
+        self.assertEqual(os.readlink(copied/'nested/linked'),os.readlink(self.origin/'nested/linked'))
+
+    @unittest.skipUnless(os.name=='nt','directory junctions are a Windows feature')
+    def test_a_studio_holding_a_junction_is_refused_before_anything_is_copied(self):
+        import subprocess
+        import production_case_fixtures as cases
+        made=subprocess.run(['cmd','/c','mklink','/J',str(self.origin/'nested/joined'),str(self.outside)],capture_output=True)
+        if made.returncode!=0:self.skipTest('this file system makes no directory junction')
+        with self.assertRaisesRegex(ValueError,'joined is a directory junction'):
+            cases.copy_studio(self.origin,self.base/'copy')
+        self.assertFalse((self.base/'copy').exists())
+
+
+def cold(test):
+    """Mark a test that builds its synthetic case from an empty folder instead of copying the class's prepared studio."""
+    test.cold_setup=True
+    return test
 
 
 class PackageIntegrationTests(unittest.TestCase):
-    def setUp(self):
-        self.temp=tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
-        self.base=Path(self.temp.name)
-        from catalog_cli import configure_pack_runtime
-        from pack_manager import default_settings
-        configure_pack_runtime(default_settings(
-            state_file=self.base/'pack-state.json', cache_dir=self.base/'cache',
-            managed_root=self.base/'managed',
-            default_enabled_packs=[c.load(ROOT/'packs/commons/pack.json')['pack_id']]))
-        self.addCleanup(configure_pack_runtime, None)
-        import studio
-        self.root=studio.init(self.base/'studio','production-test','Production workflow tests'); studio.add_character(self.root,'C01','')
-        self.package=json.loads((ROOT/'examples/state-aware-pilot/generated/generation-package.json').read_text(encoding='utf-8'))
-        self.composition=self.package['composition_prompt']
-        task=ledger.begin(self.root,'Synthetic package test',['prepare','render'])
-        (self.root/'delivery.txt').write_text(self.composition, encoding='utf-8')
-        self.spec={'task_id':task['task_id'],'route':'development','features':[],'sources':[],
-                   'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Use exact authored prompt.'},'criteria':[{'id':'bytes','strength':'hard','text':'Captured fixture bytes are actually available.'}],'world_views':[]}
-        fixture.task(self.root,self.spec,artifact='binary',execution='dispatcher')
-        (self.root/'task.json').write_bytes(c.encoded(self.spec)); self.run=w.prepare(self.root,'task.json')['run']
-        self.package=fixture.bind_package(self.root,self.run,self.package)
-        from build_generation_payload import generation_input_sha256
-        key=generation_input_sha256(self.package); self.package['generation_input_sha256']=key; self.package['generation_contract']['generation_input_sha256']=key
-        self.package_path=self.root/'package.json'; self.package_path.write_text(json.dumps(self.package), encoding='utf-8')
+    """Full synthetic requests exercise the same compiler and execution as the CLI.
 
-    def prepare_adopted_selection(self, *, through_production=False):
-        self.spec['execution']='authored'
-        (self.root/'task.json').write_bytes(c.encoded(self.spec))
-        self.run=w.prepare(self.root,'task.json')['run']
-        self.package=fixture.bind_package(self.root,self.run,self.package)
-        from build_generation_payload import generation_input_sha256
-        key=generation_input_sha256(self.package); self.package['generation_input_sha256']=key; self.package['generation_contract']['generation_input_sha256']=key
-        self.package_path.write_text(json.dumps(self.package), encoding="utf-8")
-        import studio,adoption_workflow as adoption
-        from PIL import Image
-        image=self.root/'fixture.png'; Image.new('RGB',(24,24)).save(image)
-        row=studio.iterate(self.root,'C01','base.front',image,package=self.package_path,request=None,response=None,note='Synthetic fixture')
-        approval={'scope':'sheet','influence':'identity','character':'C01','iteration_id':row['iteration_id'],'slot':row['slot'],
-                  'image_sha256':row['result']['sha256'],'by':fixture.ACTOR,'at':'2026-09-16T00:00:00Z'}
+    The class builds the pack, runtime state, catalog cache, studio, prepared
+    run and decision file once, and each test works on its own copy and home.
+    No test here edits the pack or the runtime state. A test marked `cold`
+    builds everything itself, so the uncopied setup stays covered end to end.
+    Another suite's test that calls this setUp without the class setup also
+    builds everything itself.
+    """
+    @staticmethod
+    def build(base):
+        import production_case_fixtures as cases
+        case=cases.create(base/'studio',base/'runtime')
+        spec=case['task']
+        spec['recording'].update(slot='base.front',sheet_panel=True,subject_map={'robot':'robot'})
+        spec['generation']['continuity']['robot']='undecided'
+        spec['generation']['count']=2
+        cases.write(case['root']/'task.json',spec)
+        return case,spec,w.prepare(case['root'],'task.json')['run']
+
+    @classmethod
+    def setUpClass(cls):
+        from catalog_cli import configure_pack_runtime
+        from test_production_execution import decisions
+        temp=tempfile.TemporaryDirectory();cls.addClassCleanup(temp.cleanup)
+        base=Path(temp.name);cls.enterClassContext(fixture.scratch_home(base/'home'))
+        cls.addClassCleanup(configure_pack_runtime,None)
+        cls.case,cls.prepared_spec,cls.prepared_run=PackageIntegrationTests.build(base)
+        cls.prepared_decisions=decisions(cls.case['root'],cls.prepared_run)
+
+    def setUp(self):
+        import production_case_fixtures as cases
+        import production_execution as execution
+        import transport_synthetic
+        from catalog_cli import configure_pack_runtime
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.base=Path(self.temp.name);self.enterContext(fixture.scratch_home(self.base/'home'))
+        self.addCleanup(configure_pack_runtime,None)
+        if getattr(getattr(self,self._testMethodName),'cold_setup',False) or not hasattr(self,'prepared_run'):
+            case,self.spec,self.run=PackageIntegrationTests.build(self.base)
+            self.root=case['root'];self.decision_file=None
+        else:
+            configure_pack_runtime(self.case['settings'])
+            self.root=cases.copy_studio(self.case['root'],self.base/'studio')
+            self.spec=copy.deepcopy(self.prepared_spec);self.run=self.prepared_run;self.decision_file=self.prepared_decisions
+        # Every copy carries the same request_id, so each test meets a synthetic service that has answered nothing.
+        self.enterContext(patch.dict(transport_synthetic._ANSWERED,clear=True))
+        self.data=execution.compiled(self.root,self.run)
+        self.package=self.data[4];self.package_path=self.data[0]/'package.json'
+        self.composition=self.package['composition_prompt']
+
+    def execute(self):
+        import production_execution as execution
+        from test_production_execution import decisions
+        return execution.execute(self.root,self.run,decisions_file=self.decision_file or decisions(self.root,self.run))
+
+    def prepare_adopted_selection(self):
+        import production_case_fixtures as cases
+        import studio
         from visual_continuity import file_ref
-        (self.root/'synthetic-continuity.txt').write_text('Synthetic fixture decision: this single-subject candidate represents C01 and may recur. Not user consent.\n', encoding='utf-8')
-        approval['continuity_decision']={'character_id':'C01','continuity':'recurring',
-            'basis':file_ref(self.root,'synthetic-continuity.txt',locator='whole'),
-            'by':fixture.ACTOR,'at':'2000-01-01T00:00:00Z'}
-        if not through_production:
-            adoption.adopt(self.root,'C01',row['iteration_id'],approval)
-        fixture.handoff(self.root,self.run,'test','manual')
-        ca=w.capture(self.root,self.run,'fixture.png','Synthetic adopted fixture')
-        d=w.draft_review(self.root,self.run,ca['sha256'])
-        d.update(reviewer='Synthetic reviewer',observations=[{'locator':{'kind':'whole'},'observation':'Synthetic image fixture inspected.'}],conclusion='Test only.')
-        fixture.observation(d)
-        for check in d['checks']:
-            check.update(verdict='pass',observation_indices=[0],reason='Actual captured fixture bytes exist.')
-        (self.root/'review.json').write_bytes(c.encoded(d)); w.review(self.root,self.run,'review.json')
-        if through_production:
-            (self.root/'approval.json').write_bytes(c.encoded(approval))
-            intent=w.adoption_intent(self.root,self.run,ca['sha256'],'C01',row['iteration_id'],approval)
-            auth=fixture.grant(self.root,self.run,intent)
-            result=w.adopt(self.root,self.run,ca['sha256'],'C01',row['iteration_id'],'approval.json',auth)
-            self.assertEqual(result,w.adopt(self.root,self.run,ca['sha256'],'C01',row['iteration_id'],'approval.json',auth))
-        d=w.draft_selection(self.root,self.run,ca['sha256'])
-        d.update(selector='Synthetic selector',reason='Test actual owner connection.',scope='studio-adoption',adoption={'character':'C01','iteration_id':row['iteration_id'],'scope':'sheet'})
-        fixture.selection(self.root,self.run,d)
-        (self.root/'selection.json').write_bytes(c.encoded(d))
-        return row,d
+        output=self.execute();candidate=output['runs'][0]['candidates'][0]
+        row=studio.read_iterations(studio.character_dir(self.root,'robot'))[0]
+        review=w.draft_review(self.root,self.run,candidate)
+        review.update(reviewer=fixture.ACTOR,observations=[{'locator':{'kind':'whole'},
+            'observation':'The actual local synthetic PNG was inspected.'}],conclusion='Synthetic fixture, not user approval.')
+        fixture.observation(review)
+        for check in review['checks']:check.update(verdict='pass',observation_indices=[0],reason='Actual fixture bytes exist.')
+        cases.write(self.root/'review.json',review);w.review(self.root,self.run,'review.json')
+        cases.write(self.root/'adoption-basis.txt','Explicit synthetic identity adoption. Not user consent.')
+        approval={'scope':'sheet','influence':'identity','character':'robot','iteration_id':row['iteration_id'],
+            'slot':row['slot'],'image_sha256':row['result']['sha256'],'by':fixture.ACTOR,'at':'2000-01-01T00:00:00Z',
+            'continuity_decision':{'character_id':'robot','continuity':'recurring',
+                'basis':file_ref(self.root,'adoption-basis.txt',locator='whole'),'by':fixture.ACTOR,'at':'2000-01-01T00:00:00Z'}}
+        cases.write(self.root/'approval.json',approval)
+        # Adoption starts from the run's current selection of the candidate.
+        delivery=w.draft_selection(self.root,self.run,candidate)
+        delivery.update(reason='Synthetic delivery selection before adoption.')
+        fixture.selection(self.root,self.run,delivery)
+        cases.write(self.root/'delivery-selection.json',delivery);w.select(self.root,self.run,'delivery-selection.json')
+        intent=w.adoption_intent(self.root,self.run,candidate,'robot',row['iteration_id'],approval)
+        auth=fixture.grant(self.root,self.run,intent)
+        first=w.adopt(self.root,self.run,candidate,'robot',row['iteration_id'],'approval.json',auth)
+        self.assertEqual(first,w.adopt(self.root,self.run,candidate,'robot',row['iteration_id'],'approval.json',auth))
+        selection=w.draft_selection(self.root,self.run,candidate)
+        selection.update(selector=fixture.ACTOR,reason='Actual synthetic owner connection.',scope='studio-adoption',
+            adoption={'character':'robot','iteration_id':row['iteration_id'],'scope':'sheet'})
+        fixture.selection(self.root,self.run,selection)
+        cases.write(self.root/'selection.json',selection)
+        return row,selection
+
+    @cold
     def test_production_adoption_claims_separate_authority_and_completes(self):
-        self.prepare_adopted_selection(through_production=True)
-        rows=w.load_run(self.root,self.run)[3]
-        self.assertTrue(any(r['event']=='adoption-claim' for r in rows))
+        self.prepare_adopted_selection()
+        self.assertTrue(any(r['event']=='adoption-claim' for r in w.load_run(self.root,self.run)[3]))
         w.select(self.root,self.run,'selection.json');w.complete(self.root,self.run)
         self.assertEqual(w.verify_completion(self.root,self.run,self.spec['task_id'])['event'],'completion')
+
     def test_owner_change_after_completion_is_not_current(self):
         row,_=self.prepare_adopted_selection();w.select(self.root,self.run,'selection.json');w.complete(self.root,self.run)
-        (self.root/'characters/C01/adoptions'/f"{row['iteration_id']}.json").write_text('{}', encoding='utf-8')
+        (self.root/'characters/robot/adoptions'/f"{row['iteration_id']}.json").write_text('{}',encoding='utf-8')
         with self.assertRaises(ValueError):w.verify_completion(self.root,self.run,self.spec['task_id'])
+
     def test_real_studio_adoption_matches_selected_bytes(self):
-        self.prepare_adopted_selection(); w.select(self.root,self.run,'selection.json')
+        self.prepare_adopted_selection();w.select(self.root,self.run,'selection.json')
         self.assertEqual(w.complete(self.root,self.run)['data']['scope'],'studio-adoption')
+
     def test_adoption_edit_invalidates_completion(self):
-        row,_=self.prepare_adopted_selection(); w.select(self.root,self.run,'selection.json')
-        (self.root/'characters/C01/adoptions'/f"{row['iteration_id']}.json").write_text('{}', encoding='utf-8')
-        with self.assertRaises(ValueError): w.complete(self.root,self.run)
+        row,_=self.prepare_adopted_selection();w.select(self.root,self.run,'selection.json')
+        (self.root/'characters/robot/adoptions'/f"{row['iteration_id']}.json").write_text('{}',encoding='utf-8')
+        with self.assertRaises(ValueError):w.complete(self.root,self.run)
+
     def test_adoption_wrong_scope_not_selected(self):
-        row,d=self.prepare_adopted_selection(); d['adoption']['scope']='another scope'
-        (self.root/'selection.json').write_bytes(c.encoded(d))
-        with self.assertRaises(ValueError): w.select(self.root,self.run,'selection.json')
+        _,selection=self.prepare_adopted_selection();selection['adoption']['scope']='another scope'
+        (self.root/'selection.json').write_bytes(c.encoded(selection))
+        with self.assertRaises(ValueError):w.select(self.root,self.run,'selection.json')
+
     def test_real_verifier_bound_input(self):
         from verify_generation_payload import verify
-        self.assertTrue(verify(self.package,package_root=ROOT/'examples/state-aware-pilot/generated',project=self.root)['verified'])
+        import runtime_snapshot
+        descriptor=self.data[1]['runtime_snapshot'];directory=self.data[0]
+        with runtime_snapshot.using(runtime_snapshot.path(self.root,descriptor),descriptor):
+            self.assertTrue(verify(self.package,package_root=directory,studio=self.root,
+                                  reading_ledgers=[directory/'reads.jsonl'])['verified'])
+
     def test_cross_run_binding(self):
-        with self.assertRaises(ValueError): binding.validate_live(self.root,w.prepare(self.root,'task.json')['run'],self.package)
+        with self.assertRaises(ValueError):binding.validate_live(self.root,w.prepare(self.root,'task.json')['run'],self.package)
+
     def test_bound_dispatch_cannot_omit_context(self):
-        with self.assertRaises(ValueError): binding.validate_live(None,None,self.package)
+        with self.assertRaises(ValueError):binding.validate_live(None,None,self.package)
+
     def test_live_input_drift(self):
-        (self.root/'delivery.txt').write_text('changed', encoding='utf-8')
-        with self.assertRaises(ValueError): binding.validate_live(self.root,self.run,self.package)
+        (self.root/'prompt.txt').write_text('changed',encoding='utf-8')
+        with self.assertRaises(ValueError):binding.validate_live(self.root,self.run,self.package)
+
     def test_claim_prevents_duplicate_send(self):
-        fixture.handoff(self.root,self.run,'test transport','dispatcher'); journal=self.root/'runs'/'fixture'; journal.mkdir()
-        v={'host_forwarding':{'effective_prompt_sha256':'a'*64}}
-        fixture.claim(self.root,self.run,self.package,v,journal)
-        with self.assertRaises(ValueError): fixture.claim(self.root,self.run,self.package,v,journal)
+        import production_execution as execution
+        import transport_synthetic
+        self.execute()
+        with patch.object(transport_synthetic,'send',side_effect=AssertionError('No second send')):
+            with self.assertRaises(ValueError):execution.execute(self.root,self.run)
+        self.assertEqual(sum(r['event']=='dispatch-claim' for r in w.load_run(self.root,self.run)[3]),1)
+
     def test_intent_names_inputs_by_hash_and_the_claim_checks_their_bytes(self):
-        import base64
-        fixture.handoff(self.root,self.run,'test transport','dispatcher'); journal=self.root/'runs'/'fixture'; journal.mkdir()
-        rendered=fixture.rendered_request(self.package,seed=None,count=2); target=rendered['sealed']['target']
-        intent=w.submission_intent(self.package,rendered=rendered,seed=None,count=2,service={},
-                                   offering={'service':target['service'],'model_identifier':target['model_identifier']})
-        snapshots=self.package['input_snapshots']
-        self.assertEqual(intent['payload']['input_sha256'],{path:item['sha256'] for path,item in snapshots.items()})
+        import production_execution as execution
+        import reservation_lifecycle as accounting
+        from test_production_execution import decisions
+        from production_diagnostics import ProductionError
+        plan=self.data[6];intent=plan['operations'][-1];snapshots=self.package['input_snapshots']
+        self.assertEqual(intent['payload']['validation_inputs'],{path:item['sha256'] for path,item in snapshots.items()})
         self.assertNotIn('base64',c.encoded(intent).decode('utf-8'))
-        unnamed=copy.deepcopy(intent); del unnamed['payload']['input_sha256'][self.package['request_validation']['contract']['path']]
+        unnamed=copy.deepcopy(intent);del unnamed['payload']['validation_inputs'][self.package['request_validation']['contract']['path']]
         with self.assertRaisesRegex(ValueError,'does not name the validation contract'):
             w.draft_authorization(self.root,self.run,'fixture-grant',unnamed)
-        authorization=fixture.grant(self.root,self.run,intent)
-        (journal/'request-contract.json').write_bytes(c.encoded(rendered))
-        changed=copy.deepcopy(self.package); raw=b'{"synthetic": "other bytes"}\n'
-        changed['input_snapshots'][sorted(snapshots)[0]]={'sha256':c.digest(raw),'size':len(raw),'base64':base64.b64encode(raw).decode('ascii')}
-        v={'host_forwarding':{'effective_prompt_sha256':'a'*64}}
-        with self.assertRaisesRegex(ValueError,'input bytes differ'):
-            w.claim_dispatch(self.root,self.run,changed,v,journal,intent,authorization,rendered=rendered)
-        self.assertEqual(w.claim_dispatch(self.root,self.run,self.package,v,journal,intent,authorization,rendered=rendered)['event'],'dispatch-claim')
-    def test_partial_acquisition_cannot_be_recovered(self):
-        fixture.handoff(self.root,self.run,'test transport','dispatcher'); journal=self.root/'runs'/'fixture'; journal.mkdir()
-        fixture.claim(self.root,self.run,self.package,{'host_forwarding':{'effective_prompt_sha256':'a'*64}},journal)
-        with self.assertRaises(ValueError): w.record_dispatch_results(self.root,self.run,self.package,journal,[],2)
-        with self.assertRaises(ValueError): w.recover_recording(self.root,self.run)
+        execution.authorize_decisions(self.root,self.run,decisions(self.root,self.run),self.data[1],plan)
+        tokens=execution.receipts(self.root,self.data[1],w.load_run(self.root,self.run)[3],plan)
+        journal,rendered=execution._journal(self.root,self.run,self.data)
+        w.handoff(self.root,self.run,plan['handoff']['recipient'],'dispatcher',tokens['direction'],journal=journal.path)
+        changed=copy.deepcopy(self.package);changed['input_snapshots'][sorted(snapshots)[0]]['sha256']='a'*64
+        with self.assertRaises(ProductionError) as caught:
+            w.claim_dispatch(self.root,self.run,changed,{},journal.path,intent,tokens['submit'],rendered=rendered)
+        self.assertEqual(caught.exception.diagnostic.pointer,'$.package_sha256')
+        self.assertEqual(accounting.all_states(self.root),[])
+
+    def test_partial_acquisition_preserves_candidates_and_resumes(self):
+        import dispatch,production_execution as execution,transport_synthetic
+        original=dispatch.inline_image;seen=[]
+        def once(raw):
+            seen.append(raw)
+            if len(seen)==2:raise OSError('Synthetic interruption of the second download')
+            return original(raw)
+        with patch.object(dispatch,'inline_image',side_effect=once):result=self.execute()
+        self.assertEqual(result['runs'][0]['capture'],'partial')
+        self.assertEqual(len(result['runs'][0]['candidates']),1)
+        with patch.object(transport_synthetic,'send',side_effect=AssertionError('Resume must not send')):
+            result=execution.resume(self.root,self.run)
+        self.assertEqual(result['runs'][0]['capture'],'complete')
+        self.assertEqual(len(result['runs'][0]['candidates']),2)
+
     def test_dispatch_then_recording_recovery_is_idempotent_without_resubmission(self):
-        import dispatch,studio
-        fixture.handoff(self.root,self.run,'test transport','dispatcher')
-        options=argparse.Namespace(package=self.package_path,character='C01',slot='base.front',service=None,profiles=None,seed=None,count=2,send=True,note=None)
-        entries=[{'url':'https://example.invalid/1.png','id':'one','seed':1},{'url':'https://example.invalid/2.png','id':'two','seed':2}]
-        transport=SimpleNamespace(media_paths=Mock(return_value=[]),upload=Mock(),build=Mock(return_value={'taskUUID':'test-request'}),send=Mock(return_value={'data':'fixture'}),rejections=Mock(return_value=[]),results=Mock(return_value=entries),observation_outcome=Mock(return_value='accepted'),RESULT_HOSTS=frozenset({'example.invalid'}))
-        rendered=fixture.rendered_request(self.package,seed=None,count=2)
-        target=rendered['sealed']['target']
-        offering={'service':target['service'],'model_identifier':target['model_identifier'],'observed_at':'fixture'}
-        options.production_authorization=fixture.grant(self.root,self.run,w.submission_intent(self.package,rendered=rendered,seed=None,count=2,offering=offering,service={}))
-        real_iterate=studio.iterate; calls=[]
+        import dispatch,studio,production_execution as execution,transport_synthetic
+        real=studio.iterate;calls=[]
         def fail_second(*a,**kw):
             calls.append(1)
-            if len(calls)==2: raise OSError('synthetic interruption after acquisition')
-            return real_iterate(*a,**kw)
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(contextlib.redirect_stdout(io.StringIO())); stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
-            stack.enter_context(patch.object(dispatch,'resolve_model_record',return_value=('fixture',{})))
-            stack.enter_context(patch.object(dispatch,'select_offering',return_value=offering))
-            stack.enter_context(patch.object(dispatch,'service_for',return_value=('test',{},transport)))
-            stack.enter_context(patch.object(dispatch,'check_request'))
-            # This test isolates durable recording; request compilation has separate transport tests.
-            stack.enter_context(patch('request_renderer.generation',return_value=rendered))
-            stack.enter_context(patch.object(dispatch,'api_key',return_value='not-a-real-key'))
-            stack.enter_context(patch.object(dispatch,'save',side_effect=lambda url,p,hosts:p.write_bytes(url.encode())))
-            stack.enter_context(patch.object(studio,'iterate',side_effect=fail_second))
-            with self.assertRaises(OSError): dispatch.dispatch_generation(options,self.root)
-        self.assertEqual(transport.send.call_count,1)
-        first=w.recover_recording(self.root,self.run); second=w.recover_recording(self.root,self.run)
-        self.assertEqual(first,second); self.assertEqual(first['network_calls'],0)
-        original=(self.root/'delivery.txt').read_bytes()
-        (self.root/'delivery.txt').write_text('Changed input after the recorded request completed.\n', encoding='utf-8')
-        with patch.object(dispatch,'api_key',side_effect=AssertionError('recording recovery must not read an API credential')):
-            self.assertEqual(w.recover_recording(self.root,self.run),first)
-        (self.root/'delivery.txt').write_bytes(original)
-        self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'C01'))),2)
-        paths=w.find(w.load_run(self.root,self.run)[3],'dispatch-results')['data']['files']
-        w.capture(self.root,self.run,paths[0]['path'],'Actual fixture output')
-
+            if len(calls)==2:raise OSError('Synthetic interruption after acquisition')
+            return real(*a,**kw)
+        with patch.object(studio,'iterate',side_effect=fail_second):result=self.execute()
+        self.assertFalse(result['execution_completed'])
+        self.assertEqual(len(result['runs'][0]['candidates']),2)
+        (self.root/'prompt.txt').unlink()
+        with patch.object(transport_synthetic,'send',side_effect=AssertionError('No resubmission')), \
+             patch.object(dispatch,'api_key',side_effect=AssertionError('Recovery needs no API credential')):
+            first=execution.resume(self.root,self.run);second=execution.resume(self.root,self.run)
+        self.assertTrue(first['execution_completed']);self.assertTrue(second['execution_completed'])
+        self.assertEqual(first['runs'][0]['candidates'],second['runs'][0]['candidates'])
+        self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'robot'))),2)
+        self.assertEqual(sum(r['event']=='dispatch-claim' for r in w.load_run(self.root,self.run)[3]),1)
 
 if __name__=='__main__':
     import stdio_utf8

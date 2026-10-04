@@ -226,9 +226,50 @@
                     "type": "string",
                     "minLength": 1
                   }
+                },
+                "observed_profile": {
+                  "description": "The adopted observed request profile a measured basis rests on: a /-separated path inside the pack that holds the model record, and its SHA-256.",
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "additionalProperties": false
                 }
               },
-              "additionalProperties": false
+              "additionalProperties": false,
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "measured"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "then": {
+                "required": [
+                  "observed_profile"
+                ]
+              },
+              "else": {
+                "not": {
+                  "required": [
+                    "observed_profile"
+                  ]
+                }
+              }
             },
             "prompt_recipe": {
               "type": "object",

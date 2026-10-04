@@ -9,7 +9,7 @@ Evaluate skill-assisted work against a no-skill baseline and, where useful, alte
 - Does the result preserve the user's explicit requirements?
 - Does it understand the whole phrase rather than translating fragments literally?
 - Are gaze, action, relationship, and framing the intended concepts?
-- Does it avoid replacing the brief with a nearby preset narrative?
+- Does it avoid replacing the brief with a nearby record's story?
 
 ## 2. Image intent
 
@@ -79,7 +79,7 @@ When a universal aesthetic core is selected:
 - Is the result more compelling and specific than a direct expansion of the input?
 - Would an evaluator prefer to use this result?
 
-## 11. Preset contribution
+## 11. Record contribution
 
 - Did curated records provide real production knowledge?
 - Did vocabulary records remain lexical aids?
@@ -97,7 +97,7 @@ When a universal aesthetic core is selected:
 
 For meaningful evaluation:
 
-1. use briefs not authored to match a specific preset
+1. use briefs not written for a specific record
 2. keep the image intent and target model constant
 3. generate prompts under anonymous conditions
 4. generate images with comparable model settings
@@ -108,8 +108,8 @@ For meaningful evaluation:
 Suggested conditions:
 
 ```text
-A. no preset retrieval
-B. broad atomic retrieval plus layered core/realization/profile candidates
+A. no record retrieval
+B. broad atomic retrieval plus layered core/realization/render-profile candidates
 C. curated-only atomic retrieval plus the same layered candidates
 ```
 

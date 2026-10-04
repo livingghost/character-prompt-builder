@@ -23,6 +23,7 @@ import state_protocol as state
 import shot_request as shot
 import viewpoint_protocol as viewpoint
 
+
 ROOT=Path(__file__).resolve().parents[1]
 EXAMPLE=ROOT/'examples/protocol-exchange'
 FIXTURES=EXAMPLE/'fixtures'

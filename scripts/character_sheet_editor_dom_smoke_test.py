@@ -8,6 +8,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+
 ROOT = Path(__file__).resolve().parents[1]
 HTML_PATH = ROOT / "templates" / "character-sheet.template.html"
 BLANK_DATA_PATH = ROOT / "templates" / "character-sheet-data.blank.json"

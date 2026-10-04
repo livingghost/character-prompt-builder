@@ -6,6 +6,7 @@ standard contain executable visual knowledge. It does not score artistic
 quality and does not claim that a generator will follow every instruction.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -16,10 +17,10 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from catalog_cli import configure_pack_runtime, load_entries, load_pack_catalog, load_search_index, named_resource_path
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
+from pack_manager import species_scaffold_issues
 from resource_policy import (
     validate_discovery_lane_targets,
     validate_known_resource,
-    validate_species_scaffold_targets,
 )
 
 
@@ -137,9 +138,9 @@ def check_profile(record: Record, errors: list[str], warnings: list[str]) -> Non
     if len(item.get("avoid_for", [])) < 2:
         errors.append(f"{rid}: avoid_for must bound the profile's medium use")
     if item.get("domains") != ["shared"]:
-        errors.append(f"{rid}: curated rendering profile must use domains ['shared']")
+        errors.append(f"{rid}: curated render profile must use domains ['shared']")
     if word_count(item.get("domain_neutrality")) < 20:
-        errors.append(f"{rid}: rendering profile needs an explicit domain-neutrality contract")
+        errors.append(f"{rid}: render profile needs an explicit domain-neutrality contract")
 
 
 def check_aesthetic_core(record: Record, errors: list[str], warnings: list[str]) -> None:
@@ -445,7 +446,7 @@ def check_recipes(records: Sequence[Record], errors: list[str], warnings: list[s
             errors.append(f"{rid}: linked scene is missing")
             continue
         if not profile:
-            errors.append(f"{rid}: linked rendering profile is missing")
+            errors.append(f"{rid}: linked render profile is missing")
             continue
         blueprint = item.get("scene_blueprint", {})
         if blueprint.get("staging") != scene.get("staging"):
@@ -688,7 +689,7 @@ def check_negative_scope(root: Path, records: Sequence[Record], errors: list[str
     assert policy_path is not None
     policy = load_json(policy_path)
     for message in validate_known_resource("negative-policy", policy):
-        errors.append(f"selected negative-policy: {message}")
+        errors.append(f"merged negative-policy: {message}")
     required_automatic = {
         "generation_hygiene", "visible_limb_integrity", "hand_or_paw_integrity",
         "tail_integrity", "clothing_integrity", "held_prop_integrity",
@@ -717,7 +718,7 @@ def check_negative_scope(root: Path, records: Sequence[Record], errors: list[str
                 errors.append(f"{rid}: style-family negative terms require selected-style-family-only scope")
         elif record.kind == "profile":
             if item.get("negative_policy", {}).get("scope") != "medium-drift-and-rendering-failure":
-                errors.append(f"{rid}: rendering profile negative scope is invalid")
+                errors.append(f"{rid}: render profile negative scope is invalid")
         elif record.kind == "scene":
             if item.get("failure_mode_policy", {}).get("automatic_prompt_injection") is not False:
                 errors.append(f"{rid}: scene failure modes require diagnostic-only policy")
@@ -786,7 +787,7 @@ _SUBJECT_ASSUMPTION_WORDS = ("anthro", "kemono", "furry")
 def check_medium_family_vocabulary(records: Sequence[Record], errors: list[str]) -> None:
     """One closed family vocabulary joins profiles and aesthetic cores.
 
-    Every rendering profile (any tier) must declare a medium_family from the
+    Every render profile (any tier) must declare a medium_family from the
     canonical set, and every aesthetic-core compatibility value must be a
     member of the same set, so signature-to-profile matching never depends on
     free-text near-misses. Shared-scope profiles must also stay free of
@@ -810,7 +811,7 @@ def check_medium_family_vocabulary(records: Sequence[Record], errors: list[str])
                 ).lower()
                 found = sorted({w for w in _SUBJECT_ASSUMPTION_WORDS if w in blob})
                 if found:
-                    errors.append(f"{rid}: shared rendering profile contains subject-assumption words {found}; declare a domain scope or rephrase")
+                    errors.append(f"{rid}: shared render profile contains subject-assumption words {found}; declare a domain scope or rephrase")
         if record.kind == "aesthetic-core":
             for value in item.get("compatible_medium_families", []):
                 if value not in MEDIUM_FAMILY_VOCABULARY:
@@ -1044,37 +1045,18 @@ def check_runtime_search_index(root: Path, records: Sequence[Record], errors: li
                 target = str(lane.get(field) or "")
                 if target not in canonical_ids:
                     errors.append(f"discovery-lanes.json: lane `{lane_id}` references missing {field} `{target}`")
-def check_project_default(root: Path, records: Sequence[Record], errors: list[str]) -> None:
-    del root
-    defaults_path = named_resource_path("project-defaults")
-    assert defaults_path is not None
-    defaults = load_json(defaults_path)
-    for message in validate_known_resource("project-defaults", defaults):
-        errors.append(f"selected project-defaults: {message}")
-    profile_id = str(defaults.get("default_render_profile") or "")
-    profile = next((r.record for r in records if r.kind == "profile" and r.record.get("id") == profile_id), None)
-    if not profile:
-        errors.append(f"project default rendering profile is missing: {profile_id}")
-    elif profile.get("curation_status") != "curated":
-        errors.append(f"project default rendering profile must be curated: {profile_id}")
 
+
+def check_pack_defaults(root: Path, records: Sequence[Record], errors: list[str]) -> None:
+    """Check the resolved pack-defaults against the active records."""
+    del root
+    resource = load_pack_catalog().resources.get("pack-defaults")
+    if resource is not None:
+        _check_one_pack_defaults(f"pack-defaults of {resource.source_pack}", load_json(resource.path), records, errors)
     cores = [r.record for r in records if r.kind == "aesthetic-core"]
-    if defaults.get("default_aesthetic_core") not in (None, ""):
-        errors.append("project defaults must not force an aesthetic core; art direction is authoritative")
     for core in cores:
         if core.get("domains") != ["shared"]:
             errors.append(f"universal aesthetic core must be shared: {core.get('id')}")
-
-    creative_policy = defaults.get("creative_policy") or {}
-    if creative_policy.get("sparse_brief_discovery_before_final_direction") is not True:
-        errors.append("project defaults must enable sparse-brief discovery before final direction")
-    if creative_policy.get("preset_names_or_ids_required_for_discovery") is not False:
-        errors.append("project defaults must state that preset names or IDs are not required for discovery")
-    if creative_policy.get("direction_cards_for_open_axes") is not True:
-        errors.append("project defaults must enable direction cards for open axes")
-
-    if defaults.get("default_style_family") not in (None, ""):
-        errors.append("project defaults must not force a concrete style family; art direction is authoritative")
     families = [r.record for r in records if r.kind == "style-family"]
     profiles_by_id = {str(r.record.get("id")): r.record for r in records if r.kind == "profile"}
     for family in families:
@@ -1085,44 +1067,66 @@ def check_project_default(root: Path, records: Sequence[Record], errors: list[st
             if str(profile_id) not in profiles_by_id:
                 errors.append(f"style family references missing compatible render profile: {family.get('id')} -> {profile_id}")
 
+
+def _check_one_pack_defaults(label: str, defaults: dict[str, Any], records: Sequence[Record], errors: list[str]) -> None:
+    for message in validate_known_resource("pack-defaults", defaults):
+        errors.append(f"{label}: {message}")
+    profile_id = str(defaults.get("default_render_profile") or "")
+    profile = next((r.record for r in records if r.kind == "profile" and r.record.get("id") == profile_id), None)
+    if not profile:
+        errors.append(f"{label}: default render profile is missing: {profile_id}")
+    elif profile.get("curation_status") != "curated":
+        errors.append(f"{label}: default render profile must be curated: {profile_id}")
+    if defaults.get("default_aesthetic_core") not in (None, ""):
+        errors.append(f"{label}: must not force an aesthetic core; art direction is authoritative")
+    creative_policy = defaults.get("creative_policy") or {}
+    if creative_policy.get("sparse_brief_discovery_before_final_direction") is not True:
+        errors.append(f"{label}: must enable sparse-brief discovery before final direction")
+    if creative_policy.get("preset_names_or_ids_required_for_discovery") is not False:
+        errors.append(f"{label}: must state that preset names or IDs are not required for discovery")
+    if creative_policy.get("direction_cards_for_open_axes") is not True:
+        errors.append(f"{label}: must enable direction cards for open axes")
+    if defaults.get("default_style_family") not in (None, ""):
+        errors.append(f"{label}: must not force a concrete style family; art direction is authoritative")
     realization_defaults = defaults.get("default_domain_realization_by_domain", {})
     realizations = {str(r.record.get("id")): r.record for r in records if r.kind == "domain-realization"}
     expected_domains = CANONICAL_DOMAINS - {"shared"}
     if set(realization_defaults) != expected_domains:
         errors.append(
-            "default domain-realization map must cover exactly the six subject domains: "
+            f"{label}: default domain-realization map must cover exactly the six subject domains: "
             f"expected {sorted(expected_domains)}, got {sorted(realization_defaults)}"
         )
     for domain, realization_id in realization_defaults.items():
         realization = realizations.get(str(realization_id))
         if not realization:
-            errors.append(f"project default domain realization is missing: {realization_id}")
+            errors.append(f"{label}: default domain realization is missing: {realization_id}")
             continue
         if realization.get("subject_domain") != domain or realization.get("domains") != [domain]:
-            errors.append(f"project domain realization does not match domain {domain}: {realization_id}")
+            errors.append(f"{label}: default domain realization does not match domain {domain}: {realization_id}")
         if realization.get("curation_status") != "curated":
-            errors.append(f"project domain realization must be curated: {realization_id}")
+            errors.append(f"{label}: default domain realization must be curated: {realization_id}")
 
 
 def check_species_scaffold_policy(
-    root: Path,
     records: Sequence[Record],
     errors: list[str],
-) -> None:
-    del root
-    scaffold_path = named_resource_path("species-scaffold-map", required=False)
-    if scaffold_path is None:
-        return
-    scaffold = load_json(scaffold_path)
-    species_ids = {
-        str(record.record.get("id") or "")
-        for record in records
-        if record.kind == "module"
-        and record.category == "species"
-        and record.record.get("id")
+) -> dict[str, Any]:
+    """Check the scaffold of every active species record, from every enabled pack."""
+    species = [
+        record for record in records
+        if record.kind == "module" and record.category == "species"
+    ]
+    errors.extend(species_scaffold_issues(record.record for record in species))
+    families: dict[str, int] = {}
+    for record in species:
+        scaffold = record.record.get("scaffold")
+        family = str(scaffold.get("family")) if isinstance(scaffold, Mapping) else "missing"
+        families[family] = families.get(family, 0) + 1
+    return {
+        "species_records": len(species),
+        "source_packs": len({record.source for record in species}),
+        "by_family": dict(sorted(families.items())),
     }
-    for message in validate_species_scaffold_targets(scaffold, species_ids):
-        errors.append(f"selected species-scaffold-map: {message}")
 
 
 def load_archetype_policy(root: Path, errors: list[str]) -> dict[str, Any]:
@@ -1191,8 +1195,8 @@ def audit(root: Path, *, write_report: bool = False) -> dict[str, Any]:
     check_medium_family_vocabulary(records, errors)
     check_declared_counts(root, errors)
     check_runtime_search_index(root, records, errors)
-    check_project_default(root, records, errors)
-    check_species_scaffold_policy(root, records, errors)
+    check_pack_defaults(root, records, errors)
+    species_scaffolds = check_species_scaffold_policy(records, errors)
     check_recipes(records, errors, warnings)
     duplicate_findings = check_near_duplicates(records, warnings)
     report = {
@@ -1226,6 +1230,7 @@ def audit(root: Path, *, write_report: bool = False) -> dict[str, Any]:
                 for domain in sorted(CANONICAL_DOMAINS - {"shared"})
             },
         },
+        "species_scaffolds": species_scaffolds,
         "near_duplicate_findings": duplicate_findings,
         "positive_language_findings": positive_language_findings,
         "positive_text_quality_findings": positive_text_quality_findings,
@@ -1240,7 +1245,7 @@ def audit(root: Path, *, write_report: bool = False) -> dict[str, Any]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
+    parser = _operation_context.ArgumentParser()
     add_pack_runtime_arguments(parser)
     parser.add_argument("root", nargs="?", default=str(Path(__file__).resolve().parents[1]))
     parser.add_argument("--report-out", help="Optional external JSON report path")
@@ -1260,4 +1265,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

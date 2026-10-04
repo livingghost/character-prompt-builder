@@ -8,9 +8,9 @@ import os
 import sqlite3
 import sys
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from execution_contract import lock
 from pack_manager import (
@@ -36,10 +36,7 @@ from search_discovery import (
     build_search_profile,
     normalize,
 )
-from resource_policy import (
-    validate_discovery_lane_targets,
-    validate_species_scaffold_targets,
-)
+from resource_policy import validate_discovery_lane_targets
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE_FILENAME = "catalog.sqlite3"
@@ -60,7 +57,9 @@ class RuntimePackResource:
     name: str
     path: Path
     media_type: str
+    # The highest-ranked enabled pack that binds the name, and its file there.
     source_pack: str
+    relative_path: str
 
 
 @dataclass(frozen=True)
@@ -75,6 +74,8 @@ class RuntimePackCatalog:
     diagnostics: tuple[dict[str, Any], ...]
     # One line per pack the catalog left out, naming the reason and the fix.
     warnings: tuple[str, ...] = ()
+    # The root of each pack the catalog uses, by pack ID.
+    pack_roots: Mapping[str, Path] = field(default_factory=dict)
 
 
 def _builder_fingerprint() -> str:
@@ -97,6 +98,8 @@ def _builder_fingerprint() -> str:
 
 
 CACHE_STEM, _, CACHE_SUFFIX = CACHE_FILENAME.rpartition(".")
+# The prefix of a warning key that names packs whose resources conflict.
+CONFLICT_KEY = "conflict:"
 
 
 def cache_path(settings: PackSettings, fingerprint: str) -> Path:
@@ -296,10 +299,27 @@ def _remove_broken_dependencies(
     return [active[pack.pack_id] for pack, _ in packs if pack.pack_id in active]
 
 
+def _highest(pack_ids: Sequence[str], outranks: Callable[[str, str], bool]) -> list[str]:
+    """The packs that no other pack in `pack_ids` outranks, in the given order."""
+    return [
+        pack_id
+        for pack_id in pack_ids
+        if not any(outranks(other, pack_id) for other in pack_ids if other != pack_id)
+    ]
+
+
 def _resolve_records(
     packs: Sequence[tuple[DiscoveredPack, list[PackRecord]]],
     diagnostics: list[dict[str, Any]],
+    pack_order: Sequence[str] = (),
 ) -> list[tuple[DiscoveredPack, PackRecord]]:
+    """Resolve each record ID to one pack's record.
+
+    The pack that outranks the others defining the ID supplies it. Packs that no
+    rank orders resolve by an explicit `replaces` declaration; otherwise the ID
+    is a conflict.
+    """
+    outranks = _precedence(packs, pack_order)
     candidates: dict[str, dict[str, tuple[DiscoveredPack, PackRecord]]] = {}
     replacement_maps = {pack.pack_id: _replacement_sources(pack) for pack, _ in packs}
     for pack, records in packs:
@@ -311,6 +331,10 @@ def _resolve_records(
     for record_id, rows in sorted(candidates.items()):
         if len(rows) == 1:
             selected[record_id] = next(iter(rows.values()))
+            continue
+        highest = _highest(sorted(rows), outranks)
+        if len(highest) == 1:
+            selected[record_id] = rows[highest[0]]
             continue
         pack_ids = set(rows)
         winners: list[str] = []
@@ -336,8 +360,10 @@ def _resolve_records(
                 "record_id": record_id,
                 "pack_ids": ordered_ids,
                 "message": (
-                    f"Record ID {record_id!r} was excluded because packs {ordered_ids} "
-                    "do not declare one global, unambiguous replacement winner."
+                    f"Record ID {record_id!r} was excluded because packs {', '.join(ordered_ids)} "
+                    "define it and neither requires the other. Declare a required dependency of one "
+                    "pack on the other, list the packs in pack_order in the pack state, or replace "
+                    "the record explicitly."
                 ),
             }
         )
@@ -382,92 +408,129 @@ def _remove_broken_record_references(
     return resolved
 
 
+@dataclass(frozen=True)
+class _ResolvedResource:
+    name: str
+    path: Path
+    media_type: str
+    source_pack: str
+    relative_path: str
+
+
+def _precedence(
+    packs: Sequence[tuple[DiscoveredPack, list[PackRecord]]],
+    pack_order: Sequence[str],
+) -> Callable[[str, str], bool]:
+    """Whether one active pack's resource value wins over another's.
+
+    A pack that requires another, directly or through its dependencies, wins.
+    Two packs where neither requires the other follow `pack_order`, where the
+    earlier pack wins. Any other pair is unordered.
+    """
+    required = {pack.pack_id: _required_pack_ids(pack) for pack, _ in packs}
+    closure: dict[str, set[str]] = {}
+
+    def requires(pack_id: str) -> set[str]:
+        if pack_id not in closure:
+            found: set[str] = set()
+            pending = list(required.get(pack_id, ()))
+            while pending:
+                current = pending.pop()
+                if current not in found:
+                    found.add(current)
+                    pending.extend(required.get(current, ()))
+            closure[pack_id] = found
+        return closure[pack_id]
+
+    position = {pack_id: index for index, pack_id in enumerate(pack_order)}
+
+    def outranks(first: str, second: str) -> bool:
+        if second in requires(first):
+            return True
+        if first in requires(second):
+            return False
+        return first in position and second in position and position[first] < position[second]
+
+    return outranks
+
+
 def _resolve_resources(
     packs: Sequence[tuple[DiscoveredPack, list[PackRecord]]],
     reports: Mapping[str, Any],
-    providers: Mapping[str, str],
     diagnostics: list[dict[str, Any]],
-) -> list[tuple[DiscoveredPack, str, str]]:
+    pack_order: Sequence[str] = (),
+) -> list[_ResolvedResource]:
+    """Resolve each named resource to the whole file of one pack.
+
+    The pack that outranks every other pack binding the name supplies it, so a
+    lower-ranked pack supplies only the names no higher pack binds. Packs that
+    no rank orders need none when their files are identical; otherwise the name
+    is a conflict that leaves the resource out and names the packs.
+    """
+    outranks = _precedence(packs, pack_order)
     candidates: dict[str, dict[str, tuple[DiscoveredPack, str]]] = {}
-    active_ids = {pack.pack_id for pack, _ in packs}
-    for pack, _ in packs:
-        report = reports.get(pack.pack_id)
-        bindings = getattr(report, "resource_bindings", {})
+    for pack, _ in sorted(packs, key=lambda row: row[0].pack_id):
+        bindings = getattr(reports.get(pack.pack_id), "resource_bindings", {})
         for name, relative in sorted(bindings.items()):
             candidates.setdefault(name, {})[pack.pack_id] = (pack, relative)
 
-    selected: list[tuple[DiscoveredPack, str, str]] = []
-    all_names = sorted(set(candidates) | set(providers))
-    for name in all_names:
-        provider_id = providers.get(name)
-        available = candidates.get(name, {})
-        if provider_id is None:
-            diagnostics.append(
-                {
-                    "severity": "warning",
-                    "code": "resource-provider-unselected",
-                    "resource": name,
-                    "candidate_packs": sorted(available),
-                    "message": (
-                        f"Named resource {name!r} was excluded because no provider "
-                        "pack is selected in state."
-                    ),
-                }
-            )
+    resolved: list[_ResolvedResource] = []
+    for name, rows in sorted(candidates.items()):
+        highest = _highest(sorted(rows), outranks)
+        if len(highest) > 1 and len(
+            {sha256_file(rows[pack_id][0].root / rows[pack_id][1]) for pack_id in highest}
+        ) == 1:
+            highest = highest[:1]
+        if len(highest) != 1:
+            diagnostics.append(_conflict(name, highest or sorted(rows)))
             continue
-        selected_row = available.get(provider_id)
-        if selected_row is None:
-            diagnostics.append(
-                {
-                    "severity": "error",
-                    "code": "resource-provider-unavailable",
-                    "resource": name,
-                    "provider_pack": provider_id,
-                    "provider_active": provider_id in active_ids,
-                    "available_providers": sorted(available),
-                    "message": (
-                        f"Named resource {name!r} was excluded because selected provider "
-                        f"{provider_id} is not an active pack that supplies it."
-                    ),
-                }
+        pack, relative = rows[highest[0]]
+        resolved.append(
+            _ResolvedResource(
+                name,
+                (pack.root / relative).resolve(),
+                mimetypes.guess_type(relative)[0] or "application/octet-stream",
+                pack.pack_id,
+                relative,
             )
-            continue
-        pack, relative = selected_row
-        selected.append((pack, name, relative))
-    return selected
+        )
+    return resolved
+
+
+def _conflict(name: str, pack_ids: Sequence[str]) -> dict[str, Any]:
+    return {
+        "severity": "error",
+        "code": "resource-conflict",
+        "resource": name,
+        "pack_ids": sorted(pack_ids),
+        "message": (
+            f"Named resource {name!r} was excluded because packs {', '.join(sorted(pack_ids))} "
+            "bind it with different files and neither requires the other. Declare a required "
+            "dependency of one pack on the other, or list the packs in pack_order in the pack "
+            "state; the earlier pack wins."
+        ),
+    }
 
 
 def _apply_contextual_resource_contracts(
-    resources: Sequence[tuple[DiscoveredPack, str, str]],
+    resources: Sequence[_ResolvedResource],
     records: Sequence[tuple[DiscoveredPack, PackRecord]],
     diagnostics: list[dict[str, Any]],
-) -> list[tuple[DiscoveredPack, str, str]]:
-    """Reject selected known resources whose references miss active records."""
+) -> list[_ResolvedResource]:
+    """Reject resolved known resources whose references miss active records."""
     canonical_ids = {
         str(record.record.get("id") or "")
         for _, record in records
         if record.record.get("id")
     }
-    species_ids = {
-        str(record.record.get("id") or "")
-        for _, record in records
-        if record.kind == "module"
-        and record.category == "species"
-        and record.record.get("id")
-    }
-    accepted: list[tuple[DiscoveredPack, str, str]] = []
-    for pack, name, relative in resources:
-        if name not in {"discovery-lanes", "species-scaffold-map"}:
-            accepted.append((pack, name, relative))
+    accepted: list[_ResolvedResource] = []
+    for resource in resources:
+        if resource.name != "discovery-lanes":
+            accepted.append(resource)
             continue
-        path = pack.root / relative
         try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-            errors = (
-                validate_discovery_lane_targets(value, canonical_ids)
-                if name == "discovery-lanes"
-                else validate_species_scaffold_targets(value, species_ids)
-            )
+            value = json.loads(resource.path.read_text(encoding="utf-8"))
+            errors = validate_discovery_lane_targets(value, canonical_ids)
         except (OSError, json.JSONDecodeError) as exc:
             errors = [str(exc)]
         if errors:
@@ -475,18 +538,18 @@ def _apply_contextual_resource_contracts(
                 {
                     "severity": "error",
                     "code": "known-resource-contract",
-                    "resource": name,
-                    "provider_pack": pack.pack_id,
-                    "path": str(path.resolve()),
+                    "resource": resource.name,
+                    "pack_ids": [resource.source_pack],
+                    "path": str(resource.path),
                     "errors": errors,
                     "message": (
-                        f"Named resource {name!r} was excluded because its active-record "
+                        f"Named resource {resource.name!r} was excluded because its active-record "
                         "references do not satisfy the core semantic contract."
                     ),
                 }
             )
             continue
-        accepted.append((pack, name, relative))
+        accepted.append(resource)
     return accepted
 
 
@@ -541,15 +604,20 @@ def _short(message: Any) -> str:
     return text if len(text) <= 100 else text[:97] + "..."
 
 
+def _quoted(path: Any) -> str:
+    text = str(path)
+    return f'"{text}"' if " " in text else text
+
+
 def pack_warnings(
     diagnostics: Sequence[Mapping[str, Any]],
     settings: PackSettings,
 ) -> dict[str, str]:
     """One line for each pack the catalog left out: the pack, the reason and the fix.
 
-    Lines are keyed by the pack ID where there is one. Provider selections that
-    point at a left-out pack belong to that pack's line; selections that point at
-    a pack nobody uses get one line per such pack.
+    Lines are keyed by the pack ID where there is one. Packs that bind one
+    resource name with different files and that no rank orders share one line,
+    keyed by CONFLICT_KEY and their IDs; those packs stay in use.
     """
 
     command = pack_cli_command(settings)
@@ -571,7 +639,7 @@ def pack_warnings(
             first_code = str(first.get("code") or "invalid")
             reason, repair = _PACK_REPAIRS.get(
                 first_code,
-                (_short(first.get("message")), f"fix it ({command} validate {row.get('root')} names every problem)"),
+                (_short(first.get("message")), f"fix it ({command} validate --directory {_quoted(row.get('root'))} names every problem)"),
             )
             lines.setdefault(
                 pack_id,
@@ -609,27 +677,19 @@ def pack_warnings(
                 f"pack at {where} has an invalid pack.json ({code}: {reason}); "
                 "fix pack.json or move the directory out of the pack roots",
             )
-    covered = {member for key in lines for member in key.split(",")}
-    unused: dict[str, list[str]] = {}
+    conflicts: dict[str, list[str]] = {}
     for row in diagnostics:
-        if row.get("code") != "resource-provider-unavailable":
+        if row.get("code") != "resource-conflict":
             continue
-        provider = str(row.get("provider_pack") or "")
-        name = str(row.get("resource") or "")
-        if provider in covered:
-            continue
-        if row.get("provider_active"):
-            lines[f"{provider}:{name}"] = (
-                f"resource {name} points at pack {provider}, which does not provide it; "
-                f"clear it: {command} provider-clear {name}"
-            )
-        else:
-            unused.setdefault(provider, []).append(name)
-    for provider, names in unused.items():
+        members = ",".join(str(value) for value in row.get("pack_ids") or [])
+        conflicts.setdefault(members, []).append(str(row.get("resource")))
+    for members, names in conflicts.items():
         shown = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
-        lines[provider] = (
-            f"{len(names)} resource provider selection(s) ({shown}) point at pack {provider}, "
-            f"which is not in use; clear them: {command} disable {provider}"
+        lines.setdefault(
+            CONFLICT_KEY + members,
+            f"packs {members.replace(',', ', ')} bind the same resources with different files "
+            f"({shown}) and neither requires the other; declare a required dependency of one pack on the other, "
+            "or list the packs in pack_order in the pack state, where the earlier pack wins",
         )
     return lines
 
@@ -643,56 +703,16 @@ def _print_warnings(lines: Sequence[str]) -> None:
 
 
 def resource_warning(catalog: RuntimePackCatalog, name: str) -> str | None:
-    """Why the selected provider of `name` is not in the catalog, or None when nothing failed."""
+    """Why the named resource is not in the catalog, or None when nothing failed."""
 
     for row in catalog.diagnostics:
-        if row.get("code") == "resource-provider-unavailable" and row.get("resource") == name:
-            provider = str(row.get("provider_pack") or "")
-            return next((line for line in catalog.warnings if provider in line), str(row.get("message")))
+        if row.get("resource") == name and row.get("code") in {"resource-conflict", "known-resource-contract"}:
+            members = [str(value) for value in row.get("pack_ids") or []]
+            return next(
+                (line for line in catalog.warnings if members and all(member in line for member in members)),
+                str(row.get("message")),
+            )
     return None
-
-
-def runtime_resource_provider_status(settings: PackSettings) -> dict[str, Any]:
-    """List provider intent and eligibility under the exact runtime pack policy."""
-    state = load_effective_state(settings)
-    _, active_packs, _, validations, diagnostics = _resolve_runtime_pack_inputs(settings)
-    providers = state["resource_providers"]
-    resolved_resources = _resolve_resources(
-        active_packs,
-        validations,
-        providers,
-        diagnostics,
-    )
-    resolved_records = _remove_broken_record_references(
-        _resolve_records(active_packs, diagnostics),
-        diagnostics,
-    )
-    resolved_resources = _apply_contextual_resource_contracts(
-        resolved_resources,
-        resolved_records,
-        diagnostics,
-    )
-    candidates: dict[str, list[str]] = {}
-    for pack, _ in active_packs:
-        report = validations[pack.pack_id]
-        for name in report.resource_bindings:
-            candidates.setdefault(name, []).append(pack.pack_id)
-    resolved_names = {name for _, name, _ in resolved_resources}
-    names = sorted(set(candidates) | set(providers))
-    _print_warnings(list(pack_warnings(diagnostics, settings).values()))
-    return {
-        "ok": True,
-        "resource_providers": [
-            {
-                "name": name,
-                "selected_pack": providers.get(name),
-                "candidate_packs": sorted(candidates.get(name, [])),
-                "resolved": name in resolved_names,
-            }
-            for name in names
-        ],
-        "diagnostics": diagnostics,
-    }
 
 
 def _primary_facet(kind: str, category: str | None) -> str:
@@ -818,14 +838,10 @@ def _create_database(
         pack_validations,
         diagnostics,
     ) = _resolve_runtime_pack_inputs(settings)
-    resolved_records = _resolve_records(valid_packs, diagnostics)
+    pack_order = snapshot.get("pack_order") or ()
+    resolved_records = _resolve_records(valid_packs, diagnostics, pack_order)
     resolved_records = _remove_broken_record_references(resolved_records, diagnostics)
-    resolved_resources = _resolve_resources(
-        valid_packs,
-        pack_validations,
-        snapshot.get("resource_providers") or {},
-        diagnostics,
-    )
+    resolved_resources = _resolve_resources(valid_packs, pack_validations, diagnostics, pack_order)
     resolved_resources = _apply_contextual_resource_contracts(
         resolved_resources,
         resolved_records,
@@ -889,10 +905,10 @@ def _create_database(
             );
             CREATE TABLE resources (
                 name TEXT PRIMARY KEY,
-                pack_id TEXT NOT NULL,
-                relative_path TEXT NOT NULL,
                 absolute_path TEXT NOT NULL,
-                media_type TEXT NOT NULL
+                media_type TEXT NOT NULL,
+                source_pack TEXT NOT NULL,
+                relative_path TEXT NOT NULL
             );
             """
         )
@@ -921,13 +937,17 @@ def _create_database(
                     canonical_json({**report, "active": pack.pack_id in active_ids}),
                 ),
             )
-        for pack, name, relative in resolved_resources:
-            absolute = (pack.root / relative).resolve()
-            media_type = mimetypes.guess_type(relative)[0] or "application/octet-stream"
+        for resource in resolved_resources:
             connection.execute(
-                "INSERT INTO resources(name, pack_id, relative_path, "
-                "absolute_path, media_type) VALUES (?, ?, ?, ?, ?)",
-                (name, pack.pack_id, relative, str(absolute), media_type),
+                "INSERT INTO resources(name, absolute_path, media_type, source_pack, "
+                "relative_path) VALUES (?, ?, ?, ?, ?)",
+                (
+                    resource.name,
+                    str(resource.path),
+                    resource.media_type,
+                    resource.source_pack,
+                    resource.relative_path,
+                ),
             )
         for pack, record in resolved_records:
             record_id = str(record.record["id"])
@@ -1107,7 +1127,6 @@ def cache_status(settings: PackSettings | None = None) -> dict[str, Any]:
         "expected_fingerprint": expected,
         "cached_fingerprint": meta.get("cache_fingerprint"),
         "enabled_packs": state["enabled_packs"],
-        "resource_providers": state["resource_providers"],
         "available_enabled_packs": snapshot.get("available_enabled_packs") or [],
         "discovery_issues": snapshot.get("discovery_issues") or [],
         "diagnostics": diagnostics,
@@ -1200,13 +1219,22 @@ def load_runtime_catalog(
                 name=str(name),
                 path=Path(str(absolute_path)),
                 media_type=str(media_type),
-                source_pack=str(pack_id),
+                source_pack=str(source_pack),
+                relative_path=str(relative_path),
             )
-            for name, absolute_path, media_type, pack_id in _fetchall(
+            for name, absolute_path, media_type, source_pack, relative_path in _fetchall(
                 connection,
-                "SELECT name, absolute_path, media_type, pack_id "
+                "SELECT name, absolute_path, media_type, source_pack, relative_path "
                 "FROM resources ORDER BY name",
             )
+        }
+        pack_roots = {
+            str(pack_id): Path(str(root))
+            for pack_id, root, validation_json in _fetchall(
+                connection,
+                "SELECT pack_id, root, validation_json FROM packs ORDER BY pack_id",
+            )
+            if json.loads(validation_json).get("active") is True
         }
     finally:
         connection.close()
@@ -1252,4 +1280,5 @@ def load_runtime_catalog(
         assets_by_canonical_record=assets_by_canonical_record,
         diagnostics=diagnostics,
         warnings=warnings,
+        pack_roots=pack_roots,
     )

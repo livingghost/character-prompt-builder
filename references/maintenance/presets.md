@@ -22,7 +22,7 @@ Use this document only when reviewing, adding, promoting, merging, reorganizing,
 
 Work inside the owning content pack. Searchable presets are records; SVGs, evidence bundles, thumbnails, and supporting lookup files are pack resources. Keep a content collection, including scenes and its linked evidence, in one owner pack unless an explicit separately distributable pack is authored.
 
-Read the authorities activated by the change: [Preset System Contract](../preset-system-contract.md), [Preset Workflow](../preset-workflow.md), [Aesthetic Language](../aesthetic-language.md), [Preset Authoring Standard](../preset-authoring-standard.md), [Archetype Governance](../archetype-governance.md), [Prompt Composition Geometry](../prompt-composition-geometry.md), [Prompt Knowledge Boundary](../prompt-knowledge-boundary.md), [Reference Corpus Visual Technique Observation](../reference-corpus-visual-technique-observation.md), and [Style Family Taxonomy Audit](../style-family-taxonomy-audit.md). Resolve any pack-owned taxonomy, cluster, history, provenance, source, or observation resource from its explicitly selected provider.
+Read the authorities activated by the change: [Preset System Contract](../preset-system-contract.md), [Preset Workflow](../preset-workflow.md), [Aesthetic Language](../aesthetic-language.md), [Preset Authoring Standard](../preset-authoring-standard.md), [Archetype Governance](../archetype-governance.md), [Prompt Composition Geometry](../prompt-composition-geometry.md), [Prompt Knowledge Boundary](../prompt-knowledge-boundary.md), [Reference Corpus Visual Technique Observation](../reference-corpus-visual-technique-observation.md), and [Style Family Taxonomy Audit](../style-family-taxonomy-audit.md). Read any pack-owned cluster, history, provenance, source, or observation resource the change touches.
 
 Model-behavior claims are governed by the [evidence promotion rule](#evidence-promotion-rule) in this document. Preserve each claim's evidence scope, controls, and missing controls; adopted-claim history lives in the changelog and commit history.
 
@@ -75,7 +75,7 @@ Classify recurring knowledge by function:
 
 Keep cores free of domain anatomy and material assumptions. Do not create a style family from shared subject matter, one build, camera, light, temporary gloss, or wetness. A family normally needs evidence from at least three materially different scenes and recurring behavior on at least six of eight axes: line, form, shadow and value, highlight, color, surface, background, and detail hierarchy. Run scene-leakage, nearest-family boundary, and cross-scene transfer tests.
 
-When evidence shows that a family name or grammar is scene-bound, generalize only through the reviewed lossless-merge gate, move scene knowledge to scenes or modules, and update every affected reference. If a pack-owned taxonomy resource is unavailable, do not claim pack-specific family maintenance is complete.
+When evidence shows that a family name or grammar is scene-bound, generalize only through the reviewed lossless-merge gate, move scene knowledge to scenes or modules, and update every affected reference. Record the evidence and boundary in each family record's own fields.
 
 An archetype requires the creation gate in [Archetype Governance](../archetype-governance.md). Species, build, color, outfit, accessory, occupation, or one scene never justifies an archetype alone.
 
@@ -97,7 +97,7 @@ Store search metadata in canonical pack records and derive the English many-to-m
 
 Follow [Search Discovery Maintenance](search-discovery.md) for modifier scope, alias derivation, facet keys, lane compatibility, grouping, and regression ownership. Add short canonical-English cases that omit IDs and labels. Test caller-side multilingual interpretation separately by comparing the resulting English anchors and unresolved terms.
 
-Keep positive fields affirmative. Resolve negative and diagnostic scope through the selected provider for `cpb-resource:negative-policy`. Record misreadings and failure knowledge without seeding an affirmative prompt with failure vocabulary.
+Keep positive fields affirmative. Resolve negative and diagnostic scope through `cpb-resource:negative-policy`. Record misreadings and failure knowledge without seeding an affirmative prompt with failure vocabulary.
 
 ## Evidence and visual resources
 
@@ -132,7 +132,7 @@ A future observation may be promoted from inherited report to reproduced evidenc
 
 Curated density is a property of the pack set enabled by the selected state. Inspect the active inventory with `python scripts/catalog_cli.py stats`; do not project counts from one pack onto another or treat a count copied into prose as current. Evaluate coverage by curated depth in the categories a brief actually needs, and treat total record count as a recall figure only.
 
-Pack-specific snapshots and priority lists belong in a pack-owned quality-history resource. When the selected pack state provides `cpb-resource:preset-quality-history`, resolve it from the explicitly selected provider.
+Pack-specific snapshots and priority lists belong in a pack-owned quality-history resource. Read `cpb-resource:preset-quality-history`.
 
 ## Maintenance priorities
 
@@ -143,7 +143,7 @@ Pack-specific snapshots and priority lists belong in a pack-owned quality-histor
 5. expand sparse-query evaluations across domains, modifier targets, and genuinely open briefs, while testing source-language interpretation at the agent boundary
 6. evaluate no-preset, broad, curated-only, and recommendation-assisted workflows through blind prompt and image comparison
 7. audit universal cores for domain leakage whenever they are edited
-8. keep rendering profiles free of scene-specific failure knowledge
+8. keep render profiles free of scene-specific failure knowledge
 9. preserve affirmative positive data and scoped diagnostics
 
 ## Maintenance command index
@@ -323,7 +323,7 @@ A reference-cluster mapping is pack-owned evidence that connects source-independ
 
 ### Resolution
 
-When the selected pack state provides `cpb-resource:reference-cluster-mapping`, resolve it from the explicitly selected provider. Treat its IDs and cluster history as claims about that provider only. Without a selected provider, use catalog search and direct record inspection; do not infer that another pack contains the documented clusters.
+Read `cpb-resource:reference-cluster-mapping`. Treat its IDs and cluster history as claims about the pack that binds it only. When no enabled pack binds it, use catalog search and direct record inspection; do not infer that another pack contains the documented clusters.
 
 Mapping evidence does not activate a preset. It supports retrieval, authoring review, provenance, and lossless maintenance decisions.
 
@@ -335,7 +335,7 @@ For each proposed family, record recurring behavior across line, form, shadow an
 
 A family is not justified by shared subject matter, species, body build, location, camera angle, clothing, wetness, glow, or one temporary effect. If the finish reduces to those elements, preserve them in scenes or atomic modules and reuse the nearest canonical family.
 
-When the selected pack state provides `cpb-resource:reference-derived-style-families`, resolve it from the explicitly selected provider. Its family IDs and decisions apply only to that pack and must agree with the provider's current catalog and taxonomy audit.
+Read `cpb-resource:reference-derived-style-families`. Its family IDs and decisions apply only to the pack that binds it and must agree with that pack's current catalog and taxonomy audit.
 
 ## Cue Extraction Log Contract
 
@@ -350,7 +350,7 @@ A cue-extraction log is pack-owned observation evidence. It traces representativ
 - keep signatures, logos, readable text, censor artifacts, protected marks, and exact source-character identity outside reusable records
 - distinguish observation from model-behavior claims and from image-generation results
 
-When the selected pack state provides `cpb-resource:sandbox-cue-extraction-log`, resolve it from the explicitly selected provider. The log supports provenance and maintenance review; it is not a source-image transport and does not grant rights in external material.
+Read `cpb-resource:sandbox-cue-extraction-log`. The log supports provenance and maintenance review; it is not a source-image transport and does not grant rights in external material.
 
 ## Source Notes
 
@@ -446,7 +446,7 @@ All conditions keep the same source brief, image intent, chosen art direction, s
 - `any` permits curated and vocabulary atomic candidates.
 - `curated` permits curated atomic candidates only.
 
-Universal aesthetic cores, domain realizations, and rendering profiles are retrieved in separate candidate groups under the same limits for conditions B and C. The comparison concerns atomic role strategy, not whether subject realization or medium grammar exists.
+Universal aesthetic cores, domain realizations, and render profiles are retrieved in separate candidate groups under the same limits for conditions B and C. The comparison concerns atomic role strategy, not whether subject realization or medium grammar exists.
 
 ### Packet generation
 
@@ -507,6 +507,6 @@ Candidate counts and populated categories are diagnostic only. Final prompt and 
 
 ## Completion
 
-Update the owning pack release when published content changes, rebuild its lock, and run every declared evaluation in an exact one-pack runtime through [Release Validation](../release/validation.md). Run core validation separately only when core code or bundled default-release content also changes.
+Update the owning pack release when published content changes, rebuild its lock, and run every declared evaluation in a runtime of the pack and its required dependencies through [Release Validation](../release/validation.md). Run core validation separately only when core code or bundled default-release content also changes.
 
 Deterministic gates validate structure, preservation, and declared retrieval behavior. They do not replace artistic judgment or whole-image review.

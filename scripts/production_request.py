@@ -13,7 +13,7 @@ import request_validation
 
 PAYLOAD_FIELDS = {'package_sha256', 'seed', 'count', 'service', 'model_identifier',
                   'offering_sha256', 'service_sha256', 'request_sha256',
-                  'request_contract', 'request_validation', 'input_sha256'}
+                  'request_contract', 'request_validation', 'validation_inputs', 'external_effects'}
 DECISION_FIELDS = {'case', 'assessments', 'principal_approval', 'rendition_review'}
 REVIEW_FIELDS = {'request_sha256', 'reviewer', 'conclusion', 'reason', 'binding_ids'}
 
@@ -41,7 +41,9 @@ def intent(package: dict, rendered: dict, *, seed: int | None, count: int,
         'request_sha256': rendered['request_sha256'],
         'request_contract': rc.receipt_projection(rendered),
         'request_validation': copy.deepcopy(package['request_validation']),
-        'input_sha256': input_hashes(package['input_snapshots']),
+        'validation_inputs': input_hashes(package['input_snapshots']),
+        'external_effects': ([{'operation': 'upload', 'count': len(rendered['media'])}] if rendered['media'] else [])
+                            + [{'operation': 'send', 'count': 1, 'outputs': count}],
     }
     validate_payload(payload, snapshots=package['input_snapshots'])
     return {'operation': 'submit', 'targets': ['delivery'], 'payload': payload}
@@ -61,6 +63,15 @@ def validate_payload(payload: Any, *, snapshots: dict | None = None) -> None:
         raise ValueError('model submission needs a positive output count')
     if payload['seed'] is not None and type(payload['seed']) is not int:
         raise ValueError('model submission seed must be an integer or explicitly omitted')
+    effects = payload['external_effects']
+    if not isinstance(effects, list) or not effects:
+        raise ValueError('model submission external_effects must name every irreversible external step')
+    expected_effects = ([{'operation': 'upload', 'count': len(payload['request_contract']['media'])}]
+                        if payload['request_contract']['media'] else []) + [
+                            {'operation': 'send', 'count': 1, 'outputs': payload['count']}
+                        ]
+    if effects != expected_effects:
+        raise ValueError('model submission external_effects differ from the sealed request transport steps')
     rendered = payload['request_contract']
     rc.validate_seal(rendered)
     if rendered != rc.receipt_projection(rendered):
@@ -79,16 +90,16 @@ def validate_payload(payload: Any, *, snapshots: dict | None = None) -> None:
         raise ValueError('validation target differs from selected execution')
     if any(record[key] != value for key, value in rendered['sealed']['execution'].items()):
         raise ValueError('validation was prepared for a different execution contract')
-    hashes = payload['input_sha256']
+    hashes = payload['validation_inputs']
     if not isinstance(hashes, dict):
-        raise ValueError('input_sha256 maps each input path to its SHA-256')
+        raise ValueError('validation_inputs maps each input path to its SHA-256')
     for path, key in hashes.items():
         c.text(path, 'input path')
         c.sha(key)
     for field in ('contract', 'evidence', 'execution_policy'):
         ref = record[field]
         if ref is not None and hashes.get(ref['path']) != ref['sha256']:
-            raise ValueError(f"input_sha256 does not name the validation {field} {ref['path']} with its SHA-256")
+            raise ValueError(f"validation_inputs does not name the validation {field} {ref['path']} with its SHA-256")
     if snapshots is None:
         return
     if input_hashes(snapshots) != hashes:
@@ -118,8 +129,55 @@ def draft_decision(rendered: dict, *, actor: str | None) -> dict:
     return {'case': None, 'assessments': [], 'principal_approval': None, 'rendition_review': review}
 
 
-def check_authorization(root: Path, prepared: dict, request: dict, grant: dict) -> tuple[dict, list[dict]]:
-    """Check scope and the supplied review; leave semantic judgments with the actor."""
+class EvidenceWitnesses:
+    """Readings of approval and scope sources, keyed by path and SHA-256.
+
+    A growing source such as a work ledger keeps every reading a record cites,
+    so a later append never invalidates an earlier capture. While authorizing,
+    a cited reading that no snapshot holds is captured once from the current
+    file. While consuming a receipt, only saved bytes count.
+    """
+
+    def __init__(self, root: Path, items: list[tuple[str, bytes]], *, live: bool, run: str | None = None):
+        self.root = root
+        self.live = live
+        self.run = run
+        self.items = {(path, c.digest(raw)): raw for path, raw in items}
+        self.read: dict[tuple[str, str], str] = {}
+
+    def basis(self, ref: Any) -> bytes:
+        import production_store
+        from production_diagnostics import ProductionError
+        c.exact(ref, {'path', 'sha256', 'locator'}, 'source basis')
+        c.text(ref['path'], 'evidence path')
+        c.sha(ref['sha256'])
+        c.text(ref['locator'], 'source locator')
+        key = (ref['path'], ref['sha256'])
+        if key not in self.items:
+            if not self.live:
+                raise production_store.evidence_error(
+                    'EVIDENCE_SNAPSHOT_MISSING', 'The authorization record holds no saved bytes for this cited evidence.',
+                    file=ref['path'], expected=ref['sha256'], run=self.run)
+            raw = production_store.stable_bytes(self.root, ref['path'])
+            actual = c.digest(raw)
+            if actual != ref['sha256']:
+                raise ProductionError('SOURCE_CHANGED', 'Cited evidence differs from the digest the decision names.',
+                                      phase='authorization', file=ref['path'], expected=ref['sha256'], actual=actual,
+                                      required_action='Cite the evidence by its current digest, or restore the exact cited bytes.')
+            self.items[key] = raw
+        self.read.setdefault(key, ref['locator'])
+        return self.items[key]
+
+
+def check_authorization(root: Path, prepared: dict, request: dict, grant: dict, *,
+                        recorded: list[tuple[str, bytes]] | None = None) -> tuple[dict, list[dict]]:
+    """Check scope and the supplied review; leave semantic judgments with the actor.
+
+    `recorded` holds the bytes saved with an authorization receipt. Without it,
+    the check runs at authorization and captures each cited reading once.
+    Returns the scope assessment and every evidence reading it used, with
+    path, SHA-256, locator, purpose and the verified bytes under `raw`.
+    """
     payload = request['payload']
     validate_payload(payload)
     decision = request.get('request_decision')
@@ -147,7 +205,10 @@ def check_authorization(root: Path, prepared: dict, request: dict, grant: dict) 
     if principal is not None:
         if not isinstance(principal, dict) or principal.get('principal') != prepared['authority']['issuer']:
             raise ValueError('exact-request approval does not name the authority issuer')
-    reader = InputEvidence(root)
+        c.exact(principal, {'request_sha256', 'principal', 'evidence'}, 'exact request approval')
+    import production_store
+    items = [(item['path'], item['raw']) for item in production_store.captured_authority_inputs(root, prepared['task']['task_id'])]
+    reader = EvidenceWitnesses(root, items + list(recorded or []), live=recorded is None, run=prepared.get('run'))
     request_scope.verify_sources(grant['request_scope'], principal, reader)
     scoped = request_scope.assess(
         grant['request_scope'],
@@ -162,8 +223,11 @@ def check_authorization(root: Path, prepared: dict, request: dict, grant: dict) 
     if scoped['state'] != 'delegated-ready':
         blockers = scoped['scope_blockers'] or scoped['assessment_required']
         raise ValueError('model request authority: ' + scoped['state'] + '; ' + str(blockers))
-    sources = [{'path': path, 'sha256': reader.snapshots[path]['sha256']}
-               for path in sorted(reader.read_paths)]
+    approval = (principal['evidence']['path'], principal['evidence']['sha256']) if principal is not None else None
+    sources = [{'path': path, 'sha256': key, 'locator': locator,
+                'purpose': 'principal-approval' if (path, key) == approval else 'request-scope',
+                'raw': reader.items[(path, key)]}
+               for (path, key), locator in sorted(reader.read.items())]
     return {'scope': scoped}, sources
 
 

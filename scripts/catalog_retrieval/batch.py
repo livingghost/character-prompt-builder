@@ -212,8 +212,8 @@ def execute_query_command(
         }
         if not results:
             result["note"] = (
-                "No sufficiently relevant preset. This is a valid outcome: "
-                "art-direct this aspect without preset support, or retry with "
+                "No sufficiently relevant record. This is a valid outcome: "
+                "art-direct this aspect without record support, or retry with "
                 "different canonical wording. Short queries of three to six "
                 "distinctive words usually retrieve more than one long sentence."
             )

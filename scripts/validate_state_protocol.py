@@ -6,6 +6,7 @@ runtime artifact boundaries. It does not claim to evaluate generated image or vi
 quality.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -408,10 +409,9 @@ def validate(root:Path=ROOT)->dict[str,Any]:
             with tempfile.TemporaryDirectory(prefix='pilot-validation-') as workspace:
                 runtime = Path(workspace)
                 settings = default_settings(state_file=runtime/'state.json', cache_dir=runtime/'cache',
-                    default_enabled_packs=[commons['pack_id']],
-                    default_resource_providers={name: commons['pack_id'] for name in commons['content']['resource_bindings']})
+                    default_enabled_packs=[commons['pack_id']])
                 with using_pack_runtime(settings):
-                    result=verify(load_json(payload_path),package_root=pilot,project=pilot)
+                    result=verify(load_json(payload_path),package_root=pilot,studio=pilot)
             if result.get('verified') is not True: errors.append('pilot generation package is not verified')
         except ValueError as exc: errors.append(f'pilot generation package: {exc}')
     prepared_set_path=pilot/'prepared-reference-set.json'
@@ -501,11 +501,11 @@ def validate(root:Path=ROOT)->dict[str,Any]:
 
 
 def main(argv:Sequence[str]|None=None)->int:
-    p=argparse.ArgumentParser(); p.add_argument('root',nargs='?',default=str(ROOT)); p.add_argument('--report-out'); a=p.parse_args(argv)
+    p=_operation_context.ArgumentParser(); p.add_argument('root',nargs='?',default=str(ROOT)); p.add_argument('--report-out'); a=p.parse_args(argv)
     result=validate(Path(a.root).resolve())
     if a.report_out: Path(a.report_out).write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n',encoding='utf-8', newline='\n')
     print(json.dumps(result,ensure_ascii=False,indent=2)); return 0 if result['ok'] else 1
 if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

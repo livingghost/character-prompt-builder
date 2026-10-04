@@ -11,6 +11,7 @@ and with --update-sidecar each slot is bound to the full-size result rather than
 to anything cut back out of the board.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -280,7 +281,7 @@ def compose_panel_fills(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("request_manifest", type=Path)
     parser.add_argument("results_dir", type=Path)
     parser.add_argument("--out", type=Path, required=True)
@@ -337,7 +338,7 @@ if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
     try:
-        raise SystemExit(main())
+        raise SystemExit(_operation_context.run_cli(main))
     except (ValueError, OSError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         raise SystemExit(2)

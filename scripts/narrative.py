@@ -15,11 +15,12 @@ scene plots and, when used, a state timeline. Structural validity and approval
 hashes do not establish semantic coherence, completed writing or user adoption.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 # The contract this reader answers, over the document with the block that
 # publishes this file's own hash removed. Without that cut the two would
 # each feed the other and neither could be computed.
-CONTRACT_SHA256 = "cbdc3ce7f2977b9ef09df5695cb21dba7d82d4e22cb83062c8c7fc458eaf1dad"
+CONTRACT_SHA256 = "2ebe3a6b3d059fff0b7cdec9c25e21223587c73bb1b3be43339f8b34bd4896a2"
 
 import argparse
 import hashlib
@@ -759,7 +760,7 @@ def load_narrative(path: Path) -> dict[str, Any]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate one series narrative.")
+    parser = _operation_context.ArgumentParser(description="Validate one series narrative.")
     parser.add_argument("narrative", type=Path)
     parser.add_argument("--content-sha256", action="store_true",
                         help="Print the hash an approval has to carry, and nothing else")
@@ -780,4 +781,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

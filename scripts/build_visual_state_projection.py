@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Build a Visual State Projection from identity, state, and scene context."""
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse, json
 from pathlib import Path
 from typing import Sequence
 from state_protocol import build_projection, load_json, write_json
 
 def main(argv: Sequence[str] | None = None) -> int:
-    p=argparse.ArgumentParser(description="Build Visual State Projection 2.0.")
+    p=_operation_context.ArgumentParser(description="Build Visual State Projection 2.0.")
     p.add_argument('--identity-contract',required=True); p.add_argument('--species-profile',required=True); p.add_argument('--individual-morphology',required=True); p.add_argument('--state-snapshot',required=True)
     p.add_argument('--scene-context',required=True); p.add_argument('--request',required=True)
     p.add_argument('--previous'); p.add_argument('--out',required=True); a=p.parse_args(argv)
@@ -19,4 +20,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

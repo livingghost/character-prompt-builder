@@ -23,7 +23,7 @@ python scripts/world_realization_smoke_test.py
 
 Search matches exact English tokens in IDs, names, summaries and tags and reports the matched
 terms rather than an artistic score or semantic certainty. When it finds nothing, write the
-principle in the project's own words rather than forcing an unsuitable record. Inspect returns the
+principle in the author's own words rather than forcing an unsuitable record. Inspect returns the
 complete entry. A missing ID or malformed record returns a JSON error and exit 1; bad CLI use
 returns 2. The script writes nothing, adopts nothing and needs no pack, network or generator.
 
@@ -58,7 +58,7 @@ Each complete entry holds:
 Read the whole entry; the row above is only its label.
 
 Select a pattern only when it helps state the creator's aim. Name the intent ID and record why the
-pattern applies, which parts fall outside it, and the project-specific interpretation. The owning
+pattern applies, which parts fall outside it, and the local interpretation. The owning
 authorial intent register sets scope and adoption status; a retrieved ID is design provenance
 rather than a hidden runtime command, and retrieval alone adopts nothing. When a library entry is
 edited, the adopted intent and instantiated rules keep their authority: review the affected

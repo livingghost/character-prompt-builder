@@ -70,4 +70,4 @@ When state is serialized, the installed `references/runtime/world-realization.md
 source-pinned plan over the existing event ledger. Story targets are resolved independently of
 presentation order. World files remain the factual owners; the plan coordinates dependencies and
 recipient views. Source or intent edits require an impact review rather than silent reuse of stale
-outputs. These installed paths are instructions, not relative links inside the created project.
+outputs. These installed paths are instructions, not relative links inside the created series.

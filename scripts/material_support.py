@@ -54,17 +54,17 @@ def local(root: Path, relative: str, *, exists: bool = True) -> Path:
     root = root_path(root)
     if (not isinstance(relative, str) or not relative or '\\' in relative or
             '\x00' in relative or PureWindowsPath(relative).drive):
-        raise ValueError('expected a portable project-relative path')
+        raise ValueError('expected a portable studio-relative path')
     parts = relative.split('/')
     if any(p in {'', '.', '..'} or ':' in p for p in parts) or Path(relative).is_absolute():
-        raise ValueError('path must stay inside the supplied project')
+        raise ValueError('path must stay inside the supplied studio')
     path = root
     for part in parts:
         path = path / part
         if path.is_symlink():
             raise ValueError('symbolic links are not material inputs or outputs')
     if not path.resolve().is_relative_to(root):
-        raise ValueError('path escapes project')
+        raise ValueError('path escapes the studio')
     if exists and not path.exists():
         raise ValueError('missing material: ' + relative)
     return path

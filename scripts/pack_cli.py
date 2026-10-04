@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Manage Character Prompt Builder content packs and their search cache."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -8,27 +9,29 @@ import sys
 from pathlib import Path
 from typing import Any, Sequence
 
+from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
+from production_diagnostics import Diagnostic, from_exception
+
 from pack_cache import (
+    CONFLICT_KEY,
+    RuntimePackResource,
     cache_status,
     load_runtime_catalog,
     pack_warnings,
     refresh_cache,
-    runtime_resource_provider_status,
 )
 from pack_manager import (
     PackError,
     PackSettings,
     add_pack_root,
     build_lock_data,
-    clear_resource_provider,
     configured_roots,
-    default_settings,
     disable_pack,
     discover_packs,
     enable_pack,
     initialize_pack,
     initialize_state_file,
-    is_project_pack,
+    is_commons_pack,
     install_pack,
     list_packs,
     load_effective_state,
@@ -36,19 +39,15 @@ from pack_manager import (
     pack_cli_command,
     remove_pack,
     remove_pack_root,
-    select_resource_provider,
     state_lock,
     validate_pack,
     write_lock,
 )
 
 
-def _settings(args: argparse.Namespace):
-    return default_settings(
-        state_file=Path(args.state_file) if args.state_file else None,
-        cache_dir=Path(args.cache_dir) if args.cache_dir else None,
-        managed_root=Path(args.managed_root) if args.managed_root else None,
-    )
+def _settings(args: argparse.Namespace) -> PackSettings:
+    """Reuse the context resolved at the CLI boundary for every suboperation."""
+    return args.runtime_context.settings
 
 
 def _print(value: Any) -> None:
@@ -64,7 +63,7 @@ def _write_release_lock(path: Path) -> dict[str, Any]:
     """
 
     root = path.resolve()
-    if is_project_pack(root):
+    if is_commons_pack(root):
         raise PackError("Bundled commons is core-managed; no pack.lock.json is required or written")
     candidate = build_lock_data(root)
     lock_path = root / "pack.lock.json"
@@ -94,7 +93,6 @@ def _write_release_lock(path: Path) -> dict[str, Any]:
 def _mutate_enabled_state(args: argparse.Namespace, operation) -> dict[str, Any]:
     settings = _settings(args)
     with state_lock(settings):
-        before = load_effective_state(settings)["resource_providers"]
         state = operation(settings)
     try:
         cache = refresh_cache(settings, force=True)
@@ -103,8 +101,7 @@ def _mutate_enabled_state(args: argparse.Namespace, operation) -> dict[str, Any]
             "Pack state was committed, but the derived cache could not be refreshed; "
             f"the stale cache will not be used: {exc}"
         ) from exc
-    cleared = sorted(set(before) - set(state["resource_providers"]))
-    return {"ok": True, "state": state, "cache": cache, "cleared_providers": cleared}
+    return {"ok": True, "state": state, "cache": cache}
 
 
 def _init_pack(settings: PackSettings, path: Path, options: dict[str, Any]) -> dict[str, Any]:
@@ -145,11 +142,16 @@ def ready(
 
     The state file is created on first use, enabling every discovered pack or
     exactly `only`, and left as it is afterwards. `without` disables packs as
-    `disable` does. A pack the author disabled stays disabled and is one line;
-    a pack that appeared since, an enabled pack the catalog cannot use, and a
-    resource whose provider nobody chose are decisions for the author, printed
-    first with the command that settles each. A disabled pack is never
-    validated or indexed, only its manifest is read.
+    `disable` does. A pack the author disabled stays disabled and is one line.
+    These are decisions for the author, printed first with the command that
+    settles each:
+
+    - a pack that appeared since;
+    - an enabled pack the catalog cannot use;
+    - packs that bind one resource name with different files and that neither
+      a required dependency nor pack_order orders.
+
+    A disabled pack is never validated or indexed, only its manifest is read.
     """
 
     roots = configured_roots(settings, load_state(settings.state_file))
@@ -168,8 +170,9 @@ def ready(
     notes: list[str] = []
     left_out: set[str] = set()
     for key, line in problems.items():
-        members = set(key.split(",")) & enabled
-        left_out |= members
+        members = set(key.removeprefix(CONFLICT_KEY).split(",")) & enabled
+        if not key.startswith(CONFLICT_KEY):
+            left_out |= members
         if members:
             decide.append(f"decide: {line}")
         else:
@@ -184,13 +187,6 @@ def ready(
             f"decide: pack {name} is new and not enabled; ask the author whether to use it, "
             f"then run {command} enable {pack_id} or {command} disable {pack_id}"
         )
-    for row in catalog.diagnostics:
-        if row.get("code") == "resource-provider-unselected" and row.get("candidate_packs"):
-            name = row.get("resource")
-            decide.append(
-                f"decide: resource {name} has no provider selected; choose one of "
-                f"{', '.join(row['candidate_packs'])}: {command} provider-select {name} <pack-id>"
-            )
     in_use = sorted(set(discovered) & enabled - left_out)
     if not in_use:
         decide.append(f"decide: no pack is in use; enable one: {command} enable <pack-id>")
@@ -206,17 +202,103 @@ def ready(
     return not decide, lines
 
 
-def _inspect_pack(args: argparse.Namespace) -> dict[str, Any]:
+class PackSelectionError(PackError):
+    """A pack selector that names no pack, more than one pack, or a relative directory."""
+
+    def __init__(self, code: str, message: str, *, required_action: str, **details: Any):
+        super().__init__(message)
+        self.code = code
+        self.required_action = required_action
+        self.details = details
+
+
+def _failure(error: Exception, command: str) -> dict[str, Any]:
+    """One failed pack command in the common diagnostic form."""
+    if isinstance(error, PackSelectionError):
+        diagnostic = Diagnostic(error.code, str(error), phase="pack-selection",
+                                required_action=error.required_action, details=error.details).as_dict()
+    elif isinstance(error, PackError):
+        diagnostic = Diagnostic("PACK_OPERATION_FAILED", str(error), phase=command,
+                                required_action="Correct the pack or state the message names, then retry.").as_dict()
+    else:
+        diagnostic = from_exception(error, phase=command)
+    return {"ok": False, "diagnostics": [diagnostic]}
+
+
+def _resolve_pack_target(args: argparse.Namespace) -> tuple[Path, list[dict[str, Any]]]:
+    """Resolve an absolute directory or one discovered pack ID / unique authored name.
+
+    A directory is used exactly as given, so it must be absolute; `~` expands to
+    the home directory. A name is matched only against discovered manifests.
+    """
+    directory = getattr(args, "directory", None)
+    selector = getattr(args, "pack", None)
+    if directory:
+        path = Path(directory).expanduser()
+        if not path.is_absolute():
+            raise PackSelectionError(
+                "PACK_DIRECTORY_NOT_ABSOLUTE",
+                "A pack directory must be an absolute path.",
+                required_action="Pass the absolute path of the directory holding pack.json, or select a discovered pack with --pack.",
+                actual=directory,
+            )
+        return path.resolve(), []
+
     settings = _settings(args)
     discovered, issues = discover_packs(settings)
-    pack = discovered.get(args.pack_id)
-    if pack is None:
-        raise PackError(f"Unknown pack ID: {args.pack_id}")
-    report = validate_pack(pack.root, require_lock=args.released)
-    output = report.to_dict()
-    output["manifest"] = report.manifest
-    output["discovery_issues"] = [issue.to_dict() for issue in issues]
-    return output
+    rows = [issue.to_dict() for issue in issues]
+    exact = discovered.get(selector)
+    if exact is not None:
+        return exact.root, rows
+
+    matches = [
+        (pack_id, pack)
+        for pack_id, pack in discovered.items()
+        if str(pack.manifest.get("name") or "") == selector
+    ]
+    if len(matches) == 1:
+        return matches[0][1].root, rows
+    if len(matches) > 1:
+        raise PackSelectionError(
+            "PACK_NAME_AMBIGUOUS",
+            f"Pack name {selector!r} is not unique.",
+            required_action="Select one of the candidates with --pack PACK_ID.",
+            candidates=[
+                {"pack_id": pack_id, "name": selector, "root": str(pack.root)}
+                for pack_id, pack in sorted(matches)
+            ],
+        )
+    raise PackSelectionError(
+        "PACK_NOT_FOUND",
+        f"No discovered pack has the ID or unique name {selector!r}.",
+        required_action="Select a discovered pack ID or unique name, or an absolute directory with --directory.",
+        actual=selector,
+        discovered=sorted(discovered),
+        discovery_issues=[row for row in rows if row.get("pack_id") == selector],
+    )
+
+
+def _add_pack_target_arguments(command: argparse.ArgumentParser) -> None:
+    group = command.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--pack",
+        metavar="PACK_ID_OR_UNIQUE_NAME",
+        help="Resolve one discovered pack by exact pack ID or unique authored name.",
+    )
+    group.add_argument(
+        "--directory",
+        metavar="PACK_DIRECTORY",
+        help="Use this absolute directory containing pack.json; it is not interpreted as a pack name.",
+    )
+
+
+def _resource_row(resource: RuntimePackResource) -> dict[str, Any]:
+    return {
+        "path": str(resource.path),
+        "media_type": resource.media_type,
+        "source_pack": resource.source_pack,
+        "relative_path": resource.relative_path,
+    }
 
 
 def _list_resources(args: argparse.Namespace) -> dict[str, Any]:
@@ -224,12 +306,7 @@ def _list_resources(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "ok": True,
         "resources": {
-            name: {
-                "path": str(resource.path),
-                "media_type": resource.media_type,
-                "source_pack": resource.source_pack,
-            }
-            for name, resource in sorted(catalog.resources.items())
+            name: _resource_row(resource) for name, resource in sorted(catalog.resources.items())
         },
         "diagnostics": list(catalog.diagnostics),
     }
@@ -240,29 +317,17 @@ def _resolve_resource(args: argparse.Namespace) -> dict[str, Any]:
     resource = catalog.resources.get(args.name)
     if resource is None:
         raise PackError(f"Unknown or unresolved named resource: {args.name}")
-    return {
-        "ok": True,
-        "name": resource.name,
-        "path": str(resource.path),
-        "media_type": resource.media_type,
-        "source_pack": resource.source_pack,
-    }
-
-
-def _list_resource_providers(args: argparse.Namespace) -> dict[str, Any]:
-    return runtime_resource_provider_status(_settings(args))
+    return {"ok": True, "name": resource.name, **_resource_row(resource)}
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _operation_context.ArgumentParser(
         description=(
             "Validate, discover, install, activate, update, and remove Character "
             "Prompt Builder content packs. Output is JSON."
         )
     )
-    parser.add_argument("--state-file", help="Override the enabled-pack state file.")
-    parser.add_argument("--cache-dir", help="Override the generated catalog-cache directory.")
-    parser.add_argument("--managed-root", help="Override the managed installation directory.")
+    add_pack_runtime_arguments(parser)
 
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -279,8 +344,11 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--description", default="")
     init.add_argument("--license", default="GPL-3.0-only")
 
-    validate = commands.add_parser("validate", help="Validate one pack directory.")
-    validate.add_argument("path")
+    validate = commands.add_parser(
+        "validate",
+        help="Return the manifest and validation report of one discovered pack or one absolute pack directory.",
+    )
+    _add_pack_target_arguments(validate)
     validate.add_argument(
         "--released",
         action="store_true",
@@ -291,7 +359,7 @@ def build_parser() -> argparse.ArgumentParser:
         "build-lock",
         help="Generate pack.lock.json from the complete current pack inventory.",
     )
-    lock.add_argument("path")
+    _add_pack_target_arguments(lock)
 
     list_command = commands.add_parser(
         "list", help="List discovered packs and enabled state."
@@ -343,10 +411,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     root_remove.add_argument("path")
 
-    inspect = commands.add_parser("inspect", help="Return one discovered manifest and validation report.")
-    inspect.add_argument("pack_id")
-    inspect.add_argument("--released", action="store_true")
-
     enable = commands.add_parser("enable", help="Enable one installed or discovered pack.")
     enable.add_argument("pack_id")
 
@@ -379,30 +443,22 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser("cache-status", help="Report cache freshness without rebuilding it.")
     refresh = commands.add_parser("cache-refresh", help="Refresh a stale pack search cache.")
     refresh.add_argument("--force", action="store_true")
-    commands.add_parser("resources", help="List named resources from enabled packs.")
-    resource = commands.add_parser("resource", help="Resolve one named resource to its active file.")
-    resource.add_argument("name")
     commands.add_parser(
-        "provider-list",
-        help="List logical resources, candidate packs, and explicit provider selections.",
+        "resources",
+        help="List each named resource and the enabled pack that supplies it.",
     )
-    provider_select = commands.add_parser(
-        "provider-select",
-        help="Select the enabled provider pack for one logical resource.",
+    resource = commands.add_parser(
+        "resource",
+        help="Resolve one named resource to the file of the highest-ranked enabled pack that binds it.",
     )
-    provider_select.add_argument("name")
-    provider_select.add_argument("pack_id")
-    provider_clear = commands.add_parser(
-        "provider-clear",
-        help="Clear the explicit provider selection for one logical resource.",
-    )
-    provider_clear.add_argument("name")
+    resource.add_argument("name")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    args.runtime_context = resolve_pack_runtime(parser, args)
     if args.command == "ready":
         try:
             settled, lines = ready(_settings(args), set(args.without), args.only)
@@ -424,16 +480,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 kwargs["release"] = args.release
             result = _init_pack(settings, Path(args.path).expanduser(), kwargs)
         elif args.command == "validate":
-            result = validate_pack(
-                Path(args.path),
-                require_lock=args.released,
-            ).to_dict()
+            target, discovery_issues = _resolve_pack_target(args)
+            report = validate_pack(target, require_lock=args.released)
+            result = report.to_dict()
+            result["resolved_root"] = str(target)
+            result["manifest"] = report.manifest
+            result["discovery_issues"] = discovery_issues
         elif args.command == "build-lock":
-            lock = _write_release_lock(Path(args.path))
+            target, _ = _resolve_pack_target(args)
+            lock = _write_release_lock(target)
             result = {
                 "ok": True,
                 "operation": "build-lock",
-                "path": str((Path(args.path).resolve() / "pack.lock.json")),
+                "path": str((target / "pack.lock.json")),
                 "pack_id": lock["pack_id"],
                 "release": lock["release"],
                 "file_count": len(lock["files"]),
@@ -453,8 +512,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 lambda value: remove_pack_root(value, Path(args.path)),
             )
             result["operation"] = "root-remove"
-        elif args.command == "inspect":
-            result = _inspect_pack(args)
         elif args.command == "enable":
             result = _mutate_enabled_state(
                 args,
@@ -486,27 +543,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = _list_resources(args)
         elif args.command == "resource":
             result = _resolve_resource(args)
-        elif args.command == "provider-list":
-            result = _list_resource_providers(args)
-        elif args.command == "provider-select":
-            result = _mutate_enabled_state(
-                args,
-                lambda value: select_resource_provider(value, args.name, args.pack_id),
-            )
-            result["operation"] = "provider-select"
-            result["name"] = args.name
-            result["pack_id"] = args.pack_id
-        elif args.command == "provider-clear":
-            result = _mutate_enabled_state(
-                args,
-                lambda value: clear_resource_provider(value, args.name),
-            )
-            result["operation"] = "provider-clear"
-            result["name"] = args.name
         else:
             raise PackError(f"Unsupported command: {args.command}")
     except (PackError, OSError, ValueError) as exc:
-        _print({"ok": False, "error": str(exc)})
+        _print(_failure(exc, args.command))
         return 2
     _print(result)
     return 0 if result.get("ok", False) else 1
@@ -515,4 +555,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

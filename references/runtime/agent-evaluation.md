@@ -15,8 +15,8 @@ A case describes what the host receives and which deliverables must be present w
 | Field | Meaning |
 |---|---|
 | `id` | Identifier for this task case. |
-| `prompt` | Project-relative UTF-8 prompt file. |
-| `inputs` | Explicit project-relative files copied into the trial. |
+| `prompt` | Studio-relative UTF-8 prompt file. |
+| `inputs` | Explicit studio-relative files copied into the trial. |
 | `expected_outputs` | Required relative file paths under the trial's output directory. An empty list is appropriate only for a case that requires no output files. |
 | `criteria` | Authored review criteria retained for later judgment, not automatically graded by the runner. |
 
@@ -34,7 +34,7 @@ A condition describes an actual executable and how to invoke it. A host name in 
 | `host_label` | Human-readable description of the selected host. |
 | `model_label` | Declared model, or an explicit statement that a fixture is not a model. |
 | `argv` | Executable and separate arguments. This is an array, not a shell command string. |
-| `skill` | Project-relative directory to copy, or `null` for no supplied skill. |
+| `skill` | Studio-relative directory to copy, or `null` for no supplied skill. |
 | `timeout_seconds` | Maximum permitted duration of the local command. |
 | `metrics` | Optional selector for host-provided telemetry, otherwise `null`. |
 
@@ -61,10 +61,10 @@ These are host-reported values rather than independently authenticated counters.
 
 ## Inspect before executing
 
-Run inspection from the installed skill directory. Replace `PROJECT`, the study path and the new output directory with your actual paths.
+Run inspection from the installed skill directory. Replace `STUDIO`, the study path and the new output directory with your actual paths.
 
 ```sh
-python scripts/agent_evaluation.py inspect --root PROJECT --study study.json --out evaluation/observed-run
+python scripts/agent_evaluation.py inspect --root STUDIO --study study.json --out evaluation/observed-run
 ```
 
 Inspection launches nothing. Review in the returned plan:
@@ -79,7 +79,7 @@ Inspection launches nothing. Review in the returned plan:
 After explicitly approving that exact plan, run:
 
 ```sh
-python scripts/agent_evaluation.py run --root PROJECT --study study.json --out evaluation/observed-run --approve-plan EXACT_PLAN_CONTENT_SHA256
+python scripts/agent_evaluation.py run --root STUDIO --study study.json --out evaluation/observed-run --approve-plan EXACT_PLAN_CONTENT_SHA256
 ```
 
 Any change to the study, a declared input, the executable or the copied skill changes the plan, and the supplied hash must match the plan that will run. This confirmation approves the plan only; service charges still require their own separate production or payment authority.
@@ -166,4 +166,4 @@ The approved condition owns its optional timeout and log budget; a default byte 
 
 ## Evaluate craft reuse
 
-Use [Craft consultation](craft-consultation.md) to connect consulted knowledge to the task. Evaluate the search scope, complete-source reading, and the fit of the borrowed relationship. Inspect actual outputs for preserved constraints, deliberate changes, and unrelated material introduced by adaptation. Treat an appropriate nonuse decision as valid. Measure useful reuse and avoided repeated work; lookup counts and preset counts do not establish quality.
+Use [Craft consultation](craft-consultation.md) to connect consulted knowledge to the task. Evaluate the search scope, complete-source reading, and the fit of the borrowed relationship. Inspect actual outputs for preserved constraints, deliberate changes, and unrelated material introduced by adaptation. Treat an appropriate nonuse decision as valid. Measure useful reuse and avoided repeated work; lookup counts and record counts do not establish quality.

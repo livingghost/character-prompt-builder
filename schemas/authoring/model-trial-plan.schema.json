@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CPB bounded model trial plan",
+  "type": "object",
+  "properties": {
+    "artifact_type": {
+      "const": "model-trial-plan"
+    },
+    "target": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "model_identifier": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "service",
+        "model_identifier",
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "purpose": {
+      "enum": [
+        "request_acceptance",
+        "field_support",
+        "visual_effect",
+        "reference_influence",
+        "output_quality"
+      ],
+      "description": "Authored classification; never inferred from words in the question."
+    },
+    "basis": {
+      "$ref": "#/$defs/ref"
+    },
+    "reference_schemas": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ref"
+      }
+    },
+    "fixed_request_profile": {
+      "type": "object",
+      "description": "The sealed request profile the trial sends; its output_count equals quantity.outputs."
+    },
+    "change_factor": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "id",
+        "statement"
+      ],
+      "additionalProperties": false
+    },
+    "fixed_conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      }
+    },
+    "comparison": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "observation_targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      }
+    },
+    "decision_method": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "indeterminate_handling": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "recommendation_deviation": {
+      "type": "object",
+      "properties": {
+        "deviates": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "deviates",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "quantity": {
+      "type": "object",
+      "properties": {
+        "uses": {
+          "const": 1
+        },
+        "outputs": {
+          "const": 1
+        }
+      },
+      "required": [
+        "uses",
+        "outputs"
+      ],
+      "additionalProperties": false,
+      "description": "A trial is one external request with one output. The request's output count and the run's dispatch claims are compared with it."
+    },
+    "cost_conditions": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "stop_conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "statement"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "artifact_type",
+    "target",
+    "question",
+    "purpose",
+    "basis",
+    "reference_schemas",
+    "fixed_request_profile",
+    "change_factor",
+    "fixed_conditions",
+    "comparison",
+    "observation_targets",
+    "decision_method",
+    "indeterminate_handling",
+    "recommendation_deviation",
+    "quantity",
+    "cost_conditions",
+    "stop_conditions",
+    "unknowns"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "ref": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

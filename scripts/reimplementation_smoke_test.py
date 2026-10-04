@@ -27,10 +27,6 @@ import work_ledger
 import studio
 import dispatch
 from create_authoring_example import create
-from smoke_fixtures import isolate_home
-
-isolate_home()
-
 
 class SceneIntegration(unittest.TestCase):
     def setUp(self):
@@ -50,6 +46,13 @@ class SceneIntegration(unittest.TestCase):
     def write_task(self):
         (self.root/'task.json').write_bytes(c.encoded(self.spec))
 
+    @contextlib.contextmanager
+    def compilation_error(self, pattern):
+        from production_diagnostics import CompilationError
+        with self.assertRaises(CompilationError) as caught:
+            yield
+        self.assertRegex(json.dumps(caught.exception.report['diagnostics']), pattern)
+
     def prepare(self):
         return workflow.prepare(self.root, 'task.json')['run']
 
@@ -57,7 +60,7 @@ class SceneIntegration(unittest.TestCase):
         run = self.prepare()
         _,prepared,consumer,_ = workflow.load_run(self.root,run)
         self.assertEqual(consumer['authoring_materials'][0]['document'], (self.root/'scene-material/persona.md').read_text(encoding='utf-8'))
-        deps = {x['path'] for x in prepared['dependencies'] if x['space']=='project'}
+        deps = {x['path'] for x in prepared['dependencies'] if x['space']=='studio'}
         self.assertTrue({'originals/subject.md','originals/scene.md','scene-plan.json','scene-material/persona.md'} <= deps)
         self.assertNotIn('templates/narrative/personas/persona-template.md', {x['path'] for x in prepared['route']['reads']})
 
@@ -73,18 +76,18 @@ class SceneIntegration(unittest.TestCase):
         run=self.prepare()
         p=self.root/'originals/subject.md'
         p.write_text(p.read_text(encoding='utf-8')+'A newly declared exception outside the selected excerpt.\n', encoding='utf-8')
-        self.assertFalse(workflow.status(self.root,run)['ok'])
-        with self.assertRaisesRegex(ValueError,'complete source changed'):
+        self.assertEqual(workflow.status(self.root,run)['runs'][0]['readiness'],'blocked')
+        with self.compilation_error('complete source changed'):
             self.prepare()
 
     def test_changed_derived_document_is_not_accepted(self):
         p=self.root/'scene-material/persona.md';p.write_text(p.read_text(encoding='utf-8')+'Unexpected new direction.\n', encoding='utf-8')
-        with self.assertRaisesRegex(ValueError,'stale|modified'):
+        with self.compilation_error('stale|modified'):
             self.prepare()
 
     def test_an_image_task_refuses_a_text_material(self):
         fixture.task(self.root, self.spec, artifact='image'); self.write_task()
-        with self.assertRaisesRegex(ValueError, 'prepared for text, and a task that makes image widens its scope'):
+        with self.compilation_error('prepared for text, and a task that makes image widens its scope'):
             self.prepare()
 
     def test_a_text_task_accepts_an_image_material(self):
@@ -97,12 +100,12 @@ class SceneIntegration(unittest.TestCase):
 
     def test_feature_needs_explicit_material(self):
         self.spec['scene_materials']=[];self.write_task()
-        with self.assertRaisesRegex(ValueError,'scene_materials'):
+        with self.compilation_error('scene_materials'):
             self.prepare()
 
     def test_material_needs_explicit_feature(self):
         self.spec['route']='development';self.spec['features']=[];self.write_task()
-        with self.assertRaisesRegex(ValueError,'scene_materials'):
+        with self.compilation_error('scene_materials'):
             self.prepare()
 
     def test_accepted_public_snapshot_needs_no_original_files(self):
@@ -121,134 +124,146 @@ class SceneIntegration(unittest.TestCase):
         self.spec['scene_materials']=[{'artifact':'received.json','accepted_content_sha256':'f'*64,
             'accepted_by':'synthetic-reviewer','acceptance_basis':'Deliberately mismatched test declaration.'}]
         self.write_task()
-        with self.assertRaisesRegex(ValueError,'accepted content'):
+        with self.compilation_error('accepted content'):
             self.prepare()
 
 
 class UpscaleIntegration(unittest.TestCase):
+    """Real compiler, permissions, transport bytes and recovery for one upscale."""
     def setUp(self):
-        from PIL import Image
-        from upscale_package_smoke_test import model_rows
+        import production_case_fixtures as cases
+        import production_execution as execution
+        import transport_synthetic
+        from test_production_execution import decisions
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        self.root=studio.init(Path(self.temp.name)/'studio','synthetic-upscale','Synthetic integrated fixture')
-        studio.add_character(self.root,'subject','')
-        self.source=self.root/'source.png';Image.new('RGB',(8,8)).save(self.source)
-        self.record=model_rows()[0];self.model=self.record['id']
-        self.settings={'variant':'general'}
-        import transport_runware
-        import request_renderer
-        from request_validation_fixtures import interface_validation
-        self.offering={'service':'synthetic','model_identifier':'fixture:model','observed_at':'2000-01-01',
-                       'setting_keys':{'variant':'variant'},'request_keys':{'input image':['inputImage']}}
-        from render_contract_fixtures import profile, control, intent
-        profile_value=profile()
-        profile_value['modes']={'upscale':{'media':'input-image','parameter_schema':{},'controls':{
-            'upscaleFactor':control('required',schema={'type':'number','enum':[2,4]}),
-            'variant':control('required',schema={'type':'string'}),
-            'seed':control('backend-managed',binding='dispatch-seed'),
-            'numberResults':control('not-applicable',binding='dispatch-count')}}}
-        self.offering['parameter_keys']={'scale':'upscaleFactor'}
-        self.offering['execution_profile']=profile_value
-        self.render_intent=intent('', 'upscale')
-        self.render_intent_file=self.root/'render-intent.json'
-        self.render_intent_file.write_bytes(c.encoded(self.render_intent))
-        self.service={'id':'synthetic','endpoint':{'base_url':'https://example.invalid'},'operations':{'imageUpscale':{}}}
-        self.transport=SimpleNamespace(__file__=transport_runware.__file__, compile_upscale=transport_runware.compile_upscale,
-            RESULT_HOSTS=frozenset({'example.invalid'}),
-            upload_bytes=Mock(),send=Mock(),rejections=Mock(return_value=[]),results=Mock(),
-            observation_outcome=Mock(return_value='accepted'))
-        target={'service':'synthetic','model_identifier':'fixture:model','operation':'imageUpscale'}
-        validation=interface_validation(self.root,target=target,record=self.record,offering=self.offering,
-            service_record=self.service,transport=self.transport,reference_mode='authored-rendition')
-        self.validation_file=self.root/'validation.json';self.validation_file.write_bytes(c.encoded(validation))
-        self.request=binding.upscale_request(self.root,self.source,self.model,2,self.settings,None,request_validation=validation,render_intent=self.render_intent)
-        sources=[{'id':'source','path':'source.png','role':'upscale-source','disposition':'applied','locator':'whole','reason':'Exact synthetic source image.'}]
-        self.run=fixture.prepare_dispatch(self.root,c.encoded(self.request).decode(),route='upscale',sources=sources)
-        rendered=request_renderer.upscale(self.request,self.record,self.offering,self.service,self.transport,self.source,self.settings,root=self.root)
-        self.intent=workflow.submission_intent(self.request,rendered=rendered,seed=None,count=1,offering=self.offering,service=self.service)
-        self.authorization=fixture.grant(self.root,self.run,self.intent)
-        self.options=argparse.Namespace(send=True,character='subject',slot='base.front',source=self.source,
-            model=self.model,scale=2,settings=json.dumps(self.settings),guidance=None,service=None,profiles=None,note='Synthetic fixture only',
-            production_authorization=self.authorization,
-            request_validation_file=self.validation_file,render_intent=self.render_intent_file)
-        self.entries=[{'url':'https://example.invalid/fixture.png','id':'fixture'}]
-        def send(_request,*args):
-            rows=workflow.load_run(self.root,self.run)[3]
-            self.assertTrue(any(r['event']=='dispatch-claim' for r in rows),'claim must precede send')
-            return {'data':'synthetic-response'}
-        def upload(*args):
-            self.assertTrue(any(r['event']=='dispatch-claim' for r in workflow.load_run(self.root,self.run)[3]))
-            return 'synthetic-upload-id'
-        self.transport.upload_bytes.side_effect=upload
-        self.transport.send.side_effect=send
-        self.transport.results.side_effect=lambda answer:list(self.entries)
-        def save(url,path,hosts):
-            Image.new('RGB',(16,16)).save(path)
-            return c.digest(path.read_bytes())
-        self.stack=contextlib.ExitStack();self.addCleanup(self.stack.close)
-        self.stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-        self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
-        for name,kw in {'resolve_model_record':{'return_value':(self.model,self.record)},'select_offering':{'return_value':self.offering},
-            'service_for':{'return_value':('synthetic',self.service,self.transport)},'model_pack_root':{'return_value':self.root},
-            'validate_generation_parameters':{},'api_key':{'return_value':'SYNTHETIC-NO-CREDENTIAL'},'save':{'side_effect':save}}.items():
-            self.stack.enter_context(patch.object(dispatch,name,**kw))
-        self.stack.enter_context(patch('upscale_package.resolve_model_record',return_value=(self.model,self.record)))
+        base=Path(self.temp.name);case=cases.create(base/'studio',base/'runtime',with_upscale=True)
+        self.root=case['root'];self.case=case
+        self.task=cases.upscale_task(self.root)
+        self.run=workflow.prepare(self.root,self.task)['run']
+        self.request=c.load(self.root/'upscale/input.json');self.source=self.root/'upscale/source.png'
+        self.model=cases.UPSCALE_MODEL_ID;self.transport=transport_synthetic
+        self.execution=execution;self.decision_file=decisions(self.root,self.run)
+        self.upload=self.enterContext(patch.object(transport_synthetic,'upload_bytes',wraps=transport_synthetic.upload_bytes))
+        self.send=self.enterContext(patch.object(transport_synthetic,'send',wraps=transport_synthetic.send))
+        self.validation_file=self.root/'upscale/validation.json';self.validation_file.write_bytes(c.encoded(self.request['request_validation']))
+        self.intent_file=self.root/'upscale/render-intent.json';self.intent_file.write_bytes(c.encoded(self.request['render_intent']))
+        # The exact inputs the dispatcher's upscale preview compares with the sealed run.
+        self.options=argparse.Namespace(source=self.source,model=self.model,scale=2,settings_file=None,
+            character='robot',slot='candidate',guidance=None,request_validation_file=self.validation_file,
+            render_intent=self.intent_file,pack_settings=case['settings'],preview_out=None)
 
-    def call(self):return dispatch.dispatch_upscale(self.options,self.root)
-    def test_exact_request_claim_results_and_real_package(self):
+    def call(self):
+        """Execute the sealed upscale under the run's decision file: 0 when every output was captured."""
+        with contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
+            result=self.execution.execute(self.root,self.run,decisions_file=self.decision_file)
+        return 0 if result.get('execution_completed') else 1
+
+    def test_execute_and_recover_share_one_formal_record(self):
         self.assertEqual(self.call(),0)
-        rows=workflow.load_run(self.root,self.run)[3]
-        self.assertEqual(sum(r['event']=='dispatch-claim' for r in rows),1)
-        result=workflow.find(rows,'dispatch-results')['data']
-        self.assertEqual(len(result['files']),1)
-        self.assertTrue(any(x['path'].endswith('upscale-package-1.json') for x in result['evidence']))
-        self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'subject'))),1)
+        from PIL import Image
+        result=workflow.load_run(self.root,self.run)
+        candidate=workflow.find(result[3],'candidate')
+        raw=c.object_read(result[0],candidate['data']['files'][0]['sha256'])
+        with Image.open(io.BytesIO(raw)) as image:self.assertEqual(image.size,(64,64))
+        initial=[row['sha256'] for row in result[3] if row['event']=='candidate']
+        again=self.execution.resume(self.root,self.run)
+        self.assertEqual(again['runs'][0]['candidates'],initial)
+        self.assertEqual(self.send.call_count,1);self.assertEqual(self.upload.call_count,1)
+        import reservation_lifecycle as budget
+        used=budget.budget(self.root)['grants'][0]['consumed']
+        self.assertEqual((used['uses'],used['outputs']),(1,1))
 
     def test_absent_authorization_blocks_before_upload(self):
-        self.options.production_authorization=None
-        with self.assertRaisesRegex(ValueError,'authorization'):self.call()
-        self.transport.upload_bytes.assert_not_called();self.transport.send.assert_not_called()
+        with contextlib.redirect_stdout(io.StringIO()),self.assertRaises(ValueError) as caught:
+            self.execution.execute(self.root,self.run)
+        self.assertEqual(caught.exception.diagnostic.code,'AUTHORIZATION_REQUIRED')
+        self.upload.assert_not_called();self.send.assert_not_called()
 
-    def test_altered_scale_blocks_before_upload(self):
+    def test_altered_scale_is_refused_by_the_preview(self):
         self.options.scale=4
-        with self.assertRaisesRegex(ValueError,'prepared delivery'):self.call()
-        self.transport.upload_bytes.assert_not_called()
+        with contextlib.redirect_stdout(io.StringIO()),self.assertRaises(ValueError) as caught:
+            dispatch.dispatch_upscale(self.options,self.root)
+        self.assertEqual(caught.exception.diagnostic.code,'INPUT_CONSISTENCY_ERROR')
+        self.upload.assert_not_called()
 
     def test_source_changed_after_preparation_blocks_before_upload(self):
         self.source.write_bytes(b'changed')
         with self.assertRaises(ValueError):self.call()
-        self.transport.upload_bytes.assert_not_called()
+        with contextlib.redirect_stdout(io.StringIO()),self.assertRaises(ValueError) as caught:
+            dispatch.dispatch_upscale(self.options,self.root)
+        self.assertEqual(caught.exception.diagnostic.code,'SOURCE_CHANGED')
+        self.upload.assert_not_called()
 
-    def test_extra_result_is_kept_but_not_an_authorized_success(self):
-        self.entries.append({'url':'https://example.invalid/other.png','id':'other'})
+    def test_extra_outputs_are_candidates_but_not_complete(self):
+        from transport_synthetic import send
+        original=self.send._mock_wraps
+        def extra(request,service,key):
+            answer=original(request,service,key);answer['data'].append({**answer['data'][0],'id':'distinct-extra-output'});return answer
+        self.send.side_effect=extra
         self.assertEqual(self.call(),1)
-        self.assertFalse(any(r['event']=='dispatch-results' for r in workflow.load_run(self.root,self.run)[3]))
-        self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'subject'))),2)
+        report=self.execution.status(self.root,self.run)['runs'][0]
+        self.assertEqual(report['capture'],'partial');self.assertEqual(len(report['candidates']),2)
+        self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'robot'))),2)
 
-    def test_ambiguous_remote_failure_never_retries(self):
-        self.transport.send.side_effect=OSError('Synthetic connection lost after submit')
+    def test_timeout_keeps_unknown_outcome_without_resend(self):
+        self.send.side_effect=TimeoutError('Synthetic post-send connection loss')
         self.assertEqual(self.call(),1)
-        journals=[p.parent for p in (self.root/'runs').glob('*/run.json') if json.loads(p.read_text(encoding='utf-8'))['status']=='indeterminate']
-        self.assertEqual(len(journals),1)
-        self.assertEqual(json.loads((journals[0]/'indeterminate.json').read_text(encoding='utf-8'))['outcome'],'indeterminate')
-        self.assertFalse((journals[0]/'answer.json').exists())
-        with self.assertRaisesRegex(ValueError,'already claimed'):self.call()
-        self.assertEqual(self.transport.send.call_count,1)
-        self.assertEqual(self.transport.upload_bytes.call_count,1)
+        report=self.execution.resume(self.root,self.run)
+        self.assertEqual(report['runs'][0]['submission'],'outcome_unknown')
+        self.assertEqual(self.send.call_count,1);self.assertEqual(self.upload.call_count,1)
 
-    def test_acquired_result_recovers_locally_and_idempotently(self):
-        with patch.object(studio,'iterate',side_effect=OSError('Synthetic recording failure')):
+    def test_saved_response_recovers_after_original_source_removed(self):
+        with patch.object(workflow,'record_dispatch_results',side_effect=OSError('Synthetic registration failure')):
             with self.assertRaises(OSError):self.call()
-        first=workflow.recover_recording(self.root,self.run)
-        second=workflow.recover_recording(self.root,self.run)
-        self.assertEqual(first['iterations'],second['iterations'])
-        self.assertEqual(first['network_calls'],0)
-        self.assertEqual(self.transport.send.call_count,1)
-        self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'subject'))),1)
+        self.source.unlink()
+        result=self.execution.resume(self.root,self.run)
+        self.assertTrue(result['execution_completed']);self.assertEqual(self.send.call_count,1)
+        self.assertTrue(result['runs'][0]['freshness_diagnostics'])
 
-    def test_generation_also_requires_a_prepared_submission_context(self):
-        with self.assertRaisesRegex(ValueError,'prepared production run'):
-            dispatch.require_submission(self.options,None)
+    def test_missing_image_acquisition_retains_response_then_resumes(self):
+        with patch.object(dispatch,'inline_image',side_effect=ValueError('Synthetic failed transfer')):
+            self.assertEqual(self.call(),1)
+        self.assertEqual(self.execution.status(self.root,self.run)['runs'][0]['capture'],'partial')
+        report=self.execution.resume(self.root,self.run)
+        self.assertTrue(report['execution_completed']);self.assertEqual(self.send.call_count,1)
+
+    def test_projection_failure_retains_production_candidate(self):
+        with patch.object(studio,'iterate',side_effect=OSError('Synthetic projection failure')):
+            self.assertEqual(self.call(),1)
+        first=self.execution.resume(self.root,self.run);second=self.execution.resume(self.root,self.run)
+        self.assertEqual(first['runs'][0]['candidates'],second['runs'][0]['candidates'])
+        self.assertEqual(self.send.call_count,1)
+        self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'robot'))),1)
+
+    def test_source_and_scale_are_verified_during_check(self):
+        import production_compiler as compiler
+        value=c.load(self.root/'upscale/input.json');value['scale_factor']=3
+        (self.root/'upscale/input.json').write_bytes(c.encoded(value))
+        checked=compiler.check_task(self.root,self.task)
+        self.assertFalse(checked['ok']);self.assertTrue(any(item['code']=='CONTROL_NOT_AVAILABLE' for item in checked['diagnostics']))
+        self.upload.assert_not_called();self.send.assert_not_called()
+
+    def test_repeat_preserves_input_without_inheriting_claim(self):
+        import production_variation as variation
+        self.assertEqual(self.call(),0)
+        child=variation.derive(self.root,self.run,prepare=True)
+        self.assertEqual(child['input_sha256'],workflow.load_run(self.root,self.run)[1]['input_sha256'])
+        self.assertEqual(workflow.load_run(self.root,child['run'])[3],[])
+        self.assertEqual(self.send.call_count,1)
+
+    def test_source_variant_is_explicit_and_reverified(self):
+        import production_variation as variation
+        from transport_synthetic import _png
+        from production_case_fixtures import write
+        from production_binding import upscale_request
+        c.atomic(self.root/'upscale/other.png',_png(16,16,b'\x80\x90\xa0'))
+        value=upscale_request(self.root,self.root/'upscale/other.png',self.model,2,{},None,
+                             request_validation=self.request['request_validation'],render_intent=self.request['render_intent'])
+        write(self.root/'upscale/other-input.json',value)
+        write(self.root/'upscale/changes.json',{'changes':{'upscale-input':{'path':'upscale/other-input.json'}},'reason':'Explicit synthetic source change.'})
+        child=variation.derive(self.root,self.run,changes_file='upscale/changes.json',prepare=True)
+        self.assertNotEqual(child['input_sha256'],workflow.load_run(self.root,self.run)[1]['input_sha256'])
+        self.assertEqual(workflow.load_run(self.root,child['run'])[3],[])
 
 
 if __name__=='__main__':

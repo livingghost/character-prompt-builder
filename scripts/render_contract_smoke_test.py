@@ -241,6 +241,41 @@ class RenderContractTests(unittest.TestCase):
         plan=self.compile()
         with self.assertRaisesRegex(ValueError,'invented batch'):r.dispatch_values(plan,seed=3,count=2)
 
+    def problems(self, action):
+        with self.assertRaises(r.ParameterErrors) as caught:action()
+        return {(item['parameter'],item['status']) for item in caught.exception.problems}
+
+    def test_each_parameter_problem_names_its_status_and_code(self):
+        self.model['recommended_parameters']['guidance']=[4,6]
+        found=self.problems(lambda:self.compile({'cfgScale':4,'strength':0.7,'seed':3}))
+        self.assertEqual(found,{('cfgScale','undeclared'),('strength','not-applicable'),('seed','dispatch-option'),
+                                ('CFGScale','range-required')})
+        self.assertEqual(self.problems(lambda:r.selected_profile({'id':'unconfigured'},None)),{('execution_profile','profile-missing')})
+        self.intent['execution_mode']='upscale'
+        self.assertEqual(self.problems(lambda:r.resolve_parameters(self.model,self.p,'upscale',{})),
+                         {('execution_profile.modes','mode-not-exposed')})
+        self.assertEqual([r.problem_code(status) for status in ('undeclared','not-applicable','backend-managed',
+                          'profile-missing','mode-not-exposed','range-required','schema-invalid')],
+                         ['CONTROL_NOT_AVAILABLE']*3+['MODEL_PROFILE_MISSING']*2+['INPUT_CONSISTENCY_ERROR']*2)
+
+    def test_measured_basis_names_the_adopted_observed_profile(self):
+        from state_protocol import validate_against_schema
+        schema=json.loads((r.ROOT/'schemas/model-execution-profile.schema.json').read_text(encoding='utf-8'))
+        reference={'path':'resources/observed-profiles/trial/profile.json','sha256':'a'*64}
+        self.p['basis']={'kind':'measured','source':'Synthetic adopted trial.','limitations':['One request tuple.']}
+        with self.assertRaisesRegex(ValueError,'measured profile basis'):r.validate_profile(self.p)
+        self.assertTrue(validate_against_schema(self.p,schema))
+        self.p['basis']['observed_profile']=reference
+        r.validate_profile(self.p);self.assertEqual(validate_against_schema(self.p,schema),[])
+        self.assertEqual(r.observed_profile_reference(self.p),reference)
+        for path in ('../profile.json','resources\\profile.json','/resources/profile.json'):
+            self.p['basis']['observed_profile']={**reference,'path':path}
+            with self.subTest(path=path),self.assertRaisesRegex(ValueError,'inside the pack'):r.validate_profile(self.p)
+        self.p['basis']={'kind':'provider-documentation','source':'Synthetic provider page.','limitations':[],
+                         'observed_profile':reference}
+        with self.assertRaisesRegex(ValueError,'profile basis'):r.validate_profile(self.p)
+        self.assertTrue(validate_against_schema(self.p,schema))
+
 
 
 class ExternalPackGuidanceTests(unittest.TestCase):
@@ -290,6 +325,11 @@ class ExternalPackGuidanceTests(unittest.TestCase):
         unconfigured['id'] = 'fixture-external-unconfigured'
         unconfigured['aliases'] = []
         del unconfigured['execution_profile']
+        documented = copy.deepcopy(offered)
+        documented['id'] = 'fixture-external-documented'
+        documented['offerings'][0]['execution_profile']['basis'] = {
+            'kind': 'provider-documentation', 'source': 'Synthetic provider parameter page.',
+            'limitations': ['A provider statement, not a measured request.']}
         cls.write(cls.pack / 'pack.json', {
             'pack_id': cls.pack_id, 'name': 'External guidance fixture', 'release': '2026.01.01.1',
             'description': 'Synthetic model guidance, with no provider claims.',
@@ -299,7 +339,6 @@ class ExternalPackGuidanceTests(unittest.TestCase):
             'capabilities': ['model-adapters'], 'dependencies': [], 'optional_dependencies': [],
             'replaces': [], 'license': 'GPL-3.0-only',
         })
-        cls.write(cls.pack / 'records/models.json', {'kind':'model', 'records':[cls.model, offered, unconfigured]})
         cls.write(cls.pack / 'resources/dialects.json', {
             'format': 'character-prompt-builder-prompt-dialects', 'name':'External fixture family',
             'description':'Synthetic wording family.',
@@ -313,12 +352,25 @@ class ExternalPackGuidanceTests(unittest.TestCase):
                  'rules':['Synthetic rule selected from the same pack as the model.']},
             ],
         })
+        # Two measured claims the card must not show: one names no file, one names a file that is no adopted profile.
+        import hashlib
+        measured = []
+        for name, path in (('missing', 'resources/observed-profiles/absent/profile.json'),
+                           ('mislabelled', 'resources/dialects.json')):
+            record = copy.deepcopy(offered)
+            record['id'] = 'fixture-external-' + name
+            target = cls.pack / path
+            digest = hashlib.sha256(target.read_bytes()).hexdigest() if target.is_file() else 'b' * 64
+            record['offerings'][0]['execution_profile']['basis'] = {
+                'kind': 'measured', 'source': 'Synthetic claim of a measured request.', 'limitations': [],
+                'observed_profile': {'path': path, 'sha256': digest}}
+            measured.append(record)
+        cls.write(cls.pack / 'records/models.json', {'kind':'model', 'records':[cls.model, offered, unconfigured, documented, *measured]})
         write_lock(cls.pack)
         for variant, roots, enabled in [('registered',[str(cls.pack)],[cls.pack_id]),
                                          ('extra',[],[cls.pack_id]), ('disabled',[str(cls.pack)],[])]:
             cls.write(cls.root / variant / 'state.json', {
                 'pack_roots': roots, 'enabled_packs': enabled,
-                'resource_providers': {k:cls.pack_id for k in ('prompt-dialects','prompt-writing-guide')} if enabled else {},
             })
 
     @staticmethod
@@ -376,10 +428,10 @@ class ExternalPackGuidanceTests(unittest.TestCase):
                 self.check_card(result['execution_guidance'][0])
 
     def test_route_reading_shows_external_model_card(self):
-        project = self.root/'project'
-        project.mkdir(exist_ok=True)
+        studio = self.root/'studio'
+        studio.mkdir(exist_ok=True)
         output = self.command('execution_routes.py','read','generation','--feature','prompt-dialect',
-                               '--model',self.alias,'--root',str(project),'--page-bytes','1024').stdout
+                               '--model',self.alias,'--root',str(studio),'--page-bytes','1024').stdout
         line = next(s for s in output.splitlines() if s.startswith('model-guidance: '))
         self.check_card(json.loads(line.partition(': ')[2])[0])
 
@@ -396,6 +448,17 @@ class ExternalPackGuidanceTests(unittest.TestCase):
             '--parameters',str(self.root/'parameters.json'),'--prompt-file',str(self.root/'prompt.txt'),
             '--reference-count','0',succeeds=False)
         self.assertIn('execution profile is missing',result.stdout)
+
+    def test_card_shows_provider_documentation_and_never_an_unproven_measurement(self):
+        card = json.loads(self.command('render_contract.py','model','--model','fixture-external-documented',
+                                        '--service','synthetic-service').stdout)
+        self.assertEqual(card['execution_profile']['basis']['kind'],'provider-documentation')
+        for model, message in (('fixture-external-missing','missing file'),
+                               ('fixture-external-mislabelled','adopted observed request profile')):
+            with self.subTest(model=model):
+                result = self.command('render_contract.py','model','--model',model,'--service','synthetic-service',succeeds=False)
+                self.assertIn(message,result.stdout)
+                self.assertNotIn('"kind": "measured"',result.stdout)
 
     def test_disabled_pack_model_is_not_resolved_from_another_runtime(self):
         for script, args in [('render_contract.py',('model','--model',self.alias)),

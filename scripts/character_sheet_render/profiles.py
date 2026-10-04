@@ -63,7 +63,7 @@ KIND_PANEL_ASPECT = {
 }
 RESOLVED_ROW_HEIGHT = 560
 # The panel a model draws is not the box on the board. The box shows a reduced
-# copy; the panel itself is generated at this long side unless the profile or
+# copy; the panel itself is generated at this long side unless the layout profile or
 # the box says otherwise.
 DEFAULT_PANEL_LONG_SIDE = 2048
 # A drawing row is scaled up until its panels span the canvas width, so a row of
@@ -93,11 +93,11 @@ def available_profiles() -> list[Path]:
 
 
 def resolve_profile_reference(reference: str, *, sheet_dir: Path | None = None) -> Path:
-    """Resolve a declared profile id (``anthro``) or path to a profile file.
+    """Resolve a declared layout profile id (``anthro``) or path to a layout profile file.
 
     Paths are tried relative to the sheet folder first, then the working
     directory, then the skill root; bare ids resolve inside the bundled
-    profile library.
+    layout profiles.
     """
 
     candidate = Path(reference).expanduser()
@@ -126,8 +126,8 @@ def select_profile_path(
     close-ups, marks, items, and expressions this individual actually needs,
     and records that design as a layout profile: either a bundled profile id in
     ``field.sheet_layout_profile`` or a path to the character's own authored
-    profile JSON. The renderer only resolves that declaration; ``--profile``
-    overrides it, and an undeclared profile falls back to the bundled
+    layout profile JSON. The renderer only resolves that declaration; ``--profile``
+    overrides it, and an undeclared layout profile falls back to the bundled
     domain-neutral baseline. The reason is recorded in render-package.json.
     """
 
@@ -142,7 +142,7 @@ def select_profile_path(
             raise ValueError(
                 "--profile names an unknown layout profile "
                 f"{declared!r}; bundled profiles: {names} (a path to an authored "
-                "profile JSON may also be supplied)"
+                "layout profile JSON may also be supplied)"
             )
         return candidate, {
             "method": "explicit-argument",
@@ -160,7 +160,7 @@ def select_profile_path(
             raise ValueError(
                 "field.sheet_layout_profile names an unknown layout profile "
                 f"{declared!r}; bundled profiles: {names} (a path to an authored "
-                "profile JSON may also be declared)"
+                "layout profile JSON may also be declared)"
             )
         return candidate, {
             "method": "sheet-field",

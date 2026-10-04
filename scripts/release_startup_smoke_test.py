@@ -18,6 +18,7 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+
 from package_metadata import load_package_metadata, verify_release_includes_present  # noqa: E402
 
 

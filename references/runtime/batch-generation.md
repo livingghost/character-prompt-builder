@@ -16,11 +16,11 @@ A batch is a dispatch and review layer over verified Generation Packages. It doe
 
 Keep judgment and automation separate. The agent owns meaning, per-job direction, model selection, review, and acceptance. The plan script owns deterministic job validation, variant expansion, hashing, and batch-ledger construction. The batch never decides what an image should look like.
 
-Every result is recorded where a single image would be recorded, as its own iteration in the studio with the record it came from, that record's family, the request as sent, and the answer. `scripts/dispatch.py` writes that record itself, for a variant of a batch exactly as for one image. The batch's own two artifacts sit beside that record rather than in place of it: `batch-results.json` reconciles the variants that were planned against the images that came back, and `batch-ledger.json` commits the plan hash and rolls the review up per batch and per job. Neither is the trail of what was generated; the studio is.
+Every result is recorded where a single image would be recorded, as its own iteration in the studio with the record it came from, that record's family, the request as sent, and the answer. `production_workflow.py execute` writes that record itself, for a variant of a batch exactly as for one image. The batch's own two artifacts sit beside that record rather than in place of it: `batch-results.json` reconciles the variants that were planned against the images that came back, and `batch-ledger.json` commits the plan hash and rolls the review up per batch and per job. Neither is the trail of what was generated; the studio is.
 
 A job's model decides how its prompt is written. Models do not read a prompt the same way: a rating term one family carries is unknown to the next, the quality block differs, multi-word tags are spelled differently, the working weight differs, and the blocks and their order differ. Resolve each job's family with `python scripts/prompt_dialect.py --model <model-id>` and compose that job from what comes back. Never carry one job's quality block, rating term, period term, or weight into a job on another model, and never reuse one job's rendition for a different model by changing only the model name.
 
-Every job forwards its own verified Generation Package. A batch plan is usable only when every referenced package already passed `verify_generation_payload.py` for its target model. The plan commits each package's SHA-256 so a package edited after planning is detectable; if any committed hash no longer matches the file, rebuild the plan before dispatching.
+Every job forwards its own verified Generation Package. A batch plan is usable only when every referenced package already passed `verify_generation_payload.py` for its target model. The plan commits each package's SHA-256 so a package edited after planning is detectable; if any committed hash differs from the file, rebuild the plan before dispatching.
 
 ## Authoring the job list
 
@@ -68,11 +68,17 @@ Dispatch concurrency is real only inside one endpoint. For each `transport` grou
 
 How each variant reaches its model is unchanged: form the request from that variant's verified Generation Package exactly as the Image Generation Runtime and its adapter require (effective prompt, negative channel, per-variant parameters and seed, and any references the package declares), then send it through the endpoint named by `transport`. The batch plan carries hashes and grouping only; it never carries credentials, builds requests, or substitutes one variant's package for another's. Do not start several catalog CLI processes in parallel; dispatch concurrency is at the model-call layer only.
 
-Where a variant's model record carries an offering, that send is one dispatch per variant, and the same command records it:
+Where a variant's model record carries an offering, each variant is its own prepared run, and `execute` sends and records it:
 
 ```bash
-python scripts/dispatch.py <generation-package.json> --studio <dir> --character <id> --slot <slot> [--seed N] --send
+python scripts/production_workflow.py prepare --root STUDIO --task task.json
+python scripts/production_workflow.py variant --root STUDIO --from RUN --changes-file changes.json --prepare
+python scripts/production_workflow.py repeat --root STUDIO --from RUN --prepare
+python scripts/production_workflow.py draft-execution --root STUDIO --run VARIANT_RUN --grant GRANT --out decisions.json
+python scripts/production_workflow.py execute --root STUDIO --run VARIANT_RUN --decisions-file decisions.json
 ```
+
+`variant` derives a run with other declared values, such as `seed` where the interface exposes one. `repeat` prepares another run of the same input. Neither copies an authorization, claim, review or selection; [Production execution](production-execution.md) describes both.
 
 A model exposed on no service here is sent by hand, and its result is recorded with `python scripts/studio.py iterate` before anything else is done with it. Either way the iteration exists before the batch results are written, because the batch results point at it.
 
@@ -81,8 +87,8 @@ After generation, write one `batch-results.json` mapping every planned variant i
 ```json
 {
   "variants": {
-    "closeup-flux#v01": {"image_path": "renders/closeup-flux-v01.png", "status": "accepted"},
-    "closeup-flux#v02": {"image_path": "renders/closeup-flux-v02.png", "status": "rejected", "note": "ear drift"},
+    "closeup-flux#v01": {"image_path": "characters/C01/iterations/it-0004/result.png", "status": "accepted"},
+    "closeup-flux#v02": {"image_path": "characters/C01/iterations/it-0005/result.png", "status": "rejected", "note": "ear drift"},
     "closeup-flux#v03": {"status": "failed", "error": "host returned no image"}
   }
 }
@@ -98,7 +104,7 @@ The record command revalidates every job and variant before accepting results: c
 
 ## Failure policy
 
-Stop when any referenced package fails verification, its committed hash no longer matches the file, or a job's target model lacks an enabled record. One failed dispatch does not invalidate the other variants; record it as `failed`, re-dispatch that variant individually, and update the results before recording the batch ledger. Never drop a planned variant silently, never let one model's accepted output replace another job's rejected output, and never widen a batch by reusing one job's package under a different model.
+Stop when any referenced package fails verification, its committed hash differs from the file, or a job's target model lacks an enabled record. One failed send does not invalidate the other variants. Record it as `failed`. Recover it with `resume`, or prepare a `repeat` run for an intentional new execution. Update the results before recording the batch ledger. Never drop a planned variant silently, never let one model's accepted output replace another job's rejected output, and never widen a batch by reusing one job's package under a different model.
 
 
 ## Artifact evidence and completion

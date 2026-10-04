@@ -23,6 +23,7 @@ import execution_contract as contract
 import io_budget as budget
 import material_support as material
 
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -87,7 +88,7 @@ class CompleteMaterialTests(unittest.TestCase):
         with self.assertRaises(ValueError): material.read(link)
         with self.assertRaises(ValueError): budget.file_identity(link)
 
-    def test_escaping_project_path_is_still_refused(self):
+    def test_escaping_studio_path_is_refused(self):
         with self.assertRaises(ValueError): material.local(self.root, '../outside')
 
     def test_complete_review_text_and_original_attachment(self):
@@ -231,33 +232,6 @@ class ProductConstraintTests(unittest.TestCase):
         self.assertEqual(search_discovery._compact_variations(values), values)
 
 
-
-
-class ValidationRegressionBudgetTests(unittest.TestCase):
-    def test_regression_runs_to_completion_without_an_operator_deadline(self):
-        import os, validate
-        from types import SimpleNamespace
-        from unittest.mock import patch
-        seen = {}
-        def fake_run(command, **kwargs):
-            seen['timeout'] = kwargs.get('timeout')
-            return SimpleNamespace(returncode=0, stdout='', stderr='Ran 3 tests in 0.001s')
-        with patch.dict(os.environ, {}):
-            os.environ.pop('VALIDATE_REGRESSION_TIMEOUT_SECONDS', None)
-            with patch.object(validate.subprocess, 'run', fake_run):
-                result = validate.run_standalone_regression(ROOT, 'x_smoke_test.py', output_format='unittest')
-        self.assertIsNone(seen['timeout']); self.assertTrue(result['ok']); self.assertEqual(result['tests'], 3)
-
-    def test_exceeded_operator_deadline_is_reported_not_raised(self):
-        import os, subprocess, validate
-        from unittest.mock import patch
-        def timed_out(command, **kwargs):
-            raise subprocess.TimeoutExpired(command, kwargs.get('timeout'), output='partial', stderr='')
-        with patch.dict(os.environ, {'VALIDATE_REGRESSION_TIMEOUT_SECONDS': '0.5'}):
-            with patch.object(validate.subprocess, 'run', timed_out):
-                result = validate.run_standalone_regression(ROOT, 'x_smoke_test.py', output_format='json')
-        self.assertFalse(result['ok']); self.assertIsNone(result['returncode'])
-        self.assertIn('VALIDATE_REGRESSION_TIMEOUT_SECONDS', result['errors'][0]); self.assertEqual(result['stdout'], 'partial')
 
 
 class ChildProcessDeadlineTests(unittest.TestCase):

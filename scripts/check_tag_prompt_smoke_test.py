@@ -12,6 +12,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+
 import check_tag_prompt as checker  # noqa: E402
 from prompt_dialect import load_dialects  # noqa: E402
 

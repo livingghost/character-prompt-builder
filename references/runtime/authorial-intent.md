@@ -25,7 +25,7 @@ copy.
 | Kind | Meaning and owning record |
 |---|---|
 | Established conditions | What exists, happens or is possible in the declared continuity. World, narrative, visual identity and state records own these facts at their respective scopes. |
-| Subject identity | What makes this subject continuous or recognizable, including scoped values, dispositions, patterns and uncertainty. Persona section 2 owns an individualized subject's profile; non-agent subjects use their world record. |
+| Subject identity | What makes this subject continuous or recognizable, including scoped values, dispositions, patterns and uncertainty. Persona section 2 owns an individualized subject's identity; non-agent subjects use their world record. |
 | Authorial portrayal intent | What the creator chooses to sustain, contrast, reveal, withhold or disrupt in the audience's experience, and why. A scoped design intent owns this, whether or not a subject knows or understands it. |
 | Realization | The particular words, timing, acts, viewpoints, shapes or omissions used in this output. Scene and performance records apply the first three without becoming their new source of truth. |
 
@@ -58,7 +58,7 @@ different emotions is a different design from a usual informality that turns int
 assurance at selected moments, even with an identical decisive line. Continuity with surrounding
 moments carries the first; the transition and contrast carry the second.
 Neither mode has to be a mask or a more authentic self. This illustrates a distinction rather than an approved
-character pair or a taxonomy every project must adopt.
+character pair or a taxonomy every work must adopt.
 
 Specify meaningful invariants and the intended pattern of variation together. For example:
 
@@ -87,7 +87,7 @@ An unexpected draft choice was unplanned; after honest review it can become a ne
 its actual basis recorded.
 
 Use `authorial_intent_refs` in a persona, world record or scoped realization note to link the
-relevant entries with ordinary relative Markdown links. Example from a project persona:
+relevant entries with ordinary relative Markdown links. Example from a persona:
 
 ```markdown
 - **authorial_intent_refs**: [scoped portrayal](../design/project.md#intent-i-pattern)
@@ -105,15 +105,15 @@ Keep one owner for a decision:
 - individual factual or internal traits stay in persona;
 - world laws stay in world records.
 
-A standalone conversation can use the same structure unsaved; save the scoped record when a
-persistent project is requested.
+A standalone conversation can use the same structure unsaved; save the scoped record in a
+studio when persistent work is requested.
 
 ## 4. Resolve a moment under the intended identity
 
 Before a consequential realization, identify:
 
 - the applicable intent IDs and their status;
-- the current identity profile;
+- the current character profile;
 - relevant world and state constraints;
 - the request's change boundary.
 
@@ -122,7 +122,7 @@ actual voice, body and form within the permitted range. This is an author-side s
 than dialogue for the character's mouth.
 
 For each materially used conditional response or voice mode, record how its held and changed
-components realize the identity profile and governing intent; a shorthand reference to section 2
+components realize the character profile and governing intent; a shorthand reference to section 2
 suffices when it unambiguously identifies the relationship. Conditions such as emotion, addressee,
 audience and fatigue activate rules; a new identity needs its own scoped decision. A convincing
 explanation for a local reaction can still be wrong for the adopted portrayal aim.
@@ -221,8 +221,7 @@ On revision, update the owning intent and relevant identity and rule bindings, r
 affected span, and refresh dependent summaries or projections. A linked Markdown edit leaves JSON
 approval to that review rather than to automatic invalidation. Record actual reviewed versions
 and unresolved impact; a hash is change-detection evidence rather than a semantic guarantee.
-Templates and authoring commands define a single current contract, free of alternate layouts,
-aliases, version adapters and migration routes.
+Templates and authoring commands define one contract.
 
 ## State-backed realization and reusable patterns
 

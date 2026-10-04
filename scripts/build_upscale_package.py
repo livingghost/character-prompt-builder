@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build one self-contained Character Prompt Builder Upscale Package."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -27,12 +28,12 @@ def _copy_regular(source: Path, destination: Path) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("--model", required=True)
     parser.add_argument("--source-image", type=Path, required=True)
     parser.add_argument("--output-image", type=Path, required=True)
     parser.add_argument("--scale-factor", type=float, required=True)
-    parser.add_argument("--settings", default="{}", help="JSON object of declared upscaler settings")
+    parser.add_argument("--settings-file", help="UTF-8 JSON upscaler settings file, or - for stdin")
     parser.add_argument("--guidance-prompt")
     parser.add_argument(
         "--audit-status",
@@ -45,9 +46,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
-    settings = json.loads(args.settings)
-    if not isinstance(settings, dict):
-        raise ValueError("--settings must be a JSON object")
+    from execution_contract import read_json_object
+    settings = read_json_object(args.settings_file, label="--settings-file")
     output_path = args.out.resolve()
     companion_name = output_path.stem + ".images"
     companion_path = output_path.with_name(companion_name)
@@ -116,4 +116,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

@@ -3,12 +3,13 @@
 
 This module intentionally performs deterministic lexical analysis. It does not
 replace the agent's semantic judgment. Its job is to keep ordinary descriptive
-phrases useful even when the caller does not know preset labels or IDs, and to
+phrases useful even when the caller does not know record labels or IDs, and to
 separate ambiguous words such as "blue" by what they modify (coat, eyes,
 lighting, environment, or wardrobe).
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import re
@@ -1717,15 +1718,15 @@ def _permanent_trait_context_tokens(query_norm: str) -> set[str]:
     return output
 
 
-def _record_permanent_hair_head_presence(
+def _record_named_structures(
     analysis: QueryAnalysis,
     query_norm: str,
 ) -> None:
     """Preserve named structures without supplying an undeclared location.
 
-    The old function name is kept for callers. A category is retrieval evidence,
-    never an anatomical assertion. Explicit head location is needed for head
-    facets; an unlocated structure remains an identity detail.
+    A category is retrieval evidence, never an anatomical assertion. Explicit
+    head location is needed for head facets; an unlocated structure remains an
+    identity detail.
     """
     patterns = (
         ("facial_hair", r"\b(?:facial hair|beards?|goatees?|moustaches?|mustaches?|sideburns?|soul patch)\b"),
@@ -1751,55 +1752,89 @@ def _record_permanent_hair_head_presence(
                        source_span=match.span(), governed_noun=phrase)
 
 
+_COLOR_CONTEXT_TARGETS = (
+    ("coat_palette", r"(?:fur|pelt|fleece)"),
+    ("ambiguous_coat", r"coat"),
+    ("eye_feature", r"eyes?"),
+    ("hair_color", r"hair"),
+    ("skin_tone", r"skin"),
+    ("subject_surface", r"(?:feathers?|plumage|scales?|shell|carapace)"),
+    ("lighting", r"(?:light|lighting|glow|rim light|backlight|illumination)"),
+    ("environment", r"(?:background|room|wall|sky|field|interior|environment)"),
+    (
+        "wardrobe",
+        r"(?:shorts|trousers|pants|shirt|jersey|jacket|uniform|outfit|"
+        r"clothes|clothing|apron|robe|hoodie|armor|dress|skirt|socks?|"
+        r"shoes?|boots?)",
+    ),
+)
+# A color can sit a word or two away from the noun it actually governs, as in
+# ``blue field jacket`` or ``blue head hair``. Allow up to two intervening
+# modifiers, refuse a second color among them, and refuse a target that is
+# itself followed by another target word, because such a target is not the
+# head of the noun phrase.
+_COLOR_CONTEXT_ANY_TARGET = "(?:" + "|".join(target for _facet, target in _COLOR_CONTEXT_TARGETS) + ")"
+_COLOR_CONTEXT_ANY_COLOR = "(?:" + "|".join(re.escape(color) for color in COLOR_TERMS_SORTED) + ")"
+_COLOR_CONTEXT_MODIFIER_RUN = rf"((?: (?!{_COLOR_CONTEXT_ANY_COLOR}\b)[a-z][a-z-]+){{0,2}})"
+_COLOR_CONTEXT_HEAD_GUARD = rf"(?!\s+{_COLOR_CONTEXT_ANY_TARGET}\b)"
+_COLOR_CONTEXT_TARGET_WORDS = {
+    target: re.compile(rf"\b{target}\b") for _facet, target in _COLOR_CONTEXT_TARGETS
+}
+_COAT_WORN_PREFIX = re.compile(r"\b(?:wearing|wears?|wore|dressed in|puts? on)\b[^,;]*$")
+_COAT_GARMENT_SUFFIX = re.compile(r" (?:with sleeves|with buttons|jacket)\b")
+_COAT_BODY_SUFFIX = re.compile(r" (?:of |made of )?(?:fur|pelt|fleece)\b")
+_HEAD_HAIR_WORDS = re.compile(r"\b(?:head|scalp|hairstyle|hair style)\b")
+
+
+@functools.lru_cache(maxsize=len(COLOR_TERMS_SORTED))
+def _color_word_pattern(color: str) -> re.Pattern[str]:
+    """Return the compiled whole-word pattern for one color term."""
+    return re.compile(rf"\b{re.escape(color)}\b")
+
+
+@functools.lru_cache(maxsize=len(COLOR_TERMS_SORTED) * len(_COLOR_CONTEXT_TARGETS))
+def _color_context_patterns(color: str, target: str) -> tuple[re.Pattern[str], ...]:
+    """Return the three compiled phrasings that tie one color to one target.
+
+    The cache holds one entry per color and target pair, so each pattern is
+    compiled once per process.
+    """
+    escaped = re.escape(color)
+    return (
+        re.compile(
+            rf"\b{escaped}(?: colored)?{_COLOR_CONTEXT_MODIFIER_RUN} {target}\b"
+            rf"{_COLOR_CONTEXT_HEAD_GUARD}"
+        ),
+        re.compile(rf"\b{target} (?:in |with )?{escaped}\b"),
+        re.compile(rf"\b{target} (?:is|are) {escaped}\b"),
+    )
+
+
 def _find_color_contexts(
     query_norm: str,
     scope_boundaries: Sequence[int] = (),
 ) -> list[tuple[str, str, str, tuple[int, int], str]]:
-    """Return color, facet, evidence, span, and governed noun tuples."""
+    """Return color, facet, evidence, span, and governed noun tuples.
+
+    Every phrasing contains the color as a whole word, so a color absent from
+    the query is skipped before any of its phrasings is compiled or scanned.
+    """
     results: list[tuple[str, str, str, tuple[int, int], str]] = []
-    target_patterns = (
-        ("coat_palette", r"(?:fur|pelt|fleece)"),
-        ("ambiguous_coat", r"coat"),
-        ("eye_feature", r"eyes?"),
-        ("hair_color", r"hair"),
-        ("skin_tone", r"skin"),
-        ("subject_surface", r"(?:feathers?|plumage|scales?|shell|carapace)"),
-        ("lighting", r"(?:light|lighting|glow|rim light|backlight|illumination)"),
-        ("environment", r"(?:background|room|wall|sky|field|interior|environment)"),
-        (
-            "wardrobe",
-            r"(?:shorts|trousers|pants|shirt|jersey|jacket|uniform|outfit|"
-            r"clothes|clothing|apron|robe|hoodie|armor|dress|skirt|socks?|"
-            r"shoes?|boots?)",
-        ),
-    )
-    # A color can sit a word or two away from the noun it actually governs, as
-    # in ``blue field jacket`` or ``blue head hair``. Allow up to two
-    # intervening modifiers, refuse a second color among them, and refuse a
-    # target that is itself followed by another target word, because such a
-    # target is not the head of the noun phrase.
-    any_target = "(?:" + "|".join(target for _facet, target in target_patterns) + ")"
-    any_color = "(?:" + "|".join(re.escape(color) for color in COLOR_TERMS_SORTED) + ")"
-    modifier_run = rf"((?: (?!{any_color}\b)[a-z][a-z-]+){{0,2}})"
-    head_guard = rf"(?!\s+{any_target}\b)"
     for color in COLOR_TERMS_SORTED:
-        escaped = re.escape(color)
-        for facet, target in target_patterns:
-            patterns = (
-                rf"\b{escaped}(?: colored)?{modifier_run} {target}\b{head_guard}",
-                rf"\b{target} (?:in |with )?{escaped}\b",
-                rf"\b{target} (?:is|are) {escaped}\b",
-            )
+        if color not in query_norm or not _color_word_pattern(color).search(query_norm):
+            continue
+        for facet, target in _COLOR_CONTEXT_TARGETS:
+            patterns = _color_context_patterns(color, target)
             for position, pattern in enumerate(patterns):
                 accepted = False
-                for match in re.finditer(pattern, query_norm):
+                for match in pattern.finditer(query_norm):
                     if _span_crosses_boundary(match.span(), scope_boundaries):
                         continue
                     if position == 0:
                         offset = match.start(1) - match.start(0)
                         governed_noun = normalize(match.group(0)[offset:])
                     else:
-                        target_match = re.search(rf"\b{target}\b", match.group(0))
+                        target_match = _COLOR_CONTEXT_TARGET_WORDS[target].search(match.group(0))
                         governed_noun = (
                             normalize(target_match.group(0)) if target_match else ""
                         )
@@ -1808,15 +1843,15 @@ def _find_color_contexts(
                         clause_start = max((b for b in scope_boundaries if b <= match.start()), default=0)
                         prefix = query_norm[max(clause_start, match.start() - 55):match.start()]
                         suffix = query_norm[match.end():match.end() + 35]
-                        if re.search(r"\b(?:wearing|wears?|wore|dressed in|puts? on)\b[^,;]*$", prefix) or re.match(r" (?:with sleeves|with buttons|jacket)\b", suffix):
+                        if _COAT_WORN_PREFIX.search(prefix) or _COAT_GARMENT_SUFFIX.match(suffix):
                             resolved_facet = "wardrobe"
-                        elif re.match(r" (?:of |made of )?(?:fur|pelt|fleece)\b", suffix):
+                        elif _COAT_BODY_SUFFIX.match(suffix):
                             resolved_facet = "coat_palette"
                         else:
                             # Keep original wording available to retrieval, but
                             # do not assert garment or body-covering ownership.
                             continue
-                    if facet == "hair_color" and not re.search(r"\b(?:head|scalp|hairstyle|hair style)\b", governed_noun):
+                    if facet == "hair_color" and not _HEAD_HAIR_WORDS.search(governed_noun):
                         resolved_facet = "subject_surface"
                     row = (
                         normalize(color),
@@ -1887,7 +1922,7 @@ def analyze_query(
             ):
                 for token in tokens_of(normalized_term):
                     analysis.scoped_terms.setdefault(token, set()).add("domain")
-    _record_permanent_hair_head_presence(analysis, query_norm)
+    _record_named_structures(analysis, query_norm)
 
     analysis.phrase_matches = index.match_phrases(query_norm)
     for match in analysis.phrase_matches:
@@ -2039,7 +2074,7 @@ def analyze_query(
         )
 
     # Explicit build language is an identity anchor even when the exact phrase
-    # is absent from a preset label. Explicit local head nouns take priority:
+    # is absent from a record label. Explicit local head nouns take priority:
     # ``athletic shorts`` scopes athletic to wardrobe, while ``muscular black
     # panther`` retains the intended body-build anchor.
     ambiguous_modifier_terms: list[str] = []
@@ -2286,7 +2321,7 @@ def analyze_query(
 
     # Report wording that the deterministic catalog could not normalize. The
     # caller may preserve it verbatim, translate it semantically, add an alias,
-    # or author a missing preset. It must never be silently discarded.
+    # or author a missing record. It must never be silently discarded.
     covered_tokens: set[str] = set(DISCOVERY_CUE_TOKENS) - permanent_trait_tokens
     covered_tokens.update(_MODIFIER_SCOPE_BARRIERS)
     for match in analysis.phrase_matches:

@@ -12,7 +12,7 @@ Use this document when a brief fixes only a few stable anchors while several out
 
 ## Activation
 
-Typical sparse anchors include subject domain; species or body plan; build or proportion; coat, skin, casing, or primary body color; permanent head-hair presence, section map, texture, color, and silhouette; permanent mane, ruff, facial-hair, crest, or other regional-covering boundaries; age appearance; gender presentation; and one identity accessory or occupation. Scene, role, wardrobe, pose, performance, gaze, camera, crop, composition, lighting, environment, mood, style family, and rendering profile may remain open only when the brief does not state them.
+Typical sparse anchors include subject domain; species or body plan; build or proportion; coat, skin, casing, or primary body color; permanent head-hair presence, section map, texture, color, and silhouette; permanent mane, ruff, facial-hair, crest, or other regional-covering boundaries; age appearance; gender presentation; and one identity accessory or occupation. Scene, role, wardrobe, pose, performance, gaze, camera, crop, composition, lighting, environment, mood, style family, and render profile may remain open only when the brief does not state them.
 
 Representative sparse briefs may specify only a subject type plus two or three identity anchors, such as age with occupation, chassis shape with one optic, or species with build and coat color.
 
@@ -26,7 +26,7 @@ search or inspire -> retrieve a known craft need
 inspect -> read one selected canonical record in full
 ```
 
-Preset names and IDs are not required for `recommend`, `search`, or `inspire`; selected IDs are post-selection internal identifiers for inspection and adoption. Treat an unknown ID as an error rather than guessing or silently substituting another record. Apply this authority order:
+Record names and IDs are not required for `recommend`, `search`, or `inspire`; selected IDs are post-selection internal identifiers for inspection and adoption. Treat an unknown ID as an error rather than guessing or silently substituting another record. Apply this authority order:
 
 ```text
 explicit user anchors
@@ -34,7 +34,7 @@ explicit user anchors
 -> image intent
 -> selected art direction
 -> inspected production knowledge
--> project defaults
+-> the studio defaults
 ```
 
 Recommendation output is not an adopted record. It cannot override anchors, turn lexical score into artistic judgment, promote suggestions into identity, require catalog terms, force needless clarification, or erase unmatched wording.
@@ -193,7 +193,7 @@ terms_without_alias
 
 Cards differ on outcome-defining axes, not labels. Four minor variants of one athlete portrait are not four directions. A close glossy portrait, athletic action, warm everyday scene, and regal nocturnal portrait are distinct.
 
-`cpb-resource:discovery-lanes`, resolved from the explicitly selected provider, supplies compatible clusters rather than finished recipes. A preferred scene is eligible only when it respects every explicit domain, species, palette, role, wardrobe, accessory, environment, pose, gesture, performance, and staging anchor. Returning a card without a scene record is better than importing a conflict.
+`cpb-resource:discovery-lanes` supplies compatible clusters rather than finished recipes. A preferred scene is eligible only when it respects every explicit domain, species, palette, role, wardrobe, accessory, environment, pose, gesture, performance, and staging anchor. Returning a card without a scene record is better than importing a conflict.
 
 The recommender scores lanes against the caller's canonical-English query and explicit facets, preserves fixed anchors and open axes, and returns a diverse set.
 

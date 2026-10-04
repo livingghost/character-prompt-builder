@@ -2,7 +2,7 @@
 
 ## Conditional catalog examples
 
-Every literal catalog ID in this document is actionable only when its owning pack is present, enabled by the selected state, and the exact ID resolves in the active catalog. If an example ID is absent, apply the complete geometry rule directly, search enabled records for genuinely matching knowledge, or proceed without preset support. Never substitute an unrelated ID or assume that an external-pack example belongs to the default pack.
+Every literal catalog ID in this document is actionable only when its owning pack is present, enabled by the selected state, and the exact ID resolves in the active catalog. If an example ID is absent, apply the complete geometry rule directly, search enabled records for genuinely matching knowledge, or proceed without record support. Never substitute an unrelated ID or assume that an external-pack example belongs to the default pack.
 
 This reference belongs to the normal runtime workflow. It applies whenever the agent composes or revises a model-facing prompt, not only when contributors author catalog records. It preserves the full production knowledge behind prompt economy, overlap order, organic distributions, camera consequences, species authority, and related-variant ownership.
 
@@ -95,7 +95,7 @@ Use this authority order:
 
 A scaffold heuristic never silently changes a wolf into a feline, a canine into a bear, or any other explicit identity. When the nominal identity and observed facial geometry differ, first describe the geometry directly: ear shape, ear set, ear orientation, muzzle reach, muzzle depth, nose proportions, jaw mass, cheek volume, and eye placement.
 
-`references/species-architecture.md` is a prompt-prior scaffold reference, not a complete biological taxonomy. When the selected pack state provides `cpb-resource:species-scaffold-map`, resolve it from the explicitly selected provider and use only the coverage it actually declares. Without a selected provider, no scaffold-map coverage is implied; use direct geometry description.
+`references/species-architecture.md` is a prompt-prior scaffold reference, not a complete biological taxonomy. Each species record names its family in `scaffold.family`. The family `direct-geometry-required` calls for direct geometry description.
 
 ## 7. Runtime selection of related variants
 

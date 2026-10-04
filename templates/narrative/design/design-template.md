@@ -42,7 +42,7 @@ alone does not tell those states apart. Do not invent decisions to finish a form
 
 Own the creator's portrayal choices here, separate from world facts, subject psychology and local
 scene directions. Read `references/runtime/authorial-intent.md` relative to the installed `SKILL.md` for
-the procedure; these authoring instructions are not links relative to a created project.
+the procedure; these authoring instructions are not links relative to a created series.
 Each entry uses `### Intent <id>`, with a unique lowercase ID of letters, digits and hyphens,
 starting with a letter (up to 64 characters). Its fragment is `#intent-<id>`. Repeat only for useful
 scoped intentions; an unpeopled work may use this register without any persona. Empty entries are
@@ -121,7 +121,7 @@ copy. Untimed work does not need an invented event order. A plan can cover a sin
 - **state_owners_and_grounding**:
   <!-- Base, event/process sources and relevant exact locators/decisions; distinguish source-explicit facts, inference, adopted design and observed output. -->
 - **identity_state_and_asset_addresses**:
-  <!-- Entity identity, phase/profile, state target and role-scoped reference facets. An asset hash or equal query key does not prove portrayal identity. -->
+  <!-- Entity identity, phase/character profile, state target and role-scoped reference facets. An asset hash or equal query key does not prove portrayal identity. -->
 - **occurrence_presentation_and_boundary_relations**:
   <!-- Separate story targets from telling and generation order. Name actual continuity checks, ellipses, revisits, parallelism or unresolved ordering without forcing one format. -->
 - **realization_and_consumer_views**:
@@ -163,7 +163,7 @@ second rule register. A single image or unpeopled work does not need invented di
 - **review_span_and_inputs**:
   <!-- The actual scene/sequence/one-off framing, source versions or hashes, and scope not inspected. -->
 - **identity_and_world_bindings**:
-  <!-- Which subject profiles, facts, conditions and expressive rules apply; no psychology for an unpersonified subject. -->
+  <!-- Which character profiles, facts, conditions and expressive rules apply; no psychology for an unpersonified subject. -->
 - **realization_observations**:
   <!-- What actually sustains, contrasts, reveals, withholds or disrupts the intended portrayal across this span. Local plausibility is not sufficient evidence for accumulated coherence. -->
 - **departure_and_aftermath**:

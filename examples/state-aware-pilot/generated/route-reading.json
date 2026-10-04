@@ -6,19 +6,19 @@
     },
     {
       "path": "references/runtime/production-permissions.md",
-      "sha256": "ebca318898d5994c255f473a493e08af80436f2e423872923ab1d74371219b39"
+      "sha256": "bdd21473746bf5c8a52f860575f218521b53b86f54234f9347aba2f346e1148f"
     },
     {
       "path": "references/runtime/production-execution.md",
-      "sha256": "83ed331d2b984943efeb4193c27d77d199277f60d3105763cfc0fc9ecc7bc3e9"
+      "sha256": "5674d401a35b9ce881bb5d25343b1a3642384c8783319393d2c48cfd6adb6245"
     },
     {
       "path": "references/runtime/state-aware-series.md",
-      "sha256": "260acb39c8a234ce0835e52515a0cc11627dcaffec8ca1452d9f5cea347ac6a8"
+      "sha256": "b6023c821777d51287031c1653c7442b4945fb03396c72478cc36cd0ad7c8ce1"
     },
     {
       "path": "references/runtime/prompt-writing-guide.md",
-      "sha256": "6730648fbd14aab8d8ebe8e9069356aec7831a5b0fa0702a7bf8896ef5c68c6d"
+      "sha256": "3cc49743b4c4491e1c85f69293046a2cc641a80d23bd83755bbe08bdd4106459"
     },
     {
       "path": "references/runtime/reference-delivery.md",
@@ -26,15 +26,15 @@
     },
     {
       "path": "references/runtime/render-contract.md",
-      "sha256": "796bb30a517406086cafd2cd61a77445141df1185642cf601c129d73e29f956a"
+      "sha256": "8f4fbf016a3c3f730618cbdf7b5348c3d5ad459f87382435710511154a1ae3e2"
     },
     {
       "path": "references/runtime/studio.md",
-      "sha256": "5e0f70d25113bca1a1db4d7ee87f4c1569115baae1fb67a50ddb013e498d43e6"
+      "sha256": "959439d6c45f517744810fa84d706c0846aebea6ed9b257d3a10f4d4d56b2e51"
     },
     {
       "path": "references/runtime/world-realization.md",
-      "sha256": "fcd5facacdca24ac1c71783c1248d860b6ab7ba2d99b40e902ff29eb297a5c1f"
+      "sha256": "7679b7feb4a8d1e2daab197a7e2922b77741e99de1c7cb03ada771c3c06227bc"
     }
   ],
   "features": [
@@ -59,7 +59,7 @@
     }
   },
   "route": "state-series",
-  "reading_key": "8754c0529fdac0cb0f84a24963b9b9f4",
+  "reading_key": "65173bbfa57878679150d9a4f4624d22",
   "applied": [
     {
       "path": "references/runtime/state-aware-series.md",

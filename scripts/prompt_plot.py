@@ -8,6 +8,7 @@ it, because each of those is a relation between two parts of the document. Both
 run, in that order, so a plot that passes here has passed the shape as well.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -257,7 +258,7 @@ def load_prompt_plot(path: Path) -> dict[str, Any]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("plot", type=Path)
     parser.add_argument("--content-sha256", action="store_true",
                         help="Print the hash an approval has to carry, and nothing else")
@@ -278,4 +279,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

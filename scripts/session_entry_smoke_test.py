@@ -20,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+
 import session_entry_points  # noqa: E402
 import studio  # noqa: E402
 import work_ledger  # noqa: E402
@@ -59,7 +60,7 @@ class SessionEntry(unittest.TestCase):
     def test_open_task_prints_before_an_existing_pack_runtime(self) -> None:
         state = self.root / "pack-state.json"
         state.write_text(
-            json.dumps({"enabled_packs": [], "pack_roots": [], "resource_providers": {}}),
+            json.dumps({"enabled_packs": [], "pack_roots": []}),
             encoding="utf-8",
         )
         text = entry(self.studio, state)

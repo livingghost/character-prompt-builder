@@ -133,7 +133,7 @@ class ImageEditTests(unittest.TestCase):
         self.assertEqual(candidate['event'],'candidate')
     def test_failed_review_needs_next_step(self):
         candidate=self.execute()
-        with self.assertRaisesRegex(ValueError,'repair or unresolved'):self.observed(candidate,'fail')
+        with self.assertRaisesRegex(ValueError,'repairs|unresolved'):self.observed(candidate,'fail')
     def test_unresolved_failure_can_be_recorded(self):
         candidate=self.execute();data=w.draft_review(self.root,self.run,candidate['sha256'])
         self.observed(candidate);data=c.load(self.root/'review.json');data['checks'][0]['verdict']='fail';data['unresolved']=['Need an actual correction decision.'];self.put('failed.json',data)

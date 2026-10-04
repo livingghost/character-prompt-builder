@@ -2,14 +2,16 @@
 """Run one content pack's declared release evaluations in an exact runtime.
 
 The gate never consults the bundled default state or the process' platform
-state.  Its state file must enable exactly the positional pack, its discovery
-roots must contain exactly that pack directory, and every named resource
-binding must select that pack as provider.  A pack without declared evaluation
-resources receives the structural lock and cache checks only.  A pack that
+state.  Its state file must enable exactly the positional pack and its required
+dependencies, and its discovery roots must name exactly their directories.  The
+runtime merges their named resources as it merges every enabled pack's.  A pack
+without declared evaluation resources receives the structural lock and cache
+checks only.  A pack that
 declares evaluations owns their counts and preservation expectations through
 the ``release-evaluation-contract`` named resource.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -29,7 +31,7 @@ from pack_manager import (
     PackSettings,
     canonical_json,
     build_lock_data,
-    is_project_pack,
+    is_commons_pack,
     load_state,
     sha256_bytes,
     validate_pack,
@@ -43,7 +45,6 @@ SUITE_RESOURCE_NAMES = {
     "search_regression": "catalog-search-regression",
     "sparse_discovery": "sparse-discovery-evaluation",
     "tier_strategy": "tier-strategy-evaluation-cases",
-    "style_family": "style-family-taxonomy",
     "reference_corpus": "reference-corpus-manifest",
 }
 DECLARED_EVALUATION_RESOURCES = frozenset(
@@ -129,7 +130,6 @@ def validate_release_contract(value: Any) -> list[str]:
     simple_resources = {
         "search_regression": ("resource", "expected_case_count"),
         "sparse_discovery": ("resource", "expected_case_count"),
-        "style_family": ("taxonomy_resource", "expected_family_count"),
     }
     for suite, fields in simple_resources.items():
         if suite not in value:
@@ -146,6 +146,20 @@ def validate_release_contract(value: Any) -> list[str]:
                 f"{suite}.{fields[0]} must be the logical resource {expected_resource!r}"
             )
         _positive_integer(row.get(fields[1]), f"{suite}.{fields[1]}", errors)
+
+    if "style_family" in value:
+        row = value["style_family"]
+        if not isinstance(row, Mapping):
+            errors.append("style_family must be an object")
+        else:
+            _exact_keys(
+                row, required={"expected_family_count"}, field="style_family", errors=errors
+            )
+            _positive_integer(
+                row.get("expected_family_count"),
+                "style_family.expected_family_count",
+                errors,
+            )
 
     if "tier_strategy" in value:
         row = value["tier_strategy"]
@@ -353,6 +367,7 @@ def _skip_count(value: Any) -> int:
 
 
 def _resource_path(catalog: Any, name: str, pack_id: str) -> Path:
+    """The file of a declared logical resource, which the positional pack provides."""
     if not RESOURCE_NAME_RE.fullmatch(name):
         raise ValueError(f"invalid logical resource name: {name!r}")
     resource = catalog.resources.get(name)
@@ -680,7 +695,6 @@ def _style_suite(
 ) -> dict[str, Any]:
     import style_family_audit
 
-    _resource_path(catalog, str(row["taxonomy_resource"]), pack_id)
     expected = int(row["expected_family_count"])
     errors: list[str] = []
     if metrics["style_family_record_count"] != expected:
@@ -688,12 +702,16 @@ def _style_suite(
             "locked style-family record count does not match the contract: "
             f"{metrics['style_family_record_count']} != {expected}"
         )
+    # The audit judges every family of the gate runtime, the pack with its
+    # required dependencies; the count compared with the contract is the
+    # pack's own families.
     report = style_family_audit.audit(PROJECT_ROOT)
-    actual = int(report.get("family_count") or 0)
+    actual = sum(
+        1 for entry in catalog.entries if entry.kind == "style-family" and entry.source_pack == pack_id
+    )
     if actual != expected:
-        errors.append(f"style audit returned {actual} families; expected {expected}")
-    if report.get("errors"):
-        errors.append(f"style audit produced {len(report['errors'])} errors")
+        errors.append(f"the runtime holds {actual} style families of this pack; the contract declares {expected}")
+    errors.extend(f"style audit: {message}" for message in report.get("errors") or [])
     if report.get("ok") is not True:
         errors.append("style audit reported ok=false")
     suite_ok = not errors
@@ -720,17 +738,22 @@ def _style_suite(
 def _quality_suite(
     row: Mapping[str, Any], catalog: Any, pack_id: str, metrics: Mapping[str, Any]
 ) -> dict[str, Any]:
-    del row, catalog, pack_id
+    del row
     import audit_preset_quality
 
     expected = int(metrics["quality_record_count_from_lock"])
     errors: list[str] = []
     if expected <= 0:
         errors.append("quality suite has zero locked non-asset/model records")
+    # The audit judges the whole gate runtime, the pack with its required
+    # dependencies; the count compared with the lock is the pack's own records.
     report = audit_preset_quality.audit(PROJECT_ROOT, write_report=False)
-    actual = int(report.get("records_total") or 0)
+    actual = sum(
+        1 for entry in catalog.entries
+        if entry.kind not in {"asset", "model"} and entry.source_pack == pack_id
+    )
     if actual != expected:
-        errors.append(f"quality audit returned {actual} records; expected {expected}")
+        errors.append(f"the runtime holds {actual} records of this pack; the lock declares {expected}")
     if report.get("errors"):
         errors.append(f"quality audit produced {len(report['errors'])} errors")
     skip_count = _skip_count(report)
@@ -961,6 +984,28 @@ def _base_report(
     }
 
 
+def _required_dependencies(manifest: Mapping[str, Any]) -> frozenset[str]:
+    """The pack IDs a manifest requires. A dependency names a pack, not a version."""
+    return frozenset(
+        str(row.get("pack_id"))
+        for row in manifest.get("dependencies") or []
+        if isinstance(row, Mapping) and row.get("pack_id")
+    )
+
+
+def _dependency_closure(required: frozenset[str], manifests: Mapping[str, Mapping[str, Any]]) -> set[str]:
+    """Every pack reached through required dependencies, read from the manifests the state names."""
+    closure: set[str] = set()
+    pending = list(required)
+    while pending:
+        item = pending.pop()
+        if item in closure:
+            continue
+        closure.add(item)
+        pending.extend(_required_dependencies(manifests.get(item) or {}))
+    return closure
+
+
 def run_release_gate(
     pack_root: Path,
     *,
@@ -968,7 +1013,11 @@ def run_release_gate(
     cache_dir: Path,
     managed_root: Path,
 ) -> dict[str, Any]:
-    """Execute the complete gate for one explicit pack runtime."""
+    """Execute the complete gate for one explicit pack runtime.
+
+    The runtime holds the positional pack and its required dependencies. The
+    gate checks the pack's own records and resources inside that runtime.
+    """
     pack_root = pack_root.resolve()
     state_file = state_file.resolve()
     cache_dir = cache_dir.resolve()
@@ -1003,30 +1052,30 @@ def run_release_gate(
             "resource_binding_count": len(validation.resource_bindings),
         }
     )
-    project_owned = is_project_pack(pack_root, validation.manifest)
-    if not validation.valid or (not validation.lock_present and not project_owned) or not validation.pack_id:
+    commons_owned = is_commons_pack(pack_root, validation.manifest)
+    if not validation.valid or (not validation.lock_present and not commons_owned) or not validation.pack_id:
         errors.extend(
             f"released pack: {item['code']}: {item['message']}"
             for item in validation_data.get("errors") or []
         )
-        if not validation.lock_present and not project_owned:
+        if not validation.lock_present and not commons_owned:
             errors.append("released pack is missing pack.lock.json")
         if not errors:
             errors.append("released pack validation failed")
         return output
 
     try:
-        lock = build_lock_data(pack_root) if project_owned else _load_json_object(pack_root / "pack.lock.json", "pack.lock.json")
-        output["pack"]["integrity_policy"] = "core-managed-live-inventory" if project_owned else "released-pack-lock"
+        lock = build_lock_data(pack_root) if commons_owned else _load_json_object(pack_root / "pack.lock.json", "pack.lock.json")
+        output["pack"]["integrity_policy"] = "core-managed-live-inventory" if commons_owned else "released-pack-lock"
     except ValueError as exc:
         errors.append(str(exc))
         return output
     output["pack"].update(
         {
             "inventory_file_count": len(lock.get("files") or []),
-            "locked_file_count": None if project_owned else len(lock.get("files") or []),
+            "locked_file_count": None if commons_owned else len(lock.get("files") or []),
             "inventory_content_sha256": lock.get("content_sha256"),
-            "locked_content_sha256": None if project_owned else lock.get("content_sha256"),
+            "locked_content_sha256": None if commons_owned else lock.get("content_sha256"),
         }
     )
 
@@ -1038,40 +1087,48 @@ def run_release_gate(
     except Exception as exc:  # PackError plus malformed external inputs
         errors.append(f"explicit state is invalid: {exc}")
         return output
+    # The runtime holds the positional pack and its required dependencies, nothing else.
+    # The state names the pack directory first and then one directory per dependency.
+    roots = [Path(value) for value in state["pack_roots"]]
     expected_root = os.path.normcase(str(pack_root))
-    actual_roots = [os.path.normcase(str(Path(value).resolve())) for value in state["pack_roots"]]
-    if actual_roots != [expected_root]:
+    if not roots or os.path.normcase(str(roots[0].resolve())) != expected_root:
+        errors.append("explicit state pack_roots must name the positional pack directory first")
+    dependency_manifests: dict[str, Mapping[str, Any]] = {}
+    dependency_roots: list[Path] = []
+    for extra in roots[1:]:
+        extra = extra.resolve()
+        try:
+            extra_manifest = json.loads((extra / "pack.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            errors.append(f"explicit state pack_roots names a directory that is not a pack: {extra}")
+            continue
+        dependency_manifests[str(extra_manifest.get("pack_id"))] = extra_manifest
+        dependency_roots.append(extra)
+    closure = _dependency_closure(_required_dependencies(validation.manifest or {}), dependency_manifests)
+    missing_dependencies = sorted(closure - set(dependency_manifests))
+    unrelated = sorted(set(dependency_manifests) - closure)
+    if missing_dependencies or unrelated:
         errors.append(
-            "explicit state pack_roots must contain exactly the positional pack directory"
+            "explicit state pack_roots must contain the positional pack directory and the directory of "
+            f"each required dependency, nothing else; missing={missing_dependencies}, unrelated={unrelated}"
         )
-    if state["enabled_packs"] != [pack_id]:
-        errors.append("explicit state enabled_packs must contain exactly the positional pack ID")
-    expected_providers = {
-        name: pack_id for name in sorted(validation.resource_bindings)
-    }
-    if state["resource_providers"] != expected_providers:
-        missing = sorted(set(expected_providers) - set(state["resource_providers"]))
-        extra = sorted(set(state["resource_providers"]) - set(expected_providers))
-        wrong = sorted(
-            name
-            for name in set(expected_providers) & set(state["resource_providers"])
-            if state["resource_providers"][name] != pack_id
-        )
+    expected_enabled = [pack_id, *sorted(closure)]
+    if state["enabled_packs"] != expected_enabled:
         errors.append(
-            "explicit state must select the positional pack for every and only its named "
-            f"resources; missing={missing}, extra={extra}, wrong_provider={wrong}"
+            "explicit state enabled_packs must list the positional pack ID and then each required "
+            "dependency ID in sorted order"
         )
     if errors:
         return output
+    output["pack"]["required_dependencies"] = sorted(closure)
 
     settings = PackSettings(
-        roots=(pack_root,),
+        roots=(pack_root, *dependency_roots),
         state_file=state_file,
         cache_dir=cache_dir,
         managed_root=managed_root,
         quarantine_root=(managed_root / ".quarantine").resolve(),
         default_enabled_packs=(),
-        default_resource_providers=(),
     )
     configure_pack_runtime(settings)
     try:
@@ -1106,23 +1163,29 @@ def run_release_gate(
             "cache_path": status.get("cache_path"),
             "rebuilt": refresh.get("rebuilt") is True,
         }
+        cache_check["dependency_pack_ids"] = sorted(closure)
         cache_errors: list[str] = []
-        if catalog.active_pack_count != 1:
-            cache_errors.append("runtime cache does not contain exactly one active pack")
-        if status.get("enabled_packs") != [pack_id]:
+        expected_set = set(expected_enabled)
+        if catalog.active_pack_count != len(expected_enabled):
+            cache_errors.append(
+                "runtime cache does not contain exactly the positional pack and its required dependencies"
+            )
+        if status.get("enabled_packs") != expected_enabled:
             cache_errors.append("runtime cache enabled-pack state is not exact")
-        if status.get("available_enabled_packs") != [pack_id]:
+        if status.get("available_enabled_packs") != expected_enabled:
             cache_errors.append("runtime cache available-pack state is not exact")
-        if source_pack_ids not in ([], [pack_id]):
+        if not set(source_pack_ids) <= expected_set:
             cache_errors.append("runtime cache contains records from another pack")
-        if len(catalog.entries) != len(validation.records):
+        own_records = sum(1 for entry in catalog.entries if entry.source_pack == pack_id)
+        if own_records != len(validation.records):
             cache_errors.append(
                 "runtime cache record count differs from the locked pack: "
-                f"{len(catalog.entries)} != {len(validation.records)}"
+                f"{own_records} != {len(validation.records)}"
             )
-        if resource_pack_ids not in ([], [pack_id]):
+        if not set(resource_pack_ids) <= expected_set:
             cache_errors.append("runtime cache contains resources from another pack")
-        if len(catalog.resources) != len(validation.resource_bindings):
+        own_resources = sum(1 for item in catalog.resources.values() if item.source_pack == pack_id)
+        if own_resources != len(validation.resource_bindings):
             cache_errors.append(
                 "runtime cache named-resource count differs from the locked pack bindings"
             )
@@ -1146,10 +1209,10 @@ def run_release_gate(
             DECLARED_EVALUATION_RESOURCES & set(validation.resource_bindings)
         )
         if contract_resource is None:
-            if project_owned:
+            if commons_owned:
                 # Commons is released with the project, not as a separately
-                # licensed/locked pack. Its taxonomy is runtime policy; the
-                # core gate owns its quality and regression evaluation.
+                # licensed/locked pack; the core gate owns its quality and
+                # regression evaluation.
                 output["scope"] = "core-managed-pack-structure"
                 output["release_authorized"] = False
                 output["contract"].update({
@@ -1206,7 +1269,7 @@ def run_release_gate(
             errors.append(
                 f"tier_strategy requires the pack-owned {TIER_BASELINE_RESOURCE!r} binding"
             )
-        required_quality_resources = {"archetype-policy", "negative-policy", "project-defaults"}
+        required_quality_resources = {"archetype-policy", "negative-policy", "pack-defaults"}
         if "quality" in contract:
             missing_quality = sorted(
                 required_quality_resources - set(validation.resource_bindings)
@@ -1252,7 +1315,7 @@ def run_release_gate(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = _operation_context.ArgumentParser(
         description="Run one released pack's complete pack-owned evaluation contract"
     )
     parser.add_argument("pack", type=Path, help="Exact released pack directory")
@@ -1279,4 +1342,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

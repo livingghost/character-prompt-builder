@@ -22,6 +22,7 @@ from search_prompt_vocabulary import (
     validate_vocabulary,
 )
 
+
 COMMONS_DICTIONARY = Path(__file__).resolve().parents[1] / "packs/commons/resources/prompt-vocabulary/dictionary.json"
 
 

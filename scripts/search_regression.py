@@ -12,6 +12,7 @@ each case. An explicit isolated diagnostic mode runs the same ranges in fresh
 worker processes when process-lifetime behavior itself needs examination.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -477,7 +478,7 @@ def run(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = _operation_context.ArgumentParser()
     add_pack_runtime_arguments(parser)
     parser.add_argument("--worker-start", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--worker-end", type=int, help=argparse.SUPPRESS)
@@ -530,4 +531,4 @@ def main() -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

@@ -11,6 +11,7 @@ from typing import Any
 from unittest import mock
 
 from package import (
+    collect_forbidden,
     copy_runtime_tree,
     tree_file_hashes,
     validate_keep_stage_destination,
@@ -188,6 +189,49 @@ def main() -> int:
                             ) + 1
         else:
             real_symlink_integration["unavailable_reason"] = reason
+
+        # Synthetic local state a Studio, a run or a developer machine leaves
+        # behind. Each item is refused; ordinary files with similar names are not.
+        local_state = root / "local-state-stage"
+        planted_directories = {
+            "examples/generation/studio/logs/operations",
+            "examples/generation/studio/production/staging",
+            "examples/generation/studio/runtime/snapshots",
+            ".venv",
+            "scripts/venv",
+        }
+        planted_files = {
+            "examples/generation/studio/production/records.sqlite3",
+            "examples/generation/studio/production/records.sqlite3-wal",
+            "pyvenv.cfg",
+            "config/.env",
+            "config/.env.local",
+            "config/credentials.json",
+            "config/credentials.local.json",
+            "config/service-credentials.json",
+            "references/.netrc",
+        }
+        ordinary_files = {
+            "references/runtime/production-execution.md",
+            "references/runtime/operation-logs.md",
+            "examples/generation/README.md",
+            "scripts/production_store.py",
+            "scripts/runtime_snapshot.py",
+        }
+        for relative in planted_directories:
+            (local_state / relative).mkdir(parents=True)
+        for relative in planted_files | ordinary_files:
+            (local_state / relative).parent.mkdir(parents=True, exist_ok=True)
+            (local_state / relative).write_text("synthetic\n", encoding="utf-8")
+        found = set(collect_forbidden(local_state))
+        if found == planted_directories | planted_files:
+            checks += 1
+        else:
+            errors.append(
+                "release tree check missed local state or refused an ordinary file: "
+                f"missed {sorted((planted_directories | planted_files) - found)}, "
+                f"refused {sorted(found - planted_directories - planted_files)}"
+            )
 
         release_input = source / "scripts"
         release_input.mkdir()

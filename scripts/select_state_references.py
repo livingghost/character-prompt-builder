@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Select state-valid reference assets from explicit state-aware bindings."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -33,7 +34,7 @@ def _checked_artifact(path_value: str | None, expected_type: str) -> dict[str, A
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Select state-aware reference assets.")
+    parser = _operation_context.ArgumentParser(description="Select state-aware reference assets.")
     parser.add_argument("--bindings", required=True)
     parser.add_argument("--selection-id", required=True)
     parser.add_argument("--identity-contract", required=True)
@@ -110,4 +111,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

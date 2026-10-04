@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "build_batch_plan.py"
 EXPECTED_CHECKS = 55

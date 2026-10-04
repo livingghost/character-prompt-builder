@@ -12,5 +12,5 @@ The skill should:
 - form an image intent
 - develop coherent visual directions
 - select one rather than average them
-- consult presets only after the direction is chosen
+- consult records only after the direction is chosen
 - produce a final prompt and focused negative prompt

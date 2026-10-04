@@ -21,6 +21,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
+
 import adoption_workflow as adoption
 import catalog_cli
 import dispatch
@@ -45,7 +46,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         cls.settings = pm.PackSettings(roots=(cls.pack,), state_file=cls.base/'state.json',
             cache_dir=cls.base/'cache', managed_root=cls.base/'managed', quarantine_root=cls.base/'quarantine',
             default_enabled_packs=(PACK_ID,))
-        pm.save_state(cls.settings.state_file, {'pack_roots': [], 'enabled_packs': [PACK_ID], 'resource_providers': {}})
+        pm.save_state(cls.settings.state_file, {'pack_roots': [], 'enabled_packs': [PACK_ID]})
         catalog_cli.configure_pack_runtime(cls.settings)
         cls.package = _package(empty_stateless_reference_set())
         cls.package_path = cls.base/'package.json'; pm.atomic_write_json(cls.package_path, cls.package)
@@ -105,7 +106,7 @@ class FeatureWorkflowTests(unittest.TestCase):
                 'requested_paths': ['/scene/eyes'], 'frozen_paths': []}
 
     def test_01_package_requires_real_settled_record_and_verifies(self):
-        self.assertTrue(verify(self.package, project=self.root)['verified'])
+        self.assertTrue(verify(self.package, studio=self.root)['verified'])
         self.assertEqual(self.package['composition_prompt'], PROMPT)
         self.assertEqual(self.package['retrieval_record_sha256'], digest(self.package['retrieval_record']))
 
@@ -131,11 +132,11 @@ class FeatureWorkflowTests(unittest.TestCase):
     def test_05_verifier_rejects_removal_tampering_and_record_switch(self):
         for key in ('retrieval_record', 'retrieval_record_sha256', 'composition_prompt'):
             value = copy.deepcopy(self.package); value.pop(key)
-            with self.subTest(key=key), self.assertRaises(ValueError): verify(value, project=self.root)
+            with self.subTest(key=key), self.assertRaises(ValueError): verify(value, studio=self.root)
         value=copy.deepcopy(self.package); value['retrieval_record']['settled']=False
-        with self.assertRaises(ValueError): verify(value, project=self.root)
+        with self.assertRaises(ValueError): verify(value, studio=self.root)
         value=copy.deepcopy(self.package); value['retrieval_record']=fixture_retrieval(PROMPT+' other', APPROVED_PLOT)
-        with self.assertRaises(ValueError): verify(value, project=self.root)
+        with self.assertRaises(ValueError): verify(value, studio=self.root)
 
     def test_06_adopt_binds_real_image_and_package_and_next_reference(self):
         row=self.iteration(); result=self.adopt(row)
@@ -200,12 +201,13 @@ class FeatureWorkflowTests(unittest.TestCase):
     def record(self):
         return {'id':'adopted-test-character','label':'Adopted fixture','curation_status':'curated','category':'species',
                 'prompt':'a fictional test character','domains':['shared'],'tags':['fixture','character'],
-                'search_terms':[{'phrase':'adopted test character','facet':'species','weight':1.0,'source':'author'}]}
+                'search_terms':[{'phrase':'adopted test character','facet':'species','weight':1.0,'source':'author'}],
+                'scaffold':{'family':'direct-geometry-required','confidence':'fallback'}}
 
     def catalog_adopt(self,row,**kwargs):
         record=self.record()
         settings=replace(self.settings,state_file=self.work/'registration-state.json',cache_dir=self.work/'registration-cache')
-        pm.save_state(settings.state_file, {'pack_roots':[], 'enabled_packs':[PACK_ID], 'resource_providers':{}})
+        pm.save_state(settings.state_file, {'pack_roots':[], 'enabled_packs':[PACK_ID]})
         return adoption.adopt(self.root,'C01',row['iteration_id'],
             self.approval(row,'catalog',registration_record_sha256=digest(record)),registration_record=record,
             pack_dir=self.work/'registered-pack',settings=settings,**kwargs)
@@ -238,7 +240,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         final=self.work/'generation';final.mkdir()
         prepared,_=materialize_cli_reference_bundle(prepared,model=MODEL_ID,source_root=self.work/'prepared',staging_root=final,companion_name='package.references')
         package=_package(prepared,prepared_reference_root=final)
-        self.assertTrue(verify(package,package_root=final, project=self.root)['verified'])
+        self.assertTrue(verify(package,package_root=final, studio=self.root)['verified'])
         adoption.validate_for_generation(self.root,'C01',package)
 
     def test_15_catalog_failure_leaves_resumable_sheet_and_no_false_completion(self):
@@ -297,9 +299,9 @@ class FeatureWorkflowTests(unittest.TestCase):
 
     def test_24_core_commons_is_lockless_but_external_copy_is_not_exempt(self):
         commons=ROOT/'packs/commons'
-        self.assertFalse((commons/'pack.lock.json').exists());self.assertTrue(pm.is_project_pack(commons))
+        self.assertFalse((commons/'pack.lock.json').exists());self.assertTrue(pm.is_commons_pack(commons))
         with self.assertRaises(pm.PackError): pm.write_lock(commons)
-        with patch.object(pm,'ROOT',self.work): self.assertFalse(pm.is_project_pack(commons))
+        with patch.object(pm,'ROOT',self.work): self.assertFalse(pm.is_commons_pack(commons))
         copied=self.work/'external';_write_fixture_pack(copied)
         value=pm.load_json(copied/'pack.json');value['pack_id']=pm.load_json(commons/'pack.json')['pack_id'];pm.atomic_write_json(copied/'pack.json',value)
         (copied/'pack.lock.json').unlink()
@@ -324,38 +326,19 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertNotEqual(exc.exception.code,0)
 
     def test_27_mock_dispatch_keeps_real_verifier_and_records_returned_result(self):
-        options=argparse.Namespace(package=self.package_path,service=None,profiles=None,seed=7,count=1,send=True,
-                                   character='C01',slot='base.front',note='Synthetic fixture')
-        transport=SimpleNamespace(build=Mock(return_value={'taskUUID':'fixture-task','prompt':PROMPT}),
-            media_paths=Mock(return_value=[]),upload=Mock(side_effect=AssertionError('unexpected upload')),
-            send=Mock(return_value={'data':'fixture'}),rejections=Mock(return_value=[]),
-            results=Mock(return_value=[{'url':'https://example.invalid/fixture.png','id':'fixture','seed':7}]),
-            RESULT_HOSTS=frozenset({'example.invalid'}))
-        def save(url,path,hosts):
-            from PIL import Image
-            Image.new('RGB',(24,24),'white').save(path);return studio.sha256_file(path)
-        offering={'service':'fixture','model_identifier':MODEL_ID,'observed_at':'2026-09-15'}
-        import production_fixtures as fixture
+        import production_case_fixtures as cases
         import production_workflow as workflow
-        run = fixture.prepare_dispatch(self.root, PROMPT)
-        package = fixture.bind_package(self.root, run, self.package)
-        options.package = self.root / 'bound-package.json'
-        options.package.write_text(json.dumps(package), encoding='utf-8')
-        rendered = fixture.rendered_request(package, seed=7, count=1)
-        offering.update(rendered['sealed']['target'])
-        transport.observation_outcome = Mock(return_value='accepted')
-        options.production_authorization = fixture.grant(self.root, run, workflow.submission_intent(
-            package, rendered=rendered, seed=7, count=1, offering=offering, service={}))
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-            for name,kwargs in {'select_offering':{'return_value':offering},'service_for':{'return_value':('fixture',{},transport)},
-                'check_request':{},'api_key':{'return_value':'TEST-NOT-A-CREDENTIAL'},'save':{'side_effect':save}}.items():
-                stack.enter_context(patch.object(dispatch,name,**kwargs))
-            stack.enter_context(patch('request_renderer.generation',return_value=rendered))
-            self.assertEqual(dispatch.dispatch_generation(options,self.root),0)
-        transport.send.assert_called_once();rows=studio.read_iterations(self.home);self.assertEqual(len(rows),1)
-        self.assertEqual(rows[0]['seed'],7)
-        self.adopt(rows[0]);self.assertTrue(self.index()['ok'])
+        import production_execution as execution
+        import transport_synthetic
+        from test_production_execution import decisions
+        case=cases.create(self.work/'execution studio',self.work/'execution runtime')
+        root=case['root'];prepared=workflow.prepare(root,'task.json')
+        with patch.object(transport_synthetic,'send',wraps=transport_synthetic.send) as send:
+            result=execution.execute(root,prepared['run'],decisions_file=decisions(root,prepared['run']))
+        self.assertTrue(result['execution_completed']);send.assert_called_once()
+        rows=studio.read_iterations(studio.character_dir(root,'robot'))
+        self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]['production']['run'],prepared['run'])
 
     def test_28_walkthrough_reaches_a_request_preview_without_sending(self):
         import importlib.util
@@ -368,25 +351,29 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertEqual((result['request']['width'],result['request']['height']),(832,1248))
         self.assertEqual(result['validation']['checked'],['target-schema'])
         self.assertEqual(result['request']['settings']['quality'],'medium')
-        rendering=pm.load_json(self.work/'walkthrough output'/'render-intent.json')
+        rendering=pm.load_json(self.work/'walkthrough output'/'studio'/'render-intent.json')
         self.assertEqual(rendering['selection']['chosen_by'],'agent')
         self.assertEqual(rendering['preset'],'photographic')
         self.assertTrue(result['request']['positivePrompt'].startswith(rendering['prompt_expression']))
         self.assertTrue(result['request_validation']['contract'].startswith('@pack/'))
-        args=pm.load_json(self.work/'walkthrough output'/'builder-arguments.json')
-        for flag in ('--plot-file','--retrieval-record-file','--continuity','--production-root'):self.assertIn(flag,args)
-        for flag in ('--request-validation-file','--visual-continuity-file','--production-run'):self.assertNotIn(flag,args)
+        args=pm.load_json(self.work/'walkthrough output'/'prepare-arguments.json')
+        for flag in ('--root','--task','--state-file','--cache-dir','--managed-root'):self.assertIn(flag,args)
+        self.assertEqual(result['readiness']['state'],'configuration_required')
+        self.assertTrue({'AUTHORIZATION_REQUIRED', 'COST_UNCONFIRMED'}.issubset(
+            {item['code'] for item in result['readiness']['diagnostics']}))
+        self.assertFalse(result['readiness']['executable'])
         # A plain one-off person needs only the drafted specification.
-        subject=pm.load_json(self.work/'walkthrough output'/'production-spec.json')['subjects'][0]
+        subject=pm.load_json(self.work/'walkthrough output'/'studio'/'production-spec.json')['subjects'][0]
         self.assertEqual(subject['domain'],'human')
         self.assertFalse({'resolved_morphology','identity_contract_ref','species_morphology_profile_ref'}&subject.keys())
         # The transcript lists the commands it ran, each with a short result.
         lines=(self.work/'walkthrough output'/'transcript.txt').read_text(encoding='utf-8').splitlines()
         self.assertTrue(all(line.startswith(('$ python scripts/','  exit 0: ','# ')) for line in lines))
-        self.assertEqual([line.split()[2] for line in lines if line.startswith('$ ')],
-                         ['scripts/'+name+'.py' for name in ('studio','studio','work_ledger','execution_routes','render_contract',
-                          'production_workflow','prompt_retrieval','render_contract','production_spec','build_generation_payload','dispatch')])
-        self.assertLess(sum(map(len,lines)),8000)
+        commands=[line.split()[2] for line in lines if line.startswith('$ ')]
+        self.assertEqual(commands.count('scripts/production_workflow.py'),2)
+        self.assertLess(commands.index('scripts/catalog_cli.py'),commands.index('scripts/prompt_retrieval.py'))
+        self.assertLess(commands.index('scripts/prompt_retrieval.py'),commands.index('scripts/production_workflow.py'))
+        self.assertEqual(commands[-2:],['scripts/production_workflow.py','scripts/production_workflow.py'])
         with self.assertRaises(ValueError):module.run(self.work/'walkthrough output')
 
     def prompt_artifacts(self, extra, destination='draft'):
@@ -423,7 +410,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         args['creative_intent']['revision_contract']=invalid
         with self.assertRaisesRegex(ValueError,'revision'):build_payload(**args)
         value=copy.deepcopy(self.package);value['creative_intent']['revision_contract']=invalid
-        with self.assertRaisesRegex(ValueError,'revision'):verify(value, project=self.root)
+        with self.assertRaisesRegex(ValueError,'revision'):verify(value, studio=self.root)
 
     def test_32_canonical_revision_approval_is_version_bound_and_not_scene_authority(self):
         value=self.revision();value['candidate']=copy.deepcopy(value['baseline'])
@@ -516,7 +503,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         import shutil
         pack=self.work/'mutable-pack';shutil.copytree(self.pack,pack)
         state=self.work/'bulk-state.json'
-        pm.save_state(state,{'pack_roots':[str(pack)],'enabled_packs':[PACK_ID],'resource_providers':{}})
+        pm.save_state(state,{'pack_roots':[str(pack)],'enabled_packs':[PACK_ID]})
         args=['--state-file',str(state),'--cache-dir',str(self.work/'bulk-cache'),
               '--managed-root',str(self.work/'managed'),'inspect-many','fixture-generic-subject']
         def read():
@@ -539,8 +526,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         from pack_release_gate import run_release_gate
         commons=ROOT/'packs/commons';manifest=pm.load_json(commons/'pack.json');uid=manifest['pack_id']
         state=self.work/'gate-state.json';managed=self.work/'gate-managed';managed.mkdir()
-        pm.save_state(state,{'pack_roots':[str(commons)],'enabled_packs':[uid],
-              'resource_providers':{name:uid for name in manifest['content']['resource_bindings']}})
+        pm.save_state(state,{'pack_roots':[str(commons)],'enabled_packs':[uid]})
         report=run_release_gate(commons,state_file=state,cache_dir=self.work/'gate-cache',managed_root=managed)
         self.assertTrue(report['ok'],report['errors'])
         self.assertEqual(report['pack']['integrity_policy'],'core-managed-live-inventory')

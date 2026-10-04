@@ -11,6 +11,7 @@ own verified Generation Package through the selected adapter exactly as
 the Image Generation Runtime requires.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -475,7 +476,7 @@ def build_batch_ledger(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
 
     plan_parser = commands.add_parser(
@@ -528,7 +529,7 @@ if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
     try:
-        raise SystemExit(main())
+        raise SystemExit(_operation_context.run_cli(main))
     except (ValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(2)

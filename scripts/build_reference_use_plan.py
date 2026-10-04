@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build one deterministic record-scoped visual reference-use plan."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -14,7 +15,7 @@ from reference_runtime import add_reference_plan_arguments, build_reference_use_
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = _operation_context.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
     add_reference_plan_arguments(parser)
@@ -56,4 +57,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

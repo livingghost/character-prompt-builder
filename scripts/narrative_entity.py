@@ -18,6 +18,7 @@ in the references other files declare. Renaming by hand means finding all of the
     python scripts/narrative_entity.py --series <dir> remove kanda-east
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -323,7 +324,7 @@ def rewrite_intent_paths(series: Path, previous: Path, target: Path) -> list[str
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split(NL)[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split(NL)[0])
     parser.add_argument("--series", type=Path, required=True)
     sub = parser.add_subparsers(dest="action", required=True)
 
@@ -476,4 +477,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

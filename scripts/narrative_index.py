@@ -30,6 +30,7 @@ The check runs both ways. A file nothing names is an orphan, and a name with no
 file behind it is dangling; neither is visible from inside a single document.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -493,7 +494,7 @@ def render(report: dict[str, Any]) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = _operation_context.ArgumentParser(
         description="Settle what the narrative directory holds against what the series names.")
     parser.add_argument("series", type=Path)
     parser.add_argument("--json", action="store_true")
@@ -510,4 +511,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

@@ -1,28 +1,30 @@
 {
   "after_change": {
-    "available_operations": [
-      "draft-release",
-      "impact"
-    ],
     "current_inputs": false,
-    "execution_state": "no-dispatch-claim",
-    "integrity_ok": true,
-    "next": "inspect-impact-and-refresh-inputs",
-    "reservation_states": [
-      "reserved"
-    ]
+    "freshness_codes": [
+      "SOURCE_CHANGED"
+    ],
+    "integrity": "intact",
+    "next_action": {
+      "command": "prepare",
+      "reason": "Review the source change and prepare a variant for the current creative scope."
+    },
+    "readiness": "blocked",
+    "submission": "unclaimed",
+    "task_disposition": "open"
   },
   "before_change": {
-    "available_operations": [
-      "draft-release"
-    ],
     "current_inputs": true,
-    "execution_state": "no-dispatch-claim",
-    "integrity_ok": true,
-    "next": "authorize-direction-and-handoff",
-    "reservation_states": [
-      "reserved"
-    ]
+    "freshness_codes": [],
+    "integrity": "intact",
+    "next_action": {
+      "command": "handoff",
+      "reason": "Hand the consumer to its recipient under an exact direction authorization from handoff-intent and authorize."
+    },
+    "readiness": "ready",
+    "submission": "unclaimed",
+    "task_disposition": "open"
   },
+  "reservation_count": 0,
   "synthetic": true
 }

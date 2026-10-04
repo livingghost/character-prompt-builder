@@ -23,6 +23,7 @@ path ends with it. A heading anchor covers every unit below the heading.
     python scripts/persona_units.py narrative/personas/c01.md --anchor "Speech Patterns"
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -229,7 +230,7 @@ def index(text: str) -> dict[str, str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("file", type=Path, help="A Markdown definition, such as a persona")
     parser.add_argument("--anchor", help="Print the text this anchor names and the units it covers")
     args = parser.parse_args(argv)
@@ -256,4 +257,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

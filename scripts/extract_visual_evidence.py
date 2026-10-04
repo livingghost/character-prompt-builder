@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -11,7 +12,7 @@ from native_vector_visual_evidence import process_source
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
+    parser = _operation_context.ArgumentParser(
         description="Extract one native-dimension compact perceptual three-layer visual-evidence bundle."
     )
     parser.add_argument("source", type=Path)
@@ -59,4 +60,4 @@ def main() -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

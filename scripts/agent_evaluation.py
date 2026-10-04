@@ -8,6 +8,7 @@ model calls in inspection mode, estimated token counts, or automatic artistic gr
 """
 
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -509,7 +510,7 @@ def verify_measurements(root: Path, path: str, values: dict) -> dict:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("command", choices=["inspect", "run"])
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--study", required=True)
@@ -536,4 +537,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

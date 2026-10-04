@@ -51,9 +51,7 @@ from visual_fixtures import emit_paste_for_target, verify
 from visual_evidence import render_svg
 
 
-from smoke_fixtures import fixture_retrieval, cli_with_fixture_retrieval, isolate_home
-
-isolate_home()
+from smoke_fixtures import fixture_retrieval, cli_with_fixture_retrieval
 
 
 def verify_main(argv):
@@ -68,12 +66,20 @@ def build_main(argv):
         return cli_with_fixture_retrieval(_build_main, argv)
 
 
+def diagnostic_messages(printed: str) -> list[str]:
+    """The messages of the diagnostics a package CLI printed on failure."""
+    report = json.loads(printed)
+    if report.get("ok") is not False:
+        raise SmokeFailure("a failed package CLI did not print ok false")
+    return [row["message"] for row in report["diagnostics"]]
+
+
 def build_errors(argv) -> list[str]:
-    """The errors the builder CLI printed; an empty list when it built the package."""
+    """The diagnostic messages the builder CLI printed; an empty list when it built the package."""
     stdout = io.StringIO()
     with contextlib.redirect_stdout(stdout):
         code = build_main(argv)
-    return [] if code == 0 else json.loads(stdout.getvalue())["errors"]
+    return [] if code == 0 else diagnostic_messages(stdout.getvalue())
 
 
 PACK_ID = "0198b360-1234-7abc-8def-0123456789ab"
@@ -287,6 +293,7 @@ def _write_fixture_pack(pack_root: Path) -> Path:
                             "source": "author",
                         }
                     ],
+                    "scaffold": {"family": "direct-geometry-required", "confidence": "fallback"},
                 },
                 {
                     "id": "fixture-unlinked-subject",
@@ -304,6 +311,7 @@ def _write_fixture_pack(pack_root: Path) -> Path:
                             "source": "author",
                         }
                     ],
+                    "scaffold": {"family": "direct-geometry-required", "confidence": "fallback"},
                 }
             ],
         },
@@ -402,7 +410,6 @@ def _write_fixture_pack(pack_root: Path) -> Path:
             "model_identifier": "vendor:offered@1",
             "observed_at": "2026-09-13",
             "source": "the fixture service's model schema endpoint",
-            "unenforced": [],
             "schema": OFFERED_SCHEMA,
         },
     )
@@ -415,7 +422,6 @@ def _write_fixture_pack(pack_root: Path) -> Path:
             "model_identifier": "vendor:seeded@1",
             "observed_at": "2026-09-13",
             "source": "the fixture service's model schema endpoint",
-            "unenforced": [],
             "schema": SEED_SCHEMA,
         },
     )
@@ -666,7 +672,6 @@ def run() -> dict[str, Any]:
                 {
                     "pack_roots": [],
                     "enabled_packs": [PACK_ID],
-                    "resource_providers": {"service-profiles": PACK_ID},
                 },
             )
             checked(state_file.is_file(), "explicit pack state was not written")
@@ -686,7 +691,6 @@ def run() -> dict[str, Any]:
                 cache_dir=cache_dir,
                 managed_root=managed_root,
                 default_enabled_packs=(),
-                default_resource_providers={"service-profiles": PACK_ID},
             )
 
             configure_pack_runtime(settings)
@@ -788,10 +792,10 @@ def run() -> dict[str, Any]:
             production_spec_file = root / "production-specification.json"
             plot_file = root / "prompt-plot.json"
             state_lineage_file = root / "state-lineage.json"
-            prompt_file.write_text(PROMPT + "\n", encoding="utf-8", newline="\n")
-            negative_file.write_text(NEGATIVE + "\n", encoding="utf-8", newline="\n")
+            prompt_file.write_text(PROMPT, encoding="utf-8", newline="\n")
+            negative_file.write_text(NEGATIVE, encoding="utf-8", newline="\n")
             integrated_file.write_text(
-                INTEGRATED_PROMPT + "\n", encoding="utf-8", newline="\n"
+                INTEGRATED_PROMPT, encoding="utf-8", newline="\n"
             )
             _write_json(provenance_file, NEGATIVE_PROVENANCE)
             _write_json(plot_file, APPROVED_PLOT)
@@ -878,6 +882,7 @@ def run() -> dict[str, Any]:
                 )
                 prepared_round_trips.append(prepared)
 
+                _write_json(root / "parameters.json", {"size": "1024x1024", "quality": "high"})
                 package_file = root / f"generation-package-{count}.json"
                 with contextlib.redirect_stdout(io.StringIO()):
                     build_exit = build_main(
@@ -904,8 +909,8 @@ def run() -> dict[str, Any]:
                             "Exact shared-runtime reference round trip.",
                             "--references-file",
                             str(prepared_file),
-                            "--parameters",
-                            json.dumps({"size": "1024x1024", "quality": "high"}),
+                            "--parameters-file",
+                            str(root / "parameters.json"),
                             "--out",
                             str(package_file),
                             *runtime_arguments,
@@ -1011,10 +1016,10 @@ def run() -> dict[str, Any]:
             os.chmod(readonly_carrier, readonly_mode)
             observed_readonly_mode = stat.S_IMODE(readonly_carrier.stat().st_mode)
             try:
-                missing_prompt = root / "missing-readonly-carrier-prompt.txt"
+                # The negative is read after the references are copied, so a missing
+                # one fails between materialization and publication.
+                missing_negative = root / "missing-readonly-carrier-negative.txt"
                 precommit_output = root / "readonly-precommit-generation.json"
-                precommit_previous = b"prior precommit generation output\n"
-                precommit_output.write_bytes(precommit_previous)
                 precommit_companion = precommit_output.with_name(
                     precommit_output.stem + ".references"
                 )
@@ -1028,9 +1033,9 @@ def run() -> dict[str, Any]:
                                 "--model",
                                 MODEL_ID,
                                 "--prompt-file",
-                                str(missing_prompt),
+                                str(prompt_file),
                                 "--negative-file",
-                                str(negative_file),
+                                str(missing_negative),
                                 "--integrated-prompt-file",
                                 str(integrated_file),
                                 "--negative-provenance-file",
@@ -1052,8 +1057,8 @@ def run() -> dict[str, Any]:
                 )
                 checked(
                     len(precommit_errors) == 1
-                    and missing_prompt.name in precommit_errors[0]
-                    and precommit_output.read_bytes() == precommit_previous
+                    and missing_negative.name in precommit_errors[0]
+                    and not precommit_output.exists()
                     and not precommit_companion.exists()
                     and set(
                         root.glob(
@@ -1069,8 +1074,6 @@ def run() -> dict[str, Any]:
                 )
 
                 postcommit_output = root / "readonly-postcommit-generation.json"
-                postcommit_previous = b"prior postcommit generation output\n"
-                postcommit_output.write_bytes(postcommit_previous)
                 postcommit_companion = postcommit_output.with_name(
                     postcommit_output.stem + ".references"
                 )
@@ -1079,7 +1082,7 @@ def run() -> dict[str, Any]:
                         f".{postcommit_output.stem}-generation-package-*"
                     )
                 )
-                real_replace = os.replace
+                real_publish = generation_builder.publish_package_file
                 injected_message = "injected post-companion publication failure"
                 injected_count = 0
                 staged_carriers_writable = False
@@ -1106,11 +1109,11 @@ def run() -> dict[str, Any]:
                             for path in carrier_files
                         )
                         raise OSError(injected_message)
-                    real_replace(source, destination)
+                    real_publish(source, destination)
 
                 with mock.patch.object(
-                    generation_builder.os,
-                    "replace",
+                    generation_builder,
+                    "publish_package_file",
                     side_effect=fail_json_publication,
                 ):
                     postcommit_errors = build_errors(
@@ -1144,7 +1147,7 @@ def run() -> dict[str, Any]:
                     postcommit_errors == [injected_message]
                     and injected_count == 1
                     and staged_carriers_writable
-                    and postcommit_output.read_bytes() == postcommit_previous
+                    and not postcommit_output.exists()
                     and not postcommit_companion.exists()
                     and set(
                         root.glob(
@@ -2453,7 +2456,7 @@ def run() -> dict[str, Any]:
 
             native_negative_file = root / "native-negative.txt"
             native_negative_file.write_text(
-                NATIVE_NEGATIVE + "\n", encoding="utf-8", newline="\n"
+                NATIVE_NEGATIVE, encoding="utf-8", newline="\n"
             )
             native_production_spec_file = root / "native-production-specification.json"
             _write_json(
@@ -2488,8 +2491,8 @@ def run() -> dict[str, Any]:
                         "Exact native-subset negative transport round trip.",
                         "--references-file",
                         str(root / "prepared-0.json"),
-                        "--parameters",
-                        json.dumps({"size": "1024x1024", "quality": "high"}),
+                        "--parameters-file",
+                        str(root / "parameters.json"),
                         "--out",
                         str(native_package_file),
                         *runtime_arguments,
@@ -2670,7 +2673,7 @@ def run() -> dict[str, Any]:
 
             certified_prompt_file = root / "certified-primary-prompt.txt"
             certified_prompt_file.write_text(
-                INTEGRATED_PROMPT + "\n", encoding="utf-8", newline="\n"
+                INTEGRATED_PROMPT, encoding="utf-8", newline="\n"
             )
             certified_production_spec_file = (
                 root / "certified-primary-production-specification.json"
@@ -2993,24 +2996,80 @@ def run() -> dict[str, Any]:
                         *runtime_arguments,
                     ]
                 )
-            checked(failed_verify_exit == 1, "verifier CLI accepted a changed commitment")
+            checked(failed_verify_exit == 2, "verifier CLI accepted a changed commitment")
             checked(not absent_verify_output.exists(), "failed verifier CLI wrote output")
 
+            intact_package = root / "generation-package-1.json"
             protected_verify_output = root / "protected-verification.json"
             protected_verify_output.write_text("sentinel", encoding="utf-8")
-            with contextlib.redirect_stdout(io.StringIO()):
+            protected_stdout = io.StringIO()
+            with contextlib.redirect_stdout(protected_stdout):
                 protected_verify_exit = verify_main(
                     [
-                        str(tampered_path),
+                        str(intact_package),
                         "--payload-out",
                         str(protected_verify_output),
                         *runtime_arguments,
                     ]
                 )
-            checked(protected_verify_exit == 1, "verifier CLI accepted a protected-output failure")
+            protected_report = json.loads(protected_stdout.getvalue())
+            checked(
+                protected_verify_exit == 2
+                and [row["code"] for row in protected_report["diagnostics"]] == ["OUTPUT_ALREADY_EXISTS"]
+                and protected_report["diagnostics"][0]["required_action"] == "Choose a new --payload-out.",
+                "verifier CLI accepted an existing output",
+            )
             checked(
                 protected_verify_output.read_text(encoding="utf-8") == "sentinel",
-                "failed verifier CLI replaced a pre-existing output",
+                "verifier CLI replaced a pre-existing output",
+            )
+
+            # The exported prompt is the verified effective prompt byte for byte, with nothing appended.
+            exact_prompt_output = root / "exact-prompt.txt"
+            exact_stdout = io.StringIO()
+            with contextlib.redirect_stdout(exact_stdout):
+                exact_exit = verify_main(
+                    [str(intact_package), "--prompt-out", str(exact_prompt_output), *runtime_arguments]
+                )
+            exact_report = json.loads(exact_stdout.getvalue())
+            checked(
+                exact_exit == 0
+                and exact_prompt_output.read_bytes()
+                == exact_report["host_forwarding"]["effective_prompt"].encode("utf-8"),
+                "verifier --prompt-out did not write the effective prompt exactly",
+            )
+
+            # A second build to the same --out keeps the first package and its companion.
+            first_package = intact_package.read_bytes()
+            second_errors = build_errors(
+                [
+                    "--model",
+                    MODEL_ID,
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--negative-file",
+                    str(negative_file),
+                    "--integrated-prompt-file",
+                    str(integrated_file),
+                    "--negative-provenance-file",
+                    str(provenance_file),
+                    "--plot-file",
+                    str(plot_file),
+                    "--production-spec-file",
+                    str(production_spec_file),
+                    "--state-lineage-file",
+                    str(state_lineage_file),
+                    "--references-file",
+                    str(root / "prepared-1.json"),
+                    "--out",
+                    str(intact_package),
+                    *runtime_arguments,
+                ]
+            )
+            checked(
+                len(second_errors) == 1 and "--out names an existing file" in second_errors[0]
+                and intact_package.read_bytes() == first_package,
+                f"a second build replaced the package at its --out: {second_errors}",
             )
 
             return {
@@ -3058,12 +3117,11 @@ def run_derived_inputs() -> dict[str, Any]:
         with tempfile.TemporaryDirectory(prefix="cpb-derived-") as temporary:
             base = Path(temporary).resolve()
             state = base / "pack-state.json"
-            save_state(state, {"pack_roots": [], "enabled_packs": [commons], "resource_providers": {
-                name: commons for name in ("service-profiles", "prompt-writing-guide", "prompt-dialects")}})
+            save_state(state, {"pack_roots": [], "enabled_packs": [commons]})
             runtime = ["--state-file", str(state), "--cache-dir", str(base / "cache"), "--managed-root", str(base / "managed")]
             configure_pack_runtime(default_settings(state_file=state, cache_dir=base / "cache", managed_root=base / "managed"))
-            project = studio.init(base / "project", "derived-inputs", "Derived input checks")
-            run_id = production_fixtures.prepare_dispatch(project, PROMPT)
+            root = studio.init(base / "studio", "derived-inputs", "Derived input checks")
+            run_id = production_fixtures.prepare_external_delivery(root, PROMPT + "\n")
             (base / "prompt.txt").write_text(PROMPT + "\n", encoding="utf-8")
             for name, value in {"plot.json": APPROVED_PLOT, "retrieval.json": fixture_retrieval(PROMPT, APPROVED_PLOT)}.items():
                 atomic_write_json(base / name, value)
@@ -3089,9 +3147,22 @@ def run_derived_inputs() -> dict[str, Any]:
                 checked(production_spec.main(["draft", str(base / "spec.json"), "--render-intent", str(base / "render-intent.json"), "--model", model, "--brief", PROMPT,
                                               "--kind", "human", "--framing", "upper-thigh", "--continuity", "one-off"]) == 1,
                         "the draft replaced an existing file")
-            common = ["--model", model, "--prompt-file", str(base / "prompt.txt"), "--plot-file", str(base / "plot.json"),
+            # A relative draft path is below --root, never the working directory.
+            draft_relative = ["draft", "drafts/spec.json", "--render-intent", "render-intent.json", "--model", model,
+                              "--brief", PROMPT, "--kind", "human", "--framing", "upper-thigh", "--continuity", "one-off"]
+            unrooted = io.StringIO()
+            with contextlib.redirect_stdout(unrooted):
+                checked(production_spec.main(draft_relative) == 1, "a relative draft path was resolved without --root")
+            checked("Pass --root STUDIO" in unrooted.getvalue(), "the refused relative draft does not name --root")
+            with contextlib.redirect_stdout(io.StringIO()):
+                checked(production_spec.main([*draft_relative, "--root", str(base)]) == 0
+                        and json.loads((base / "drafts/spec.json").read_text(encoding="utf-8")) == lean,
+                        "a draft relative to --root differs from the absolute draft")
+            atomic_write_json(base / "parameters.json", {"width": 832, "height": 1248})
+            # The prompt is the run's delivery, so the builder takes no prompt file.
+            common = ["--model", model, "--plot-file", str(base / "plot.json"),
                       "--retrieval-record-file", str(base / "retrieval.json"), "--production-spec-file", str(base / "spec.json"),
-                      "--parameters", json.dumps({"width": 832, "height": 1248}), "--production-root", str(project), *runtime]
+                      "--parameters-file", str(base / "parameters.json"), "--production-root", str(root), *runtime]
 
             def build(name: str, *extra: str) -> dict[str, Any]:
                 with contextlib.redirect_stdout(io.StringIO()):
@@ -3103,11 +3174,12 @@ def run_derived_inputs() -> dict[str, Any]:
                 with contextlib.redirect_stdout(stdout):
                     if _build_main([*common, "--out", str(base / "refused.json"), *extra]) == 0:
                         raise SmokeFailure("builder accepted " + " ".join(extra))
-                return json.loads(stdout.getvalue())["errors"]
+                refusal.codes = [row["code"] for row in json.loads(stdout.getvalue())["diagnostics"]]
+                return diagnostic_messages(stdout.getvalue())
 
             def refused(pattern: str, *extra: str) -> None:
                 errors = refusal(*extra)
-                checked(any(pattern in error for error in errors), f"expected {pattern!r}, got {errors}")
+                checked(any(pattern in error for error in errors + refusal.codes), f"expected {pattern!r}, got {errors}")
 
             derived = build("derived.json", "--continuity", "C01=one-off")
             checked(derived["production_spec"] == lean and derived["state_lineage"]["mode"] == "stateless",
@@ -3116,7 +3188,7 @@ def run_derived_inputs() -> dict[str, Any]:
             checked(record["mode"] == "target-schema" and record["contract"] == record["evidence"]
                     and record["contract"]["path"] == schema_path, "derived request check does not name the pack schema")
             checked(derived["production_binding"]["run"] == run_id, "package is not bound to the open task's run")
-            checked(derived["route_reading"] == production_workflow.load_run(project, run_id)[1]["route_reading"],
+            checked(derived["route_reading"] == production_workflow.load_run(root, run_id)[1]["route_reading"],
                     "route reading differs from the prepared run")
 
             # The same records written by hand give the identical generation input.
@@ -3125,11 +3197,11 @@ def run_derived_inputs() -> dict[str, Any]:
             service = service_profile.load_service("runware", Path(load_pack_catalog().resources["service-profiles"].path))
             hand_validation = request_validation.build_record(
                 {"mode": "target-schema", "contract": schema_path, "evidence": schema_path, "execution_policy": None},
-                runtime_evidence.reader(project),
+                runtime_evidence.reader(root),
                 expected_target={"service": "runware", "model_identifier": "xai:grok-imagine@image-2.0", "operation": "imageInference"},
                 execution=request_contract.execution_hashes(service, offering, Path(transport_runware.__file__), model=model_record, policy=None))
             basis = derived["visual_continuity"]["basis"]["path"]
-            hand_visual = {"purpose": "image", "basis": file_ref(project, basis, locator="whole"), "subjects": {
+            hand_visual = {"purpose": "image", "basis": file_ref(root, basis, locator="whole"), "subjects": {
                 "C01": {"continuity": "one-off", "character_id": None, "studio_character": None, "identity_refs": []}}}
             atomic_write_json(base / "hand-validation.json", hand_validation)
             atomic_write_json(base / "hand-visual.json", hand_visual)
@@ -3144,7 +3216,7 @@ def run_derived_inputs() -> dict[str, Any]:
             refused("already states continuity", "--continuity", "C01=one-off", "--visual-continuity-file", str(base / "hand-visual.json"))
             refused("studio character", "--continuity", "C01=recurring")
             # The first images of a new character are undecided until the author accepts one.
-            studio.add_character(project, "C01", "")
+            studio.add_character(root, "C01", "")
             refused("undecided exploration", "--continuity", "C01=recurring", "--character", "C01=C01")
             undecided = build("undecided.json", "--continuity", "C01=undecided", "--character", "C01=C01")
             checked(undecided["visual_continuity"]["subjects"]["C01"]["continuity"] == "undecided",
@@ -3164,27 +3236,87 @@ def run_derived_inputs() -> dict[str, Any]:
             atomic_write_json(base / "broken-package.json", tampered_spec)
             verified_out = io.StringIO()
             with contextlib.redirect_stdout(verified_out):
-                verify_exit = _verify_main([str(base / "broken-package.json"), "--studio-root", str(project), *runtime])
-            verify_report = json.loads(verified_out.getvalue())
-            checked(verify_exit == 1 and verify_report["verified"] is False and verify_report["errors"] == errors,
+                verify_exit = _verify_main([str(base / "broken-package.json"), "--studio-root", str(root), *runtime])
+            checked(verify_exit == 2 and diagnostic_messages(verified_out.getvalue()) == errors,
                     "verifier specification errors differ from the builder's")
             refused("each production subject", "--continuity", "C02=one-off")
-            with mock.patch("production_workflow.assert_current", return_value=(None, {"route_reading": derived["route_reading"]},
-                                                                                 {"transport": "bounded-context"}, [])):
+            with mock.patch("production_workflow.assert_current", return_value=(
+                    None, {"route_reading": derived["route_reading"], "task": {}, "dependencies": []},
+                    {"transport": "bounded-context"}, [])):
                 refused("bounded production context", "--continuity", "C01=one-off")
 
             # A tampered package or a changed prepared run fails closed.
-            verify_live(derived, package_root=base, project=project)
+            verify_live(derived, package_root=base, studio=root)
             tampered = copy.deepcopy(derived)
             snapshot = tampered["input_snapshots"][schema_path]
             snapshot["base64"] = snapshot["base64"][:-4] + ("AAAA" if not snapshot["base64"].endswith("AAAA") else "BBBB")
             try:
-                accepted = verify_live(tampered, package_root=base, project=project).get("verified") is True
+                accepted = verify_live(tampered, package_root=base, studio=root).get("verified") is True
             except ValueError:
                 accepted = False
             checked(not accepted, "verifier accepted a tampered pack schema snapshot")
-            (project / "fixture-delivery.txt").write_text(PROMPT + " changed", encoding="utf-8")
-            refused("prepare a new run", "--continuity", "C01=one-off")
+            (root / "fixture-delivery.txt").write_text(PROMPT + " changed", encoding="utf-8")
+            refused("SOURCE_CHANGED", "--continuity", "C01=one-off")
+    finally:
+        configure_pack_runtime(None)
+        catalog_cli.clear_runtime_caches()
+    return {"ok": True, "checks": checked.count}
+
+
+def run_studio_paths() -> dict[str, Any]:
+    """A prepared run supplies its own inputs, and every relative path is below a root with a space and Japanese text."""
+    import execution_contract
+    import production_case_fixtures as cases
+    import production_workflow
+
+    checked = CheckCounter()
+    try:
+        with tempfile.TemporaryDirectory(prefix="cpb-studio-paths-") as temporary:
+            base = Path(temporary).resolve()
+            case = cases.create(base / "作品 studio", base / "runtime")
+            root = case["root"]
+            run_id = production_workflow.prepare(root, "task.json")["run"]
+            settings = case["settings"]
+            common = ["--production-root", str(root), "--production-run", run_id, "--continuity", "robot=one-off",
+                      "--service", "synthetic", "--request-validation-file", "validation.json",
+                      "--state-file", str(settings.state_file), "--cache-dir", str(settings.cache_dir),
+                      "--managed-root", str(settings.managed_root), "--pack-root", str(case["pack"])]
+
+            def call(*extra: str) -> tuple[int, dict[str, Any]]:
+                stdout = io.StringIO()
+                with contextlib.redirect_stdout(stdout):
+                    code = _build_main([*common, *extra])
+                return code, json.loads(stdout.getvalue())
+
+            code, built = call("--out", "packages/実行 package.json")
+            checked(code == 0 and (root / "packages/実行 package.json").is_file(),
+                    f"the builder refused a relative --out below a root with a space and Japanese text: {built}")
+            sealed = execution_contract.load(production_workflow.load_run(root, run_id)[0] / "package.json")
+            checked(all(built[key] == sealed[key] for key in ("composition_prompt", "production_spec", "plot", "retrieval_record"))
+                    and built["generation_payload"]["parameters"] == sealed["generation_payload"]["parameters"],
+                    "the builder did not take the prompt, specification, plot, retrieval record and parameters from the run")
+
+            code, report = call("--plot-file", "plot.json", "--out", "packages/competing.json")
+            checked(code == 2 and [row["code"] for row in report["diagnostics"]] == ["INPUT_CONSISTENCY_ERROR"]
+                    and "Drop --plot-file" in report["diagnostics"][0]["required_action"]
+                    and not (root / "packages/competing.json").exists(),
+                    f"a plot file competing with the run's plot was not refused: {report}")
+
+            code, report = call("--out", "packages\\backslash.json")
+            checked(code == 2 and [row["code"] for row in report["diagnostics"]] == ["INPUT_SCHEMA_INVALID"]
+                    and "--out packages/backslash.json" in report["diagnostics"][0]["required_action"],
+                    f"a backslash --out was not refused with its /-separated form: {report}")
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
+                try:
+                    _build_main([*common, "--brief", "A brief.", "--brief-file", "brief.txt", "--out", "packages/brief.json"])
+                except SystemExit as exc:
+                    brief_exit = exc.code
+                else:
+                    brief_exit = 0
+            checked(brief_exit == 2 and "not allowed with argument" in stderr.getvalue(),
+                    "--brief and --brief-file were accepted together")
     finally:
         configure_pack_runtime(None)
         catalog_cli.clear_runtime_caches()
@@ -3196,6 +3328,7 @@ def main() -> int:
         result = run()
         derived = run_derived_inputs()
         result["derived_input_checks"] = derived["checks"]
+        result["studio_path_checks"] = run_studio_paths()["checks"]
     except (SmokeFailure, ValueError, OSError, RuntimeError, json.JSONDecodeError) as exc:
         result = {"ok": False, "errors": [str(exc)]}
         print(json.dumps(result, ensure_ascii=False, indent=2))

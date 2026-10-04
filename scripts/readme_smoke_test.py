@@ -18,11 +18,17 @@ import sys
 import tempfile
 from urllib.parse import unquote, urlsplit
 
+import production_fixtures
+
+
 REPOSITORY = Path(__file__).resolve().parents[1]
 SUITE = Path(__file__).resolve().parents[1]
 EXAMPLES = {"production-lifecycle", "core-check", "public-exchange", "authoring-material"}
-SEND_EXAMPLES = {"upscale", "generation"}
-SEND_FLAGS = ["--production-authorization", "--send"]
+SEND_EXAMPLES = {"generation"}
+SEND_SCRIPT = "scripts/production_workflow.py"
+# Each live example prepares its task, drafts the decision file, then executes under that file.
+SEND_COMMANDS = ["prepare", "draft-execution", "execute"]
+SEND_FLAGS = ["--decisions-file"]
 EXAMPLE_SCRIPTS = {
     "scripts/scene_persona.py",
     "examples/production-execution/run_example.py",
@@ -49,10 +55,16 @@ def blocks(text: str, marker: str) -> dict[str, str]:
     return result
 
 
-def send_errors(tokens: list[str]) -> list[str]:
-    return [
-        f"missing required live-send argument: {flag}" for flag in SEND_FLAGS if flag not in tokens
+def send_errors(lines: list[list[str]]) -> list[str]:
+    """What a live example lacks: the three commands in order, and the decision file execute sends under."""
+    commands = [tokens[2] if len(tokens) > 2 and tokens[:2] == ["python", SEND_SCRIPT] else None for tokens in lines]
+    errors = [] if commands == SEND_COMMANDS else [
+        f"a live example runs {SEND_SCRIPT} {', then '.join(SEND_COMMANDS)}: {commands}"
     ]
+    for tokens in lines:
+        if tokens[2:3] == ["execute"]:
+            errors.extend(f"missing required live-send argument: {flag}" for flag in SEND_FLAGS if flag not in tokens)
+    return errors
 
 
 def structure_errors(text: str) -> list[str]:
@@ -181,22 +193,22 @@ def main() -> int:
         sends = blocks(text, "readme-send")
         check("live example inventory", set(sends) == SEND_EXAMPLES)
         for name, content in sends.items():
-            tokens = shlex.split(content)
-            check(f"live send arguments: {name}", not send_errors(tokens))
+            lines = [shlex.split(line) for line in content.splitlines() if line.strip()]
+            check(f"live send commands: {name}", not send_errors(lines), "; ".join(send_errors(lines)))
             for flag in SEND_FLAGS:
-                removed = [token for token in tokens if token != flag]
+                removed = [[token for token in tokens if token != flag] for tokens in lines]
                 check(f"missing {flag} rejected: {name}", bool(send_errors(removed)))
+            undrafted = [tokens for tokens in lines if tokens[2:3] != ["draft-execution"]]
+            check(f"a send without its drafted decision file rejected: {name}", bool(send_errors(undrafted)))
         with tempfile.TemporaryDirectory(prefix="readme workspace ") as temporary:
             temp = Path(temporary)
-            home = temp / "home"
-            home.mkdir()
+            home = production_fixtures.scratch_home_dir(temp / "home")
             env = {
                 **os.environ,
                 "PYTHONDONTWRITEBYTECODE": "1",
                 "NO_COLOR": "1",
                 "PYTHON_COLORS": "0",
-                "HOME": str(home),
-                "USERPROFILE": str(home),
+                "CPB_HOME": str(home),
             }
             mapping = {key: str(temp / value) for key, value in OUTPUTS.items()}
             for name, content in examples.items():
@@ -206,8 +218,6 @@ def main() -> int:
                     tokens = shlex.split(line)
                     if len(tokens) < 2 or tokens[0] != "python" or tokens[1] not in EXAMPLE_SCRIPTS:
                         raise ValueError(f"unapproved example command: {line}")
-                    if "--send" in tokens:
-                        raise ValueError("example commands must not submit generation requests")
                     argv = [sys.executable, "-B", *[mapping.get(t, t) for t in tokens[1:]]]
                     invoke(argv, env)
                 check(f"example executed: {name}", True)
@@ -270,15 +280,21 @@ def main() -> int:
                 check("archived source bytes remain verifiable", True)
             finally:
                 original.write_bytes(saved)
-            help_result = invoke(
-                [sys.executable, "-B", str(SUITE / "scripts/dispatch.py"), "--help"], env
-            )
+            usage: dict[str, str] = {}
             for name, content in sends.items():
-                flags = {token for token in shlex.split(content) if token.startswith("--")}
-                check(
-                    f"live example options exist in dispatcher: {name}",
-                    all(flag in help_result.stdout for flag in flags),
-                )
+                for line in content.splitlines():
+                    tokens = shlex.split(line)
+                    command = tokens[2]
+                    if command not in usage:
+                        usage[command] = invoke(
+                            [sys.executable, "-B", str(SUITE / SEND_SCRIPT), command, "--help"], env
+                        ).stdout
+                    flags = {token for token in tokens if token.startswith("--")}
+                    check(
+                        f"live example options exist in {command} help: {name}",
+                        all(flag in usage[command] for flag in flags),
+                        ", ".join(sorted(flag for flag in flags if flag not in usage[command])),
+                    )
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
         check("README execution", False, str(exc))
     ok = all(row["ok"] for row in checks) and bool(checks)

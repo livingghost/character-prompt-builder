@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Resolve a chosen story moment and select evidence for a production task.
 
-    python scripts/story_context.py inspect --root PROJECT --query query.json
-    python scripts/story_context.py build --root PROJECT --query query.json --out NEW_DIR
-    python scripts/story_context.py verify --root PROJECT --query query.json --bundle DIR
+    python scripts/story_context.py inspect --root STUDIO --query query.json
+    python scripts/story_context.py build --root STUDIO --query query.json --out NEW_DIR
+    python scripts/story_context.py verify --root STUDIO --query query.json --bundle DIR
 
 See references/runtime/story-context.md for authoring, views and production use.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -117,9 +118,9 @@ def _indexes(query: dict, states: dict) -> dict:
 
 def materialize(root: Path, relative: str) -> dict[str, Any]:
     if root.is_symlink():
-        raise ValueError('project root must not be a symbolic link')
+        raise ValueError('studio root must not be a symbolic link')
     root=root.resolve(strict=True)
-    if not root.is_dir():raise ValueError('project root must be a directory')
+    if not root.is_dir():raise ValueError('studio root must be a directory')
     query, fingerprint=load_query(root,relative)
     blobs, sources=wr.source_inventory(root,query,strict=True)
     timeline=wr.load_timeline(query['timeline'],blobs)
@@ -268,7 +269,7 @@ def verify(root: Path, relative: str, directory: Path, *, require_fields: bool=F
 
 
 def main(argv: Sequence[str] | None=None) -> int:
-    parser=argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser=_operation_context.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('command',choices=['inspect','build','verify'])
     parser.add_argument('--root',required=True,type=Path);parser.add_argument('--query',required=True)
     parser.add_argument('--out',type=Path);parser.add_argument('--bundle',type=Path)
@@ -293,4 +294,4 @@ def main(argv: Sequence[str] | None=None) -> int:
 if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

@@ -4,9 +4,10 @@
 This script does not write prompts, generate images, or score artistic quality.
 It freezes retrieval evidence for no-preset, broad-role (`any`), and
 curated-only atomic conditions while keeping the same universal-core,
-domain-realization, and rendering-profile candidate limits.
+domain-realization, and render-profile candidate limits.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -99,7 +100,7 @@ def build_packet(cases: Sequence[dict[str, Any]]) -> dict[str, Any]:
             "conditions": {
                 "no-preset": {
                     "instruction": (
-                        "Do not query or use the preset catalog. Keep the same image promise, "
+                        "Do not query or use the record catalog. Keep the same image promise, "
                         "art direction, subject-domain interpretation, and medium choice."
                     ),
                     "retrieval": None,
@@ -109,7 +110,7 @@ def build_packet(cases: Sequence[dict[str, Any]]) -> dict[str, Any]:
                         "Use broad atomic retrieval and apply each result according to its curated "
                         "or vocabulary role. The art direction remains authoritative. Use at most "
                         "one relevant universal aesthetic core, the matching domain realization, "
-                        "and at most one compatible curated rendering profile."
+                        "and at most one compatible curated render profile."
                     ),
                     "retrieval": broad,
                     "diagnostics": summarize(broad),
@@ -118,7 +119,7 @@ def build_packet(cases: Sequence[dict[str, Any]]) -> dict[str, Any]:
                     "instruction": (
                         "Use curated-only atomic retrieval. The art direction remains authoritative. "
                         "Use at most one relevant universal aesthetic core, the matching domain "
-                        "realization, and at most one compatible curated rendering profile."
+                        "realization, and at most one compatible curated render profile."
                     ),
                     "retrieval": curated,
                     "diagnostics": summarize(curated),
@@ -140,7 +141,7 @@ def build_packet(cases: Sequence[dict[str, Any]]) -> dict[str, Any]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Prepare tier-strategy retrieval packets; does not score art.")
+    parser = _operation_context.ArgumentParser(description="Prepare tier-strategy retrieval packets; does not score art.")
     add_pack_runtime_arguments(parser)
     parser.add_argument(
         "--cases",
@@ -182,4 +183,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

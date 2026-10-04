@@ -22,8 +22,9 @@ from model_contract import (
 from render_contract_lib import resolve_parameters
 from render_contract_fixtures import profile, control
 
+
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_CHECKS = 62
+EXPECTED_CHECKS = 65
 
 
 def load_core_models() -> tuple[dict[str, dict[str, Any]], list[str]]:
@@ -372,8 +373,13 @@ def main() -> int:
         pack = Path(tmp)
         snapshot = pack / "resources" / "observed-schemas" / "fixture.svc.json"
         snapshot.parent.mkdir(parents=True)
-        snapshot.write_text(json.dumps({
+        stored = {
+            "artifact_type": "observed-parameter-schema",
+            "model_id": "fixture-separate-edit",
+            "service": "svc",
+            "model_identifier": "vendor:model@1",
             "observed_at": "2026-09-13",
+            "source": "a synthetic fixture schema",
             "schema": {
                 "type": "object",
                 "properties": {
@@ -391,7 +397,8 @@ def main() -> int:
                 "allOf": [{"dependentRequired": {"width": ["height"], "height": ["width"]}}],
                 "additionalProperties": False,
             },
-        }), encoding="utf-8")
+        }
+        snapshot.write_text(json.dumps(stored), encoding="utf-8")
         checked = copy.deepcopy(exposed)
         checked["offerings"][0]["schema_snapshot"] = "resources/observed-schemas/fixture.svc.json"
         check(
@@ -410,6 +417,17 @@ def main() -> int:
             "an offering with a schema needs its pack to be known",
             expect_error(lambda: validate_generation_parameters(checked, {}, prompt="a wolf"), "pack holding the model record is unknown"),
         )
+        # The stored file meets the one observed-schema contract every reader applies.
+        def stored_as(**changes):
+            snapshot.write_text(json.dumps({**stored, **changes}), encoding="utf-8")
+            return lambda: validate_generation_parameters(checked, {"width": 1024, "height": 1024}, pack_root=pack, prompt="a wolf")
+        check("an observed schema naming another model record is refused",
+              expect_error(stored_as(model_id="fixture-other"), "model_id 'fixture-other'"))
+        check("an observed schema with a field the contract does not declare is refused",
+              expect_error(stored_as(notes="synthetic"), "unexpected properties ['notes']"))
+        check("an observed schema whose model constant names another model is refused",
+              expect_error(stored_as(schema={**stored["schema"], "properties": {**stored["schema"]["properties"], "model": {"const": "vendor:other@1"}}}),
+                           "fixes 'model'"))
 
     report = {
         "ok": len(results) == EXPECTED_CHECKS and all(row["passed"] for row in results),

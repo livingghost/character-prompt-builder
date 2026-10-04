@@ -6,8 +6,11 @@ creative decision, hashes every transmitted text payload, and declares how the
 target interface receives avoidance instructions. It binds the package to the
 prepared production run and derives the route reading, the request check and
 visual continuity from that run, the active pack and the stated decisions.
+The prompt is the run's delivery, and the specification, plot, retrieval record
+and parameters the run's task declares come from the run's published snapshot.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -223,7 +226,7 @@ def generation_input_sha256(data: dict[str, Any]) -> str:
 def read_text(path: str | None) -> str:
     if not path:
         return ""
-    return Path(path).read_text(encoding="utf-8").strip()
+    return Path(path).read_bytes().decode("utf-8")
 
 
 def read_json(path: str | None) -> dict[str, Any]:
@@ -335,7 +338,7 @@ def build_transports(
     integrated_method = "unavailable"
     integrated_available = False
     if integrated_prompt.strip():
-        integrated_text = integrated_prompt.strip()
+        integrated_text = integrated_prompt
         integrated_method = "authored-affirmative"
         integrated_available = True
     elif critical_avoidance_integrated:
@@ -442,11 +445,12 @@ def build_payload(
     service: str | None = None,
     production_root: Path | None = None,
     production_run: str | None = None,
+    production_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     from route_reading import require_route_reading, GENERATION_ROUTES
     if route_reading is None:
         raise ValueError("generation requires a route reading")
-    require_route_reading(route_reading, ledgers=reading_ledgers, project=production_root,
+    require_route_reading(route_reading, ledgers=reading_ledgers, studio=production_root,
                           package_root=prepared_reference_root, routes=GENERATION_ROUTES)
     reading_hash = sha256_json(route_reading)
     input_values = {
@@ -470,11 +474,7 @@ def build_payload(
         raise ValueError("negative_prompt must be a string")
     if not isinstance(integrated_prompt, str) or not isinstance(native_negative, str):
         raise ValueError("integrated and native negative prompts must be strings")
-    composition_prompt = prompt.strip()
-    prompt = prompt.strip()
-    negative_prompt = negative_prompt.strip()
-    integrated_prompt = integrated_prompt.strip()
-    native_negative = native_negative.strip()
+    composition_prompt = prompt
     provenance = normalize_negative_provenance(negative_provenance)
     if not isinstance(parameters, dict):
         raise ValueError("parameters must be an object")
@@ -808,7 +808,9 @@ def build_payload(
     result["route_reading"] = route_reading
     result["route_reading_sha256"] = reading_hash
     result["generation_contract"]["route_reading_sha256"] = reading_hash
-    result["production_binding"] = create_production_binding(production_root, production_run, composition_prompt)
+    from production_binding import bind_consumer
+    result["production_binding"] = (bind_consumer(production_context, composition_prompt) if production_context is not None
+        else create_production_binding(production_root if production_run is not None else None, production_run, composition_prompt))
     if request_validation is None:
         raise ValueError('generation requires an explicit request validation record')
     import input_contracts
@@ -1004,20 +1006,48 @@ def materialize_cli_reference_bundle(
     return rebased, (companion if carrier_count else None)
 
 
+def _occupied(path: Path, what: str) -> Exception:
+    from production_diagnostics import ProductionError
+    return ProductionError("OUTPUT_ALREADY_EXISTS", f"the {what} already exists and is kept: {path}",
+                           phase="publication", file=str(path), required_action="Choose a new --out.")
+
+
 def create_cli_package_staging(output_path: Path) -> tuple[Path, Path, Path, Path]:
+    """Stage beside a new package; an existing package or companion is kept and refused."""
     output = Path(output_path).resolve()
     parent = output.parent
     if not parent.is_dir():
         raise ValueError(f"generation package parent does not exist: {parent}")
-    if output.exists() and not output.is_file():
-        raise ValueError(f"generation package output is not a regular file: {output}")
+    if output.exists() or output.is_symlink():
+        raise _occupied(output, "generation package")
     companion = output.with_name(output.stem + ".references")
-    if companion.exists():
-        raise ValueError(f"generation package companion already exists: {companion}")
+    if companion.exists() or companion.is_symlink():
+        raise _occupied(companion, "generation package companion")
     staging_root = Path(
         tempfile.mkdtemp(prefix=f".{output.stem}-generation-package-", dir=parent)
     )
     return staging_root, staging_root / output.name, staging_root / companion.name, companion
+
+
+def publish_package_file(source: Path, destination: Path) -> None:
+    """Move the staged package JSON to its new name; a file another writer created there is kept."""
+    try:
+        if os.name == "nt":
+            os.rename(source, destination)
+            return
+        try:
+            os.link(source, destination)
+        except FileExistsError:
+            raise
+        except OSError:
+            # A file system without hard links: create the name exclusively and copy.
+            with Path(source).open("rb") as reader, Path(destination).open("xb") as writer:
+                shutil.copyfileobj(reader, writer, length=1024 * 1024)
+                writer.flush()
+                os.fsync(writer.fileno())
+        Path(source).unlink()
+    except FileExistsError:
+        raise _occupied(Path(destination), "generation package") from None
 
 
 def publish_cli_generation_package(
@@ -1028,31 +1058,29 @@ def publish_cli_generation_package(
     final_companion: Path,
     staging_root: Path,
 ) -> None:
-    """Publish JSON and its companion as one rollback-protected transaction."""
+    """Publish JSON and its companion as one transaction under new names.
+
+    An existing package or companion is kept and refused. When the JSON cannot
+    be published, the companion moves back into staging.
+    """
 
     output = Path(output_path).resolve()
-    if final_companion.exists():
-        raise ValueError(f"generation package companion already exists: {final_companion}")
-    previous = staging_root / ".previous-generation-package.json"
-    had_previous = output.is_file()
+    if output.exists() or output.is_symlink():
+        raise _occupied(output, "generation package")
+    if final_companion.exists() or final_companion.is_symlink():
+        raise _occupied(final_companion, "generation package companion")
     companion_published = False
     try:
-        if had_previous:
-            os.replace(output, previous)
         if staged_companion is not None:
-            os.replace(staged_companion, final_companion)
+            import execution_contract
+            execution_contract.publish_directory(staged_companion, final_companion)
             companion_published = True
-        os.replace(staged_json, output)
+        publish_package_file(staged_json, output)
     except Exception as original_error:
         rollback_errors: list[Exception] = []
         if companion_published and final_companion.exists():
             try:
-                os.replace(final_companion, staged_companion)
-            except Exception as rollback_error:
-                rollback_errors.append(rollback_error)
-        if previous.exists():
-            try:
-                os.replace(previous, output)
+                os.rename(final_companion, staged_companion)
             except Exception as rollback_error:
                 rollback_errors.append(rollback_error)
         for rollback_error in rollback_errors:
@@ -1077,7 +1105,8 @@ def publish_cli_generation_package(
 def add_production_arguments(parser: argparse.ArgumentParser) -> None:
     """Name the prepared run and the decisions a builder cannot derive from it."""
     parser.add_argument("--production-root", type=Path, required=True,
-                        help="Studio root holding the prepared production run and the project's input evidence")
+                        help="Studio root holding the prepared production run and the studio's input evidence; "
+                        "every relative file argument is a /-separated path below it")
     parser.add_argument("--production-run", help="Prepared run; the open work task's current run when omitted")
     parser.add_argument("--request-validation-file",
                         help="Request check with its own evidence and execution policy; when omitted, the builder "
@@ -1102,6 +1131,93 @@ def _subject_values(values: Sequence[str], flag: str) -> dict[str, str]:
     return result
 
 
+def studio_document(root: Path, value: str | None, option: str) -> dict[str, Any] | None:
+    """One JSON object a builder option names, relative to --production-root."""
+    if not value:
+        return None
+    from production_binding import studio_file
+    import execution_contract
+    data = parse_json(execution_contract.read(studio_file(root, value, option=option, root_option="--production-root")).decode("utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{option}: JSON input must be an object")
+    return data
+
+
+def studio_text(root: Path, value: str | None, option: str) -> str:
+    """The exact UTF-8 text a builder option names, relative to --production-root."""
+    if not value:
+        return ""
+    from production_binding import studio_file
+    import execution_contract
+    return execution_contract.read(studio_file(root, value, option=option, root_option="--production-root")).decode("utf-8")
+
+
+def prepared_run(root: Path, run: str | None) -> tuple[str, Path, dict[str, Any], dict[str, Any]]:
+    """The named run, or the open work task's current run, checked current against its live sources."""
+    import production_workflow
+    import work_ledger
+    run = run or work_ledger.require_open(root).get("production_run")
+    if not run:
+        raise ValueError("the open work task has no prepared production run; prepare one first")
+    directory, prepared, consumer, _ = production_workflow.assert_current(root, run)
+    return run, directory, prepared, consumer
+
+
+# The generation inputs a run's task can declare, with the builder option each one stands in for.
+RUN_INPUTS = {
+    "production_spec": "--production-spec-file",
+    "plot": "--plot-file",
+    "retrieval_record": "--retrieval-record-file",
+    "parameters": "--parameters-file",
+}
+
+
+def run_inputs(directory: Path, prepared: dict[str, Any]) -> dict[str, Any]:
+    """The documents the run's task declares, read from the run's own snapshot rather than the live files."""
+    import execution_contract
+    generation = prepared["task"].get("generation") or {}
+    pinned = {item["path"]: item["sha256"] for item in prepared["dependencies"] if item["space"] == "studio"}
+    found: dict[str, Any] = {}
+    for name in RUN_INPUTS:
+        path = generation.get(name)
+        if path is None:
+            continue
+        if path not in pinned:
+            raise ValueError(f"the run pins no snapshot of its {name} input {path}; prepare the task again")
+        found[name] = execution_contract.decode(execution_contract.object_read(directory, pinned[path]))
+    return found
+
+
+def generation_inputs(args: argparse.Namespace, root: Path, held: dict[str, Any]) -> dict[str, Any]:
+    """Each run input from the run when its task declares it, otherwise from its option.
+
+    Naming a file for an input the run already holds would compete with it,
+    so that is refused rather than ranked.
+    """
+    from production_binding import read_json_file
+    from production_diagnostics import ProductionError
+    chosen: dict[str, Any] = {}
+    for name, option in RUN_INPUTS.items():
+        value = getattr(args, option[2:].replace("-", "_"))
+        if name in held:
+            if value is not None:
+                raise ProductionError("INPUT_CONSISTENCY_ERROR", f"the prepared run holds its {name}, so {option} competes with it",
+                                      phase="arguments", file=str(value), option=option,
+                                      required_action=f"Drop {option}; the builder reads the run's {name}.")
+            chosen[name] = held[name]
+        elif name == "parameters":
+            found = read_json_file(root, value, option=option, root_option="--production-root")
+            chosen[name] = {} if found is None else found
+            if not isinstance(chosen[name], dict):
+                raise ValueError(f"{option}: expected a JSON object")
+        elif value is None:
+            raise ProductionError("INPUT_SCHEMA_INVALID", f"the prepared run declares no {name}; {option} names it",
+                                  phase="arguments", option=option, required_action=f"Pass {option} FILE.")
+        else:
+            chosen[name] = studio_document(root, value, option)
+    return chosen
+
+
 def production_inputs(
     args: argparse.Namespace,
     *,
@@ -1110,31 +1226,28 @@ def production_inputs(
     prepared_reference_set: dict[str, Any] | None,
     staging_root: Path,
     work_ids: dict[str, str] | None = None,
+    loaded: tuple[str, Path, dict[str, Any], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Read the prepared run and derive every input the author did not write.
 
     The route reading comes from the run. The request check comes from the active
     pack's offering unless a record is supplied. Visual continuity is built from
-    the stated decisions unless a record is supplied.
+    the stated decisions unless a record is supplied. Supplied records are files
+    relative to --production-root.
     """
-    import production_workflow
-    import work_ledger
     from route_reading import copy_issuance, ledger_candidates
 
     root = args.production_root.absolute()
-    run = args.production_run or work_ledger.require_open(root).get("production_run")
-    if not run:
-        raise ValueError("the open work task has no prepared production run; prepare one first")
-    _, prepared, consumer, _ = production_workflow.assert_current(root, run)
+    run, _, prepared, consumer = loaded if loaded is not None else prepared_run(root, args.production_run)
     reading = prepared["route_reading"]
-    copy_issuance(reading, staging_root / "reads.jsonl", ledgers=ledger_candidates(project=root))
+    copy_issuance(reading, staging_root / "reads.jsonl", ledgers=ledger_candidates(studio=root))
     reference_set = prepared_reference_set if prepared_reference_set is not None else empty_stateless_reference_set()
 
     stated = bool(args.continuity or args.character or args.sheet_panel)
     if args.visual_continuity_file:
         if stated:
             raise ValueError("--visual-continuity-file already states continuity; drop --continuity, --character and --sheet-panel")
-        visual = read_json(args.visual_continuity_file)
+        visual = studio_document(root, args.visual_continuity_file, "--visual-continuity-file")
     else:
         if not args.continuity:
             raise ValueError("state each production subject's continuity with --continuity SUBJECT=DECISION")
@@ -1146,7 +1259,7 @@ def production_inputs(
         )
 
     if args.request_validation_file:
-        validation = read_json(args.request_validation_file)
+        validation = studio_document(root, args.request_validation_file, "--request-validation-file")
     else:
         if reference_set.get("selected_references") or reference_set.get("single_board"):
             raise ValueError("a package with references needs --request-validation-file with its execution policy")
@@ -1176,10 +1289,14 @@ def production_inputs(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build an exact Character Prompt Builder generation payload.")
-    parser.add_argument("--model", default="gpt-image-2.5-flare")
-    parser.add_argument("--prompt-file", required=True)
-    parser.add_argument("--negative-file")
+    parser = _operation_context.ArgumentParser(
+        description="Build an exact Character Prompt Builder generation payload from a prepared run.",
+        epilog="The prompt is the run's delivery. The run's production specification, plot, retrieval record and "
+        "parameters are read from its snapshot when its task declares them; the matching option names them otherwise. "
+        "A relative file argument is a /-separated path below --production-root.",
+    )
+    parser.add_argument("--model", help="The model record; the production specification's target_model when omitted")
+    parser.add_argument("--negative-file", help="Portable negative prompt, a UTF-8 text file")
     parser.add_argument(
         "--integrated-prompt-file",
         help=(
@@ -1201,12 +1318,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Certify that the primary positive prompt already contains the critical affirmative construction requirements.",
     )
-    parser.add_argument("--brief", default="")
-    parser.add_argument("--brief-file")
+    brief = parser.add_mutually_exclusive_group()
+    brief.add_argument("--brief", default="", help="The request in words")
+    brief.add_argument("--brief-file", help="The request as a UTF-8 text file")
     parser.add_argument("--intent-file", help="JSON containing image_promise, chosen_direction, and related notes")
-    parser.add_argument("--production-spec-file", required=True, help="Reviewed Production Specification JSON")
-    parser.add_argument("--plot-file", required=True, help="The approved plot this picture was drawn from")
-    parser.add_argument("--retrieval-record-file", required=True, help="Settled retrieval record bound to this authored prompt and plot")
+    parser.add_argument("--production-spec-file", help="Reviewed Production Specification JSON, when the run declares none")
+    parser.add_argument("--plot-file", help="The approved plot this picture was drawn from, when the run declares none")
+    parser.add_argument("--retrieval-record-file",
+                        help="Settled retrieval record bound to the run's prompt and the plot, when the run declares none")
     parser.add_argument("--state-lineage-file", help="Optional Shared State Protocol lineage JSON; omitted means stateless")
     parser.add_argument(
         "--references-file",
@@ -1215,14 +1334,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             "or the supplied-file preparer."
         ),
     )
-    parser.add_argument("--parameters", default="{}", help="JSON object with model parameters")
+    parser.add_argument("--parameters-file",
+                        help="UTF-8 JSON parameter object file, or - for stdin, when the run declares none")
     parser.add_argument(
         "--service",
         help="The service the request goes through, by its key in the service-profiles resource; "
         "needed only when the model record is exposed on more than one",
     )
     add_pack_runtime_arguments(parser)
-    parser.add_argument("--out", required=True)
+    parser.add_argument("--out", required=True, help="New Generation Package file; an existing file is kept")
     add_production_arguments(parser)
     args = parser.parse_args(argv)
     runtime = resolve_pack_runtime(parser, args)
@@ -1231,56 +1351,62 @@ def main(argv: Sequence[str] | None = None) -> int:
     pending_error: BaseException | None = None
     payload: dict[str, Any] | None = None
     try:
-        brief = read_text(args.brief_file) if args.brief_file else args.brief
-        parameters = parse_json(args.parameters)
-        if not isinstance(parameters, dict):
-            raise ValueError("--parameters must be a JSON object")
-        state_lineage_input = read_json(args.state_lineage_file)
+        from production_binding import new_output, studio_file
+        root = args.production_root.absolute()
+        output_path = new_output(root, args.out, option="--out", root_option="--production-root")
+        state_lineage_input = studio_document(root, args.state_lineage_file, "--state-lineage-file") or {}
         if state_lineage_input.get("mode") == "state-aware":
             raise ValueError(
                 "build_generation_payload.py is the stateless CLI; use "
                 "build_state_generation_package.py for a state-aware artifact graph"
             )
-        output_path = Path(args.out).resolve()
+        loaded = prepared_run(root, args.production_run)
+        chosen = generation_inputs(args, root, run_inputs(loaded[1], loaded[2]))
+        production_spec = chosen["production_spec"]
+        model = args.model or production_spec.get("target_model")
+        if not isinstance(model, str) or not model.strip():
+            raise ValueError("the production specification names no target_model; pass --model")
+        brief = studio_text(root, args.brief_file, "--brief-file") if args.brief_file else args.brief
         staging_root, staged_json, _staged_companion_path, final_companion = (
             create_cli_package_staging(output_path)
         )
         staged_reference_set: dict[str, Any] | None = None
         staged_companion: Path | None = None
         if args.references_file:
-            references_path = Path(args.references_file).resolve(strict=True)
-            source_reference_set = read_json(str(references_path))
+            references_path = studio_file(root, args.references_file, option="--references-file",
+                                           root_option="--production-root").resolve(strict=True)
+            source_reference_set = studio_document(root, str(references_path), "--references-file")
             staged_reference_set, staged_companion = materialize_cli_reference_bundle(
                 source_reference_set,
-                model=args.model,
+                model=model,
                 source_root=references_path.parent,
                 staging_root=staging_root,
                 companion_name=final_companion.name,
             )
-        production_spec = read_json(args.production_spec_file)
-        derived = production_inputs(args, model=args.model, production_spec=production_spec,
-                                    prepared_reference_set=staged_reference_set, staging_root=staging_root)
+        derived = production_inputs(args, model=model, production_spec=production_spec,
+                                    prepared_reference_set=staged_reference_set, staging_root=staging_root,
+                                    loaded=loaded)
         payload = build_payload(
-            plot=read_json(args.plot_file),
-            retrieval_record=read_json(args.retrieval_record_file),
+            plot=chosen["plot"],
+            retrieval_record=chosen["retrieval_record"],
             request_validation=derived["request_validation"], input_root=derived["root"],
             route_reading=derived["route_reading"],
             visual_continuity=derived["visual_continuity"],
             visual_root=derived["root"],
             reading_ledgers=[staging_root / "reads.jsonl"],
-            model=args.model,
-            prompt=read_text(args.prompt_file),
-            negative_prompt=read_text(args.negative_file),
-            integrated_prompt=read_text(args.integrated_prompt_file),
-            native_negative=read_text(args.native_negative_file),
-            negative_provenance=read_json(args.negative_provenance_file),
+            model=model,
+            prompt=loaded[3]["instructions"],
+            negative_prompt=studio_text(root, args.negative_file, "--negative-file"),
+            integrated_prompt=studio_text(root, args.integrated_prompt_file, "--integrated-prompt-file"),
+            native_negative=studio_text(root, args.native_negative_file, "--native-negative-file"),
+            negative_provenance=studio_document(root, args.negative_provenance_file, "--negative-provenance-file") or {},
             brief=brief,
-            creative_intent=read_json(args.intent_file),
+            creative_intent=studio_document(root, args.intent_file, "--intent-file") or {},
             production_spec=production_spec,
             state_lineage=state_lineage_input,
             prepared_reference_set=staged_reference_set,
             prepared_reference_root=staging_root,
-            parameters=parameters,
+            parameters=chosen["parameters"],
             negative_transport=args.negative_transport,
             critical_avoidance_integrated=args.critical_avoidance_integrated,
             service=args.service,
@@ -1288,10 +1414,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             production_run=derived["run"],
         )
         # Writing is the commit point. Re-read every selected reference and verify
-        # the exact package contract before creating or replacing the output file.
+        # the exact package contract before creating the output file.
         from verify_generation_payload import verify
 
-        verify(payload, package_root=staging_root, project=derived["root"])
+        verify(payload, package_root=staging_root, studio=derived["root"])
         staged_json.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
             encoding="utf-8",
@@ -1335,9 +1461,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         finally:
             configure_pack_runtime(None)
     if pending_error is not None:
-        print(json.dumps({"ok": False, "errors": generation_package_error_messages(pending_error)},
-                         ensure_ascii=False, indent=2, allow_nan=False))
-        return 1
+        from production_binding import report_failure
+        return report_failure(pending_error, phase="package-construction")
     if payload is None:
         raise RuntimeError("generation package completed without a payload")
     print(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False))
@@ -1347,4 +1472,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

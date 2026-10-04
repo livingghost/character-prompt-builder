@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build, validate, and transactionally materialize visual-reference plans."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -855,7 +856,7 @@ def add_reference_plan_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = _operation_context.ArgumentParser(
         description="Build or execute record-scoped visual-reference plans."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -953,4 +954,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

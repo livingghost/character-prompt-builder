@@ -1,7 +1,7 @@
-# Synthetic candidate recipe
+# Synthetic iteration recipe
 
 The script records synthetic local bytes and reads their recipe through the public CLI.
-It compares studio files before and after inspection. The candidate remains unaccepted.
+It compares studio files before and after inspection. The iteration remains unaccepted.
 The selected response seed and original request stay distinct in the [actual report](report.json).
 The example performs local recording only. It measures evidence handling, not artwork quality.
 
@@ -12,7 +12,7 @@ python examples/candidate-recipe/build_example.py
 python examples/candidate-recipe/build_example.py --check
 ```
 
-Select an existing candidate explicitly:
+Select a recorded iteration explicitly:
 
 ```text
 python scripts/studio.py recipe --studio STUDIO --character CHARACTER --slot SLOT --iteration ITERATION

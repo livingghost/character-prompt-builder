@@ -460,7 +460,8 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn("[Prompt-Only Core](references/runtime/prompt-only-core.md)", paths)
         sequence = skill.partition("## Common runtime sequence")[2]
         first = next(line for line in sequence.splitlines() if line.startswith("1. "))
-        self.assertTrue(first.startswith("1. For saved work, read the route"), first)
+        self.assertTrue(first.startswith("1. Resolve the artifact and whether it needs saving."), first)
+        self.assertIn("For saved work, establish the Studio and read the selected route.", first)
 
     def test_prompt_writing_guide_is_an_executed_rendition_stage(self) -> None:
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
@@ -684,28 +685,6 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertTrue(checked, "no documented anchor example was checked")
 
 
-class RegressionExecutionTests(unittest.TestCase):
-    def invoke(self, stdout, stderr, returncode, output_format):
-        from unittest.mock import patch
-        from validate import run_standalone_regression
-        result = subprocess.CompletedProcess(["fixture"], returncode, stdout, stderr)
-        with patch("validate.subprocess.run", return_value=result):
-            return run_standalone_regression(ROOT, "fixture.py", output_format=output_format)
-
-    def test_json_report_cannot_hide_failed_exit(self):
-        self.assertFalse(self.invoke('{"ok": true}', '', 1, 'json')['ok'])
-        self.assertFalse(self.invoke('not-json', '', 0, 'json')['ok'])
-        self.assertFalse(self.invoke('[]', '', 0, 'json')['ok'])
-        self.assertTrue(self.invoke('{"ok": true}', '', 0, 'json')['ok'])
-
-    def test_unittest_must_execute_cases(self):
-        self.assertFalse(self.invoke('', 'No tests ran', 0, 'unittest')['ok'])
-        self.assertFalse(self.invoke('', 'Ran 0 tests in 0s\nOK', 0, 'unittest')['ok'])
-        self.assertFalse(self.invoke('', 'Ran 2 tests in 0s\nFAILED', 1, 'unittest')['ok'])
-        self.assertTrue(self.invoke('', 'Ran 2 tests in 0s\nOK', 0, 'unittest')['ok'])
-
-
-
 class ReadmeReleaseExplanationTests(unittest.TestCase):
     def test_readme_can_explain_product_release_management(self):
         from validate import check_documentation
@@ -765,10 +744,10 @@ def is_value(word: str) -> bool:
 
 
 def parses_arguments(script: Path) -> bool:
-    """Whether the script, or the module whose main it runs, reads its command line with argparse."""
+    """Whether the script, or the module whose main it runs, reads its command line with an argparse parser."""
 
     text = script.read_text(encoding="utf-8")
-    if "argparse" in text:
+    if "argparse" in text or "ArgumentParser" in text:
         return True
     for module, names in re.findall(r"^from (\w+) import (\([^)]*\)|[^\n]*)", text, re.M):
         source = script.with_name(module + ".py")

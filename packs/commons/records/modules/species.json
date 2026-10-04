@@ -54,7 +54,11 @@
           "weight": 0.9,
           "source": "author"
         }
-      ]
+      ],
+      "scaffold": {
+        "family": "canine",
+        "confidence": "direct"
+      }
     },
     {
       "id": "species-cat",
@@ -108,7 +112,11 @@
           "weight": 0.9,
           "source": "author"
         }
-      ]
+      ],
+      "scaffold": {
+        "family": "feline",
+        "confidence": "direct"
+      }
     },
     {
       "id": "species-dragon",
@@ -161,7 +169,11 @@
           "weight": 0.8,
           "source": "author"
         }
-      ]
+      ],
+      "scaffold": {
+        "family": "draconic",
+        "confidence": "direct"
+      }
     }
   ]
 }

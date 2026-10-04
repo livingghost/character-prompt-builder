@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Check explicit production grants and cumulative reservations.
+"""Check current production grants and the exact terms of an operation.
 
-The production run's receipt chain is the only execution ledger. This module
+Budget reservations and cumulative consumption belong to reservation_lifecycle.
+The Production store is the only execution ledger. This module
 neither authenticates an issuer nor infers consent from prose or a budget.
 """
 from __future__ import annotations
@@ -11,6 +12,7 @@ from decimal import Decimal, InvalidOperation, localcontext
 import re
 from typing import Any
 import execution_contract as c
+from production_diagnostics import ProductionError
 from production_plan import strings
 
 OPERATIONS = {'direction', 'edit', 'submit', 'select', 'adopt'}
@@ -62,7 +64,8 @@ def validate(authority: Any, task_id: str) -> None:
     ids: set[str] = set()
     for grant in authority['grants']:
         c.exact(grant, {'id', 'actor', 'mode', 'operations', 'targets', 'limits',
-                        'protected_criteria', 'expires_at', 'request_scope', 'submission_validation_modes'}, 'grant')
+                        'protected_criteria', 'expires_at', 'request_scope', 'submission_validation_modes'} |
+                        ({'revoked_at'} if 'revoked_at' in grant else set()) | ({'effective_at'} if 'effective_at' in grant else set()), 'grant')
         key = c.text(grant['id'], 'grant id')
         if key in ids:
             raise ValueError('duplicate grant id')
@@ -80,8 +83,8 @@ def validate(authority: Any, task_id: str) -> None:
         limits = grant['limits']
         c.exact(limits, {'uses', 'outputs', 'cost'}, 'grant limits')
         for key in ('uses', 'outputs'):
-            if type(limits[key]) is not int or limits[key] < (1 if key == 'uses' else 0):
-                raise ValueError('grant limits require nonnegative integers and positive uses')
+            if type(limits[key]) is not int or limits[key] < 0:
+                raise ValueError('grant limits require nonnegative integers')
         cost(limits['cost'])
         if grant['expires_at'] is not None:
             time_value(grant['expires_at'])
@@ -131,44 +134,76 @@ def validate_request(request: Any) -> None:
         seen.add(assessment['id'])
 
 
-def check(authority: dict, request: dict, reservations: list[dict], *, now: datetime | None = None) -> dict:
+SCOPE_ACTION = 'Obtain a current grant covering the missing targets; do not remove decisions or narrow targets.'
+GRANT_ACTION = 'Obtain a current grant from the actual issuer; an expired or revoked grant is never reused.'
+BUDGET_ACTION = 'Obtain a real limit amendment from the issuer, or reduce the prepared request and prepare it again.'
+
+
+def grant_current(grant: dict, instant: datetime) -> bool:
+    return (grant.get('revoked_at') is None
+            and (grant.get('effective_at') is None or instant >= time_value(grant['effective_at']))
+            and (grant['expires_at'] is None or instant < time_value(grant['expires_at'])))
+
+
+def target_coverage(authority: dict, operation: str, targets: list[str], *, now: datetime | None = None) -> list[dict]:
+    """For each current grant of the operation, the targets it grants and the targets it lacks.
+
+    An empty `missing` list means that grant covers the whole prepared operation.
+    """
+    instant = now or datetime.now(timezone.utc)
+    return [{'grant': grant['id'], 'granted': sorted(grant['targets']),
+             'missing': sorted(set(targets) - set(grant['targets']))}
+            for grant in authority['grants']
+            if operation in grant['operations'] and grant_current(grant, instant)]
+
+
+def check(authority: dict, request: dict, *, now: datetime | None = None) -> dict:
+    """Verify current authority and exact declared terms; reserving is a separate transaction."""
     validate_request(request)
-    matches = [g for g in authority['grants'] if g['id'] == request['grant']]
-    if len(matches) != 1:
-        raise ValueError('authorization must name a declared grant')
-    grant = matches[0]
-    if grant['actor'] != request['actor'] or request['operation'] not in grant['operations']:
-        raise ValueError('actor or operation is outside the grant')
-    if set(request['targets']) - set(grant['targets']):
-        raise ValueError('authorization targets exceed the grant scope')
-    if {x['id'] for x in request['stop_assessments']} != {x['id'] for x in authority['stop_conditions']}:
-        raise ValueError('every declared stop condition must be explicitly assessed')
-    if grant['expires_at'] is not None and (now or datetime.now(timezone.utc)) >= time_value(grant['expires_at']):
-        raise ValueError('grant has expired')
-    previous = [r for r in reservations if r['grant'] == grant['id']]
-    # A grant id stays an accounting identity even if a new authority document is
-    # explicitly supplied for a revised run. Re-preparation never resets usage.
-    limits = grant['limits']
-    if len(previous) + 1 > limits['uses']:
-        raise ValueError('grant use limit exceeded')
-    if sum(r['outputs'] for r in previous) + request['outputs'] > limits['outputs']:
-        raise ValueError('grant output limit exceeded')
-    quote = request['cost']
-    ceiling = limits['cost']
+    terms={'operation':request['operation'],'grant':request['grant']}
+    matches=[g for g in authority['grants'] if g['id']==request['grant']]
+    if len(matches)!=1:
+        raise ProductionError('GRANT_REVOKED','The current authority no longer contains this grant.',phase='authorization',
+                              required_action=GRANT_ACTION,**terms)
+    grant=matches[0];instant=now or datetime.now(timezone.utc)
+    if grant.get('revoked_at') is not None:
+        raise ProductionError('GRANT_REVOKED','The selected grant was revoked.',phase='authorization',actual=grant['revoked_at'],
+                              required_action=GRANT_ACTION,**terms)
+    if grant.get('effective_at') is not None and instant<time_value(grant['effective_at']):
+        raise ProductionError('GRANT_NOT_EFFECTIVE','The grant is not yet effective.',phase='authorization',actual=grant['effective_at'],
+                              required_action='Wait for the grant to take effect, or obtain a grant that is effective now.',**terms)
+    if grant['expires_at'] is not None and instant>=time_value(grant['expires_at']):
+        raise ProductionError('GRANT_REVOKED','The selected grant has expired.',phase='authorization',actual=grant['expires_at'],
+                              required_action=GRANT_ACTION,**terms)
+    if grant['actor']!=request['actor'] or request['operation'] not in grant['operations']:
+        raise ProductionError('GRANT_SCOPE_EXCEEDED','Actor or operation is outside the current grant.',phase='authorization',
+                              expected={'actor':request['actor'],'operation':request['operation']},
+                              actual={'actor':grant['actor'],'operations':sorted(grant['operations'])},
+                              required_action='Obtain a current grant naming this actor and operation; another actor cannot act on it.',**terms)
+    missing=sorted(set(request['targets'])-set(grant['targets']))
+    if missing:
+        raise ProductionError('GRANT_SCOPE_EXCEEDED','The current grant does not cover all required targets.',phase='authorization',
+                              pointer='$.targets',expected=sorted(request['targets']),actual=sorted(grant['targets']),
+                              granted=sorted(grant['targets']),missing=missing,required_action=SCOPE_ACTION,**terms)
+    if {x['id'] for x in request['stop_assessments']}!={x['id'] for x in authority['stop_conditions']}:
+        raise ProductionError('AUTHORIZATION_REQUIRED','Every declared stop condition needs an actual current assessment.',phase='authorization',
+                              pointer='$.stop_assessments',expected=sorted(x['id'] for x in authority['stop_conditions']),
+                              actual=sorted(x['id'] for x in request['stop_assessments']),
+                              required_action='Assess every current stop condition from actual evidence.',**terms)
+    quote=request['cost'];ceiling=grant['limits']['cost']
     if quote is not None:
-        if ceiling is None:
-            if cost(quote, quoted=True) != 0:
-                raise ValueError('grant permits no paid submission')
-        elif quote['currency'] != ceiling['currency']:
-            raise ValueError('currency differs from the grant')
-    paid = [r['cost'] for r in previous if r['cost'] is not None]
-    if any(cost(x, quoted=True) and (ceiling is None or x['currency'] != ceiling['currency']) for x in paid):
-        raise ValueError('changed grant cannot erase earlier reserved spending')
-    # Preserve every supported decimal digit across all cumulative reservations.
-    # The default Decimal context is too short for the accepted money format.
-    with localcontext() as context:
-        context.prec = 170 + len(str(len(paid) + 1))
-        total = sum((cost(x, quoted=True) for x in paid), Decimal(0)) + cost(quote, quoted=True)
-    if total > cost(ceiling):
-        raise ValueError('grant cost limit exceeded')
+        if ceiling is None and cost(quote,quoted=True)!=0:
+            raise ProductionError('GRANT_SCOPE_EXCEEDED','This grant permits no paid submission.',phase='authorization',
+                                  pointer='$.cost',expected=None,actual=quote,required_action=BUDGET_ACTION,**terms)
+        if ceiling is not None and quote['currency']!=ceiling['currency']:
+            raise ProductionError('GRANT_SCOPE_EXCEEDED','Request and grant use different currencies.',phase='authorization',
+                                  pointer='$.cost.currency',expected=ceiling['currency'],actual=quote['currency'],
+                                  required_action='Quote the cost in the currency of the grant limit; currencies are never converted.',**terms)
+        if ceiling is not None and cost(quote,quoted=True)>cost(ceiling):
+            raise ProductionError('BUDGET_LIMIT_EXCEEDED','The request exceeds the current cost limit.',phase='authorization',
+                                  pointer='$.cost.amount',expected=ceiling,actual=quote,required_action=BUDGET_ACTION,**terms)
+    if request['operation']=='submit' and (grant['limits']['uses']<1 or request['outputs']>grant['limits']['outputs']):
+        raise ProductionError('BUDGET_LIMIT_EXCEEDED','The request exceeds the current use or output limit.',phase='authorization',
+                              pointer='$.outputs',expected={'uses':grant['limits']['uses'],'outputs':grant['limits']['outputs']},
+                              actual={'uses':1,'outputs':request['outputs']},required_action=BUDGET_ACTION,**terms)
     return grant

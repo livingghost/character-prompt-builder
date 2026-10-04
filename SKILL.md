@@ -5,7 +5,7 @@ description: Create image prompts, scoped negatives and canonical references for
 
 # Character Prompt Builder
 
-Keep world, subjects, themes and expression coherent. For images, act as an art director: produce one coherent executable image, not a preset list.
+Keep world, subjects, themes and expression coherent. For images, act as an art director: produce one coherent executable image, not a record list.
 
 Use English prompts/retrieval and the user's conversational language. Translate whole meaning, including modifier scope, relationships, negation, and unresolved wording; never use per-language word lists.
 
@@ -19,7 +19,7 @@ The user owns acceptance and delegation. Bind the exact input, target, count and
 
 Preserve supported production knowledge at full specificity across every genre and intensity level, from everyday and wholesome subjects to sensitive material such as violent, medical, grotesque, body-altering, or adult knowledge, without exception. Read [Prompt Knowledge and Execution Boundary](references/prompt-knowledge-boundary.md) when relevant.
 
-Use plain ASCII punctuation in project documents, prompts, JSON text, and packaged examples. Do not emit the Unicode em dash.
+Use plain ASCII punctuation in studio documents, prompts, JSON text, and packaged examples. Do not emit the Unicode em dash.
 
 Keep judgment and automation separate. The agent owns meaning, ambiguity, intent, direction, visual authority, composition and review. Scripts own deterministic state, cache, retrieval, resolution, validation, materialization, dependency preflight, verification and dispatch. Never force unresolved meaning through keywords or duplicate script work. A script is usable only when routed documentation exposes activation, input, output, help or example, failures, and a regression test. Resolve paths from the installed `SKILL.md` directory, not the working directory.
 
@@ -28,10 +28,9 @@ Keep judgment and automation separate. The agent owns meaning, ambiguity, intent
 For image work, resolve [Rendering choices and execution controls](references/runtime/render-contract.md), feature `render-contract`.
 Choose medium, dimensionality, linework, shading, surface, and detail explicitly, with the user's selection or the agent's reason.
 Keep presentation and subject identity separate. Use scoped overrides for mixed media; never invent body or age changes from a finish.
-After `pack_cli.py ready`, read `render_contract.py model --model MODEL` (and `--service SERVICE` when selected), or the guidance card from catalog inspection.
-Read its recommended prompts, parameters, recipe, evidence and mode-specific controls before target-specific composition.
+After `pack_cli.py ready`, read `render_contract.py model --model MODEL` (and `--service SERVICE` when selected), or the guidance card from catalog inspection, in full before target-specific composition.
 Retrieve the wording, then bind its exact rendering span in the Production Specification's `render_intent`.
-A Generation Package requires the exact interface's execution profile. Missing profiles, unresolved required values and wrong-mode controls block generation.
+A Generation Package requires the exact interface's execution profile. Missing execution profiles, unresolved required values and wrong-mode controls block generation. [Model request evidence](references/runtime/model-evidence.md) covers request validation, trials and observed profiles.
 Required scalar recommendations resolve with provenance; ranges require a choice. Unavailable controls are displayed, not sent.
 Use the verified request and its named provider. Display the rendering choice and complete final request before submission; never substitute a different engine.
 
@@ -46,15 +45,15 @@ This gate governs image prompts, not prose or brainstorming. Never hand-compose 
 
 ## Mandatory runtime activation gate
 
-Before prompt, reference, sheet, generation or visual-state series work (not persona or story drafting), run `python scripts/pack_cli.py ready`, adding the task's `--state-file`, `--cache-dir` and `--managed-root` when it has them. It creates the state on first use, keeps every existing choice, and prints the packs retrieval will use.
+Before prompt, reference, sheet, generation or visual-state series work (not persona or story drafting), run `python scripts/pack_cli.py ready`. Put the task's `--state-file`, `--cache-dir`, `--managed-root` and repeated `--pack-root` options before `ready` when supplied. It creates the state on first use, keeps every existing choice, and prints the packs retrieval will use.
 
 - Exit 0: retrieval can proceed. Tell the user each `warning:` line.
 - Exit 1: each `decide:` line is the author's decision and names the command that settles it. Put new or unusable packs to the user before continuing; never continue on bundled commons alone while a discovered pack awaits that decision. Run the command the author chooses, then `ready` again. A pack the author disabled stays disabled and is not asked about again.
-- If a pack or provider changes after retrieval has begun, discard the earlier results and restart from the image intent.
+- If the enabled packs change after retrieval has begun, discard the earlier results and restart from the image intent.
 
 ## Artifact-bearing production gate
 
-For saved deliverables and multistep production, read the route with `python scripts/execution_routes.py read ROUTE --root PROJECT`, adding `--feature NAME` for each applicable feature named below and, once the target is chosen, `--model MODEL`, or `--dialect ID` for a prompt family without a model record, to read only that family's guide sections. It prints [Production Execution](references/runtime/production-execution.md) and every document the route needs, then the path of the reading record to complete; `--page-bytes N` pages a long read and `--continue CURSOR` resumes it. Follow Production Execution through completion, and run `production_workflow.py status` or `resume` before continuing after an interruption.
+For saved deliverables and multistep production, read the route with `python scripts/execution_routes.py read ROUTE --root STUDIO`, adding `--feature NAME` for each applicable feature named below and, once the target is chosen, `--model MODEL`, or `--dialect ID` for a prompt family without a model record, to read only that family's guide sections. It prints [Production Execution](references/runtime/production-execution.md) and every document the route needs, then the path of the reading record to complete; `--page-bytes N` pages a long read and `--continue CURSOR` resumes it. Follow Production Execution through completion, and run `production_workflow.py status` or `resume` before continuing after an interruption.
 
 ## Choose a runtime path
 
@@ -82,30 +81,35 @@ Each item names a route or `--feature` whose read prints its documents. A prompt
 - deterministic editing of pinned stills: feature `image-edit`;
 - enlarging a finished image: route `upscale` with an active upscaler model record;
 - canonical identity, a character sheet, its panels, candidates or reference board: route `character-sheet`; a new pose or scene for an accepted character uses `repose` or `generation` instead;
-- sheet, candidate, or accepted-image work, which lives in a studio: feature `studio` first;
+- sheet, iteration, or accepted-image work, which lives in a studio: feature `studio` first;
 - explicit selection for a canonical owner: route or feature `adoption`;
 - scoped changes or review of existing artifacts: route `revise` or feature `revision-guidance`;
 - a production report or evidence study: feature `evidence-review`; preserved originals, host trials or repair hypotheses: feature `source-material`, `agent-evaluation` or `repair-analysis`;
 - public state or shot interchange: feature `protocol-exchange`;
-- absent pack state, custom packs, or provider selection: feature `pack-runtime`.
+- absent pack state, custom packs, or a resource conflict between packs: feature `pack-runtime`.
 
 Add a specialist feature only for a load-bearing subject: `geometry` for exact multi-subject geometry, crop, perspective, overlap, or contact; `body-plan` for any non-human or unfamiliar body (animal, anthropomorphic animal, hybrid, creature, robot, android), a transformation, or unusual feature counts; `recurring-identity` for a recurring character's identity contract; `performance-language` for subtle emotion, body language, appendage acting, physiological response, or mechanical performance; `garment-growth` for garment, growth, grooming, hair, fur, feathers, quills, bristles, spun fiber, molded strands, nails, claws, talons, hooves, digit plates, or local identity; `production-spec` for scene artifacts; `finishing` for a named or implied rendering medium, photographic look, 3D or toy presentation, in-image type or logo, environment-forward composition, or repeated wrong-finish results; `visual-evidence` for a supplied raster, linked SVG, reference collection, or corpus ingestion.
 
 ## Mandatory studio gate
 
-Persistent character production, sheets, and recorded generation live in a studio. When `python scripts/session_entry_points.py` reports none, create one (`studio.py init`) before any sheet or generation work, generate through `dispatch.py`, and follow [Studio Runtime](references/runtime/studio.md). Authoring whose decisions a later draft reuses lives there too, with or without images: resolve or create the studio before the first draft that will be revised or reused. A one-off answer needs none.
+Persistent character production, sheets, and recorded generation live in a studio. When `python scripts/session_entry_points.py` reports none, create one (`studio.py init`) before any sheet or generation work, generate through `production_workflow.py execute`, and follow [Studio Runtime](references/runtime/studio.md). Authoring whose decisions a later draft reuses lives there too, with or without images: resolve or create the studio before the first draft that will be revised or reused. A one-off answer needs none.
 
 ## Common runtime sequence
 
 For image work:
 
-1. For saved work, read the route (see the production gate). Form one image intent, separate anchors from creative space, and resolve the rendering choice.
-2. Develop one coherent direction; for a sparse brief, run `recommend` first.
-3. Retrieve under the gate above; consult craft (feature `craft-consultation`) before settling open axes or after an observed failure. Inspect every selected canonical record in full. Inspect complete records and asset details together with `inspect-many` (or `inspect` plus `asset-lookup`). Adopt evidence only when it has a relevant authority role.
-4. Draft the plot and wording without inventing approval; a prompt-only draft may omit the plot. Present the plot for actual approval, then settle retrieval against it and the prompt. Preparation grants no permission to execute or change canon.
-5. Choose a target and read its model guidance card; report plot requirements it cannot meet to the approving person. Run `python scripts/validate_prompt_semantics.py plan.json` before delivery; `--template` prints a plan to start from.
-6. Select the target's adapter, resolve the optional `prompt-writing-guide`, and read the complete selected guide before final rendition.
-7. Compose and review under the route's documents.
+1. Resolve the artifact and whether it needs saving. For saved work, establish the Studio and read the selected route.
+2. Separate anchors from creative space and explore the direction. Choose the target before final target-specific wording.
+3. Read its full model guidance and execution profile; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Retrieve every visual element. Inspect every selected canonical record in full.
+4. Author the plot, prompt, render intent, scoped references and criteria. Obtain actual plot approval and settle retrieval against the final wording.
+5. Put the single final prompt and generation settings in the task's declared inputs. Declare the Studio recording destination in that task.
+6. `production_workflow.py check --task task.json` reports diagnostics and creates no run. `prepare` with the same arguments runs those checks, then publishes a run with its package, request preview and execution plan.
+7. Review the complete preview, cost and operation targets. `draft-execution --run RUN --grant GRANT --out decisions.json` writes the unanswered decisions; complete them from actual authority. Preparation and a CLI invocation are not consent.
+8. Run `execute --run RUN --decisions-file decisions.json`. Existing exact receipts can be reused with their current grant instead. After an interrupted send, `resume --run RUN` recovers the same execution; do not repeat the send.
+9. Inspect actual candidates and record observations before selection. `variant --from RUN --changes-file changes.json --prepare` changes declared fields; `repeat --from RUN --prepare` prepares the same input again. Use `retarget` with a reassessed task to change the model or service.
+10. `status --budget` reports each run, its next command and the remaining budget. `logs` lists and `logs-export --out DIR` exports [operation logs](references/runtime/operation-logs.md); `logs-cleanup` removes only those. If `status` reports abandoned compiler staging, inspect `staging-cleanup` first and apply it only to the exact stored owner operation.
+
+Each of these commands takes `--root STUDIO`; Production Execution defines them. Authored prose and conversation-only prompts do not acquire image-generation requirements.
 
 ## Identity and scene-state authority
 
@@ -117,7 +121,7 @@ Scene-specific character state is an open class: any visible or performance-rele
 
 ## Catalog and pack runtime
 
-Use one resolved runtime across retrieval, planning, preparation and verification. `recommend` explores sparse outcomes; `search` and `inspire` retrieve known needs; `batch` runs several queries in one process; `inspect-many` returns complete records and assets under one runtime fingerprint. Do not start several catalog CLI processes in parallel.
+Use one resolved runtime across retrieval, planning, preparation and verification. `recommend` explores sparse outcomes; `search` and `inspire` retrieve known needs; `batch` runs several queries in one process. Inspect complete records and asset details together with `inspect-many` (or `inspect` plus `asset-lookup`). Do not start several catalog CLI processes in parallel.
 
 ## Visual Reference Activation Gate
 
@@ -131,9 +135,9 @@ Add reference artifacts only when references are selected or a reusable referenc
 
 ## Maintenance and release
 
-Activate these documents only when changing the library or distributing the project:
+Activate these documents only when changing a pack or distributing the skill:
 
-- record, taxonomy, evidence, or preset work: [Preset Maintenance](references/maintenance/presets.md);
+- record, taxonomy or evidence work: [Preset Maintenance](references/maintenance/presets.md);
 - search-profile authoring and retrieval evaluation: [Search Discovery Maintenance](references/maintenance/search-discovery.md);
 - pack creation, installation, update, removal, lock, or lifecycle: [Pack Maintenance](references/maintenance/packs.md);
 - core or pack publication and complete gates: [Release Validation](references/release/validation.md).

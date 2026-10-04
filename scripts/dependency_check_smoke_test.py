@@ -17,6 +17,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+
 import check_dependencies as deps  # noqa: E402
 
 VISUAL = str(deps.PROFILE_PATHS["visual"])

@@ -76,9 +76,11 @@ MODEL_OPERATION_KINDS = frozenset({"generation", "instruction-edit", "upscale"})
 UPSCALER_CLASSES = frozenset({"restorative", "generative", "creative"})
 RECOMMENDATION_MERGE_MODES = frozenset({"advisory-only", "prefix", "tag-list"})
 # What a model's author recommends for sampling, by service-neutral name. An
-# offering's parameter_keys says which request key each occupies on that service;
-# a single value is filled into a package where the package leaves it unset, and
-# a two-number range is a statement for the person choosing, never a value sent.
+# offering's parameter_keys says which request key each occupies on that service.
+# A required control that the execution profile ties to a recommendation takes its
+# single value when the package leaves the control unset. An optional control
+# stays unset, and a two-number range is a statement for the person choosing,
+# never a value sent.
 RECOMMENDED_PARAMETER_KEYS = frozenset(
     {"sampler", "steps", "guidance", "clip_skip", "hires_scale", "hires_denoise", "hires_steps", "hires_upscaler"}
 )
@@ -421,7 +423,9 @@ def _merge_tag_lists(recommended: str, authored: str) -> str:
 
 
 def _merge_one(authored: str, recommended: str, *, mode: str, limit: int | None, field: str) -> tuple[str, dict[str, Any]]:
-    authored=authored.strip();recommended=recommended.strip()
+    recommended=recommended.strip()
+    # Authored whitespace is part of the exact rendition. Only a declared merge
+    # operation may transform it; advisory guidance never rewrites the input.
     audit={'declared':bool(recommended),'applied':False,'mode':mode,
         'reason':'not-declared' if not recommended else 'advisory-only', 'recommended_text':recommended,
         'source_text':authored,'limit':limit,'segments':[]}
@@ -564,8 +568,49 @@ def select_offering(record: Mapping[str, Any], service: str | None) -> dict[str,
     )
 
 
-def offering_schema(offering: Mapping[str, Any], pack_root: Path | None) -> dict[str, Any] | None:
-    """The observed parameter schema an offering points at, read from its pack."""
+# The formal contract of a stored observed parameter schema.
+OBSERVED_SCHEMA_CONTRACT = Path(__file__).resolve().parents[1] / "schemas" / "observed-parameter-schema.schema.json"
+
+
+def observed_schema_issues(
+    snapshot: Any, expected: Mapping[str, Any], *, model_key: str | None = None
+) -> list[str]:
+    """What keeps a stored observed parameter schema from being the one its reader expects.
+
+    Pack validation, request building, request validation and the importer all
+    use this one check. The file must match
+    schemas/observed-parameter-schema.schema.json. Each field in `expected` must
+    equal the file's: the model record's id as `model_id`, and the offering's
+    `service`, `model_identifier` and `observed_at`. A constant the schema
+    declares at the offering's model request key must be the model identifier.
+    """
+
+    from state_protocol import validate_against_schema
+
+    contract = json.loads(OBSERVED_SCHEMA_CONTRACT.read_text(encoding="utf-8"))
+    issues = list(dict.fromkeys(validate_against_schema(snapshot, contract)))
+    if issues:
+        return issues
+    for name, value in expected.items():
+        if snapshot[name] != value:
+            issues.append(f"it records {name} {snapshot[name]!r} where {value!r} is expected")
+    if model_key:
+        for node in property_schemas(snapshot["schema"], model_key):
+            if "const" in node and node["const"] != snapshot["model_identifier"]:
+                issues.append(f"its schema fixes {model_key!r} to {node['const']!r}, "
+                              f"not the model identifier {snapshot['model_identifier']!r}")
+    return issues
+
+
+def offering_expectation(model_id: str, offering: Mapping[str, Any]) -> tuple[dict[str, Any], str | None]:
+    """What the observed schema an offering names must repeat, and the request key that carries the model."""
+
+    expected = {"model_id": model_id, **{name: offering.get(name) for name in ("service", "model_identifier", "observed_at")}}
+    return expected, request_key(offering, MODEL_ROLE)
+
+
+def offering_schema(offering: Mapping[str, Any], pack_root: Path | None, model_id: str) -> dict[str, Any] | None:
+    """The observed parameter schema an offering of model record `model_id` points at, read from its pack."""
 
     relative = offering.get("schema_snapshot")
     if not relative:
@@ -578,10 +623,11 @@ def offering_schema(offering: Mapping[str, Any], pack_root: Path | None) -> dict
     if not path.is_file():
         raise ValueError(f"observed parameter schema {relative!r} is not in the pack")
     snapshot = json.loads(path.read_text(encoding="utf-8"))
-    schema = snapshot.get("schema") if isinstance(snapshot, Mapping) else None
-    if not isinstance(schema, dict):
-        raise ValueError(f"observed parameter schema {relative!r} carries no schema")
-    return {"schema": schema, "observed_at": snapshot.get("observed_at")}
+    expected, model_key = offering_expectation(model_id, offering)
+    issues = observed_schema_issues(snapshot, expected, model_key=model_key)
+    if issues:
+        raise ValueError(f"observed parameter schema {relative!r}: " + "; ".join(issues))
+    return {"schema": snapshot["schema"], "observed_at": snapshot["observed_at"]}
 
 
 def place(instance: dict[str, Any], key_path: str, value: Any) -> None:
@@ -763,7 +809,7 @@ def recommended_parameter_issues(
     if not keys:
         return []
     try:
-        found = offering_schema(offering, pack_root)
+        found = offering_schema(offering, pack_root, str(record.get("id")))
     except ValueError as exc:
         return [str(exc)]
     if found is None:
@@ -818,14 +864,16 @@ def validate_generation_parameters(
     instance = request_instance(
         offering, parameters, prompt=prompt, negative_prompt=negative_prompt, media_counts=media_counts
     )
-    validate_request_instance(offering, instance, pack_root)
+    validate_request_instance(offering, instance, pack_root, str(record.get("id")))
     return offering
 
 
-def validate_request_instance(offering: Mapping[str, Any], instance: Mapping[str, Any], pack_root: Path | None) -> None:
+def validate_request_instance(
+    offering: Mapping[str, Any], instance: Mapping[str, Any], pack_root: Path | None, model_id: str
+) -> None:
     """Refuse a request the offering's observed parameter schema refuses; an offering without one refuses nothing."""
 
-    found = offering_schema(offering, pack_root)
+    found = offering_schema(offering, pack_root, model_id)
     if found is None:
         return
     from state_protocol import validate_against_schema
@@ -834,6 +882,6 @@ def validate_request_instance(offering: Mapping[str, Any], instance: Mapping[str
     if violations:
         raise ValueError(
             f"the service's parameter schema for {offering.get('model_identifier')!r} "
-            f"(observed {found.get('observed_at') or 'undated'}) refuses this request: "
+            f"(dated {found['observed_at']}) refuses this request: "
             + "; ".join(violations)
         )

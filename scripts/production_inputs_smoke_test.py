@@ -18,10 +18,6 @@ from input_evidence import InputEvidence
 import production_inputs as tool
 import production_input_adapters as adapters
 import route_reading as reading
-from smoke_fixtures import isolate_home
-
-isolate_home()
-
 
 class InputToolsTests(unittest.TestCase):
     def setUp(self):
@@ -43,7 +39,7 @@ class InputToolsTests(unittest.TestCase):
         self.env = patch.dict(os.environ, {'CPB_READS_LEDGER': str(self.ledger)})
         self.env.start()
         self.addCleanup(self.env.stop)
-        self.issued = reading.issue('development', project=self.root, ledger=self.ledger,
+        self.issued = reading.issue('development', studio=self.root, ledger=self.ledger,
                                     stream=io.StringIO(), key='1' * 32, at='2000-01-01T00:00:00Z')
         manifest, bodies = reading.capture('development')
         always = set(c.load(reading.ROOT / reading.execution_routes.MANIFEST)['always_read'])
@@ -63,7 +59,18 @@ class InputToolsTests(unittest.TestCase):
         (self.root / 'choices.json').write_bytes(c.encoded(self.choices))
 
     def files(self):
-        return {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+        # WAL/checkpoint coordination can change physical SQLite pages during a
+        # read. Compare every committed table/row, plus every other file byte,
+        # instead of treating that coordination as a new Production event.
+        import production_store
+        database = production_store.database(self.root)
+        physical = {database, Path(str(database) + '-wal'), Path(str(database) + '-shm')}
+        result = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*')
+                  if p.is_file() and p not in physical}
+        with production_store.reader(self.root) as connection:
+            if connection is not None:
+                result['production/records.sqlite3:committed-content'] = '\n'.join(connection.iterdump()).encode('utf-8')
+        return result
 
     def build(self, output='built'):
         return tool.build_inputs(self.root, 'task.json', 'choices.json', output)
@@ -104,7 +111,7 @@ class InputToolsTests(unittest.TestCase):
         record = c.decode(raw)
         self.assertEqual(record['documents'], self.issued['row']['documents'])
         self.assertEqual(record['applied'], self.choices['reading']['applied'])
-        reading.require_route_reading(record, project=self.root)
+        reading.require_route_reading(record, studio=self.root)
         self.assertEqual((self.root / 'task.json').read_bytes(), before_task)
         self.assertEqual(c.load(self.root / 'built/production-task.json')['route_reading'], 'built/route-reading.json')
         self.assertFalse((self.root / 'production').exists())
@@ -202,7 +209,7 @@ class InputToolsTests(unittest.TestCase):
             self.build()
 
     def test_unrelated_issuance_keeps_existing_record(self):
-        reading.issue('development', project=self.root, ledger=self.ledger, stream=io.StringIO(), key='3' * 32)
+        reading.issue('development', studio=self.root, ledger=self.ledger, stream=io.StringIO(), key='3' * 32)
         self.assertTrue(self.build()['ok'])
 
     def test_draft_report_cannot_clear_unresolved_choices(self):
@@ -220,7 +227,7 @@ class InputToolsTests(unittest.TestCase):
         (self.root / 'choices.json').write_bytes(c.encoded(document))
         self.assertTrue(self.build()['ok'])
 
-    def test_output_path_cannot_escape_project(self):
+    def test_output_path_cannot_escape_studio(self):
         with self.assertRaises(ValueError):
             self.build('../escaped')
 
@@ -251,21 +258,22 @@ class InputToolsTests(unittest.TestCase):
             adapters.build_validation(None, task, InputEvidence(self.root), self.root)
         self.assertFalse((self.root / 'built').exists())
 
-    def test_builder_action_names_the_builder_for_the_task(self):
-        inputs = {'production-task': {'path': 'built/production-task.json', 'sha256': '0' * 64}}
+    def test_prepared_dispatcher_task_continues_with_draft_execution_and_execute(self):
+        inputs = {'production-task': {'path': 'built/production-task.json', 'sha256': '0' * 64},
+                  'request-validation': {'path': 'built/request-validation.json', 'sha256': '0' * 64}}
         usage = {}
-        for route, features, script in (
-                ('generation', [], 'scripts/build_generation_payload.py'),
-                ('state-series', [], 'scripts/build_state_generation_package.py'),
-                ('generation', ['state-series'], 'scripts/build_state_generation_package.py')):
+        for route, features in (('generation', []), ('state-series', []), ('generation', ['state-series']), ('upscale', [])):
             task = {'route': route, 'features': features, 'execution': 'dispatcher'}
-            action = adapters.next_actions(inputs, task, self.root)[-1]
-            self.assertEqual((action['operation'], action['script']), ('build-generation-payload', script))
-            if script not in usage:
-                usage[script] = subprocess.run([sys.executable, str(tool.ROOT / script), '--help'],
-                                               capture_output=True, text=True, encoding="utf-8", check=True).stdout
-            for name in action['required_args']:
-                self.assertIn('--' + name + ' ', usage[script], (script, name))
+            actions = adapters.next_actions(inputs, task, self.root)
+            self.assertEqual([action['operation'] for action in actions[-3:]], ['prepare', 'draft-execution', 'execute'])
+            for action in actions[-3:]:
+                self.assertEqual(action['script'], 'scripts/production_workflow.py')
+                if action['operation'] not in usage:
+                    usage[action['operation']] = subprocess.run(
+                        [sys.executable, str(tool.ROOT / action['script']), action['operation'], '--help'],
+                        capture_output=True, text=True, encoding="utf-8", check=True).stdout
+                for name in [*action['args'], *action.get('required_args', [])]:
+                    self.assertIn('--' + name + ' ', usage[action['operation']], (action['operation'], name))
 
     def test_upscale_dispatcher_needs_its_validation_choice(self):
         self.dispatcher_task(route='upscale')
@@ -298,7 +306,7 @@ class InputToolsTests(unittest.TestCase):
         result = tool.inspect_inputs(self.root, 'task.json', from_run=run)
         fresh = result['source_run']['freshness']
         self.assertFalse(fresh['current'])
-        self.assertIn('delivery.txt', [change['path'] for change in fresh['changes']])
+        self.assertTrue(any(item['code'] == 'SOURCE_CHANGED' and item['file'] == 'delivery.txt' for item in fresh['diagnostics']), fresh)
         self.assertEqual(before, self.files())
 
     def test_edited_saved_draft_builds_without_reusing_authority(self):

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Audit duplicates and safely remove presets or redundant Visual Evidence.
+"""Audit duplicates and safely remove records or redundant Visual Evidence.
 
 Duplicate reports are advisory. Near visual or semantic similarity never
 authorizes automatic deletion. Mutations are dry-runs unless ``--apply`` and
 an exact ``--confirm`` value are both supplied.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -1770,8 +1771,8 @@ def _write_report(path: Path | None, value: Mapping[str, Any]) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Audit duplicates and safely remove pack-owned presets or Visual Evidence"
+    parser = _operation_context.ArgumentParser(
+        description="Audit duplicates and safely remove pack-owned records or Visual Evidence"
     )
     sub = parser.add_subparsers(dest="command", required=True)
     duplicates = sub.add_parser("duplicates", help="Report exact, visual, semantic, and variant candidates")
@@ -1815,7 +1816,7 @@ def _parser() -> argparse.ArgumentParser:
 
     remove_evidence = sub.add_parser(
         "remove-evidence",
-        help="Plan or apply explicit Visual Evidence removal without deleting linked presets",
+        help="Plan or apply explicit Visual Evidence removal without deleting linked records",
     )
     remove_evidence.add_argument("pack_root", type=Path)
     remove_evidence.add_argument("asset_ids", nargs="+")
@@ -1947,4 +1948,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

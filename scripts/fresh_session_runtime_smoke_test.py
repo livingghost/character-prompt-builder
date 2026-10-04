@@ -22,7 +22,7 @@ from typing import Any, Mapping, Sequence
 
 from package_metadata import load_package_metadata
 from runtime_read_footprint import count_words as _count_words
-from pack_manager import write_lock
+from pack_manager import COMMONS_PACK_ID, write_lock
 from reference_contract import authority_for
 
 
@@ -436,10 +436,7 @@ def _build_fixture_pack(pack_container: Path) -> dict[str, Any]:
     _write_json(
         fixture_root / "resources" / "fixture-maintenance-note.json",
         {
-            "purpose": (
-                "An intentionally unselected named resource for provider-boundary "
-                "regression."
-            )
+            "purpose": "A named resource only this fixture binds."
         },
     )
     manifest = {
@@ -467,7 +464,8 @@ def _build_fixture_pack(pack_container: Path) -> dict[str, Any]:
                 "sparse-brief-discovery",
             }
         ),
-        "dependencies": [],
+        # It supersedes the commons, so its discovery lanes are the ones in use.
+        "dependencies": [{"pack_id": COMMONS_PACK_ID}],
         "optional_dependencies": [],
         "replaces": [],
         "license": "CC0-1.0",
@@ -487,7 +485,7 @@ def _build_fixture_pack(pack_container: Path) -> dict[str, Any]:
 
 
 def _scene_probe(card: Mapping[str, Any]) -> str:
-    """Derive a concise scene probe from card prose, never from its preset ID."""
+    """Derive a concise scene probe from card prose, never from its record ID."""
 
     text = str(card.get("what_you_get") or "")
     if "Catalog staging option:" in text:
@@ -669,16 +667,16 @@ def _activate_runtime_packs(
     inspections: dict[str, dict[str, Any]] = {}
     for pack_id in sorted(pack_rows):
         inspected, _inspected_stdout = _run_json_cli(
-            [*pack_prefix, "inspect", pack_id],
+            [*pack_prefix, "validate", "--pack", pack_id],
             cwd=core_root,
-            label=f"pack-inspect-{pack_id}",
+            label=f"pack-validate-{pack_id}",
             trace=trace,
         )
         inspections[pack_id] = inspected
 
     selected_inspection = inspections[content_pack_id]
     if selected_inspection.get("ok") is not True:
-        raise ValueError(f"capable content pack did not pass inspect: {content_pack_id}")
+        raise ValueError(f"capable content pack did not pass validate: {content_pack_id}")
     inspected_capabilities = {
         str(value)
         for value in (selected_inspection.get("manifest") or {}).get(
@@ -688,7 +686,7 @@ def _activate_runtime_packs(
     }
     if not REQUIRED_CONTENT_CAPABILITIES.issubset(inspected_capabilities):
         raise ValueError(
-            f"pack list and inspect capabilities disagree for {content_pack_id}"
+            f"pack list and validate capabilities disagree for {content_pack_id}"
         )
 
     enabled = set(initial_enabled)
@@ -721,99 +719,32 @@ def _activate_runtime_packs(
 
     enable_with_dependencies(content_pack_id)
 
-    providers_before, _providers_before_stdout = _run_json_cli(
-        [*pack_prefix, "provider-list"],
+    resources, _resources_stdout = _run_json_cli(
+        [*pack_prefix, "resources"],
         cwd=core_root,
-        label="pack-provider-list-before-selection",
+        label="pack-resources-after-enable",
         trace=trace,
     )
-    provider_rows_before = {
-        str(row.get("name") or ""): dict(row)
-        for row in providers_before.get("resource_providers") or []
-        if isinstance(row, Mapping) and row.get("name")
-    }
-    provider_select_commands: list[str] = []
-    for resource_name in sorted(REQUIRED_RUNTIME_RESOURCES):
-        provider = provider_rows_before.get(resource_name)
-        if provider is None:
-            raise ValueError(f"required runtime resource was not listed: {resource_name}")
-        candidate_packs = {
-            str(value) for value in provider.get("candidate_packs") or []
-        }
-        if content_pack_id not in candidate_packs:
-            raise ValueError(
-                f"capable content pack does not provide {resource_name}: "
-                f"{content_pack_id}"
-            )
-        if provider.get("selected_pack") != content_pack_id:
-            _run_json_cli(
-                [
-                    *pack_prefix,
-                    "provider-select",
-                    resource_name,
-                    content_pack_id,
-                ],
-                cwd=core_root,
-                label=f"pack-provider-select-{resource_name}",
-                trace=trace,
-            )
-            provider_select_commands.append(resource_name)
-
-    providers_after, _providers_after_stdout = _run_json_cli(
-        [*pack_prefix, "provider-list"],
-        cwd=core_root,
-        label="pack-provider-list-after-selection",
-        trace=trace,
-    )
-    provider_rows_after = {
-        str(row.get("name") or ""): dict(row)
-        for row in providers_after.get("resource_providers") or []
-        if isinstance(row, Mapping) and row.get("name")
-    }
-    for resource_name in REQUIRED_RUNTIME_RESOURCES:
-        provider = provider_rows_after.get(resource_name) or {}
-        if provider.get("selected_pack") != content_pack_id or not provider.get(
-            "resolved"
-        ):
-            raise ValueError(
-                f"required provider selection did not resolve: {resource_name}"
-            )
-
-    unselected_rows = {
-        name: row
-        for name, row in provider_rows_after.items()
-        if row.get("selected_pack") is None and not row.get("resolved")
-    }
-    unselected_diagnostics = [
-        dict(row)
-        for row in providers_after.get("diagnostics") or []
+    resource_rows = {
+        str(name): dict(row)
+        for name, row in (resources.get("resources") or {}).items()
         if isinstance(row, Mapping)
-        and row.get("code") == "resource-provider-unselected"
-    ]
-    warning_resources = {
-        str(row.get("resource") or "")
-        for row in unselected_diagnostics
-        if row.get("severity") == "warning"
     }
-    error_resources = {
-        str(row.get("resource") or "")
-        for row in unselected_diagnostics
-        if row.get("severity") == "error"
-    }
-    if not unselected_rows or warning_resources != set(unselected_rows) or error_resources:
-        raise ValueError(
-            "provider-list did not report every unselected resource as warning-only"
-        )
+    for resource_name in sorted(REQUIRED_RUNTIME_RESOURCES):
+        if (resource_rows.get(resource_name) or {}).get("source_pack") != content_pack_id:
+            raise ValueError(
+                f"capable content pack does not supply {resource_name}: {content_pack_id}"
+            )
 
-    failure_resource = sorted(warning_resources)[0]
+    failure_resource = "fixture-unbound-resource"
     resource_failure, resource_failure_code = _run_expected_json_failure(
         [*pack_prefix, "resource", failure_resource],
         cwd=core_root,
-        label="pack-resource-unselected-failure",
+        label="pack-resource-unbound-failure",
         trace=trace,
     )
-    if failure_resource not in str(resource_failure.get("error") or ""):
-        raise ValueError("unselected resource failure did not identify the resource")
+    if failure_resource not in str((resource_failure.get("diagnostics") or [{}])[0].get("message") or ""):
+        raise ValueError("unbound resource failure did not identify the resource")
 
     final_listing, _final_listing_stdout = _run_json_cli(
         [*pack_prefix, "list"],
@@ -850,9 +781,7 @@ def _activate_runtime_packs(
         "content_pack_root": pack_roots[content_pack_id],
         "content_manifest": content_manifest,
         "enable_order": enable_order,
-        "provider_select_commands": provider_select_commands,
-        "provider_rows": provider_rows_after,
-        "unselected_warning_resources": sorted(warning_resources),
+        "resource_rows": resource_rows,
         "resource_failure": {
             "name": failure_resource,
             "returncode": resource_failure_code,
@@ -1086,9 +1015,6 @@ def run() -> dict[str, Any]:
                 )
                 and REQUIRED_CONTENT_CAPABILITIES.issubset(
                     {str(value) for value in content_manifest.get("capabilities") or []}
-                )
-                and set(activation["provider_select_commands"]).issubset(
-                    REQUIRED_RUNTIME_RESOURCES
                 ),
                 {
                     "registered_container": activation["registered_container"],
@@ -1097,9 +1023,6 @@ def run() -> dict[str, Any]:
                     "content_pack_id": content_pack_id,
                     "content_capabilities": content_manifest.get("capabilities"),
                     "enable_order": activation["enable_order"],
-                    "provider_select_commands": activation[
-                        "provider_select_commands"
-                    ],
                     "pack_roots": {
                         pack_id: str(pack_root)
                         for pack_id, pack_root in pack_roots.items()
@@ -1110,16 +1033,11 @@ def run() -> dict[str, Any]:
             failure_payload = dict(resource_failure.get("payload") or {})
             _require(
                 checks,
-                "unselected-provider-is-warning-and-direct-request-fails",
-                bool(activation["unselected_warning_resources"])
-                and resource_failure.get("name")
-                in activation["unselected_warning_resources"]
+                "unbound-resource-request-fails",
+                resource_failure.get("name") not in activation["resource_rows"]
                 and int(resource_failure.get("returncode") or 0) != 0
                 and failure_payload.get("ok") is False,
                 {
-                    "warning_count": len(
-                        activation["unselected_warning_resources"]
-                    ),
                     "requested_resource": resource_failure.get("name"),
                     "returncode": resource_failure.get("returncode"),
                     "failure": failure_payload,

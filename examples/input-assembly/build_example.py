@@ -41,12 +41,12 @@ def build():
         original = (root / 'task.json').read_bytes()
         # Fixed quotations belong only to this synthetic exercise.
         # A real operator reads the source and supplies its applications.
-        reading = reading_fixtures.fixture_reading(route='development', project=root,
+        reading = reading_fixtures.fixture_reading(route='development', studio=root,
                                                    ledger=root / 'work/reads.jsonl')
         inspection = command(root, 'inspect-inputs')
         draft = command(root, 'draft-inputs', '--out-dir', 'draft')
         missing = command(root, 'build-inputs', '--choices', draft['choices_file'],
-                          '--out-dir', 'missing', expected=1)
+                          '--out-dir', 'missing', expected=2)
         if (root / 'missing').exists():
             raise ValueError('Unanswered choices published formal files.')
         authored = c.load(root / draft['choices_file'])

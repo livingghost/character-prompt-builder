@@ -26,6 +26,7 @@ Outputs in --out (the sheet folder by default):
   reference-bundle.json     (reference only)
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -181,7 +182,7 @@ from character_sheet_render.textmetrics import (
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument(
         "sheet_dir", type=Path, help="Character Sheet folder containing sheet-data.json and slot images"
     )
@@ -281,7 +282,7 @@ if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
     try:
-        raise SystemExit(main())
+        raise SystemExit(_operation_context.run_cli(main))
     except (ValueError, OSError, RuntimeError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         raise SystemExit(2)

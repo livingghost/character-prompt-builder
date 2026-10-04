@@ -11,17 +11,23 @@ offering gives them. An upscale asks for `upscaleFactor` and a PNG
 travels by the id it returns. A finished image comes back as `imageURL` on
 im.runware.ai. An answer body that is not a JSON object is kept as an error
 answer.
+
+A task entry carries its charge in `cost`, in US dollars, when the request
+selected `includeCost`; without it the charge stays unknown. A lost answer is
+asked for again with a `getResponse` task naming the same `taskUUID`, and only
+returned images for that task count as its answer.
 """
 from __future__ import annotations
 
 import base64
 import json
 import uuid
+from decimal import Decimal, InvalidOperation
 from typing import Any
 from urllib.parse import urlparse
 
 from model_contract import NEGATIVE_ROLE, PROMPT_ROLE, generation_media_counts, required_request_key
-from transport_contract import post
+from transport_contract import Refused, post
 
 SERVICE = "runware"
 API_HOST = "api.runware.ai"
@@ -232,7 +238,7 @@ def compile_upscale(model_identifier: str, source_path: str, scale: float, setti
     return {'request': writer.request, 'layout': layout, 'request_trace': writer.trace}
 
 
-def upload_bytes(data: bytes, media_type: str, service: dict[str, Any], key: str) -> str:
+def upload_bytes(data: bytes, media_type: str, service: dict[str, Any], key: str) -> dict:
     """Upload the exact bytes already verified and reserved by the dispatcher."""
     if not isinstance(data, bytes) or not isinstance(media_type, str) or not media_type:
         raise ValueError('upload requires verified bytes and their declared media type')
@@ -240,16 +246,29 @@ def upload_bytes(data: bytes, media_type: str, service: dict[str, Any], key: str
     answer = _post([{"taskType": "imageUpload", "taskUUID": str(uuid.uuid4()), "image": payload}], service, key)
     refused = rejections(answer)
     if refused:
-        raise SystemExit(f"the service refused an upload: {json.dumps(refused)}")
+        raise Refused("the service refused the upload", answer)
     entry = (answer.get("data") or [{}])[0]
+    entry = entry if isinstance(entry, dict) else {}
     identifier = entry.get("imageUUID") or entry.get("mediaUUID") or entry.get("mediaId")
     if not identifier:
-        raise SystemExit(f"the service returned no id for the upload: {json.dumps(answer)}")
-    return str(identifier)
+        # An accepted answer without an id may still have kept the image, so this is not a refusal.
+        raise ValueError("the service answered the upload without an image id")
+    return {'provider_id': str(identifier), 'response': answer, 'usage': _charge([entry])}
 
 
 def send(request: dict[str, Any], service: dict[str, Any], key: str) -> dict[str, Any]:
     return _post([request], service, key)
+
+
+def lookup(request: dict[str, Any], service: dict[str, Any], key: str) -> dict[str, Any] | None:
+    """The images the service returns for this request's own taskUUID, or None when it returns none."""
+    identifier = request.get("taskUUID") if isinstance(request, dict) else None
+    if not isinstance(identifier, str) or not identifier:
+        return None
+    answer = _post([{"taskType": "getResponse", "taskUUID": identifier}], service, key)
+    entries = [entry for entry in (answer.get("data") or []) if isinstance(entry, dict)
+               and entry.get("taskUUID") == identifier and entry.get("imageURL")]
+    return {"data": entries} if entries else None
 
 
 def rejections(answer: dict[str, Any]) -> list[dict[str, Any]]:
@@ -277,3 +296,28 @@ def observation_outcome(answer: dict) -> str:
     if any(entry.get('id') or entry.get('url') or entry.get('pending') for entry in entries):
         return 'accepted'
     return 'indeterminate'
+
+
+def _charge(entries: list[Any]) -> dict | None:
+    """The summed `cost` of task entries in US dollars, or None unless every entry reports one."""
+    amounts = []
+    for entry in entries:
+        value = entry.get("cost") if isinstance(entry, dict) else None
+        if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+            return None
+        try:
+            amount = Decimal(str(value))
+        except InvalidOperation:
+            return None
+        if not amount.is_finite() or amount < 0:
+            return None
+        amounts.append(amount)
+    if not amounts:
+        return None
+    return {"currency": "USD", "amount": format(sum(amounts, Decimal(0)), "f"), "final": True}
+
+
+def usage(answer: dict) -> dict | None:
+    """The send's charge as the answer's task entries report it, or None where they report none."""
+    entries = (answer.get("data") or []) if isinstance(answer, dict) else []
+    return _charge(entries) if isinstance(entries, list) else None

@@ -72,7 +72,7 @@ def contrastive_modifier_conflicts(
     return conflicts
 
 # Relevance floors on the 0..1 scale. Results below MODERATE_FLOOR are not
-# returned at all: an empty category means "no strong preset support exists;
+# returned at all: an empty category means "no strong record support exists;
 # art-direct this aspect freely" and is the honest answer.
 STRONG_FLOOR = 0.30
 MODERATE_FLOOR = 0.12

@@ -29,7 +29,7 @@ from character_sheet_render.sheetdata import (
 def sheet_coverage(profile: Mapping[str, Any], sheet: Mapping[str, Any]) -> dict[str, list[str]]:
     """Cross-check the designed panel set against the character definition.
 
-    Gaps are either character content the profile gives no frame to (each
+    Gaps are either character content the layout profile gives no frame to (each
     signature mark, each declared expression variant, declared items, declared
     outfit variants, declared body-language states) or a missing piece of the
     minimum sheet floor (the canonical view set, a face panel, the color key
@@ -51,7 +51,7 @@ def sheet_coverage(profile: Mapping[str, Any], sheet: Mapping[str, Any]) -> dict
     canonical_boxes = [box for box in boxes if box.get("kind") == "canonical_view"]
     if len(canonical_boxes) < 2:
         structural_errors.append(
-            "the selected profile must declare at least two distinct canonical_view "
+            "the selected layout profile must declare at least two distinct canonical_view "
             "panels that expose this kind's topology; the view names and total count "
             "are profile-defined and are not limited to humanoid directions"
         )
@@ -71,7 +71,7 @@ def sheet_coverage(profile: Mapping[str, Any], sheet: Mapping[str, Any]) -> dict
     ):
         gaps.append(
             "a covered, dressed, shelled, or equipped state is declared but the "
-            "selected profile provides no panel for it"
+            "selected layout profile provides no panel for it"
         )
 
     for table_id in ("marks", "parts"):
@@ -136,7 +136,7 @@ def sheet_coverage(profile: Mapping[str, Any], sheet: Mapping[str, Any]) -> dict
                     "may be absent only under a declared view, state, or occlusion condition"
                 )
     if not any(box.get("kind") in {"head_study", "icon"} for box in boxes):
-        gaps.append("the profile provides no head study or icon panel")
+        gaps.append("the layout profile provides no head study or icon panel")
     expression_declared = bool(
         meaningful(fields.get("field.character_specific_expression_described", ""))
         or any(

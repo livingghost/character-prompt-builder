@@ -8,6 +8,7 @@ from pathlib import Path
 import execution_contract as c
 import visual_continuity as v
 
+
 class SubjectTests(unittest.TestCase):
     def setUp(self):
         t=tempfile.TemporaryDirectory(); self.addCleanup(t.cleanup); self.root=Path(t.name)

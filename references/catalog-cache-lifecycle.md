@@ -9,23 +9,17 @@ Pack source files and `pack-state.json` are authoritative. The SQLite catalog ca
 ```json
 {
   "pack_roots": [],
-  "enabled_packs": ["01a0043b-2250-720d-87b7-f1e6fd7ed230"],
-  "resource_providers": {
-    "archetype-policy": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
-    "discovery-lanes": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
-    "negative-policy": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
-    "project-defaults": "01a0043b-2250-720d-87b7-f1e6fd7ed230"
-  }
+  "enabled_packs": ["01a0043b-2250-720d-87b7-f1e6fd7ed230"]
 }
 ```
 
-This is the complete shipped default state. The state file is the sole authority for pack activation and resource-provider selection. Tools that need isolation, including package validation, receive explicit state and cache locations. When only one of those locations is supplied programmatically, the other is derived beside it.
+This is the complete shipped default state. The state file is the sole authority for pack activation. Tools that need isolation, including package validation, receive explicit state and cache locations. When only one of those locations is supplied programmatically, the other is derived beside it.
 
 ## Why the cache exists
 
 Pack content may be large and may change independently of core. Parsing every record, rebuilding every lexical association, and rechecking every relationship at the start of every prompt request would make normal skill use unpredictable.
 
-The cache stores normalized enabled-pack records, lexical phrases, curated search profiles, pack ownership and source locations, dependencies, canonical-record-to-asset relationships, explicitly selected named resource bindings, resource paths, and diagnostics. SQLite provides transactional updates and indexed lookup. Search uses the deterministic phrase and profile indexes that runtime queries actually consume; the cache does not build an unused FTS table.
+The cache stores normalized enabled-pack records, lexical phrases, curated search profiles, pack ownership and source locations, dependencies, canonical-record-to-asset relationships, the named resources of every active pack, resource paths, and diagnostics. SQLite provides transactional updates and indexed lookup. Search uses the deterministic phrase and profile indexes that runtime queries actually consume; the cache does not build an unused FTS table.
 
 Every authored `search_terms` row retains its phrase, facet, weight, and source as an independent cache row. Label, tag, and profile-alias associations are generated only when the same normalized `(record_id, phrase, facet)` association is not already authored. Generated rows are deduplicated by that association key; authored rows are never collapsed by source.
 
@@ -35,7 +29,6 @@ Every catalog entry point performs a lightweight comparison before using the cac
 
 - core release
 - enabled pack UUIDs from state
-- logical-resource provider selections from state
 - resolved root of each available enabled pack
 - available enabled packs and releases
 - SHA-256 of each `pack.json`
@@ -52,7 +45,6 @@ Managed operations rebuild immediately after success:
 
 - root registration changes that affect enabled packs
 - enable or disable
-- resource-provider select or clear
 - install or enabled-pack update
 - remove after state no longer enables the pack
 
@@ -84,7 +76,7 @@ One invalid pack does not make every valid pack unusable. Rebuild performs full 
 
 Canonical record-ID conflicts are not resolved by root order. Conflicted records are excluded unless one exact pack-to-pack replacement direction is declared.
 
-Named resources are admitted only from the UUID selected in `resource_providers`. Multiple candidate packs may expose the same name, but no candidate is chosen implicitly. A missing selection or unavailable selected provider leaves the resource unresolved and produces a diagnostic. Runtime policy and evidence resolution never use pack-root order as precedence.
+Each named resource resolves to the file of the highest-ranked active pack that binds it, as [Pack Format Specification](pack-format-specification.md) states. Two packs that no rank orders and that bind one name with different files exclude that resource and produce one diagnostic naming both packs. Runtime policy and evidence resolution never use pack-root order as precedence.
 
 ## Atomic construction
 

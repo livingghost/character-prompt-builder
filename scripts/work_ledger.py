@@ -18,10 +18,11 @@ does again or skips.
     python scripts/work_ledger.py note --studio DIR "..."
     python scripts/work_ledger.py block --studio DIR "the question the user has to answer"
     python scripts/work_ledger.py finish --studio DIR
-    python scripts/work_ledger.py abandon --studio DIR --reason "..."
+    python scripts/work_ledger.py abandon --studio DIR --reason "..." [--actor "..."]
     python scripts/work_ledger.py show --studio DIR
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -230,18 +231,31 @@ def _finish_verified(root: Path) -> dict[str, Any]:
     return task
 
 
-def abandon(root: Path, reason: str) -> dict[str, Any]:
+def abandon(root: Path, reason: str, *, actor: str | None = None) -> dict[str, Any]:
     from execution_contract import lock
     with lock(root):
-        return _abandon_locked(root, reason)
+        return _abandon_locked(root, reason, actor)
 
 
-def _abandon_locked(root: Path, reason: str) -> dict[str, Any]:
+def _abandon_locked(root: Path, reason: str, actor: str | None) -> dict[str, Any]:
+    """Close the open task. A task with production runs is first abandoned in the Production record.
+
+    The Production record keeps every reservation as it is; only a release or a
+    settlement closes one. This ledger entry is the trail, not that record.
+    """
     task = require_open(root)
     if not reason.strip():
         raise ValueError("abandoning a task needs the reason")
+    from production_store import runs
+    production_runs = [row["run_id"] for row in runs(root, task_id=task["task_id"])]
+    if production_runs:
+        if not (actor or "").strip():
+            raise ValueError("this task has prepared production runs; name who abandons it with --actor")
+        from production_workflow import abandon_task
+        abandon_task(root, task["task_id"], actor=actor.strip(), reason=reason.strip())
     append(root, {"at": now(), "task_id": task["task_id"], "event": "abandoned", "text": reason.strip(),
-                  "left": [s["text"] for s in task.get("steps") or [] if not s.get("done_at")]})
+                  "left": [s["text"] for s in task.get("steps") or [] if not s.get("done_at")],
+                  "production_runs": production_runs})
     write_current(root, None)
     return task
 
@@ -310,10 +324,10 @@ def check(root: Path) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--studio", type=Path, default=Path.cwd(), help="The studio directory (default: the working directory)")
     # The studio may also be named after the command, as Studio Runtime writes it.
-    after = argparse.ArgumentParser(add_help=False)
+    after = _operation_context.ArgumentParser(add_help=False)
     after.add_argument("--studio", type=Path, default=argparse.SUPPRESS, help="The studio directory (default: the working directory)")
     commands = parser.add_subparsers(dest="command", required=True)
     begin_parser = commands.add_parser("begin", help="open a task", parents=[after])
@@ -329,6 +343,7 @@ def main(argv: list[str] | None = None) -> int:
     commands.add_parser("finish", help="close the open task; every step must be done", parents=[after])
     abandon_parser = commands.add_parser("abandon", help="close the open task without finishing it", parents=[after])
     abandon_parser.add_argument("--reason", required=True)
+    abandon_parser.add_argument("--actor", help="Who abandons the task; required once it has a prepared production run")
     commands.add_parser("show", help="print the open task, or the trail", parents=[after])
     args = parser.parse_args(argv)
     root = args.studio.resolve()
@@ -344,7 +359,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "finish":
             finish(root)
         elif args.command == "abandon":
-            abandon(root, args.reason)
+            abandon(root, args.reason, actor=args.actor)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -355,4 +370,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

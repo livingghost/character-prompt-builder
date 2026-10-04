@@ -1,6 +1,6 @@
 # Unlisted Image Interface Adapter
 
-Use this adapter only for a named image interface that lacks a dedicated adapter in this project. Inspect the exact active interface and the available evidence; a brand family, remembered product behavior, or a nearby model proves nothing about capability.
+Use this adapter only for a named image interface that lacks a dedicated adapter in this skill. Inspect the exact active interface and the available evidence; a brand family, remembered product behavior, or a nearby model proves nothing about capability.
 
 Keep the approved image intent, subject identity, art direction, appeal strategy, composition, medium family, surface and lighting plan, and visual authority unchanged. Read the [Prompt Writing Guide Runtime](../runtime/prompt-writing-guide.md) and apply only its interface-neutral rules until the exact surface is characterized. Adapt only syntax, prompt length, text handling, parameter placement, declared reference transport, and negative transport; the picture itself stays as designed.
 

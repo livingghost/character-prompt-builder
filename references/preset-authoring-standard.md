@@ -16,15 +16,15 @@ Atomic means one reusable visual decision. It does not mean a few keywords.
 
 ### Positive fields are affirmative
 
-Prompt-facing fields describe what the image contains and how it is constructed. Nearby mistakes belong in diagnostic fields. Negative output follows `cpb-resource:negative-policy` resolved from the explicitly selected provider.
+Prompt-facing fields describe what the image contains and how it is constructed. Nearby mistakes belong in diagnostic fields. Negative output follows `cpb-resource:negative-policy`.
 
 ### Negative-source roles
 
-The `cpb-resource:negative-policy` resource resolved from the explicitly selected provider defines the runtime sources:
+The `cpb-resource:negative-policy` resource defines the runtime sources:
 
 - centralized generation hygiene
 - feature-scoped limb, hand or paw, tail, clothing, and held-prop integrity
-- the single selected rendering profile
+- the single selected render profile
 - an activated correction for a concrete risk
 - explicit user exclusions
 
@@ -40,7 +40,7 @@ Every record contains only knowledge belonging to its family.
 
 - cross-domain appeal → universal aesthetic core
 - one domain's anatomy, behavior, and surfaces → domain realization
-- medium mechanics → rendering profile
+- medium mechanics → render profile
 - one craft decision → atomic module
 - staging → base scene
 - stable identity → archetype
@@ -200,7 +200,7 @@ A universal core must be expressible without assuming:
 
 Use abstract but visual concepts such as identity zone, primary mass, active structures, material systems, surface grouping, focal relationship, viewer distance, and shape rhythm.
 
-A core may mention materials in general, but implementation belongs to domain realization and rendering profile.
+A core may mention materials in general, but implementation belongs to domain realization and render profile.
 
 ### When to author a core
 
@@ -214,7 +214,7 @@ Canonical file:
 enabled style-family records
 ```
 
-A style family stores one indivisible concrete drawing grammar. It is more specific than a rendering profile and more integrated than a set of atomic touches. Required fields include:
+A style family stores one indivisible concrete drawing grammar. It is more specific than a render profile and more integrated than a set of atomic touches. Required fields include:
 
 ```text
 label
@@ -241,6 +241,13 @@ variation_axes
 best_for
 avoid_for
 tags
+status
+evidence_basis
+recurring_axes
+excluded_scene_attributes
+nearest_family
+boundary
+review_notes
 ```
 
 A curated family uses `domains: ["shared"]` and provides overlays for exactly these domains:
@@ -254,7 +261,7 @@ hybrid
 robot
 ```
 
-Every overlay defines identity and form, surface translation, performance translation, detail priority, and integration. The family remains the primary positive grammar. Its base rendering profile supplies the medium envelope and scoped negative boundary.
+Every overlay defines identity and form, surface translation, performance translation, detail priority, and integration. The family remains the primary positive grammar. Its base render profile supplies the medium envelope and scoped negative boundary.
 
 Do not split one family's line, value, highlight, and surface systems into freely recombinable tags. Atomic touches may modify a local decision only when the family touch policy remains satisfied.
 
@@ -269,9 +276,9 @@ Run four tests before adding or revising a family:
 4. **Nearest-family boundary test**: name the closest existing family and state at least two visible rules that separate them.
 5. **Decomposition test**: move relationship, support, clothing, camera, lighting geometry, and effects into scenes or modules whenever they remain independently reusable.
 
-When new reference evidence reveals that an existing family is scene-bound, generalize it only through the lossless reviewed-merge gate instead of adding an unjustified near-duplicate. Update every internal reference and search profile in the same change. When the selected pack state provides `cpb-resource:style-family-taxonomy`, record the evidence and boundaries in the resource resolved from its explicitly selected provider; otherwise do not claim that resource-specific gate is complete. Validate a released pack through its exact one-pack `scripts/pack_release_gate.py` invocation. Use `scripts/style_family_audit.py` only as a focused development diagnostic with the same explicit pack runtime.
+When new reference evidence reveals that an existing family is scene-bound, generalize it only through the lossless reviewed-merge gate instead of adding an unjustified near-duplicate. Update every internal reference and search profile in the same change. Record the evidence and boundary in the family record's own fields, listed in [Style-Family Taxonomy Audit](style-family-taxonomy-audit.md#family-record-fields). Validate a released pack and its required dependencies with `scripts/pack_release_gate.py`.
 
-When the evidence is suggestive but does not meet the threshold, record the proposal in `deferred_candidates` with the available evidence, the exact evidence gap, and a reconsideration condition. Curate any independently reusable layout, effect, lighting, clothing, contact, or staging knowledge in its correct layer instead of promoting an under-evidenced family.
+When the evidence is suggestive but does not meet the threshold, record the proposal in the nearest family's `deferred_candidates` with the available evidence, the exact evidence gap, and a reconsideration condition. Curate any independently reusable layout, effect, lighting, clothing, contact, or staging knowledge in its correct layer instead of promoting an under-evidenced family.
 
 ## Domain realization
 
@@ -342,7 +349,7 @@ Future material may justify specialized realizations, for example:
 
 A specialized realization extends the baseline domain record and keeps the same exact domain. This tier is never a content-pack boundary.
 
-## Rendering profile
+## Render profile
 
 Required fields:
 
@@ -397,7 +404,7 @@ Failure modes are diagnostic-only.
 
 ## Finished recipe
 
-A recipe combines one full scene and one full rendering profile. It stores:
+A recipe combines one full scene and one full render profile. It stores:
 
 ```text
 base_scene_id
@@ -411,7 +418,7 @@ negative_terms
 diagnostic_failure_modes
 ```
 
-The prompt template uses affirmative scene and medium construction. Negative terms come from the rendering profile's medium boundary; scene failures remain diagnostic.
+The prompt template uses affirmative scene and medium construction. Negative terms come from the render profile's medium boundary; scene failures remain diagnostic.
 
 ## Character archetype
 
@@ -479,7 +486,7 @@ Do not collapse base anatomy into foreshortening, lighting arrangement into rend
 8. Store nearby mistakes in diagnostic fields with non-automatic activation policies.
 9. Add an outcome summary, at least three natural canonical-English search aliases, scoped facets, a discovery group, and a variant relationship when applicable. The aliases must distinguish the record rather than merely copy its label, and they must not form a per-language translation table. Include supported expression, emotion, body language, gaze, physiology, appendage or mechanical signals, pose, activity, situation, relationship, theme, and content-intensity facets so ordinary intent language can reach the record.
 10. Confirm that ordinary short canonical-English descriptions can reach the record without an exact label, ID, category hint, or internal vocabulary. Preserve source-language briefs only at the agent or structured-query boundary.
-11. For a style-family addition, merge, split, generalization, or rename, update the taxonomy evidence and every affected record reference in the same change.
+11. For a style-family addition, merge, split, generalization, or rename, update every affected family's review fields and record references in the same change.
 12. Update reference-cluster mapping and provenance notes without distributing source imagery or source identity.
 13. Add focused retrieval regression cases and sparse-discovery cases for modifier scope, anchor preservation, variant grouping, and materially different direction cards when artistic behavior changes.
 14. Rebuild the generated many-to-many search index and all metadata, then run every required audit.
@@ -497,7 +504,7 @@ binds line, form, shadow, highlight, color, surface, background, detail hierarch
 → concrete style family
 
 defines broader medium mechanics and drift boundaries without one specific finish identity
-→ rendering profile
+→ render profile
 
 stages subjects and environment in reusable spatial relationships
 → base scene
@@ -545,10 +552,10 @@ Before accepting a curated record, ask:
 ## Required maintenance commands
 
 After authoring is complete, rebuild the owning pack lock and run the complete
-pack-owned release contract through an exact one-pack runtime:
+pack-owned release contract in a runtime of the pack and its required dependencies:
 
 ```bash
-python -B scripts/pack_cli.py build-lock <pack-dir>
+python -B scripts/pack_cli.py build-lock --directory <pack-dir>
 python -B scripts/pack_release_gate.py <pack-dir> \
   --state-file <absolute-exact-pack-state.json> \
   --cache-dir <absolute-dedicated-cache-dir> \
@@ -556,9 +563,9 @@ python -B scripts/pack_release_gate.py <pack-dir> \
   --report-out <absolute-report-path-outside-pack>
 ```
 
-The state must contain exactly the positional pack directory, enable only that
-pack UUID, and select it for every and only its named resource bindings. The
-gate validates the released lock, exact derived cache, and every suite declared
+Build the state as [Release Validation](release/validation.md#pack-release-gate)
+describes: the pack first, then each required dependency. The gate validates
+the released lock, exact derived cache, and every suite declared
 by the owning pack; it does not borrow cases or expected IDs from core or
 another pack. Run `python scripts/validate.py .` separately when core code or
 the bundled default release also changes. Automated checks verify structural
@@ -574,11 +581,11 @@ Preserve supported adult content and other sensitive content at its actual inten
 
 ## Canonical medium-family vocabulary
 
-`medium_family` (on every rendering profile, any tier) and `compatible_medium_families` (on aesthetic cores) share one closed vocabulary: 2D anime character illustration; cinematic 2D soft-cel anime illustration; flat 2D cartoon illustration; bold 2D comic and anime poster; 2D game character splash illustration; clean fantasy concept-sheet illustration; painterly illustration; photography / photorealism; 3D character rendering; monochrome ink and manga illustration; pixel art; scientific and technical illustration. The audit rejects values outside this set. Core-to-profile compatibility resolves through this vocabulary; never through free-text similarity.
+`medium_family` (on every render profile, any tier) and `compatible_medium_families` (on aesthetic cores) share one closed vocabulary: 2D anime character illustration; cinematic 2D soft-cel anime illustration; flat 2D cartoon illustration; bold 2D comic and anime poster; 2D game character splash illustration; clean fantasy concept-sheet illustration; painterly illustration; photography / photorealism; 3D character rendering; monochrome ink and manga illustration; pixel art; scientific and technical illustration. The audit rejects values outside this set. Core-to-profile compatibility resolves through this vocabulary; never through free-text similarity.
 
-## Subject scope on rendering profiles
+## Subject scope on render profiles
 
-A rendering profile is a shared medium grammar by default (`domains: ["shared"]`) and must then describe subject matter conditionally: fur, hair, scales, or plating are treated as materials when present, never assumed. A grammar that genuinely depends on one subject family declares it (for example `domains: ["anthropomorphic-animal"]`); the audit rejects subject-assumption words (anthro, kemono, furry) inside shared-scope profiles.
+A render profile is a shared medium grammar by default (`domains: ["shared"]`) and must then describe subject matter conditionally: fur, hair, scales, or plating are treated as materials when present, never assumed. A grammar that genuinely depends on one subject family declares it (for example `domains: ["anthropomorphic-animal"]`); the audit rejects subject-assumption words (anthro, kemono, furry) inside shared-scope profiles.
 
 ## Distinctive-detail module
 
@@ -659,7 +666,7 @@ word into any face-bearing record (a species entry, a character archetype,
 a style family overlay, a correction, or a scene's cast), verify the
 reference's facial architecture against `references/species-architecture.md`:
 the ear shape and set, the muzzle's reach against its depth, the nose's
-proportions and position, and the jaw's mass. When a design's architecture and its nominal species disagree, preserve the user or Character Identity Contract species as the primary anchor. Use species-neutral geometry wording first. A different species noun enters only as an explicit disclosed modification approved for the task. Species records themselves stay minimal name tokens. When the selected pack state explicitly provides `cpb-resource:species-scaffold-map`, file a new species entry under its prompt scaffold family in both the architecture reference and that resolved resource. Without a selected provider, do not claim that the resource-specific authoring gate has been completed.
+proportions and position, and the jaw's mass. When a design's architecture and its nominal species disagree, preserve the user or Character Identity Contract species as the primary anchor. Use species-neutral geometry wording first. A different species noun enters only as an explicit disclosed modification approved for the task. Species records themselves stay minimal name tokens. A new species record names its prompt scaffold family in `scaffold.family` and how closely it fits in `scaffold.confidence`.
 
 ## Punctuation integrity
 

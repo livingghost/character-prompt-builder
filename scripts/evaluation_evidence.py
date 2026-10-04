@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Summarize real production evidence under explicitly named study conditions.
 
-python scripts/evaluation_evidence.py --project WORK --study study.json --out evaluations/NAME
+python scripts/evaluation_evidence.py --studio STUDIO --study study.json --out evaluations/NAME
 Add --blind to export media-only review cards, with the operator key outside the cards.
 No model is called. Missing observations and measurements are never invented.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 from collections import Counter, defaultdict
@@ -76,7 +77,7 @@ def _measurements(root: Path, path: str | None) -> dict:
 
 
 def build(root: Path, study_path: str) -> tuple[dict, list[dict], dict[str, bytes]]:
-    root = review.workspace(root)
+    root = review.studio_root(root)
     study_bytes = c.read(c.local(root, study_path))
     study = c.decode(study_bytes)
     c.exact(study, {'purpose', 'cases', 'conditions', 'trials'}, 'study')
@@ -101,7 +102,7 @@ def build(root: Path, study_path: str) -> tuple[dict, list[dict], dict[str, byte
             if criterion['kind'] not in {'technical', 'behavioral', 'expressive'}:
                 raise ValueError('criterion kind must distinguish technical, behavioral and expressive evidence')
         if not isinstance(case['inputs'], list) or not case['inputs'] or len(set(case['inputs'])) != len(case['inputs']):
-            raise ValueError('case inputs must list distinct actual project files')
+            raise ValueError('case inputs must list distinct actual studio files')
         inputs[case['id']] = [{'path': path, 'sha256': c.digest(c.read(c.local(root, path)))} for path in case['inputs']]
     grouped: dict[tuple, Counter] = defaultdict(Counter)
     values: dict[tuple, dict[str, list]] = defaultdict(lambda: defaultdict(list))
@@ -132,7 +133,7 @@ def build(root: Path, study_path: str) -> tuple[dict, list[dict], dict[str, byte
             _, prepared, _, _ = workflow.load_run(root, trial['run'])
             deps = {(d['space'], d['path']): d['sha256'] for d in prepared['dependencies']}
             for source in inputs[case['id']]:
-                if deps.get(('project', source['path'])) != source['sha256']:
+                if deps.get(('studio', source['path'])) != source['sha256']:
                     raise ValueError('trial does not bind the declared case input bytes: ' + source['path'])
             task_criteria = {x['id']: x for x in report['criteria']}
             result.update(state='no-candidate', input_sha256=report['input_sha256'],
@@ -178,7 +179,7 @@ def build(root: Path, study_path: str) -> tuple[dict, list[dict], dict[str, byte
                 raise ValueError('study criterion must match the actual task criterion text and ID')
             check = checked.get(criterion['id'])
             verdict = check['verdict'] if check else 'missing'
-            if verdict not in {'pass', 'fail', 'not-assessed', 'not-applicable', 'missing'}:
+            if verdict not in {'pass', 'fail', 'indeterminate', 'not-assessed', 'not-applicable', 'missing'}:
                 raise ValueError('unsupported recorded verdict')
             result['checks'].append({'criterion': criterion['id'], 'dimension': criterion['dimension'],
                                      'kind': criterion['kind'], 'verdict': verdict,
@@ -190,7 +191,7 @@ def build(root: Path, study_path: str) -> tuple[dict, list[dict], dict[str, byte
         assessed = counts['pass'] + counts['fail']
         applicable = sum(counts.values()) - counts['not-applicable']
         summary.append({'condition': key[0], 'origin': key[1], 'kind': key[2], 'dimension': key[3],
-                        'counts': {k: counts[k] for k in ['pass', 'fail', 'not-assessed', 'not-applicable', 'missing']},
+                        'counts': {k: counts[k] for k in ['pass', 'fail', 'indeterminate', 'not-assessed', 'not-applicable', 'missing']},
                         'assessed_pass_fraction': counts['pass'] / assessed if assessed else None,
                         'assessment_coverage': assessed / applicable if applicable else None})
     metrics = [{'condition': cond, 'origin': origin,
@@ -225,7 +226,7 @@ def _page(title: str, body: str) -> bytes:
 
 
 def export(root: Path, study_path: str, out: str, *, blind: bool = False) -> dict:
-    root = review.workspace(root)
+    root = review.studio_root(root)
     with c.lock(root):
         result, cards, files = build(root, study_path)
         key_path = None
@@ -261,14 +262,14 @@ def export(root: Path, study_path: str, out: str, *, blind: bool = False) -> dic
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--project', type=Path, required=True)
+    parser = _operation_context.ArgumentParser(description=__doc__)
+    parser.add_argument('--studio', type=Path, required=True)
     parser.add_argument('--study', required=True)
     parser.add_argument('--out', required=True)
     parser.add_argument('--blind', action='store_true')
     args = parser.parse_args()
     try:
-        print(json.dumps(export(args.project, args.study, args.out, blind=args.blind), ensure_ascii=False, indent=2))
+        print(json.dumps(export(args.studio, args.study, args.out, blind=args.blind), ensure_ascii=False, indent=2))
         return 0
     except (ValueError, OSError, KeyError, TypeError) as exc:
         print(json.dumps({'ok': False, 'error': str(exc)}, ensure_ascii=False))
@@ -278,4 +279,4 @@ def main() -> int:
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

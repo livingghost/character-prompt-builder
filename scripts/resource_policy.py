@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Validate semantic contracts for named resources understood by the core.
+"""Validate the named resources the core understands.
 
-Content packs may bind any opaque resource name. The small set listed here is
-different: core workflows read these logical resources and therefore require
-their behavioral invariants to remain stable regardless of which pack is the
-explicitly selected provider.
+Content packs may bind any resource name. The names listed here are different:
+core workflows read them, so their contracts hold in every pack that binds them.
 """
 from __future__ import annotations
 
@@ -24,21 +22,16 @@ DIAGNOSTIC_ONLY_NEGATIVE_SOURCES = (
     "scene_failure_modes",
     "atomic_misreadings",
 )
-IDENTITY_AUTHORITY_PREFIX = (
-    "explicit user species anchor",
-    "approved Character Identity Contract",
-)
-PRESERVE_SPECIES_RULE = "preserve-user-or-contract-species"
 
 
 def medium_selection_allowed(
-    project_defaults: Mapping[str, Any],
+    pack_defaults: Mapping[str, Any],
     medium_families: Sequence[str],
     *,
     explicit_hybrid_request: bool,
 ) -> bool:
-    """Apply the selected project-defaults medium policy to one request."""
-    policy = project_defaults.get("medium_policy")
+    """Apply one pack's pack-defaults medium policy to one request."""
+    policy = pack_defaults.get("medium_policy")
     if not isinstance(policy, Mapping):
         raise ValueError("medium_policy must be an object")
     families = tuple(dict.fromkeys(str(value) for value in medium_families if value))
@@ -57,7 +50,7 @@ def negative_source_emission_allowed(
     *,
     user_explicitly_excluded: bool = False,
 ) -> bool:
-    """Apply the selected negative-policy source activation boundary."""
+    """Apply the merged negative-policy source activation boundary."""
     if source_id == SEMANTIC_EXCLUSION_SOURCE:
         rule = str(negative_policy.get("semantic_exclusion_rule") or "").strip()
         if not rule.endswith(SEMANTIC_EXCLUSION_SUFFIX):
@@ -77,10 +70,10 @@ def negative_source_emission_allowed(
     raise ValueError(f"unknown negative-policy source: {source_id}")
 
 
-def validate_project_defaults(value: Any) -> list[str]:
-    """Return current medium-policy contract errors for project-defaults."""
+def validate_pack_defaults(value: Any) -> list[str]:
+    """Return medium-policy contract errors for one pack's pack-defaults."""
     if not isinstance(value, Mapping):
-        return ["project-defaults must contain an object"]
+        return ["pack-defaults must contain an object"]
     policy = value.get("medium_policy")
     if not isinstance(policy, Mapping):
         return ["medium_policy must be an object"]
@@ -96,19 +89,19 @@ def validate_project_defaults(value: Any) -> list[str]:
             ["single-medium"],
             explicit_hybrid_request=False,
         ):
-            errors.append("the selected medium policy must allow one medium family")
+            errors.append("the medium policy must allow one medium family")
         if medium_selection_allowed(
             value,
             ["medium-a", "medium-b"],
             explicit_hybrid_request=False,
         ):
-            errors.append("the selected medium policy must reject an unrequested hybrid")
+            errors.append("the medium policy must reject an unrequested hybrid")
         if not medium_selection_allowed(
             value,
             ["medium-a", "medium-b"],
             explicit_hybrid_request=True,
         ):
-            errors.append("the selected medium policy must allow an explicitly requested hybrid")
+            errors.append("the medium policy must allow an explicitly requested hybrid")
     except ValueError as exc:
         errors.append(str(exc))
     return errors
@@ -151,63 +144,8 @@ def validate_negative_policy(value: Any) -> list[str]:
     return errors
 
 
-def validate_species_scaffold_map(value: Any) -> list[str]:
-    """Return identity-authority errors for species-scaffold-map."""
-    if not isinstance(value, Mapping):
-        return ["species-scaffold-map must contain an object"]
-    errors: list[str] = []
-    raw_authorities = value.get("identity_authority_order")
-    authorities = list(raw_authorities) if isinstance(raw_authorities, list) else []
-    if authorities[:2] != list(IDENTITY_AUTHORITY_PREFIX):
-        errors.append(
-            "identity_authority_order must begin with explicit user species anchor "
-            "and approved Character Identity Contract"
-        )
-
-    mappings = value.get("species_to_scaffold")
-    if not isinstance(mappings, Mapping) or not mappings:
-        errors.append("species_to_scaffold must be a non-empty object")
-        return errors
-    for species_id, row in mappings.items():
-        if not isinstance(row, Mapping):
-            errors.append(f"species_to_scaffold.{species_id} must be an object")
-        elif row.get("identity_rule") != PRESERVE_SPECIES_RULE:
-            errors.append(
-                f"species_to_scaffold.{species_id}.identity_rule must be "
-                f"{PRESERVE_SPECIES_RULE!r}"
-            )
-    return errors
-
-
-def validate_species_scaffold_targets(
-    value: Any,
-    active_species_record_ids: Sequence[str] | set[str],
-) -> list[str]:
-    """Require one scaffold mapping for every active species record, and no others."""
-    errors = validate_species_scaffold_map(value)
-    if errors or not isinstance(value, Mapping):
-        return errors
-    mappings = value.get("species_to_scaffold")
-    if not isinstance(mappings, Mapping):
-        return errors
-    expected = {str(record_id) for record_id in active_species_record_ids}
-    observed = {str(record_id) for record_id in mappings}
-    missing = sorted(expected - observed)
-    extra = sorted(observed - expected)
-    if missing:
-        errors.append(f"missing active species scaffold mappings: {missing}")
-    if extra:
-        errors.append(f"unknown species scaffold mappings: {extra}")
-    if value.get("species_count") != len(expected):
-        errors.append(
-            "species_count must equal the active species record count "
-            f"({len(expected)})"
-        )
-    return errors
-
-
 def validate_discovery_lanes(value: Any) -> list[str]:
-    """Return provider-local structure errors for discovery-lanes."""
+    """Return structure errors for discovery-lanes."""
     if not isinstance(value, Mapping):
         return ["discovery-lanes must contain an object"]
     lanes = value.get("lanes")
@@ -272,10 +210,9 @@ def validate_prompt_writing_resource(value: Any) -> list[str]:
 KNOWN_RESOURCE_VALIDATORS: dict[str, Callable[[Any], list[str]]] = {
     "discovery-lanes": validate_discovery_lanes,
     "negative-policy": validate_negative_policy,
-    "project-defaults": validate_project_defaults,
+    "pack-defaults": validate_pack_defaults,
     "prompt-vocabulary": validate_prompt_vocabulary,
     "prompt-writing-guide": validate_prompt_writing_resource,
-    "species-scaffold-map": validate_species_scaffold_map,
 }
 
 

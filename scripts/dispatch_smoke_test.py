@@ -10,6 +10,7 @@ import http.server
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -24,6 +25,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+
 import dispatch  # noqa: E402
 import execution_contract  # noqa: E402
 import service_profile  # noqa: E402
@@ -32,7 +34,7 @@ import transport_contract  # noqa: E402
 import transport_runware  # noqa: E402
 from request_contract import MANAGEMENT_VALUE
 
-EXPECTED_CHECKS = 59
+EXPECTED_CHECKS = 67
 
 SERVICE = {"endpoint": {"base_url": "https://example.invalid/v1", "method": "POST"}, "operations": {"imageInference": {}}, "auth": {"env_var": "EXAMPLE_KEY"}}
 TEXT_KEYS = {"model": ["model"], "prompt": ["positivePrompt"], "negative prompt": ["negativePrompt"]}
@@ -200,12 +202,12 @@ def saved(url: str, opener: FakeOpener, folder: Path) -> tuple[str | None, str |
 
 
 def isolated_environment(home: Path) -> dict[str, str]:
-    """Subprocesses read a fresh home, never the pack state or host configuration of the person running this.
+    """Subprocesses read a fresh configuration directory, never the pack state of the person running this.
 
-    The home's pack runtime enables commons alone, whatever personal packs sit beside it.
+    Its pack runtime enables commons alone, whatever personal packs sit beside it.
     """
     home.mkdir(parents=True, exist_ok=True)
-    environment = {**os.environ, "HOME": str(home), "USERPROFILE": str(home), "PYTHONDONTWRITEBYTECODE": "1"}
+    environment = {**os.environ, "CPB_HOME": str(home), "PYTHONDONTWRITEBYTECODE": "1"}
     commons = json.loads((ROOT / "packs" / "commons" / "pack.json").read_text(encoding="utf-8"))["pack_id"]
     subprocess.run([sys.executable, str(ROOT / "scripts" / "pack_cli.py"), "ready", "--only", commons],
                    env=environment, capture_output=True, check=True)
@@ -223,7 +225,7 @@ def credential(config: Any, variable: str = "EXAMPLE_KEY") -> tuple[str | None, 
                 contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
             try:
                 return dispatch.api_key({"auth": {"env_var": variable}}), output.getvalue()
-            except SystemExit as exc:
+            except ValueError as exc:
                 return None, output.getvalue() + str(exc)
 
 
@@ -279,7 +281,7 @@ def main() -> int:
         (pack / SNAPSHOT).write_text(json.dumps({
             "artifact_type": "observed-parameter-schema", "model_id": "fixture-model", "service": "svc",
             "model_identifier": "vendor:model@1", "observed_at": "2026-09-13",
-            "source": "the fixture service's model schema endpoint", "unenforced": [], "schema": ADDED_SCHEMA,
+            "source": "the fixture service's model schema endpoint", "schema": ADDED_SCHEMA,
         }), encoding="utf-8")
         offered = {**OFFERING, "schema_snapshot": SNAPSHOT}
         fixture_record = {"id": "fixture-model", "max_outputs": 4, "offerings": [offered]}
@@ -396,6 +398,41 @@ def main() -> int:
               transport_runware.rejections(answer) == [{"code": "http200-not-json-object", "message": body.decode()}]
               and transport_runware.observation_outcome(answer) == "rejected", answer)
 
+    # The Runware transport's refusal, charge and lookup, against synthetic answers; nothing is sent.
+    posted: list[Any] = []
+
+    def answering(body: Any):
+        def fake(url: str, data: bytes, headers: dict[str, str]) -> tuple[int, bytes]:
+            posted.append(json.loads(data.decode("utf-8")))
+            return 200, json.dumps(body).encode("utf-8")
+        return fake
+
+    refusal_seen = None
+    with patch.object(transport_runware, "post", side_effect=answering({"errors": [{"code": "invalidImage"}]})):
+        try:
+            transport_runware.upload_bytes(PNG, "image/png", runware, "KEY")
+        except transport_contract.Refused as exc:
+            refusal_seen = exc
+    check("a refused upload raises the contract's Refused, a ValueError that keeps the service's answer",
+          isinstance(refusal_seen, ValueError) and refusal_seen.answer == {"errors": [{"code": "invalidImage"}]}
+          and refusal_seen.evidence()["outcome"] == "rejected", refusal_seen and refusal_seen.evidence())
+    check("Runware usage is the cost every returned task entry reports, and unknown when an entry reports none",
+          transport_runware.usage({"data": [{"cost": 0.0013}, {"cost": "0.0013"}]}) == {"currency": "USD", "amount": "0.0026", "final": True}
+          and transport_runware.usage({"data": [{"cost": 0.0013}, {"imageURL": "https://im.runware.ai/a.png"}]}) is None
+          and transport_runware.usage({"data": []}) is None,
+          transport_runware.usage({"data": [{"cost": 0.0013}, {"cost": "0.0013"}]}))
+    posted.clear()
+    returned = {"data": [{"taskUUID": "t-1", "imageURL": "https://im.runware.ai/a.png"},
+                         {"taskUUID": "t-2", "imageURL": "https://im.runware.ai/b.png"}]}
+    with patch.object(transport_runware, "post", side_effect=answering(returned)):
+        found = transport_runware.lookup({"taskType": "imageInference", "taskUUID": "t-1"}, runware, "KEY")
+    check("Runware lookup asks getResponse for the request's own taskUUID and keeps only that task's images",
+          posted == [[{"taskType": "getResponse", "taskUUID": "t-1"}]]
+          and found == {"data": [{"taskUUID": "t-1", "imageURL": "https://im.runware.ai/a.png"}]}, (posted, found))
+    with patch.object(transport_runware, "post", side_effect=answering({"data": []})):
+        check("Runware lookup gives None when the service returns no image for the task",
+              transport_runware.lookup({"taskUUID": "t-1"}, runware, "KEY") is None)
+
     # The network rules every transport shares.
     check("an address is https, or http on a loopback address, and names no user or password",
           all(transport_contract.address(url) == url for url in (
@@ -463,9 +500,31 @@ def main() -> int:
     # exactly what check() requires.
     documented = {line.split("(")[0].strip() for line in (transport_contract.__doc__ or "").splitlines()
                   if line.startswith("    ") and not line.startswith("     ")}
-    check("the transport contract's docstring lists exactly the names check() requires, and the Runware transport meets it",
-          documented == set(transport_contract.NAMES) and transport_contract.check(transport_runware) is transport_runware,
-          sorted(documented ^ set(transport_contract.NAMES)))
+    declared = set(transport_contract.NAMES) | set(transport_contract.OPTIONAL)
+    check("the transport contract's docstring lists exactly the names check() reads, and the Runware transport meets it",
+          documented == declared and transport_contract.check(transport_runware) is transport_runware,
+          sorted(documented ^ declared))
+
+    class Asked:
+        """A transport whose lookup gives what the test sets."""
+
+        def __init__(self, give: Any) -> None:
+            self.give = give
+
+        def lookup(self, request, service, key):
+            if isinstance(self.give, BaseException):
+                raise self.give
+            return self.give
+
+    outcomes = [transport_contract.lookup_once(transport, {}, {}, "KEY")["outcome"] for transport in (
+        types.SimpleNamespace(), Asked({"data": []}), Asked(None),
+        Asked(transport_contract.Indeterminate("the service answered 503")), Asked(ConnectionResetError("reset")))]
+    check("lookup_once says unsupported, found, no-answer or unavailable, and only found carries an answer",
+          outcomes == ["unsupported", "found", "no-answer", "unavailable", "unavailable"]
+          and transport_contract.lookup_once(Asked({"data": []}), {}, {}, "KEY")["answer"] == {"data": []}, outcomes)
+    check("only a transport that declares CREDENTIAL_FREE True is credential-free",
+          [transport_contract.credential_free(item) for item in (types.SimpleNamespace(CREDENTIAL_FREE=True),
+           types.SimpleNamespace(CREDENTIAL_FREE="yes"), types.SimpleNamespace(), transport_runware)] == [True, False, False, False])
     check("the Runware transport's docstring restates no part of the contract",
           not any(line.startswith("    ") for line in (transport_runware.__doc__ or "").splitlines()))
     # A transport is the module the service record names, refused in one line for each name it lacks or mistypes.
@@ -473,12 +532,14 @@ def main() -> int:
     partial.OPERATIONS = {"generation": "make", "upscale": "enlarge"}
     partial.RESULT_HOSTS = "im.example.invalid"
     partial.endpoint = lambda service: ""
+    partial.CREDENTIAL_FREE = "yes"
     with patch.dict(sys.modules, {"transport_partial_fixture": partial}):
         lacking = refusal(lambda: transport_contract.load("partial_fixture"))
     check("a transport that lacks or mistypes contract names is refused in one line naming each",
           all(f"{name} is missing" in lacking for name in ("compile_request", "compile_upscale", "added_parameters",
                                                            "upload_bytes", "send", "rejections", "results", "observation_outcome"))
-          and "RESULT_HOSTS is not a set of host names" in lacking and "endpoint" not in lacking
+          and "RESULT_HOSTS is not a set of host names" in lacking and "CREDENTIAL_FREE is not a boolean" in lacking
+          and "lookup" not in lacking and "endpoint" not in lacking
           and "OPERATIONS" not in lacking and len(lacking.splitlines()) == 1, lacking)
     absent = refusal(lambda: transport_contract.load("absent_fixture"))
     check("a record naming a transport that is not there names the module to write and the contract",
@@ -509,17 +570,9 @@ def main() -> int:
           and all(transport_contract.load(entry["transport"]) for entry in commons["services"].values()),
           validate_against_schema(commons, schema))
     # The dispatcher holds a transport's endpoint to the network rules as well.
-    lax = types.ModuleType("transport_lax_fixture")
-    for name in transport_contract.NAMES:
-        setattr(lax, name, getattr(transport_runware, name))
-    lax.endpoint = lambda record: record["endpoint"]["base_url"]
-    chosen = []
-    with tempfile.TemporaryDirectory(prefix="cpb-dispatch-lax-") as tmp, patch.dict(sys.modules, {"transport_lax_fixture": lax}):
-        profiles = Path(tmp) / "services.json"
-        for url in ("http://example.invalid/v1", "http://127.0.0.1:9/v1"):
-            profiles.write_text(json.dumps({"services": {"lax-service": {"transport": "lax_fixture",
-                                                                         "endpoint": {"base_url": url}}}}), encoding="utf-8")
-            chosen.append(refusal(lambda: dispatch.service_for({"service": "lax-service"}, str(profiles))))
+    lax = types.SimpleNamespace(endpoint=lambda record: record["endpoint"]["base_url"])
+    chosen = [refusal(lambda url=url: dispatch.endpoint({"endpoint": {"base_url": url}}, lax))
+              for url in ("http://example.invalid/v1", "http://127.0.0.1:9/v1")]
     check("the dispatcher refuses an endpoint its transport let through, so http reaches only a loopback service",
           "refused to send" in chosen[0] and chosen[1] == "", chosen)
     # A refusal is kept under the hash of the request, whatever fields the service's request has.
@@ -541,35 +594,34 @@ def main() -> int:
           and refused(lambda: dispatch.inline_image(base64.b64encode(b"<html>no</html>").decode("ascii")), "not a PNG, JPEG or WebP image")
           and refused(lambda: dispatch.inline_image(PNG), "base64 text"))
 
-    # The worked example's model is exposed on no service here, so the dispatcher
-    # refuses to send it. The studio is a real one, so what the run reaches is the
-    # refusal about the record and not the one about the directory.
+    # The worked example's package is bound to no prepared run, so execute never
+    # sends it and the preview refuses it. The studio is a real one, so what the
+    # call reaches is the refusal about the package and not the one about the directory.
     example = ROOT / "examples" / "state-aware-pilot" / "generated" / "generation-package.json"
     with tempfile.TemporaryDirectory() as tmp:
         environment = isolated_environment(Path(tmp) / "person")
         home = studio.init(Path(tmp) / "studio", "dispatch-smoke", "Dispatch smoke studio")
         studio.add_character(home, "C01", "")
-        package_data = json.loads(example.read_text(encoding="utf-8"))
-        for relative, snapshot in package_data["input_snapshots"].items():
-            if relative.startswith("@"):
-                continue
-            path = home / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(base64.b64decode(snapshot["base64"], validate=True))
+        shutil.copyfile(example, home / "generation-package.json")
 
-
-        def dispatched(*arguments: str) -> subprocess.CompletedProcess:
-            return subprocess.run(
+        def dispatched(*arguments: str) -> tuple[subprocess.CompletedProcess, list[dict[str, Any]]]:
+            """The call and the diagnostics it printed; an empty list when stdout holds none."""
+            completed = subprocess.run(
                 [sys.executable, str(ROOT / "scripts" / "dispatch.py"), *arguments,
                  "--studio", str(home), "--character", "C01", "--slot", "base.front"],
                 capture_output=True, text=True, encoding="utf-8", check=False, env=environment,
             )
+            try:
+                return completed, json.loads(completed.stdout).get("diagnostics") or []
+            except ValueError:
+                return completed, []
 
-        run = dispatched(str(example))
-        check("a package for a model exposed on no service is refused with the way to record by hand",
-              run.returncode != 0 and "exposed on no service" in run.stderr, run.stderr[-400:])
+        run, found = dispatched(str(example))
+        check("a package bound to no prepared run is refused with the way to prepare one",
+              run.returncode == 2 and [row["code"] for row in found] == ["EXECUTION_NOT_APPLICABLE"]
+              and "production_workflow.py prepare" in found[0]["required_action"], run.stdout[-400:])
         # The pack-runtime selectors are the same three everywhere, and they go together.
-        partial = dispatched(str(example), "--state-file", str(Path(tmp) / "pack-state.json"))
+        partial, _ = dispatched(str(example), "--state-file", str(Path(tmp) / "pack-state.json"))
         check("one runtime selector without the others is refused",
               partial.returncode != 0 and "must be supplied together" in partial.stderr, partial.stderr[-300:])
         runtime = Path(tmp) / "runtime"
@@ -580,21 +632,33 @@ def main() -> int:
              json.loads((ROOT / "packs" / "commons" / "pack.json").read_text(encoding="utf-8"))["pack_id"]],
             capture_output=True, text=True, encoding="utf-8", check=False, env=environment,
         )
-        chosen = dispatched(str(example), "--state-file", str(runtime / "pack-state.json"),
-                            "--cache-dir", str(runtime / "cache"), "--managed-root", str(runtime / "managed"))
-        check("a runtime named on the command line resolves the record the same way the default one does",
-              (runtime / "pack-state.json").is_file() and chosen.returncode != 0 and "exposed on no service" in chosen.stderr,
-              {"state_init": made.stderr[-200:], "dispatch": chosen.stderr[-300:]})
+        chosen, found = dispatched(str(example), "--state-file", str(runtime / "pack-state.json"),
+                                   "--cache-dir", str(runtime / "cache"), "--managed-root", str(runtime / "managed"))
+        check("a runtime named on the command line reaches the same refusal the default one does",
+              (runtime / "pack-state.json").is_file() and chosen.returncode == 2
+              and [row["code"] for row in found] == ["EXECUTION_NOT_APPLICABLE"],
+              {"state_init": made.stderr[-200:], "dispatch": chosen.stdout[-300:] + chosen.stderr[-300:]})
         broken = Path(tmp) / "broken-package.json"
         broken.write_text(json.dumps({"status": "ok"}), encoding="utf-8")
-        bad = dispatched(str(broken))
-        check("a package of the wrong shape is one line of error rather than a traceback",
-              bad.returncode == 1 and bad.stderr.startswith("error: ") and "Traceback" not in bad.stderr, bad.stderr[-300:])
-        mistyped = dispatched(str(Path(tmp) / "generation-pakage.json"))
-        check("a mistyped package path is one sentence naming the path",
-              mistyped.returncode == 1 and mistyped.stderr.startswith("error: there is no Generation Package at ")
-              and "generation-pakage.json" in mistyped.stderr and "Errno" not in mistyped.stderr
-              and len(mistyped.stderr.strip().splitlines()) == 1, mistyped.stderr[-300:])
+        bad, found = dispatched(str(broken))
+        check("a package of the wrong shape is one diagnostic rather than a traceback",
+              bad.returncode == 2 and len(found) == 1 and "Traceback" not in bad.stdout + bad.stderr,
+              bad.stdout[-300:] + bad.stderr[-300:])
+        mistyped, found = dispatched(str(Path(tmp) / "generation-pakage.json"))
+        check("a mistyped package path is one diagnostic naming the path",
+              mistyped.returncode == 2 and [row["code"] for row in found] == ["INPUT_UNREADABLE"]
+              and "generation-pakage.json" in found[0]["message"] and "Errno" not in mistyped.stdout,
+              mistyped.stdout[-300:])
+        relative, found = dispatched(".\\generation-package.json")
+        check("a backslash path is refused with the /-separated path below the studio to write instead",
+              relative.returncode == 2 and [row["code"] for row in found] == ["INPUT_SCHEMA_INVALID"]
+              and "package generation-package.json" in found[0]["required_action"], relative.stdout[-300:])
+        (home / "preview.json").write_text("Existing preview.", encoding="utf-8")
+        kept, found = dispatched("generation-package.json", "--preview-out", "preview.json")
+        check("an existing --preview-out is kept and refused before anything is read",
+              kept.returncode == 2 and [row["code"] for row in found] == ["OUTPUT_ALREADY_EXISTS"]
+              and found[0]["required_action"] == "Choose a new --preview-out."
+              and (home / "preview.json").read_text(encoding="utf-8") == "Existing preview.", kept.stdout[-300:])
 
     passed = sum(1 for row in results if row["passed"])
     report = {"ok": len(results) == EXPECTED_CHECKS and passed == len(results), "checks": len(results), "expected_checks": EXPECTED_CHECKS,

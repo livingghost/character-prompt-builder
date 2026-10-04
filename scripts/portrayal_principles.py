@@ -9,6 +9,7 @@ Exact English token retrieval only. Read complete selected records before use.
 No persona is generated or adopted, no state is mutated and no quality is scored.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse
 import json
 import re
@@ -69,7 +70,7 @@ def search(value: dict[str,Any], query: str, limit: int = 8) -> list[dict[str,An
 
 
 def main(argv: Sequence[str]|None=None) -> int:
-    p=argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    p=_operation_context.ArgumentParser(description=__doc__.split('\n')[0])
     p.add_argument('command',choices=('search','inspect','validate')); p.add_argument('value',nargs='?')
     p.add_argument('--limit',type=int,default=8)
     a=p.parse_args(argv)
@@ -91,4 +92,4 @@ def main(argv: Sequence[str]|None=None) -> int:
 if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

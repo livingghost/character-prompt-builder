@@ -1,54 +1,38 @@
 # Upscale Adapter
 
-## Purpose
+## Purpose and controls
 
-Use this adapter only for model records with `operation_kind=upscale`. Upscaling is a derived image operation, not a Generation Package prompt transport. It uses the dedicated Upscale Package contract.
+Use a model record with `operation_kind=upscale`. Upscaling has an explicit input-image contract and produces an Upscale Package; it is not a text-to-image prompt transport.
 
-## Upscaler classes
+Restorative upscalers prioritize existing geometry and palette but need not preserve every pixel. Generative and creative upscalers can reinterpret detail and require a separate identity audit before canonical use. Use only the selected record's scale factors, declared settings and supported guidance. Provider descriptions are not measurements of the output.
 
-- **Restorative** upscalers minimize semantic reinterpretation and prioritize source geometry, palette relationships, and existing edge structure. They may still infer high-frequency detail and do not guarantee pixel identity.
-- **Generative** upscalers reconstruct missing detail and may alter texture or local form.
-- **Creative** upscalers intentionally permit broader reinterpretation guided by settings or an optional prompt.
+## Prepare the exact input
 
-Use only scale factors and settings declared by the active record. Do not invent a provider setting or assume that a setting shared by another model is accepted. A guidance prompt is valid only when `supports_guidance_prompt=true`. Negative transport does not apply to an Upscale Package.
-
-## Committed operation
-
-Build an Upscale Package containing the exact source and output paths, media types, SHA-256 values, dimensions, resolved upscaler identity, record hash, scale factor, settings, optional guidance prompt, and post-upscale identity audit. Generative and creative classes require that audit before the package becomes ready. A changed source, output, model record, factor, setting, or audit changes the package hash.
-
-When the upscaler record carries an offering, the dispatcher performs the upscale and builds the package in the studio in one step, as [Image Generation Runtime](../runtime/image-generation.md) describes:
-
-```bash
-python scripts/dispatch.py --upscale --render-intent RENDER_INTENT_JSON --model <upscaler-id> --source <image> --scale <factor> --settings '{...}' --request-validation-file <validation.json> --studio <dir> --character <id> --slot <slot> --production-authorization <receipt> --send
-```
-
-For an upscaler with no offering, or an upscale performed on a host with no transport, build and verify the package with the dedicated entrypoints rather than a Generation Package command, then record the result with `scripts/studio.py iterate`:
-
-```bash
-python scripts/build_upscale_package.py --help
-python scripts/verify_upscale_package.py --help
-```
-
-Use each command's declared arguments for the selected source image, output image, model record, factor, settings, and audit. Verification must read the committed package and files from disk; do not reconstruct their values from chat.
-
-For canonical characters, compare the result against the Character Census after any generative or creative upscale. Reject shape drift, marking drift, altered silhouette, unintended material changes, or invented accessories.
-
-
-For artifact capture and review, use [Production Execution](../runtime/production-execution.md).
-Native upscale submission requires a prepared `upscale` route, `artifact: "image"`,
-`execution: "dispatcher"` and a dispatcher handoff. Copy the source inside the project,
-list it among the task sources, and write the exact input declaration:
+Copy the source image into the studio. Read the selected model, service guidance, execution profile and validation evidence. `production_binding.py` writes the explicit input declaration from real source bytes, rendering intent and request validation; it grants no execution authority.
 
 ```sh
-python scripts/production_binding.py --root PROJECT --render-intent render-intent.json --source images/input.png --model RESOLVED_MODEL --scale FACTOR --settings '{}' --out upscale-request.json
+python scripts/production_binding.py --root STUDIO --source images/input.png --model MODEL_ID --scale 2 --settings-file settings.json --render-intent render-intent.json --request-validation-file validation.json --out upscale-input.json
 ```
 
-Use `upscale-request.json` as the task delivery. It fixes source hash, model, scale,
-settings, guidance and rendering intent. The dispatcher sends the upscale under the run prepared for
-the studio's open task, and its dry run with `--intent-out FILE` saves the exact
-submission intent. Authorize that intent with the selected grant and quoted cost,
-then provide the receipt to `dispatch.py`. The dispatcher reserves one output before
-upload and records the acquired result and generated Upscale Package before Studio
-recording. An unknown remote result is not retried. `recover-recording` downloads a
-missing result from the saved answer and records it; it never sends the request
-again. Authored material and output selection remain separate.
+The Production task uses route `upscale`, artifact `image`, execution `dispatcher`, and an authored-rendition delivery whose `path` is `upscale-input.json`. Declare `upscale.service`, `upscale.cost`, and the same `recording` contract as any other image task. The source image and validation evidence are captured; the original image is never uploaded directly after preparation. A sheet slot requires an explicit single-subject map and `sheet_panel=true`. Do not add a text-to-image `generation` block to an upscale task.
+
+```sh
+python scripts/production_workflow.py prepare --root STUDIO --task upscale-task.json
+python scripts/production_workflow.py draft-execution --root STUDIO --run RUN_ID --grant GRANT_ID --out execution-decisions.json
+python scripts/production_workflow.py execute --root STUDIO --run RUN_ID --decisions-file execution-decisions.json
+python scripts/production_workflow.py resume --root STUDIO --run RUN_ID
+```
+
+Fill the decision file from actual approval or an applicable delegation after inspecting the prepared request and its cost. Preparation does not reserve budget. Execution uses the common authority transaction, reservation, claim, upload and send boundary. One upscale requests one output. Partial acquisition remains visible and can be resumed from the retained answer; an unknown remote outcome is not an instruction to resend or release budget.
+
+`repeat` prepares another run for the same input. `variant` accepts the compiler-declared `upscale-input` field as a file reference to an explicitly revised declaration, or a complete `recording` contract. It checks source content, rendering intent, scale, settings, validation evidence and affected dependencies again. It inherits no receipt, claim, review or adoption.
+
+`dispatch.py --upscale` previews the upscale run of the studio's open task and sends nothing. It takes the same declaration fields and `--settings-file`, and refuses any that differ from the prepared declaration. `execute` sends the run; the preview is no alternate authority or recovery mechanism.
+
+## Results, review and external work
+
+The stored Upscale Package binds source and output paths, media hashes, dimensions, selected model record, factor, settings and audit. Verify actual files from disk. A returned image remains a candidate, not selected character canon. Compare generative and creative results with the Character Census; require explicit review and separate adoption for permanent changes.
+
+For an upscaler with no transport, perform the separately authorized external operation and use `build_upscale_package.py` and `verify_upscale_package.py` on its real source/output files. Record external provenance with Studio rather than inventing a dispatcher run.
+
+The executable local example is in [Generation examples](../../examples/generation/README.md); the common lifecycle is in [Production execution](../runtime/production-execution.md).

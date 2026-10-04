@@ -20,7 +20,7 @@ and continues.
     python scripts/studio.py iterate --studio DIR --character <id> --slot <slot> --result <file>
         [--package <file>] [--package-companion <dir>] [--request <file>] [--response <file>] [--note "..."]
     python scripts/studio.py accept --studio DIR --character <id> --iteration <it-id>
-    python scripts/studio.py reject --studio DIR --character <id> --iteration <it-id> --reason "..."
+    python scripts/studio.py reject --studio DIR --character <id> --iteration <it-id> --reason "..." --actor "..."
     python scripts/studio.py recipe --studio DIR --character <id> --slot <slot> [--iteration <it-id>]
     python scripts/studio.py gallery --studio DIR [--out <file.html>]
 
@@ -28,6 +28,7 @@ and continues.
 defaults to the working directory.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import contextlib
@@ -62,7 +63,15 @@ SLOT = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 ITERATION_ID = re.compile(r"^it-([0-9]+)$")
 DIRECTORIES = ("characters", "packages", "runs", "prompts", "work")
 CHARACTER_DIRECTORIES = ("sheet", "iterations", "accepted")
+# The status an imported iteration stores.
 STATUSES = ("candidate", "accepted", "rejected", "superseded")
+# The status a Production candidate shows: its place on the adoption axis, or
+# `unavailable` when its formal record cannot be read. Its evaluation and
+# disposition come from the run's records and are shown beside it.
+PRODUCTION_STATUSES = ("candidate", "accepted", "superseded", "unavailable")
+# Fields read from the run's records for a Production candidate; they are never stored.
+PRODUCTION_PROJECTION = ("evaluation", "disposition", "unassessed_criteria", "selection_diagnostics", "review_ref",
+                         "decision_kind", "reason", "production_diagnostic")
 INIT_COMMAND = 'init --out <dir> --studio-id <id> --title "<title>"'
 
 README = {
@@ -103,7 +112,7 @@ def require_studio(start: Path) -> Path:
 
 @contextlib.contextmanager
 def recording_lock(root: Path) -> Iterator[None]:
-    """Hold the project lock that every studio writer, the dispatcher and adoption share."""
+    """Hold the studio lock that every studio writer, the dispatcher and adoption share."""
     with execution_contract.lock(root):
         yield
 
@@ -114,7 +123,9 @@ def _entries(directory: Path) -> list[Path]:
     return [path for path in directory.iterdir() if path.name != execution_contract.LOCK_FILE]
 
 
-def init(out: Path, studio_id: str, title: str) -> Path:
+def init(out: Path, studio_id: str, title: str, *, default_render_profile: str = "profile-clear-2d-illustration",
+         default_creative_latitude: str = "directed", default_interaction_mode: str = "balanced",
+         default_style_family: str | None = None) -> Path:
     if not STUDIO_ID.fullmatch(studio_id):
         raise ValueError("studio id must be at least two characters of letters, digits, dot, underscore or dash")
     if not title.strip():
@@ -136,6 +147,11 @@ def init(out: Path, studio_id: str, title: str) -> Path:
         write_json(out / MANIFEST, {
             "studio_id": studio_id,
             "title": title.strip(),
+            # What a request that leaves medium, latitude, interaction or style open starts from.
+            "default_render_profile": default_render_profile,
+            "default_creative_latitude": default_creative_latitude,
+            "default_interaction_mode": default_interaction_mode,
+            "default_style_family": default_style_family,
             "created_at": now(),
             "characters": [],
         })
@@ -215,7 +231,7 @@ def add_character(root: Path, character: str, profile: str) -> Path:
 
 # Iterations: one record per generated image.
 
-def read_iterations(home: Path) -> list[dict[str, Any]]:
+def read_iterations(home: Path, *, project: bool = True) -> list[dict[str, Any]]:
     path = home / "iterations.jsonl"
     if not path.is_file():
         return []
@@ -233,11 +249,68 @@ def read_iterations(home: Path) -> list[dict[str, Any]]:
             if not isinstance(value, dict):
                 raise ValueError(f"{path}: line {number} is not an object")
             rows.append(value)
+    if not project:
+        return rows
+    return project_iterations(home, rows)
+
+
+def project_iterations(home: Path, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build the shared Studio view from stored adoption and formal Production decisions.
+
+    A Production candidate keeps its status on the adoption axis. Its evaluation,
+    disposition, unassessed criteria and the reason of its latest decision come
+    from the run, with `decision_kind` naming whether that reason belongs to a
+    selection or a disposition.
+    """
+    rows = copy.deepcopy(rows)
+    root = home.parent.parent
+    # Each run is read and verified once; a run that cannot be read marks only its own rows.
+    runs: dict[str, tuple | BaseException] = {}
+    for row in rows:
+        origin = row.get("production")
+        if origin is None:
+            continue
+        adoption = row.get("adoption_status", "none")
+        row["status"] = adoption if adoption in {"accepted", "superseded"} else "candidate"
+        try:
+            from production_workflow import candidate_state, load_run
+            if origin["run"] not in runs:
+                try:
+                    runs[origin["run"]] = load_run(root, origin["run"])
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    runs[origin["run"]] = exc
+            loaded = runs[origin["run"]]
+            if isinstance(loaded, BaseException):
+                raise loaded
+            projected = candidate_state(root, origin["run"], origin["candidate"], loaded=loaded)
+            if projected["candidate_sha256"] != row["result"]["sha256"]:
+                raise ValueError("Studio result differs from its Production candidate")
+            row.update({key: projected[key] for key in ("evaluation", "disposition", "unassessed_criteria", "selection_diagnostics")})
+            row["review_ref"] = projected["review"]
+            decision = projected["decision_detail"]
+            row["decision_kind"] = None if decision is None else (
+                "selection" if projected["disposition"] == "selected" else "disposition")
+            row["reason"] = decision.get("reason") if decision else None
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            # A broken candidate is visible, not reinterpreted as an imported image.
+            from production_diagnostics import from_exception
+            row["production_diagnostic"] = from_exception(exc, phase="studio-projection")
+            if row["status"] == "candidate":
+                row["status"] = "unavailable"
     return rows
 
 
 def write_iterations(home: Path, rows: list[dict[str, Any]]) -> None:
-    raw = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows).encode("utf-8")
+    stored = []
+    for row in rows:
+        item = copy.deepcopy(row)
+        if item.get("production") is not None:
+            status = item.pop("status", None)
+            item["adoption_status"] = status if status in {"accepted", "superseded"} else item.get("adoption_status", "none")
+            for key in (*PRODUCTION_PROJECTION, "rejected_at"):
+                item.pop(key, None)
+        stored.append(item)
+    raw = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in stored).encode("utf-8")
     execution_contract.atomic(home / "iterations.jsonl", raw, replace=True)
 
 
@@ -403,12 +476,35 @@ def _record_iteration(root: Path, character: str, slot: str, result: Path, *, pa
                       package_companion: Path | None = None,
                       layout: dict[str, Any] | None = None,
                       answer: Path | None = None) -> dict[str, Any]:
+    # The kept copies are recorded relative to the resolved studio root, the
+    # root the destination check reads, so a root given through a directory
+    # junction records the same studio-relative paths.
+    root = root.resolve()
     home = validate_recording_target(root, character, slot)
     _check_inputs({"result": result, "package": package, "request": request, "response": response,
                    "answer": answer}, package_companion)
     if layout is not None:
         check_request_layout(layout, read_json(Path(request)) if request is not None else None)
     rows = read_iterations(home)
+    origin = None
+    document = read_json(package) if package is not None else None
+    binding = document.get("production_binding") if isinstance(document, dict) else None
+    if binding is not None:
+        from production_workflow import load_run
+        _, prepared, _, events = load_run(root, binding["run"])
+        if prepared["input_sha256"] != binding["input_sha256"]:
+            raise ValueError("Studio package does not belong to the named Production input")
+        digest = sha256_file(result)
+        response_value = read_json(response) if response is not None else {}
+        index = response_value.get("index")
+        matches = [e for e in events if e["event"] == "candidate" and e["data"]["files"][0]["sha256"] == digest
+                   and (index is None or e["data"].get("output_index") == index)]
+        if len(matches) != 1:
+            raise ValueError("Register the exact result as a Production candidate before projecting it in Studio")
+        origin = {"run": binding["run"], "candidate": matches[0]["sha256"]}
+        existing = [row for row in rows if row.get("production") == origin]
+        if existing:
+            return existing[0]
     iteration_id = next_iteration_id(home, rows)
     kept_answer = _keep_answer(root, home, rows, iteration_id, answer, response) if answer is not None else None
     row: dict[str, Any] = {
@@ -418,6 +514,7 @@ def _record_iteration(root: Path, character: str, slot: str, result: Path, *, pa
         "slot": slot,
         "status": "candidate",
         "acceptances": [],
+        **({"production": origin, "adoption_status": "none"} if origin else {"provenance": "external-import"}),
         "result": _keep(root, home, iteration_id, result, "result"),
         "package": _keep(root, home, iteration_id, package, "package"),
         "request": _keep(root, home, iteration_id, request, "request"),
@@ -462,7 +559,7 @@ def _record_iteration(root: Path, character: str, slot: str, result: Path, *, pa
     rows.append(row)
     write_iterations(home, rows)
     write_gallery(root)
-    return row
+    return _find(read_iterations(home), iteration_id)
 
 
 def _find(rows: list[dict[str, Any]], iteration_id: str) -> dict[str, Any]:
@@ -481,6 +578,15 @@ def _record_accept(root: Path, character: str, iteration_id: str) -> dict[str, A
     home = character_home(root, character)
     rows = read_iterations(home)
     row = _find(rows, iteration_id)
+    if row.get("production_diagnostic"):
+        raise ValueError("The Production candidate cannot be verified; repair its evidence before adoption")
+    if row.get("production") is not None:
+        # The Studio accepts the candidate its run currently selects; a selected
+        # candidate keeps its selection while the Studio holds it as accepted.
+        import production_workflow as workflow
+        origin = row["production"]
+        _, prepared, _, records = workflow.load_run(root, origin["run"])
+        workflow.require_selected(prepared, records, origin["candidate"], run=origin["run"])
     if row.get("status") == "accepted":
         raise ValueError(f"{iteration_id} is already accepted")
     if row.get("status") == "rejected":
@@ -520,19 +626,35 @@ def _record_accept(root: Path, character: str, iteration_id: str) -> dict[str, A
     return row
 
 
-def reject(root: Path, character: str, iteration_id: str, reason: str) -> dict[str, Any]:
+def reject(root: Path, character: str, iteration_id: str, reason: str, *, actor: str) -> dict[str, Any]:
     with recording_lock(root):
-        return _record_reject(root, character, iteration_id, reason)
+        return _record_reject(root, character, iteration_id, reason, actor=actor)
 
 
-def _record_reject(root: Path, character: str, iteration_id: str, reason: str) -> dict[str, Any]:
+def _record_reject(root: Path, character: str, iteration_id: str, reason: str, *, actor: str) -> dict[str, Any]:
     home = character_home(root, character)
     rows = read_iterations(home)
     row = _find(rows, iteration_id)
+    if not reason.strip() or not actor.strip():
+        raise ValueError("rejecting an iteration requires the actual actor and reason")
+    if row.get("production_diagnostic"):
+        raise ValueError("The Production candidate cannot be verified; its disposition was not changed")
+    if row.get("production") is not None:
+        # The run records the decision and refuses it for the slot's accepted image;
+        # it also rewrites the gallery, which is a rebuildable projection.
+        import production_workflow as workflow
+        origin = row["production"]
+        decision = workflow.draft_disposition(root, origin["run"], origin["candidate"])
+        decision.update(actor=actor, reason=reason, review=row.get("review_ref"))
+        receipt = workflow.disposition_value(root, origin["run"], decision)
+        result = _find(read_iterations(home), iteration_id)
+        result["production_decision"] = receipt["sha256"]
+        if "projection_warning" in receipt:
+            result["projection_warning"] = receipt["projection_warning"]
+        return result
     if row.get("status") == "accepted":
         raise ValueError(f"{iteration_id} is accepted; accept another iteration for the slot to supersede it")
-    if not reason.strip():
-        raise ValueError("rejecting an iteration needs the reason")
+    row["actor"] = actor
     row["status"] = "rejected"
     row.pop("superseded_by", None)
     row["rejected_at"] = now()
@@ -561,7 +683,11 @@ def recipe(root: Path, character: str, slot: str, *, iteration: str | None = Non
     row = matches[0]
     if row.get("slot") != slot or row.get("character") != character:
         raise ValueError("recipe iteration does not match the selected character and slot")
-    if row.get("status") not in STATUSES:
+    # The Studio keeps the request and its evidence itself, so a Production
+    # candidate whose run cannot be read still has a readable recipe; the
+    # diagnostic travels with it.
+    diagnostic = row.get("production_diagnostic")
+    if row.get("status") not in (PRODUCTION_STATUSES if row.get("production") is not None else STATUSES):
         raise ValueError("recipe iteration has an unknown recorded status")
     if not row.get("request"):
         raise ValueError(f"{row['iteration_id']} recorded no request, so its settings cannot be read back")
@@ -598,6 +724,7 @@ def recipe(root: Path, character: str, slot: str, *, iteration: str | None = Non
         "slot": slot,
         "iteration_id": row["iteration_id"],
         "source_status": row["status"],
+        "production_diagnostic": diagnostic,
         "service": row.get("service"),
         "seed": seed,
         "package": row.get("package"),
@@ -685,6 +812,12 @@ def gallery_index(root: Path) -> dict[str, Any]:
                 "at": row.get("at"),
                 "slot": row.get("slot"),
                 "status": row.get("status"),
+                "production": row.get("production"),
+                "evaluation": row.get("evaluation"),
+                "disposition": row.get("disposition"),
+                "unassessed_criteria": row.get("unassessed_criteria"),
+                "production_diagnostic": row.get("production_diagnostic"),
+                "selection_diagnostics": row.get("selection_diagnostics") or [],
                 "acceptances": row.get("acceptances") or [],
                 "superseded_by": row.get("superseded_by"),
                 "service": row.get("service"),
@@ -695,6 +828,9 @@ def gallery_index(root: Path) -> dict[str, Any]:
                 "package": (row.get("package") or {}).get("path"),
                 "note": row.get("note"),
                 "reason": row.get("reason"),
+                # Which decision the reason explains: a run's selection or disposition, or an import's rejection.
+                "decision_kind": row.get("decision_kind") if row.get("production") is not None else (
+                    "rejection" if row.get("status") == "rejected" else None),
             })
     entries.sort(key=lambda entry: (str(entry.get("at") or ""), str(entry.get("iteration_id") or "")))
     return {"studio_id": document.get("studio_id"), "title": document.get("title"), "generated_at": now(), "entries": entries}
@@ -736,6 +872,10 @@ def _history(entry: dict[str, Any]) -> str:
     return "; ".join(parts)
 
 
+# The label of a reason, by the decision it explains.
+DECISION_LABELS = {"selection": "selection reason", "disposition": "disposition reason", "rejection": "rejection reason"}
+
+
 def render_gallery(index: dict[str, Any]) -> str:
     """One page, no scripts, images by relative path from the studio root."""
     rows = []
@@ -754,13 +894,23 @@ def render_gallery(index: dict[str, Any]) -> str:
         origin = " ".join(fact for fact in (
             _fact("model", service.get("model_identifier")),
             _fact("service", service.get("id"), None),
-            _fact("observed", service.get("observed_at"), None),
+            _fact("parameter schema dated", service.get("observed_at"), None),
         ) if fact)
         record = " ".join(fact for fact in (
             _fact("model record", entry.get("model_record")),
             _fact("family", entry.get("dialect"), None),
             _fact("seed", entry.get("seed")),
         ) if fact)
+        judged = " ".join(fact for fact in (
+            _fact("evaluation", entry.get("evaluation"), None),
+            _fact("disposition", entry.get("disposition"), None),
+            _fact("unassessed", ", ".join(entry.get("unassessed_criteria") or []), None),
+        ) if fact)
+        diagnostics = "".join(
+            f'<p class="diagnostic">{_escape(item.get("code"))}: {_escape(item.get("message"))}</p>'
+            for item in [entry.get("production_diagnostic"), *(entry.get("selection_diagnostics") or [])] if item)
+        reason = (f'<p class="note">{_escape(DECISION_LABELS.get(entry.get("decision_kind"), "reason"))}: '
+                  f'{_escape(entry.get("reason"))}</p>') if entry.get("reason") else ""
         rows.append(f"""
 <section class="iteration {_escape(entry.get('status'))}">
   <div class="image">{image}</div>
@@ -769,10 +919,12 @@ def render_gallery(index: dict[str, Any]) -> str:
     <p class="when">{_history(entry)}</p>
     <p>{origin}</p>
     <p>{record}</p>
+    {('<p>' + judged + '</p>') if judged else ''}
+    {diagnostics}
     {_text_block(entry)}
     <table>{settings}{media}</table>
     {('<p class="note">' + _escape(entry.get('note')) + '</p>') if entry.get('note') else ''}
-    {('<p class="note">rejected: ' + _escape(entry.get('reason')) + '</p>') if entry.get('reason') else ''}
+    {reason}
     <p class="hash">{_escape(entry.get('result_sha256'))}</p>
   </div>
 </section>""")
@@ -784,6 +936,7 @@ body {{ font-family: system-ui, sans-serif; margin: 1.5rem; color: #222; backgro
 h1 {{ font-size: 1.4rem; }} h2 {{ font-size: 1rem; margin: 0 0 .25rem; }}
 .iteration {{ display: grid; grid-template-columns: 320px 1fr; gap: 1rem; padding: 1rem; margin: 0 0 1rem; background: #fff; border: 1px solid #ddd; }}
 .iteration.accepted {{ border-color: #2a7; }} .iteration.rejected {{ opacity: .6; }} .iteration.superseded {{ border-style: dashed; }}
+.iteration.unavailable {{ border-color: #c55; }} .diagnostic {{ color: #a33; }}
 .image img {{ max-width: 320px; max-height: 320px; display: block; }} .none {{ color: #999; }}
 .status {{ font-weight: normal; color: #666; }} .when, .hash {{ color: #777; font-size: .85rem; }}
 pre {{ white-space: pre-wrap; background: #f4f4f4; padding: .5rem; margin: 0 0 .5rem; }}
@@ -859,7 +1012,8 @@ def status(root: Path) -> str:
         home = root / "characters" / str(character)
         rows = read_iterations(home) if home.is_dir() else []
         accepted = {row["slot"]: row for row in rows if row.get("status") == "accepted"}
-        candidates = [row for row in rows if row.get("status") == "candidate"]
+        # A Production candidate its run did not select is not waiting for a decision.
+        candidates = [row for row in rows if row.get("status") == "candidate" and row.get("disposition") != "not_selected"]
         lines.append(f"character {character}: {_count(len(rows), 'generated image')}, "
                      f"{_count(len(accepted), 'slot')} accepted, {_count(len(candidates), 'candidate')} waiting")
         for slot, row in sorted(accepted.items()):
@@ -916,10 +1070,10 @@ def _explain(exc: BaseException) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--studio", type=Path, default=None, help="A directory in the studio (default: the working directory)")
     # The studio may also be named after the command, as the documentation writes it.
-    after = argparse.ArgumentParser(add_help=False)
+    after = _operation_context.ArgumentParser(add_help=False)
     after.add_argument("--studio", type=Path, default=argparse.SUPPRESS,
                        help="A directory in the studio (default: the working directory)")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -927,6 +1081,11 @@ def main(argv: list[str] | None = None) -> int:
     init_parser.add_argument("--out", type=Path, required=True)
     init_parser.add_argument("--studio-id", required=True)
     init_parser.add_argument("--title", required=True)
+    init_parser.add_argument("--default-render-profile", default="profile-clear-2d-illustration",
+                             help="the render profile a request with an open medium starts from")
+    init_parser.add_argument("--default-creative-latitude", default="directed")
+    init_parser.add_argument("--default-interaction-mode", default="balanced")
+    init_parser.add_argument("--default-style-family", help="a style family every request starts from (default: none)")
     commands.add_parser("status", help="the open task, and every character's slots and candidates", parents=[after])
     character_parser = commands.add_parser("character", help="characters")
     character_commands = character_parser.add_subparsers(dest="character_command", required=True)
@@ -945,11 +1104,12 @@ def main(argv: list[str] | None = None) -> int:
     accept_parser = commands.add_parser("accept", help="accept an iteration for its slot; the previous one is superseded", parents=[after])
     accept_parser.add_argument("--character", required=True)
     accept_parser.add_argument("--iteration", required=True)
-    reject_parser = commands.add_parser("reject", help="mark an iteration rejected, with the reason", parents=[after])
+    reject_parser = commands.add_parser("reject", help="record that an iteration is not used, with the reason; a Production candidate's run records it as not selected", parents=[after])
     reject_parser.add_argument("--character", required=True)
     reject_parser.add_argument("--iteration", required=True)
     reject_parser.add_argument("--reason", required=True)
-    recipe_parser = commands.add_parser("recipe", help="read the saved request of the accepted image or an explicitly selected candidate", parents=[after])
+    reject_parser.add_argument("--actor", required=True, help="Actual person or agent making the non-selection decision")
+    recipe_parser = commands.add_parser("recipe", help="read the saved request of the accepted image or an explicitly selected iteration", parents=[after])
     recipe_parser.add_argument("--character", required=True)
     recipe_parser.add_argument("--slot", required=True)
     recipe_parser.add_argument("--iteration", help="read this recorded iteration without accepting it")
@@ -958,7 +1118,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "init":
-            root = init(args.out, args.studio_id, args.title)
+            root = init(args.out, args.studio_id, args.title,
+                        default_render_profile=args.default_render_profile,
+                        default_creative_latitude=args.default_creative_latitude,
+                        default_interaction_mode=args.default_interaction_mode,
+                        default_style_family=args.default_style_family)
             print(status(root))
             return 0
         root = require_studio(args.studio or Path.cwd())
@@ -974,7 +1138,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "accept":
             print(json.dumps(accept(root, args.character, args.iteration), ensure_ascii=False, indent=2))
         elif args.command == "reject":
-            print(json.dumps(reject(root, args.character, args.iteration, args.reason), ensure_ascii=False, indent=2))
+            print(json.dumps(reject(root, args.character, args.iteration, args.reason, actor=args.actor), ensure_ascii=False, indent=2))
         elif args.command == "recipe":
             print(json.dumps(recipe(root, args.character, args.slot, iteration=args.iteration), ensure_ascii=False, indent=2))
         elif args.command == "gallery":
@@ -989,4 +1153,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Inspect, export and verify the installed public contract using public data only."""
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse
 import hashlib
 import json
@@ -26,19 +27,19 @@ def encoded(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False)+'\n').encode('utf-8')
 
 
-def project_path(root: Path, rel: str, *, exists: bool = True) -> Path:
+def studio_path(root: Path, rel: str, *, exists: bool = True) -> Path:
     root = root.resolve(strict=True)
     if not root.is_dir() or not isinstance(rel,str) or not rel or '\\' in rel:
-        raise ValueError('expected a project and a nonempty relative path')
+        raise ValueError('expected a studio and a nonempty relative path')
     path = Path(rel)
     if path.is_absolute() or '..' in path.parts or '.' == rel:
-        raise ValueError('path must remain within the supplied project')
+        raise ValueError('path must remain within the supplied studio')
     target = root/path
     current = root
     for part in path.parts:
         current = current/part
         if current.is_symlink(): raise ValueError('symbolic links are not exchange inputs')
-    if not target.resolve().is_relative_to(root): raise ValueError('path escapes project')
+    if not target.resolve().is_relative_to(root): raise ValueError('path escapes the studio')
     if exists and not target.exists(): raise ValueError('missing exchange input: '+rel)
     return target
 
@@ -107,11 +108,11 @@ def describe(kind: str) -> dict:
 
 
 def inspect_artifact(root:Path,path:str,expected_contract:str|None=None) -> dict:
-    raw=read(project_path(root,path));v=decode(raw)
+    raw=read(studio_path(root,path));v=decode(raw)
     report=contract.validate_artifact(v)
     if not report['ok']:raise ValueError('invalid public artifact: '+'; '.join(report['errors']))
     descriptor=describe(v['artifact_type'])
-    if expected_contract and decode(read(project_path(root,expected_contract)))!=descriptor:
+    if expected_contract and decode(read(studio_path(root,expected_contract)))!=descriptor:
         raise ValueError('supplied contract does not match the installed public contract')
     return {'artifact_sha256':digest(raw),'artifact_content_sha256':report['content_sha256'],
             'contract':descriptor}
@@ -126,7 +127,7 @@ def _fsync_dir(path:Path) -> None:
 
 def export(root:Path,path:str,out:str,expected_contract:str|None=None) -> dict:
     inspected=inspect_artifact(root,path,expected_contract)
-    target=project_path(root,out,exists=False)
+    target=studio_path(root,out,exists=False)
     if target.exists():raise ValueError('exchange output already exists')
     target.parent.mkdir(parents=True,exist_ok=True)
     guard=target.parent/('.'+target.name+'.exchange-lock')
@@ -136,7 +137,7 @@ def export(root:Path,path:str,out:str,expected_contract:str|None=None) -> dict:
     try:
         os.close(fd)
         if target.exists():raise ValueError('exchange output already exists')
-        raw=read(project_path(root,path))
+        raw=read(studio_path(root,path))
         if digest(raw)!=inspected['artifact_sha256']:raise ValueError('artifact changed during export')
         descriptor=encoded(inspected['contract'])
         manifest={'files':[{'path':'artifact.json','sha256':digest(raw)},
@@ -156,11 +157,11 @@ def export(root:Path,path:str,out:str,expected_contract:str|None=None) -> dict:
 
 
 def verify_bundle(root:Path,bundle:str) -> dict:
-    target=project_path(root,bundle)
+    target=studio_path(root,bundle)
     if not target.is_dir():raise ValueError('exchange bundle must be a directory')
     expected={'artifact.json','contract.json','manifest.json'}
     if {p.name for p in target.iterdir()}!=expected:raise ValueError('exchange bundle member set is not exact')
-    manifest=decode(read(project_path(target,'manifest.json')))
+    manifest=decode(read(studio_path(target,'manifest.json')))
     if set(manifest)!={'files','contract_sha256'}:raise ValueError('invalid exchange manifest fields')
     rows=manifest['files']
     if not isinstance(rows,list) or len(rows)!=2:raise ValueError('invalid exchange file commitments')
@@ -169,7 +170,7 @@ def verify_bundle(root:Path,bundle:str) -> dict:
         if not isinstance(row,dict) or set(row)!={'path','sha256'}:raise ValueError('invalid exchange commitment')
         name=row['path'];sha=row['sha256']
         if name not in {'artifact.json','contract.json'} or name in commits or not isinstance(sha,str) or not HEX.fullmatch(sha):raise ValueError('invalid exchange member commitment')
-        raw=read(project_path(target,name))
+        raw=read(studio_path(target,name))
         if digest(raw)!=sha:raise ValueError(name+': exact byte hash mismatch')
         commits[name]=raw
     offered=decode(commits['contract.json']);value=decode(commits['artifact.json'])
@@ -184,7 +185,7 @@ def verify_bundle(root:Path,bundle:str) -> dict:
 
 
 def main() -> int:
-    p=argparse.ArgumentParser(description=__doc__)
+    p=_operation_context.ArgumentParser(description=__doc__)
     p.add_argument('command',choices=['check-installed','describe','inspect','export','verify'])
     p.add_argument('--type');p.add_argument('--root');p.add_argument('--artifact');p.add_argument('--contract');p.add_argument('--out');p.add_argument('--bundle');a=p.parse_args()
     try:
@@ -208,4 +209,4 @@ def main() -> int:
 if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

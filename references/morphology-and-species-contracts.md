@@ -40,7 +40,7 @@ A species profile may describe:
 - an energy, fluid, modular, colonial, or distributed organism;
 - a transformation form whose topology differs from the baseline form.
 
-`reality_status` records whether the profile is real, fictional, custom, hybrid, mechanical, or otherwise authored. `taxonomy_or_origin` may use biological taxonomy, design ancestry, engineering lineage, mythic influence, or a direct original-construction statement. A fictional species does not need a real-world taxonomic substitute.
+`reality_status` records whether the species is real, fictional, custom, hybrid, mechanical, or otherwise authored. `taxonomy_or_origin` may use biological taxonomy, design ancestry, engineering lineage, mythic influence, or a direct original-construction statement. A fictional species needs no real-world taxonomic substitute.
 
 ## 4. Complete feature inventory
 
@@ -81,7 +81,7 @@ The body plan defines the region graph before detail is added. Each region has:
 
 Examples include head, sensory crown, neck, thorax, abdomen, pelvis, limb girdle, wing root, tail base, tentacle ring, chassis core, faceplate, and detachable tool mount.
 
-Topology follows the authored attachment graph. A correct color cannot compensate for attaching a declared structure to a different carrier. Familiar anatomical examples are errors only when they contradict the approved profile, not because they depart from typical anatomy.
+Topology follows the authored attachment graph. A correct color cannot compensate for attaching a declared structure to a different carrier. Familiar anatomical examples are errors only when they contradict the approved species profile, not for departing from typical anatomy.
 
 ## 6. Counts and instance identity
 
@@ -345,7 +345,7 @@ Before approving a species or individual contract, confirm:
 ## 21. Public exchange and local ownership
 
 The [public contract](../protocols/contract-manifest.json) fixes artifact meaning
-and transitive schema dependencies. Private presets, retrieval state, art direction,
+and transitive schema dependencies. Private records, retrieval state, art direction,
 production runs and adoption records remain local. The public boundary accepts
 explicit artifacts and declarations, never software installation paths.
 

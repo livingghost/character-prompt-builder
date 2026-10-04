@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Rebuild core release metadata from explicitly configured default packs."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -15,7 +16,6 @@ from catalog_cli import (
     configure_pack_runtime,
     load_entries,
     load_pack_catalog,
-    named_resource_path,
     record_tier,
 )
 from execution_contract import atomic, sha256_file
@@ -85,6 +85,20 @@ def rebuild_host_manifests() -> dict[str, Any]:
     for relative, value in documents.items():
         dump_json(ROOT / relative, value)
     return documents
+
+
+def rebuild_implementation_index() -> list[str]:
+    """Write the files a prepared run pins, computed once here from the import closure.
+
+    The digest of each module is written beside the list, so a preparation can
+    tell an index written for other sources from the current one.
+    """
+    import production_workflow
+    from execution_contract import sha256_file
+    files = production_workflow.implementation_closure()
+    sources = {path: sha256_file(ROOT / path) for path in files if path.endswith(".py")}
+    dump_json(ROOT / production_workflow.IMPLEMENTATION_INDEX, {"files": files, "sources": sources})
+    return files
 
 
 def rebuild_integration_capabilities() -> dict[str, Any]:
@@ -204,15 +218,15 @@ def build_catalog_document(
 
 ## Runtime-derived search cache
 
-Pack-authored records and search rows are authoritative. The active pack state is materialized in a disposable SQLite cache that refreshes automatically when pack content, activation state, selected resource providers, or cache-builder logic changes.
+Pack-authored records and search rows are authoritative. The active pack state is materialized in a disposable SQLite cache that refreshes automatically when pack content, activation state, or cache-builder logic changes.
 
-Use `python scripts/catalog_cli.py inspect <record-id>` for the complete canonical record and compact linked-asset activation summary. Add `--out <path>` when the complete UTF-8 JSON record should be written instead of printed. Use `asset-lookup <record-or-asset-id> --summary` for compact asset IDs and technical roles, and full `asset-lookup` only for artifact resources, media, paths, hashes, and ownership needed by planning. Use `catalog_cli.py batch --input <json-file-or-stdin>` for several ordered queries so the active catalog and index load once. For linked visual evidence, build one record-scoped plan with `python scripts/build_reference_use_plan.py --record-use <record-id>=<intended-influence> ...`, then materialize the canonical `prepared-reference-set` before generation-package construction. Use `python scripts/pack_cli.py resource <name>` for selected named-resource resolution. `python scripts/catalog_html.py --pack-tree packs --output catalog` discovers every explicit pack below `packs/` and writes a split inspector. Its script-free `index.html` links to the Visual Evidence gallery, linked-preset gallery, kind browsing, pack summaries, and the separate search page. Complete records live on per-record pages, while `data/record-asset-map.json` records both canonical-record-to-Visual-Evidence and reverse relationships. See `references/maintenance/catalog-export.md`.
+Use `python scripts/catalog_cli.py inspect <record-id>` for the complete canonical record and compact linked-asset activation summary. Add `--out <path>` when the complete UTF-8 JSON record should be written instead of printed. Use `asset-lookup <record-or-asset-id> --summary` for compact asset IDs and technical roles, and full `asset-lookup` only for artifact resources, media, paths, hashes, and ownership needed by planning. Use `catalog_cli.py batch --input <json-file-or-stdin>` for several ordered queries so the active catalog and index load once. For linked visual evidence, build one record-scoped plan with `python scripts/build_reference_use_plan.py --record-use <record-id>=<intended-influence> ...`, then materialize the canonical `prepared-reference-set` before generation-package construction. Use `python scripts/pack_cli.py resource <name>` to resolve a named resource: the document merged from every enabled pack, or each pack's own copy of a pack-scoped resource. `python scripts/catalog_html.py --pack-tree packs --output catalog` discovers every explicit pack below `packs/` and writes a split inspector. Its script-free `index.html` links to the Visual Evidence gallery, linked-preset gallery, kind browsing, pack summaries, and the separate search page. Complete records live on per-record pages, while `data/record-asset-map.json` records both canonical-record-to-Visual-Evidence and reverse relationships. See `references/maintenance/catalog-export.md`.
 """
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     global _CAPTURED
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",
         action="store_true",
@@ -236,9 +250,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 managed_root=managed_root,
                 quarantine_root=(managed_root / ".quarantine").resolve(),
                 default_enabled_packs=tuple(metadata.default_pack_ids),
-                default_resource_providers=tuple(
-                    sorted(metadata.resource_providers.items())
-                ),
             )
         )
         entries = load_entries()
@@ -266,8 +277,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             for value in values or ["shared"]:
                 domains[canonical_domain(value)] += 1
 
-        defaults_path = named_resource_path("project-defaults", required=False)
-        defaults = load_json(defaults_path) if defaults_path is not None else {}
+        # The defaults the shipped packs resolve to.
+        shipped_defaults = pack_catalog.resources.get("pack-defaults")
+        defaults = (
+            load_json(shipped_defaults.path)
+            if shipped_defaults is not None and shipped_defaults.source_pack in metadata.default_pack_ids
+            else {}
+        )
         default_pack_count = len(metadata.default_pack_ids)
         write_text_atomic(
             ROOT / "references" / "catalog-index.md",
@@ -277,6 +293,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         rebuild_host_manifests()
         rebuild_repository_guides()
         rebuild_integration_capabilities()
+        rebuild_implementation_index()
 
         files = iter_release_files(
             ROOT,
@@ -302,7 +319,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             "purpose": "state-aware expansion of character ideas into coherent model-aware image prompts",
             "documentation": {
                 "readme": "README.md",
-                "content_packs": "PACKS.md",
                 "contributing": "CONTRIBUTING.md",
                 "license": "LICENSE",
                 "package_manifest": "package-manifest.toml",
@@ -364,4 +380,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

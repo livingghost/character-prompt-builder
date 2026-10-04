@@ -8,6 +8,7 @@ harvest manifest. Optional sidecar update is explicit so an unreviewed filled
 sheet remains candidate material until the owner accepts it.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -354,7 +355,7 @@ def harvest_sheet(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("filled_png", type=Path, help="model-filled Character Sheet PNG")
     parser.add_argument("--layout", type=Path, help="sheet-layout.json (default: beside the filled PNG)")
     parser.add_argument("--out", type=Path, required=True, help="output directory for harvested slot PNGs")
@@ -420,7 +421,7 @@ if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
     try:
-        raise SystemExit(main())
+        raise SystemExit(_operation_context.run_cli(main))
     except (ValueError, OSError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         raise SystemExit(2)

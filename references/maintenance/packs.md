@@ -1,6 +1,6 @@
 # Pack Maintenance
 
-Use this document for pack creation, registration, activation changes, provider changes, installation, update, removal, locking, conflict diagnosis, or catalog export. For ordinary runtime activation only, use [Pack State Runtime Quickstart](../runtime/pack-state-quickstart.md).
+Use this document for pack creation, registration, activation changes, installation, update, removal, locking, conflict diagnosis, or catalog export. For ordinary runtime activation only, use [Pack State Runtime Quickstart](../runtime/pack-state-quickstart.md).
 
 ## Contents
 
@@ -13,6 +13,7 @@ Use this document for pack creation, registration, activation changes, provider 
 - [Conflict rules](#conflict-rules)
 - [Ownership and distribution](#ownership-and-distribution)
 - [Command index](#command-index)
+- [First-use activation and bundled integrity](#first-use-activation-and-bundled-integrity)
 
 ## Identity and contents
 
@@ -41,18 +42,17 @@ The current schema is the complete contract, and dependencies name one pack by U
 
 An `asset` is a searchable record, not a loose file. Its `primary_resource` identifies the main source; its nonempty `resource_refs` contains that path and may add views, semantic maps, audits, or evidence JSON. The catalog derives the reverse link from canonical records to complete assets while preserving pack UUID, release, root, and source record path.
 
-`content.resource_bindings` assigns stable logical resource names such as `negative-policy`, `project-defaults`, or `reference-corpus-manifest`. After initialization, runtime provider selection is explicit state; unique availability does not override it. First-use initialization may persist the only available provider for an additional logical resource.
+`content.resource_bindings` assigns stable logical resource names such as `negative-policy`, `pack-defaults`, or `reference-corpus-manifest`. Each name resolves to the file of the highest-ranked enabled pack that binds it, as [Pack Format Specification](../pack-format-specification.md) states.
 
 ## Core-interpreted resource contracts
 
-Most named resources are opaque to core pack validation. Four logical names are interpreted directly by core workflows and therefore have provider-independent semantic contracts:
+Most named resources are opaque to core pack validation. Three logical names are interpreted directly by core workflows and therefore have semantic contracts that hold in every pack that binds them:
 
-- `project-defaults` enables one medium family by default and permits a hybrid only after an explicit request: `medium_policy.single_medium_family_by_default` and `medium_policy.hybrid_requires_explicit_request` are both `true`.
+- `pack-defaults` enables one medium family by default and permits a hybrid only after an explicit request: `medium_policy.single_medium_family_by_default` and `medium_policy.hybrid_requires_explicit_request` are both `true`.
 - `negative-policy` makes semantic exclusions user-request-only. Its `scene_failure_modes` and `atomic_misreadings` sources remain diagnostic-only with `automatic_emission: false`.
-- `species-scaffold-map` begins `identity_authority_order` with `explicit user species anchor` and `approved Character Identity Contract`. Its mapping keys equal the active species record IDs exactly: no missing record and no phantom mapping. Every mapping uses `identity_rule: preserve-user-or-contract-species` so a scaffold cannot replace identity authority.
-- `discovery-lanes` keeps every `preferred_scene_ids` target resolvable in the active canonical record set. Missing targets exclude the selected resource and produce a provider diagnostic instead of being silently skipped.
+- `discovery-lanes` keeps every `preferred_scene_ids` target resolvable in the active canonical record set. Missing targets exclude the resource and produce a diagnostic instead of being silently skipped.
 
-These contracts apply to the bundled commons pack and to any other pack that binds one of the logical names. `pack_cli.py validate` and lock construction reject a bound known resource that violates its contract; changing provider UUID does not weaken validation. `audit_preset_quality.py` also validates the resources selected by the active state.
+These contracts apply to the bundled commons pack and to any other pack that binds one of the logical names. `pack_cli.py validate` and lock construction reject a bound known resource that violates its contract. `audit_preset_quality.py` also validates the resources of the enabled packs.
 
 ## Development and locking
 
@@ -64,11 +64,29 @@ python scripts/pack_cli.py init ~/.character-prompt-builder/packs/my-pack --name
 
 `init` generates the UUIDv7, registers the location when no pack root holds it, and enables the pack. Add normalized records and resources, then declare capabilities, globs, and logical bindings; the next catalog command uses them. A pack without `pack.lock.json` is a development pack that may be empty. The runtime validates it at every catalog build, and `ready` and every catalog command name a problem in one line.
 
+Production preparation uses a development pack like a locked one. The prepared run keeps the bytes it read. An edit to a record or resource the run uses stops that run's execution. An edit elsewhere in the pack leaves the run usable. A synthetic run after its model record was edited, trimmed:
+
+```json
+{
+  "code": "PACK_CONTENT_MISMATCH",
+  "severity": "error",
+  "phase": "runtime-freshness",
+  "message": "Current source bytes differ from the fixed execution resource.",
+  "required_action": "Restore the pinned content, or retarget from this run to adopt the edited pack content.",
+  "pack": "019a0290-1234-789a-8123-0123456789ab",
+  "resource": "records/models.json",
+  "expected": "68090f5383af9a6b...",
+  "actual": "12225c76355c5f36...",
+  "affected_runs": ["01a10263-2df5-748c-bc85-242e97cdd707"],
+  "actions": [{"operation": "restore", "command": null}, {"operation": "retarget", "command": "python scripts/production_workflow.py retarget --root STUDIO --from RUN ..."}]
+}
+```
+
 Build a lock only to publish a release or to install the pack elsewhere; `install` requires one:
 
 ```bash
-python scripts/pack_cli.py build-lock my-pack
-python scripts/pack_cli.py validate my-pack --released
+python scripts/pack_cli.py build-lock --directory ~/.character-prompt-builder/packs/my-pack
+python scripts/pack_cli.py validate --directory ~/.character-prompt-builder/packs/my-pack --released
 ```
 
 The lock records every pack file except itself with relative path, size, media type, role, and SHA-256. Any change to a locked file invalidates the pack, so a pack still being edited stays unlocked. Advance the pack's own CalVer, rebuild the lock, and publish the complete new release. Never publish different bytes under the same pack UUID and release.
@@ -88,11 +106,9 @@ python scripts/pack_cli.py list
 python scripts/pack_cli.py root-remove PACK_OR_CONTAINER
 python scripts/pack_cli.py enable <pack-uuid>
 python scripts/pack_cli.py disable <pack-uuid>
-python scripts/pack_cli.py provider-select <logical-name> <pack-uuid>
-python scripts/pack_cli.py provider-clear <logical-name>
 ```
 
-Without `--state-file`, these commands read and persist the platform data-home state described in [Pack State Runtime Quickstart](../runtime/pack-state-quickstart.md). `ready` persists that resolved state file when absent, never rewrites an existing one, and prints the packs in use and each decision the author owes. `disable` and `remove` clear the provider choices the pack owned and list them in `cleared_providers`.
+Without `--state-file`, these commands read and persist the state in the configuration directory described in [Pack State Runtime Quickstart](../runtime/pack-state-quickstart.md). `ready` persists that resolved state file when absent, never rewrites an existing one, and prints the packs in use and each decision the author owes.
 
 Required dependencies must be enabled before activation. Disable dependents first or use the explicit cascade behavior. `root-remove` refuses to orphan an enabled pack. Deleting an enabled directory makes it unavailable immediately and produces a state diagnostic until corrected.
 
@@ -109,7 +125,7 @@ Install and update validate manifest, lock, paths, dependency declarations, reco
 
 ZIP handling rejects malformed or unreadable archives, absolute and traversing paths, symbolic links, duplicate member paths, and file-directory collisions. These are structured operation failures. The pack layer does not impose a project-specific archive-size or member-count ceiling; general archive and filesystem behavior remains outside this content-management contract.
 
-The default managed root is the packs folder beside the state, `~/.character-prompt-builder/packs` for the persistent state; `--managed-root` selects an explicit alternative. Managed directories are `<managed-root>/<pack-uuid>/`. Update requires the same UUID and a strictly newer CalVer, then replaces the directory atomically. Retain the prior release in recoverable quarantine at `<managed-root>/.quarantine/` on the same filesystem.
+The default managed root is the `packs` folder beside the state, which is `packs/` in the configuration directory for the persistent state; `--managed-root` selects an explicit alternative. Managed directories are `<managed-root>/<pack-uuid>/`. Update requires the same UUID and a strictly newer CalVer, then replaces the directory atomically. Retain the prior release in recoverable quarantine at `<managed-root>/.quarantine/` on the same filesystem.
 
 Remove accepts only lowercase UUIDv7, applies only to a disabled managed pack, and moves the exact UUID directory into quarantine. It remains recoverable even when the installed manifest is missing or corrupt.
 
@@ -137,7 +153,7 @@ python scripts/catalog_html.py \
 
 `--pack-tree` recursively discovers every `pack.json` below the named tree, validates each pack, and orders them deterministically. A later third-party or owner-authored pack placed beneath `packs/` is therefore included without editing the command or exporter. Use repeated `--pack` only for a deliberately fixed subset, or use `--state` / `--settings` when activation state rather than the filesystem tree should define scope.
 
-Open `catalog/index.html`. The direct-open page is script-free and links to a static visual-evidence gallery, a linked-preset gallery, record-kind browsing, pack summaries, and the separate interactive `search.html`. Complete records live on individual pages. `data/record-asset-map.json` contains both canonical-record-to-asset and asset-to-canonical-record mappings. Linked Visual Evidence is shown as a preview thumbnail on the relevant gallery, search result, preset page, and evidence page. The output stays outside every inspected pack and does not rank, rewrite, merge, or summarize source records. Use `--copy-assets` only when the catalog must move independently of its packs. See [Catalog Export](catalog-export.md).
+Open `catalog/index.html`. The direct-open page is script-free and links to a static visual-evidence gallery, a linked-record gallery, record-kind browsing, pack summaries, and the separate interactive `search.html`. Complete records live on individual pages. `data/record-asset-map.json` contains both canonical-record-to-asset and asset-to-canonical-record mappings. Linked Visual Evidence is shown as a preview thumbnail on the relevant gallery, search result, record page, and evidence page. The output stays outside every inspected pack and does not rank, rewrite, merge, or summarize source records. Use `--copy-assets` only when the catalog must move independently of its packs. See [Catalog Export](catalog-export.md).
 
 ## Conflict rules
 
@@ -145,13 +161,23 @@ Canonical record IDs must be unique across the enabled set. Resolution compares 
 
 Admit an asset with `canonical_record_ids` only when every referenced record exists after dependencies and replacements resolve. Missing references produce diagnostics and exclude the asset.
 
-Pack UUIDs are unique across all roots. Multiple enabled packs may declare one logical resource, but state selects exactly one provider UUID. A missing, disabled, invalid, dependency-excluded, or UUID-conflicted provider leaves the resource unresolved.
+Pack UUIDs are unique across all roots. Multiple enabled packs may bind one logical resource; the highest-ranked of them supplies it, as [Pack Format Specification](../pack-format-specification.md) states.
 
 ## Ownership and distribution
 
 A storage location is not a pack taxonomy. Moving a pack between roots does not make it default, user-owned, third-party, local, or cloud. Identity, release, authorship, policy, and explicit distribution choice define its role.
 
-The bundled commons pack is separately authored and minimal. It is not a rename, summary, automatic subset, or replacement of another library. Expanding it is an explicit content-authoring decision and does not move or delete the source record from its owner pack.
+The bundled commons pack is separately authored and minimal. It is not a rename, summary, automatic subset, or replacement of another pack. Expanding it is an explicit content-authoring decision and does not move or delete the source record from its owner pack.
+
+Every other pack is a personal pack. Its author creates it and manages its lifecycle independently. A personal pack is a normal pack: full-package construction and catalog export preserve and validate it, and first use enables it without making its records core-release catalog dependencies.
+
+Core documentation, runtime defaults and regression expectations never depend on what a personal pack holds:
+
+- its record IDs and aliases;
+- its model inventory and counts;
+- its search results and evaluation history.
+
+The product's tests and release checks create commons-only states with `ready --only`. A test that needs other content creates a synthetic pack in a temporary directory. This boundary protects ownership without deleting, moving, renaming, or excluding a personal pack.
 
 Keep each non-bundled pack's atomic modules, policies, records, assets, and evidence in the release unit declared by that pack. Do not split pack-owned scene knowledge or visual evidence into undeclared subpacks.
 
@@ -164,20 +190,42 @@ Cache generation, inspection, export, copying, and distribution preserve records
 ```text
 pack_cli.py init, validate, build-lock
 pack_cli.py ready
-pack_cli.py root-add, root-remove, list, inspect
+pack_cli.py root-add, root-remove, list
 pack_cli.py enable, disable
 pack_cli.py install, update, remove
 pack_cli.py cache-status, cache-refresh
 pack_cli.py resources, resource
-pack_cli.py provider-list, provider-select, provider-clear
 ```
 
-`ready` prints plain lines and exits 1 while the author owes a decision. The other commands report JSON. Usage errors and operation failures exit nonzero with English diagnostics.
+`validate` and `build-lock` act on one pack:
+
+- `--pack PACK_ID_OR_UNIQUE_NAME` selects a discovered pack by UUID or by its unique `name`.
+- `--directory PACK_DIRECTORY` selects the absolute directory holding `pack.json`. A leading `~` names the home directory, and a relative path is refused.
+
+`validate` returns the manifest, the validation report and, for `--pack`, the discovery issues. A name is matched only against discovered manifests, never against a directory in the current folder. A name that several packs share stops the command and lists them. A synthetic case, trimmed:
+
+```json
+{
+  "ok": false,
+  "diagnostics": [{
+    "code": "PACK_NAME_AMBIGUOUS",
+    "phase": "pack-selection",
+    "message": "Pack name 'Minimal Example Pack' is not unique.",
+    "required_action": "Select one of the candidates with --pack PACK_ID.",
+    "candidates": [
+      {"pack_id": "0198b4e8-7c00-7a31-8c5a-2a6d9f18e4b7", "name": "Minimal Example Pack", "root": "...\\managed\\alpha"},
+      {"pack_id": "01a10263-479b-7a1b-9bfe-412dc0308741", "name": "Minimal Example Pack", "root": "...\\managed\\beta"}
+    ]
+  }]
+}
+```
+
+`ready` prints plain lines and exits 1 while the author owes a decision. The other commands report JSON and exit 2 on failure, with every failure in the `diagnostics` form shown above. Runtime options such as `--state-file` and repeated `--pack-root` go before the subcommand. An extra root applies to that invocation only. `scripts/pack_selector_smoke_test.py` exercises pack selection.
 
 ## First-use activation and bundled integrity
 
-`config/pack-initialization.json` enables all discovered packs only while the selected state file is absent. `ready` persists that result. Existing explicit state is never overwritten: deliberately disabled packs remain disabled, and selected resource providers remain selected. `config/default-pack-state.json` remains the minimal core-release catalog seed, not a restriction on first-use activation of additional supplied packs.
+`config/pack-initialization.json` enables all discovered packs only while the selected state file is absent. `ready` persists that result. Existing explicit state is never overwritten: deliberately disabled packs remain disabled. `config/default-pack-state.json` remains the minimal core-release catalog seed, not a restriction on first-use activation of additional supplied packs.
 
-The actual bundled `packs/commons` directory with the commons UUID is core-managed. It has no `pack.lock.json`; core source inventory and `MANIFEST.json` commit it together with the project, and pack validation still checks its schema and files. `lock` and pack release-lock creation refuse that directory rather than recreating an unnecessary lock. The exemption is path-bound, not a manifest flag: a copy of commons and every other pack still need a lock to be released or installed. The release gate reports a live core inventory for commons, not a nonexistent lock. Do not remove or weaken any external pack's lock.
+The actual bundled `packs/commons` directory with the commons UUID is core-managed. It has no `pack.lock.json`; core source inventory and `MANIFEST.json` commit it together with the project, and pack validation still checks its schema and files. `build-lock` and pack release-lock creation refuse that directory rather than recreating an unnecessary lock. The exemption is path-bound, not a manifest flag: a copy of commons and every other pack still need a lock to be released or installed. The release gate reports a live core inventory for commons, not a nonexistent lock. Do not remove or weaken any external pack's lock.
 
-For the actual commons directory, `pack_release_gate.py` reports `scope: core-managed-pack-structure` and `release_authorized: false` after live-inventory and cache checks. This is not a standalone core release pass: `scripts/validate.py` and the project packager own core quality and regression evaluation. The separate pack evaluation contract remains mandatory for external packs that declare evaluation resources.
+For the actual commons directory, `pack_release_gate.py` reports `scope: core-managed-pack-structure` and `release_authorized: false` after live-inventory and cache checks. This is not a standalone core release pass: `scripts/run_checks.py` runs the regression suites, and `scripts/validate.py` and the project packager check the tree and the release. The separate pack evaluation contract remains mandatory for external packs that declare evaluation resources.

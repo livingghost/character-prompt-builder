@@ -8,7 +8,7 @@ they are not observations of the named model or a live service. The source
 record is `generated/request-validation.json`, with its synthetic evidence in
 `generated/synthetic-validation/`. No provider is contacted by the builder.
 
-Run `python scripts/state_generation_smoke_test.py` from the project root, or
+Run `python scripts/state_generation_smoke_test.py` from the Skill root, or
 follow the commands in `references/state-aware-prompt-workflow.md`.
 
 Run `python examples/state-aware-pilot/build_example.py` to replace only the canonical `generated/` tree. Library callers may use `build(output_dir)`, and the equivalent CLI is `python examples/state-aware-pilot/build_example.py --out-dir <new-or-empty-directory>`. A custom non-empty directory is rejected without changing its contents.

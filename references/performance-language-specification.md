@@ -34,7 +34,7 @@ Performance information can belong to different artifacts.
 | Information | Owner |
 |---|---|
 | Creator portrayal aim, permitted contrast and deliberate departure | Scoped authorial intent entry in the design register, not a new performance JSON field |
-| Subject identity profile and signature dynamics | Applicable persona section 2, binding the creator aim to internal traits and expression |
+| Character profile and signature dynamics | Applicable persona section 2, binding the creator aim to internal traits and expression |
 | Individual behavioral baseline, conditional response and voice modes | Applicable persona PHYSICAL/THOUGHT/SPEECH/RELATIONSHIPS, bound to section 2 with world and phase scope |
 | Adopted visual-production summary of mannerisms and declared available channels | Character Identity Contract `stable_identity.performance_vocabulary`; a bounded summary, not a competing persona |
 | Current felt emotion, masked emotion, fatigue, arousal, pain, intoxication, or alert state | State Snapshot or Scene Context |
@@ -215,7 +215,7 @@ the entire temporal sequence is simultaneously visible.
 
 The following are discovery examples, not inherited anatomy, expressive meaning or required
 coverage. Only declared structures and capabilities activate a channel. Preserve natural behavior
-where the project asserts a natural organism; fictional or engineered departures need their own
+where the author asserts a natural organism; fictional or engineered departures need their own
 scope. Missing, absent, unknown and occluded channels are different.
 
 ### Biological and anthropomorphic portrayals
@@ -333,7 +333,7 @@ When a user supplies a new image batch or the active sandbox contains prior refe
 8. Ordinary animals, anthropomorphic subjects, creatures, hybrids, robots, and androids use domain-valid channels. Never force a human face grammar onto a subject whose performance is carried by natural body plan or mechanical function.
 9. Source images remain evidence and are not distributed with the skill. Preserve reusable production knowledge, not source signatures, exact logos, watermarks, copied character identity, or editorial censorship devices. Remove obvious mosaics, blur patches, paint shapes, stickers, bars, and replacement marks, preserve the underlying supported semantic content, and keep covered fine structure open.
 
-The maintainer may sample a very large residual corpus through contact sheets, but promotion decisions must still be traceable to representative source filenames or reference IDs. Follow the [Cue Extraction Log Contract](maintenance/presets.md#cue-extraction-log-contract); record the pack-specific trace in `cpb-resource:sandbox-cue-extraction-log` or `cpb-resource:source-notes` resolved from the explicitly selected provider.
+The maintainer may sample a very large residual corpus through contact sheets, but promotion decisions must still be traceable to representative source filenames or reference IDs. Follow the [Cue Extraction Log Contract](maintenance/presets.md#cue-extraction-log-contract); record the pack-specific trace in `cpb-resource:sandbox-cue-extraction-log` or `cpb-resource:source-notes`.
 
 
 ## Human garment, recovery, and adult-social cue collection

@@ -83,10 +83,10 @@ labeled as guesses. Read the persona's evidence boundary for real-person or reco
 | Information | Owner and downstream use |
 |---|---|
 | Creator's portrayal aim, scope, recognition, contrast and departure policy | Authorial intent register in a design record; refer by stable intent ID and exact file/fragment. |
-| Current identity profile, inner core, protected dimensions and signature dynamics | Persona section 2 PORTRAYAL IDENTITY, interpreting the governing intent without duplicating its rule/status. |
+| Current character profile, inner core, protected dimensions and signature dynamics | Persona section 2 PORTRAYAL IDENTITY, interpreting the governing intent without duplicating its rule/status. |
 | World conventions, information access and physical possibility | Applicable world and adopted visual-identity records. A portrayal aim cannot silently change them. |
 | Phase-wide body/voice baseline and behavioral repertoire | Persona PHYSICAL, MIND, THOUGHT, SPEECH and PERSONALITY, bound to section 2. |
-| Systematic directional relationship exceptions | Persona RELATIONSHIPS, referring to the general rules and identity profile. |
+| Systematic directional relationship exceptions | Persona RELATIONSHIPS, referring to the general rules and character profile. |
 | Current event, resources, fatigue, emotion, audience and task | Scene context or existing State Snapshot, not permanent identity. |
 | This utterance, motion, observer access and timing | Scene realization or performance direction. Visual projection uses the existing performance contracts. |
 | Adopted reusable visual-production summary | A bounded identity contract/sheet summary referring to applicable persona and intent owners. |
@@ -207,7 +207,7 @@ when a persona form would prefer otherwise; it gets a functional and portrayal m
 
 Before a consequential beat, settle a compact author-facing note covering:
 
-- the applicable intent, its status and the identity profile;
+- the applicable intent, its status and the character profile;
 - current facts and access;
 - active rules and overlap;
 - what must hold and what changes;
@@ -275,11 +275,11 @@ literal reuse and gaps. The authorial-intent audit checks explicit bindings and 
 Artistic quality, the meaning of a binding, approval, precedence and emotion stay outside both
 audits. Run `python scripts/character_performance_smoke_test.py` for structural regressions. Read
 [Character Performance Review Probes](character-performance-probes.md) for worked review
-questions; the probes are examples rather than mandatory types or accepted persona designs.
+questions; the probes are examples, not mandatory types or accepted persona designs.
 
 ## Revision and handoff
 
-Revise the owning intent, profile or rules at the requested scope. Keep unrelated world,
+Revise the owning intent, persona or rules at the requested scope. Keep unrelated world,
 character, theme and plot decisions fixed. Review affected sequences and refresh bounded sheet
 summaries and projections. A transient register stays transient. The installed full templates
 are the authoring source for new records.

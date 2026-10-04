@@ -2,7 +2,7 @@
 
 ## Goal
 
-Give every admitted user-provided image in its owning content pack an explicit, portable disposition without creating one canonical preset per file and without leaking conversation or sandbox state into the pack.
+Give every admitted user-provided image in its owning content pack an explicit, portable disposition without creating one canonical record per file and without leaking conversation or sandbox state into the pack.
 
 ## Workflow
 
@@ -14,7 +14,7 @@ Give every admitted user-provided image in its owning content pack an explicit, 
 6. Reuse or enrich a canonical family only through deliberate reviewed authoring when semantic authority matches and every detail, provenance fact, search association, and reference remains lossless. Visual or naming similarity alone never authorizes a merge.
 7. Create a new record only when the source contributes a distinct reusable production contract.
 8. Generate the native-dimension source-derived perceptual Layer A vector projection, Layer B audit set, Layer C runtime recipes, and portable metadata.
-9. Validate hashes, schemas, uniform full-frame profile selection, perceptual gates, SVG safety, and corpus coverage.
+9. Validate hashes, schemas, uniform full-frame settings, perceptual gates, SVG safety, and corpus coverage.
 
 ## Portable manifest
 

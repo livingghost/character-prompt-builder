@@ -20,6 +20,7 @@ registered is read from the manifest.
     python scripts/seal_contract.py --check    say whether sealing would move anything, exit 1 if so
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -80,7 +81,7 @@ def sealed_manifest(raw: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--check", action="store_true", help="Report what sealing would move; write nothing")
     args = parser.parse_args(argv)
     contract_path, carrier_path = ROOT / CONTRACT, ROOT / CARRIER
@@ -112,4 +113,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

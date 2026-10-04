@@ -19,7 +19,7 @@ Some checks stay: paths must remain within their declared root, a symlink that w
 
 A scene plan can specify `max_document_bytes` when a particular consumer (the downstream writer, actor or renderer) has an actual budget; omitted, it leaves document size unbounded. When the selected material exceeds the budget, preparation reports the conflict, keeps every definition whole and leaves the partial document unready.
 
-`authorial_intent_audit.py` accepts `--max-input-bytes` and `--max-files`; `persona_expression_audit.py` accepts `--max-input-bytes`. These are optional operator budgets with unset defaults; a valid project needs none of them. A budget conflict makes the audit incomplete and unsuccessful rather than silently discarding a linked definition. Duplicate-expression `--min-chars` is an explicitly adjustable advisory display filter rather than a file-size or expressive-quality requirement.
+`authorial_intent_audit.py` accepts `--max-input-bytes` and `--max-files`; `persona_expression_audit.py` accepts `--max-input-bytes`. These are optional operator budgets with unset defaults; a valid studio needs none of them. A budget conflict makes the audit incomplete and unsuccessful rather than silently discarding a linked definition. Duplicate-expression `--min-chars` is an explicitly adjustable advisory display filter rather than a file-size or expressive-quality requirement.
 
 An agent evaluation condition declares `timeout_seconds` as a positive finite duration, or `null` to run free of an application deadline. Optional `max_log_bytes` is a positive integer or `null`, with an unset default. Both values belong to the inspected and explicitly approved study. The declared positive repetition count is the only ceiling on repetitions, and inspecting a study leaves it unexecuted.
 
@@ -27,7 +27,7 @@ Logs are written to disk and read line by line for metrics; artifacts and logs a
 
 ## Review output is not a summary of the evidence
 
-The default production HTML review includes complete text and all attachments. An operator may request `artifact_review.py --preview-chars N` to limit only the displayed text, measured in Unicode characters. The report records that choice and identifies a shortened preview; the complete attached bytes and their hashes remain available. Source material, production evidence and any quality verdict stay as they were.
+The default production HTML review includes complete text and all attachments. An operator may request `artifact_review.py --preview-chars N` to limit only the displayed text, measured in Unicode characters. The report records that choice and identifies a shortened preview; the complete attached bytes and their hashes remain available. Source material, production evidence and any quality verdict stay as they were. Automatic operation logs stay on the local disk. [Operation logs](runtime/operation-logs.md) describes their redaction and an export without console output.
 
 ## Constraints retained for an actual reason
 
@@ -39,7 +39,7 @@ Three constraints follow the value's own representation:
 
 Model input dimensions, number of references, text-field lengths and output counts come from the selected model/service contract or an explicit production grant rather than from a universal imagined model. An unknown target limit remains unknown.
 
-The Agent Skills format limits the frontmatter `name` to 64 characters and `description` to 1024 characters. Those metadata-field limits leave README prose and project materials unbounded, and a recommendation for a shorter skill body stays a recommendation rather than a correctness failure. Source: [Agent Skills specification](https://agentskills.io/specification).
+The Agent Skills format limits the frontmatter `name` to 64 characters and `description` to 1024 characters. Those metadata-field limits leave README prose and studio materials unbounded, and a recommendation for a shorter skill body stays a recommendation rather than a correctness failure. Source: [Agent Skills specification](https://agentskills.io/specification).
 
 Installed image decoders have their own documented safety checks, and the product keeps Pillow's decompression-bomb protection enabled rather than pretending arbitrary allocations are safe. Source: [Pillow Image module](https://pillow.readthedocs.io/en/stable/reference/Image.html). Actual codec and OS failures remain visible.
 
@@ -62,8 +62,8 @@ A new content ceiling needs a reason beyond keeping fixtures, context or a relea
 Each of these variables sets an optional positive finite deadline in seconds:
 
 - `PRODUCTION_HTTP_TIMEOUT_SECONDS`: each HTTP operation;
-- `VALIDATE_REGRESSION_TIMEOUT_SECONDS`: each standalone regression that
-  `scripts/validate.py` runs, reported in the validation result when exceeded;
+- `VALIDATE_REGRESSION_TIMEOUT_SECONDS`: the installed-contract check that
+  `scripts/validate_state_protocol.py` runs, reported in its result when exceeded;
 - `SEARCH_REGRESSION_TIMEOUT_SECONDS`: each isolated worker that
   `scripts/search_regression.py` runs, reported as a failed case range when exceeded;
 - `EXAMPLE_COMMAND_TIMEOUT_SECONDS`: each command an example under `examples/` runs;

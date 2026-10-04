@@ -23,7 +23,7 @@ python -B scripts/portrayal_principles.py inspect persistence
 ```
 
 Choose an unused output directory; build never overwrites an existing one. After editing an actual
-source in your own project, impact identifies stale dependencies. Review the change, update its
+source in your own studio, impact identifies stale dependencies. Review the change, update its
 pinned hash intentionally and rebuild affected units. Do not change example files to fabricate a
 review or a successful image. See [the complete contract](../../references/runtime/world-realization.md)
 for fields, boundaries, resource limits and failures.

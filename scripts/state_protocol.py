@@ -8,6 +8,7 @@ approved event history, extracts scene state, assembles an authored visual
 projection, and prepares reference-bundle plans from declared coverage needs.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -50,6 +51,7 @@ ARTIFACT_SCHEMA_FILES = {
     "integration-capability-manifest": "integration-capability-manifest.schema.json",
     "interchange-envelope": "interchange-envelope.schema.json",
     "inventory-state": "inventory-state.schema.json",
+    "observed-parameter-schema": "observed-parameter-schema.schema.json",
     "observed-render-state": "observed-render-state.schema.json",
     "prompt-plot": "prompt-plot.schema.json",
     "prompt-retrieval-record": "prompt-retrieval-record.schema.json",
@@ -394,7 +396,7 @@ def _json_pointer(root: Any, fragment: str) -> dict[str, Any]:
     return current
 
 
-def _resolve_ref(ref: str, root_schema: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def _resolve_ref(ref: str, root_schema: dict[str, Any], documents: dict[Path, dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
     if ref.startswith("http://") or ref.startswith("https://"):
         raise ValueError(f"remote schema references are unsupported: {ref}")
     if ref.startswith("#"):
@@ -403,7 +405,9 @@ def _resolve_ref(ref: str, root_schema: dict[str, Any]) -> tuple[dict[str, Any],
     path = (SCHEMA_DIR / relative).resolve()
     if SCHEMA_DIR.resolve() not in path.parents and path != SCHEMA_DIR.resolve():
         raise ValueError(f"schema reference escapes schema directory: {ref}")
-    referenced_root = load_json(path)
+    if path not in documents:
+        documents[path] = load_json(path)
+    referenced_root = documents[path]
     if separator:
         return _json_pointer(referenced_root, f"#{fragment}"), referenced_root
     return referenced_root, referenced_root
@@ -472,33 +476,49 @@ def _no_alternative(path: str, branch_errors: list[list[str]]) -> str:
     return f"{path}: value matches none of the {len(branch_errors)} alternatives{detail}"
 
 
+def _instance_key(value: Any):
+    """JSON Schema 2020-12 section 4.2.2 instance equality, not Python bool coercion."""
+    if value is None: return ('null',)
+    if isinstance(value, bool): return ('boolean', value)
+    if isinstance(value, (int, float)): return ('number', value)
+    if isinstance(value, str): return ('string', value)
+    if isinstance(value, list): return ('array', tuple(_instance_key(item) for item in value))
+    if isinstance(value, dict): return ('object', frozenset((key, _instance_key(item)) for key,item in value.items()))
+    return ('non-json', type(value).__name__, repr(value))
+
+
 def validate_against_schema(
     value: Any,
     schema: dict[str, Any],
     path: str = "$",
     _root_schema: dict[str, Any] | None = None,
+    _documents: dict[Path, dict[str, Any]] | None = None,
 ) -> list[str]:
     """Validate the subset of JSON Schema used by this package."""
+    # Share complete schema documents within one validation only. A subsequent
+    # validation reads current bytes, even if size and mtime did not change.
+    if _documents is None:
+        _documents = {}
     root_schema = schema if _root_schema is None else _root_schema
     errors: list[str] = []
     if "$ref" in schema:
-        resolved, resolved_root = _resolve_ref(str(schema["$ref"]), root_schema)
-        errors.extend(validate_against_schema(value, resolved, path, resolved_root))
+        resolved, resolved_root = _resolve_ref(str(schema["$ref"]), root_schema, _documents)
+        errors.extend(validate_against_schema(value, resolved, path, resolved_root, _documents))
         siblings = {key: item for key, item in schema.items() if key != "$ref"}
         if siblings:
-            errors.extend(validate_against_schema(value, siblings, path, root_schema))
+            errors.extend(validate_against_schema(value, siblings, path, root_schema, _documents))
         return errors
 
     all_of = schema.get("allOf")
     if isinstance(all_of, list):
         for branch in all_of:
             if isinstance(branch, dict):
-                errors.extend(validate_against_schema(value, branch, path, root_schema))
+                errors.extend(validate_against_schema(value, branch, path, root_schema, _documents))
 
     any_of = schema.get("anyOf")
     if isinstance(any_of, list):
         branch_errors = [
-            validate_against_schema(value, branch, path, root_schema)
+            validate_against_schema(value, branch, path, root_schema, _documents)
             for branch in any_of
             if isinstance(branch, dict)
         ]
@@ -508,7 +528,7 @@ def validate_against_schema(
     one_of = schema.get("oneOf")
     if isinstance(one_of, list):
         branch_errors = [
-            validate_against_schema(value, branch, path, root_schema)
+            validate_against_schema(value, branch, path, root_schema, _documents)
             for branch in one_of
             if isinstance(branch, dict)
         ]
@@ -522,19 +542,19 @@ def validate_against_schema(
 
     not_schema = schema.get("not")
     if isinstance(not_schema, dict):
-        if not validate_against_schema(value, not_schema, path, root_schema):
+        if not validate_against_schema(value, not_schema, path, root_schema, _documents):
             errors.append(f"{path}: value satisfies a forbidden schema")
 
     condition = schema.get("if")
     if isinstance(condition, dict):
-        branch = "then" if not validate_against_schema(value, condition, path, root_schema) else "else"
+        branch = "then" if not validate_against_schema(value, condition, path, root_schema, _documents) else "else"
         consequence = schema.get(branch)
         if isinstance(consequence, dict):
-            errors.extend(validate_against_schema(value, consequence, path, root_schema))
+            errors.extend(validate_against_schema(value, consequence, path, root_schema, _documents))
 
-    if "const" in schema and value != schema["const"]:
+    if "const" in schema and _instance_key(value) != _instance_key(schema["const"]):
         errors.append(f"{path}: expected constant {schema['const']!r}")
-    if "enum" in schema and value not in schema["enum"]:
+    if "enum" in schema and not any(_instance_key(value) == _instance_key(item) for item in schema["enum"]):
         errors.append(f"{path}: value {value!r} is not in {schema['enum']!r}")
 
     expected = schema.get("type")
@@ -589,19 +609,19 @@ def validate_against_schema(
             errors.append(f"{path}: array is longer than maxItems")
         contains = schema.get("contains")
         if isinstance(contains, dict) and not any(
-            not validate_against_schema(item, contains, f"{path}[{index}]", root_schema)
+            not validate_against_schema(item, contains, f"{path}[{index}]", root_schema, _documents)
             for index, item in enumerate(value)
         ):
             errors.append(f"{path}: no item satisfies contains")
         if schema.get("uniqueItems"):
-            encoded = [canonical_json(item) for item in value]
+            encoded = [_instance_key(item) for item in value]
             if len(encoded) != len(set(encoded)):
                 errors.append(f"{path}: array items are not unique")
         item_schema = schema.get("items")
         if isinstance(item_schema, dict):
             for index, item in enumerate(value):
                 errors.extend(
-                    validate_against_schema(item, item_schema, f"{path}[{index}]", root_schema)
+                    validate_against_schema(item, item_schema, f"{path}[{index}]", root_schema, _documents)
                 )
 
     if isinstance(value, dict):
@@ -625,14 +645,14 @@ def validate_against_schema(
             for name, child_schema in properties.items():
                 if name in value and isinstance(child_schema, dict):
                     errors.extend(
-                        validate_against_schema(value[name], child_schema, f"{path}.{name}", root_schema)
+                        validate_against_schema(value[name], child_schema, f"{path}.{name}", root_schema, _documents)
                     )
         property_names = schema.get("propertyNames")
         if isinstance(property_names, dict):
             for name in value:
                 errors.extend(
                     validate_against_schema(
-                        str(name), property_names, f"{path}.<property-name:{name}>", root_schema
+                        str(name), property_names, f"{path}.<property-name:{name}>", root_schema, _documents
                     )
                 )
         if isinstance(properties, dict):
@@ -643,7 +663,7 @@ def validate_against_schema(
             elif isinstance(additional, dict):
                 for name in extras:
                     errors.extend(
-                        validate_against_schema(value[name], additional, f"{path}.{name}", root_schema)
+                        validate_against_schema(value[name], additional, f"{path}.{name}", root_schema, _documents)
                     )
 
     if schema.get("$id") == "declared-structures.schema.json" and not errors:
@@ -2745,7 +2765,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     from catalog_cli import configure_pack_runtime
     from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 
-    parser = argparse.ArgumentParser(description="Manage Shared State Protocol artifacts.")
+    parser = _operation_context.ArgumentParser(description="Manage Shared State Protocol artifacts.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     validate_cmd = sub.add_parser("validate")
@@ -3009,4 +3029,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

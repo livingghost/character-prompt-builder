@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify one committed Character Prompt Builder Upscale Package."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -14,7 +15,7 @@ from upscale_package import verify_upscale_package
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("package", type=Path)
     add_pack_runtime_arguments(parser)
     args = parser.parse_args(argv)
@@ -30,4 +31,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

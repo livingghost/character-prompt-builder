@@ -30,18 +30,13 @@ from reference_runtime import (
 )
 from state_protocol import finalize_artifact
 
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PACK_ID = "01a0043b-2250-720d-87b7-f1e6fd7ed230"
 FIXTURE_PACK_ID = "01a00500-0000-7000-8000-000000000001"
 FIXTURE_RECORD_ID = "fixture-visual-reference-scene"
 DIRECT_RASTER_RECORD_ID = "fixture-direct-raster-scene"
 UNSUPPORTED_RECORD_ID = "fixture-environment-only-scene"
-DEFAULT_PROVIDERS = {
-    "archetype-policy": DEFAULT_PACK_ID,
-    "discovery-lanes": DEFAULT_PACK_ID,
-    "negative-policy": DEFAULT_PACK_ID,
-    "project-defaults": DEFAULT_PACK_ID,
-}
 
 
 def _sha256(path: Path) -> str:
@@ -551,7 +546,6 @@ def run() -> dict[str, Any]:
                                 if enabled
                                 else [DEFAULT_PACK_ID]
                             ),
-                            "resource_providers": DEFAULT_PROVIDERS,
                         },
                         indent=2,
                     )

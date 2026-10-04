@@ -52,7 +52,7 @@ Field-aware scoring additionally distinguishes species, subject domain, body bui
 
 ## Search profiles
 
-Every curated record's derived profile contains:
+Every curated record's derived search profile contains:
 
 ```text
 aliases
@@ -173,7 +173,7 @@ Every sparse-discovery evaluation must cover:
 - canonical structured queries translated from multiple source languages;
 - the body-build synonym family `muscular`, `muscled`, `powerful`, and `broad-built`;
 - modifier scope such as `blue fur` versus `blue eyes` versus `blue lighting`;
-- retrieval without exact preset labels or IDs;
+- retrieval without exact record labels or IDs;
 - variant grouping and minimum direction diversity;
 - preservation of explicit identity anchors;
 - preservation of explicit role, wardrobe, accessory, camera, and lighting anchors;
@@ -187,7 +187,7 @@ Run all declared suites through the exact one-pack gate in [Release Validation](
 
 The exact-pack state enables only the positional pack and selects it for every and only its named-resource bindings. The gate validates the released lock, exact derived cache, declared search and sparse suites, and every other suite in that pack's contract without consulting ambient or bundled default state.
 
-When comparing `curated`, `vocabulary`, and no-preset retrieval strategies, read [Tier Strategy Evaluation](presets.md#tier-strategy-evaluation). Do not load it for ordinary profile authoring or runtime search.
+To compare `curated`, `vocabulary` and no-record retrieval, read [Tier Strategy Evaluation](presets.md#tier-strategy-evaluation). Skip it for ordinary search-profile authoring or runtime search.
 
 ## Maintenance command index
 

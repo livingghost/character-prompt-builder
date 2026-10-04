@@ -467,8 +467,15 @@
       "additionalProperties": false
     },
     "authority": {
-      "type": "string",
-      "minLength": 1
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "artifact": {
       "enum": [
@@ -547,6 +554,293 @@
     "production_id": {
       "type": "string",
       "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+    },
+    "generation": {
+      "type": "object",
+      "properties": {
+        "parameters": {
+          "type": "string",
+          "minLength": 1
+        },
+        "production_spec": {
+          "type": "string",
+          "minLength": 1
+        },
+        "plot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "retrieval_record": {
+          "type": "string",
+          "minLength": 1
+        },
+        "creative_intent": {
+          "type": "string",
+          "minLength": 1
+        },
+        "negative": {
+          "type": "string",
+          "minLength": 1
+        },
+        "integrated_prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "native_negative": {
+          "type": "string",
+          "minLength": 1
+        },
+        "negative_provenance": {
+          "type": "string",
+          "minLength": 1
+        },
+        "references": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state_lineage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state_snapshot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visual_continuity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request_validation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "service": {
+          "type": "string",
+          "minLength": 1
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "continuity": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "negative_transport": {
+          "enum": [
+            "auto",
+            "separate-field",
+            "integrated-critical",
+            "native-subset",
+            "retained-only"
+          ]
+        },
+        "critical_avoidance_integrated": {
+          "type": "boolean"
+        },
+        "cost": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "currency": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                },
+                "amount": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                },
+                "basis": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "currency",
+                "amount",
+                "basis"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "brief": {
+          "type": "string"
+        },
+        "external_costs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "enum": [
+                  "upload"
+                ]
+              },
+              "currency": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              "amount": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              "basis": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "operation",
+              "currency",
+              "amount",
+              "basis"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "parameters",
+        "production_spec",
+        "plot",
+        "retrieval_record",
+        "creative_intent",
+        "service",
+        "count",
+        "seed",
+        "continuity"
+      ],
+      "additionalProperties": false
+    },
+    "recording": {
+      "type": "object",
+      "properties": {
+        "character": {
+          "type": "string",
+          "minLength": 1
+        },
+        "slot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "sheet_panel": {
+          "type": "boolean"
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "character",
+        "slot",
+        "subject_map",
+        "sheet_panel",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "upscale": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cost": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "currency": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                },
+                "amount": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                },
+                "basis": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "currency",
+                "amount",
+                "basis"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "external_costs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "enum": [
+                  "upload"
+                ]
+              },
+              "currency": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              "amount": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              "basis": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "operation",
+              "currency",
+              "amount",
+              "basis"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "service"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
@@ -564,5 +858,68 @@
     "route_reading",
     "production_id"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "execution": {
+            "const": "dispatcher"
+          }
+        },
+        "required": [
+          "execution"
+        ]
+      },
+      "then": {
+        "required": [
+          "recording"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "generation"
+            ],
+            "properties": {
+              "route": {
+                "not": {
+                  "const": "upscale"
+                }
+              }
+            },
+            "not": {
+              "required": [
+                "upscale"
+              ]
+            }
+          },
+          {
+            "required": [
+              "upscale"
+            ],
+            "properties": {
+              "route": {
+                "const": "upscale"
+              },
+              "artifact": {
+                "const": "image"
+              },
+              "delivery": {
+                "properties": {
+                  "transport": {
+                    "const": "authored-rendition"
+                  }
+                }
+              }
+            },
+            "not": {
+              "required": [
+                "generation"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
 }

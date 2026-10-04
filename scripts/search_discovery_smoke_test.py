@@ -2,13 +2,21 @@
 """Focused regression tests for facet-aware search discovery."""
 from __future__ import annotations
 
+import re
 import unittest
 
 from search_discovery import (
+    COLOR_TERMS,
     FACET_BY_CATEGORY,
     SearchIndex,
+    _COLOR_CONTEXT_TARGETS,
+    _color_context_patterns,
+    _color_word_pattern,
+    _find_color_contexts,
+    _normalized_sentence_boundaries,
     analyze_query,
     extract_record_facets,
+    normalize_query,
 )
 
 
@@ -524,6 +532,81 @@ class SearchDiscoveryTest(unittest.TestCase):
 
         wolf_analysis = analyze_query("wolf baseball cap", index)
         self.assertEqual(["wolf"], wolf_analysis.anchors.get("species"))
+
+    # Each query's color rows, as the color scan records them. The queries cover:
+    #   - several colors
+    #   - a two-word color
+    #   - a clause boundary
+    #   - garment and body readings of coat
+    #   - located and unlocated hair
+    #   - no color
+    COLOR_CONTEXT_ROWS = {
+        "anthropomorphic wolf with blue eyes and silver fur": [
+            ("silver", "coat_palette", "silver fur", (40, 50), "fur"),
+            ("blue", "eye_feature", "blue eyes", (26, 35), "eyes"),
+        ],
+        "navy blue field jacket, red shorts. Warm gray background": [
+            ("navy blue", "wardrobe", "navy blue field jacket", (0, 22), "field jacket"),
+            ("warm gray", "environment", "warm gray background", (34, 54), "background"),
+            ("blue", "wardrobe", "blue field jacket", (5, 22), "field jacket"),
+            ("gray", "environment", "gray background", (39, 54), "background"),
+            ("red", "wardrobe", "red shorts", (23, 33), "shorts"),
+        ],
+        "pale blue skin; white hair; crimson armor": [
+            ("pale blue", "skin_tone", "pale blue skin", (0, 14), "skin"),
+            ("crimson", "wardrobe", "crimson armor", (26, 39), "armor"),
+            ("white", "subject_surface", "white hair", (15, 25), "hair"),
+            ("blue", "skin_tone", "blue skin", (5, 14), "skin"),
+        ],
+        "fox wearing a black coat; dragon whose scales are bronze": [
+            ("bronze", "subject_surface", "scales are bronze", (38, 55), "scales"),
+            ("black", "wardrobe", "black coat", (14, 24), "coat"),
+        ],
+        "golden coat of fur, amber rim light in a teal room": [
+            ("golden", "coat_palette", "golden coat of fur", (0, 18), "coat of fur"),
+            ("golden", "coat_palette", "golden coat", (0, 11), "coat"),
+            ("amber", "coat_palette", "fur amber", (15, 24), "fur"),
+            ("amber", "lighting", "amber rim light", (19, 34), "rim light"),
+            ("teal", "environment", "teal room", (40, 49), "room"),
+        ],
+        "black-white striped socks and brown head hair": [
+            ("brown", "hair_color", "brown head hair", (30, 45), "head hair"),
+            ("white", "wardrobe", "white striped socks", (6, 25), "striped socks"),
+        ],
+        "synthetic robot fixture": [],
+        "standing figure in a fantasy setting": [],
+    }
+
+    def test_color_contexts_record_each_governed_color(self) -> None:
+        for raw, expected in self.COLOR_CONTEXT_ROWS.items():
+            with self.subTest(query=raw):
+                rows = _find_color_contexts(
+                    normalize_query(raw),
+                    _normalized_sentence_boundaries(raw),
+                )
+                self.assertEqual(expected, rows)
+
+    def test_color_contexts_compile_patterns_only_for_colors_in_the_query(self) -> None:
+        _color_word_pattern.cache_clear()
+        _color_context_patterns.cache_clear()
+        _find_color_contexts(normalize_query("standing figure in a fantasy setting"))
+        self.assertEqual(0, _color_context_patterns.cache_info().currsize)
+
+        query = normalize_query("navy blue field jacket and red boots")
+        present = [
+            color for color in COLOR_TERMS
+            if re.search(rf"\b{re.escape(color)}\b", query)
+        ]
+        self.assertEqual(["navy blue", "blue", "navy", "red"], present)
+        _find_color_contexts(query)
+        compiled = _color_context_patterns.cache_info()
+        self.assertEqual(len(present) * len(_COLOR_CONTEXT_TARGETS), compiled.currsize)
+        # "tan" is a substring of "standing" in the first query; the other
+        # four are the colors present in the second.
+        self.assertEqual(5, _color_word_pattern.cache_info().currsize)
+
+        _find_color_contexts(query)
+        self.assertEqual(compiled.misses, _color_context_patterns.cache_info().misses)
 
 
 if __name__ == "__main__":

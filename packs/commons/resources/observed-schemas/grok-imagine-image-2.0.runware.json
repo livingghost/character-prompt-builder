@@ -5,13 +5,6 @@
   "model_identifier": "xai:grok-imagine@image-2.0",
   "observed_at": "2026-09-13",
   "source": "the service's model schema endpoint",
-  "unenforced": [
-    "$.properties.inputs.properties.referenceImages.items.anyOf[0].format",
-    "$.properties.inputs.properties.referenceImages.items.anyOf[1].format",
-    "$.properties.uploadEndpoint.format",
-    "$.properties.advancedFeatures.properties.watermark.properties.image.anyOf[0].format",
-    "$.properties.advancedFeatures.properties.watermark.properties.image.anyOf[1].format"
-  ],
   "schema": {
     "type": "object",
     "properties": {

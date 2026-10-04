@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate one generated split catalog, including all pack and SVG links."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -209,10 +210,10 @@ def run(catalog: Path) -> dict[str, Any]:
     linked_count = sum(
         1 for row in records if not row.get("is_asset") and int(row.get("linked_asset_count") or 0) > 0
     )
-    if f"Presets with linked Visual Evidence ({linked_count})" not in search:
-        errors.append("search evidence filter does not publish the actual linked preset count")
+    if f"Records with linked Visual Evidence ({linked_count})" not in search:
+        errors.append("search evidence filter does not publish the actual linked record count")
     if linked_count != manifest.get("canonical_records_with_assets"):
-        errors.append("linked preset count differs from catalog manifest")
+        errors.append("linked record count differs from catalog manifest")
     unlinked_count = sum(
         1
         for row in records
@@ -220,12 +221,12 @@ def run(catalog: Path) -> dict[str, Any]:
     )
     if unlinked_message_count != unlinked_count:
         errors.append(
-            "unlinked record message count differs from the actual unlinked preset count: "
+            "unlinked record message count differs from the actual unlinked record count: "
             f"expected {unlinked_count}, got {unlinked_message_count}"
         )
     if not (
         "Browse Visual Evidence" in home
-        and "Browse presets with Visual Evidence" in home
+        and "Browse records with Visual Evidence" in home
         and "Visual Evidence records" in search
     ):
         errors.append("catalog entry points do not use the Visual Evidence product name")
@@ -248,7 +249,7 @@ def run(catalog: Path) -> dict[str, Any]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("catalog", type=Path)
     args = parser.parse_args(argv)
     report = run(args.catalog)
@@ -259,4 +260,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

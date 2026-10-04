@@ -6,6 +6,7 @@ The check describes the Python running it, or the virtual environment that --ven
 the Python that received the packages.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import importlib
@@ -569,7 +570,7 @@ def run_commands(commands: Sequence[Sequence[str]]) -> tuple[list[str], str | No
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--profile",
         choices=("core", "visual", "full"),
@@ -622,4 +623,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

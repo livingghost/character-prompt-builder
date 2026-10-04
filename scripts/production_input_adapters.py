@@ -53,9 +53,10 @@ def validation_required(task: dict) -> bool:
     """Whether request validation must come from an input choice.
 
     An upscale and bounded production context always take it from here. For an
-    authored rendition, the Generation Package builder derives it from the observed
-    schema, and a package with selected references takes a validation choice from here.
-    The builder takes visual continuity as its own --continuity decisions.
+    authored rendition, prepare derives it from the observed schema, and a package
+    with selected references takes a validation choice from here. Prepare takes
+    visual continuity from the record the task's generation.visual_continuity
+    names, otherwise from its generation.continuity decisions.
     """
     return task.get('execution') == 'dispatcher' and (
         task.get('route') == 'upscale' or (task.get('delivery') or {}).get('transport') != 'authored-rendition')
@@ -104,12 +105,11 @@ def build_validation(choices: dict | None, task: dict, reader, root: Path) -> tu
         catalog = load_pack_catalog()
         resource = catalog.resources.get('service-profiles')
         if resource is None:
-            raise ValueError('select a service-profiles source or activate its provider')
+            raise ValueError('select a service-profiles source or enable a pack that binds one')
         name = '@pack/' + resource.source_pack
         if name not in reader.named_roots:
-            raise ValueError('service provider has no active source root')
-        relative = Path(resource.path).resolve().relative_to(reader.named_roots[name]).as_posix()
-        service_ref = reader.select(name + '/' + relative)
+            raise ValueError('service pack has no active source root')
+        service_ref = reader.select(name + '/' + resource.relative_path)
     else:
         service_ref = reader.select(choices['service_profiles'])
     services = reader.json(service_ref).get('services')
@@ -139,16 +139,22 @@ def cross_check(visual: dict, validation: dict) -> None:
         raise ValueError('prepared references and validation select different models')
 
 
-STATE_BUILDER_FILES = ['state-lineage-file', 'species-profile-file', 'individual-morphology-file',
-                       'identity-contract-file', 'state-snapshot-file', 'scene-context-file',
-                       'visual-projection-file', 'asset-render-spec-file', 'references-file']
-
-
 def next_actions(inputs: dict, task: dict, root: Path, *, runtime_arguments: dict | None = None) -> list[dict]:
-    actions = [{'operation': 'prepare', 'script': 'scripts/production_workflow.py',
-                'args': {'root': str(root), 'task': inputs['production-task']['path']},
-                'external_effect': False, 'budget_effect': 'none',
-                'requires': ['Complete the declared delivery, source and authority files.']}]
+    """The commands that follow built inputs, in order.
+
+    Prepare compiles the task and publishes its Generation Package, exact request
+    and execution plan together. A dispatcher run then needs its decision file
+    from draft-execution, and execute sends the one request the run owns.
+    """
+    workflow = 'scripts/production_workflow.py'
+    requires = ['Complete the declared delivery, source and authority files.']
+    if task.get('execution') == 'dispatcher' and task.get('route') != 'upscale':
+        requires += [f"Name {inputs[key]['path']} as the task's generation.{field}." for key, field in
+                     (('visual-continuity', 'visual_continuity'), ('request-validation', 'request_validation'))
+                     if key in inputs]
+    actions = [{'operation': 'prepare', 'script': workflow,
+                'args': {'root': str(root), 'task': inputs['production-task']['path'], **(runtime_arguments or {})},
+                'external_effect': False, 'budget_effect': 'none', 'requires': requires}]
     if task.get('execution') != 'dispatcher':
         return actions
     if task.get('route') == 'upscale':
@@ -157,21 +163,14 @@ def next_actions(inputs: dict, task: dict, root: Path, *, runtime_arguments: dic
             'requires': ['Select source, model, scale, settings, and render-intent.',
                          'Write the declaration to the task delivery path before prepare.'],
             'external_effect': False, 'budget_effect': 'none'})
-        return actions
-    required = ['model', 'prompt-file', 'plot-file', 'retrieval-record-file', 'production-spec-file']
-    script = 'scripts/build_generation_payload.py'
-    if 'state-series' in [task.get('route'), *task.get('features', [])]:
-        # A state-aware package has its own builder and artifact graph.
-        script = 'scripts/build_state_generation_package.py'
-        required += STATE_BUILDER_FILES
-    if 'visual-continuity' not in inputs:
-        required.append('continuity')
-    required.append('out')
-    actions.append({'operation': 'build-generation-payload', 'script': script,
-                    'args': {**{key + '-file': str(root / inputs[key]['path']) for key in
-                              ('visual-continuity', 'request-validation') if key in inputs},
-                             'production-root': str(root), **(runtime_arguments or {})},
-                    'required_args': required, 'external_effect': False, 'budget_effect': 'none'})
+    actions += [
+        {'operation': 'draft-execution', 'script': workflow, 'args': {'root': str(root)},
+         'required_args': ['run', 'grant', 'out'], 'external_effect': False, 'budget_effect': 'none'},
+        {'operation': 'execute', 'script': workflow, 'args': {'root': str(root)},
+         'required_args': ['run', 'decisions-file'],
+         'requires': ['Answer every decision in the file draft-execution wrote.'],
+         'external_effect': True, 'budget_effect': 'settled-or-outstanding'},
+    ]
     return actions
 
 

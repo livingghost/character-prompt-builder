@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate the installed declaration or explicitly supplied protocol data."""
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse
 import copy
 import hashlib
@@ -40,7 +41,7 @@ def self_test(capabilities: dict) -> dict:
 
 
 def main() -> int:
-    parser=argparse.ArgumentParser(description=__doc__)
+    parser=_operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("--envelope",type=Path)
     parser.add_argument("--declaration",type=Path,help="Supplied public capability declaration")
     parser.add_argument("--payload-root",type=Path)
@@ -62,4 +63,4 @@ def main() -> int:
 if __name__=="__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

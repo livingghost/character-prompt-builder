@@ -4,7 +4,7 @@
     python scripts/character_performance_smoke_test.py
 
 Tests literal hygiene, full/custom persona creation and routed ownership contracts.
-No network, images, persistent pack state, existing project edits or approval.
+No network, images, persistent pack state, existing studio edits or approval.
 """
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
+
 import persona_expression_audit as audit_module  # noqa: E402
 import narrative_entity  # noqa: E402
 import narrative_index  # noqa: E402

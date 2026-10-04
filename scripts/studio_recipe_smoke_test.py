@@ -39,7 +39,7 @@ class RecipeTests(unittest.TestCase):
 
     def files(self):
         return {p.relative_to(self.root).as_posix(): p.read_bytes()
-                for p in self.root.rglob('*') if p.is_file()}
+                for p in self.root.rglob('*') if p.is_file() and p.relative_to(self.root).parts[0] != 'logs'}
 
     def test_candidate_request_is_exact_and_read_only(self):
         before = self.files()

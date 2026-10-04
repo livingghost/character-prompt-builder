@@ -2,7 +2,7 @@
 
 ## Conditional catalog routes
 
-Every correction route in this document is semantic rather than a promise that one particular record ID exists. Search the currently active catalog by the diagnosed symptom, inspect the exact returned record before use, and proceed without preset support when no matching record resolves. Never substitute an unrelated record or copy an optional-pack ID into core logic.
+Every correction route in this document is semantic rather than a promise that one particular record ID exists. Search the currently active catalog by the diagnosed symptom, inspect the exact returned record before use, and proceed without record support when no matching record resolves. Never substitute an unrelated record or copy an optional-pack ID into core logic.
 
 Find the symptom, jump to the destination. Consult this file during the step-8 art-direction review and again after any failed generation.
 
@@ -15,7 +15,7 @@ This file stays small. It holds a routing index and **process-level** failures: 
 | Symptom | Destination |
 |---|---|
 | Output is polished but conceptually unrelated | section: The result is polished but feels unrelated |
-| Output looks like a template | section: The result looks like a generic preset |
+| Output looks like a template | section: The result looks like a generic record |
 | Anime turned painterly, photo turned 3D, etc. | section: The medium drifts |
 | Wrong gaze, gesture, or interaction | section: Gaze, gesture, or interaction is wrong |
 | Fur is long, plush, or drawn hair-by-hair | search active corrections for close-lying fur and hair-by-hair drift |
@@ -42,13 +42,13 @@ This file stays small. It holds a routing index and **process-level** failures: 
 
 Re-read the brief as a whole and restate the image intent. The prompt probably translated fragments instead of the pictured relationship.
 
-## The result looks like a generic preset
+## The result looks like a generic record
 
-The concept was replaced by the nearest record. Return to the chosen art direction and keep only preset knowledge that serves it.
+The concept was replaced by the nearest record. Return to the chosen art direction and keep only record knowledge that serves it.
 
 ## The medium drifts
 
-Name one medium family explicitly, select one compatible rendering profile or style family, and activate its medium-drift terms through the negative policy.
+Name one medium family explicitly, select one compatible render profile or style family, and activate its medium-drift terms through the negative policy.
 
 ## Gaze, gesture, or interaction is wrong
 
@@ -111,7 +111,7 @@ Repair, three rules. Describe the drawing's content, not the subject's covering:
 
 This is a process failure. Symptom: the user supplies a reference image with a one-word scope (finish, style, vibe), the agent repairs that axis, and the user returns saying the build, face, camera, palette, or wardrobe are still wrong. Mechanism: the user's naming of one axis was treated as excluding the others, when it was only the axis they had words for.
 
-Repair: when a reference arrives mid-iteration, inventory its differences from the last output across all eight art-direction axes plus identity construction before writing anything: build proportions in landmark ratios (shoulder span in head-widths, limb girth against the head), head and muzzle or face construction (length, width, cheek mass), camera distance and crop (which body landmarks touch the frame edges), palette and value range, wardrobe, staging, finish. Report the divergent axes, but apply only the user's requested scope during a local edit. Do not infer permission to replace other baseline choices from visual differences alone. Request broader scope only when necessary; alternative exploration requires an explicit explore operation. Reference authority and identity ownership still apply. See [Revision Contract](runtime/revision-contract.md).
+Repair: when a reference arrives during revision, inventory its differences from the last output across all eight art-direction axes plus identity construction before writing anything: build proportions in landmark ratios (shoulder span in head-widths, limb girth against the head), head and muzzle or face construction (length, width, cheek mass), camera distance and crop (which body landmarks touch the frame edges), palette and value range, wardrobe, staging, finish. Report the divergent axes, but apply only the user's requested scope during a local edit. Do not infer permission to replace other baseline choices from visual differences alone. Request broader scope only when necessary; alternative exploration requires an explicit explore operation. Reference authority and identity ownership still apply. See [Revision Contract](runtime/revision-contract.md).
 
 
 ## Calibration feedback gets minimal deltas
@@ -159,7 +159,7 @@ When a coat reads as too fluffy, the fault is usually the softness of the clump 
 
 A face calibration that keeps oscillating against a stubborn pull may be fighting the model prior summoned by the current species wording. Audit the reference directly: ear shape, ear set, ear orientation, muzzle reach, muzzle depth, nose proportions, jaw mass, cheek volume, and eye placement.
 
-Keep the user species and the Character Identity Contract unchanged. Describe the required geometry in species-neutral language first. Consult `references/species-architecture.md`; when the selected pack state explicitly provides `cpb-resource:species-scaffold-map`, resolve and consult that provider as well. Do not fabricate a missing resource. A different species noun enters only after the modification is disclosed and approved; it never appears as a silent internal fix.
+Keep the user species and the Character Identity Contract unchanged. Describe the required geometry in species-neutral language first. Consult `references/species-architecture.md` and the `scaffold` field of the matching species record. A different species noun enters only after the modification is disclosed and approved; it never appears as a silent internal fix.
 
 After changing any scaffold wording, remove counter-text that existed only to fight the previous prior and regenerate from the complete current records.
 

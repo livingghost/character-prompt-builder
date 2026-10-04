@@ -19,6 +19,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+
 from scene_plot import content_sha256, validate_scene_plot  # noqa: E402
 
 # The narrative this plot was written against. The reader checks the shape of

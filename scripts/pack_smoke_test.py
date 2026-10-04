@@ -22,6 +22,7 @@ from unittest.mock import patch
 
 import pack_cache as pack_cache_module
 import pack_manager as pack_manager_module
+from audit_preset_quality import Record as AuditRecord, check_species_scaffold_policy
 from catalog_cli import begin_catalog_request, configure_pack_runtime, load_entries
 from pack_cache import (
     _resolve_records,
@@ -29,7 +30,6 @@ from pack_cache import (
     load_runtime_catalog,
     refresh_cache,
     resource_warning,
-    runtime_resource_provider_status,
 )
 from pack_cli import main as pack_cli_main
 from package_metadata import PACKAGE_VERSION, calver_key, load_package_metadata
@@ -46,9 +46,9 @@ from pack_manager import (
     add_pack_root,
     atomic_write_json,
     canonical_json,
-    clear_resource_provider,
     default_settings,
     disable_pack,
+    initialize_state_file,
     discover_packs,
     enable_pack,
     generate_uuid7,
@@ -60,7 +60,6 @@ from pack_manager import (
     remove_pack,
     resolve_enabled,
     save_state,
-    select_resource_provider,
     sha256_bytes,
     sha256_file,
     validate_pack,
@@ -75,7 +74,6 @@ def _test_settings(
     managed_root: Path,
     roots: tuple[Path, ...] = (),
     default_enabled_packs: tuple[str, ...] = (),
-    default_resource_providers: dict[str, str] | None = None,
 ) -> PackSettings:
     """Build hermetic settings without changing production discovery defaults."""
 
@@ -92,10 +90,36 @@ def _test_settings(
         managed_root=managed,
         quarantine_root=(managed / ".quarantine").resolve(),
         default_enabled_packs=tuple(default_enabled_packs),
-        default_resource_providers=tuple(
-            sorted((default_resource_providers or {}).items())
-        ),
     )
+
+
+def _species_record_document(*species: tuple[str, str]) -> dict[str, Any]:
+    """Build a species record file whose records each name a scaffold family."""
+    return {
+        "kind": "module",
+        "category": "species",
+        "records": [
+            {
+                "id": species_id,
+                "label": species_id.replace("-", " "),
+                "curation_status": "vocabulary",
+                "category": "species",
+                "prompt": species_id.replace("-", " "),
+                "domains": ["shared"],
+                "tags": ["fixture species"],
+                "search_terms": [
+                    {
+                        "phrase": species_id.replace("-", " "),
+                        "facet": "species",
+                        "weight": 1.0,
+                        "source": "fixture",
+                    }
+                ],
+                "scaffold": {"family": family, "confidence": "direct"},
+            }
+            for species_id, family in species
+        ],
+    }
 
 
 def _record_file(path: Path, record_id: str, label: str) -> None:
@@ -296,10 +320,11 @@ _CHILD_PRELUDE = """
 import sys, time
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
+
 import pack_cache, pack_manager
 settings = pack_manager.default_settings(
     state_file=Path(sys.argv[2]), cache_dir=Path(sys.argv[3]), managed_root=Path(sys.argv[4]),
-    default_enabled_packs=(), default_resource_providers={},
+    default_enabled_packs=(),
 )
 signal = Path(sys.argv[5])
 
@@ -369,7 +394,7 @@ def _concurrency_checks(root: Path) -> tuple[int, list[str]]:
     errors: list[str] = []
     runtime = root / "concurrency"
     state_file = runtime / "state" / "pack-state.json"
-    save_state(state_file, {"pack_roots": [], "enabled_packs": [], "resource_providers": {}})
+    save_state(state_file, {"pack_roots": [], "enabled_packs": []})
     paths = (state_file, runtime / "cache", runtime / "managed")
 
     # A build waits for a live holder of the cache lock and leaves it running.
@@ -437,7 +462,7 @@ def _concurrency_checks(root: Path) -> tuple[int, list[str]]:
     flushed: list[int] = []
     unflushed_fsync = os.fsync
     with patch.object(pack_manager_module.os, "fsync", lambda descriptor: (flushed.append(descriptor), unflushed_fsync(descriptor))):
-        save_state(state_file, {"pack_roots": [], "enabled_packs": [], "resource_providers": {}})
+        save_state(state_file, {"pack_roots": [], "enabled_packs": []})
     if not flushed:
         errors.append("the pack state was published without being flushed to disk")
     else:
@@ -458,8 +483,8 @@ def _run_ready(argv: list[str]) -> tuple[list[str], int, list[str]]:
     return stdout.splitlines(), code, stderr.splitlines()
 
 
-def _provider_pack(root: Path, name: str, resources: tuple[str, ...]) -> str:
-    """A small pack with one record that provides each named resource."""
+def _binding_pack(root: Path, name: str, resources: tuple[str, ...]) -> str:
+    """A small pack with one record that binds each named resource."""
     manifest = initialize_pack(root, name=name)
     manifest["content"]["resource_globs"] = ["resources/**/*"]
     manifest["content"]["resource_bindings"] = {
@@ -473,7 +498,7 @@ def _provider_pack(root: Path, name: str, resources: tuple[str, ...]) -> str:
 
 
 def _left_out_pack_checks(root: Path) -> tuple[int, list[str]]:
-    """Disabling clears provider choices; a left-out pack gets one line everywhere; ready asks."""
+    """A left-out pack gets one line everywhere; ready asks; packs that disagree on a resource are one decision."""
 
     base = root / "left-out"
     # The runtime discovers the packs beside its own code, so the fixture
@@ -486,14 +511,13 @@ def _left_out_pack_sections(base: Path) -> tuple[int, list[str]]:
     checks = 0
     errors: list[str] = []
     shelf = base / "packs"
-    kept_id = _provider_pack(shelf / "kept-shelf", "Kept Shelf", ("fixture-shared",))
-    spare_id = _provider_pack(shelf / "spare-shelf", "Spare Shelf", ("fixture-shared",))
-    broken_id = _provider_pack(
+    kept_id = _binding_pack(shelf / "kept-shelf", "Kept Shelf", ("fixture-shared",))
+    spare_id = _binding_pack(shelf / "spare-shelf", "Spare Shelf", ("fixture-shared",))
+    broken_id = _binding_pack(
         shelf / "broken-shelf", "Broken Shelf", ("fixture-note", "fixture-guide")
     )
     write_lock(shelf / "broken-shelf")
     atomic_write_json(shelf / "broken-shelf" / "resources" / "extra.json", {"extra": True})
-    vanished_id = generate_uuid7()
     state_file = base / "state" / "pack-state.json"
     selectors = [
         "--state-file", str(state_file),
@@ -505,18 +529,14 @@ def _left_out_pack_sections(base: Path) -> tuple[int, list[str]]:
     )
     command = pack_manager_module.pack_cli_command(settings)
 
-    def start(enabled: list[str], providers: dict[str, str], disabled: list[str] = ()) -> None:
+    def start(enabled: list[str], disabled: list[str] = ()) -> None:
         save_state(state_file, {
-            "pack_roots": [], "enabled_packs": enabled,
-            "disabled_packs": list(disabled), "resource_providers": providers,
+            "pack_roots": [], "enabled_packs": enabled, "disabled_packs": list(disabled),
         })
 
     # An invalid enabled pack is left out with one line: the pack, the reason,
-    # the fix. Its provider choices belong to that line, not to lines of their own.
-    start(
-        [kept_id, broken_id],
-        {"fixture-shared": kept_id, "fixture-note": broken_id, "fixture-guide": broken_id},
-    )
+    # the fix. Its resources leave with it.
+    start([kept_id, broken_id])
     expected = (
         "pack broken-shelf is invalid (lock-extra-files: files not in pack.lock.json); "
         f"remove the extra files or disable it: {command} disable {broken_id}"
@@ -527,15 +547,15 @@ def _left_out_pack_sections(base: Path) -> tuple[int, list[str]]:
         load_runtime_catalog(settings)
     if printed.getvalue().splitlines() != [f"warning: {expected}"]:
         errors.append(f"an invalid pack was not reported in one line, once: {printed.getvalue()!r}")
-    elif resource_warning(catalog, "fixture-note") != expected:
-        errors.append("a resource of an invalid pack did not name the pack's own line")
+    elif "fixture-note" in catalog.resources or resource_warning(catalog, "fixture-note") is not None:
+        errors.append("a resource of an invalid pack was used or reported apart from the pack's own line")
     elif catalog.active_pack_count != 1:
         errors.append("an invalid pack was not left out of the catalog")
     else:
         checks += 1
 
     # An enabled pack the catalog cannot use is the author's decision, first
-    # and in one line; its provider choices belong to that line.
+    # and in one line.
     lines, code, _ = _run_ready([*selectors, "ready"])
     if code != 1 or not lines or lines[0] != f"decide: {expected}" or sum(
         broken_id in line for line in lines
@@ -544,13 +564,11 @@ def _left_out_pack_sections(base: Path) -> tuple[int, list[str]]:
     else:
         checks += 1
 
-    # Disabling clears the provider choices the pack owned and says which.
+    # Disabling records the decision in the state.
     code, stdout, _ = _run_pack_cli([*selectors, "disable", broken_id])
     disabled = json.loads(stdout)
-    if code != 0 or disabled.get("cleared_providers") != ["fixture-guide", "fixture-note"] or (
-        set(disabled["state"]["resource_providers"]) != {"fixture-shared"}
-    ):
-        errors.append(f"disable left provider choices pointing at the pack: {disabled}")
+    if code != 0 or disabled["state"]["disabled_packs"] != [broken_id]:
+        errors.append(f"disable did not record the pack as left out: {disabled}")
     else:
         checks += 1
 
@@ -581,7 +599,7 @@ def _left_out_pack_sections(base: Path) -> tuple[int, list[str]]:
         checks += 1
 
     # A pack that appears after the state exists is still the author's decision.
-    newcomer_id = _provider_pack(shelf / "new-shelf", "New Shelf", ("fixture-new",))
+    newcomer_id = _binding_pack(shelf / "new-shelf", "New Shelf", ("fixture-new",))
     lines, code, _ = _run_ready([*selectors, "ready"])
     if code != 1 or not any(
         line.startswith(f"decide: pack new-shelf {newcomer_id} is new and not enabled") for line in lines
@@ -590,25 +608,25 @@ def _left_out_pack_sections(base: Path) -> tuple[int, list[str]]:
     else:
         checks += 1
 
-    # Choices that point at a pack nobody uses are one line, and disabling that
-    # pack, though it is not enabled, clears them.
-    start([kept_id], {"fixture-shared": kept_id, "fixture-a": vanished_id, "fixture-b": vanished_id})
-    catalog = load_runtime_catalog(settings, quiet=True)
-    dangling = [line for line in catalog.warnings if vanished_id in line]
-    code, stdout, _ = _run_pack_cli([*selectors, "disable", vanished_id])
-    cleared = json.loads(stdout).get("cleared_providers")
-    if len(dangling) != 1 or not dangling[0].startswith("2 resource provider selection(s)") or cleared != [
-        "fixture-a", "fixture-b"
-    ]:
-        errors.append(f"selections of an unused pack were not one line and one fix: {dangling} {cleared}")
+    # Two unordered packs that bind one resource name with the same content need no order.
+    start([kept_id, spare_id], disabled=[broken_id, newcomer_id])
+    lines, code, _ = _run_ready([*selectors, "ready"])
+    shared = load_runtime_catalog(settings, quiet=True).resources.get("fixture-shared")
+    if code != 0 or shared is None or shared.source_pack not in {kept_id, spare_id}:
+        errors.append(f"two packs with the same resource content did not resolve it: {lines} {shared}")
     else:
         checks += 1
 
-    # Two providers and no choice between them is the author's decision.
-    start([kept_id, spare_id], {}, disabled=[broken_id, newcomer_id])
+    # Different content under one name is one decision that names both packs.
+    atomic_write_json(shelf / "spare-shelf" / "resources" / "fixture-shared.json", {"resource": "spare"})
     lines, code, _ = _run_ready([*selectors, "ready"])
-    if code != 1 or not lines[0].startswith("decide: resource fixture-shared has no provider selected"):
-        errors.append(f"ready passed with a resource nobody chose a provider for: {lines}")
+    catalog = load_runtime_catalog(settings, quiet=True)
+    pair = ", ".join(sorted([kept_id, spare_id]))
+    if code != 1 or not lines[0].startswith(f"decide: packs {pair} bind the same resources with different files") or (
+        "fixture-shared" in catalog.resources
+        or resource_warning(catalog, "fixture-shared") != lines[0][len("decide: "):]
+    ):
+        errors.append(f"packs that disagree on one resource were not one decision naming both: {lines}")
     else:
         checks += 1
 
@@ -639,6 +657,117 @@ def _left_out_pack_sections(base: Path) -> tuple[int, list[str]]:
     return checks, errors
 
 
+def _ranked_pack(root: Path, name: str, resources: dict[str, Any], scene_id: str, requires: str | None = None) -> str:
+    """A pack with one scene record and the named resources given, each as its own file."""
+    manifest = initialize_pack(root, name=name)
+    manifest["content"]["resource_globs"] = ["resources/**/*"]
+    manifest["content"]["resource_bindings"] = {
+        resource: f"resources/{resource}.json" for resource in resources
+    }
+    if requires:
+        manifest["dependencies"] = [{"pack_id": requires}]
+    atomic_write_json(root / "pack.json", manifest)
+    for resource, value in resources.items():
+        atomic_write_json(root / "resources" / f"{resource}.json", value)
+    _record_file(root / "records" / "scene.json", scene_id, f"{scene_id} light")
+    return str(manifest["pack_id"])
+
+
+def _precedence_checks(root: Path) -> tuple[int, list[str]]:
+    """A named resource is the whole file of the highest-ranked pack that binds it."""
+
+    checks = 0
+    errors: list[str] = []
+    base = root / "precedence"
+    diagnostic_only = {
+        "scene_failure_modes": {"automatic_emission": False},
+        "atomic_misreadings": {"automatic_emission": False},
+    }
+
+    def policy(guard: str) -> dict[str, Any]:
+        return {
+            "automatic_sources": {guard: {"activation": "always"}},
+            "diagnostic_only_sources": diagnostic_only,
+            "semantic_exclusion_rule": (
+                "Semantic alternatives enter a negative prompt only when the user explicitly excludes them."
+            ),
+        }
+
+    # A baseline pack in the place of the commons, and a pack that requires it.
+    baseline_id = _ranked_pack(base / "packs" / "baseline", "Precedence Baseline", {
+        "negative-policy": policy("baseline_guard"),
+        "discovery-lanes": {"count": 1, "lanes": [{"id": "lane-baseline", "preferred_scene_ids": ["scene-shared"]}]},
+    }, "scene-shared")
+    dependent_id = _ranked_pack(base / "packs" / "dependent", "Precedence Dependent", {
+        "negative-policy": policy("dependent_guard"),
+    }, "scene-shared", requires=baseline_id)
+    peer_id = _ranked_pack(base / "packs" / "peer", "Precedence Peer", {
+        "negative-policy": policy("peer_guard"),
+    }, "scene-peer")
+    settings = _test_settings(
+        roots=(base / "packs",),
+        state_file=base / "state.json",
+        cache_dir=base / "cache",
+        managed_root=base / "managed",
+    )
+
+    def resolved(state: dict[str, Any]) -> Any:
+        save_state(settings.state_file, {"pack_roots": [], **state})
+        return load_runtime_catalog(settings, quiet=True)
+
+    # Rank: the dependent pack's file is used whole, and its record wins the shared ID.
+    catalog = resolved({"enabled_packs": [baseline_id, dependent_id]})
+    negative = catalog.resources.get("negative-policy")
+    scene = next((entry for entry in catalog.entries if entry.record.get("id") == "scene-shared"), None)
+    if (
+        negative is None
+        or negative.source_pack != dependent_id
+        or json.loads(negative.path.read_text(encoding="utf-8")) != policy("dependent_guard")
+        or scene is None
+        or scene.source_pack != dependent_id
+        or any(row.get("severity") == "error" for row in catalog.diagnostics)
+    ):
+        errors.append(f"the pack that requires the other did not supply its file whole: {negative} {catalog.diagnostics}")
+    else:
+        checks += 1
+
+    # Fallback: a name only the baseline binds comes from the baseline.
+    lanes = catalog.resources.get("discovery-lanes")
+    if lanes is None or lanes.source_pack != baseline_id or lanes.relative_path != "resources/discovery-lanes.json":
+        errors.append(f"a name only the baseline binds did not fall back to it: {lanes}")
+    else:
+        checks += 1
+
+    # Unordered: two packs that neither requires bind one name with different files.
+    catalog = resolved({"enabled_packs": [baseline_id, dependent_id, peer_id]})
+    rows = [row for row in catalog.diagnostics if row.get("code") == "resource-conflict"]
+    pair = sorted([dependent_id, peer_id])
+    message = str(rows[0].get("message")) if rows else ""
+    if (
+        "negative-policy" in catalog.resources
+        or [(row["resource"], row["pack_ids"], row["severity"]) for row in rows] != [("negative-policy", pair, "error")]
+        or not all(part in message for part in (*pair, "required dependency", "pack_order"))
+        or not all(pack in str(resource_warning(catalog, "negative-policy")) for pack in pair)
+    ):
+        errors.append(f"two unordered packs binding one name were not a conflict naming both: {rows}")
+    else:
+        checks += 1
+
+    # pack_order: of two packs that neither requires, the earlier one's file is used.
+    catalog = resolved({"enabled_packs": [baseline_id, dependent_id, peer_id], "pack_order": [peer_id, dependent_id]})
+    negative = catalog.resources.get("negative-policy")
+    if (
+        negative is None
+        or negative.source_pack != peer_id
+        or json.loads(negative.path.read_text(encoding="utf-8")) != policy("peer_guard")
+        or any(row.get("code") == "resource-conflict" for row in catalog.diagnostics)
+    ):
+        errors.append(f"pack_order did not settle one name two unordered packs bind: {negative}")
+    else:
+        checks += 1
+    return checks, errors
+
+
 def _personal_pack_checks(root: Path) -> tuple[int, list[str]]:
     """A personal pack is one command from use; a runtime can name exactly its packs."""
 
@@ -651,13 +780,15 @@ def _personal_pack_sections(base: Path) -> tuple[int, list[str]]:
     checks = 0
     errors: list[str] = []
     skill_packs = base / "packs"
-    kept_id = _provider_pack(skill_packs / "kept-shelf", "Kept Shelf", ("fixture-shared",))
-    heavy_id = _provider_pack(skill_packs / "heavy-shelf", "Heavy Shelf", ("fixture-heavy",))
+    kept_id = _binding_pack(skill_packs / "kept-shelf", "Kept Shelf", ("fixture-shared",))
+    heavy_id = _binding_pack(skill_packs / "heavy-shelf", "Heavy Shelf", ("fixture-heavy",))
     write_lock(skill_packs / "heavy-shelf")
     (skill_packs / "heavy-shelf" / "NOTES.txt").write_text("late\n", encoding="utf-8")
     state_file = base / "home" / "pack-state.json"
-    selectors = ["--state-file", str(state_file), "--cache-dir", str(base / "home" / "cache")]
-    settings = default_settings(state_file=state_file, cache_dir=base / "home" / "cache")
+    selectors = ["--state-file", str(state_file), "--cache-dir", str(base / "home" / "cache"),
+                 "--managed-root", str(base / "home" / "managed")]
+    settings = default_settings(state_file=state_file, cache_dir=base / "home" / "cache",
+                                managed_root=base / "home" / "managed")
 
     # A new state can name exactly the packs it enables. The others are left
     # out, and nothing but their pack.json is read.
@@ -782,12 +913,21 @@ def run() -> dict[str, Any]:
             )
             default_pack_id = str(default_manifest["pack_id"])
 
-            data_home = pack_manager_module._user_data_home()
-            if data_home != (Path.home() / ".character-prompt-builder").resolve():
-                errors.append("user data home is not ~/.character-prompt-builder")
+            configured_home = (root / "configured-home").resolve()
+            with patch.dict(os.environ, {"CPB_HOME": str(configured_home)}):
+                named_home = pack_manager_module._user_data_home()
+            with patch.dict(os.environ):
+                os.environ.pop("CPB_HOME", None)
+                plain_home = pack_manager_module._user_data_home()
+            if named_home != configured_home or plain_home != (Path.home() / ".character-prompt-builder").resolve():
+                errors.append(
+                    "the configuration home is not CPB_HOME, or ~/.character-prompt-builder without it: "
+                    f"{named_home} {plain_home}"
+                )
             else:
                 checks += 1
 
+            data_home = pack_manager_module._user_data_home()
             flag_free = default_settings(default_enabled_packs=())
             if flag_free.state_file != (data_home / "pack-state.json").resolve():
                 errors.append("flag-free settings do not resolve the data-home state file")
@@ -829,9 +969,6 @@ def run() -> dict[str, Any]:
             expected_initial = sorted(set(shipped_initial["enabled_packs"]) | set(discovered_initial))
             if initial_issues or fallback_state["enabled_packs"] != expected_initial:
                 errors.append("an absent state file did not enable every discovered pack")
-            elif any(fallback_state["resource_providers"].get(name) != provider
-                     for name, provider in shipped_initial["resource_providers"].items()):
-                errors.append("all-on initialization did not preserve the declared default providers")
             else:
                 checks += 1
 
@@ -893,7 +1030,6 @@ def run() -> dict[str, Any]:
                     cache_dir=root / "poisoned-default-cache",
                     managed_root=root / "poisoned-default-managed",
                     default_enabled_packs=(),
-                    default_resource_providers={},
                 )
             poisoned_default_listing = list_packs(poisoned_default_settings)
             poisoned_issues = poisoned_default_listing["discovery_issues"]
@@ -1109,6 +1245,7 @@ def run() -> dict[str, Any]:
                                 "source": "author",
                             }
                         ],
+                        "scaffold": {"family": "canine", "confidence": "direct"},
                     }
                 ],
             }
@@ -1295,7 +1432,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "calver-update-cache",
                 managed_root=root / "calver-update-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             install_pack(update_settings, update_v9)
             update_v10 = root / "calver-update-v10"
@@ -1367,7 +1503,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "transaction-update-cache",
                 managed_root=root / "transaction-update-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             install_pack(transaction_settings, transaction_v1)
             enable_pack(transaction_settings, transaction_id)
@@ -1485,7 +1620,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "readonly-install-cache",
                 managed_root=root / "readonly-install-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             readonly_files = [
                 path for path in readonly_source.rglob("*") if path.is_file()
@@ -1548,7 +1682,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "absent-update-cache",
                 managed_root=root / "absent-update-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             absent_target = (
                 absent_update_settings.managed_root
@@ -1589,7 +1722,7 @@ def run() -> dict[str, Any]:
             if (
                 absent_update_exit != 2
                 or absent_update_payload.get("ok") is not False
-                or "not installed" not in str(absent_update_payload.get("error"))
+                or "not installed" not in str((absent_update_payload.get("diagnostics") or [{}])[0].get("message"))
                 or absent_target.exists()
                 or absent_update_settings.managed_root.exists()
                 or state_after_absent_update != state_before_absent_update
@@ -1642,7 +1775,7 @@ def run() -> dict[str, Any]:
                 if (
                     exit_code != 2
                     or failure_payload.get("ok") is not False
-                    or "ZIP" not in str(failure_payload.get("error"))
+                    or "ZIP" not in str((failure_payload.get("diagnostics") or [{}])[0].get("message"))
                 ):
                     bad_zip_failures.append(bad_zip.name)
             state_after_bad_zip = (
@@ -1737,7 +1870,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "replacement-cache",
                 managed_root=root / "replacement-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             replacement_discovered, _ = discover_packs(replacement_settings)
             for manifest_row in replacement_manifests:
@@ -1808,7 +1940,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "closure-cache",
                 managed_root=root / "closure-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             enable_pack(closure_settings, str(dependency_manifest["pack_id"]))
             closure_state_before = closure_settings.state_file.read_bytes()
@@ -1874,121 +2005,69 @@ def run() -> dict[str, Any]:
             else:
                 checks += 1
 
-            provider_root = root / "provider-closure"
-            dependency_pack = provider_root / "dependency"
-            provider_pack = provider_root / "provider"
-            provider_dependency = initialize_pack(
-                dependency_pack,
-                name="Provider Dependency",
+            binding_root = root / "binding-closure"
+            dependency_pack = binding_root / "dependency"
+            binding_pack = binding_root / "binding"
+            binding_dependency = initialize_pack(dependency_pack, name="Binding Dependency")
+            binding_manifest = initialize_pack(binding_pack, name="Binding")
+            binding_manifest["content"]["resource_globs"] = ["resources/**/*"]
+            binding_manifest["content"]["resource_bindings"] = {"test-policy": "resources/policy.json"}
+            missing_binding_dependency = initialize_pack(
+                root / "unused-binding-dependency",
+                name="Unused Binding Dependency",
             )
-            provider_manifest = initialize_pack(provider_pack, name="Provider")
-            provider_manifest["content"]["resource_globs"] = ["resources/**/*"]
-            provider_manifest["content"]["resource_bindings"] = {
-                "test-policy": "resources/policy.json"
-            }
-            missing_provider_dependency = initialize_pack(
-                root / "unused-provider-dependency",
-                name="Unused Provider Dependency",
-            )
-            provider_manifest["dependencies"] = [
-                {"pack_id": missing_provider_dependency["pack_id"]}
-            ]
-            atomic_write_json(provider_pack / "pack.json", provider_manifest)
-            atomic_write_json(provider_pack / "resources" / "policy.json", {})
-            provider_settings = _test_settings(
-                roots=(provider_root,),
-                state_file=root / "provider-state.json",
-                cache_dir=root / "provider-cache",
-                managed_root=root / "provider-managed",
+            binding_manifest["dependencies"] = [{"pack_id": missing_binding_dependency["pack_id"]}]
+            atomic_write_json(binding_pack / "pack.json", binding_manifest)
+            atomic_write_json(binding_pack / "resources" / "policy.json", {})
+            binding_settings = _test_settings(
+                roots=(binding_root,),
+                state_file=root / "binding-state.json",
+                cache_dir=root / "binding-cache",
+                managed_root=root / "binding-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             save_state(
-                provider_settings.state_file,
-                {
-                    "pack_roots": [],
-                    "enabled_packs": [provider_manifest["pack_id"]],
-                    "resource_providers": {
-                        "test-policy": provider_manifest["pack_id"]
-                    },
-                },
+                binding_settings.state_file,
+                {"pack_roots": [], "enabled_packs": [binding_manifest["pack_id"]]},
             )
-            provider_status = runtime_resource_provider_status(provider_settings)
-            provider_catalog = load_runtime_catalog(provider_settings)
-            provider_row = provider_status["resource_providers"][0]
-            provider_codes = {
-                row.get("code") for row in provider_status["diagnostics"]
-            }
-            catalog_codes = {row.get("code") for row in provider_catalog.diagnostics}
-            expected_provider_codes = {
-                "missing-active-dependency",
-                "resource-provider-unavailable",
-            }
-            if (
-                provider_row.get("selected_pack") != provider_manifest["pack_id"]
-                or provider_row.get("candidate_packs") != []
-                or provider_row.get("resolved") is not False
-                or not expected_provider_codes.issubset(provider_codes)
-                or not expected_provider_codes.issubset(catalog_codes)
-                or "test-policy" in provider_catalog.resources
-            ):
-                errors.append(
-                    "provider-list eligibility disagreed with runtime dependency filtering"
-                )
+            excluded_catalog = load_runtime_catalog(binding_settings)
+            excluded_codes = {row.get("code") for row in excluded_catalog.diagnostics}
+            if "missing-active-dependency" not in excluded_codes or "test-policy" in excluded_catalog.resources:
+                errors.append("a resource of a pack left out for a missing dependency was used")
             else:
                 checks += 1
-            provider_manifest["dependencies"] = [
-                {"pack_id": provider_dependency["pack_id"]}
-            ]
-            atomic_write_json(provider_pack / "pack.json", provider_manifest)
+            binding_manifest["dependencies"] = [{"pack_id": binding_dependency["pack_id"]}]
+            atomic_write_json(binding_pack / "pack.json", binding_manifest)
             save_state(
-                provider_settings.state_file,
+                binding_settings.state_file,
                 {
                     "pack_roots": [],
-                    "enabled_packs": [
-                        provider_dependency["pack_id"],
-                        provider_manifest["pack_id"],
-                    ],
-                    "resource_providers": {
-                        "test-policy": provider_manifest["pack_id"]
-                    },
+                    "enabled_packs": [binding_dependency["pack_id"], binding_manifest["pack_id"]],
                 },
             )
-            positive_provider_status = runtime_resource_provider_status(provider_settings)
-            positive_provider_catalog = load_runtime_catalog(provider_settings)
-            positive_provider_row = positive_provider_status["resource_providers"][0]
+            present_catalog = load_runtime_catalog(binding_settings)
             # Moving the dependency's declared release changes nothing: a
-            # provider is eligible because the pack it depends on is present.
-            moved_provider_dependency = json.loads(json.dumps(provider_dependency))
-            moved_provider_dependency["release"] = "2099.01.01.1"
-            atomic_write_json(dependency_pack / "pack.json", moved_provider_dependency)
-            moved_provider_status = runtime_resource_provider_status(provider_settings)
-            moved_provider_catalog = load_runtime_catalog(provider_settings)
-            moved_provider_row = moved_provider_status["resource_providers"][0]
-            moved_codes = {
-                row.get("code") for row in moved_provider_status["diagnostics"]
-            } | {row.get("code") for row in moved_provider_catalog.diagnostics}
-            atomic_write_json(dependency_pack / "pack.json", provider_dependency)
+            # resource is used because the pack its pack depends on is present.
+            moved_dependency = json.loads(json.dumps(binding_dependency))
+            moved_dependency["release"] = "2099.01.01.1"
+            atomic_write_json(dependency_pack / "pack.json", moved_dependency)
+            moved_catalog = load_runtime_catalog(binding_settings)
+            moved_codes = {row.get("code") for row in moved_catalog.diagnostics}
+            atomic_write_json(dependency_pack / "pack.json", binding_dependency)
             if (
-                positive_provider_row.get("candidate_packs")
-                != [provider_manifest["pack_id"]]
-                or positive_provider_row.get("resolved") is not True
-                or "test-policy" not in positive_provider_catalog.resources
-                or moved_provider_row.get("candidate_packs")
-                != [provider_manifest["pack_id"]]
-                or moved_provider_row.get("resolved") is not True
+                "test-policy" not in present_catalog.resources
                 or "dependency-release" in moved_codes
-                or "test-policy" not in moved_provider_catalog.resources
+                or "test-policy" not in moved_catalog.resources
             ):
                 errors.append(
-                    "a provider's eligibility answered to a declared release rather than "
+                    "a resource answered to a declared release rather than "
                     f"to the pack being present: {sorted(code for code in moved_codes if code)}"
                 )
             else:
                 checks += 1
 
-            default_project_defaults = json.loads(
-                (Path(__file__).resolve().parents[1] / "packs" / "commons" / "resources" / "project-defaults.json").read_text(
+            default_pack_defaults = json.loads(
+                (Path(__file__).resolve().parents[1] / "packs" / "commons" / "resources" / "pack-defaults.json").read_text(
                     encoding="utf-8"
                 )
             )
@@ -1998,20 +2077,20 @@ def run() -> dict[str, Any]:
                 )
             )
             if (
-                validate_known_resource("project-defaults", default_project_defaults)
+                validate_known_resource("pack-defaults", default_pack_defaults)
                 or validate_known_resource("negative-policy", default_negative_policy)
                 or not medium_selection_allowed(
-                    default_project_defaults,
+                    default_pack_defaults,
                     ["one-medium"],
                     explicit_hybrid_request=False,
                 )
                 or medium_selection_allowed(
-                    default_project_defaults,
+                    default_pack_defaults,
                     ["medium-a", "medium-b"],
                     explicit_hybrid_request=False,
                 )
                 or not medium_selection_allowed(
-                    default_project_defaults,
+                    default_pack_defaults,
                     ["medium-a", "medium-b"],
                     explicit_hybrid_request=True,
                 )
@@ -2040,18 +2119,17 @@ def run() -> dict[str, Any]:
             else:
                 checks += 1
 
-            semantic_root = root / "known-resource-provider"
+            semantic_root = root / "known-resource-pack"
             semantic_pack = semantic_root / "pack"
             semantic_manifest = initialize_pack(
                 semantic_pack,
-                name="Known Resource Provider",
+                name="Known Resource Pack",
             )
             semantic_manifest["content"]["resource_globs"] = ["resources/**/*"]
             semantic_manifest["content"]["resource_bindings"] = {
                 "discovery-lanes": "resources/discovery-lanes.json",
-                "project-defaults": "resources/project-defaults.json",
+                "pack-defaults": "resources/pack-defaults.json",
                 "negative-policy": "resources/negative-policy.json",
-                "species-scaffold-map": "resources/species-scaffold-map.json",
             }
             atomic_write_json(semantic_pack / "pack.json", semantic_manifest)
             _record_file(
@@ -2061,30 +2139,10 @@ def run() -> dict[str, Any]:
             )
             atomic_write_json(
                 semantic_pack / "records" / "fixture-species.json",
-                {
-                    "kind": "module",
-                    "category": "species",
-                    "records": [
-                        {
-                            "id": species_id,
-                            "label": species_id.replace("-", " "),
-                            "curation_status": "vocabulary",
-                            "category": "species",
-                            "prompt": species_id.replace("-", " "),
-                            "domains": ["shared"],
-                            "tags": ["fixture species"],
-                            "search_terms": [
-                                {
-                                    "phrase": species_id.replace("-", " "),
-                                    "facet": "species",
-                                    "weight": 1.0,
-                                    "source": "fixture",
-                                }
-                            ],
-                        }
-                        for species_id in ("fixture-species-a", "fixture-species-b")
-                    ],
-                },
+                _species_record_document(
+                    ("fixture-species-a", "canine"),
+                    ("fixture-species-b", "feline"),
+                ),
             )
             fixture_discovery_lanes = {
                 "lanes": [
@@ -2094,7 +2152,7 @@ def run() -> dict[str, Any]:
                     }
                 ]
             }
-            fixture_project_defaults = {
+            fixture_pack_defaults = {
                 "medium_policy": {
                     "single_medium_family_by_default": True,
                     "hybrid_requires_explicit_request": True,
@@ -2111,27 +2169,10 @@ def run() -> dict[str, Any]:
                     "explicitly excludes them."
                 ),
             }
-            fixture_species_scaffold = {
-                "identity_authority_order": [
-                    "explicit user species anchor",
-                    "approved Character Identity Contract",
-                    "selected species scaffold",
-                ],
-                "families": {"fixture-family": {"description": "Fixture geometry."}},
-                "species_to_scaffold": {
-                    species_id: {
-                        "scaffold_family": "fixture-family",
-                        "identity_rule": "preserve-user-or-contract-species",
-                    }
-                    for species_id in ("fixture-species-a", "fixture-species-b")
-                },
-                "species_count": 2,
-            }
             semantic_resource_values = {
                 "discovery-lanes": fixture_discovery_lanes,
-                "project-defaults": fixture_project_defaults,
+                "pack-defaults": fixture_pack_defaults,
                 "negative-policy": fixture_negative_policy,
-                "species-scaffold-map": fixture_species_scaffold,
             }
             for resource_name, resource_value in semantic_resource_values.items():
                 atomic_write_json(
@@ -2145,33 +2186,33 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "known-resource-cache",
                 managed_root=root / "known-resource-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             save_state(
                 semantic_settings.state_file,
                 {
                     "pack_roots": [],
                     "enabled_packs": [semantic_manifest["pack_id"]],
-                    "resource_providers": {
-                        name: semantic_manifest["pack_id"]
-                        for name in semantic_resource_values
-                    },
                 },
             )
             semantic_catalog = load_runtime_catalog(semantic_settings)
-            semantic_provider_valid = validate_pack(semantic_pack)
+            semantic_pack_valid = validate_pack(semantic_pack)
+            semantic_resources = {
+                **{
+                    name: resource
+                    for name, resource in semantic_catalog.resources.items()
+                    if name in semantic_resource_values
+                },
+            }
             resolved_semantic_values = {
                 name: json.loads(resource.path.read_text(encoding="utf-8"))
-                for name, resource in semantic_catalog.resources.items()
-                if name in semantic_resource_values
+                for name, resource in semantic_resources.items()
             }
             if (
-                not semantic_provider_valid.valid
+                not semantic_pack_valid.valid
                 or set(resolved_semantic_values) != set(semantic_resource_values)
                 or any(
-                    semantic_catalog.resources[name].source_pack
-                    != semantic_manifest["pack_id"]
-                    for name in semantic_resource_values
+                    resource.source_pack != semantic_manifest["pack_id"]
+                    for resource in semantic_resources.values()
                 )
                 or any(
                     validate_known_resource(name, value)
@@ -2179,21 +2220,21 @@ def run() -> dict[str, Any]:
                 )
             ):
                 errors.append(
-                    "explicit arbitrary-pack providers did not preserve known-resource semantics"
+                    "an arbitrary pack's known resources did not keep their semantics"
                 )
             else:
                 checks += 1
 
             semantic_mutations = [
                 (
-                    "project-defaults",
+                    "pack-defaults",
                     lambda value: value["medium_policy"].__setitem__(
                         "single_medium_family_by_default", False
                     ),
                     "single_medium_family_by_default",
                 ),
                 (
-                    "project-defaults",
+                    "pack-defaults",
                     lambda value: value["medium_policy"].__setitem__(
                         "hybrid_requires_explicit_request", False
                     ),
@@ -2219,20 +2260,6 @@ def run() -> dict[str, Any]:
                         "automatic_emission", True
                     ),
                     "atomic_misreadings.automatic_emission must be false",
-                ),
-                (
-                    "species-scaffold-map",
-                    lambda value: value["identity_authority_order"].__setitem__(
-                        0, "selected scaffold convenience"
-                    ),
-                    "identity_authority_order must begin",
-                ),
-                (
-                    "species-scaffold-map",
-                    lambda value: value["species_to_scaffold"]["fixture-species-a"].__setitem__(
-                        "identity_rule", "replace-user-species"
-                    ),
-                    "identity_rule must be 'preserve-user-or-contract-species'",
                 ),
             ]
             mutation_failures: list[str] = []
@@ -2268,70 +2295,104 @@ def run() -> dict[str, Any]:
             write_lock(semantic_pack)
             invalid_lane_pack_report = validate_pack(semantic_pack)
             invalid_lane_catalog = load_runtime_catalog(semantic_settings)
-            invalid_lane_status = runtime_resource_provider_status(semantic_settings)
             invalid_lane_diagnostics = [
                 row for row in invalid_lane_catalog.diagnostics
                 if row.get("code") == "known-resource-contract"
                 and row.get("resource") == "discovery-lanes"
-            ]
-            invalid_lane_status_rows = [
-                row for row in invalid_lane_status["resource_providers"]
-                if row.get("name") == "discovery-lanes"
             ]
             if (
                 not invalid_lane_pack_report.valid
                 or "discovery-lanes" in invalid_lane_catalog.resources
                 or not invalid_lane_diagnostics
                 or "missing-scene" not in str(invalid_lane_diagnostics[0].get("errors"))
-                or not invalid_lane_status_rows
-                or invalid_lane_status_rows[0].get("resolved") is not False
             ):
                 mutation_failures.append(
                     "discovery-lanes: missing preferred scene was not rejected against active records"
                 )
             atomic_write_json(lanes_path, fixture_discovery_lanes)
             write_lock(semantic_pack)
-            scaffold_path = semantic_pack / "resources" / "species-scaffold-map.json"
-            contextual_scaffold_mutations = []
-            missing_scaffold = json.loads(json.dumps(fixture_species_scaffold))
-            missing_scaffold["species_to_scaffold"].pop("fixture-species-b")
-            contextual_scaffold_mutations.append(
-                ("missing-active-species", missing_scaffold, "fixture-species-b")
-            )
-            extra_scaffold = json.loads(json.dumps(fixture_species_scaffold))
-            extra_scaffold["species_to_scaffold"]["phantom-species"] = {
-                "scaffold_family": "fixture-family",
-                "identity_rule": "preserve-user-or-contract-species",
-            }
-            contextual_scaffold_mutations.append(
-                ("phantom-species", extra_scaffold, "phantom-species")
-            )
-            for mutation_name, mutated_scaffold, expected_id in contextual_scaffold_mutations:
-                atomic_write_json(scaffold_path, mutated_scaffold)
-                write_lock(semantic_pack)
-                scaffold_pack_report = validate_pack(semantic_pack)
-                scaffold_catalog = load_runtime_catalog(semantic_settings)
-                scaffold_diagnostics = [
-                    row for row in scaffold_catalog.diagnostics
-                    if row.get("code") == "known-resource-contract"
-                    and row.get("resource") == "species-scaffold-map"
-                ]
-                if (
-                    not scaffold_pack_report.valid
-                    or "species-scaffold-map" in scaffold_catalog.resources
-                    or not scaffold_diagnostics
-                    or expected_id not in str(scaffold_diagnostics[0].get("errors"))
-                ):
-                    mutation_failures.append(
-                        "species-scaffold-map: "
-                        f"{mutation_name} was not rejected against active species records"
-                    )
-                atomic_write_json(scaffold_path, fixture_species_scaffold)
-                write_lock(semantic_pack)
             if mutation_failures or not validate_pack(semantic_pack).valid:
                 errors.append(
                     "known-resource semantic mutations were not rejected cleanly: "
                     + "; ".join(mutation_failures)
+                )
+            else:
+                checks += 1
+
+            species_root = root / "species-scaffold-packs"
+            species_packs: list[tuple[Path, str]] = []
+            for pack_name, species_id, family in (
+                ("Species Pack A", "fixture-species-wolf", "canine"),
+                ("Species Pack B", "fixture-species-cat", "feline"),
+            ):
+                species_pack = species_root / species_id
+                species_manifest = initialize_pack(species_pack, name=pack_name)
+                atomic_write_json(
+                    species_pack / "records" / "species.json",
+                    _species_record_document((species_id, family)),
+                )
+                write_lock(species_pack)
+                species_packs.append((species_pack, species_manifest["pack_id"]))
+            species_settings = _test_settings(
+                roots=(species_root,),
+                state_file=root / "species-state.json",
+                cache_dir=root / "species-cache",
+                managed_root=root / "species-managed",
+            )
+            save_state(
+                species_settings.state_file,
+                {
+                    "pack_roots": [],
+                    "enabled_packs": [pack_id for _, pack_id in species_packs],
+                },
+            )
+            species_errors: list[str] = []
+            species_summary = check_species_scaffold_policy(
+                [
+                    AuditRecord(
+                        entry.kind,
+                        str(entry.category or ""),
+                        entry.record,
+                        f"pack:{entry.source_pack}",
+                    )
+                    for entry in load_runtime_catalog(species_settings).entries
+                ],
+                species_errors,
+            )
+            unscaffolded_path = species_packs[1][0] / "records" / "species.json"
+            unscaffolded = _species_record_document(("fixture-species-cat", "feline"))
+            del unscaffolded["records"][0]["scaffold"]
+            atomic_write_json(unscaffolded_path, unscaffolded)
+            unscaffolded_report = validate_pack(
+                species_packs[1][0],
+                require_lock=False,
+                verify_lock=False,
+            )
+            unscaffolded_audit: list[str] = []
+            check_species_scaffold_policy(
+                [AuditRecord("module", "species", unscaffolded["records"][0], "pack:b")],
+                unscaffolded_audit,
+            )
+            if (
+                species_errors
+                or species_summary
+                != {
+                    "species_records": 2,
+                    "source_packs": 2,
+                    "by_family": {"canine": 1, "feline": 1},
+                }
+                or unscaffolded_report.valid
+                or not any(
+                    issue.code == "schema" and "scaffold" in issue.message
+                    for issue in unscaffolded_report.issues
+                )
+                or unscaffolded_audit
+                != ["fixture-species-cat: species record requires scaffold"]
+            ):
+                errors.append(
+                    "species scaffolds did not merge across packs or a missing scaffold was "
+                    f"accepted: {species_errors}, {species_summary}, "
+                    f"{unscaffolded_report.to_dict()}, {unscaffolded_audit}"
                 )
             else:
                 checks += 1
@@ -2345,14 +2406,12 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "broken-cache",
                 managed_root=root / "broken-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             save_state(
                 broken_settings.state_file,
                 {
                     "pack_roots": [],
                     "enabled_packs": [broken_manifest["pack_id"]],
-                    "resource_providers": {},
                 },
             )
             (broken_pack / "pack.json").write_text("{broken", encoding="utf-8")
@@ -2396,14 +2455,12 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "duplicate-diagnostic-cache",
                 managed_root=root / "duplicate-diagnostic-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             save_state(
                 duplicate_diagnostic_settings.state_file,
                 {
                     "pack_roots": [],
                     "enabled_packs": [duplicate_manifest["pack_id"]],
-                    "resource_providers": {},
                 },
             )
             duplicate_catalog = load_runtime_catalog(duplicate_diagnostic_settings)
@@ -2611,60 +2668,42 @@ def run() -> dict[str, Any]:
             atomic_write_json(source_pack / "resources" / "guide.json", {"role": "guide"})
             asset = source_pack / "records" / "asset.json"
             _asset_record_file(asset, "pack-smoke-asset", "pack-smoke-second")
-            unselected_catalog = load_runtime_catalog(settings)
-            if "smoke-guide" in unselected_catalog.resources or not any(
-                row.get("code") == "resource-provider-unselected"
-                and row.get("resource") == "smoke-guide"
-                and row.get("severity") == "warning"
-                for row in unselected_catalog.diagnostics
-            ):
-                errors.append(
-                    "an unselected logical resource resolved implicitly or was reported as a runtime error"
-                )
+            single = load_runtime_catalog(settings).resources.get("smoke-guide")
+            if single is None or (single.source_pack, single.relative_path) != (pack_id, "resources/guide.json"):
+                errors.append("a resource one enabled pack binds did not resolve from that pack")
             else:
                 checks += 1
-            select_resource_provider(settings, "smoke-guide", pack_id)
-            selected_catalog = load_runtime_catalog(settings)
-            selected_fingerprint = selected_catalog.fingerprint
-            if selected_catalog.resources.get("smoke-guide") is None:
-                errors.append("explicit logical resource provider did not resolve")
-            else:
-                checks += 1
-            clear_resource_provider(settings, "smoke-guide")
-            cleared_catalog = load_runtime_catalog(settings)
-            if (
-                "smoke-guide" in cleared_catalog.resources
-                or cleared_catalog.fingerprint == selected_fingerprint
-            ):
-                errors.append("clearing a resource provider did not invalidate resolution")
-            else:
-                checks += 1
-            select_resource_provider(settings, "smoke-guide", pack_id)
-            alternate_pack = source_parent / "alternate-provider"
-            alternate_manifest = initialize_pack(alternate_pack, name="Alternate Provider")
+            alternate_pack = source_parent / "alternate-guide"
+            alternate_manifest = initialize_pack(alternate_pack, name="Alternate Guide")
             alternate_id = str(alternate_manifest["pack_id"])
             alternate_manifest["content"]["resource_globs"] = ["resources/**/*"]
             alternate_manifest["content"]["resource_bindings"] = {
                 "smoke-guide": "resources/guide.json"
             }
             atomic_write_json(alternate_pack / "pack.json", alternate_manifest)
-            atomic_write_json(
-                alternate_pack / "resources" / "guide.json",
-                {"role": "alternate guide"},
-            )
+            atomic_write_json(alternate_pack / "resources" / "guide.json", {"role": "guide"})
             enable_pack(settings, alternate_id)
-            collision_catalog = load_runtime_catalog(settings)
-            if collision_catalog.resources["smoke-guide"].source_pack != pack_id:
-                errors.append("a second resource candidate overrode the selected provider")
+            shared = load_runtime_catalog(settings).resources.get("smoke-guide")
+            if shared is None or shared.source_pack not in {pack_id, alternate_id}:
+                errors.append("two packs binding the same content under one name did not resolve it")
             else:
                 checks += 1
-            select_resource_provider(settings, "smoke-guide", alternate_id)
-            alternate_catalog = load_runtime_catalog(settings)
-            if alternate_catalog.resources["smoke-guide"].source_pack != alternate_id:
-                errors.append("explicit provider change did not select the requested candidate")
+            atomic_write_json(alternate_pack / "resources" / "guide.json", {"role": "alternate guide"})
+            conflict_catalog = load_runtime_catalog(settings, quiet=True)
+            conflict_rows = [
+                row for row in conflict_catalog.diagnostics
+                if row.get("code") == "resource-conflict" and row.get("resource") == "smoke-guide"
+            ]
+            if (
+                "smoke-guide" in conflict_catalog.resources
+                or len(conflict_rows) != 1
+                or conflict_rows[0].get("pack_ids") != sorted([pack_id, alternate_id])
+                or conflict_rows[0].get("severity") != "error"
+            ):
+                errors.append(f"different content under one name was not a conflict naming both packs: {conflict_rows}")
             else:
                 checks += 1
-            select_resource_provider(settings, "smoke-guide", pack_id)
+            disable_pack(settings, alternate_id)
             runtime_ids_with_missing_reference = {
                 entry.record["id"] for entry in load_entries()
             }
@@ -2786,7 +2825,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "install-cache",
                 managed_root=root / "install-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             installed = install_pack(install_settings, install_source)
             installed_id = str(installed_manifest["pack_id"])
@@ -2856,7 +2894,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "duplicate-cache",
                 managed_root=root / "duplicate-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             duplicate_discovered, duplicate_issues = discover_packs(duplicate_settings)
             if duplicate_id in duplicate_discovered or len(
@@ -2888,7 +2925,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "cycle-cache",
                 managed_root=root / "cycle-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             try:
                 resolve_enabled(
@@ -2896,7 +2932,6 @@ def run() -> dict[str, Any]:
                     {
                         "pack_roots": [],
                         "enabled_packs": [cycle_a_id, cycle_b_id],
-                        "resource_providers": {},
                     },
                 )
             except PackError as exc:
@@ -2911,7 +2946,6 @@ def run() -> dict[str, Any]:
                 {
                     "pack_roots": [],
                     "enabled_packs": [cycle_a_id, cycle_b_id],
-                    "resource_providers": {},
                 },
             )
             cycle_catalog = load_runtime_catalog(cycle_settings)
@@ -3063,7 +3097,7 @@ def run() -> dict[str, Any]:
             rebuilt_release = _next_rebuild_release()
             rebuild_output = io.StringIO()
             with redirect_stdout(rebuild_output):
-                rebuild_exit = pack_cli_main(["build-lock", str(rebuild_pack)])
+                rebuild_exit = pack_cli_main(["build-lock", "--directory", str(rebuild_pack)])
             rebuilt_lock = json.loads(
                 (rebuild_pack / "pack.lock.json").read_text(encoding="utf-8")
             )
@@ -3085,7 +3119,7 @@ def run() -> dict[str, Any]:
             _write_rebuild_asset(sha256_file(rebuild_art))
             stale_output = io.StringIO()
             with redirect_stdout(stale_output):
-                stale_exit = pack_cli_main(["build-lock", str(rebuild_pack)])
+                stale_exit = pack_cli_main(["build-lock", "--directory", str(rebuild_pack)])
             try:
                 stale_payload = json.loads(stale_output.getvalue())
             except json.JSONDecodeError:
@@ -3093,7 +3127,7 @@ def run() -> dict[str, Any]:
             if stale_exit == 0:
                 errors.append("build-lock republished changed bytes under an existing release")
             elif "Refusing to publish different bytes" not in str(
-                stale_payload.get("error", "")
+                (stale_payload.get("diagnostics") or [{}])[0].get("message")
             ):
                 errors.append(
                     "build-lock refused an unraised release for the wrong reason: "
@@ -3117,7 +3151,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "root-add-cache",
                 managed_root=root / "root-add-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             root_add_id = str(root_add_manifest["pack_id"])
             install_pack(root_add_settings, root_add_source)
@@ -3313,7 +3346,6 @@ def run() -> dict[str, Any]:
                     cache_dir=root / "junction-cache",
                     managed_root=root / "junction-managed",
                     default_enabled_packs=(),
-                    default_resource_providers={},
                 )
                 try:
                     install_pack(junction_install_settings, junction_pack)
@@ -3371,7 +3403,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "count-cache",
                 managed_root=root / "count-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             count_healthy_source = root / "count-healthy"
             count_healthy_manifest = initialize_pack(
@@ -3452,7 +3483,6 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "drift-cache",
                 managed_root=root / "drift-managed",
                 default_enabled_packs=(),
-                default_resource_providers={},
             )
             drift_source = root / "drift-source"
             drift_manifest = initialize_pack(drift_source, name="Locked Drift Smoke Test")
@@ -3541,6 +3571,8 @@ def run() -> dict[str, Any]:
                 cache_dir=root / "floor" / "cache",
                 managed_root=root / "floor" / "managed",
             )
+            # The isolated state enables the shipped pack alone, whatever other packs the tree holds.
+            initialize_state_file(isolated_runtime, only=[default_pack_id])
             if isolated_runtime.protected_pack_ids != () or (
                 isolated_runtime.default_enabled_packs != shipped_defaults
             ):
@@ -3552,7 +3584,7 @@ def run() -> dict[str, Any]:
             else:
                 checks += 1
             named_default_runtime = default_settings(
-                state_file=Path.home() / ".character-prompt-builder" / "pack-state.json"
+                state_file=pack_manager_module._user_data_home() / "pack-state.json"
             )
             if named_default_runtime.protected_pack_ids != shipped_defaults:
                 errors.append(
@@ -3579,7 +3611,7 @@ def run() -> dict[str, Any]:
                 else:
                     checks += 1
         with tempfile.TemporaryDirectory(prefix="cpb-pack-smoke-") as temp:
-            for section in (_concurrency_checks, _left_out_pack_checks, _personal_pack_checks):
+            for section in (_concurrency_checks, _left_out_pack_checks, _precedence_checks, _personal_pack_checks):
                 section_checks, section_errors = section(Path(temp))
                 checks += section_checks
                 errors.extend(section_errors)

@@ -19,6 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+
 import state_protocol as sp  # noqa: E402
 
 WORLD = {"inventory_state": {"items": ["P01", "P02", "P03"]}}
@@ -50,7 +51,7 @@ def main() -> int:
             errors.append(f"{operation} changed the document while being refused")
     stats["refused_indexes"] = refused
 
-    # A well formed index still works.
+    # A well formed index is accepted.
     for token in ACCEPTED_INDEXES:
         world = copy.deepcopy(WORLD)
         try:

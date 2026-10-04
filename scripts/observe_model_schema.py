@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Publish attributed schema or existing trial evidence in a new locked local pack."""
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse
 import copy
 from datetime import datetime, timezone
@@ -11,6 +12,7 @@ import tempfile
 
 import execution_contract as c
 from input_evidence import InputEvidence
+import model_contract
 import model_observation
 import pack_manager as pm
 import schema_observation
@@ -56,7 +58,10 @@ def publish(args) -> dict:
             source=model_observation.capture(args.root.resolve(strict=True),args.run)
             actual=model_observation._derive(source)
             if actual['target']!=target:raise ValueError('trial target differs from the selected offering')
-            result=model_observation.publish(args.root.resolve(strict=True),args.run,staging/prefix,relative_prefix=prefix)
+            adoption=None
+            if args.adoption:
+                adoption=c.decode(c.read(c.local(args.root.resolve(strict=True),args.adoption)))
+            result=model_observation.publish(args.root.resolve(strict=True),args.run,staging/prefix,relative_prefix=prefix,adoption=adoption)
             chosen.setdefault('parameter_observations',[]).append(result)
         else:
             relationship=None
@@ -69,15 +74,19 @@ def publish(args) -> dict:
             schema_observation.publish(staging,prefix,files)
             if args.command=='schema':
                 contract=c.decode(files['contract.json']); acquisition=c.decode(files['acquisition.json'])
+                # Every field is read from the acquisition and the selected record; none is typed twice.
                 wrapper={'artifact_type':'observed-parameter-schema','model_id':args.model,
                     'service':args.service,'model_identifier':target['model_identifier'],
                     'observed_at':acquisition['acquired_at'][:10], 'source':acquisition['source']['identifier'],
                     'schema':contract['schema']}
-                c.atomic(staging/prefix/'observed-schema.json',c.encoded(wrapper))
                 chosen['schema_snapshot']=prefix+'/observed-schema.json'
                 chosen['schema_contract']=result['contract']
                 chosen['schema_acquisition']=result['evidence']
-                chosen['observed_at']=c.decode(files['acquisition.json'])['acquired_at'][:10]
+                chosen['observed_at']=wrapper['observed_at']
+                expected,model_key=model_contract.offering_expectation(args.model,chosen)
+                issues=model_contract.observed_schema_issues(wrapper,expected,model_key=model_key)
+                if issues:raise ValueError('observed schema does not meet its contract: '+'; '.join(issues))
+                c.atomic(staging/prefix/'observed-schema.json',c.encoded(wrapper))
             else:chosen.setdefault('reference_schemas',[]).append(result['contract'])
         pm.atomic_write_json(staging/path.relative_to(pack),updated)
         manifest=c.load(staging/'pack.json');manifest['release']=args.release
@@ -95,19 +104,21 @@ def publish(args) -> dict:
 
 
 def main(argv=None) -> int:
-    parser=argparse.ArgumentParser(description=__doc__)
+    parser=_operation_context.ArgumentParser(description=__doc__)
     commands=parser.add_subparsers(dest='command',required=True)
     for name in ('schema','reference','attach-probe'):
         sub=commands.add_parser(name)
-        sub.add_argument('--root',type=Path,required=True,help='Project containing the acquisition or existing run.')
+        sub.add_argument('--root',type=Path,required=True,help='Studio containing the acquisition or existing run.')
         sub.add_argument('--pack',type=Path,required=True,help='Validated source pack; retained unchanged.')
         sub.add_argument('--out-pack',type=Path,required=True,help='New local pack directory; activate it explicitly afterwards.')
         sub.add_argument('--release',required=True,help='Explicit CalVer for the new pack content.')
         sub.add_argument('--model',required=True);sub.add_argument('--service',required=True)
         sub.add_argument('--operation',required=True);sub.add_argument('--entry',required=True)
-        if name=='attach-probe':sub.add_argument('--run',required=True)
+        if name=='attach-probe':
+            sub.add_argument('--run',required=True)
+            sub.add_argument('--adoption',help='Studio-relative authored model-profile-adoption JSON. Without it, the trial is recorded but no observed profile is created.')
         else:
-            sub.add_argument('--acquisition',required=True,help='Project-relative acquisition JSON with original response witness.')
+            sub.add_argument('--acquisition',required=True,help='Studio-relative acquisition JSON with original response witness.')
             sub.add_argument('--pointer',default='',help='JSON Pointer into the acquired response.')
             if name=='schema':sub.add_argument('--overlay',help='Separate local envelope overlay JSON.')
             else:
@@ -121,4 +132,4 @@ def main(argv=None) -> int:
 if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

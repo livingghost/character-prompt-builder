@@ -22,6 +22,7 @@ from pack_manager import default_settings, save_state
 from catalog_retrieval import runtime
 from catalog_retrieval.runtime import Entry
 
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -224,18 +225,17 @@ class ConsultationTests(unittest.TestCase):
         production_fixtures.handoff(self.root, run, 'synthetic reviewer', 'manual')
         self.write('result.txt', 'One lamp with readable shadow detail.')
         candidate = workflow.capture(self.root, run, 'result.txt', 'Synthetic local text.')
-        original = workflow.assert_current
-        def changed_after_check(*args, **kwargs):
-            snapshot = original(*args, **kwargs)
-            app = c.load(self.root / result['application'])
-            app['applications'][0]['review_question'] = 'Changed after freshness check.'
-            self.write(result['application'], app)
-            return snapshot
-        with patch.object(workflow, 'assert_current', side_effect=changed_after_check):
-            review = workflow.draft_review(self.root, run, candidate['sha256'])
+        app = c.load(self.root / result['application'])
+        app['applications'][0]['review_question'] = 'Changed after preparation.'
+        self.write(result['application'], app)
+        review = workflow.draft_review(self.root, run, candidate['sha256'])
         self.assertIn('shadow side', review['checks'][0]['reason'])
         self.assertNotIn('Changed after', review['checks'][0]['reason'])
-        with self.assertRaises(ValueError): workflow.draft_review(self.root, run, candidate['sha256'])
+        with self.assertRaises(ValueError):
+            workflow.assert_current(self.root, run)
+        # Historical review reads the same immutable application, without claiming
+        # the changed live source is ready for a new external execution.
+        self.assertEqual(review, workflow.draft_review(self.root, run, candidate['sha256']))
 
     def test_recipe_dependencies_are_opened_not_selected(self):
         recipe = {'id': 'synthetic-recipe', 'base_scene_id': 'synthetic-scene', 'render_profile_id': 'synthetic-profile'}

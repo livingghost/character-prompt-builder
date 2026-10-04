@@ -20,6 +20,7 @@ import portrayal_principles as pp
 from authorial_intent_audit import REQUIRED_FIELDS
 from state_protocol import validate_artifact
 
+
 ROOT=Path(__file__).resolve().parents[1]
 SHELL='/props/LAMP/appearance/shell'
 SIGNAL='/props/LAMP/appearance/signal'
@@ -87,7 +88,7 @@ def make_fixture(root: Path) -> dict:
 class RealizationTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(prefix='cpb-realization-current-');self.addCleanup(self.tmp.cleanup)
-        self.root=Path(self.tmp.name)/'project';self.plan=make_fixture(self.root)
+        self.root=Path(self.tmp.name)/'studio';self.plan=make_fixture(self.root)
 
     def save(self): json_write(self.root/'plan.json',self.plan)
     def run_plan(self): self.save();return wr.compile_plan(self.root,'plan.json')

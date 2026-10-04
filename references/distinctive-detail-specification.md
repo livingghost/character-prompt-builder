@@ -2,7 +2,7 @@
 
 Distinctive details are identity-scale features whose exact placement and construction matter. They include scars, healed cuts, tattoos, birthmarks, freckles, wrinkles, calluses, paw pads, claws, chipped tips, ear notches, broken horns, asymmetrical markings, piercings, missing fur, worn casing, dents, seams, and comparable features.
 
-This specification keeps a detail from collapsing into a vague tag such as `scarred` or `tattooed`. Record only what can be stated from the user brief, a clear reference, a selected preset, or a user-confirmed inference. Hidden continuation behind clothing, hair, fur, crop, or another body part remains unspecified.
+This specification keeps a detail from collapsing into a vague tag such as `scarred` or `tattooed`. Record only what can be stated from the user brief, a clear reference, a selected record, or a user-confirmed inference. Hidden continuation behind clothing, hair, fur, crop, or another body part remains unspecified.
 
 ## Extraction order
 
@@ -22,7 +22,7 @@ Describe each detail in this order.
 12. Age or condition: fresh, healing, healed, faded, weathered, polished by use, callused, recently chipped, or old and softened.
 13. Visibility and occlusion: the camera or pose conditions required for visibility. Example: `visible in three-quarter left views; partly covered by the collar in frontal views`.
 14. Identity priority: `signature` for identity-defining details, `supporting` for stable secondary features, and `optional` for scene-dependent decoration.
-15. Source confidence: explicit user input, clearly observed reference evidence, approximate reference evidence, a selected preset, or user-confirmed. Ask one focused question when an identity-critical detail is ambiguous.
+15. Source confidence: explicit user input, clearly observed reference evidence, approximate reference evidence, a selected record, or user-confirmed. Ask one focused question when an identity-critical detail is ambiguous.
 
 ## Scale guidance
 

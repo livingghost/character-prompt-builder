@@ -12,7 +12,8 @@
     "review-file",
     "selection-file",
     "authorization-request",
-    "authorization-receipt"
+    "authorization-receipt",
+    "execution-decisions"
   ],
   "stages": [
     {
@@ -24,13 +25,39 @@
       ],
       "outputs": [
         "prepared",
-        "consumer"
+        "consumer",
+        "generation-package",
+        "request-preview",
+        "execution-plan"
       ],
-      "next": "handoff",
+      "next": [
+        "handoff",
+        "execute"
+      ],
       "on_failure": "prepare",
       "resume": "status",
       "owner": "scripts/production_workflow.py:prepare",
       "command": "python scripts/production_workflow.py prepare --help"
+    },
+    {
+      "id": "execute",
+      "inputs": [
+        "prepared",
+        "consumer",
+        "generation-package",
+        "execution-plan",
+        "execution-decisions"
+      ],
+      "outputs": [
+        "candidate"
+      ],
+      "next": [
+        "review"
+      ],
+      "on_failure": "execute",
+      "resume": "status",
+      "owner": "scripts/production_workflow.py:execute",
+      "command": "python scripts/production_workflow.py execute --help"
     },
     {
       "id": "handoff",
@@ -42,7 +69,9 @@
       "outputs": [
         "handoff"
       ],
-      "next": "capture",
+      "next": [
+        "capture"
+      ],
       "on_failure": "prepare",
       "resume": "status",
       "owner": "scripts/production_workflow.py:handoff",
@@ -57,7 +86,9 @@
       "outputs": [
         "candidate"
       ],
-      "next": "review",
+      "next": [
+        "review"
+      ],
       "on_failure": "capture",
       "resume": "status",
       "owner": "scripts/production_workflow.py:capture",
@@ -72,7 +103,12 @@
       "outputs": [
         "review"
       ],
-      "next": "select",
+      "next": [
+        "select",
+        "variant",
+        "disposition",
+        "candidate-status"
+      ],
       "on_failure": "review",
       "resume": "status",
       "owner": "scripts/production_workflow.py:review",
@@ -88,7 +124,9 @@
       "outputs": [
         "selection"
       ],
-      "next": "complete",
+      "next": [
+        "complete"
+      ],
       "on_failure": "review",
       "resume": "status",
       "owner": "scripts/production_workflow.py:select",
@@ -102,7 +140,9 @@
       "outputs": [
         "completion"
       ],
-      "next": "done",
+      "next": [
+        "done"
+      ],
       "on_failure": "prepare",
       "resume": "status",
       "owner": "scripts/production_workflow.py:complete",
@@ -208,49 +248,57 @@
     },
     "gpt-image": {
       "reads": [
-        "references/adapters/gpt-image.md"
+        "references/adapters/gpt-image.md",
+        "references/runtime/model-evidence.md"
       ],
       "source_roles": []
     },
     "flux": {
       "reads": [
-        "references/adapters/flux.md"
+        "references/adapters/flux.md",
+        "references/runtime/model-evidence.md"
       ],
       "source_roles": []
     },
     "sdxl": {
       "reads": [
-        "references/adapters/sdxl-comfyui.md"
+        "references/adapters/sdxl-comfyui.md",
+        "references/runtime/model-evidence.md"
       ],
       "source_roles": []
     },
     "novelai": {
       "reads": [
-        "references/adapters/novelai.md"
+        "references/adapters/novelai.md",
+        "references/runtime/model-evidence.md"
       ],
       "source_roles": []
     },
     "midjourney": {
       "reads": [
-        "references/adapters/midjourney-niji.md"
+        "references/adapters/midjourney-niji.md",
+        "references/runtime/model-evidence.md"
       ],
       "source_roles": []
     },
     "unlisted-interface": {
       "reads": [
-        "references/adapters/unlisted-interface.md"
+        "references/adapters/unlisted-interface.md",
+        "references/runtime/model-evidence.md"
       ],
       "source_roles": []
     },
     "grok": {
       "reads": [
-        "references/adapters/grok-imagine.md"
+        "references/adapters/grok-imagine.md",
+        "references/runtime/model-evidence.md"
       ],
       "source_roles": []
     },
     "instruction-edit": {
       "reads": [
-        "references/adapters/instruction-edit.md"
+        "references/adapters/instruction-edit.md",
+        "references/runtime/model-evidence.md"
       ],
       "source_roles": []
     },
@@ -500,8 +548,7 @@
       ],
       "stages": [
         "prepare",
-        "handoff",
-        "capture",
+        "execute",
         "review",
         "select",
         "complete"
@@ -520,8 +567,7 @@
       ],
       "stages": [
         "prepare",
-        "handoff",
-        "capture",
+        "execute",
         "review",
         "select",
         "complete"
@@ -538,8 +584,7 @@
       ],
       "stages": [
         "prepare",
-        "handoff",
-        "capture",
+        "execute",
         "review",
         "select",
         "complete"
@@ -557,8 +602,7 @@
       ],
       "stages": [
         "prepare",
-        "handoff",
-        "capture",
+        "execute",
         "review",
         "select",
         "complete"
@@ -566,7 +610,8 @@
     },
     "upscale": {
       "reads": [
-        "references/adapters/upscale.md"
+        "references/adapters/upscale.md",
+        "references/runtime/model-evidence.md"
       ],
       "features": [
         "studio",
@@ -574,8 +619,7 @@
       ],
       "stages": [
         "prepare",
-        "handoff",
-        "capture",
+        "execute",
         "review",
         "select",
         "complete"
@@ -593,8 +637,7 @@
       ],
       "stages": [
         "prepare",
-        "handoff",
-        "capture",
+        "execute",
         "review",
         "select",
         "complete"
@@ -675,7 +718,21 @@
     "scripts/production_series_smoke_test.py",
     "scripts/craft_consultation_smoke_test.py",
     "scripts/render_contract_smoke_test.py",
-    "examples/render-contract/build_example.py"
+    "examples/render-contract/build_example.py",
+    "scripts/test_production_foundation.py",
+    "scripts/test_production_execution.py",
+    "scripts/test_production_variation.py",
+    "scripts/test_production_cli.py",
+    "scripts/test_production_review.py",
+    "scripts/test_production_budget.py",
+    "scripts/test_production_adoption.py",
+    "scripts/test_production_boundaries.py",
+    "scripts/test_production_retarget.py",
+    "scripts/test_production_file_input.py",
+    "scripts/test_production_operations.py",
+    "scripts/test_model_observation.py",
+    "scripts/test_runtime_snapshot.py",
+    "scripts/pack_selector_smoke_test.py"
   ],
   "operations": {
     "authorize": {
@@ -714,14 +771,9 @@
       "effect": "read-only changed-source and declared dependency report"
     },
     "resume": {
-      "owner": "scripts/production_workflow.py:status",
+      "owner": "scripts/production_execution.py:resume",
       "command": "python scripts/production_workflow.py resume --help",
-      "effect": "read-only next step"
-    },
-    "recover-recording": {
-      "owner": "scripts/production_workflow.py:recover_recording",
-      "command": "python scripts/production_workflow.py recover-recording --help",
-      "effect": "record acquired outputs without new network calls"
+      "effect": "recover the same execution from retained evidence or one provider lookup without resending; --outcome-file records an evidenced not_executed statement"
     },
     "image-edit-intent": {
       "owner": "scripts/image_edit.py:edit_intent",
@@ -787,12 +839,102 @@
     "consult-presets": {
       "owner": "scripts/craft_consultation.py:command",
       "command": "python scripts/production_workflow.py consult-presets --help",
-      "effect": "read craft candidates"
+      "effect": "read craft records"
     },
     "apply-presets": {
       "owner": "scripts/craft_consultation.py:command",
       "command": "python scripts/production_workflow.py apply-presets --help",
       "effect": "publish scoped craft application as a production source"
+    },
+    "retarget": {
+      "owner": "scripts/production_variation.py:retarget",
+      "command": "python scripts/production_workflow.py retarget --help",
+      "effect": "reassess a complete task for an explicitly different target"
+    },
+    "check": {
+      "owner": "scripts/production_compiler.py:check_task",
+      "command": "python scripts/production_workflow.py check --help",
+      "effect": "report every preparation check, the request preview and the execution plan; no run, authorization or reservation"
+    },
+    "draft-execution": {
+      "owner": "scripts/production_execution.py:draft_execution",
+      "command": "python scripts/production_workflow.py draft-execution --help",
+      "effect": "write the unanswered execution decisions for every planned operation; grants nothing"
+    },
+    "variant": {
+      "owner": "scripts/production_variation.py:derive",
+      "command": "python scripts/production_workflow.py variant --help",
+      "effect": "prepare a new run from a prepared run with declared field changes; inherits no receipt, claim, review or selection"
+    },
+    "repeat": {
+      "owner": "scripts/production_variation.py:derive",
+      "command": "python scripts/production_workflow.py repeat --help",
+      "effect": "prepare another run of the unchanged input under its own claim and authorization"
+    },
+    "status": {
+      "owner": "scripts/production_execution.py:status",
+      "command": "python scripts/production_workflow.py status --help",
+      "effect": "read-only run state, next command and, with --budget, grant budgets"
+    },
+    "draft-outcome": {
+      "owner": "scripts/production_execution.py:draft_outcome",
+      "command": "python scripts/production_workflow.py draft-outcome --help",
+      "effect": "write the statement form for a started send that the provider records as never executed"
+    },
+    "logs": {
+      "owner": "scripts/operation_context.py:list_operations",
+      "command": "python scripts/production_workflow.py logs --help",
+      "effect": "read-only list of automatic operation logs"
+    },
+    "logs-export": {
+      "owner": "scripts/operation_context.py:export_logs",
+      "command": "python scripts/production_workflow.py logs-export --help",
+      "effect": "copy operation logs to a new directory with a manifest of what it includes"
+    },
+    "logs-cleanup": {
+      "owner": "scripts/operation_context.py:cleanup_logs",
+      "command": "python scripts/production_workflow.py logs-cleanup --help",
+      "effect": "list diagnostic logs that may be deleted, and delete them with --apply; production records stay"
+    },
+    "staging-cleanup": {
+      "owner": "scripts/production_compiler.py:staging_cleanup",
+      "command": "python scripts/production_workflow.py staging-cleanup --help",
+      "effect": "list unpublished staging, unclaimed journals and unrecoverable publications with their eligibility; --apply with --operation removes one ended operation's eligible items"
+    },
+    "recover-publication": {
+      "owner": "scripts/production_compiler.py:recover_publication",
+      "command": "python scripts/production_workflow.py recover-publication --help",
+      "effect": "register a verified publication whose registration was interrupted"
+    },
+    "authority-import": {
+      "owner": "scripts/production_store.py:import_authority",
+      "command": "python scripts/production_workflow.py authority-import --help",
+      "effect": "import or replace the work task grant file, keeping its evidence and predecessor"
+    },
+    "release-reservation": {
+      "owner": "scripts/reservation_lifecycle.py:release",
+      "command": "python scripts/production_workflow.py release-reservation --help",
+      "effect": "release an unused reservation with a completed release request"
+    },
+    "draft-release": {
+      "owner": "scripts/reservation_lifecycle.py:draft_release",
+      "command": "python scripts/production_workflow.py draft-release --help",
+      "effect": "write the release request form of one reservation"
+    },
+    "draft-disposition": {
+      "owner": "scripts/production_workflow.py:draft_disposition",
+      "command": "python scripts/production_workflow.py draft-disposition --help",
+      "effect": "write the disposition form of one candidate"
+    },
+    "disposition": {
+      "owner": "scripts/production_workflow.py:disposition",
+      "command": "python scripts/production_workflow.py disposition --help",
+      "effect": "record a candidate as not selected or pending; on the selected candidate it withdraws the selection, refused while the Studio holds that candidate as its accepted image"
+    },
+    "candidate-status": {
+      "owner": "scripts/production_workflow.py:candidate_state",
+      "command": "python scripts/production_workflow.py candidate-status --help",
+      "effect": "read-only evaluation, disposition and selection state of one candidate"
     }
   }
 }

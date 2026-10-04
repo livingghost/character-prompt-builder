@@ -33,6 +33,7 @@ Output is JSON on stdout; `dialect` names the family checked, or is null. The
 exit status is 1 when a problem is reported.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -254,7 +255,7 @@ def check(prompt: str, negative: str, vocabulary: dict[str, Any], record: dict[s
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--dictionary", required=True, type=Path, help="A prompt-vocabulary dictionary.json")
     parser.add_argument("--prompt", required=True)
     parser.add_argument("--negative", default="")
@@ -303,4 +304,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

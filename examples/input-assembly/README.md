@@ -18,13 +18,13 @@ Real operators read the selected sources and write their own quotations and reas
 
 ## Run the input helpers
 
-Start with an authored production task in a project directory.
+Start with an authored production task in a studio.
 The following commands leave preparation, authorization, and sending as separate operations.
 
 ```bash
-python scripts/production_workflow.py inspect-inputs --root PROJECT --task task.json
-python scripts/production_workflow.py draft-inputs --root PROJECT --task task.json --out-dir work/input-draft
-python scripts/production_workflow.py build-inputs --root PROJECT --task task.json --choices work/input-draft/choices.json --out-dir work/inputs
+python scripts/production_workflow.py inspect-inputs --root STUDIO --task task.json
+python scripts/production_workflow.py draft-inputs --root STUDIO --task task.json --out-dir work/input-draft
+python scripts/production_workflow.py build-inputs --root STUDIO --task task.json --choices work/input-draft/choices.json --out-dir work/inputs
 ```
 
 Edit the `choices` member of the draft before calling `build-inputs`.
@@ -47,7 +47,7 @@ An upscale or a bounded-context dispatcher task needs a validation choice, and s
 Validation choices contain `mode`, `model`, `target`, `service_profiles`, `contract`, `evidence`, and `execution_policy`.
 Select a canonical model ID and an exact target with `service`, `model_identifier`, and `operation`.
 A null `service_profiles` uses the active service resource; an explicit path selects a local service file.
-`contract` and `evidence` select project files. An unused execution policy can be null.
+`contract` and `evidence` select studio files. An unused execution policy can be null.
 Use the same pack runtime arguments for reading, input construction, and the generation builder.
 
 A visual choice with `purpose`, `basis`, `subjects`, `production_spec`, and `prepared_reference_set` builds a complete continuity record instead.

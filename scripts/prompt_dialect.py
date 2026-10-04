@@ -28,6 +28,7 @@ the universal rules are still returned.
 Output is JSON on stdout.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -119,7 +120,7 @@ def applicable_sections(guide_path: Path | None, dialect_id: str | None) -> dict
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--list", action="store_true", help="The families the resource carries")
     parser.add_argument("--dialect", help="A family, by its id")
     parser.add_argument("--model", help="A model record, whose own family is used")
@@ -196,4 +197,4 @@ def render_report(args: argparse.Namespace, settings: PackSettings) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

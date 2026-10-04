@@ -6,6 +6,7 @@ chooses a model, rewrites identity, or grants execution/canonical authority.
 """
 
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse
 from collections import defaultdict
 import json
@@ -313,7 +314,7 @@ def analyze(root: Path, runs: list[str], output: str, hypotheses_path: str | Non
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--run", action="append", required=True)
     parser.add_argument("--out", required=True)
@@ -342,4 +343,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

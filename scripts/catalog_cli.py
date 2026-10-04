@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Search and inspect the Character Prompt Builder preset library.
+"""Search and inspect the Character Prompt Builder pack records.
 
 This script is deliberately not a prompt generator. It supports two retrieval
 paths: focused lookup after an art direction exists, and sparse-brief discovery
@@ -12,6 +12,7 @@ translation and semantic normalization are deliberately outside this lexical
 search tool so the package does not maintain per-language word lists.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -170,9 +171,9 @@ def _check_record_arguments(parser: argparse.ArgumentParser, args: argparse.Name
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = _operation_context.ArgumentParser(
         description=(
-            "Search Character Prompt Builder presets without generating a prompt. "
+            "Search Character Prompt Builder records without generating a prompt. "
             "The calling agent translates and normalizes the user brief; this tool "
             "accepts canonical English retrieval wording or structured canonical facets."
         )
@@ -192,7 +193,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     inspect_parser = sub.add_parser(
         "inspect",
         help=(
-            "Return one complete canonical preset record plus a compact linked-asset "
+            "Return one complete canonical record plus a compact linked-asset "
             "activation summary. Use asset-lookup for asset records and resources."
         ),
     )
@@ -253,7 +254,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     _add_record_arguments(batch_parser, element=None)
 
-    search = sub.add_parser("search", help="Look up preset records from canonical descriptive wording")
+    search = sub.add_parser("search", help="Look up records from canonical descriptive wording")
     _add_query_source_arguments(search)
     _add_record_arguments(search)
     search.add_argument("--kind", default=DEFAULT_SEARCH_KINDS)
@@ -284,7 +285,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     recommendation = sub.add_parser(
         "recommend",
-        help="Explore coherent visual directions from a sparse canonical brief without requiring preset names or IDs.",
+        help="Explore coherent visual directions from a sparse canonical brief without requiring record names or IDs.",
     )
     _add_query_source_arguments(recommendation)
     _add_record_arguments(recommendation)
@@ -306,10 +307,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         default="any",
         help=(
             "Atomic-record role for this retrieval question. Default: any. "
-            "Rendering-profile candidates remain curated."
+            "Render-profile candidates remain curated."
         ),
     )
-    inspiration.add_argument("--profile-limit", type=int, default=3, help="Number of curated rendering-profile candidates")
+    inspiration.add_argument("--profile-limit", type=int, default=3, help="Number of curated render-profile candidates")
     inspiration.add_argument("--core-limit", type=int, default=3, help="Number of curated universal aesthetic-core candidates")
     inspiration.add_argument("--style-family-limit", type=int, default=3, help="Number of curated concrete style-family candidates")
     inspiration.add_argument("--realization-limit", type=int, default=2, help="Number of curated domain-realization candidates")
@@ -408,4 +409,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

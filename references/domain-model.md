@@ -82,6 +82,6 @@ A single image may contain several domains. Apply one realization to each materi
 
 ## Sparse wording
 
-Interpret the whole brief using ordinary language. Ask only when different body forms are genuinely equally plausible and would materially change the image. Do not let a species keyword or preset decide the form in isolation.
+Interpret the whole brief using ordinary language. Ask only when different body forms are genuinely equally plausible and would materially change the image. Do not let a species keyword or record decide the form in isolation.
 
 Age appearance and gender presentation are ordinary creative descriptors. They have no hidden default and do not route a subject into different permitted scenes or styles.

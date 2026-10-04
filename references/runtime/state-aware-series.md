@@ -36,7 +36,7 @@ Identity, Era, Form, and Appearance contracts
 
 The Identity Contract owns stable anatomy, proportions, markings, distinctive details, asymmetry, identity-level accessories, stable performance vocabulary, and stable grooming construction. The State Event Ledger owns approved change over story time. Scene Context owns current relationships, environment, wardrobe, inventory, props, disclosure, and planned transitions. Visual State Projection decides what the current camera may show, what remains hidden, what performance consequences are visible, and which text or references carry each critical fact.
 
-The authority order remains user intent and approved canon, approved identity and event history, resolved snapshots and context, Visual State Projection and Production Specification, then selected catalog knowledge and project defaults. A scene record cannot overwrite identity or history. Do not paste the whole history into the prompt; project only current visible or performance-relevant truth while preserving hashes and source references.
+The authority order remains user intent and approved canon, approved identity and event history, resolved snapshots and context, Visual State Projection and Production Specification, then selected catalog knowledge and the studio defaults. A scene record cannot overwrite identity or history. Do not paste the whole history into the prompt; project only current visible or performance-relevant truth while preserving hashes and source references.
 
 ## State domains and visibility
 
@@ -162,20 +162,20 @@ Read only the authority activated by the work:
 
 Local state-aware authoring is complete without exchange. A supplied artifact is an optional input validated under the public contract; no external authoring process or application is presumed.
 
-At the optional boundary, exchange explicit public records. The same workspace
-may author every record itself; no external authoring role is required. Receiving
+At the optional boundary, exchange explicit public records. The same studio
+may hold every record; no external authoring role is required. Receiving
 a record never adopts a design, updates state, obtains media or sends a model job.
 
-For a declared profile, publish the exact payload with its public declaration:
+For a declared interchange profile, publish the exact payload with its public declaration:
 
 ```bash
 python scripts/build_interchange_envelope.py \
-  --profile shot-request --payload-type shot-request --payload PROJECT/request.json \
-  --payload-id REQUEST_ID --out PROJECT/exchange/request
+  --profile shot-request --payload-type shot-request --payload STUDIO/request.json \
+  --payload-id REQUEST_ID --out STUDIO/exchange/request
 python scripts/validate_integration.py \
-  --envelope PROJECT/received/request/envelope.json \
-  --declaration PROJECT/received/request/declaration.json \
-  --payload-root PROJECT/received/request --direction consumes
+  --envelope STUDIO/received/request/envelope.json \
+  --declaration STUDIO/received/request/declaration.json \
+  --payload-root STUDIO/received/request --direction consumes
 ```
 
 `REQUEST_ID` must equal the actual request's `request_id`. The output directory

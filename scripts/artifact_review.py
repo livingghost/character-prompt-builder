@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Export a read-only, byte-bound view of a production run.
 
-Usage: python scripts/artifact_review.py --project WORK --run ID --out reviews/NAME
+Usage: python scripts/artifact_review.py --studio STUDIO --run ID --out reviews/NAME
 The report is derived from existing receipts. It never submits, selects or adopts.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import html
@@ -22,17 +23,17 @@ ROOT = Path(__file__).resolve().parents[1]
 from io_budget import optional_count
 
 
-def workspace(root: Path) -> Path:
-    """Resolve a workspace without letting reporting write into the installed skill."""
+def studio_root(root: Path) -> Path:
+    """Resolve a studio without letting reporting write into the installed skill."""
     root = root.absolute()
     # local() also rejects symbolic-link ancestors and noncanonical paths.
     c.local(root, 'reviews', exists=False)
     installation = next((p for p in (ROOT, *ROOT.parents)
                          if (p / 'package-manifest.toml').is_file()), ROOT)
     if root.resolve().is_relative_to(installation.resolve()):
-        raise ValueError('use a project workspace outside the installed bundle')
+        raise ValueError('use a studio outside the installed bundle')
     if not root.is_dir():
-        raise ValueError('project workspace does not exist')
+        raise ValueError('studio does not exist')
     return root
 
 
@@ -73,7 +74,7 @@ def _object_file(directory: Path, item: dict, files: dict[str, bytes], preview_c
 def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[dict, dict[str, bytes]]:
     """Read pinned inputs and every candidate, not just the chosen result."""
     optional_count(preview_chars, "preview characters")
-    root = workspace(root)
+    root = studio_root(root)
     directory, prepared, consumer, rows = workflow.load_run(root, run)
     files: dict[str, bytes] = {}
     changes: list[dict] = []
@@ -98,9 +99,9 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
     sources = []
     dependencies = {(d['space'], d['path']): d for d in prepared['dependencies']}
     for source in prepared['task']['sources']:
-        dep = dependencies.get(('project', source['path']))
+        dep = dependencies.get(('studio', source['path']))
         if dep is None:
-            raise ValueError('declared source has no pinned project dependency')
+            raise ValueError('declared source has no pinned studio dependency')
         sources.append({**source, 'file': _object_file(directory, dep, files, preview_chars)})
     candidates = []
     for row in rows:
@@ -130,7 +131,7 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
                            for r in rows],
               'limits': ['A receipt proves recorded bytes, not human consent or artistic quality.',
                          'This is a read-only snapshot; selecting or adopting uses the production workflow.',
-                         'Previews display the saved bytes. Current workspace changes are listed separately.',
+                         'Previews display the saved bytes. Current studio changes are listed separately.',
                          'Preview format detection is not a media-quality assessment.']}
     return report, files
 
@@ -162,7 +163,7 @@ def render(report: dict) -> str:
     body = [f'<h1>Production review</h1><p>Task: {html.escape(report["task_id"])}<br>'
             f'Run: <code>{report["run"]}</code></p>']
     body.append('<p class="status">' + ('Inputs match this snapshot.' if report['current']
-                 else 'STALE: workspace content differs. Saved evidence is shown, not silently replaced.') + '</p>')
+                 else 'STALE: studio content differs. Saved evidence is shown, not silently replaced.') + '</p>')
     if report['changed_dependencies']:
         body.append('<h2>Changed dependencies</h2><pre>' + _json(report['changed_dependencies']) + '</pre>')
     body += ['<h2>Purpose and choices</h2><pre>' + _json(report['direction']) + '</pre>',
@@ -204,9 +205,9 @@ code{overflow-wrap:anywhere;font-size:.8em}section,details{padding:1rem;margin:1
 
 def publish(root: Path, out: str, files: dict[str, bytes], *, prefix: str = 'reviews') -> Path:
     """Publish a complete derived directory once; leave existing destinations alone."""
-    root = workspace(root)
+    root = studio_root(root)
     if not out.startswith(prefix + '/'):
-        raise ValueError(f'output must be below {prefix}/ in the project workspace')
+        raise ValueError(f'output must be below {prefix}/ in the studio')
     target = c.local(root, out, exists=False)
     if target.exists():
         raise ValueError('output already exists; choose a new derived-report directory')
@@ -224,7 +225,7 @@ def publish(root: Path, out: str, files: dict[str, bytes], *, prefix: str = 'rev
 
 
 def export(root: Path, run: str, out: str, *, preview_chars: int | None = None) -> dict:
-    root = workspace(root)
+    root = studio_root(root)
     with c.lock(root):
         report, files = build(root, run, preview_chars=preview_chars)
         files['review.json'] = c.encoded(report)
@@ -238,14 +239,14 @@ def export(root: Path, run: str, out: str, *, preview_chars: int | None = None) 
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--project', type=Path, required=True)
+    parser = _operation_context.ArgumentParser(description=__doc__)
+    parser.add_argument('--studio', type=Path, required=True)
     parser.add_argument('--run', required=True)
     parser.add_argument('--out', required=True)
     parser.add_argument('--preview-chars', type=int, help='Optional display-only text limit; default shows complete text and attachments are always complete')
     args = parser.parse_args()
     try:
-        result = export(args.project, args.run, args.out, preview_chars=args.preview_chars)
+        result = export(args.studio, args.run, args.out, preview_chars=args.preview_chars)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except (ValueError, OSError, KeyError, TypeError) as exc:
@@ -256,4 +257,4 @@ def main() -> int:
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

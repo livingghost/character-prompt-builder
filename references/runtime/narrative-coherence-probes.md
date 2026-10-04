@@ -41,7 +41,7 @@ includes it.
 
 A lone investigator reconstructs a remote failure. The world's communication delay is fixed; the
 investigator's persona distinguishes cautious inference from confident public speech. The
-project's concern with trust is an inquiry rather than a requirement that the investigator learn
+work's concern with trust is an inquiry rather than a requirement that the investigator learn
 a lesson.
 
 A clue is usable only if it can reach the investigator through the system at the relevant time.

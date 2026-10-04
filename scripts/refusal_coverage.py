@@ -24,6 +24,7 @@ from its own text; it is listed apart rather than counted either way.
     python scripts/refusal_coverage.py scripts/narrative.py scripts/narrative_smoke_test.py
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import ast
@@ -135,7 +136,7 @@ def check(root: Path, pairs: list[tuple[str, list[str]]], errors: list[str]) -> 
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split(chr(10))[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split(chr(10))[0])
     parser.add_argument("reader", type=Path)
     parser.add_argument("suites", type=Path, nargs="+")
     parser.add_argument("--json", action="store_true")
@@ -161,4 +162,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

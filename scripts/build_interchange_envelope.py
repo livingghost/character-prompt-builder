@@ -2,10 +2,11 @@
 """Write a new protocol bundle containing payload, declaration and envelope.
 
 Only files explicitly supplied to this command and the installed declaration are
-read. No discovery, network access, adoption, model execution or project mutation
-is performed. --out must name a new directory in the user's workspace.
+read. No discovery, network access, adoption, model execution or studio change
+is performed. --out must name a new directory in the user's studio.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse
 import hashlib
 import json
@@ -20,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", required=True)
     parser.add_argument("--payload", required=True)
     parser.add_argument("--payload-type", required=True)
@@ -92,4 +93,4 @@ def main() -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

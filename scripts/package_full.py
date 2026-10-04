@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build a deterministic full CPB release with every validated pack and catalog."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -14,16 +15,19 @@ import zipfile
 from pathlib import Path
 from typing import Any, Sequence
 
-from catalog_html import discover_pack_tree
+from catalog_html import InspectedPack, discover_pack_tree
+from pack_manager import COMMONS_PACK_ID, PackError
 from package import (
     _cleanup_attempt_directory,
     _validate_publication_targets,
     archive_content_sha256,
+    check_installed,
     clean_artifacts,
     copy_runtime_tree,
     ensure_output_is_not_release_input,
     publish_validated_outputs,
     sha256_file,
+    stage_counts,
     tree_file_hashes,
     validate_keep_stage_destination,
     validate_stage,
@@ -205,6 +209,44 @@ def verify_full_manifest(root: Path) -> dict[str, Any]:
     }
 
 
+def staged_packs(root: Path) -> list[InspectedPack]:
+    """Every validated pack of the staged tree, each with the verification its kind needs.
+
+    The shipped commons at `packs/commons` is verified by the tree's
+    `MANIFEST.json` and has no lock. Every other pack is a released pack and
+    needs its lock, which validation verifies when it is present.
+    """
+
+    packs = discover_pack_tree(root / "packs", require_lock=False)
+    commons = (root / "packs" / "commons").resolve()
+    for pack in packs:
+        if pack.pack_id == COMMONS_PACK_ID and pack.root.resolve() == commons:
+            continue
+        if not pack.validation.lock_present:
+            raise PackError(f"Released and installed packs require pack.lock.json: {pack.root}")
+    return packs
+
+
+def _required_closure(pack: InspectedPack, by_id: dict[str, InspectedPack]) -> set[str]:
+    """The packs `pack` requires, each staged; a dependency names a pack, not a version."""
+
+    def required(manifest: dict[str, Any]) -> list[str]:
+        return [str(row["pack_id"]) for row in manifest.get("dependencies") or []
+                if isinstance(row, dict) and row.get("pack_id")]
+
+    closure: set[str] = set()
+    pending = required(pack.manifest)
+    while pending:
+        item = pending.pop()
+        if item in closure:
+            continue
+        if item not in by_id:
+            raise PackError(f"required dependency {item} of {pack.pack_id} is not staged")
+        closure.add(item)
+        pending.extend(required(by_id[item].manifest))
+    return closure
+
+
 def run_bundled_pack_release_gates(
     root: Path,
     *,
@@ -214,22 +256,20 @@ def run_bundled_pack_release_gates(
 ) -> dict[str, Any]:
     """Run each bundled released pack's actual owner-declared gate."""
 
-    packs = discover_pack_tree(root / "packs", require_lock=True)
+    packs = staged_packs(root)
+    by_id = {pack.pack_id: pack for pack in packs}
     rows: list[dict[str, Any]] = []
     errors: list[str] = []
     for pack in packs:
+        dependencies = [by_id[item] for item in sorted(_required_closure(pack, by_id))]
         pack_runtime = runtime_root / pack.pack_id
         state_file = pack_runtime / "state.json"
         cache_dir = pack_runtime / "cache"
         managed_root = pack_runtime / "managed"
         managed_root.mkdir(parents=True, exist_ok=True)
         state = {
-            "pack_roots": [str(pack.root.resolve())],
-            "enabled_packs": [pack.pack_id],
-            "resource_providers": {
-                name: pack.pack_id
-                for name in sorted(pack.validation.resource_bindings)
-            },
+            "pack_roots": [str(pack.root.resolve()), *(str(item.root.resolve()) for item in dependencies)],
+            "enabled_packs": [pack.pack_id, *(item.pack_id for item in dependencies)],
         }
         write_json(state_file, state)
         report_path = reports_dir / f"{label}-pack-gate-{pack.pack_id}.json"
@@ -280,13 +320,13 @@ def run_bundled_pack_release_gates(
 
 
 def validate_all_packs(root: Path) -> dict[str, Any]:
-    packs = discover_pack_tree(root / "packs", require_lock=True)
+    packs = staged_packs(root)
     rows = [
         {
             "pack_id": pack.pack_id,
             "name": pack.name,
             "release": pack.release,
-            "root": pack.root.relative_to(root).as_posix(),
+            "root": pack.root.resolve().relative_to(Path(root).resolve()).as_posix(),
             "record_count": len(pack.validation.records),
             "resource_file_count": len(pack.validation.resource_files),
         }
@@ -312,7 +352,7 @@ def chmod_variation(root: Path) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--out", type=Path)
     parser.add_argument("--reports-dir", type=Path)
@@ -410,11 +450,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
 
             before_validation = tree_file_hashes(stage)
-            progress("running complete production gates on staged release", started)
-            staged_gate_reports, staged_contract = validate_stage(
+            progress("validating the staged release once", started)
+            validation = validate_stage(
                 stage,
                 candidate_reports,
-                "staged",
                 temp_root / "staged-runtime",
                 strict_release_tree=False,
             )
@@ -440,41 +479,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if bad:
                     raise RuntimeError(f"candidate ZIP CRC failed at {bad}")
 
-            progress("extracting and comparing full ZIP", started)
+            progress("extracting the full ZIP and running the installed smoke", started)
             extract_parent = temp_root / "extracted"
             extract_parent.mkdir()
             with zipfile.ZipFile(candidate_archive) as zf:
                 zf.extractall(extract_parent)
             extracted = extract_parent / metadata.name
-            if tree_file_hashes(stage) != tree_file_hashes(extracted):
-                raise RuntimeError("extracted full release differs from staged tree")
-
-            progress("running complete production gates on extracted release", started)
-            extracted_gate_reports, extracted_contract = validate_stage(
+            installed = check_installed(
                 extracted,
+                before_validation,
                 candidate_reports,
-                "extracted",
-                temp_root / "extracted-runtime",
-                expected_contract=staged_contract,
-                strict_release_tree=False,
+                temp_root / "installed-runtime",
             )
-            if extracted_contract != staged_contract:
-                raise RuntimeError("extracted production gate coverage differs from stage")
-            extracted_pack_report = validate_all_packs(extracted)
-            progress("running every extracted pack's declared release gate", started)
-            extracted_bundled_pack_gates = run_bundled_pack_release_gates(
-                extracted,
-                label="extracted",
-                reports_dir=candidate_reports,
-                runtime_root=temp_root / "extracted-pack-gates",
-            )
-            extracted_catalog_validation = run_json(
-                [sys.executable, "scripts/validate_catalog_site.py", "catalog"],
-                extracted,
-            )
-            extracted_manifest_validation = verify_full_manifest(extracted)
-            if extracted_manifest_validation["ok"] is not True:
-                raise RuntimeError("extracted full manifest validation failed")
+            if not installed["installed_smoke_read_only"]:
+                raise RuntimeError("the installed smoke modified the extracted full release")
 
             repeat = temp_root / "repeat.zip"
             write_deterministic_zip(stage, repeat)
@@ -504,21 +522,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "catalog_generation": catalog_report,
                 "pack_validation": pack_report,
                 "bundled_pack_release_gates": bundled_pack_gates,
-                "staged_core_gate_contract": staged_contract,
-                "extracted_core_gate_contract": extracted_contract,
+                "staged_validation": stage_counts(validation),
                 "catalog_full_validation": catalog_validation,
                 "full_manifest_validation": full_manifest_validation,
-                "extracted_pack_validation": extracted_pack_report,
-                "extracted_bundled_pack_release_gates": extracted_bundled_pack_gates,
-                "extracted_catalog_validation": extracted_catalog_validation,
-                "extracted_full_manifest_validation": extracted_manifest_validation,
-                "stage_archive_tree_match": True,
+                "stage_extracted_tree_match": True,
+                "installed_smoke": {
+                    "ok": True,
+                    "seconds": installed["smoke"]["seconds"],
+                    "commands": [row["name"] for row in installed["smoke"]["commands"]],
+                },
                 "zip_crc_ok": True,
                 "deterministic_rebuild": deterministic,
                 "permission_varied_rebuild": permission_deterministic,
                 "publication_mode": "fresh-attempt-archive-last",
-                "staged_gate_reports": sorted(staged_gate_reports),
-                "extracted_gate_reports": sorted(extracted_gate_reports),
             }
             write_json(candidate_reports / "full-release-summary.json", reports)
             write_json(candidate_reports / "catalog-generation.json", catalog_report)
@@ -529,20 +545,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 bundled_pack_gates,
             )
             write_json(
-                candidate_reports / "extracted-bundled-pack-release-gates.json",
-                extracted_bundled_pack_gates,
-            )
-            write_json(
                 candidate_reports / "full-manifest-validation.json",
                 full_manifest_validation,
-            )
-            write_json(
-                candidate_reports / "extracted-catalog-validation.json",
-                extracted_catalog_validation,
-            )
-            write_json(
-                candidate_reports / "extracted-full-manifest-validation.json",
-                extracted_manifest_validation,
             )
 
         progress("publishing validated reports, checksum, and archive", started)
@@ -570,4 +574,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

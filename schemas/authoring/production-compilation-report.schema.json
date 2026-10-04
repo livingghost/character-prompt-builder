@@ -1,0 +1,179 @@
+{
+  "title": "Production compilation report",
+  "description": "What check returns: every diagnostic, the state of each compiler check, and the preview and execution plan when the input is publishable.",
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "publishable": {
+      "type": "boolean"
+    },
+    "run": {
+      "type": "null"
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "phase": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state": {
+            "enum": [
+              "passed",
+              "failed",
+              "not-performed",
+              "not-applicable"
+            ]
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "phase",
+          "state"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "external_effect": {
+      "const": false
+    },
+    "budget_effect": {
+      "const": "none"
+    },
+    "formal_run_created": {
+      "const": false
+    },
+    "readiness": {
+      "type": "object"
+    },
+    "request_preview": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object"
+        }
+      ]
+    },
+    "execution_plan": {
+      "$ref": "authoring/production-execution-plan.schema.json"
+    },
+    "staging": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "ok",
+    "publishable",
+    "run",
+    "diagnostics",
+    "checks",
+    "external_effect",
+    "budget_effect",
+    "formal_run_created"
+  ],
+  "dependentRequired": {
+    "execution_plan": [
+      "readiness",
+      "request_preview"
+    ]
+  },
+  "additionalProperties": false,
+  "if": {
+    "properties": {
+      "publishable": {
+        "const": true
+      }
+    }
+  },
+  "then": {
+    "required": [
+      "execution_plan",
+      "readiness",
+      "request_preview"
+    ]
+  },
+  "$defs": {
+    "diagnostic": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning"
+          ]
+        },
+        "phase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "pointer": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "required_action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blocked_checks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "phase",
+        "file",
+        "pointer",
+        "message",
+        "required_action",
+        "blocked_checks"
+      ]
+    }
+  }
+}

@@ -21,7 +21,7 @@ Read the documents relevant to the change:
 - [Preset Authoring Standard](references/preset-authoring-standard.md)
 - [Preset Workflow](references/preset-workflow.md)
 - [Aesthetic Language](references/aesthetic-language.md)
-- [Style Family Taxonomy Audit Contract](references/style-family-taxonomy-audit.md); resolve `cpb-resource:style-family-taxonomy-audit` from the selected provider for pack-specific decisions
+- [Style Family Taxonomy Audit Contract](references/style-family-taxonomy-audit.md)
 - [Sparse-Brief Discovery Runtime](references/runtime/sparse-discovery.md)
 - [Preset Maintenance](references/maintenance/presets.md)
 - [Search Discovery Maintenance](references/maintenance/search-discovery.md)
@@ -35,9 +35,7 @@ Use Python 3.11 or newer. Core scripts use the standard library only. [Release V
 ## Repository ownership map
 
 - [SKILL.md](SKILL.md) owns the runtime router and core invariants; [references/runtime/](references/runtime/) owns conditional detailed runtime contracts.
-- [packs/commons/](packs/commons/) is the minimal shipped commons pack.
-- [PACKS.md](PACKS.md) defines the commons pack and independently authored additional packs.
-- The repository-only `.gitignore` keeps the commons pack tracked while excluding every other pack below `packs/` unless project policy explicitly changes.
+- [packs/commons/](packs/commons/) is the minimal shipped commons pack; every other pack below `packs/` is authored independently and stays untracked through the repository-only `.gitignore`.
 - [references/](references/) owns stable method and authoring documentation.
 - [scripts/](scripts/) owns deterministic support and validation tools.
 - [examples/](examples/) owns canonical reproducible examples.
@@ -50,7 +48,7 @@ Do not duplicate ownership. When information belongs to an existing canonical fi
 
 ### Choose the correct record type
 
-Use an atomic module for one bounded production decision. Use a base scene for staging, support, contact, gaze, depth, and crop. Use a rendering profile for medium mechanics. Use a concrete style family only when line, form, value, highlight, color, surface, background, detail hierarchy, and domain overlays form one inseparable grammar.
+Use an atomic module for one bounded production decision. Use a base scene for staging, support, contact, gaze, depth, and crop. Use a render profile for medium mechanics. Use a concrete style family only when line, form, value, highlight, color, surface, background, detail hierarchy, and domain overlays form one inseparable grammar.
 
 Do not create a style family merely because a reference introduces a new subject, outfit, location, pose, palette, or mood. Compare the finish with the nearest existing families and record the actual production distinction.
 
@@ -58,7 +56,7 @@ Do not create a style family merely because a reference introduces a new subject
 
 A curated record must satisfy the [Preset Authoring Standard](references/preset-authoring-standard.md). It needs executable visual knowledge, adaptation invariants, nearby misreadings, valid domains, and enough detail to guide production instead of repeating its label.
 
-Positive-facing fields must be affirmative. Put applicable exclusions in the resolved `cpb-resource:negative-policy` from the explicitly selected provider, the selected medium boundary, an activated correction, or an explicit user exclusion. Scene failure modes and module misreadings remain diagnostic-only.
+Positive-facing fields must be affirmative. Put applicable exclusions in `cpb-resource:negative-policy`, the selected medium boundary, an activated correction, or an explicit user exclusion. Scene failure modes and module misreadings remain diagnostic-only.
 
 ### Vocabulary records
 
@@ -66,7 +64,7 @@ Vocabulary records are compact names and model-legible options. Do not inflate t
 
 ### Reference-derived work
 
-Add source-backed Visual Evidence only when the user has supplied the source for this work and accepts the resulting derived evidence artifact in SVG format. The package must not embed or externally reference the raster payload. Source rights are not changed by vector derivation. Signatures, logos, protected identifiers, censor overlays, and source-specific text must not be promoted into reusable preset knowledge. Follow [Preset Research and Provenance](references/preset-research-and-provenance.md) and the generic [Source Notes](references/maintenance/presets.md#source-notes) contract. Record pack-specific history in `cpb-resource:source-notes` and cluster decisions in `cpb-resource:reference-cluster-mapping`, each resolved from the explicitly selected provider.
+Add source-backed Visual Evidence only when the user has supplied the source for this work and accepts the resulting derived evidence artifact in SVG format. The package must not embed or externally reference the raster payload. Source rights are not changed by vector derivation. Signatures, logos, protected identifiers, censor overlays, and source-specific text must not be promoted into reusable preset knowledge. Follow [Preset Research and Provenance](references/preset-research-and-provenance.md) and the generic [Source Notes](references/maintenance/presets.md#source-notes) contract. Record pack-specific history in `cpb-resource:source-notes` and cluster decisions in `cpb-resource:reference-cluster-mapping`.
 
 Separate stable anatomy from perspective, source placement from rendered light grammar, visible eye direction from inferred viewer relationship, stable identity from temporary state, and reusable craft from source-specific artifacts.
 
@@ -142,7 +140,7 @@ The product release uses UTC CalVer: `YYYY.MM.DD.N`. `N` begins at 1 on a new UT
 - The allowlist names packaged examples and the bundled commons pack explicitly. Additional installed packs do not become core distribution members implicitly.
 - Rebuild generated metadata and executable examples before packaging. Runtime schemas, scenes, protocols, and evidence retain their content-based identities.
 
-Content packs have independent UTC CalVer releases and stable UUIDv7 identities. The pack release describes the pack itself. The current manifest and record schemas are the complete parser contract: schema or semantic failure is reported directly. Every pack dependency names one dependency pack by UUID, not one of its releases. Read [PACKS.md](PACKS.md), [Pack Maintenance](references/maintenance/packs.md), [Pack Format Specification](references/pack-format-specification.md), and [Catalog Cache Lifecycle](references/catalog-cache-lifecycle.md) before changing pack behavior.
+Content packs have independent UTC CalVer releases and stable UUIDv7 identities. The pack release describes the pack itself. The current manifest and record schemas are the complete parser contract: schema or semantic failure is reported directly. Every pack dependency names one dependency pack by UUID, not one of its releases. Read [Pack State Runtime Quickstart](references/runtime/pack-state-quickstart.md), [Pack Maintenance](references/maintenance/packs.md), [Pack Format Specification](references/pack-format-specification.md), and [Catalog Cache Lifecycle](references/catalog-cache-lifecycle.md) before changing pack behavior.
 
 Searchable SVGs and evidence are `asset` records with pack-owned `primary_resource`, nonempty `resource_refs`, and matching artifact hashes. Stable runtime policies and indexes use manifest `resource_bindings`. If a locked pack changes, increment its UTC CalVer and rebuild `pack.lock.json`.
 
@@ -204,15 +202,41 @@ every script entrypoint is named by routed documentation.
 
 ## Required checks
 
-For ordinary contribution work, start with the Core profile and run the focused smoke test for each subsystem changed:
+`python scripts/run_checks.py` runs every test suite once, in parallel, the same way CI does. The full run needs the tested dependency pins that CI installs:
 
 ```bash
-python scripts/check_dependencies.py --profile core
-python scripts/<affected-subsystem>_smoke_test.py
+python scripts/check_dependencies.py --tested
+python scripts/run_checks.py
+python scripts/run_checks.py --only render_contract
 git diff --check
 ```
 
-The optional aggregate runner `python -m pytest tests/` executes every smoke suite as a subprocess, including the regression-only entrypoints that no release gate runs; pytest is a development tool and is not a shipped dependency. Documentation changes require `python scripts/documentation_contract_smoke_test.py`. Retrieval changes require the search and catalog runtime suites. Reference, state, integration, visual, and pack changes require their focused suites and dependency profile. A contributor may run `python scripts/validate.py .` for a repository-wide diagnostic, but that does not replace publication validation.
+The runner starts these commands with `CPB_HOME` at one scratch configuration directory whose pack state enables the shipped packs alone:
+
+- every `scripts/*_test.py` suite;
+- every `scripts/test_*.py` unittest module, as `python -m unittest <module>` from `scripts/`;
+- every example's `build_example.py --check`;
+- the validators and the default pack audit.
+
+`--only SUBSTRING` keeps the commands whose label or command contains SUBSTRING, such as the suites of one subsystem. `--list` prints the commands without running them, and `--jobs N` sets how many run at once. The runner prints one line per finished command, then the slowest ten and the log tail of each failure, and exits 1 when any command failed:
+
+```
+[ 63/109]    58.5s  exit 0  python scripts/production_resume_smoke_test.py
+...
+slowest:
+    199.8s  python scripts/production_workflow_smoke_test.py
+    157.1s  cd scripts && python -m unittest test_production_execution
+...
+FAILED (exit 1): python scripts/release_management_smoke_test.py  log <out>/061.log
+...
+109 commands: 105 passed, 4 failed in 379.7s with 8 workers
+```
+
+`scripts/test_production_cli.py` runs `examples/generation`, the executable production example. It builds every scenario option and runs the commands each one prints.
+
+A test that needs a configuration directory of its own takes it from `production_fixtures.scratch_home(folder)` or `scratch_home_dir(folder)`.
+
+`python scripts/validate.py .` checks the structure and contracts of the tree.
 
 For any core or pack publication, [Release Validation](references/release/validation.md) is the sole exact authority for environments, commands, pack isolation, acceptance, package verification, and metadata ordering.
 
@@ -222,8 +246,8 @@ Keep the full persona form as the default for both initialization and later addi
 custom forms and explicit `--blank`; do not equate a syntactically filled form with adoption or
 creative quality. Follow `references/runtime/narrative-development.md` for the creative handoff.
 Run `python scripts/persona_workflow_smoke_test.py` and
-`python scripts/narrative_authoring_smoke_test.py` after changes to this route. The new suite is
-also discovered by the pytest bridge and runs explicitly in CI.
+`python scripts/narrative_authoring_smoke_test.py` after changes to this route. `scripts/run_checks.py`
+runs both in CI.
 
 Contextual voice and embodied-performance changes also require
 `python scripts/character_performance_smoke_test.py

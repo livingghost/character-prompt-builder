@@ -4,14 +4,14 @@ Use public artifacts to deliver or receive state, morphology, reference, adoptio
 
 ## Inspect, export and verify
 
-Replace `PROJECT` with the project directory and select the artifact paths for the task.
+Replace `STUDIO` with the studio directory and select the artifact paths for the task.
 
 ```text
 python scripts/protocol_exchange.py check-installed
 python scripts/protocol_exchange.py describe --type state-snapshot
-python scripts/protocol_exchange.py inspect --root PROJECT --artifact state/snapshot.json
-python scripts/protocol_exchange.py export --root PROJECT --artifact state/snapshot.json --out exchange/snapshot
-python scripts/protocol_exchange.py verify --root PROJECT --bundle received/snapshot
+python scripts/protocol_exchange.py inspect --root STUDIO --artifact state/snapshot.json
+python scripts/protocol_exchange.py export --root STUDIO --artifact state/snapshot.json --out exchange/snapshot
+python scripts/protocol_exchange.py verify --root STUDIO --bundle received/snapshot
 ```
 
 `describe` identifies the complete schema dependency closure and semantic commitment. Optional `--contract FILE` on inspect/export specifies the expected descriptor. `export` creates `artifact.json`, `contract.json` and `manifest.json` in a new directory. `verify` checks that exact set, its byte hashes, the contract and artifact constraints. It does not inspect referenced media or approve canon.
@@ -36,17 +36,17 @@ Omit the character options for a character-free request. Without `--require-comp
 
 A reference binding records its role, structured source, intended influence, unsupported assumptions and story range. A supplied-file source identifies bytes; a pack-artifact source also records catalogue provenance. `resolved_path` locates the source used to create the record. It is not opened by exchange validation. Obtain and inspect the selected media before using it, checking the recorded hash. Retain the received artifact and record any new binding separately.
 
-## Profile envelopes
+## Interchange envelopes
 
-A profile declares artifact types and required or optional features. Receipt needs the envelope, its declaration and exact payload. Use `produces` to check an export or `consumes` to check a receipt; declaration hashes do not select the direction.
+An interchange profile declares artifact types and required or optional features. Receipt needs the envelope, its declaration and exact payload. Use `produces` to check an export or `consumes` to check a receipt; declaration hashes do not select the direction.
 
 ```text
 python scripts/validate_integration.py
-python scripts/build_interchange_envelope.py --profile shot-request --payload-type shot-request --payload PROJECT/request.json --payload-id REQUEST_ID --out PROJECT/exchange/request
-python scripts/validate_integration.py --direction consumes --envelope PROJECT/received/request/envelope.json --declaration PROJECT/received/request/declaration.json --payload-root PROJECT/received/request
+python scripts/build_interchange_envelope.py --profile shot-request --payload-type shot-request --payload STUDIO/request.json --payload-id REQUEST_ID --out STUDIO/exchange/request
+python scripts/validate_integration.py --direction consumes --envelope STUDIO/received/request/envelope.json --declaration STUDIO/received/request/declaration.json --payload-root STUDIO/received/request
 ```
 
-The profile bundle contains `artifact.json`, `declaration.json` and `envelope.json`. Check the payload ID, schema, exact bytes, declaration and feature support. Unknown required features prevent interpretation. Unknown optional features remain uninterpreted evidence.
+The bundle contains `artifact.json`, `declaration.json` and `envelope.json`. Check the payload ID, schema, exact bytes, declaration and feature support. Unknown required features prevent interpretation. Unknown optional features remain uninterpreted evidence.
 
 ## Checks and interrupted output
 

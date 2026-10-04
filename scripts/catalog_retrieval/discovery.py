@@ -96,7 +96,7 @@ def _scene_compatible_with_anchors(entry: Entry, analysis: QueryAnalysis) -> boo
         if wanted_colors and candidate_colors and not (wanted_colors & candidate_colors):
             return False
 
-    # Scene presets are allowed to fill open axes, not replace explicit role,
+    # Scene records are allowed to fill open axes, not replace explicit role,
     # clothing, accessory, environment, pose, gesture, or performance choices.
     # Accept a scene when it already contains the requested wording or clearly
     # declares the relevant field adaptable; otherwise let retrieval find a
@@ -598,7 +598,7 @@ def recommend(
         "direction_cards": cards,
         "terms_without_alias": list(analysis.terms_without_alias),
         "note": (
-            "Preset names and IDs are not required input. Shared identity, occupation, and situation "
+            "Record names and IDs are not required input. Shared identity, occupation, and situation "
             "requirements are inspected once and carried into every direction card; cards vary only "
             "the open visual direction. Inspect every selected canonical record before prompt "
             "construction. Any terms_without_alias are retained for semantic review rather than silently dropped."

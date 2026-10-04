@@ -21,6 +21,7 @@ things.
   without opening every file.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -443,7 +444,7 @@ def render(report: dict[str, Any]) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = _operation_context.ArgumentParser(
         description="Report what a series declares against what its scenes cover.")
     parser.add_argument("series", type=Path, help="The series directory, or the narrative itself")
     parser.add_argument("--scenes", type=Path, default=None,
@@ -485,4 +486,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

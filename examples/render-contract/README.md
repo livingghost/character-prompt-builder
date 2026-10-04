@@ -13,4 +13,4 @@ and checks an exact synthetic wire request. It creates no image and makes no net
 Use `--out PATH` to save a new contract; an existing file is never replaced.
 
 See [Rendering choices and execution controls](../../references/runtime/render-contract.md)
-for profile authorship, failure modes, and production use.
+for execution profile authorship, failure modes, and production use.

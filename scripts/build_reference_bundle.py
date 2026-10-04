@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Plan a coverage-driven reference bundle from a Character Identity Contract."""
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse, json
 from pathlib import Path
 from typing import Sequence
@@ -20,7 +21,7 @@ def build_plan(*, identity_contract, species_profile, individual_morphology, sty
     )
 
 def main(argv: Sequence[str] | None = None) -> int:
-    p=argparse.ArgumentParser(description="Build a Reference Bundle Plan 2.0.")
+    p=_operation_context.ArgumentParser(description="Build a Reference Bundle Plan 2.0.")
     p.add_argument('--identity-contract',required=True); p.add_argument('--species-profile',required=True); p.add_argument('--individual-morphology',required=True); p.add_argument('--style-family',required=True)
     p.add_argument('--target-model',required=True); p.add_argument('--policy',choices=['core-coverage','series-coverage','motion-evaluation'],default='core-coverage')
     p.add_argument('--era-contract'); p.add_argument('--appearance-variant'); p.add_argument('--out-dir',required=True)
@@ -34,4 +35,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

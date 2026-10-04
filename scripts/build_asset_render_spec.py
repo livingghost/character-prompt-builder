@@ -6,6 +6,7 @@ hashes into an Asset Render Specification so the state lineage can prove
 which identity, state, scene context, and projection were used.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -159,7 +160,7 @@ def build_render_spec(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build an Asset Render Specification.")
+    parser = _operation_context.ArgumentParser(description="Build an Asset Render Specification.")
     parser.add_argument("--request", required=True)
     parser.add_argument("--identity-contract", required=True)
     parser.add_argument("--species-profile", required=True)
@@ -194,4 +195,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

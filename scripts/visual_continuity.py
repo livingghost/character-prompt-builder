@@ -196,12 +196,15 @@ def _identity_scope(prepared: dict, number: int, ident: str) -> dict:
 
 
 def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | None,
-            recording_character: str | None = None, recording_slot: str | None = None) -> dict:
+            recording_character: str | None = None, recording_slot: str | None = None, basis_reader=None) -> dict:
     validate_content(value, production_spec)
     if root is None:
         raise ValueError('visual continuity requires an explicit source or studio root')
     root = root.absolute()
-    check_file(root, value['basis'], basis=True)
+    if basis_reader is None:
+        check_file(root, value['basis'], basis=True)
+    else:
+        basis_reader.basis(value['basis'])
     subjects = value['subjects']
     if recording_slot is not None:
         if recording_character is None:
@@ -272,10 +275,10 @@ def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: 
 
 def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared: dict, root: Path,
                    characters: dict[str, str] | None = None, work_ids: dict[str, str] | None = None,
-                   sheet_panel: bool = False) -> dict:
+                   sheet_panel: bool = False, basis: dict | None = None) -> dict:
     """Build the record from the author's stated decisions and the studio's accepted identity.
 
-    The decisions are written under the project's work/continuity/ as the basis. A
+    The decisions are written under the studio's work/continuity/ as the basis. A
     subject bound to a studio character selects that character's current
     accepted identity images, which the prepared references must carry.
     """
@@ -309,6 +312,10 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
         subjects[ident] = {'continuity': continuity, 'character_id': character_id,
                            'studio_character': character, 'identity_refs': refs}
     purpose = 'sheet-panel' if sheet_panel else 'image'
+    if basis is not None:
+        c.exact(basis, {'path','locator'}, 'continuity decision source')
+        return build_record({'purpose':purpose,'basis':basis,'subjects':subjects},
+                            production_spec=production_spec,prepared=prepared,root=root)
     raw = c.encoded({'purpose': purpose, 'subjects': {ident: {key: subject[key] for key in ('continuity', 'studio_character')}
                                                      for ident, subject in subjects.items()}})
     path = 'work/continuity/' + c.digest(raw)[:16] + '.json'

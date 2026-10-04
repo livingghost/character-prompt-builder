@@ -1,242 +1,316 @@
 #!/usr/bin/env python3
-"""Exercise resume reports against synthetic immutable records without network I/O."""
+"""Current execution recovery and visibility, using real synthetic run records."""
 from __future__ import annotations
-import copy
 import json
+import os
+from pathlib import Path
 import subprocess
-import sys
 import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import patch
+
 import execution_contract as c
-import production_workflow as w
-import reservation_lifecycle as lifecycle
-import route_reading
-from reading_fixtures import task_reading
+import production_case_fixtures as fixtures
+import production_fixtures
+import production_execution as execution
+import production_workflow as workflow
+import production_store as store
+import production_variation as variation
+import reservation_lifecycle as accounting
+import studio
+import transport_synthetic
+from test_production_execution import decisions
 
-RUN = '01900000-0000-7000-8000-000000000001'
-TASK = '01900000-0000-7000-8000-000000000002'
-ACTOR = 'synthetic operator'
+
+def checked(report: dict) -> dict:
+    """The status report, refused unless it meets schemas/authoring/production-status.schema.json."""
+    workflow.schema_check(report, 'status')
+    return report
 
 
-class ResumeFixture:
+def status(root: Path, run: str | None = None, **options) -> dict:
+    return checked(execution.status(root, run, **options))
+
+
+class ResumeTests(unittest.TestCase):
+    """Each test works on its own copy of one prepared studio and its own home.
+
+    The class builds the pack, runtime state, catalog cache, studio, prepared
+    run and its decision file once. No test here edits the pack or the runtime state.
+    """
+    @classmethod
+    def setUpClass(cls):
+        from catalog_retrieval import runtime
+        temp=tempfile.TemporaryDirectory();cls.addClassCleanup(temp.cleanup)
+        b=Path(temp.name);cls.enterClassContext(production_fixtures.scratch_home(b/'home'))
+        cls.addClassCleanup(runtime.configure_pack_runtime,None)
+        cls.case=fixtures.create(b/'studio',b/'runtime');cls.origin=cls.case['root']
+        cls.prepared_run=workflow.prepare(cls.origin,'task.json')['run']
+        cls.prepared_decisions=decisions(cls.origin,cls.prepared_run)
+
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
-        self.directory = self.root / 'production' / RUN
-        (self.directory / 'records').mkdir(parents=True)
-        (self.root / 'source.txt').write_text('Synthetic source material.\n', encoding='utf-8')
-        (self.root / 'delivery.txt').write_text('Synthetic retained instructions.\n', encoding='utf-8')
-        task = make_task(self.root)
-        task_reading(self.root, task)
-        reading = c.load(self.root / task['route_reading'])
-        consumer = {'instructions': 'Synthetic retained instructions.'}
-        dependencies = []
-        for name in ('source.txt', 'delivery.txt', task['route_reading']):
-            raw = c.read(self.root / name)
-            key = c.object_store(self.directory, raw)
-            dependencies.append({'space': 'project', 'path': name, 'sha256': key, 'size': len(raw)})
-        self.prepared = {'task_path': 'task.json', 'task': task, 'route': {'reads': []},
-            'dependencies': dependencies, 'consumer_sha256': c.content_id(consumer),
-            'route_reading': reading, 'route_reading_sha256': c.content_id(reading)}
-        add_authority(self.prepared)
-        self.prepared['input_sha256'] = c.content_id(self.prepared)
-        c.atomic(self.directory / 'prepared.json', c.encoded(self.prepared))
-        c.atomic(self.directory / 'consumer.json', c.encoded(consumer))
-        with c.lock(self.root):
-            pass
-        self.token = add_reservation(self)
+        from catalog_retrieval import runtime
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        b=Path(self.temp.name);self.enterContext(production_fixtures.scratch_home(b/'home'))
+        runtime.configure_pack_runtime(self.case['settings'])
+        self.root=fixtures.copy_studio(self.origin,b/'studio')
+        self.run=self.prepared_run
+        # Every copy carries the same request_id, so each test meets a synthetic service that has answered nothing.
+        self.enterContext(patch.dict(transport_synthetic._ANSWERED,clear=True))
 
-    def append(self, event, data):
-        directory, prepared, _, rows = w.load_run(self.root, RUN)
-        return w.append_record(directory, prepared, rows, event, data)
+    def decision_file(self) -> str:
+        """The class's decision file for its prepared run; any other run drafts its own."""
+        return self.prepared_decisions if self.run==self.prepared_run else decisions(self.root,self.run)
 
-    def claim(self):
-        self.handoff = self.append('handoff', {'recipient': 'synthetic receiver', 'method': 'dispatcher',
-                                              'consumer_sha256': self.prepared['consumer_sha256']})
-        self.claim_record = self.append('dispatch-claim', claim_data(self.token))
-        return self.claim_record
+    def send(self):
+        return checked(execution.execute(self.root,self.run,decisions_file=self.decision_file()))
 
-    def step(self, operation):
-        if not hasattr(self, 'claim_record'):
-            self.claim()
-        if not hasattr(self, 'boundary'):
-            self.boundary = lifecycle.begin(self.root, RUN, self.token, effect='external-io', claim=self.claim_record['sha256'])
-        return self.append('external-step', {'reservation': lifecycle.selector(RUN, self.token),
-            'start': self.boundary['sha256'], 'claim': self.claim_record['sha256'], 'step': operation,
-            'operation': operation, 'request_sha256': self.boundary['data']['request_sha256']})
+    def paused(self):
+        # The claim commits and the transmission is skipped, so no status report is returned.
+        with patch.object(execution,'_transmit',return_value={'paused':True}):
+            execution.execute(self.root,self.run,decisions_file=self.decision_file())
 
-    def start(self):
-        return self.step('send')
+    def test_prepared_authorization_wait_is_not_failed_staging(self):
+        whole=status(self.root,self.run)
+        report=whole['runs'][0]
+        self.assertEqual(report['preparation'],'prepared')
+        self.assertEqual(report['submission'],'unclaimed')
+        self.assertEqual(report['readiness'],'authorization_required')
+        self.assertEqual(report['registration'],'unregistered')
+        action=report['next_action']
+        self.assertEqual(action['command'],'draft-execution')
+        # The suggested command names the checked root, as the command line does.
+        self.assertEqual(action['argv'][1:5],['scripts/production_workflow.py','draft-execution','--root',str(self.root.resolve())])
+        self.assertIn('--decisions-file decisions.json',action['reason'])
+        self.assertEqual(whole['current_task']['task_id'],report['task_id'])
 
-    def outputs(self):
-        self.start()
-        (self.root / 'result.txt').write_text('Synthetic acquired output.\n', encoding='utf-8')
-        item = w.file_record(self.root, self.directory, 'result.txt')
-        return self.append('dispatch-results', {'claim': self.claim_record['sha256'], 'files': [item],
-                                               'evidence': [], 'expected_count': 1})
+    def test_unreadable_current_task_is_reported_not_raised(self):
+        (self.root/'work'/'current.json').write_text('{not json',encoding='utf-8')
+        report=status(self.root)
+        self.assertIsNone(report['current_task']['task_id'])
+        self.assertEqual(report['current_task']['diagnostics'][0]['file'],'work/current.json')
+        self.assertEqual(report['runs'][0]['integrity'],'intact')
 
-    def files(self):
-        return {p.relative_to(self.root).as_posix(): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
-
-
-
-class ResumeTests(ResumeFixture, unittest.TestCase):
-    def test_missing_reading_is_not_current_evidence(self):
-        import production_resume
-        prepared = copy.deepcopy(self.prepared)
-        del prepared['route_reading']
-        result = production_resume._freshness(self.root, prepared, [])
-        self.assertFalse(result['current'])
-        self.assertFalse(result['reading']['current'])
-
-    def test_current_report_is_read_only(self):
-        before = self.files()
-        report = w.status(self.root, RUN)
-        self.assertTrue(report['integrity']['ok'])
-        self.assertTrue(report['freshness']['current'])
-        self.assertEqual(report['freshness']['reading'], {'current': True})
-        self.assertEqual(self.files(), before)
-        self.assertFalse(report['execution']['new_submission_allowed_by_this_report'])
-
-    def test_changed_source_keeps_saved_reservations(self):
-        (self.root / 'source.txt').write_text('Changed synthetic premise.', encoding='utf-8')
-        report = w.status(self.root, RUN)
+    def test_unreadable_authority_blocks_readiness_and_status_is_not_ok(self):
+        from production_diagnostics import ProductionError
+        refusal=ProductionError('AUTHORITY_STATE_CORRUPT','Synthetic damaged authority state.',phase='integrity')
+        with patch.object(store,'authority',side_effect=refusal):
+            report=status(self.root,self.run)
         self.assertFalse(report['ok'])
-        self.assertTrue(report['integrity']['ok'])
-        self.assertEqual(report['next'], 'inspect-impact-and-refresh-inputs')
-        self.assertEqual(report['reservations'][0]['original_sha256'], self.token)
-        self.assertIn('draft-release', [a['operation'] for a in report['next_actions']])
+        self.assertEqual(report['runs'][0]['readiness'],'blocked')
+        self.assertIn('AUTHORITY_STATE_CORRUPT',{item['code'] for item in report['runs'][0]['readiness_diagnostics']})
 
-    def test_changed_source_does_not_hide_uncertain_send(self):
-        self.start()
-        (self.root / 'source.txt').write_text('Changed synthetic premise.', encoding='utf-8')
-        report = w.status(self.root, RUN)
-        self.assertEqual(report['next'], 'recover-recording-or-resolve-remote-status')
-        self.assertEqual(report['execution']['state'], 'boundary-recorded-outcome-unconfirmed')
-        self.assertFalse(report['execution']['provider_charge']['confirmed'])
-        self.assertNotIn('prepare', [a['operation'] for a in report['next_actions']])
-        self.assertNotIn('draft-release', [a['operation'] for a in report['next_actions']])
+    def test_status_does_not_create_receipts_reservations_or_claim(self):
+        before=store.event_rows(self.root,self.run)
+        with patch.object(transport_synthetic,'send',side_effect=AssertionError('No status send')):
+            execution.status(self.root,self.run,budget=True)
+        self.assertEqual(store.event_rows(self.root,self.run),before)
+        self.assertEqual(accounting.all_states(self.root),[])
 
-    def test_retained_outputs_take_priority_over_new_preparation(self):
-        result = self.outputs()
-        (self.root / 'source.txt').write_text('Changed synthetic premise.', encoding='utf-8')
-        report = w.status(self.root, RUN)
-        self.assertEqual(report['next'], 'recover-recording')
-        self.assertEqual(report['execution']['result_receipt'], result['sha256'])
-        action = next(a for a in report['next_actions'] if a['operation'] == 'recover-recording')
-        self.assertEqual(action['external_effect'], 'none')
-        self.assertEqual(action['budget_effect'], 'none')
-        self.assertTrue(any(a['event'] == 'dispatch-results' for a in report['artifacts']))
+    def test_reserved_before_effect_resumes_the_same_claim(self):
+        self.paused();claim=workflow.find(store.event_rows(self.root,self.run),'dispatch-claim')
+        report=status(self.root,self.run)['runs'][0]
+        self.assertEqual((report['submission'],report['send_started'],report['effects']),('reserved',False,[]))
+        self.assertEqual(report['next_action']['command'],'resume')
+        self.assertTrue(report['reservation']['release_eligible'])
+        actual=transport_synthetic.send
+        with patch.object(transport_synthetic,'send',wraps=actual) as send:
+            result=execution.resume(self.root,self.run)
+        self.assertEqual(send.call_count,1)
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual(workflow.find(store.event_rows(self.root,self.run),'dispatch-claim')['sha256'],claim['sha256'])
 
-    def test_boundary_is_not_reported_as_provider_completion(self):
-        self.start()
-        report = w.status(self.root, RUN)
-        self.assertIsNone(report['execution']['result_receipt'])
-        self.assertEqual(len(report['execution']['boundaries']), 1)
-        self.assertFalse(report['execution']['provider_charge']['confirmed'])
+    def abandon(self):
+        task_id=workflow.load_run(self.root,self.run)[1]['task']['task_id']
+        workflow.abandon_task(self.root,task_id,actor='synthetic author',reason='Synthetic stop of the work task.')
 
-    def test_local_claim_is_distinct_from_started(self):
-        self.claim()
-        report = w.status(self.root, RUN)
-        self.assertEqual(report['execution']['state'], 'claimed-before-send')
-        self.assertEqual(report['next'], 'inspect-unsent-claim')
-        self.assertEqual(report['reservations'][0]['status'], 'reserved')
+    def test_abandoned_task_shows_release_eligibility_without_releasing(self):
+        self.paused();self.abandon()
+        item=status(self.root,self.run)['runs'][0]
+        self.assertEqual((item['task_disposition'],item['submission']),('abandoned','reserved'))
+        self.assertEqual((item['reservation']['status'],item['reservation']['release_eligible']),('reserved',True))
+        self.assertEqual(item['next_action']['command'],'draft-release')
 
-    def test_upload_without_send_offers_release(self):
-        self.step('upload')
-        report = w.status(self.root, RUN)
-        self.assertEqual(report['execution']['state'], 'claimed-before-send')
-        self.assertIn('draft-release', [a['operation'] for a in report['next_actions']])
+    def test_abandoned_unknown_outcome_keeps_its_reservation(self):
+        with patch.object(transport_synthetic,'send',side_effect=TimeoutError('Synthetic unknown outcome')):
+            self.send()
+        self.abandon()
+        whole=status(self.root,self.run,budget=True);item=whole['runs'][0]
+        self.assertEqual((item['task_disposition'],item['submission']),('abandoned','outcome_unknown'))
+        self.assertFalse(item['reservation']['release_eligible'])
+        self.assertEqual(whole['budget']['grants'][0]['outstanding_reserved']['uses'],1)
+        self.assertEqual(item['next_action']['command'],'resume')
 
-    def test_report_reads_only_recorded_event_names(self):
-        import ast
-        import production_resume
-        tree = ast.parse(Path(production_resume.__file__).read_text(encoding='utf-8'))
-        names = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Compare) and isinstance(node.left, ast.Subscript) \
-                    and isinstance(node.left.slice, ast.Constant) and node.left.slice.value == 'event':
-                for value in node.comparators:
-                    items = value.elts if isinstance(value, (ast.Set, ast.Tuple, ast.List)) else [value]
-                    names.update(x.value for x in items if isinstance(x, ast.Constant))
-        self.assertTrue(names)
-        self.assertLessEqual(names, w.EVENTS)
+    def test_unknown_outcome_remains_visible_when_source_changes(self):
+        with patch.object(transport_synthetic,'send',side_effect=TimeoutError('Synthetic unknown outcome')):
+            self.send()
+        (self.root/'prompt.txt').unlink()
+        with patch.object(transport_synthetic,'send',side_effect=AssertionError('No resend')):
+            result=execution.resume(self.root,self.run)
+        item=checked(result)['runs'][0]
+        self.assertEqual(item['integrity'],'intact')
+        self.assertEqual(item['submission'],'outcome_unknown')
+        self.assertTrue(item['freshness_diagnostics'])
+        # The provider was asked and gave no answer; the evidenced statement is the next step.
+        self.assertEqual(item['next_action']['command'],'draft-outcome')
 
-    def test_missing_source_is_a_freshness_issue_not_an_empty_run(self):
-        self.start()
-        (self.root / 'source.txt').unlink()
-        report = w.status(self.root, RUN)
-        self.assertTrue(report['integrity']['ok'])
-        self.assertFalse(report['freshness']['current'])
-        self.assertEqual(report['execution']['claim'], self.claim_record['sha256'])
+    def test_saved_response_recovers_after_source_and_evidence_deletion(self):
+        with patch.object(workflow,'record_dispatch_results',side_effect=OSError('Synthetic registration failure')):
+            with self.assertRaises(OSError):self.send()
+        (self.root/'prompt.txt').unlink();(self.root/'fixture-authority-basis.txt').unlink()
+        with patch.object(transport_synthetic,'send',side_effect=AssertionError('No resend')):
+            report=execution.resume(self.root,self.run)
+        self.assertEqual(report['runs'][0]['capture'],'complete')
+        self.assertEqual(len(report['runs'][0]['candidates']),1)
 
-    def test_corrupt_chain_is_not_reported_as_unstarted(self):
-        path = sorted((self.directory / 'records').iterdir())[-1]
-        path.write_bytes(b'{}')
-        report = w.status(self.root, RUN)
-        self.assertFalse(report['integrity']['ok'])
-        self.assertEqual(report['execution']['state'], 'unknown')
-        self.assertIsNone(report['reservations'])
-        self.assertEqual(report['next_actions'], [])
+    def test_display_failure_recovers_without_duplicate_candidates(self):
+        with patch.object(studio,'iterate',side_effect=OSError('Synthetic Studio projection failure')):
+            first=self.send()
+        self.assertFalse(first['execution_completed'])
+        self.assertEqual(len(first['runs'][0]['candidates']),1)
+        with patch.object(transport_synthetic,'send',side_effect=AssertionError('No resend')):
+            second=execution.resume(self.root,self.run)
+        self.assertTrue(second['execution_completed'])
+        self.assertEqual(first['runs'][0]['candidates'],second['runs'][0]['candidates'])
+        self.assertEqual(len(studio.read_iterations(studio.character_home(self.root,'robot'))),1)
+        self.assertEqual(accounting.budget(self.root)['grants'][0]['consumed']['uses'],1)
 
-    def test_missing_frozen_source_is_an_integrity_failure(self):
-        (self.directory / 'objects' / self.prepared['dependencies'][0]['sha256']).unlink()
-        report = w.status(self.root, RUN)
-        self.assertFalse(report['integrity']['ok'])
-        self.assertEqual(report['next'], 'inspect-integrity')
+    def test_partial_outputs_register_without_waiting_for_missing_image(self):
+        # The provider returned two outputs, but acquiring one fails once.
+        task=c.load(self.root/'task.json');task['generation']['count']=2;fixtures.write(self.root/'two.json',task)
+        self.run=workflow.prepare(self.root,'two.json')['run']
+        import dispatch
+        real=dispatch.inline_image;calls=[]
+        def first_failure(data):
+            calls.append(1)
+            if len(calls)==1:raise ValueError('Synthetic damaged transfer')
+            return real(data)
+        with patch.object(dispatch,'inline_image',side_effect=first_failure):first=self.send()
+        self.assertEqual(first['runs'][0]['capture'],'partial')
+        self.assertEqual(len(first['runs'][0]['candidates']),1)
+        with patch.object(transport_synthetic,'send',side_effect=AssertionError('No resend')):
+            second=execution.resume(self.root,self.run)
+        self.assertEqual(second['runs'][0]['capture'],'complete')
+        self.assertEqual(len(second['runs'][0]['candidates']),2)
+        self.assertEqual(accounting.budget(self.root,run=self.run)['grants'][0]['consumed']['uses'],1)
 
-    def test_status_does_not_call_live_execution_verifier(self):
-        with patch.object(w, 'assert_current', side_effect=AssertionError('status called live execution')):
-            report = w.status(self.root, RUN)
-        self.assertTrue(report['integrity']['ok'])
+    def test_one_corrupt_run_does_not_hide_another(self):
+        other=variation.derive(self.root,self.run,prepare=True)['run']
+        checked(execution.execute(self.root,other,decisions_file=decisions(self.root,other)))
+        (workflow.run_dir(self.root,self.run)/'consumer.json').write_text('{}',encoding='utf-8')
+        result=status(self.root,budget=True)
+        by_id={row['run']:row for row in result['runs']}
+        self.assertEqual(by_id[self.run]['integrity'],'blocked')
+        self.assertEqual(by_id[self.run]['next_action']['command'],'status')
+        self.assertEqual(by_id[other]['integrity'],'intact')
+        self.assertEqual(by_id[other]['capture'],'complete')
+        # The intact run keeps its budget; the corrupt run is named instead of hiding it.
+        self.assertFalse(result['budget']['complete'])
+        self.assertIn(self.run,{item.get('run') for item in result['budget']['diagnostics']})
+        group=result['budget']['grants'][0]
+        self.assertEqual(group['consumed']['uses'],1)
+        self.assertIsInstance(result['unregistered_publications'],list)
 
-    def test_stale_reading_is_separate_from_external_evidence(self):
-        self.start()
-        with patch.object(route_reading, 'require_route_reading', side_effect=ValueError('Synthetic document update.')):
-            report = w.status(self.root, RUN)
-        self.assertFalse(report['freshness']['reading']['current'])
-        self.assertEqual(report['execution']['claim'], self.claim_record['sha256'])
-        self.assertEqual(report['next'], 'recover-recording-or-resolve-remote-status')
+    def test_every_freshness_problem_is_reported(self):
+        task=c.load(self.root/'task.json');task['criteria'][0]['text']='A deliberately different current task criterion.'
+        fixtures.write(self.root/'task.json',task)
+        (self.root/'prompt.txt').write_text('A deliberately changed synthetic prompt.',encoding='utf-8')
+        report=status(self.root,self.run)['runs'][0]
+        self.assertTrue({'task.json','prompt.txt'} <= {d['file'] for d in report['freshness_diagnostics']})
+        self.assertEqual(report['next_action']['command'],'prepare')
 
-    def test_cli_resume_reports_stale_run_without_writing(self):
-        self.start()
-        (self.root / 'source.txt').write_text('Changed synthetic premise.', encoding='utf-8')
-        before = self.files()
-        result = subprocess.run([sys.executable, str(Path(w.__file__)), 'resume', '--root', str(self.root), '--run', RUN],
-                                capture_output=True, text=True, encoding="utf-8", timeout=15)
-        self.assertEqual(result.returncode, 1, result.stderr)
-        report = json.loads(result.stdout)
-        self.assertTrue(report['integrity']['ok'])
-        self.assertEqual(report['execution']['claim'], self.claim_record['sha256'])
-        self.assertEqual(self.files(), before)
-
-
-def make_task(root):
-    return {'task_id': TASK, 'route': 'development', 'features': [], 'execution': 'dispatcher',
-            'artifact': 'text', 'sources': [], 'criteria': [], 'authority': 'authority.json'}
-
-
-def add_authority(prepared):
-    prepared['authority'] = {'issuer': 'synthetic principal', 'stop_conditions': [],
-                             'grants': [{'id': 'synthetic-grant', 'actor': ACTOR}]}
+    def test_changed_task_scope_is_blocked_without_corrupting_history(self):
+        task=c.load(self.root/'task.json');task['criteria'][0]['text']='A deliberately different current task criterion.'
+        fixtures.write(self.root/'task.json',task)
+        report=status(self.root,self.run)['runs'][0]
+        self.assertEqual(report['integrity'],'intact')
+        self.assertEqual(report['readiness'],'blocked')
+        self.assertTrue(any(d['file']=='task.json' for d in report['freshness_diagnostics']))
 
 
-def add_reservation(test):
-    request = {'grant': 'synthetic-grant', 'actor': ACTOR, 'operation': 'submit', 'targets': ['delivery'],
-        'payload': {'count': 1, 'synthetic': True}, 'outputs': 1,
-        'cost': {'currency': 'USD', 'amount': '0', 'basis': 'Synthetic local test; no service call.'},
-        'stop_assessments': [], 'reason': 'Synthetic recorded authorization.'}
-    return test.append('authorization', {'request': request})['sha256']
+class OutcomeStatementCliTests(unittest.TestCase):
+    """draft-outcome and resume --outcome-file through the public CLI, after a lookup found no task.
+
+    The test builds its studio from an empty folder, so the uncopied setup stays covered end to end.
+    """
+
+    def cli(self, root: Path, *arguments: str) -> tuple[int, dict]:
+        import os
+        import subprocess
+        import sys
+        completed = subprocess.run([sys.executable, str(Path(__file__).with_name('production_workflow.py')), *arguments,
+                                    '--root', str(root)], capture_output=True, text=True, encoding='utf-8',
+                                   env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'}, check=False)
+        return completed.returncode, json.loads(completed.stdout)
+
+    def test_statement_round_trip_through_the_cli(self):
+        with tempfile.TemporaryDirectory() as d:
+            b = Path(d); case = fixtures.create(b/'studio', b/'runtime'); root = case['root']
+            run = workflow.prepare(root, 'task.json')['run']
+            with patch.object(transport_synthetic, 'send', side_effect=TimeoutError('Synthetic timeout')):
+                execution.execute(root, run, decisions_file=decisions(root, run))
+            action = checked(execution.resume(root, run))['runs'][0]['next_action']
+            self.assertEqual(action['argv'][2:], ['draft-outcome', '--root', str(root), '--run', run, '--out', 'outcome.json'])
+            code, drafted = self.cli(root, 'draft-outcome', '--run', run, '--out', 'outcome.json')
+            self.assertEqual(code, 0)
+            self.assertEqual(c.load(root/'outcome.json'), drafted)
+            fixtures.write(root/'provider-export.txt', 'Synthetic provider export without this task.\n')
+            issuer = store.authority(root, workflow.load_run(root, run)[1]['task']['task_id'])['issuer']
+            drafted.update(actor=issuer, reason='The provider export lists no task for this request.',
+                           evidence={'path': 'provider-export.txt', 'sha256': c.sha256_file(root/'provider-export.txt'), 'locator': 'whole export'})
+            fixtures.write(root/'outcome.json', drafted)
+            code, report = self.cli(root, 'resume', '--run', run, '--outcome-file', 'outcome.json')
+            self.assertEqual(code, 0)
+            item = checked(report)['runs'][0]
+            self.assertEqual((item['submission'], item['reservation']['release_eligible']), ('not_executed', True))
 
 
-def claim_data(token):
-    return {'authorizations': [token], 'journal': 'runs/synthetic-journal'}
+class AuthoredResumeTests(unittest.TestCase):
+    def test_text_work_has_handoff_and_capture_not_generation_requirements(self):
+        import work_ledger
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);task_id=work_ledger.begin(root,'Synthetic prose',['write'])['task_id']
+            fixtures.write(root/'delivery.txt','A synthetic sentence.\n')
+            task={'task_id':task_id,'route':'development','features':[],'sources':[],
+                  'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Explicit authored text.'},
+                  'criteria':[{'id':'text','strength':'hard','text':'A sentence exists.'}],'world_views':[]}
+            production_fixtures.task(root,task);fixtures.write(root/'task.json',task)
+            run=workflow.prepare(root,'task.json')['run']
+            self.assertEqual(checked(execution.resume(root,run))['runs'][0]['next_action']['command'],'handoff')
+            production_fixtures.handoff(root,run,'synthetic author','manual')
+            self.assertEqual(checked(execution.resume(root,run))['runs'][0]['next_action']['command'],'capture')
+            self.assertFalse((workflow.run_dir(root,run)/'generation-package.json').exists())
+            self.assertEqual(accounting.all_states(root),[])
+
+
+@unittest.skipUnless(os.name=='nt','directory junctions are a Windows feature')
+class JunctionRootTests(unittest.TestCase):
+    """A studio root given through a directory junction names the same studio."""
+
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        base=Path(self.temp.name);self.enterContext(production_fixtures.scratch_home(base/'home'))
+        case=fixtures.create(base/'studio',base/'runtime');self.studio=case['root']
+        self.alias=base/'alias'
+        made=subprocess.run(['cmd','/c','mklink','/J',str(self.alias),str(self.studio)],capture_output=True)
+        if made.returncode!=0:self.skipTest('this file system makes no directory junction')
+        self.enterContext(patch.dict(transport_synthetic._ANSWERED,clear=True))
+        self.run=workflow.prepare(self.alias,'task.json')['run']
+
+    def test_a_paused_execution_resumes_and_records_through_the_junction(self):
+        with patch.object(execution,'_transmit',return_value={'paused':True}):
+            execution.execute(self.alias,self.run,decisions_file=decisions(self.alias,self.run))
+        result=checked(execution.resume(self.alias,self.run))
+        self.assertTrue(result['execution_completed'],result.get('warnings'))
+        rows=studio.read_iterations(studio.character_dir(self.alias,'robot'))
+        self.assertEqual(len(rows),1)
+        for name in ('result','answer'):
+            self.assertTrue((self.studio/rows[0][name]['path']).is_file(),rows[0][name])
+            self.assertFalse(Path(rows[0][name]['path']).is_absolute())
+        self.assertEqual(status(self.alias,self.run)['runs'][0]['submission'],'acknowledged')
 
 
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    unittest.main()
+    unittest.main(verbosity=2)

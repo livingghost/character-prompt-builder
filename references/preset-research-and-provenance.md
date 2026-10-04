@@ -6,7 +6,7 @@ The catalog collects reusable visual production knowledge for original character
 
 ## Sources of knowledge
 
-Preset knowledge may be developed from:
+Production knowledge may be developed from:
 
 - user-supplied reference images
 - public documentation for image-generation systems
@@ -14,7 +14,7 @@ Preset knowledge may be developed from:
 - anatomy, photography, costume, material, animation, illustration, design, and cinematography references
 - independently authored production examples and evaluations
 
-Preset knowledge does not redistribute third-party prompt databases or source code. When source-backed visual evidence is requested, CPB stores derived path SVG and JSON artifacts without embedding or externally referencing the source raster. Signatures, logos, franchise identifiers, censor overlays, and source-specific text are never promoted into reusable canonical preset knowledge.
+Packs do not redistribute third-party prompt databases or source code. When source-backed visual evidence is requested, CPB stores derived path SVG and JSON artifacts without embedding or externally referencing the source raster. Signatures, logos, franchise identifiers, censor overlays, and source-specific text are never promoted into reusable canonical preset knowledge.
 
 ## Reference-derived aesthetic work
 
@@ -23,7 +23,7 @@ The initial aesthetic corpus was derived from development references supplied in
 - universal aesthetic cores for cross-domain appeal and visual taste
 - anthropomorphic domain realization and surface modules
 - shared and domain-specific aesthetic-touch modules
-- rendering profiles, scenes, corrections, and archetypes where appropriate
+- render profiles, scenes, corrections, and archetypes where appropriate
 
 This separation prevents one source domain from becoming the assumed form of all subjects.
 
@@ -41,7 +41,7 @@ one domain's anatomy, behavior, expression, surface, locomotion, or contact
 → domain realization or domain-specific aesthetic-touch module
 
 medium mechanics
-→ rendering profile
+→ render profile
 
 spatial staging
 → base scene
@@ -58,7 +58,7 @@ Tag systems can improve vocabulary coverage and retrieval, but tags are discover
 
 ## Provenance fields
 
-When the selected pack state provides `cpb-resource:provenance`, the resource resolved from its explicitly selected provider stores that pack's source categories, licensing notes, curation notes, and current counts. It does not claim ownership of external source material. Without a selected provider, no provenance resource is implied.
+`cpb-resource:provenance` stores the binding pack's source categories, licensing notes, curation notes, and current counts. It does not claim ownership of external source material. When no enabled pack binds it, no provenance resource is implied.
 
 ## Review standard
 

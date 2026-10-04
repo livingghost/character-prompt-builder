@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CPB observed parameter schema",
+  "description": "A service's parameter schema for one model offering, stored in a pack as observed. The offering's schema_snapshot names this file; model_id, service, model_identifier and observed_at repeat the model record and the offering.",
+  "type": "object",
+  "properties": {
+    "artifact_type": {
+      "const": "observed-parameter-schema"
+    },
+    "model_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "The id of the model record whose offering names this file."
+    },
+    "service": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "model_identifier": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "observed_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "The date the schema was acquired, as the acquisition records it."
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "Where the schema was acquired."
+    },
+    "schema": {
+      "type": "object",
+      "description": "The parameter schema exactly as the service gave it."
+    }
+  },
+  "required": [
+    "artifact_type",
+    "model_id",
+    "service",
+    "model_identifier",
+    "observed_at",
+    "source",
+    "schema"
+  ],
+  "additionalProperties": false
+}

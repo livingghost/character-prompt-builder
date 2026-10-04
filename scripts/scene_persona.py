@@ -22,6 +22,7 @@ otherwise; every path in a plan and a material is relative to it.
     python scripts/scene_persona.py impact --root ROOT [--persona PERSONA]
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -605,7 +606,8 @@ def material_iterations(root: Path) -> dict[str, list[dict]]:
             continue
         for line in lines:
             try:
-                row = json.loads(line)
+                from studio import project_iterations
+                row = project_iterations(log.parent, [json.loads(line)])[0]
                 package = m.decode(m.read(m.local(root, row['package']['path'])))
                 materials = package['production_binding']['consumer']['authoring_materials']
                 hashes = {item['content_sha256'] for item in materials}
@@ -776,7 +778,7 @@ def consume(root: Path, specs: list[dict], add: Any, artifact: str | None = None
             if ('artifact', spec['artifact']) in used:
                 raise ValueError('duplicate accepted scene material')
             used.add(('artifact', spec['artifact']))
-            value = m.decode(add(root, spec['artifact'], 'project'))
+            value = m.decode(add(root, spec['artifact'], 'studio'))
             schema(value, 'scene-persona-material')
             if value['content_sha256'] != spec['accepted_content_sha256']:
                 raise ValueError('public scene material differs from the accepted content')
@@ -793,20 +795,20 @@ def consume(root: Path, specs: list[dict], add: Any, artifact: str | None = None
         if (spec['plan'], spec['bundle']) in used:
             raise ValueError('duplicate scene material selector')
         used.add((spec['plan'], spec['bundle']))
-        raw = add(root, spec['plan'], 'project')
+        raw = add(root, spec['plan'], 'studio')
         recorded_identities(root, spec['bundle'])
         value = compile_plan(root, m.decode(raw))
         if value['review']['decision'] != 'ready':
             raise ValueError('scene material needs preparation review before reuse')
         check_medium(value, artifact)
         for source in value['sources']:
-            if m.digest(add(root, source['path'], 'project')) != source['sha256']:
+            if m.digest(add(root, source['path'], 'studio')) != source['sha256']:
                 raise ValueError('scene material source changed during production preparation')
         files = output_files(value)
         if m.compare(m.local(root, spec['bundle']), files):
             raise ValueError('scene material is stale or its rendered document was modified')
         for name, expected in files.items():
-            if add(root, spec['bundle'].rstrip('/') + '/' + name, 'project') != expected:
+            if add(root, spec['bundle'].rstrip('/') + '/' + name, 'studio') != expected:
                 raise ValueError('scene material changed during production preparation')
         results.append({'scene_id': value['scene_id'], 'material_id': value['material_id'],
                         'content_sha256': value['content_sha256'], 'audience': 'authoring',
@@ -816,7 +818,7 @@ def consume(root: Path, specs: list[dict], add: Any, artifact: str | None = None
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('command', choices=['draft', 'inspect', 'build', 'verify', 'impact'])
     parser.add_argument('--root', required=True, type=Path,
                         help='The studio when the work is in a studio, the series directory otherwise')
@@ -856,4 +858,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

@@ -5,6 +5,7 @@ python scripts/revision_contract.py revision.json [--out report.json]
 See references/runtime/revision-contract.md for the input and authority model.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -123,7 +124,7 @@ def require_intent_revision(intent: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("revision", type=Path)
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
@@ -141,4 +142,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

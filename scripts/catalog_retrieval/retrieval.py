@@ -86,7 +86,7 @@ def inspect_record(entries: Sequence[Entry], record_id: str) -> dict[str, Any]:
                 offers = entry.record.get("offerings") or []
                 result["execution_guidance"] = [model_card(entry.record, row) for row in offers] if offers else [model_card(entry.record)]
             return result
-    raise SystemExit(f"Unknown preset id: {record_id}")
+    raise SystemExit(f"Unknown record id: {record_id}")
 
 
 def compact_record(
@@ -460,7 +460,7 @@ def inspire(
         analysis=analysis, search_index=search_index,
     )
 
-    # Rendering profiles remain complete medium grammars and are retrieved
+    # Render profiles remain complete medium grammars and are retrieved
     # separately from taste and subject-domain realization.
     render_profiles = search_entries(
         entries,
@@ -519,7 +519,7 @@ def inspire(
             "not creative quality. Empty atomic categories, aesthetic_cores, style_families, "
             "or render_profiles are valid. The art direction already contains the aesthetic "
             "decision. Choose at most one aesthetic core and at most one concrete style family. "
-            "A selected style family is the primary drawing grammar; its linked rendering profile "
+            "A selected style family is the primary drawing grammar; its linked render profile "
             "supplies the medium envelope and scoped negative boundary rather than a second full "
             "grammar. Use one domain realization matching each actual subject domain. "
             "subject_archetypes are identity contracts: adopt a matching one or diverge from it "

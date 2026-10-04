@@ -6,6 +6,7 @@ IDs, attachment/parent references, acyclic containment and explicit local overri
 The inspector copies the declared contract and exposes stable source pointers.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -120,7 +121,7 @@ def inspect_contract(value: dict[str, Any], kind: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("validate", "inspect"))
     parser.add_argument("contract", type=Path)
     parser.add_argument("--kind", required=True, choices=KINDS)
@@ -140,4 +141,4 @@ def main() -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

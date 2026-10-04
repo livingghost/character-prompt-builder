@@ -5,13 +5,13 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
-import re
 import subprocess
 import sys
 import tempfile
 import tomllib
 
 from release_contract import calver_parts, check, product_root, validate_changelog, validate_metadata
+from run_checks import commands as runner_commands
 
 
 def main() -> int:
@@ -70,23 +70,24 @@ def main() -> int:
     # Check actual distributed product files via the CLI, not only parser units.
     cli = subprocess.run([sys.executable, str(Path(__file__).with_name("release_contract.py")), "--root", str(root), "--tag", "v" + version], capture_output=True, text=True, encoding="utf-8")
     expect(cli.returncode == 0, f"installed release CLI: {cli.stdout} {cli.stderr}")
+    # The runner starts every test module once, so a new suite cannot sit unrun.
+    labels = {label for label, _ in runner_commands()}
+    suites = {
+        f"scripts/{path.name}"
+        for path in (root / "scripts").glob("*.py")
+        if path.name.endswith("_test.py") or path.name.startswith("test_")
+    }
+    unrun = sorted(suites - labels)
+    expect(not unrun, f"scripts/run_checks.py starts no command for {unrun}")
     # CI controls are not required inside a runtime-only release archive.
-    for name in ("ci.yml", "release.yml"):
-        path = root / ".github/workflows" / name
-        if path.exists():
-            text = path.read_text(encoding="utf-8")
-            expect("release_contract.py" in text, f"{name}: product contract must execute")
-            expect("release_management_smoke_test.py" in text, f"{name}: CalVer regressions must execute")
-            if name == "release.yml":
-                expect('--tag "$GITHUB_REF_NAME"' in text, "publication must bind the tag to the product")
-            if name == "ci.yml":
-                # The checks job runs every regression suite itself, so a new suite cannot sit unrun.
-                checks_job = re.search(r"^  checks:\n(.*?)(?=^  \S)", text, re.M | re.S)
-                commands = set(re.findall(r"python scripts/(\w+\.py)", checks_job.group(1) if checks_job else ""))
-                suites = {suite.name for suite in (root / "scripts").glob("*smoke_test.py")}
-                suites.add("reference_runtime_cli_contract_test.py")
-                unrun = sorted(suites - commands)
-                expect(not unrun, f"ci.yml: the checks job runs no command for {unrun}")
+    ci = root / ".github/workflows/ci.yml"
+    if ci.exists():
+        expect("python scripts/run_checks.py" in ci.read_text(encoding="utf-8"), "ci.yml: the runner must run every suite")
+    release = root / ".github/workflows/release.yml"
+    if release.exists():
+        text = release.read_text(encoding="utf-8")
+        expect("release_contract.py" in text, "release.yml: product contract must execute")
+        expect('--tag "$GITHUB_REF_NAME"' in text, "publication must bind the tag to the product")
     # Mutate only a small isolated fixture: no edits to the installed product.
     with tempfile.TemporaryDirectory(prefix="product-release-check-") as td:
         fixture=Path(td)

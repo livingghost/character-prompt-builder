@@ -201,9 +201,11 @@ def build_upscale_package(
         raise ValueError(
             f"scale_factor {scale_factor!r} is not supported by model {model_id!r}: {supported}"
         )
-    guidance = None if guidance_prompt is None else guidance_prompt.strip()
-    if guidance == "":
-        guidance = None
+    guidance = guidance_prompt
+    if guidance is not None and not isinstance(guidance,str):
+        raise ValueError("guidance_prompt must be a string or null")
+    if guidance is not None and not guidance.strip():
+        raise ValueError("guidance_prompt must contain authored text or be null")
     if guidance and record.get("supports_guidance_prompt") is not True:
         raise ValueError(f"model {model_id!r} does not accept a guidance prompt")
     normalized_settings = validate_settings(record, settings)

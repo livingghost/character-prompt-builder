@@ -26,17 +26,27 @@ Use `state_context.mode: "stateless"` for a one-off image and for the first imag
 For every such image, including prompt-only delivery, draft the smallest valid specification for its subject, replace each `"unspecified"` the author decides, and validate it before final prompt delivery or packaging:
 
 ```bash
-python scripts/production_spec.py draft production-spec.json --model grok-imagine-image-2.0 \
+python scripts/production_spec.py draft production-spec.json --root STUDIO --model grok-imagine-image-2.0 \
   --render-intent render-intent.json --brief "An old lighthouse keeper watches the sea from a window at dawn." \
   --kind human --framing upper-thigh --continuity undecided
-python scripts/production_spec.py validate production-spec.json --require-content
+python scripts/production_spec.py validate STUDIO/production-spec.json --require-content
 ```
 
+`draft` resolves the output and `--render-intent` below `--root`; an absolute path needs no root.
+It refuses a relative path without `--root`, and it refuses an existing output, which it keeps.
 The draft prints the builder arguments that name its subject (synthetic brief):
 
 ```json
-{"created": "production-spec.json", "sha256": "a28ec0d3f9a951ae75b7d10294aeaab54867d6b0f7424408d00bb8d5c7326eae",
+{"created": "production-spec.json", "sha256": "2129b1733664e5379d10c948dc78c3bdcaa4d6780e893da93fa71b1c82418ac0",
  "build_with": ["--production-spec-file", "production-spec.json", "--continuity", "C01=undecided"]}
+```
+
+Name the file in the task's `generation.production_spec`. `build_with` applies only to a builder run whose task declares no specification.
+
+Running the same `draft` again exits 1:
+
+```json
+{"ok": false, "errors": ["OUTPUT_ALREADY_EXISTS: output path names an existing file, which is kept: production-spec.json Choose a new output path."]}
 ```
 
 Author the current scene directly rather than patching an older prompt into apparent compliance.
@@ -116,7 +126,7 @@ Identity Contract
 + Visual State Projection
 + Asset Render Specification
 + chosen art direction and production knowledge
-→ Production Specification
+= Production Specification
 ```
 
 Examples:
@@ -134,10 +144,10 @@ The specification records separate roles:
 - optional universal aesthetic core;
 - zero or one concrete style family;
 - one domain realization for every materially different subject domain;
-- zero or one rendering profile;
+- zero or one render profile;
 - compatible atomic aesthetic touches.
 
-A style family is an indivisible concrete drawing grammar. When selected, use its line, form, value, highlight, color, surface, background, and detail systems together. The linked rendering profile supplies the medium envelope and scoped negative boundary. Do not append two full grammars as independent tags.
+A style family is an indivisible concrete drawing grammar. When selected, use its line, form, value, highlight, color, surface, background, and detail systems together. The linked render profile supplies the medium envelope and scoped negative boundary. Do not append two full grammars as independent tags.
 
 ## Modular control
 

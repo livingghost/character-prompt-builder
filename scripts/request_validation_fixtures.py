@@ -20,7 +20,7 @@ def fixture_validation(root: Path, model: str, *, reference_mode: str,
     import service_profile
     model_id, record = resolve_model_record(model)
     offering = select_offering(record, service)
-    operation = ('imageUpscale' if record.get('operation_kind') == 'upscale' else 'imageInference')
+    operation = ('upscale' if record.get('operation_kind') == 'upscale' else 'generate')
     target = {'service': offering['service'] if offering is not None else 'synthetic-host',
               'model_identifier': offering['model_identifier'] if offering is not None else model_id,
               'operation': operation if offering is not None else 'generation'}

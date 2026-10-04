@@ -160,6 +160,7 @@ def load_search_index() -> SearchIndex:
 
 
 def named_resource_path(name: str, *, required: bool = True) -> Path | None:
+    """The file of the highest-ranked enabled pack that binds one named resource."""
     resource = load_pack_catalog().resources.get(name)
     if resource is None:
         if required:

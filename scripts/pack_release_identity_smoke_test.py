@@ -12,6 +12,7 @@ from typing import Any
 
 from pack_manager import write_lock
 
+
 ROOT = Path(__file__).resolve().parents[1]
 PACK_ID = "0190c000-0000-7000-8000-000000000088"
 EXPECTED_CHECKS = 9
@@ -19,7 +20,7 @@ EXPECTED_CHECKS = 9
 
 def run_cli(pack: Path) -> tuple[int, dict[str, Any]]:
     process = subprocess.run(
-        [sys.executable, "scripts/pack_cli.py", "build-lock", str(pack)],
+        [sys.executable, "scripts/pack_cli.py", "build-lock", "--directory", str(pack)],
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -79,7 +80,7 @@ def main() -> int:
         )
         rc, rejected = run_cli(pack)
         check("changed bytes under the same release are rejected", rc == 2 and rejected.get("ok") is False, rejected)
-        check("rejection explains the immutable release rule", "Increment pack.json release" in str(rejected.get("error")), rejected)
+        check("rejection explains the immutable release rule", "Increment pack.json release" in str((rejected.get("diagnostics") or [{}])[0].get("message")), rejected)
         check("rejected publication leaves the existing lock untouched", lock_path.read_bytes() == first_bytes)
 
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

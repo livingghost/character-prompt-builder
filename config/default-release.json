@@ -1,13 +1,13 @@
 {
   "cases": [
     {
-      "id": "required-resource-providers",
-      "operation": "resource-providers",
+      "id": "required-named-resources",
+      "operation": "named-resources",
       "expected_names": [
         "archetype-policy",
         "discovery-lanes",
         "negative-policy",
-        "project-defaults"
+        "pack-defaults"
       ]
     },
     {

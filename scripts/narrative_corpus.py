@@ -18,6 +18,7 @@ here do not reach.
     python scripts/narrative_corpus.py --check    refuse a stale or unreached corpus
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -172,7 +173,7 @@ def check(root: Path, errors: list[str]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--check", action="store_true",
                         help="Refuse a corpus that is stale or that the readers here do not reach")
     args = parser.parse_args(argv)
@@ -196,4 +197,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Create a small constructed authoring-material example in an empty workspace.
+"""Create a small constructed authoring-material example in an empty studio directory.
 
 This demonstrates data flow only. It is not a complete artistic Persona, a real
 agent run, a claim of user consent, or a mandatory scene/genre template.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse
 from pathlib import Path
 import json
@@ -17,7 +18,7 @@ import source_material as source
 def create(root: Path) -> dict:
     root.mkdir(parents=True, exist_ok=True)
     if any(root.iterdir()):
-        raise ValueError('choose an empty example workspace; no existing authored files are replaced')
+        raise ValueError('choose an empty example studio directory; no existing authored files are replaced')
     (root/'originals').mkdir()
     (root/'originals/subject.md').write_text(
         '# Controlling definition\nAttend to the recipient before choosing a response.\n'
@@ -75,7 +76,7 @@ def create(root: Path) -> dict:
 
 
 def main() -> int:
-    parser=argparse.ArgumentParser(description=__doc__)
+    parser=_operation_context.ArgumentParser(description=__doc__)
     parser.add_argument('--root',required=True,type=Path)
     args=parser.parse_args()
     try:
@@ -87,4 +88,4 @@ def main() -> int:
 if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

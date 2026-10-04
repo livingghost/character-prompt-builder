@@ -5,6 +5,7 @@ The agent supplies segmentation and semantic claims. This tool does not infer
 characters, chronology, completion, truth, or permission to adopt a claim.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -203,7 +204,7 @@ def propose(root: Path, bundle: str, plan_path: str, output: str) -> dict:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest='command', required=True)
     for name in ['inspect', 'ingest', 'verify', 'propose']:
         p = sub.add_parser(name)
@@ -244,4 +245,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

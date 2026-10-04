@@ -1,12 +1,12 @@
 # Preset Workflow
 
-This workflow combines discovery and focused lookup. Preserve the user's fixed anchors while consulting successful craft patterns to develop open choices. A sparse brief can compare coherent directions before selection. During composition and repair, return to the library for each unresolved craft question. Follow [Craft consultation](runtime/craft-consultation.md) to connect selected knowledge to the production specification and its review.
+This workflow combines discovery and focused lookup. Preserve the user's fixed anchors while consulting successful craft patterns to develop open choices. A sparse brief can compare coherent directions before selection. During composition and repair, return to the packs for each unresolved craft question. Follow [Craft consultation](runtime/craft-consultation.md) to connect selected knowledge to the production specification and its review.
 
 ## 1. Choose the retrieval path
 
 Use focused lookup when the brief already establishes most outcome-defining axes: scene, relationship, composition, medium, camera, light, and mood.
 
-Use sparse-brief discovery when the user supplies only a few stable facts, such as species, build, coat color, age, occupation, or one accessory, while scene, wardrobe, camera, light, mood, and style remain open. Preset names and IDs are not required.
+Use sparse-brief discovery when the user supplies only a few stable facts, such as species, build, coat color, age, occupation, or one accessory, while scene, wardrobe, camera, light, mood, and style remain open. Record names and IDs are not required.
 
 ```bash
 python scripts/catalog_cli.py recommend \
@@ -83,7 +83,7 @@ Curated, domain-neutral appeal and taste knowledge. Select zero or one when it s
 
 ### `style_families`
 
-Curated concrete drawing grammars. Select zero or one when the art direction needs a specific line, form, shadow, highlight, color, surface, background, and detail system. Inspect the complete family and apply the overlay matching the subject domain. The linked rendering profile supplies the medium envelope and scoped negative boundary.
+Curated concrete drawing grammars. Select zero or one when the art direction needs a specific line, form, shadow, highlight, color, surface, background, and detail system. Inspect the complete family and apply the overlay matching the subject domain. The linked render profile supplies the medium envelope and scoped negative boundary.
 
 ### `domain_realizations`
 
@@ -91,11 +91,11 @@ Curated translation knowledge for the exact subject domain. Use the selected mat
 
 ### `render_profiles`
 
-Curated medium grammars. Select at most one compatible profile.
+Curated medium grammars. Select at most one that fits.
 
 ### `subject_archetypes`
 
-Identity contracts: stable morphology, palette, connected marking logic, proportions, and identity equipment for a recurring subject. Adopt a matching archetype, or diverge from it deliberately; when adopted, its identity constraints carry `automatic_prompt_injection: true` and belong in the prompt. Consult these before designing colors and markings from a blank page. Follow the [Reference Cluster Mapping Contract](maintenance/presets.md#reference-cluster-mapping-contract) and, when provided, resolve `cpb-resource:reference-cluster-mapping` from the explicitly selected provider for mappings to that pack's records.
+Identity contracts: stable morphology, palette, connected marking logic, proportions, and identity equipment for a recurring subject. Adopt a matching archetype, or diverge from it deliberately; when adopted, its identity constraints carry `automatic_prompt_injection: true` and belong in the prompt. Consult these before designing colors and markings from a blank page. Follow the [Reference Cluster Mapping Contract](maintenance/presets.md#reference-cluster-mapping-contract) and, when provided, read `cpb-resource:reference-cluster-mapping` for mappings to that pack's records.
 
 ### `categories`
 
@@ -123,7 +123,7 @@ Recommendation and search output are discovery excerpts. User-facing discovery d
 python scripts/catalog_cli.py inspect <record-id-from-current-results>
 ```
 
-The bundled commons pack is sufficient for copy-paste inspection examples across a rendering profile, domain realization, and concrete style family:
+The bundled commons pack is sufficient for copy-paste inspection examples across a render profile, domain realization, and concrete style family:
 
 ```bash
 python scripts/catalog_cli.py inspect profile-clear-2d-illustration
@@ -153,9 +153,9 @@ Translate the core and art direction into the subject's real expressive and stru
 
 Apply its line, form, shadow, highlight, color, surface, background, and detail systems together. Use the overlay for the active subject domain.
 
-### Rendering profile
+### Render profile
 
-When no concrete family is selected, apply the profile's line, value, surface, light, background, and detail grammar. With a selected family, use the linked profile as the medium envelope and scoped negative boundary.
+Without a concrete family, apply its line, value, surface, light, background, and detail grammar. With one, use it as the medium envelope and scoped negative boundary.
 
 ### Atomic module
 
@@ -203,11 +203,11 @@ Check:
 - surface and material logic
 - color and light
 - detail hierarchy
-- accidental preset narrative
+- accidental narrative from a record
 
 ## 11. Assemble scoped negatives
 
-Follow `cpb-resource:negative-policy` resolved from the explicitly selected provider.
+Follow `cpb-resource:negative-policy`.
 
 Judge bundle applicability against the pose, subject anatomy, and framing, never against the drafted prompt text. A structure the pose implies activates its bundle even when the prompt forgot to write it; drop a bundle only when the structure is affirmatively out of frame, occluded, or absent.
 
@@ -215,7 +215,7 @@ Activate only:
 
 - general hygiene
 - relevant visible-structure bundles
-- selected profile medium boundaries
+- the render profile's medium boundaries
 - concrete corrections
 - explicit user exclusions
 
@@ -228,7 +228,7 @@ A scene may contain more than one domain, for example a human with an ordinary a
 - maintain one shared image intent and art direction
 - apply one domain realization to each materially different subject domain
 - coordinate scale, support, contact, and focal hierarchy across them
-- select one rendering profile for the whole image unless the user requests a deliberate mixed-medium construction
+- select one render profile for the whole image unless the user requests a deliberate mixed-medium construction
 
 ## Empty results
 

@@ -174,8 +174,8 @@ class LifecycleTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(); self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         entry = ledger.begin(self.root, 'Synthetic complete production loop', ['prepare', 'deliver'])
-        (self.root/'brief.md').write_text('A deliberately held abstract field. PRIVATE DOSSIER.\n', encoding='utf-8')
-        (self.root/'delivery.txt').write_text('Keep the sparse field.\n', encoding='utf-8')
+        (self.root/'brief.md').write_bytes(b'A deliberately held abstract field. PRIVATE DOSSIER.\n')
+        (self.root/'delivery.txt').write_bytes(b'Keep the sparse field.\n')
         self.task = {'task_id':entry['task_id'],'route':'development','features':[],
             'sources':[{'id':'brief','path':'brief.md','role':'design','disposition':'applied','locator':'whole','reason':'Declared fixture purpose.'}],
             'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Use the selected expression.'},
@@ -219,12 +219,12 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(done['data']['scope'], 'delivery-only')
         for number in (1,2): ledger.step_done(self.root, number)
         ledger.finish(self.root)
-        self.assertEqual(w.status(self.root, run)['next'], 'done')
+        self.assertEqual(w.status(self.root, run)['runs'][0]['task_disposition'], 'completed')
         self.assertIsNone(ledger.read_current(self.root))
     def test_selected_instructions_reach_generation_binding(self):
-        run = self.prepare(); b = binding.create(self.root, run, 'Keep the sparse field.')
-        effective = binding.effective(b, 'Keep the sparse field.')
-        self.assertEqual(effective, 'Keep the sparse field.')
+        run = self.prepare(); b = binding.create(self.root, run, 'Keep the sparse field.\n')
+        effective = binding.effective(b, 'Keep the sparse field.\n')
+        self.assertEqual(effective, 'Keep the sparse field.\n')
         self.assertIn('quiet interval', str(b['consumer']['direction']))
         self.assertNotIn('PRIVATE', effective)
     def test_handoff_needs_its_exact_authorization(self):
@@ -258,9 +258,112 @@ class LifecycleTests(unittest.TestCase):
         with self.assertRaises(ValueError):fixture.grant(self.root,run,w.handoff_intent(self.root,run,'author','manual'))
     def test_grant_uses_survive_repreparation(self):
         a=self.authority();a['grants'][0]['limits']['uses']=1;self.write('fixture-authority.json',a)
-        run=self.prepare();fixture.grant(self.root,run,w.handoff_intent(self.root,run,'author','manual'))
-        other=self.prepare()
-        with self.assertRaises(ValueError):fixture.grant(self.root,other,w.handoff_intent(self.root,other,'author','manual'))
+        import reservation_lifecycle as life
+        intent={'operation':'submit','targets':['delivery'],'payload':{'count':1,'test':'synthetic'}}
+        run=self.prepare();first=fixture.grant(self.root,run,intent);life.reserve(self.root,run,first)
+        other=self.prepare();second=fixture.grant(self.root,other,intent)
+        with self.assertRaisesRegex(ValueError,'BUDGET_LIMIT_EXCEEDED'):life.reserve(self.root,other,second)
+    def external_case(self):
+        self.task['execution'] = 'external'; self.write('task.json', self.task)
+        run = self.prepare(); fixture.handoff(self.root, run, 'synthetic external host', 'manual')
+        token = fixture.grant(self.root, run, w.external_intent(self.root, run, 1))
+        claim = w.claim_external(self.root, run, 1, token)
+        return run, token, claim
+
+    def external_receipt(self, run, claim, *, amount='0', final=True, filename='external-receipt.json'):
+        self.write('host-response.json', {'synthetic': True, 'claim': claim['sha256'], 'outputs': 1, 'cost': amount})
+        receipt = {'claim': claim['sha256'], 'actor': fixture.ACTOR, 'outputs': 1,
+                   'cost': None if amount is None else {'currency': 'USD', 'amount': amount}, 'final': final,
+                   'response': {'path': 'host-response.json', 'sha256': c.digest(c.read(self.root/'host-response.json')), 'locator': 'whole'},
+                   'reason': 'Synthetic receipt of local fixture bytes; no real provider or billing.'}
+        self.write(filename, receipt)
+        return receipt
+
+    def test_external_claim_protects_unknown_result_budget_and_logs(self):
+        import operation_context as ops
+        import reservation_lifecycle as life
+        from test_production_operations import OperationTests
+        run, token, claim = self.external_case()
+        prepared, rows = w.load_run(self.root, run)[1::2]
+        state = life.by_authorization(rows, prepared, run, token)
+        self.assertEqual(len(state['steps']), 1)
+        self.assertEqual(state['steps'][0]['operation'], 'send')
+        self.assertFalse(life.releasable(state))
+        self.assertTrue(ops._run_has_unresolved_external_effect(self.root, run))
+        folder = OperationTests._fake_operation(self, self.root, 'external-host-diagnostics', run=run)
+        result = ops.cleanup_logs(self.root, operation_id=folder.name, apply=True)
+        self.assertEqual(result['deleted'], [])
+        self.assertTrue(folder.is_dir())
+        from production_execution import status
+        report = status(self.root, run, budget=True)['runs'][0]
+        self.assertEqual(report['submission'], 'outcome_unknown')
+        self.assertEqual(w.claim_external(self.root, run, 1, token)['sha256'], claim['sha256'])
+        self.assertEqual(len(life.by_authorization(w.load_run(self.root, run)[3], prepared, run, token)['steps']), 1)
+
+    def test_external_boundary_failure_rolls_back_claim_and_reservation(self):
+        import reservation_lifecycle as life
+        self.task['execution'] = 'external'; self.write('task.json', self.task)
+        run = self.prepare(); fixture.handoff(self.root, run, 'synthetic host', 'manual')
+        token = fixture.grant(self.root, run, w.external_intent(self.root, run, 1))
+        with patch.object(life, 'begin_step', side_effect=OSError('Synthetic durable boundary failure')):
+            with self.assertRaises(OSError): w.claim_external(self.root, run, 1, token)
+        prepared, rows = w.load_run(self.root, run)[1::2]
+        self.assertFalse(any(row['event'] == 'external-claim' for row in rows))
+        self.assertEqual(life.derive(rows, prepared, run), {})
+
+    def test_external_result_capture_survives_source_deletion_and_is_idempotent(self):
+        run, token, claim = self.external_case()
+        (self.root/'brief.md').unlink(); (self.root/'fixture-authority-basis.txt').unlink()
+        self.write('external.png', png())
+        first = w.capture(self.root, run, 'external.png', 'Synthetic received image.')
+        self.assertEqual(w.capture(self.root, run, 'external.png', 'Repeated receipt of the same result.')['sha256'], first['sha256'])
+        self.assertEqual(len([row for row in w.load_run(self.root, run)[3] if row['event'] == 'candidate']), 1)
+
+    def test_external_result_cannot_replace_an_already_counted_path(self):
+        run, _, _ = self.external_case()
+        self.write('external.png', png()); w.capture(self.root, run, 'external.png', 'First actual result.')
+        self.write('external.png', png(128))
+        with self.assertRaisesRegex(ValueError, 'output count'):
+            w.capture(self.root, run, 'external.png', 'Different bytes at the same path.')
+
+    def test_external_settlement_is_evidenced_idempotent_and_releases_diagnostic_protection(self):
+        import operation_context as ops
+        import reservation_lifecycle as life
+        from production_execution import status
+        run, token, claim = self.external_case()
+        self.write('external.png', png()); w.capture(self.root, run, 'external.png', 'Synthetic received image.')
+        self.assertEqual(status(self.root, run)['runs'][0]['next_action']['command'], 'settle-external')
+        self.external_receipt(run, claim)
+        first = w.settle_external(self.root, run, 'external-receipt.json')
+        second = w.settle_external(self.root, run, 'external-receipt.json')
+        self.assertTrue(first['settled']); self.assertTrue(first['execution_completed'])
+        self.assertEqual(first['receipt']['sha256'], second['receipt']['sha256'])
+        self.assertFalse(ops._run_has_unresolved_external_effect(self.root, run))
+        state = life.by_authorization(w.load_run(self.root, run)[3], w.load_run(self.root, run)[1], run, token)
+        self.assertEqual(state['consumed_uses'], 1); self.assertEqual(state['captured_outputs'], 1)
+        self.assertEqual(status(self.root, run)['runs'][0]['capture'], 'complete')
+
+    def test_external_unknown_cost_stays_reserved_until_confirmed(self):
+        import operation_context as ops
+        run, token, claim = self.external_case()
+        self.write('external.png', png()); w.capture(self.root, run, 'external.png', 'Synthetic received image.')
+        self.external_receipt(run, claim, amount=None, filename='pending-receipt.json')
+        self.assertFalse(w.settle_external(self.root, run, 'pending-receipt.json')['settled'])
+        self.assertTrue(ops._run_has_unresolved_external_effect(self.root, run))
+        self.external_receipt(run, claim, amount='0.01')
+        self.assertTrue(w.settle_external(self.root, run, 'external-receipt.json')['settled'])
+        self.assertFalse(ops._run_has_unresolved_external_effect(self.root, run))
+
+    def test_external_receipt_rejects_different_actor_count_or_response(self):
+        run, token, claim = self.external_case()
+        self.write('external.png', png()); w.capture(self.root, run, 'external.png', 'Synthetic received image.')
+        good = self.external_receipt(run, claim)
+        for key, value in [('actor', 'different executor'), ('outputs', 0), ('response', {**good['response'], 'sha256': '0'*64})]:
+            with self.subTest(field=key):
+                self.write('bad-receipt.json', {**good, key:value})
+                with self.assertRaises(ValueError): w.settle_external(self.root, run, 'bad-receipt.json')
+        self.assertFalse(any(row['event'] == 'reservation-settled' for row in w.load_run(self.root, run)[3]))
+
     def test_external_outputs_are_capped(self):
         self.task['execution']='external';self.write('task.json',self.task)
         run=self.prepare();fixture.handoff(self.root,run,'test host','manual')
@@ -297,7 +400,7 @@ class LifecycleTests(unittest.TestCase):
         failed=self.review_data(run,ca,'fail');failed['unresolved']=['The new observed defect needs a correction decision.']
         self.write('second-review.json',failed);w.review(self.root,run,'second-review.json')
         with self.assertRaises(ValueError):w.complete(self.root,run)
-        self.assertEqual(w.status(self.root,run)['next'],'review-or-revise-candidate')
+        self.assertEqual(w.status(self.root,run)['runs'][0]['next_action']['command'],'draft-review')
     def test_changed_source_reports_declared_impact(self):
         run=self.prepare();(self.root/'brief.md').write_text('Changed purpose.', encoding='utf-8')
         result=w.impact(self.root,run)
@@ -310,6 +413,10 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(before,after)
     def test_changed_candidate_cannot_reuse_review(self):
         run,ca=self.candidate();self.record_review(run,ca);self.write('image.png',png(128))
+        self.assertEqual(w.draft_selection(self.root,run,ca['sha256'])['candidate'],ca['sha256'])
+        # The external original may change, but the captured formal bytes may not.
+        stored=w.run_dir(self.root,run)/'objects'/ca['data']['files'][0]['sha256']
+        stored.write_bytes(png(128))
         with self.assertRaises(ValueError):w.draft_selection(self.root,run,ca['sha256'])
     def test_revision_links_observation_to_new_preparation(self):
         run,ca=self.candidate();d=self.review_data(run,ca,'fail')
@@ -329,7 +436,7 @@ class LifecycleTests(unittest.TestCase):
         self.write('revised.png',png(128));child_ca=w.capture(self.root,child['run'],'revised.png','Synthetic repaired result.')
         self.record_review(child['run'],child_ca,name='revised-review.json');self.selection(child['run'],child_ca)
         w.select(self.root,child['run'],'selection.json');w.complete(self.root,child['run'])
-        self.assertEqual(w.status(self.root,child['run'])['next'],'done')
+        self.assertEqual(w.status(self.root,child['run'])['runs'][0]['task_disposition'],'completed')
     def test_declared_output_kind_is_not_inferred_from_extension(self):
         run=self.prepare();fixture.handoff(self.root,run,'synthetic author','manual');self.write('image.png',b'not pixels')
         with self.assertRaises(ValueError):w.capture(self.root,run,'image.png','Invalid synthetic candidate')
@@ -364,28 +471,70 @@ class LifecycleTests(unittest.TestCase):
         authorization = fixture.grant(self.root, run, intent)
         child = w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', authorization)
         self.assertNotEqual(child['run'], run)
+    def test_grant_limit_update_does_not_change_reviewed_repair(self):
+        run, ca = self.candidate(); self.revised_input(run, ca)
+        intent = w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
+        authorization = fixture.grant(self.root, run, intent)
+        import production_store as store
+        authority = self.authority()
+        authority['grants'][0]['limits']['uses'] = 100
+        self.write('amended-authority.json', authority)
+        prior = store.authority_record(self.root, self.task['task_id'])
+        store.import_authority(self.root, 'amended-authority.json', expected=prior['sha256'])
+        after = w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
+        self.assertEqual(after, intent)
+        self.assertNotIn('authority', after['targets'])
+        child = w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', authorization)
+        self.assertNotEqual(child['run'], run)
+
+    def test_grant_update_alone_is_not_a_creative_repair(self):
+        run, ca = self.candidate(); self.revised_input(run, ca)
+        self.write('unchanged-task.json', self.task)
+        import production_store as store
+        authority = self.authority(); authority['grants'][0]['limits']['uses'] = 100
+        self.write('amended-authority.json', authority)
+        prior = store.authority_record(self.root, self.task['task_id'])
+        store.import_authority(self.root, 'amended-authority.json', expected=prior['sha256'])
+        with self.assertRaisesRegex(ValueError, 'no changed production inputs'):
+            w.revision_intent(self.root, run, 'unchanged-task.json', ca['sha256'], 'repair')
+
+    def test_creative_scopes_do_not_require_authority_documents(self):
+        run = self.prepare()
+        before = w.load_run(self.root, run)[1]
+        after = copy.deepcopy(before)
+        before['authority'] = after['authority'] = None
+        before['task']['authority'] = after['task']['authority'] = None
+        self.assertEqual(w.changed_scopes(before, after), [])
+
     def test_revoked_authority_cannot_authorize_an_edit(self):
         run, ca = self.candidate(); self.revised_input(run, ca)
         intent = w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
         authority = self.authority(); authority['grants'] = []; self.write('fixture-authority.json', authority)
-        with self.assertRaisesRegex(ValueError, 'authority'):
+        import production_store as store
+        prior=store.authority_record(self.root,self.task['task_id'])
+        store.import_authority(self.root,'fixture-authority.json',expected=prior['sha256'])
+        with self.assertRaisesRegex(ValueError, 'grant|GRANT_REVOKED'):
             fixture.grant(self.root, run, intent)
     def test_revoked_authority_cannot_consume_reserved_edit(self):
         run, ca = self.candidate(); self.revised_input(run, ca)
         intent = w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
         auth = fixture.grant(self.root, run, intent)
-        (self.root / 'fixture-authority-basis.txt').write_text('Authority withdrawn.', encoding='utf-8')
-        with self.assertRaisesRegex(ValueError, 'authority'):
+        import production_store as store
+        authority=self.authority();authority['grants'][0]['revoked_at']='2000-01-01T00:00:00Z'
+        self.write('fixture-authority.json',authority)
+        prior=store.authority_record(self.root,self.task['task_id'])
+        store.import_authority(self.root,'fixture-authority.json',expected=prior['sha256'])
+        with self.assertRaisesRegex(ValueError, 'GRANT_REVOKED'):
             w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', auth)
     def test_empty_criteria_cannot_create_vacuous_completion(self):
         self.task['criteria'] = []; self.task['direction']['decisions'] = []; self.write('task.json', self.task)
         with self.assertRaises(ValueError): self.prepare()
     def test_private_consumer_fields_rejected_even_if_rehashed(self):
-        run = self.prepare(); b = binding.create(self.root, run, 'Keep the sparse field.')
+        run = self.prepare(); b = binding.create(self.root, run, 'Keep the sparse field.\n')
         b['consumer']['direction']['private_dossier'] = 'SECRET'
         b['consumer_sha256'] = c.content_id(b['consumer'])
         b['sha256'] = c.content_id({k:v for k,v in b.items() if k != 'sha256'})
-        with self.assertRaises(ValueError): binding.validate(b, 'Keep the sparse field.')
+        with self.assertRaises(ValueError): binding.validate(b, 'Keep the sparse field.\n')
 
 
 class MoneyTests(unittest.TestCase):
@@ -395,43 +544,62 @@ class MoneyTests(unittest.TestCase):
                        'limits':{'uses':5,'outputs':5,'cost':{'currency':'USD','amount':'0.3'}},'protected_criteria':[],'expires_at':None,'request_scope':None,'submission_validation_modes':['target-schema']}], 'stop_conditions':[]}
         self.request={'grant':'grant','actor':'actor','operation':'submit','targets':['delivery'],'payload':{'count':1},
                       'outputs':1,'cost':{'currency':'USD','amount':'0.2','basis':'Declared fixture cap'},'stop_assessments':[],'reason':'test'}
+    def reserve_sequence(self, earlier):
+        import reservation_lifecycle as life
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);entry=ledger.begin(root,'Synthetic exact accounting',['inspect'])
+            (root/'delivery.txt').write_text('Synthetic local delivery.',encoding='utf-8')
+            task={'task_id':entry['task_id'],'route':'development','features':[],'sources':[],
+                  'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Synthetic exact bytes.'},
+                  'criteria':[{'id':'x','strength':'hard','text':'Inspect the synthetic result.'}],'world_views':[]}
+            fixture.task(root,task)
+            authority=c.load(root/'fixture-authority.json')
+            authority['grants'][0]['limits']=copy.deepcopy(self.authority['grants'][0]['limits'])
+            (root/'fixture-authority.json').write_bytes(c.encoded(authority))
+            (root/'task.json').write_bytes(c.encoded(task))
+            for index,request in enumerate([*earlier,self.request]):
+                run=w.prepare(root,'task.json')['run']
+                intent={'operation':'submit','targets':['delivery'],'payload':{'count':request['outputs'],'test':str(index)}}
+                authorization=fixture.grant(root,run,intent,cost=request['cost'])
+                life.reserve(root,run,authorization)
+            return life.budget(root)
     def test_decimal_reservations_are_exact(self):
         earlier=copy.deepcopy(self.request);earlier['cost']['amount']='0.1'
-        permissions.check(self.authority,self.request,[earlier])
+        self.reserve_sequence([earlier])
     def test_total_cost_exceeded(self):
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request,[self.request])
+        with self.assertRaises(ValueError):self.reserve_sequence([self.request])
     def test_unknown_cost_is_not_submission_permission(self):
         self.request['cost']=None
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request,[])
+        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
     def test_count_mismatch(self):
         self.request['payload']['count']=2
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request,[])
+        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
     def test_float_money_is_rejected(self):
         self.request['cost']['amount']=0.2
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request,[])
+        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
     def test_nan_money_is_rejected(self):
         self.request['cost']['amount']='NaN'
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request,[])
+        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
     def test_currency_mismatch(self):
         self.request['cost']['currency']='JPY'
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request,[])
+        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
     def test_boolean_count_rejected(self):
         self.request['outputs']=True
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request,[])
+        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
     def test_no_paid_cap_does_not_mean_unlimited(self):
         self.authority['grants'][0]['limits']['cost']=None
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request,[])
+        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
     def test_no_output_budget(self):
         self.authority['grants'][0]['limits']['outputs']=0
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request,[])
+        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
 
     def test_high_precision_spending_does_not_round_under_the_limit(self):
         exact = '1' + '0' * 60
         self.authority['grants'][0]['limits']['cost']['amount'] = exact
         earlier = copy.deepcopy(self.request); earlier['cost']['amount'] = exact
         self.request['cost']['amount'] = '0.000000000000000000000000000001'
-        with self.assertRaisesRegex(ValueError, 'cost limit'):
-            permissions.check(self.authority, self.request, [earlier])
+        with self.assertRaisesRegex(ValueError, 'BUDGET_LIMIT_EXCEEDED'):
+            self.reserve_sequence([earlier])
 
 
 if __name__ == '__main__':

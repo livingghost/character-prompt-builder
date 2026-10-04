@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -695,7 +696,7 @@ def process_source(
     return report
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = _operation_context.ArgumentParser()
     parser.add_argument("--pack-root", type=Path, required=True)
     parser.add_argument("--source-map", type=Path, required=True)
     parser.add_argument("--workers", type=int, default=max(1, min(6, os.cpu_count() or 1)))
@@ -766,4 +767,4 @@ def main() -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

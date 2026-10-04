@@ -116,23 +116,20 @@ def schema_contract(contract:Any,evidence:Any,reader:InputEvidence,expected:dict
     return {'schema':actual,'overlay':overlay,'source':found['metadata']}
 
 
-OBSERVED_FIELDS={'artifact_type','model_id','service','model_identifier','observed_at','source','schema'}
-
-
 def observed_schema(record:dict,snapshot:Any,expected:dict)->dict:
     """Read the parameter schema an active pack records as observed for one offering.
 
-    The pack file is both contract and evidence. It describes the model's
-    parameters, so the fields a transport's layout declares as its envelope are
-    checked by that layout, not by this schema.
+    The pack file is both contract and evidence. The record pins its bytes, and
+    `from_offering` checked them against the model record and offering when it
+    built the record; here they are checked against the target the record names.
+    The schema describes the model's parameters, so the fields a transport's
+    layout declares as its envelope are checked by that layout, not by this schema.
     """
     if record['contract']!=record['evidence']:raise ValueError('an observed parameter schema is its own evidence')
     if not record['contract']['path'].startswith('@pack/'):raise ValueError('an observed parameter schema is read from an active pack')
-    if not isinstance(snapshot,dict) or not OBSERVED_FIELDS<=set(snapshot) or set(snapshot)-OBSERVED_FIELDS-{'unenforced'}:
-        raise ValueError('invalid observed parameter schema fields')
-    if snapshot['artifact_type']!='observed-parameter-schema':raise ValueError('expected an observed parameter schema')
-    if snapshot['service']!=expected['service'] or snapshot['model_identifier']!=expected['model_identifier']:
-        raise ValueError('observed parameter schema belongs to another service or model')
+    from model_contract import observed_schema_issues
+    issues=observed_schema_issues(snapshot,{k:expected[k] for k in ('service','model_identifier')})
+    if issues:raise ValueError('observed parameter schema '+record['contract']['path']+': '+'; '.join(issues))
     _schema_shape(snapshot['schema'])
     return {'schema':snapshot['schema'],'overlay':None,'source':snapshot,'transport_envelope':True}
 
@@ -152,9 +149,10 @@ def from_offering(model_id:str,model:dict,offering:dict,service:dict,transport,r
     import runtime_evidence
     path=runtime_evidence.model_space(model_id)+'/'+relative
     snapshot=reader.json(reader.select(path))
-    if not isinstance(snapshot,dict) or snapshot.get('model_id')!=model_id or any(
-            snapshot.get(key)!=offering.get(key) for key in ('service','model_identifier','observed_at')):
-        raise ValueError('observed schema '+path+' does not record this offering')
+    from model_contract import observed_schema_issues, offering_expectation
+    expected,model_key=offering_expectation(model_id,offering)
+    issues=observed_schema_issues(snapshot,expected,model_key=model_key)
+    if issues:raise ValueError('observed schema '+path+' does not record this offering: '+'; '.join(issues))
     operations=getattr(transport,'OPERATIONS',None)
     if not isinstance(operations,dict):raise ValueError('the transport declares no OPERATIONS')
     target={'service':offering['service'],'model_identifier':offering['model_identifier'],
@@ -219,6 +217,22 @@ def _merge_unknowns(*groups:list[dict])->list[dict]:
     return [found[k] for k in sorted(found)]
 
 
+
+def authored_schema(value:Any,name:str,label:str)->Any:
+    """Refuse an authored model evidence file that schemas/authoring/<name>.schema.json refuses."""
+    schema=c.load(Path(__file__).resolve().parents[1]/'schemas'/'authoring'/(name+'.schema.json'))
+    errors=list(dict.fromkeys(validate_against_schema(value,schema)))
+    if errors:raise ValueError(label+': '+'; '.join(errors))
+    return value
+
+
+def validate_trial_plan(contract:Any,expected:dict)->dict:
+    """A bounded trial plan for this target; its schema holds every field and the one-request, one-output quantity."""
+    authored_schema(contract,'model-trial-plan','trial plan')
+    if contract['target']!=expected:raise ValueError('trial plan target mismatch')
+    _unknowns(contract['unknowns'])
+    return contract
+
 def analyze(record:dict,reader:InputEvidence,*,rendered:dict|None=None,envelope_fields:list[list]|None=None)->dict:
     validate_content(record);expected=record['target'];contract=reader.json(record['contract']);evidence=reader.json(record['evidence'])
     contract_reader=reader.at(record['contract']);evidence_reader=reader.at(record['evidence'])
@@ -238,38 +252,45 @@ def analyze(record:dict,reader:InputEvidence,*,rendered:dict|None=None,envelope_
         if rendered is not None:
             check_schema(rendered['request'],found,envelope_fields=envelope_fields);checked.append('target-schema')
     elif record['mode']=='bounded-probe':
-        c.exact(contract,{'artifact_type','target','reason','basis','reference_schemas','fixed_request_profile','unknowns'},'bounded probe plan')
-        if contract['artifact_type']!='model-probe-plan' or contract['target']!=expected:raise ValueError('probe plan target mismatch')
-        c.text(contract['reason'],'probe reason');_ref(contract['basis'])
+        validate_trial_plan(contract,expected)
         if {**contract['basis'],'path':contract_reader.qualify(contract['basis']['path'])}!=record['evidence']:raise ValueError('probe evidence differs from its declared basis')
         acquisition(evidence,evidence_reader,expected=expected)
-        if not isinstance(contract['reference_schemas'],list):raise ValueError('reference schemas must be a list')
         for ref in contract['reference_schemas']:
             reference=reference_schema(ref,contract_reader)
             if reference['target']!=expected:raise ValueError('reference schema was selected for another target')
-        profile=contract['fixed_request_profile']
-        if not isinstance(profile,dict) or profile.get('target')!=expected or (type(profile.get('output_count')) is not int or profile['output_count']!=1):
-            raise ValueError('a probe fixes exactly one output for the declared target')
+        profile=contract['fixed_request_profile'];planned=contract['quantity']['outputs']
+        if profile.get('target')!=expected or type(profile.get('output_count')) is not int or profile['output_count']!=planned:
+            raise ValueError('the fixed trial request must target the declared model with the planned output count')
         if profile.get('execution')!={k:record[k] for k in ('service_execution_sha256','offering_contract_sha256','transport_sha256')}:raise ValueError('probe execution contract differs from its fixed request')
-        if rendered is not None and rendered['sealed']!=profile:raise ValueError('probe request differs from the fixed trial request')
+        if rendered is not None and (rendered['sealed']!=profile or rendered['output_count']!=planned):
+            raise ValueError('probe request differs from the fixed trial request and its planned output count')
         unknown=_merge_unknowns(contract['unknowns'],[{'id':'target-parameters-unobserved','scope':'request',
             'statement':'The model-specific acceptance of this exact trial request is not established.'}])
         checked.append('bounded-probe-one-output')
     else:
-        c.exact(contract,{'artifact_type','target','execution','observation','profile','profile_sha256'},'observed request profile')
+        c.exact(contract,{'artifact_type','target','execution','observation','adoption','question','unmeasured','profile','profile_sha256'},'observed request profile')
         if contract['artifact_type']!='observed-request-profile' or contract['target']!=expected:raise ValueError('observed profile target mismatch')
         if {**contract['observation'],'path':contract_reader.qualify(contract['observation']['path'])}!=record['evidence']:raise ValueError('profile and success observation differ')
         from model_observation import validate_observation
         observed=validate_observation(evidence,evidence_reader)
         if observed['target']!=expected or observed['outcome']!='completed':raise ValueError('a completed observation of this target is required')
+        adoption=contract_reader.json(contract['adoption'])
+        from model_observation import validate_adoption, trial_plan
+        recorded_source = evidence_reader.json(observed['source'])
+        plan = trial_plan(recorded_source, observed)
+        if contract['question'] != plan['question']:
+            raise ValueError('observed profile question differs from the recorded trial')
+        validate_adoption(adoption, target=expected, results=observed['results'],
+                          question=plan['question'], purpose=plan['purpose'], run=recorded_source['run'])
+        if adoption['unmeasured']!=contract['unmeasured']:raise ValueError('observed profile limits differ from the explicit adoption decision')
         if contract['profile']!=observed['request']['profile'] or contract['profile_sha256']!=c.content_id(contract['profile']):
             raise ValueError('profile differs from the exact successful request tuple')
         if contract['execution']!=observed['request']['sealed']['execution']:raise ValueError('profile execution contract changed')
         execution={k:record[k] for k in ('service_execution_sha256','offering_contract_sha256','transport_sha256')}
         if contract['execution']!=execution:raise ValueError('observation does not cover the selected execution contract')
         if rendered is not None and rendered['profile']!=contract['profile']:raise ValueError('fixed request values changed; explicitly prepare another probe or use a target schema')
-        unknown=[{'id':'new-content-unobserved','scope':'authored-content',
-            'statement':'The fixed parameter tuple and input form succeeded before; changed content has not been tested by that observation.'}]
+        unknown=_merge_unknowns(contract['unmeasured'],[{'id':'new-content-unobserved','scope':'authored-content',
+            'statement':'The fixed parameter tuple and input form succeeded before; changed content has not been tested by that observation.'}])
         checked.append('observed-fixed-tuple')
     if rendered is not None:
         rc.validate_seal(rendered)

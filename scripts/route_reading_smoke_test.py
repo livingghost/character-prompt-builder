@@ -15,6 +15,7 @@ from unittest.mock import patch
 import execution_contract as c
 import route_reading as r
 
+
 PARAGRAPH = 'The operator preserves the selected source and records the explicit decision before performing the requested operation.'
 
 class ReadingTests(unittest.TestCase):
@@ -54,16 +55,16 @@ class ReadingTests(unittest.TestCase):
         for name in ('notes/always.md','notes/work.md'):
             self.assertIn((self.root/name).read_bytes().decode('utf-8'),out)
         self.assertTrue(out.rstrip().endswith(issued['reading_key']))
-    def test_only_a_failed_resource_provider_blocks_a_reading(self):
+    def test_only_a_failed_resource_blocks_a_reading(self):
         from types import SimpleNamespace
         self.manifest['features']['prompt-dialect'] = {'reads': [], 'source_roles': []}
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         other = {'severity': 'error', 'code': 'record-conflict', 'message': 'another pack'}
-        failed = {'severity': 'error', 'code': 'resource-provider-unavailable',
-                  'resource': 'prompt-writing-guide', 'provider_pack': 'pack-b', 'message': 'provider failed'}
+        failed = {'severity': 'error', 'code': 'resource-conflict', 'resource': 'prompt-dialects',
+                  'pack_ids': ['pack-b'], 'message': 'packs disagree'}
         line = 'warning: pack pack-b is invalid (lock-extra-files: files not in pack.lock.json)'
         def catalog(*diagnostics):
-            return SimpleNamespace(diagnostics=diagnostics, warnings=(line,), resources={}, entries=())
+            return SimpleNamespace(diagnostics=diagnostics, warnings=(line,), resources={}, pack_roots={}, entries=())
         with patch('catalog_retrieval.runtime.load_pack_catalog', return_value=catalog(other)):
             manifest, _ = r.capture('generation', ['prompt-dialect'], root=self.root)
         self.assertEqual(manifest['resources'], {'prompt-writing-guide': {'status': 'unavailable'},
@@ -145,9 +146,11 @@ class ReadingTests(unittest.TestCase):
         (pack/'resources/dialects.json').write_text(json.dumps(dialects), encoding='utf-8')
         self.manifest['features']['prompt-dialect']={'reads':[],'source_roles':[]}
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
-        resources={'prompt-writing-guide':SimpleNamespace(path=str(pack/'resources/guide.json'),source_pack='synthetic-pack'),
-                   'prompt-dialects':SimpleNamespace(path=str(pack/'resources/dialects.json'),source_pack='synthetic-pack')}
-        catalog=SimpleNamespace(diagnostics=(),warnings=(),resources=resources,
+        named=lambda relative:SimpleNamespace(path=str(pack/relative),source_pack='synthetic-pack',relative_path=relative)
+        catalog=SimpleNamespace(diagnostics=(),warnings=(),
+                                resources={'prompt-writing-guide':named('resources/guide.json'),
+                                           'prompt-dialects':named('resources/dialects.json')},
+                                pack_roots={'synthetic-pack':pack},
                                 entries=(SimpleNamespace(source_pack='synthetic-pack',source_root=pack),))
         return patch('catalog_retrieval.runtime.load_pack_catalog',return_value=catalog),guide
     def family_record(self,dialect,section):
@@ -277,6 +280,16 @@ class ReadingTests(unittest.TestCase):
     def test_wrong_quote(self):
         record=self.record();record['applied'][0]['quote']=PARAGRAPH.replace('operator','reader')
         with self.assertRaisesRegex(ValueError,'paragraph'): self.verify(record)
+    def test_quote_across_a_line_break_matches_and_is_kept_as_written(self):
+        words=PARAGRAPH.split(' ')
+        (self.root/'notes/work.md').write_bytes(('# Work\n\n'+' '.join(words[:7])+'\n'+' '.join(words[7:])+'\n').encode())
+        quote=' '.join(words[:4])+'\n  '+' '.join(words[4:])
+        issued=self.issued()
+        apps={'applied':[{'path':'notes/work.md','quote':quote,'why':'Synthetic quotation wrapped differently from the source.'}],
+              'resource_applied':[]}
+        record=r.build_record(issued,apps,root=self.root,ledgers=[self.ledger])
+        self.assertEqual(record['applied'][0]['quote'],quote)
+        self.verify(record)
     def test_short_quote(self):
         record=self.record();record['applied'][0]['quote']='The operator'
         with self.assertRaisesRegex(ValueError,'twelve'): self.verify(record)

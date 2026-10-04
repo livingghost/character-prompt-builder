@@ -18,6 +18,7 @@ from catalog_cli import (
 from package_metadata import CORE_RELEASE_REGRESSION_CONTRACT, load_package_metadata
 from pack_manager import PackSettings
 
+
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = Path(CORE_RELEASE_REGRESSION_CONTRACT)
 
@@ -104,27 +105,22 @@ def evaluate_default_release(root: Path = ROOT) -> dict[str, Any]:
             case_errors.append("case must be an object")
         else:
             try:
-                if operation == "resource-providers":
+                if operation == "named-resources":
                     expected_names = {
                         str(value) for value in case.get("expected_names") or []
                     }
-                    observed_providers = {
-                        name: resource.source_pack
+                    observed_packs: dict[str, list[str]] = {
+                        name: [resource.source_pack]
                         for name, resource in pack_catalog.resources.items()
                     }
-                    observed = {"resource_providers": observed_providers}
+                    observed = {"named_resources": observed_packs}
                     if not expected_names:
-                        case_errors.append("resource-providers case has no expected_names")
+                        case_errors.append("named-resources case has no expected_names")
                     for name in sorted(expected_names):
-                        expected_pack = metadata.resource_providers.get(name)
-                        if expected_pack is None:
+                        packs = observed_packs.get(name) or []
+                        if not packs or not set(packs) <= set(metadata.default_pack_ids):
                             case_errors.append(
-                                f"default state does not select a provider for {name!r}"
-                            )
-                        elif observed_providers.get(name) != expected_pack:
-                            case_errors.append(
-                                f"resource {name!r} resolved from {observed_providers.get(name)!r}, "
-                                f"expected {expected_pack!r}"
+                                f"resource {name!r} comes from {packs!r}, not from the default packs"
                             )
                 elif operation == "search":
                     expected_ids = {
@@ -303,9 +299,6 @@ def main() -> int:
             managed_root=managed_root,
             quarantine_root=(managed_root / ".quarantine").resolve(),
             default_enabled_packs=tuple(metadata.default_pack_ids),
-            default_resource_providers=tuple(
-                sorted(metadata.resource_providers.items())
-            ),
         )
     )
     report = evaluate_default_release(root)

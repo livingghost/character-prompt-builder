@@ -13,6 +13,7 @@ from input_evidence import InputEvidence
 import schema_observation as observation
 import request_validation as rv
 
+
 class AcquisitionTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
@@ -98,6 +99,15 @@ class PackImportTests(AcquisitionTests):
         _,document,i,j=cli._selection(self.args.out_pack,self.args.model,'runware')
         offering=document['records'][i]['offerings'][j]
         self.assertTrue((self.args.out_pack/offering['schema_contract']['path']).is_file())
+        # The published file meets the contract every reader applies, and a request validation record builds from it.
+        import model_contract
+        self.assertEqual(model_contract.offering_schema(offering,self.args.out_pack,self.args.model)['schema'],self.schema)
+        transport=SimpleNamespace(OPERATIONS={'generation':'imageInference'},__file__=__file__)
+        reader=InputEvidence(self.root,named_roots={'@pack/published':self.args.out_pack})
+        offering={k:v for k,v in offering.items() if k not in {'production_context_transport','reference_instruction_transport'}}
+        with patch('runtime_evidence.model_space',return_value='@pack/published'):
+            record=rv.from_offering(self.args.model,document['records'][i],offering,{'id':'runware'},transport,reader)
+        self.assertEqual(record['contract']['path'],'@pack/published/'+offering['schema_snapshot'])
     def test_schema_error_does_not_publish_partial_pack(self):
         import observe_model_schema as cli
         self.acquisition['target']=dict(self.target,model_identifier='other');self.save()

@@ -177,7 +177,7 @@ Identical endpoints explicitly describe persistence and are valid; a malformed o
 `null` is not an omitted field. `state_changes` remains a required array, with `[]` for no
 persistent consequence, not a fabricated statement claiming that something changed.
 
-A named `structure` is optional. A declared profile is nonempty authored text and `parts` is a
+A named `structure` is optional. Its `profile` is nonempty authored text and `parts` is a
 nonempty map from authored part names to existing beat IDs. No tradition, part count, climax,
 change, or arrangement is supplied automatically. Omit the entire structure when it has no use.
 
@@ -247,8 +247,8 @@ itself. What it can do is compare its own against the hash published here, of th
 endings normalised:
 
 ```text
-scripts/narrative.py           ed923de6d26312920f3bde43b22abda3bd3b6ca9452f80d4c102eb4f702ed994
-scripts/scene_plot.py          2e9dc5ae4742f40e2ff97ec0026d5256d5fff93e2a3c95f88e53e408b3a4bce2
+scripts/narrative.py           00c74384f18e6e114fec6a8b482932abd8daaed5de7d17e5d2c41f31420da26d
+scripts/scene_plot.py          dfc979f6df741ede97baef1fefdfdad3be59a35f0dd467ae32eca49f7d931d72
 scripts/narrative_corpus.json  2c89042e7e3ee0f39d9e46b0ec2dcf8b07c2c9e81914dd3c9102cc27ac331289
 ```
 

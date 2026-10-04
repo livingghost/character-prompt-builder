@@ -6,8 +6,11 @@ python scripts/adoption_workflow.py --studio DIR --character ID adopt --iteratio
 python scripts/adoption_workflow.py --studio DIR --character ID references --out selections.json
 
 See references/runtime/adoption-workflow.md. No image API is called here.
+A Production candidate is adopted with production_workflow.py adopt, which
+records the claim this module checks.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -196,9 +199,29 @@ def _registration(root: Path, row: dict[str, Any], journal: dict[str, Any], reco
             "record_id": record["id"], "asset_id": record["id"] + "-reference", "artifact_id": "adopted-image"}
 
 
+def require_production_claim(root: Path, character: str, row: dict[str, Any], approval: Any, claim: str | None) -> None:
+    """Refuse adopting a Production candidate outside the claim its own adopt operation recorded.
+
+    `production_workflow.py adopt` records that claim under an adopt
+    authorization; it names the candidate, character, iteration and approval.
+    """
+    origin = row["production"]
+    if claim is None:
+        raise ValueError(f"{row['iteration_id']} is a Production candidate; adopt it with production_workflow.py adopt "
+                         f"under its own adopt authorization")
+    import production_workflow as workflow
+    _, _, _, rows = workflow.load_run(root, origin["run"])
+    found = [event for event in rows if event["event"] == "adoption-claim" and event["sha256"] == claim]
+    payload = found[0]["data"]["intent"]["payload"] if found else None
+    from execution_contract import content_id
+    if payload is None or payload["candidate"] != origin["candidate"] or payload["character"] != character \
+            or payload["iteration"] != row["iteration_id"] or payload["approval_sha256"] != content_id(approval):
+        raise ValueError("the Production adoption claim does not name this candidate, iteration and approval")
+
+
 def adopt(root: Path, character: str, iteration: str, approval: Any, *,
           registration_record: dict[str, Any] | None = None, pack_dir: Path | None = None,
-          settings: Any = None) -> dict[str, Any]:
+          settings: Any = None, production_claim: str | None = None) -> dict[str, Any]:
     root = studio.require_studio(root).resolve()
     with studio.recording_lock(root):
         home = studio.character_dir(root, character)
@@ -208,6 +231,10 @@ def adopt(root: Path, character: str, iteration: str, approval: Any, *,
             raise ValueError("record a new candidate before adopting a rejected or superseded iteration")
         if not row.get("result"):
             raise ValueError("iteration has no result")
+        if row.get("production") is not None:
+            require_production_claim(root, character, row, approval, production_claim)
+        elif production_claim is not None:
+            raise ValueError(f"{iteration} is an external import; a Production adoption claim does not apply")
         confirmed = validate_approval(approval, character, row)
         safe_file(root, row["result"]["path"], row["result"]["sha256"])
         if not row.get("package"):
@@ -376,7 +403,7 @@ def validate_for_generation(root: Path, character: str, package: dict[str, Any])
 
 def main(argv: Sequence[str] | None = None) -> int:
     from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--studio", type=Path, required=True)
     parser.add_argument("--character", required=True)
     add_pack_runtime_arguments(parser)
@@ -413,4 +440,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

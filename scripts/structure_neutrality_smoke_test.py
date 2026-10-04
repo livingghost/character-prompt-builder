@@ -17,6 +17,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+
 from state_protocol import (artifact_hash, finalize_artifact, load_json, parse_json,
                             plan_reference_bundle, resolve_growth_geometry,
                             validate_against_schema, validate_artifact,

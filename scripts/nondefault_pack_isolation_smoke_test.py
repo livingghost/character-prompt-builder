@@ -17,6 +17,9 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+
+
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PACK = ROOT / "packs" / "commons"
 SELECTED_SMOKES = (
@@ -216,12 +219,12 @@ def main() -> int:
         'CORE_PACK_INCLUDES = frozenset({"packs/commons"})' in package_metadata,
     )
 
-    packs_doc = (ROOT / "PACKS.md").read_text(encoding="utf-8")
+    packs_doc = (ROOT / "references/maintenance/packs.md").read_text(encoding="utf-8")
     check(
         "pack documentation distinguishes owner data from core fixtures without excluding it",
-        "Personal packs" in packs_doc
+        "Every other pack is a personal pack." in packs_doc
         and "without deleting, moving, renaming, or excluding" in packs_doc
-        and "full-package construction and catalog export may preserve" in packs_doc,
+        and "full-package construction and catalog export preserve" in packs_doc,
     )
 
     with tempfile.TemporaryDirectory(prefix="cpb-core-only-") as raw:

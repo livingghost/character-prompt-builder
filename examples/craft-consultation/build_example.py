@@ -85,11 +85,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--out', type=Path, default=Path(__file__).with_name('report.json'))
-    parser.add_argument('--workspace', type=Path, help='New external directory retaining the actual commands and files.')
+    parser.add_argument('--studio', type=Path, help='New external studio retaining the actual commands and files.')
     args = parser.parse_args()
-    if args.workspace is not None:
-        args.workspace.mkdir(parents=True, exist_ok=False)
-        result = build(args.workspace.resolve())
+    if args.studio is not None:
+        args.studio.mkdir(parents=True, exist_ok=False)
+        result = build(args.studio.resolve())
     else:
         with tempfile.TemporaryDirectory(prefix='synthetic-craft-example-') as temporary:
             result = build(Path(temporary))

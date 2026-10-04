@@ -236,4 +236,4 @@ prepare a local plan that binds those files.
 
 ## 6. Executable examples and checks
 
-`python scripts/create_authoring_example.py --root <empty-workspace>` creates a synthetic, genre-neutral worked example. `python scripts/scene_material_smoke_test.py` checks material, source, freshness and public-artifact behavior without generation services. Both checks are structural, as section 1 says of the code.
+`python scripts/create_authoring_example.py --root <empty-directory>` creates a synthetic, genre-neutral worked example. `python scripts/scene_material_smoke_test.py` checks material, source, freshness and public-artifact behavior without generation services. Both checks are structural, as section 1 says of the code.

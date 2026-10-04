@@ -45,14 +45,14 @@ def _source_run(root: Path, selected: str | None, task: dict) -> dict | None:
     if prepared['task']['task_id'] != task['task_id']:
         raise ValueError('source run belongs to a different work task')
     adapters.check_series(prepared['task'], task)
-    from production_resume import report
-    current = report(root, selected)
-    if not current['integrity']['ok']:
+    from production_execution import status
+    current = status(root, selected)['runs'][0]
+    if current['integrity'] != 'intact':
         raise ValueError('source run integrity changed while inspecting its evidence')
     return {'run': selected, 'input_sha256': prepared['input_sha256'],
             'task_path': prepared['task_path'], 'task': prepared['task'],
             'route_reading': copy.deepcopy(prepared.get('route_reading')),
-            'freshness': current['freshness'],
+            'freshness': {'current': not current['freshness_diagnostics'], 'diagnostics': current['freshness_diagnostics']},
             'assessment_required': ['Check copied applications against the current task and changed dependencies.']}
 
 
@@ -149,15 +149,15 @@ def _reading(choices: dict, *, root: Path, task: dict) -> dict:
     if route_reading.RECORD_RESOURCE_FIELDS:
         fields.add('resource_applied')
     c.exact(choices, fields, 'reading choices')
-    issued = route_reading.resolve_issuance(choices['reading_key'], project=root)
+    issued = route_reading.resolve_issuance(choices['reading_key'], studio=root)
     snapshot = choices['snapshot_id']
     if snapshot is not None:
-        route_reading.check_snapshot_issuance(snapshot, issued, project=root)
+        route_reading.check_snapshot_issuance(snapshot, issued, studio=root)
     applications = {'applied': choices['applied']}
     if route_reading.RECORD_RESOURCE_FIELDS:
         applications['resource_applied'] = choices['resource_applied']
-    record = route_reading.build_record(issued, applications, project=root)
-    route_reading.require_route_reading(record, project=root,
+    record = route_reading.build_record(issued, applications, studio=root)
+    route_reading.require_route_reading(record, studio=root,
                                        routes={task['route']}, features=task['features'])
     return record
 
@@ -257,7 +257,7 @@ def build_inputs(root: Path, task_path: str, choices_path: str, out_dir: str, *,
     adapters.cross_check(visual_context, validation_context)
     if validation is not None:
         dialect = validation_context.get('dialect', route_reading._NO_MODEL)
-        route_reading.require_route_reading(reading, project=root, routes={task['route']},
+        route_reading.require_route_reading(reading, studio=root, routes={task['route']},
                                            features=task['features'], dialect=dialect)
     content = {'route-reading.json': reading}
     if visual is not None:
@@ -300,10 +300,10 @@ def add_arguments(subparsers) -> None:
             'draft-inputs': 'Create an unanswered choices document in a new directory.',
             'build-inputs': 'Resolve authored choices into complete inputs without running production.'}[name])
         parser.add_argument('--root', type=Path, required=True)
-        parser.add_argument('--task', required=True, help='Project-relative production task JSON.')
+        parser.add_argument('--task', required=True, help='Studio-relative production task JSON.')
         parser.add_argument('--from-run', help='Explicit saved run from the same work task and production.')
         if name != 'inspect-inputs':
-            parser.add_argument('--out-dir', required=True, help='New project-relative directory; existing files are preserved.')
+            parser.add_argument('--out-dir', required=True, help='New studio-relative directory; existing files are preserved.')
         if name == 'build-inputs':
             parser.add_argument('--choices', required=True, help='Edited choices.json from draft-inputs, or a complete choices object.')
         adapters.add_runtime_arguments(parser)

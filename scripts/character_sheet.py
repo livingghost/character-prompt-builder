@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate and bind safe JSON sidecars for the CPB Character Sheet."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -231,7 +232,7 @@ def initialize_sidecar(sheet_dir: Path, *, profile: str = "") -> Path:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     init_parser = sub.add_parser(
         "init", help="create a current blank sheet-data.json in a new or empty folder"
@@ -240,7 +241,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     init_parser.add_argument(
         "--profile",
         default="",
-        help="optional bundled profile id or authored profile path",
+        help="optional bundled layout profile id or authored layout profile path",
     )
     validate_parser = sub.add_parser("validate")
     validate_parser.add_argument("sidecar", type=Path)
@@ -282,4 +283,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

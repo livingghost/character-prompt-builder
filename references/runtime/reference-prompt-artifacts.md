@@ -78,7 +78,7 @@ Layer C is the Reference Use Plan and prepared transport. It records ordered use
 
 Use one reference when one record/artifact pair has clear bounded authority, or several when separate record uses carry identity, pose-camera, outfit, surface-finish, lighting, environment, prop-accessory, or local-color evidence. Preserve plan order as explicit precedence. Never assume one SVG is the only available reference or merge several source roles into an unnamed average. The same canonical record may be declared repeatedly for distinct intended influences. Duplicate technical roles remain separate because `record_id` plus `intended_influence` defines their authority; multi-reference use does not require different canonical records.
 
-When an already validated Visual Evidence Bundle is active, verify its native-dimension source-derived perceptual Layer A vector projection, whole-frame profile and fidelity metrics, hashes, SVG safety, Layer B audit set, Layer C runtime recipes, and portable source identity before using it as visual authority. An automated audit mask is not human review. Never feed the entire corpus to a model; select the small number of relevant bundle items and compile only disposable, role-scoped attachments through the canonical Reference Use Plan.
+When an already validated Visual Evidence Bundle is active, verify its native-dimension source-derived perceptual Layer A vector projection, whole-frame settings and fidelity metrics, hashes, SVG safety, Layer B audit set, Layer C runtime recipes, and portable source identity before using it as visual authority. An automated audit mask is not human review. Never feed the entire corpus to a model; select the small number of relevant bundle items and compile only disposable, role-scoped attachments through the canonical Reference Use Plan.
 
 ## Prompt-facing transports
 
@@ -124,7 +124,7 @@ The plan separately records physical light sources and their apparent size, dire
 
 Determine dependency need immediately after selecting the transport:
 
-| Operation | Required profile | Preflight |
+| Operation | Dependencies | Preflight |
 | --- | --- | --- |
 | prompt only with no references | Core | `python scripts/check_dependencies.py --profile core` |
 | `prompt-artifacts` with existing SVG or raster files | Core | same Core check |

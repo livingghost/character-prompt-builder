@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise moment semantics, selected guidance, publication and production linkage."""
 from __future__ import annotations
+from production_diagnostics import CompilationError
 import copy
 import hashlib
 import importlib.util
@@ -19,6 +20,7 @@ import protocol_contract as pc
 import production_workflow as production
 import production_fixtures
 import work_ledger
+
 
 ROOT=Path(__file__).resolve().parents[1]
 loader=importlib.util.spec_from_file_location('moment_fixture', ROOT/'examples/story-context/run_example.py')
@@ -250,28 +252,30 @@ class ProductionTests(MomentTests):
         production_fixtures.task(self.root,spec)
         fixture.write(self.root,'task.json',spec);return production.prepare(self.root,'task.json')['run']
     def test_production_selects_only_view(self):
-        run=self.setup_run();consumer=json.loads((self.root/'production'/run/'consumer.json').read_text(encoding='utf-8'));self.assertEqual(len(consumer['moment_views']),1);self.assertNotIn('PRIVATE',json.dumps(consumer));self.assertEqual(consumer['world_views'],[])
+        run=self.setup_run();consumer=production.load_run(self.root,run)[2];self.assertEqual(len(consumer['moment_views']),1);self.assertNotIn('PRIVATE',json.dumps(consumer));self.assertEqual(consumer['world_views'],[])
     def test_source_change_invalidates_prepared_run(self):
         run=self.setup_run();fixture.write(self.root,'persona.md','changed persona')
-        with self.assertRaisesRegex(ValueError,'changed project input'):production.assert_current(self.root,run)
+        with self.assertRaisesRegex(ValueError,'SOURCE_CHANGED'):production.assert_current(self.root,run)
     def test_query_change_invalidates_prepared_run(self):
         run=self.setup_run();self.query['at']['story_order']=16;self.save()
-        with self.assertRaisesRegex(ValueError,'changed project input'):production.assert_current(self.root,run)
+        with self.assertRaisesRegex(ValueError,'SOURCE_CHANGED'):production.assert_current(self.root,run)
     def test_bundle_change_invalidates_prepared_run(self):
         run=self.setup_run();fixture.write(self.root,'bundle/report.json',{})
-        with self.assertRaisesRegex(ValueError,'changed project input'):production.assert_current(self.root,run)
+        with self.assertRaisesRegex(ValueError,'SOURCE_CHANGED'):production.assert_current(self.root,run)
     def test_generation_binding_carries_selected_moment(self):
         import production_binding
-        run=self.setup_run();binding=production_binding.create(self.root,run,'Follow the selected moment.')
-        production_binding.validate(binding,'Follow the selected moment.')
-        text=production_binding.effective(binding,'Follow the selected moment.', context_transport='prompt-prefix')
+        run=self.setup_run();binding=production_binding.create(self.root,run,'Follow the selected moment.\n')
+        production_binding.validate(binding,'Follow the selected moment.\n')
+        text=production_binding.effective(binding,'Follow the selected moment.\n', context_transport='prompt-prefix')
         self.assertIn('moment_views',text);self.assertIn('tense',text)
         self.assertIn('Keep the response concise',text);self.assertNotIn('PRIVATE',text)
-        production_binding.validate_live(self.root,run,{'production_binding':binding,'composition_prompt':'Follow the selected moment.'})
+        production_binding.validate_live(self.root,run,{'production_binding':binding,'composition_prompt':'Follow the selected moment.\n'})
 
     def test_failed_view_cannot_prepare(self):
         self.query['requirements'][0]['value']='unmet'
-        with self.assertRaisesRegex(ValueError,'satisfied field requirements'):self.setup_run()
+        with self.assertRaises(CompilationError) as caught:self.setup_run()
+        self.assertIn('satisfied field requirements',str(caught.exception.report))
+        self.assertEqual(production.store.runs(self.root),[])
     def test_unrelated_author_diagnostic_does_not_block_selected_view(self):
         self.query['requirements'].append({'requirement_id':'other','scene_context_id':None,'pointer':'/world/other','test':'present','purpose':'Unrelated author question'})
         self.assertTrue(self.setup_run())
@@ -285,7 +289,10 @@ class ProductionTests(MomentTests):
         fixture.write(self.root,'task.json',spec);original=sc.verify_output
         def mutate(*args,**kw):
             result=original(*args,**kw);fixture.write(self.root,'design.md','changed');return result
-        with patch.object(sc,'verify_output',side_effect=mutate),self.assertRaisesRegex(ValueError,'source changed during preparation'):production.prepare(self.root,'task.json')
+        with patch.object(sc,'verify_output',side_effect=mutate),self.assertRaises(CompilationError) as caught:
+            production.prepare(self.root,'task.json')
+        self.assertIn('source changed during preparation',str(caught.exception.report))
+        self.assertEqual(production.store.runs(self.root),[])
 
 
 def suite():

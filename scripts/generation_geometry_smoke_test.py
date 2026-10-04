@@ -13,6 +13,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+
 import generation_geometry as geometry  # noqa: E402
 
 EXPECTED_CHECKS = 32
@@ -106,12 +107,13 @@ def fixture_record(offerings: list[dict[str, Any]] | None = None) -> dict[str, A
     }
 
 
-def write_snapshot(pack: Path, relative: str, service: str, model_identifier: str, schema: dict[str, Any]) -> None:
+def write_snapshot(pack: Path, relative: str, service: str, model_identifier: str, schema: dict[str, Any],
+                   model_id: str = "fixture-model") -> None:
     (pack / relative).parent.mkdir(parents=True, exist_ok=True)
     (pack / relative).write_text(json.dumps({
-        "artifact_type": "observed-parameter-schema", "model_id": "fixture-model", "service": service,
+        "artifact_type": "observed-parameter-schema", "model_id": model_id, "service": service,
         "model_identifier": model_identifier, "observed_at": "2026-09-13",
-        "source": "the fixture service's model schema endpoint", "unenforced": [], "schema": schema,
+        "source": "the fixture service's model schema endpoint", "schema": schema,
     }), encoding="utf-8")
 
 
@@ -132,10 +134,13 @@ def runtime_pack(folder: Path) -> list[str]:
     record = {**models["records"][0], "id": "fixture-runtime-model", "aliases": ["fixture runtime model"],
               "offerings": [ratio_offering()], "size_hints": {"1:1": "1024x1024", "2:3": "832x1216", "16:9": "1360x768"}}
     manifest = initialize_pack(folder / "packs" / "fixture", name="Geometry Runtime Fixture")
-    write_snapshot(folder / "packs" / "fixture", RATIO_SNAPSHOT, "ratio", "vendor/fixture", RATIO_SCHEMA)
+    manifest["content"]["resource_globs"] = ["resources/**/*"]
+    atomic_write_json(folder / "packs" / "fixture" / "pack.json", manifest)
+    write_snapshot(folder / "packs" / "fixture", RATIO_SNAPSHOT, "ratio", "vendor/fixture", RATIO_SCHEMA,
+                   model_id="fixture-runtime-model")
     atomic_write_json(folder / "packs" / "fixture" / "records" / "models.json", {"kind": "model", "records": [record]})
     save_state(folder / "state.json", {"pack_roots": [str(folder / "packs")],
-                                        "enabled_packs": [manifest["pack_id"]], "resource_providers": {}})
+                                        "enabled_packs": [manifest["pack_id"]]})
     return ["--state-file", str(folder / "state.json"), "--cache-dir", str(folder / "cache"),
             "--managed-root", str(folder / "managed")]
 
@@ -176,7 +181,7 @@ def main() -> int:
         (pack / SNAPSHOT).write_text(json.dumps({
             "artifact_type": "observed-parameter-schema", "model_id": "fixture-model", "service": "svc",
             "model_identifier": "vendor:fixture@1", "observed_at": "2026-09-13",
-            "source": "the fixture service's model schema endpoint", "unenforced": [], "schema": SCHEMA,
+            "source": "the fixture service's model schema endpoint", "schema": SCHEMA,
         }), encoding="utf-8")
         offering = {"service": "svc", "model_identifier": "vendor:fixture@1", "request_keys": KEYS,
                     "constraints": {}, "observed_at": "2026-09-13", "schema_snapshot": SNAPSHOT}
@@ -192,7 +197,7 @@ def main() -> int:
         (pack / BUCKET_SNAPSHOT).write_text(json.dumps({
             "artifact_type": "observed-parameter-schema", "model_id": "fixture-model", "service": "buckets",
             "model_identifier": "vendor:fixture@1", "observed_at": "2026-09-13",
-            "source": "the fixture service's model schema endpoint", "unenforced": [], "schema": BUCKET_SCHEMA,
+            "source": "the fixture service's model schema endpoint", "schema": BUCKET_SCHEMA,
         }), encoding="utf-8")
         buckets = fixture_record([{"service": "buckets", "model_identifier": "vendor:fixture@1", "request_keys": KEYS,
                                    "constraints": {}, "observed_at": "2026-09-13", "schema_snapshot": BUCKET_SNAPSHOT}])

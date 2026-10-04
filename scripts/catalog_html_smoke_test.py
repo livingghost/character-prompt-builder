@@ -30,6 +30,7 @@ from catalog_html import (
 from pack_manager import PackError, atomic_write_json
 from validate_catalog_site import run as validate_site, search_thumbnail_region_ok
 
+
 PACK_ID = "018f0000-0000-7000-8000-000000000001"
 REPLACEMENT_PACK_ID = "018f0000-0000-7000-8000-000000000002"
 PNG_1X1 = base64.b64decode(
@@ -405,7 +406,7 @@ def run() -> dict[str, Any]:
                 and "search.html" in index_structure.hrefs
                 and "Never summarize this Ω outcome." not in index_text
                 and "Browse Visual Evidence" in index_text
-                and "Browse presets with Visual Evidence" in index_text
+                and "Browse records with Visual Evidence" in index_text
             ):
                 checks += 1
             else:
@@ -419,8 +420,8 @@ def run() -> dict[str, Any]:
             if (
                 search_structure.scripts == ["data/catalog-index.js", "assets/catalog.js"]
                 and search_structure.stylesheets == ["assets/catalog.css"]
-                and "Presets with linked Visual Evidence (1)" in search_text
-                and "Presets without linked Visual Evidence (1)" in search_text
+                and "Records with linked Visual Evidence (1)" in search_text
+                and "Records without linked Visual Evidence (1)" in search_text
                 and "Visual Evidence records (3)" in search_text
                 and ".result-card.has-thumbnail{grid-template-columns:minmax(0,1fr) minmax(112px,160px)}" in catalog_css
                 and ".result-copy{" in catalog_css
@@ -578,7 +579,7 @@ def run() -> dict[str, Any]:
             ):
                 checks += 1
             else:
-                errors.append("preset detail pages lost linked evidence or the direct unlinked-state message")
+                errors.append("record detail pages lost linked evidence or the direct unlinked-state message")
 
             scene_structure = StructureWithFeed(scene_text)
             resolved = [resolve_local(scene_page, value) for value in scene_structure.images]
@@ -593,7 +594,7 @@ def run() -> dict[str, Any]:
             if "fixture-canonical-scene" in asset_text and any("fixture-canonical-scene.html" in href for href in StructureWithFeed(asset_text).hrefs):
                 checks += 1
             else:
-                errors.append("asset detail lacks navigation to its canonical preset")
+                errors.append("asset detail lacks navigation to its canonical record")
 
             asset_map = json.loads((output / "data" / "record-asset-map.json").read_text(encoding="utf-8"))
             mapped = asset_map["records"][f"{PACK_ID}:fixture-canonical-scene"]
@@ -627,7 +628,7 @@ def run() -> dict[str, Any]:
             ):
                 checks += 1
             else:
-                errors.append("visual evidence gallery lacks thumbnails or preset navigation")
+                errors.append("visual evidence gallery lacks thumbnails or record navigation")
 
             linked_page = output / "linked-presets" / "index.html"
             linked_text = linked_page.read_text(encoding="utf-8")
@@ -635,13 +636,13 @@ def run() -> dict[str, Any]:
             if (
                 linked_text.count('<article class="gallery-card">') == 1
                 and "fixture-canonical-scene" in linked_text
-                and "Presets with linked Visual Evidence" in linked_text
+                and "Records with linked Visual Evidence" in linked_text
                 and linked_structure.images
                 and all(resolve_local(linked_page, src).is_file() for src in linked_structure.images)
             ):
                 checks += 1
             else:
-                errors.append("linked preset gallery lacks its preview thumbnail or preset link")
+                errors.append("linked record gallery lacks its preview thumbnail or record link")
 
             if "<script>fixture-injection</script>" not in scene_text and "&lt;script&gt;fixture-injection&lt;/script&gt;" in scene_text:
                 checks += 1
@@ -688,13 +689,13 @@ def run() -> dict[str, Any]:
                 errors.append("--pack-tree CLI failed to follow newly added packs")
 
             state = root / "state.json"
-            atomic_write_json(state, {"pack_roots": [str(pack_parent)], "enabled_packs": [PACK_ID], "resource_providers": {}})
+            atomic_write_json(state, {"pack_roots": [str(pack_parent)], "enabled_packs": [PACK_ID]})
             settings = root / "settings.json"
             atomic_write_json(settings, {"state_file": "state.json", "roots": ["packs"]})
             state_ok = [item.pack_id for item in load_explicit_state(state)] == [PACK_ID]
             settings_ok = [item.pack_id for item in load_explicit_settings(settings)] == [PACK_ID]
             replacement_state = root / "replacement-state.json"
-            atomic_write_json(replacement_state, {"pack_roots": [str(pack_parent)], "enabled_packs": [PACK_ID, REPLACEMENT_PACK_ID], "resource_providers": {}})
+            atomic_write_json(replacement_state, {"pack_roots": [str(pack_parent)], "enabled_packs": [PACK_ID, REPLACEMENT_PACK_ID]})
             replacement_views = load_explicit_state(replacement_state)
             replacement_output = root / "replacement-catalog"
             replacement_report = write_catalog_directory(replacement_views, replacement_output)

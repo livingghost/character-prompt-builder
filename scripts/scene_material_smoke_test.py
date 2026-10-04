@@ -394,9 +394,32 @@ class StudioSceneTests(unittest.TestCase):
         run = workflow.prepare(self.root, 'task.json')['run']
         package = Path(self.tmp.name) / 'package.json'
         package.write_bytes(c.encoded({'production_binding': production_binding.create(
-            self.root, run, 'One figure at the bench.')}))
-        result = Path(self.tmp.name) / 'result.png'
-        result.write_bytes(b'constructed image bytes')
+            self.root, run, 'One figure at the bench.\n')}))
+        # The Studio projection names an actual Production candidate and its
+        # review. This fixture exercises provenance, not artistic conformance.
+        from production_direction_smoke_test import png
+        result = self.root / 'result.png'
+        result.write_bytes(png())
+        fixture.handoff(self.root, run, 'synthetic author', 'manual')
+        candidate = workflow.capture(self.root, run, 'result.png',
+            'Locally constructed constant-field PNG; not an artwork-quality claim.')
+        reviewed = workflow.draft_review(self.root, run, candidate['sha256'])
+        reviewed.update(reviewer=fixture.ACTOR, observations=[{
+            'evidence': 'candidate',
+            'locator': {'kind': 'image-region', 'x': 0, 'y': 0, 'width': 1, 'height': 1},
+            'observation': 'The synthetic PNG decodes to a constant field.',
+            'interpretation': 'No additional scene-specific facts are depicted.',
+            'limitations': ['Synthetic scope/provenance check, not artwork acceptance.']}],
+            conclusion='Synthetic projection fixture only.')
+        reviewed['checks'][0].update(verdict='pass', observation_indices=[0],
+            reason='The constant field does not introduce any facts outside the prepared scope.')
+        (self.root / 'review.json').write_bytes(c.encoded(reviewed))
+        workflow.review(self.root, run, 'review.json')
+        # The Studio accepts only the run's current selection, so the fixture selects first.
+        chosen = workflow.draft_selection(self.root, run, candidate['sha256'])
+        chosen['reason'] = 'Synthetic projection fixture selection; not an artistic judgment.'
+        (self.root / 'selection.json').write_bytes(c.encoded(fixture.selection(self.root, run, chosen)))
+        workflow.select(self.root, run, 'selection.json')
         studio.add_character(self.root, 'C01', '')
         studio.iterate(self.root, 'C01', 'base.front', result, package=package, request=None, response=None,
                        note='Constructed iteration.')
@@ -404,7 +427,7 @@ class StudioSceneTests(unittest.TestCase):
         with (self.root / 'characters/C01/iterations.jsonl').open('a', encoding='utf-8', newline='\n') as log:
             log.write('{"damaged": \n')
         row = scene.impact(self.root)['scenes'][0]
-        self.assertEqual(row['runs'], [{'run': run, 'selection_recorded': False}])
+        self.assertEqual(row['runs'], [{'run': run, 'selection_recorded': True}])
         self.assertEqual(row['iterations'], [{'character': 'C01', 'slot': 'base.front', 'iteration_id': 'it-0001',
                                               'status': 'accepted', 'accepted': True}])
 

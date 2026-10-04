@@ -2,8 +2,8 @@
 """What every transport module defines, and the network rules every transport shares.
 
 A transport is the one module that knows a service's field names, hosts and
-answer shapes. The service record names it in `transport`: the value "runware"
-selects scripts/transport_runware.py. load() refuses a name that is not
+answer shapes. The service record names it in `transport`: the value "synthetic"
+selects scripts/transport_synthetic.py. load() refuses a name that is not
 lowercase letters, digits and underscores before it imports anything.
 
 A transport defines these names, and check() refuses a module that lacks one or
@@ -36,8 +36,17 @@ gives one the wrong type, naming each such name in one error:
     added_parameters(offering, seed, count) -> dict
         The seed and the count the dispatch adds, on this service's keys.
 
-    upload_bytes(data, media_type, service, key) -> str
-        Register one image through post() and return the id the request carries.
+    upload_bytes(data, media_type, service, key) -> dict
+        Register one image through post() and return exactly provider_id,
+        response (the actual provider JSON), and usage (null or a currency,
+        decimal-string amount and final boolean). Missing billing evidence is
+        unknown, never zero; a quoted ceiling is not an actual charge. A
+        service that answers and refuses the upload raises Refused with that
+        answer.
+
+    usage(answer) -> dict | None
+        The independently reported send charge, not an upload-plus-send total.
+        The same usage shape is used for each external effect.
 
     send(request, service, key) -> dict
         Perform the request through post() and return the answer as a JSON object.
@@ -51,6 +60,20 @@ gives one the wrong type, naming each such name in one error:
 
     observation_outcome(answer) -> str
         The outcome of an answer the service gave.
+
+A transport may also define these names; check() refuses one with the wrong type:
+
+    lookup(request, service, key) -> dict | None
+        Ask the service for the answer to a request that was sent and whose
+        answer was lost, by the identifiers the request itself carries. It
+        returns that answer in the shape send() returns, or None when the
+        service gives no answer for it. A transport without lookup cannot
+        reconcile a lost answer, and the outcome stays unknown.
+
+    CREDENTIAL_FREE
+        True for a transport that reaches no network and reads no credential.
+        execute and resume then read no key; every other transport gets the
+        key the service record's auth.env_var names.
 
 Every send has one of three outcomes:
 
@@ -107,10 +130,17 @@ NAMES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "compile_upscale": (callable, "a function"),
     "added_parameters": (callable, "a function"),
     "upload_bytes": (callable, "a function"),
+    "usage": (callable, "a function"),
     "send": (callable, "a function"),
     "rejections": (callable, "a function"),
     "results": (callable, "a function"),
     "observation_outcome": (callable, "a function"),
+}
+
+# Names a transport may define, with the same test and words.
+OPTIONAL: dict[str, tuple[Callable[[Any], bool], str]] = {
+    "lookup": (callable, "a function"),
+    "CREDENTIAL_FREE": (lambda value: type(value) is bool, "a boolean"),
 }
 
 
@@ -125,6 +155,9 @@ def check(module: Any) -> Any:
         if not hasattr(module, name):
             problems.append(f"{name} is missing")
         elif not passes(getattr(module, name)):
+            problems.append(f"{name} is not {kind}")
+    for name, (passes, kind) in OPTIONAL.items():
+        if hasattr(module, name) and not passes(getattr(module, name)):
             problems.append(f"{name} is not {kind}")
     if problems:
         label = getattr(module, "__name__", "the transport")
@@ -182,6 +215,48 @@ class Indeterminate(OSError):
         """What the run journal keeps: the reason, and the status and body of an answer that came."""
         return {"outcome": INDETERMINATE, "reason": self.reason, "http_status": self.status,
                 "body": None if self.body is None else self.body.decode("utf-8", "replace")}
+
+
+class Refused(ValueError):
+    """The service answered and refused the exchange, so nothing was made; the answer is kept."""
+
+    def __init__(self, reason: str, answer: Any) -> None:
+        super().__init__(reason)
+        self.reason, self.answer = reason, answer
+
+    def evidence(self) -> dict[str, Any]:
+        """What the run journal keeps: the outcome, the reason and the service's own answer."""
+        return {"outcome": REJECTED, "reason": self.reason, "answer": self.answer}
+
+
+def credential_free(transport: Any) -> bool:
+    """Whether the transport declares that it reaches no network and reads no credential."""
+    return getattr(transport, "CREDENTIAL_FREE", False) is True
+
+
+def lookup_once(transport: Any, request: dict[str, Any], service: dict[str, Any], key: str) -> dict[str, Any]:
+    """Ask the service once for the lost answer to a sent request, and say what the asking found.
+
+    The result is {"outcome", "answer", "reason"}. The outcome is "found" with the
+    service's answer, "no-answer" when the service gave none, "unavailable" when
+    the exchange ended without an answer, and "unsupported" for a transport
+    without lookup. Only "found" carries an answer.
+    """
+    if not callable(getattr(transport, "lookup", None)):
+        return {"outcome": "unsupported", "answer": None,
+                "reason": "The transport defines no lookup, so a lost answer cannot be asked for again."}
+    try:
+        answer = transport.lookup(request, service, key)
+    except Indeterminate as unknown:
+        return {"outcome": "unavailable", "answer": None, "reason": unknown.reason}
+    except (OSError, http.client.HTTPException) as exc:
+        return {"outcome": "unavailable", "answer": None,
+                "reason": _failure(exc, environment_seconds(TIMEOUT)).reason}
+    if answer is None:
+        return {"outcome": "no-answer", "answer": None, "reason": "The service gave no answer for this request."}
+    if not isinstance(answer, dict):
+        raise ValueError("the transport's lookup returned something other than a JSON object or None")
+    return {"outcome": "found", "answer": answer, "reason": None}
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

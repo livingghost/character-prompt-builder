@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read a candidate recipe from synthetic local recording evidence."""
+"""Read an iteration recipe from synthetic local recording evidence."""
 from __future__ import annotations
 import argparse
 import json
@@ -33,14 +33,18 @@ def build() -> dict:
         row = studio.iterate(root, 'subject-a', 'base.front', parent / 'result.bin', package=None,
             request=parent / 'request.json', response=parent / 'response.json', note='Synthetic local fixture.',
             layout=layout)
-        before = {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+        def recorded():
+            # The command's own operation log goes under logs/; the recorded studio is everything else.
+            return {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob('*')
+                    if p.is_file() and p.relative_to(root).parts[0] != 'logs'}
+        before = recorded()
         command = [sys.executable, str(ROOT / 'scripts/studio.py'), '--studio', str(root), 'recipe',
                    '--character', 'subject-a', '--slot', 'base.front', '--iteration', row['iteration_id']]
         response = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False, timeout=environment_seconds("EXAMPLE_COMMAND_TIMEOUT_SECONDS"))
         if response.returncode:
             raise ValueError(response.stdout + response.stderr)
         result = json.loads(response.stdout)
-        after = {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+        after = recorded()
         if before != after:
             raise ValueError('Recipe inspection changed the synthetic studio.')
         return {'synthetic': True, 'source_status': result['source_status'], 'slot': result['slot'],

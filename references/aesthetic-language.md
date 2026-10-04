@@ -4,7 +4,7 @@ This document defines how Character Prompt Builder stores and applies visual tas
 
 The first aesthetic dataset was extracted from the reference images supplied during development. Those references were rich in anthropomorphic character art, so they contributed valuable knowledge about silhouette, performance, body mass, graphic surface grouping, clothing tension, viewer relationship, and illustrated lighting. The architecture does not treat those references as the boundary of the skill. It separates cross-domain visual judgment from domain-specific realization so future human, animal, creature, hybrid, and robot material can extend the system cleanly.
 
-Source characters, signatures, logos, text, franchise identifiers, and one-off decoration are not preserved. The library stores reusable visual production knowledge for original work.
+Source characters, signatures, logos, text, franchise identifiers, and one-off decoration are not preserved. Packs store reusable visual production knowledge for original work.
 
 ## Art direction already contains aesthetic judgment
 
@@ -19,7 +19,7 @@ Aesthetic judgment is not an optional stage added after an otherwise complete di
 - color and lighting logic
 - detail and finish hierarchy
 
-The preset library supports those decisions after the direction exists. It does not create an aesthetic direction by itself.
+Pack records support those decisions after the direction exists. They do not create an aesthetic direction by themselves.
 
 ## Four-layer production-knowledge architecture
 
@@ -68,7 +68,7 @@ enabled style-family records
 
 A concrete style family is the bridge between a broad rendering medium and subject realization. It stores one indivisible finish language: outer-to-inner line hierarchy, form abstraction, hard and soft value behavior, highlight placement, color logic, surface grouping, background treatment, detail hierarchy, and a realization overlay for every supported subject domain.
 
-Select zero or one family after the art direction is chosen. The family is the primary positive drawing grammar. Its `base_render_profile_id` identifies the compatible medium envelope and scoped negative boundary. Do not concatenate the complete family grammar with the complete rendering-profile grammar.
+Select zero or one family after the art direction is chosen. The family is the primary positive drawing grammar. Its `base_render_profile_id` identifies the compatible medium envelope and scoped negative boundary. Do not concatenate the complete family grammar with the complete render-profile grammar.
 
 The current curated families are:
 
@@ -93,7 +93,7 @@ The current curated families are:
 - gilded cyan-sigil gothic cel
 - hard-specular gloss cel
 
-Aesthetic-touch modules may refine one local decision only when the selected family's `touch_policy` remains satisfied. The evidence method is defined in the [Reference-Derived Style-Family Evidence Contract](maintenance/presets.md#reference-derived-style-family-evidence-contract); concrete family notes belong to `cpb-resource:reference-derived-style-families` resolved from the explicitly selected provider. When image references are supported, `style_reference_guidance` assigns the reference to line, form, shadow, color, surface, and finish language while the brief retains authority over identity and scene.
+Aesthetic-touch modules may refine one local decision only when the selected family's `touch_policy` remains satisfied. The evidence method is defined in the [Reference-Derived Style-Family Evidence Contract](maintenance/presets.md#reference-derived-style-family-evidence-contract); concrete family notes belong to `cpb-resource:reference-derived-style-families`. When image references are supported, `style_reference_guidance` assigns the reference to line, form, shadow, color, surface, and finish language while the brief retains authority over identity and scene.
 
 ### 3. Domain realization
 
@@ -135,29 +135,17 @@ Examples:
 
 Use the baseline domain realization matching the subject unless a more specific curated realization offers relevant production knowledge. A scene with materially different subject domains may use one realization for each represented domain. Baseline versus specialized is a record-level realization tier, never a content-pack boundary.
 
-### 4. Rendering profile
+### 4. Render profile
 
 Catalog source:
 
 ```text
-enabled profile records
+enabled render profile records
 ```
 
-A rendering profile defines the mechanics of one medium:
+A [render profile](preset-system-contract.md#render-profile) defines the mechanics of one medium. Examples include clean anime cel illustration, flat cartoon, cinematic soft-cel art, concept-sheet rendering, painterly illustration, photography, and 3D character rendering.
 
-- linework
-- shape language
-- value structure
-- color behavior
-- surface rendering
-- light response
-- background policy
-- detail hierarchy
-- medium-drift boundaries
-
-Examples include clean anime cel illustration, flat cartoon, cinematic soft-cel art, concept-sheet rendering, painterly illustration, photography, and 3D character rendering.
-
-A rendering profile does not determine the subject's appeal or anatomy. Select at most one compatible profile. A mixed medium is a separate art direction rather than the average of several profiles.
+A render profile does not determine the subject's appeal or anatomy. Select at most one compatible render profile. A mixed medium is a separate art direction rather than an average of render profiles.
 
 ## Atomic aesthetic touches
 
@@ -189,7 +177,7 @@ user brief
 → optional universal aesthetic core
 → optional concrete style family
 → matching domain realization and family overlay
-→ linked or directly selected rendering profile
+→ linked or directly selected render profile
 → relevant atomic modules and corrections
 → final prompt
 ```
@@ -251,11 +239,11 @@ Specialized realizations may extend the baseline domain record, for example huma
 - the decision has a clear visual function, adaptation invariants, and nearby misreadings
 - the complete system does not require a new core or realization
 
-### Add a rendering profile when
+### Add a render profile when
 
 - the recurring knowledge is medium mechanics
 - line, value, surface, light, background, and detail operate as one coherent grammar
-- the profile remains independent of a particular identity or scene
+- the render profile remains independent of a particular identity or scene
 
 ### Add a scene when
 
@@ -265,11 +253,11 @@ Specialized realizations may extend the baseline domain record, for example huma
 
 The architecture is broad; the depth of knowledge varies by domain. The original reference set gives anthropomorphic character art unusually strong coverage. Human, ordinary-animal, creature, hybrid, and robot domains have explicit baseline realizations and domain-specific atomic touches, but future curated material should continue to deepen them.
 
-Do not claim equal artistic coverage merely because every domain has a record. Coverage should be evaluated by whether the library provides concrete, reusable production knowledge for diverse briefs and whether generated prompts and images improve in comparison with unaided art direction.
+Do not claim equal artistic coverage merely because every domain has a record. Coverage should be evaluated by whether the packs provide concrete, reusable production knowledge for diverse briefs and whether generated prompts and images improve in comparison with unaided art direction.
 
 ## Style grammar and material identity
 
-A style family or rendering profile defines **how** a surface is drawn: line economy, value grouping, highlight budget, clump abstraction. It does not decide **what** each surface is. Fur length and dampness, guard hairs, pad construction, fabric weave, skin condition, and moisture come from the brief plus the `animal-surface`, `material`, `skin-detail`, and `effect` atomic categories. Reading a family's `surface_system` as a material specification leaves the prompt without material identity; querying only staging categories leaves the same gap. Keep the two layers separate, and keep the total wording spent on material behavior proportional to the family's own guidance so a single family term such as smooth torso planes is reinforced by the material text around it (see Representation grammar in `references/runtime/prompt-composition.md`).
+A style family or render profile defines **how** a surface is drawn: line economy, value grouping, highlight budget, clump abstraction. It does not decide **what** each surface is. Fur length and dampness, guard hairs, pad construction, fabric weave, skin condition, and moisture come from the brief plus the `animal-surface`, `material`, `skin-detail`, and `effect` atomic categories. Reading a family's `surface_system` as a material specification leaves the prompt without material identity; querying only staging categories leaves the same gap. Keep the two layers separate, and keep the total wording spent on material behavior proportional to the family's own guidance so a single family term such as smooth torso planes is reinforced by the material text around it (see Representation grammar in `references/runtime/prompt-composition.md`).
 
 ## Distinctive detail boundary
 

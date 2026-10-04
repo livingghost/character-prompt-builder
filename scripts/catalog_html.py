@@ -7,6 +7,7 @@ to resources declared by validated packs and resolved beneath their roots.
 The generator does not normalize, rank, rewrite, merge, or summarize records.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -415,7 +416,6 @@ def _active_pack_views(
             managed_root=temporary_root / "managed",
             quarantine_root=temporary_root / "quarantine",
             default_enabled_packs=settings.default_enabled_packs,
-            default_resource_providers=settings.default_resource_providers,
         )
         runtime = load_runtime_catalog(runtime_settings)
         # sqlite3 may retain completed cursor objects until cyclic collection;
@@ -486,7 +486,6 @@ def _explicit_settings(
     roots: Sequence[Path],
     *,
     default_enabled_packs: Sequence[str] = (),
-    default_resource_providers: Mapping[str, str] | None = None,
 ) -> PackSettings:
     """Construct read-only settings without invoking platform defaults."""
 
@@ -499,12 +498,6 @@ def _explicit_settings(
         managed_root=base / ".catalog-html-unused-managed",
         quarantine_root=base / ".catalog-html-unused-quarantine",
         default_enabled_packs=tuple(str(value) for value in default_enabled_packs),
-        default_resource_providers=tuple(
-            sorted(
-                (str(name), str(pack_id))
-                for name, pack_id in (default_resource_providers or {}).items()
-            )
-        ),
     )
 
 
@@ -545,8 +538,8 @@ def load_explicit_settings(
 ) -> list[InspectedPack]:
     """Load enabled packs from a fully explicit inspector settings document.
 
-    The JSON object requires ``state_file`` and may provide ``roots``,
-    ``default_enabled_packs``, and ``default_resource_providers``. Relative
+    The JSON object requires ``state_file`` and may provide ``roots`` and
+    ``default_enabled_packs``. Relative
     paths are based on the settings file. Runtime cache and platform-default
     paths are intentionally not consulted. A missing state file is permitted
     only when the explicit defaults select at least one pack.
@@ -567,7 +560,6 @@ def load_explicit_settings(
             "state_file",
             "roots",
             "default_enabled_packs",
-            "default_resource_providers",
         }
     )
     if unexpected:
@@ -581,29 +573,12 @@ def load_explicit_settings(
     defaults = raw.get("default_enabled_packs") or []
     if not isinstance(defaults, list) or any(not isinstance(value, str) for value in defaults):
         raise PackError("Explicit settings field 'default_enabled_packs' must be an array of IDs.")
-    provider_defaults = raw.get("default_resource_providers") or {}
-    if not isinstance(provider_defaults, Mapping) or any(
-        not isinstance(name, str) or not isinstance(pack_id, str)
-        for name, pack_id in provider_defaults.items()
-    ):
-        raise PackError(
-            "Explicit settings field 'default_resource_providers' must map resource names to pack IDs."
-        )
-    state = load_state(
-        state_file,
-        default_enabled_packs=defaults,
-        default_resource_providers=provider_defaults,
-    )
+    state = load_state(state_file, default_enabled_packs=defaults)
     if not state.get("enabled_packs"):
         raise PackError(f"Explicit settings resolve to no enabled packs: {settings_file}")
     if not roots and not state.get("pack_roots"):
         raise PackError("Explicit settings and state provide no pack roots.")
-    settings = _explicit_settings(
-        state_file,
-        roots,
-        default_enabled_packs=defaults,
-        default_resource_providers=provider_defaults,
-    )
+    settings = _explicit_settings(state_file, roots, default_enabled_packs=defaults)
     selected: list[DiscoveredPack] = resolve_enabled(settings, state)
     return _active_pack_views(settings, selected, require_lock=require_lock)
 
@@ -1138,7 +1113,7 @@ def _record_link_list(
     limit: int = 12,
 ) -> str:
     if not records:
-        return '<span class="muted">No linked presets.</span>'
+        return '<span class="muted">No linked records.</span>'
     links = []
     for target in records[:limit]:
         label = str(target.record.get("label") or target.record_id)
@@ -1161,7 +1136,7 @@ def _record_link_list(
             + '</span></li>'
         )
     suffix = (
-        '<li class="muted">+' + str(len(records) - limit) + ' additional linked presets</li>'
+        '<li class="muted">+' + str(len(records) - limit) + ' additional linked records</li>'
         if len(records) > limit
         else ''
     )
@@ -1313,7 +1288,7 @@ def _visual_evidence_gallery_pages(
                     copy_assets=copy_assets,
                     copied=copied,
                 )
-                + '<h3>Linked presets ('
+                + '<h3>Linked records ('
                 + str(len(linked_records))
                 + ')</h3>'
                 + _record_link_list(
@@ -1332,7 +1307,7 @@ def _visual_evidence_gallery_pages(
             + '">Catalog home</a><a href="'
             + _escape(search_href)
             + '">Search records</a></nav><h1>Visual Evidence gallery</h1>'
-            + '<p class="summary">Browse Visual Evidence by preview thumbnail, then open the Visual Evidence record or a linked preset. '
+            + '<p class="summary">Browse Visual Evidence by preview thumbnail, then open the Visual Evidence record or a linked record. '
             + str(len(assets))
             + ' Visual Evidence records are split into pages of at most '
             + str(page_size)
@@ -1445,10 +1420,10 @@ def _linked_preset_gallery_pages(
             + _escape(home_href)
             + '">Catalog home</a><a href="'
             + _escape(visual_href)
-            + '">Visual Evidence gallery</a></nav><h1>Presets with linked Visual Evidence</h1>'
-            + '<p class="summary">Browse canonical presets by a preview thumbnail from their linked Visual Evidence. '
+            + '">Visual Evidence gallery</a></nav><h1>Records with linked Visual Evidence</h1>'
+            + '<p class="summary">Browse canonical records by a preview thumbnail from their linked Visual Evidence. '
             + str(len(linked_records))
-            + ' presets are split into pages of at most '
+            + ' records are split into pages of at most '
             + str(page_size)
             + ' thumbnails.</p></header><main class="gallery-page">'
             + _pagination_links(
@@ -1472,7 +1447,7 @@ def _linked_preset_gallery_pages(
         )
         css_href = _relative_href(output_root / "assets" / "catalog.css", from_directory=page_path.parent)
         page_path.write_text(
-            _html_shell("Presets with linked Visual Evidence", css_href=css_href, body=body),
+            _html_shell("Records with linked Visual Evidence", css_href=css_href, body=body),
             encoding="utf-8",
             newline="\n",
         )
@@ -1797,7 +1772,7 @@ def _render_record_page(
         + _escape(visual_href)
         + '">Visual Evidence</a><a href="'
         + _escape(linked_presets_href)
-        + '">Linked presets</a><a href="'
+        + '">Linked records</a><a href="'
         + _escape(pack_href)
         + '">Pack manifest</a></nav><p class="eyebrow">'
         + _escape(view.source.kind)
@@ -2039,22 +2014,22 @@ def _home_html(
     body = (
         '<header class="page"><h1>'
         + _escape(title)
-        + '</h1><p class="summary">A direct-open landing page. Choose a visual gallery, linked preset gallery, text search, pack, or record kind without knowing internal IDs first.</p>'
+        + '</h1><p class="summary">A direct-open landing page. Choose a visual gallery, linked record gallery, text search, pack, or record kind without knowing internal IDs first.</p>'
         + '<p class="muted">Validated packs: '
         + str(len(packs))
         + ' | Records: '
         + str(record_count)
         + ' | Visual Evidence records: '
         + str(asset_count)
-        + ' | Presets with linked Visual Evidence: '
+        + ' | Records with linked Visual Evidence: '
         + str(linked_record_count)
         + '</p></header><main><section class="home-grid">'
         + '<a class="home-card" href="visual-evidence/index.html"><span class="home-count">'
         + str(asset_count)
-        + '</span><h2>Browse Visual Evidence</h2><p>Start with preview thumbnails, then open a Visual Evidence record or linked preset.</p></a>'
+        + '</span><h2>Browse Visual Evidence</h2><p>Start with preview thumbnails, then open a Visual Evidence record or linked record.</p></a>'
         + '<a class="home-card" href="linked-presets/index.html"><span class="home-count">'
         + str(linked_record_count)
-        + '</span><h2>Browse presets with Visual Evidence</h2><p>Preset-first browsing with thumbnails from linked Visual Evidence.</p></a>'
+        + '</span><h2>Browse records with Visual Evidence</h2><p>Record-first browsing with thumbnails from linked Visual Evidence.</p></a>'
         + '<a class="home-card" href="search.html"><span class="home-count">'
         + str(record_count)
         + '</span><h2>Search all records</h2><p>Search labels, tags, families, packs, linked Visual Evidence descriptions, and IDs.</p></a>'
@@ -2080,7 +2055,7 @@ def _search_html(
 ) -> str:
     body = f"""
 <header class="page">
-  <nav class="top-links"><a href="index.html">Catalog home</a><a href="visual-evidence/index.html">Visual Evidence gallery</a><a href="linked-presets/index.html">Linked preset gallery</a></nav>
+  <nav class="top-links"><a href="index.html">Catalog home</a><a href="visual-evidence/index.html">Visual Evidence gallery</a><a href="linked-presets/index.html">Linked record gallery</a></nav>
   <h1>{_escape(title)} search</h1>
   <p class="summary">Compact text search. Only the current page of at most 60 cards is rendered; linked records show preview thumbnails from their Visual Evidence.</p>
 </header>
@@ -2088,13 +2063,13 @@ def _search_html(
   <label>Search<input id="filter-query" type="search" placeholder="Description, label, tag, domain, family, or ID"></label>
   <label>Pack<select id="filter-pack"><option value="">All packs</option></select></label>
   <label>Kind<select id="filter-kind"><option value="">All kinds</option></select></label>
-  <label>Visual Evidence<select id="filter-assets"><option value="">All records ({record_count})</option><option value="with">Presets with linked Visual Evidence ({linked_record_count})</option><option value="without">Presets without linked Visual Evidence ({record_count - linked_record_count - asset_count})</option><option value="evidence">Visual Evidence records ({asset_count})</option><option value="multiple">Presets with multiple Visual Evidence records ({multiple_link_count})</option></select></label>
+  <label>Visual Evidence<select id="filter-assets"><option value="">All records ({record_count})</option><option value="with">Records with linked Visual Evidence ({linked_record_count})</option><option value="without">Records without linked Visual Evidence ({record_count - linked_record_count - asset_count})</option><option value="evidence">Visual Evidence records ({asset_count})</option><option value="multiple">Records with multiple Visual Evidence records ({multiple_link_count})</option></select></label>
 </section>
 <main class="content">
   <p id="result-count" aria-live="polite"></p>
   <section id="results" class="results"></section>
   <nav class="pagination"><button id="prev-page" type="button">Previous</button><span id="page-text"></span><button id="next-page" type="button">Next</button></nav>
-  <noscript><p class="notice">JavaScript is required for text filtering. The Visual Evidence and linked preset galleries remain ordinary paginated HTML.</p></noscript>
+  <noscript><p class="notice">JavaScript is required for text filtering. The Visual Evidence and linked record galleries remain ordinary paginated HTML.</p></noscript>
 </main>
 <script src="data/catalog-index.js"></script>
 <script src="assets/catalog.js"></script>
@@ -2435,7 +2410,7 @@ def write_catalog_directory(
     }
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _operation_context.ArgumentParser(
         description=(
             "Generate a split catalog with a small direct-open index.html, "
             "separate record pages, an explicit record-to-asset map, and linked Visual Evidence previews."
@@ -2467,7 +2442,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help=(
             "Explicit inspector-settings JSON with state_file, optional roots, and "
-            "optional default pack/provider selections."
+            "optional default enabled packs."
         ),
     )
     parser.add_argument(
@@ -2544,4 +2519,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

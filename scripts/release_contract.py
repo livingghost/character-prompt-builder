@@ -5,6 +5,7 @@ This module concerns the product release only. Scene/state/protocol artifacts
 continue to identify their content without independent release counters.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 from datetime import date
@@ -170,7 +171,7 @@ def check(root: Path, tag: str | None = None) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path)
     parser.add_argument("--tag", help="Publication tag to compare with the declared CalVer")
     args = parser.parse_args()
@@ -185,4 +186,4 @@ def main() -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

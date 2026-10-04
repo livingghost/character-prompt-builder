@@ -3,8 +3,8 @@
 
     python scripts/authorial_intent_smoke_test.py
 
-Synthetic current records only. No archived formats, migration, version-pair
-comparisons, live services, creator approval or artistic scoring are exercised.
+Synthetic records only. No live services, creator approval or artistic scoring
+are exercised.
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ import narrative_entity
 import narrative_index
 import narrative_init
 import persona_expression_audit
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -483,8 +484,7 @@ class CurrentAuthoringTests(unittest.TestCase):
     def test_script_is_routed_and_current_test_is_registered(self):
         text=(ROOT/'references/narrative-authoring.md').read_text(encoding='utf-8')
         self.assertIn('scripts/authorial_intent_audit.py',text)
-        for path in ('CONTRIBUTING.md','references/release/validation.md','.github/workflows/ci.yml'):
-            self.assertIn('scripts/authorial_intent_smoke_test.py',(ROOT/path).read_text(encoding='utf-8'))
+        self.assertIn('scripts/authorial_intent_smoke_test.py',(ROOT/'CONTRIBUTING.md').read_text(encoding='utf-8'))
 
 
 if __name__=='__main__':

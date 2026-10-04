@@ -5,6 +5,7 @@ python scripts/reference_delivery.py --prepared-set FILE [--package-root DIRECTO
 This does not select references, infer identity, inspect images or grant authority.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse
 import json
 from pathlib import Path
@@ -78,7 +79,7 @@ def instructions(mode: str, references: Sequence[Mapping[str, Any]],
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument('--prepared-set', type=Path, required=True)
     parser.add_argument('--package-root', type=Path)
     args = parser.parse_args()
@@ -99,4 +100,4 @@ def main() -> int:
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

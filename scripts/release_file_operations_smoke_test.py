@@ -43,6 +43,7 @@ from package_metadata import (
 )
 from rebuild_metadata import build_catalog_document
 
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -792,50 +793,48 @@ def main() -> int:
         except ValueError:
             checks += 1
 
-        main_failure_root = root / "main-extracted-validation-failure"
+        main_failure_root = root / "main-installed-check-failure"
         main_failure_archive = main_failure_root / metadata.release_artifact_name
         main_failure_sha = main_failure_archive.with_suffix(
             main_failure_archive.suffix + ".sha256"
         )
         main_failure_reports = main_failure_root / "reports"
         main_failure_stage = main_failure_root / "retained-stage"
-        injected_extracted_validation_error = RuntimeError(
-            "injected extracted candidate validation failure"
-        )
-        validation_prefixes: list[str] = []
+        injected_installed_failure = RuntimeError("injected installed check failure")
+        observed_steps: list[str] = []
 
-        def fail_extracted_candidate_validation(
+        def pass_stage_validation(
             stage_root: Path,
             reports_dir: Path,
-            prefix: str,
             runtime_root: Path,
             *,
-            expected_contract: dict[str, object] | None = None,
-        ) -> tuple[dict[str, object], dict[str, object]]:
+            strict_release_tree: bool = True,
+        ) -> dict[str, object]:
+            del reports_dir, runtime_root, strict_release_tree
+            observed_steps.append("validate_stage")
+            if not (stage_root / "SKILL.md").is_file():
+                raise AssertionError("staged candidate tree is absent")
+            return {"ok": True, "files": 1}
+
+        def fail_installed_check(
+            extracted_root: Path,
+            stage_hashes: dict[str, str],
+            reports_dir: Path,
+            runtime_root: Path,
+        ) -> dict[str, object]:
             del reports_dir, runtime_root
-            validation_prefixes.append(prefix)
-            if prefix == "staged":
-                if expected_contract is not None:
-                    raise AssertionError(
-                        "staged validation unexpectedly received an extracted contract"
-                    )
-                return {}, {"fixture": "staged-contract"}
-            if prefix == "extracted":
-                if expected_contract != {"fixture": "staged-contract"}:
-                    raise AssertionError(
-                        "extracted validation did not receive the staged contract"
-                    )
-                if not stage_root.is_dir():
-                    raise AssertionError("extracted candidate tree is absent")
-                raise injected_extracted_validation_error
-            raise AssertionError(f"unexpected validation prefix: {prefix}")
+            observed_steps.append("check_installed")
+            if not (extracted_root / "SKILL.md").is_file() or "SKILL.md" not in stage_hashes:
+                raise AssertionError("extracted candidate tree is absent")
+            raise injected_installed_failure
 
         try:
             with (
                 mock.patch.object(
-                    package_module,
-                    "validate_stage",
-                    side_effect=fail_extracted_candidate_validation,
+                    package_module, "validate_stage", side_effect=pass_stage_validation
+                ),
+                mock.patch.object(
+                    package_module, "check_installed", side_effect=fail_installed_check
                 ),
                 mock.patch.object(package_module, "progress"),
             ):
@@ -851,7 +850,7 @@ def main() -> int:
                         str(main_failure_stage),
                     ]
                 )
-            errors.append("package.main accepted failed extracted validation")
+            errors.append("package.main accepted a failed installed check")
         except RuntimeError as exc:
             leaked_attempts = (
                 list(
@@ -869,19 +868,125 @@ def main() -> int:
                 main_failure_stage,
             )
             if (
-                exc is injected_extracted_validation_error
-                and validation_prefixes == ["staged", "extracted"]
+                exc is injected_installed_failure
+                and observed_steps == ["validate_stage", "check_installed"]
                 and not any(path.exists() or path.is_symlink() for path in final_targets)
                 and not leaked_attempts
             ):
                 checks += 1
             else:
                 errors.append(
-                    "failed extracted validation did not remain fully unpublished: "
-                    f"error={exc!r}, prefixes={validation_prefixes}, "
+                    "a failed installed check did not remain fully unpublished: "
+                    f"error={exc!r}, steps={observed_steps}, "
                     f"existing={[str(path) for path in final_targets if path.exists() or path.is_symlink()]}, "
                     f"attempts={[str(path) for path in leaked_attempts]}"
                 )
+
+        # The extracted check compares the extracted inventory with the stage,
+        # then runs the installed smoke from the extracted copy.
+        installed_stage = root / "installed-check" / "stage"
+        for relative, text in (
+            ("packs/commons/pack.json", '{"pack_id": "fixture-commons"}\n'),
+            ("config/default-pack-state.json", "{}\n"),
+            ("examples/generation/build_example.py", "# synthetic fixture\n"),
+            ("scripts/session_entry_points.py", "# synthetic fixture\n"),
+        ):
+            (installed_stage / relative).parent.mkdir(parents=True, exist_ok=True)
+            (installed_stage / relative).write_text(text, encoding="utf-8", newline="\n")
+        installed_hashes = package_module.tree_file_hashes(installed_stage)
+        smoke_calls: list[tuple[list[str], Path]] = []
+        prepare_studio = root / "installed-check" / "generation" / "studio"
+
+        def fake_smoke_run(command, **kwargs):
+            argv = [str(part) for part in command]
+            smoke_calls.append((argv, Path(kwargs["cwd"])))
+            stdout = ""
+            if argv[1].endswith("build_example.py"):
+                stdout = json.dumps({
+                    "task": str(prepare_studio / "task.json"),
+                    "prepare_argv": [argv[0], "scripts/production_workflow.py", "prepare"],
+                })
+            returncode = 1 if fail_label and fail_label in argv[1] else 0
+            return subprocess.CompletedProcess(argv, returncode, stdout, "")
+
+        fail_label = ""
+        differing = root / "installed-check" / "differing"
+        _copy_tree_writable(installed_stage, differing)
+        (differing / "unexpected.txt").write_text("extra\n", encoding="utf-8")
+        differing_reports = root / "installed-check" / "differing-reports"
+        with mock.patch.object(package_module.subprocess, "run", side_effect=fake_smoke_run):
+            try:
+                package_module.check_installed(
+                    differing,
+                    installed_hashes,
+                    differing_reports,
+                    root / "installed-check" / "differing-runtime",
+                )
+                errors.append("the extracted check accepted a differing inventory")
+            except RuntimeError:
+                tree_report = json.loads(
+                    (differing_reports / "stage-extracted-tree-check.json").read_text(encoding="utf-8")
+                )
+                if tree_report["unexpected_in_extracted"] == ["unexpected.txt"] and not smoke_calls:
+                    checks += 1
+                else:
+                    errors.append(
+                        "the extracted check misreported a differing inventory or ran the smoke: "
+                        f"{tree_report}, calls={smoke_calls}"
+                    )
+
+        matching = root / "installed-check" / "matching"
+        _copy_tree_writable(installed_stage, matching)
+        matching_reports = root / "installed-check" / "matching-reports"
+        with mock.patch.object(package_module.subprocess, "run", side_effect=fake_smoke_run):
+            installed = package_module.check_installed(
+                matching,
+                installed_hashes,
+                matching_reports,
+                root / "installed-check" / "matching-runtime",
+            )
+        ran = [argv[1:] for argv, _ in smoke_calls]
+        expected_heads = [
+            ["scripts/pack_cli.py"],
+            ["scripts/production_workflow.py", "--help"],
+            ["scripts/session_entry_points.py"],
+            ["examples/generation/build_example.py", "--out"],
+            ["scripts/production_workflow.py", "prepare"],
+        ]
+        smoke_report = json.loads(
+            (matching_reports / "installed-smoke.json").read_text(encoding="utf-8")
+        )
+        if (
+            len(ran) == len(expected_heads)
+            and all(argv[: len(head)] == head for argv, head in zip(ran, expected_heads))
+            and ran[0][-3:] == ["ready", "--only", "fixture-commons"]
+            and smoke_calls[2][1] == matching
+            and smoke_calls[4][1] == prepare_studio
+            and smoke_report["ok"] is True
+            and installed["installed_smoke_read_only"] is True
+        ):
+            checks += 1
+        else:
+            errors.append(f"the installed smoke ran other commands: {ran}, report={smoke_report}")
+
+        smoke_calls.clear()
+        fail_label = "session_entry_points.py"
+        failing = root / "installed-check" / "failing"
+        _copy_tree_writable(installed_stage, failing)
+        with mock.patch.object(package_module.subprocess, "run", side_effect=fake_smoke_run):
+            try:
+                package_module.check_installed(
+                    failing,
+                    installed_hashes,
+                    root / "installed-check" / "failing-reports",
+                    root / "installed-check" / "failing-runtime",
+                )
+                errors.append("the extracted check accepted a failed installed command")
+            except RuntimeError as exc:
+                if "session entry" in str(exc):
+                    checks += 1
+                else:
+                    errors.append(f"a failed installed command was misreported: {exc}")
 
         publication = root / "publication"
         candidate = publication / "candidate"

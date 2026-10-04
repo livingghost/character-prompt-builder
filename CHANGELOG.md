@@ -1,5 +1,54 @@
 # Changelog
 
+## 2026.10.04.1
+
+- One public path runs an image task: `check`, `prepare`, `draft-execution`, `execute`, `resume`, `variant`, `repeat`, `retarget`, `status` and `logs`. `SKILL.md`, the routes, `--help` and the examples show the same command forms.
+- `check` and `prepare` share one compiler. `check` reports every check, the request preview and the execution plan, and creates no run, authorization or reservation.
+- `prepare` compiles in a staging directory and publishes the run in one step. `recover-publication` registers an interrupted publication. `staging-cleanup` lists compiler leftovers with their eligibility, and `--operation ID --apply` removes one ended operation's eligible items.
+- A JSON input option of the production commands, the package builders and the dispatcher takes a file or `-` for stdin. The run keeps the bytes it read. `--task` and `--artifact` take files only.
+- File arguments are relative to `--root` with `/` separators, or absolute inside the project. The production commands, package builders, verifier and dispatcher refuse an existing `--out` and keep it.
+- Every command reports a failure as common diagnostics with a code, severity, phase, file, pointer, message and required action. A synthetic example: `{"ok": false, "diagnostics": [{"code": "OUTPUT_ALREADY_EXISTS", "severity": "error", "phase": "output", "file": "exported-logs", "pointer": null, "message": "--out names an existing file, which is kept: exported-logs", "required_action": "Choose a new --out.", "blocked_checks": [], "option": "--out"}]}`.
+- The production commands, the package builder and verifier, and the dispatcher share one set of exit codes. 0 is success and 1 an internal error. 2 is an input defect and 3 waits for permission or configuration. 4 is an execution failure or unknown outcome, and 130 an interruption.
+- Preparation stores each input and each cited evidence reading by path and SHA-256. A later ledger append keeps an earlier approval valid.
+- A source deleted after preparation leaves the run intact, and `status` reports the deletion as `SOURCE_CHANGED` under freshness.
+- A run fixes the pack runtime it binds: model, service, resources and retrieval records, each by pack, path and SHA-256. A drift check before every external effect reports a disabled pack, a missing record, a changed file or a changed pack release.
+- A pack without a lock file can serve a run; a pack with one is verified against it.
+- `variant --changes-file` changes the fields the execution plan declares as mutable, starting from any prepared run. `--candidate` names the candidates the change answers.
+- Each mutable field states its schema, value form, the checks it reruns, what it rebuilds and its effect on protected criteria.
+- `retarget` with an unchanged target adopts the current pack runtime. A different model or service always goes through `retarget`.
+- `authority-import --expected-event` replaces the grant, and a budget change applies without preparing the run again. `status --budget` shows used, outstanding and remaining amounts grant-wide, with `run_share` for one run.
+- An authorization receipt binds one exact operation, and `execute` reuses existing receipts under the current grant.
+- A release names its reservation ID and follows `schemas/authoring/production-release.schema.json`, which `draft-release` and `release-reservation` both check.
+- `work_ledger.py abandon --reason TEXT --actor NAME` records `abandoned` on each open run of the task. An abandoned run refuses new authorization and accepts capture, settlement and release.
+- When a send's answer is lost, `resume` asks the provider once through the transport's `lookup` and never sends again.
+- `draft-outcome` and `resume --outcome-file` record an evidenced statement that the provider holds no task. The reservation then becomes releasable.
+- `status` follows `schemas/authoring/production-status.schema.json`. Each run reports preparation, readiness, submission, capture, registration, review and disposition separately, with the next command.
+- Production owns review, disposition and selection. `candidate-status` shows a candidate's evaluation and its disposition as two fields.
+- A run holds one current selection. A disposition of the selected candidate withdraws it, except while the Studio holds that candidate as its accepted image. A newer review of the selected candidate also ends the selection.
+- Canonical adoption runs in one order: a delivery-only `select`, `adoption-intent` and `adopt`, an optional `studio-adoption` selection, then `complete`.
+- `schemas/observed-parameter-schema.schema.json` is the one contract for a stored observed schema. A keyword the request check does not evaluate is listed in `unmeasured`.
+- [Model request evidence](references/runtime/model-evidence.md) is the single entry for validation modes, the request validation record, trial plans, kinds of evidence and observed-profile adoption.
+- A `measured` execution profile names the observed profile it rests on, and `render_contract.py model` verifies that profile before showing the card.
+- Every CLI call records a local [operation log](references/runtime/operation-logs.md) with credentials redacted. `logs` lists them, `logs-export` copies them with a manifest, and `logs-cleanup` deletes diagnostic logs only.
+- `pack_cli.py validate` takes `--pack ID_OR_NAME` or an absolute `--directory`, and returns the pack manifest with its validation report.
+- `dispatch.py` previews the exact request of a prepared run and sends nothing. `execute` sends.
+- `examples/generation/build_example.py` builds a complete synthetic workspace that makes no network request. Its scenario options cover a prompt change, a reference, a sheet slot and a scope shortage. Others cover a budget change, an unknown outcome, a partial review, a release and a log export.
+- `status`, `draft-execution`, `execute` and `resume` verify a run's live sources once per call, and the step before an external effect verifies them again. A path check reads each entry once. A catalog search compiles its colour patterns once.
+- A studio root given through a directory junction records the same studio-relative paths as the resolved root, in `resume`, `status` and Studio recording.
+- Content pack identity, activation and commands are described in [Pack Format Specification](references/pack-format-specification.md), [Pack State Quickstart](references/runtime/pack-state-quickstart.md) and [Pack Maintenance](references/maintenance/packs.md), and the visual evidence bundle in [Derived Visual Evidence](references/derived-visual-evidence.md). `PACKS.md` and `VISUAL-CORPUS.md` are removed.
+- A test suite runs once per artifact. `scripts/run_checks.py` runs every suite in parallel, each with a home whose pack state enables the shipped packs alone; CI calls it once. `scripts/validate.py` checks the invariants of the tree and runs no suite. `scripts/package.py` validates the stage once and checks the extracted copy by inventory, hashes and an installed smoke of five commands. The pytest bridge under `tests/` is removed.
+- `package_full.py` builds the full release with the shipped commons, which `MANIFEST.json` verifies and which has no lock. Every other staged pack needs its lock.
+- A pack's release gate runs it with its required dependencies: the state names the pack directory first and one directory per dependency, and a shared vocabulary such as the style-family taxonomy may come from a dependency. `package_full.py` builds that state for each staged pack.
+- A file below a pack root that is not the manifest, the lock, a top-level README, NOTICE or LICENSE, or matched by a declared glob is a validation error, so a stray file cannot enter a lock.
+- `config/implementation-files.json` records the digest of each module it was computed from. Preparation refuses an index whose modules changed since, as `IMPLEMENTATION_CHANGED` naming the module, with `scripts/rebuild_metadata.py` as the fix.
+- The README is an overview for a first-time reader: what the product does, who it is for, installation, first commands, the send commands and a map of the references by topic. Command transcripts, troubleshooting and per-feature steps live in the references the map links, such as [Production Execution](references/runtime/production-execution.md), [Upscale Adapter](references/adapters/upscale.md) and [DEPENDENCIES.md](DEPENDENCIES.md).
+- Each named resource is the whole file of the highest-ranked enabled pack that binds it, so a pack that requires the commons supersedes it. A pack outranks the packs it requires, and the state's `pack_order` orders packs that neither requires; two unordered packs that bind one name with different files are one `ready` decision naming both. Records merge across packs, and a record ID that several packs define resolves by the same rank.
+- `project-defaults` is renamed `pack-defaults` and resolves by pack rank like every other name. The commons binding and file carry the new name; another pack that binds `project-defaults` renames its binding.
+- The pack state holds `pack_roots`, `enabled_packs` and `disabled_packs`, and nothing chooses one pack per resource. A state file that still holds `resource_providers` is refused; delete that key once. `provider-list`, `provider-select` and `provider-clear` are gone from `pack_cli.py`.
+- Every command and the test runner read the configuration directory that `CPB_HOME` names, which is `~/.character-prompt-builder` while `CPB_HOME` is unset.
+- The documentation and messages use one word per idea: studio for the working directory, pack, record, run and execution, iteration and candidate, render profile and character profile.
+- Commons pack release 2026.10.04.1: the stored Grok Imagine observed schema follows the observed-schema contract.
+
 ## 2026.09.24.3
 
 - Keep development tests, CI workflows and source-control settings in source archives; apply release exclusions only when staging a release.

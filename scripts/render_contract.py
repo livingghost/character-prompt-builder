@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Choose a render intent, inspect model guidance, or compile an explicit plan."""
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse
 import json
 from pathlib import Path
@@ -12,8 +13,56 @@ def load(path: str):
     return parse_json(Path(path).read_text(encoding='utf-8'))
 
 
+def measured_basis(model_id: str, record: dict, offering: dict | None) -> dict | None:
+    """Verify the adopted observed request profile a measured basis names; None for any other basis.
+
+    Request validation checks the observed profile, its observation and the adoption
+    decision. The offering's own contract hash includes the execution profile that names
+    the basis, so the observation is held to the current service record and
+    transport, and to its own recorded offering contract.
+    """
+    owner = offering if offering is not None else record
+    profile = owner.get('execution_profile')
+    reference = r.observed_profile_reference(profile) if profile is not None else None
+    if reference is None:
+        return None
+    if offering is None:
+        raise ValueError('a measured basis rests on a request observed on one service; declare the execution profile on that offering')
+    import request_contract as rc
+    import request_validation
+    import runtime_evidence
+    import service_profile
+    import transport_contract
+    from catalog_retrieval.runtime import load_pack_catalog
+    reader = runtime_evidence.reader(None)
+    contract = runtime_evidence.model_space(model_id) + '/' + reference['path']
+    selected = reader.select(contract)
+    if selected['sha256'] != reference['sha256']:
+        raise ValueError('the observed profile a measured basis names has other content: ' + reference['path'])
+    observed = reader.json(selected)
+    if not isinstance(observed, dict) or observed.get('artifact_type') != 'observed-request-profile' \
+            or not isinstance(observed.get('observation'), dict) or not isinstance(observed.get('execution'), dict):
+        raise ValueError('a measured basis names an adopted observed request profile: ' + reference['path'])
+    resource = load_pack_catalog().resources.get('service-profiles')
+    if resource is None:
+        raise ValueError('the active packs provide no service-profiles resource')
+    service = service_profile.load_service(offering['service'], Path(resource.path))
+    transport = transport_contract.load(service['transport'])
+    current = rc.execution_hashes(service, offering, Path(transport.__file__), model=record, policy=None)
+    recorded = observed['execution']
+    for key in ('service_execution_sha256', 'transport_sha256'):
+        if recorded.get(key) != current[key]:
+            raise ValueError('the observed profile a measured basis names was observed with another ' + key.split('_')[0])
+    target = {'service': offering['service'], 'model_identifier': offering['model_identifier'],
+              'operation': transport.OPERATIONS[record.get('operation_kind') or 'generation']}
+    return request_validation.build_record(
+        {'mode': 'observed-profile', 'contract': contract,
+         'evidence': reader.at(selected).qualify(observed['observation']['path']), 'execution_policy': None},
+        reader, expected_target=target, execution=recorded)
+
+
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('presets', help='List orthogonal finish choices; no model or subject is selected')
     make = sub.add_parser('intent', help='Create a consciously selected rendering intent')
@@ -56,10 +105,11 @@ def main(argv=None) -> int:
             from model_contract import select_offering
             runtime = resolve_pack_runtime(parser, args)
             configure_pack_runtime(runtime.settings);configured=True
-            _, record = resolve_model_record(args.model)
+            model_id, record = resolve_model_record(args.model)
             offering = select_offering(record, args.service)
             if args.command == 'model':
                 result = r.model_card(record, offering)
+                measured_basis(model_id, record, offering)
             else:
                 if args.reference_count < 0:
                     raise ValueError('reference count must be nonnegative')
@@ -81,4 +131,4 @@ def main(argv=None) -> int:
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

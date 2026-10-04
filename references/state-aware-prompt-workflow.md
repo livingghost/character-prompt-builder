@@ -90,7 +90,6 @@ python scripts/prompt_retrieval.py lookups.json --settle \
   --prompt-file prompt.txt --plot-file approved-plot.json --out retrieval-settled.json
 python scripts/build_state_generation_package.py \
   --model <model-id> \
-  --prompt-file prompt.txt \
   --plot-file approved-plot.json \
   --retrieval-record-file retrieval-settled.json \
   --production-spec-file production-specification.json \
@@ -105,13 +104,14 @@ python scripts/build_state_generation_package.py \
   --references-file prepared-reference-package/prepared-reference-set.json \
   --request-validation-file request-validation.json \
   --continuity SUBJECT_ID=DECISION \
-  --production-root PROJECT \
+  --production-root STUDIO \
   --state-file PACK_STATE_JSON \
   --cache-dir CATALOG_CACHE \
   --managed-root MANAGED_PACKS \
   --pack-root ADDITIONAL_PACK_ROOT \
   --out generation-package.json
 python scripts/verify_generation_payload.py generation-package.json \
+  --studio-root STUDIO \
   --target <model-id> \
   --state-file PACK_STATE_JSON \
   --cache-dir CATALOG_CACHE \

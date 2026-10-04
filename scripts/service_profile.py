@@ -9,6 +9,7 @@ nothing here carries an endpoint of its own. Print it beside anything sent to
 the service, so an ageing record is seen before it fails.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -64,7 +65,7 @@ def load_service(service: str, path: Path) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("service")
     parser.add_argument("--profiles", help="Path to a service-profiles JSON file, instead of the active pack's")
     parser.add_argument("--json", action="store_true")
@@ -100,4 +101,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

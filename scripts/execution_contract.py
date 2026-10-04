@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import errno
 import hashlib
 import json
@@ -86,39 +87,161 @@ def sha(value: Any) -> str:
     return value
 
 
-# Roots already checked for symbolic links, with their resolved form.
-_checked_roots: dict[str, Path] = {}
+# Resolved studio roots of this process, keyed by the absolute path text and
+# guarded by the identity of the root entry: a root replaced by another entry is
+# verified again, and a root that does not exist yet is never remembered.
+_ROOTS: dict[str, tuple[tuple[int, int, bool], Path]] = {}
 
 
 def _root(root: Path) -> Path:
-    """Refuse a root reached through a symbolic link; each root is checked once per process."""
-    resolved = _checked_roots.get(str(root))
-    if resolved is None:
-        for p in [root, *root.parents]:
-            if p.is_symlink():
-                raise ValueError("symbolic link in root")
-        resolved = _checked_roots[str(root)] = root.resolve()
+    """Verify current root ancestry before using a studio-relative path."""
+    root = Path(root).absolute()
+    key = str(root)
+    try:
+        info = os.lstat(root)
+        identity = (info.st_dev, info.st_ino, stat.S_ISLNK(info.st_mode))
+    except OSError:
+        identity = None
+    known = _ROOTS.get(key)
+    if known is not None and identity is not None and known[0] == identity:
+        return known[1]
+    for parent in (root, *root.parents):
+        if parent.is_symlink():
+            raise ValueError('symbolic link in root')
+    resolved = root.resolve()
+    if identity is not None:
+        _ROOTS[key] = (identity, resolved)
     return resolved
 
 
-def local(root: Path, relative: str, *, exists: bool = True) -> Path:
+def recheck_roots() -> None:
+    """Check each studio root's whole ancestry again on its next use."""
+    _ROOTS.clear()
+
+
+# Run inputs written into a staging directory before its publication:
+# (resolved studio root, studio-relative prefix, staging directory).
+_STAGED: contextvars.ContextVar[tuple[tuple[str, str, Path], ...]] = contextvars.ContextVar('cpb_staged_inputs', default=())
+
+
+@contextlib.contextmanager
+def staged_inputs(root: Path, prefix: str, directory: Path) -> Iterator[None]:
+    """Resolve studio paths below `prefix` inside `directory` until it is published there.
+
+    A derived run declares its inputs at their published place inside the run.
+    While the run is compiled, those files exist only in its staging directory.
+    """
+    rel = PurePosixPath(prefix)
+    if rel.is_absolute() or rel.as_posix() != prefix or any(x in {'.', '..'} for x in rel.parts):
+        raise ValueError('staged input prefix must be a canonical studio-relative path')
+    token = _STAGED.set(_STAGED.get() + ((str(_root(root)), prefix, Path(directory).absolute()),))
+    try:
+        yield
+    finally:
+        _STAGED.reset(token)
+
+
+def _staged(resolved: Path, rel: PurePosixPath) -> Path | None:
+    for owner, prefix, directory in _STAGED.get():
+        if owner != str(resolved):
+            continue
+        try:
+            rest = rel.relative_to(prefix)
+        except ValueError:
+            continue
+        target = directory.joinpath(*rest.parts)
+        for p in [target, *target.parents]:
+            if p == directory:
+                break
+            if p.is_symlink():
+                raise ValueError("symbolic link in studio path")
+        target.resolve().relative_to(directory.resolve())
+        return target
+    return None
+
+
+# Windows marks a junction, a mount point and other redirected entries with this attribute.
+_REDIRECTED = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+_PLAIN_TYPES = (stat.S_IFDIR, stat.S_IFREG)
+# lstat failures that mean the entry is absent, as pathlib reads them.
+_ABSENT_ERRNOS = frozenset({errno.ENOENT, errno.ENOTDIR, errno.EBADF, errno.ELOOP})
+_ABSENT_WINERRORS = frozenset({21, 123, 1921})
+
+
+def _plain_entries(root: Path, target: Path, rel: PurePosixPath) -> tuple[bool, os.stat_result | None]:
+    """Read each entry of `rel` below `root` with one lstat, from the top down.
+
+    A symbolic link raises at once. The result is (True, lstat of the target)
+    when every present entry is an ordinary directory or file, with None for
+    an absent target. The result is (False, None) when an entry needs the full
+    check:
+
+    - Windows trims its name (a trailing dot or space);
+    - Windows redirects it;
+    - it is another file type;
+    - reading it failed for a reason other than absence.
+    """
+    if target.parts != root.parts + rel.parts:
+        return False, None
+    step = os.path.join(str(root), "")
+    info = None
+    for index, name in enumerate(rel.parts):
+        if os.name == "nt" and name[-1] in " .":
+            return False, None
+        step = step + name if index == 0 else step + os.sep + name
+        try:
+            info = os.lstat(step)
+        except OSError as error:
+            if error.errno in _ABSENT_ERRNOS or getattr(error, "winerror", None) in _ABSENT_WINERRORS:
+                return True, None
+            return False, None
+        if stat.S_ISLNK(info.st_mode):
+            raise ValueError("symbolic link in studio path")
+        if getattr(info, "st_file_attributes", 0) & _REDIRECTED or stat.S_IFMT(info.st_mode) not in _PLAIN_TYPES:
+            return False, None
+    return True, info
+
+
+def _located(root: Path, relative: str, exists: bool) -> tuple[Path, os.stat_result | None]:
+    """Return the checked path and, when the entry check read it, the target's lstat."""
     if not isinstance(relative, str) or not relative or "\\" in relative:
-        raise ValueError("canonical project-relative POSIX path required")
+        raise ValueError("canonical studio-relative POSIX path required")
     rel = PurePosixPath(relative)
     if rel.is_absolute() or rel.as_posix() != relative or any(x in {".", ".."} for x in rel.parts):
-        raise ValueError("path must remain within the project")
+        raise ValueError("path must remain within the studio")
     root = root.absolute()
     resolved = _root(root)
+    staged = _staged(resolved, rel) if _STAGED.get() else None
+    if staged is not None:
+        if exists and not staged.exists():
+            raise ValueError(f"missing file: {relative}")
+        return staged, None
     target = root.joinpath(*rel.parts)
+    plain, info = _plain_entries(root, target, rel)
+    if plain:
+        if exists and info is None:
+            raise ValueError(f"missing file: {relative}")
+        return target, info
+    # A redirected or unusual entry: resolve the whole path and require it below the root.
     for p in [target, *target.parents]:
         if p == root:
             break
         if p.is_symlink():
-            raise ValueError("symbolic link in project path")
+            raise ValueError("symbolic link in studio path")
     target.resolve().relative_to(resolved)
     if exists and not target.exists():
         raise ValueError(f"missing file: {relative}")
-    return target
+    return target, None
+
+
+def local(root: Path, relative: str, *, exists: bool = True) -> Path:
+    """Return `root` joined with a canonical relative path that stays inside it.
+
+    Each entry below the root is read with one lstat. A symbolic link is
+    refused. A Windows junction or another redirected entry is resolved, and
+    the resolved path must stay below the resolved root.
+    """
+    return _located(root, relative, exists)[0]
 
 
 def read(path: Path, maximum: int | None = None) -> bytes:
@@ -139,14 +262,18 @@ _file_digests: dict[tuple[str, str], tuple[Path, tuple[int, ...], str, int]] = {
 _SETTLED_NS = 3_000_000_000
 
 
+def _identity_of(info: os.stat_result) -> tuple[int, ...] | None:
+    if not stat.S_ISREG(info.st_mode):
+        return None
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
 def _identity(path: Path) -> tuple[int, ...] | None:
     try:
         info = os.lstat(path)
     except OSError:
         return None
-    if not stat.S_ISREG(info.st_mode):
-        return None
-    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    return _identity_of(info)
 
 
 def file_digest(root: Path, relative: str) -> tuple[str, int]:
@@ -155,13 +282,17 @@ def file_digest(root: Path, relative: str) -> tuple[str, int]:
     A repeated call reuses the earlier reading while the file keeps its identity,
     size and timestamps, and was already settled when it was read. A rewrite
     within one timestamp tick is therefore read again, like every other change.
+    Every call checks the path as `local` does; the target's lstat from that
+    check confirms the identity, so a reused reading costs no further lookup.
     """
+    path, info = _located(root, relative, True)
     key = (str(root.absolute()), relative)
     known = _file_digests.get(key)
-    if known is not None and _identity(known[0]) == known[1]:
-        return known[2], known[3]
+    if known is not None:
+        current = _identity_of(info) if info is not None and path == known[0] else _identity(known[0])
+        if current == known[1]:
+            return known[2], known[3]
     started = time.time_ns()
-    path = local(root, relative)
     before = _identity(path)
     raw = read(path)
     result = digest(raw), len(raw)
@@ -224,7 +355,7 @@ def atomic(path: Path, raw: bytes, *, replace: bool = False) -> None:
         if replace:
             os.replace(temp, path)
         else:
-            # Exclusive publication. The caller holds the project lock.
+            # Exclusive publication. The caller holds the studio lock.
             try:
                 os.link(temp, path)
             except OSError as error:
@@ -235,6 +366,9 @@ def atomic(path: Path, raw: bytes, *, replace: bool = False) -> None:
                 else:
                     _create(path, raw)
         fsync_dir(path.parent)
+        from operation_context import current
+        if current() is not None:
+            current().artifact(path.absolute(), content_sha256=digest(raw), size=len(raw))
     finally:
         temp.unlink(missing_ok=True)
 
@@ -245,23 +379,74 @@ def atomic_write_json(path: Path, value: Any) -> None:
     atomic(path, raw, replace=True)
 
 
-def publish_directory(staging: Path, target: Path, *, patience: float = 10.0) -> None:
-    """Rename a completed staging directory into place.
+def _rename_directory_exclusive(staging: Path, target: Path) -> None:
+    """Use an OS-level no-replace rename, including an empty destination race."""
+    if os.name == 'nt':
+        os.rename(staging, target)
+        return
+    import ctypes
+    import sys
+    libc = ctypes.CDLL(None, use_errno=True)
+    source, destination = os.fsencode(staging), os.fsencode(target)
+    if sys.platform.startswith('linux'):
+        function = getattr(libc, 'renameat2', None)
+        if function is None:
+            raise OSError(errno.ENOTSUP, 'No exclusive directory rename is available')
+        function.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+        function.restype = ctypes.c_int
+        # AT_FDCWD and RENAME_NOREPLACE are Linux ABI constants.
+        result = function(-100, source, -100, destination, 1)
+    elif sys.platform == 'darwin':
+        function = getattr(libc, 'renamex_np', None)
+        if function is None:
+            raise OSError(errno.ENOTSUP, 'No exclusive directory rename is available')
+        function.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        function.restype = ctypes.c_int
+        result = function(source, destination, 0x00000004)  # RENAME_EXCL
+    else:
+        raise OSError(errno.ENOTSUP, 'No exclusive directory rename is available')
+    if result != 0:
+        number = ctypes.get_errno()
+        raise OSError(number, os.strerror(number), str(target))
 
-    Windows refuses to rename a directory while another process holds a handle
-    inside it, and a scanner or indexer opening freshly written files does
-    exactly that for a moment. A refusal is retried for `patience` seconds and
-    then raised as it came.
+
+def publish_directory(staging: Path, target: Path, *, patience: float = 10.0) -> None:
+    """Publish a complete directory without replacing any competing destination.
+
+    A transient permission/handle refusal is retried for the supplied budget.
+    Missing atomic no-replace support and other failures leave staging intact
+    and return an actionable publication diagnostic, never a replacing rename.
     """
-    deadline = time.monotonic() + patience
+    from production_diagnostics import ProductionError
+    staging, target = Path(staging), Path(target)
+    if staging.is_symlink() or not staging.is_dir():
+        raise ProductionError('ARTIFACT_PUBLISH_FAILED', 'Publication source must be an owned regular directory.',
+                              phase='publication', file=str(staging))
+    deadline = time.monotonic() + max(0.0, patience)
     while True:
+        if target.exists() or target.is_symlink():
+            raise ProductionError('OUTPUT_ALREADY_EXISTS', 'Publication destination is already occupied.',
+                                  phase='publication', file=str(target), source=str(staging),
+                                  required_action='Keep the existing destination and select a new output path.')
         try:
-            staging.rename(target)
-            return
-        except PermissionError:
-            if time.monotonic() >= deadline:
-                raise
-            time.sleep(0.1)
+            _rename_directory_exclusive(staging, target)
+        except OSError as exc:
+            if exc.errno in {errno.EEXIST, errno.ENOTEMPTY} or target.exists() or target.is_symlink():
+                raise ProductionError('OUTPUT_ALREADY_EXISTS', 'Another writer occupied the publication destination.',
+                                      phase='publication', file=str(target), source=str(staging),
+                                      required_action='Keep both contents; select a new output path.') from exc
+            transient = isinstance(exc, PermissionError) or getattr(exc, 'winerror', None) in {5, 32, 33}
+            if transient and time.monotonic() < deadline:
+                time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+                continue
+            raise ProductionError('ARTIFACT_PUBLISH_FAILED', 'The complete staging directory could not be published.',
+                                  phase='publication', file=str(target), source=str(staging),
+                                  actual={'errno': exc.errno, 'winerror': getattr(exc, 'winerror', None)},
+                                  required_action='Keep staging. Check handles, permissions and atomic rename support on this filesystem.') from exc
+        # The running operation's artifact index follows the files to their published place.
+        from operation_context import relocate_artifacts
+        relocate_artifacts(staging, target)
+        return
 
 
 _thread_locks: dict[str, Any] = {}
@@ -282,7 +467,7 @@ if hasattr(os, 'register_at_fork'):
 
 @contextlib.contextmanager
 def lock(root: Path) -> Iterator[None]:
-    """Hold one project lock across nested calls, threads and processes."""
+    """Hold one studio lock across nested calls, threads and processes."""
     root = root.absolute()
     root.mkdir(parents=True, exist_ok=True)
     key = str(root.resolve())
@@ -358,3 +543,27 @@ def object_read(run: Path, key: str) -> bytes:
     if digest(raw) != key:
         raise ValueError("content-addressed object hash mismatch")
     return raw
+
+
+def read_input_bytes(source: str | Path, *, root: Path | None = None) -> bytes:
+    """Read the exact bytes of one input file, or of stdin for `-`."""
+    import sys
+    if str(source)=='-':
+        stream=getattr(sys.stdin,'buffer',None)
+        return stream.read() if stream is not None else sys.stdin.read().encode('utf-8')
+    path=Path(source)
+    if root is not None and not path.is_absolute():path=local(root,str(source))
+    return read(path)
+
+
+def read_json_input(source: str | Path, *, root: Path | None = None) -> Any:
+    """Read one UTF-8 JSON file or stdin without shell JSON interpretation."""
+    return decode(read_input_bytes(source, root=root))
+
+
+def read_json_object(source: str | Path | None, *, root: Path | None = None, label: str = "JSON input") -> dict:
+    """Use one file/stdin contract for declared parameter and settings objects."""
+    value = {} if source is None else read_json_input(source, root=root)
+    if not isinstance(value, dict):
+        raise ValueError(f"{label}: expected a JSON object")
+    return value

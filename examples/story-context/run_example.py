@@ -19,7 +19,7 @@ from io_budget import environment_seconds
 
 def write(root: Path, name: str, value):
     p=root/name;p.parent.mkdir(parents=True,exist_ok=True)
-    p.write_text(value if isinstance(value,str) else json.dumps(value,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    p.write_bytes((value if isinstance(value,str) else json.dumps(value,ensure_ascii=False,indent=2)+'\n').encode('utf-8'))
     return p
 
 
@@ -137,7 +137,7 @@ def run(out: Path):
     for i in (1,2):work_ledger.step_done(out,i)
     work_ledger.finish(out)
     result=workflow('resume');write(out,'result.json',result)
-    return {'ok':result['ok'] and result['next']=='done','run':rid,'commands':len(log),'fixture_only':True}
+    return {'ok':result['ok'] and result['runs'][0]['task_disposition']=='completed' and result['runs'][0]['next_action'] is None,'run':rid,'commands':len(log),'fixture_only':True}
 
 
 if __name__=='__main__':

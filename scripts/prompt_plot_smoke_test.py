@@ -21,6 +21,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+
 from prompt_plot import content_sha256, validate_prompt_plot  # noqa: E402
 from prompt_retrieval import validate_prompt_retrieval_record  # noqa: E402
 

@@ -124,6 +124,7 @@ from typing import Any, get_type_hints
 from collections import OrderedDict
 from unittest import mock
 sys.path.insert(0, sys.argv[1])
+
 import pack_cache
 with mock.patch.object(pack_cache, "load_runtime_catalog", side_effect=AssertionError("unexpected pack I/O")):
     for name in sys.argv[2:]:
@@ -386,7 +387,6 @@ class CatalogRuntimeTest(unittest.TestCase):
                 json.dumps({
                     "pack_roots": [],
                     "enabled_packs": [],
-                    "resource_providers": {},
                 }),
                 encoding="utf-8",
             )
@@ -1791,7 +1791,7 @@ class RetrievalRecordingTests(unittest.TestCase):
     def run_cli(self, root: Path, *arguments: str) -> tuple[int, str]:
         state = root / "state.json"
         if not state.exists():
-            state.write_text(json.dumps({"pack_roots": [], "enabled_packs": [], "resource_providers": {}}),
+            state.write_text(json.dumps({"pack_roots": [], "enabled_packs": []}),
                              encoding="utf-8")
         runtime = ["--state-file", str(state), "--cache-dir", str(root / "cache"),
                    "--managed-root", str(root / "managed")]
@@ -1880,7 +1880,7 @@ class LeftOutPackWarningTests(unittest.TestCase):
         from pack_manager import save_state
 
         save_state(folder / "state.json", {"pack_roots": [str(folder / "packs")],
-                                           "enabled_packs": enabled, "resource_providers": {}})
+                                           "enabled_packs": enabled})
         return subprocess.run(
             [sys.executable, str(Path(catalog_cli.__file__)), "--state-file", str(folder / "state.json"),
              "--cache-dir", str(folder / "cache"), "--managed-root", str(folder / "managed"), *command],

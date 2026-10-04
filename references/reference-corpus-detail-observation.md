@@ -1,6 +1,6 @@
 # Reference-Corpus Distinctive-Detail Observation Guide
 
-This guide supplements `distinctive-detail-specification.md`. It was derived from a review of 109 retained reference-image files. Near-duplicate grouping produced 73 visual representatives for qualitative inspection. The study records reusable observation criteria. Source-backed corpora may also carry a native-dimension source-derived perceptual vector projection; that derived artifact remains under the rights governing the source and is not reusable preset knowledge. For whole-image line, proportion, camera, gaze, light, surface, support, depth, and staging analysis, use `reference-corpus-visual-technique-observation.md` before classifying a preset.
+This guide supplements `distinctive-detail-specification.md`. It was derived from a review of 109 retained reference-image files. Near-duplicate grouping produced 73 visual representatives for qualitative inspection. The study records reusable observation criteria. Source-backed corpora may also carry a native-dimension source-derived perceptual vector projection; that derived artifact remains under the rights governing the source and is not reusable record knowledge. For whole-image line, proportion, camera, gaze, light, surface, support, depth, and staging analysis, use `reference-corpus-visual-technique-observation.md` before classifying a record.
 
 ## Evidence discipline
 
@@ -66,10 +66,10 @@ Record count, base attachment, growth axis, tip shape, branching order, break or
 - **Medium**: visible in one useful view with partial occlusion or stylization. Preserve the concept and allow geometry adaptation.
 - **Low**: inferred from compression, lighting, crop, or hidden continuation. Keep as an observation note and ask before locking.
 
-Promote a corpus observation into a reusable preset only when the construction generalizes beyond one character, can be described affirmatively, has at least three invariants and three nearby misreadings, and does not preserve source-specific text, logos, signatures, or copyrighted character identity.
+Promote a corpus observation into a reusable record only when the construction generalizes beyond one character, can be described affirmatively, has at least three invariants and three nearby misreadings, and does not preserve source-specific text, logos, signatures, or copyrighted character identity.
 ## Camera, garment, hair, and terminal-detail extraction
 
-When a supplied image is used as preset evidence, record camera and coverage as measured relationships rather than broad shot labels. Capture shot scale, subject-relative distance, camera height, angle, lens consequence, frame occupancy, exact top and bottom body landmarks, side crop anchors, nearest form, and mandatory visible elements.
+When a supplied image is used as record evidence, record camera and coverage as measured relationships rather than broad shot labels. Capture shot scale, subject-relative distance, camera height, angle, lens consequence, frame occupancy, exact top and bottom body landmarks, side crop anchors, nearest form, and mandatory visible elements.
 
 Trace each garment as connected panels and openings. Record neckline, hood or collar attachment, shoulder support, sleeve or armhole geometry, side-panel width, front and rear panel extent, hem, waistband, rise, inseam, outseam, leg opening, coverage, appendage clearance, pose response, support-surface displacement, and tension paths.
 

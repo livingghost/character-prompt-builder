@@ -2,9 +2,10 @@
 """Validate an arriving shot-request and its optional bindings.
 
 The tool verifies the shared boundary artifact and hashes. It does not invent art
-direction, choose presets, or turn the request into a finished image prompt.
+direction, choose records, or turn the request into a finished image prompt.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -253,7 +254,7 @@ def plot_link_notes(request: dict[str, Any]) -> list[str]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate an arriving shot-request")
+    parser = _operation_context.ArgumentParser(description="Validate an arriving shot-request")
     parser.add_argument("request")
     parser.add_argument("--allow-placeholder-hash", action="store_true")
     parser.add_argument("--require-complete", action="store_true", help="Require every lineage, context, camera and projection binding file")
@@ -304,4 +305,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

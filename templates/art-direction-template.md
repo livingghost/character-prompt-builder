@@ -84,7 +84,7 @@ Do not maintain a parallel hand-written prepared-reference list. The Reference U
 - concrete style family: <zero or one inspected canonical ID>
 - selected family domain overlay:
 - domain realization by represented subject domain:
-- rendering profile: <zero or one inspected canonical ID, or the selected family base profile>
+- render profile: <zero or one inspected canonical ID, or the selected family base render profile>
 - production specification: <path or hash when used>
 - selected atomic modules:
 - selected scene, recipe, or archetype, when justified:
@@ -103,7 +103,7 @@ Do not maintain a parallel hand-written prepared-reference list. The Reference U
 - production-spec relationships preserved:
 - surface, color, and light coherent:
 - detail hierarchy coherent:
-- unrelated preset narrative absent:
+- unrelated record narrative absent:
 - reference mode matches the prepared-reference count:
 - prepared source and transport hashes verified:
 - permanent identity is not inferred from a scene-only role:
@@ -114,7 +114,7 @@ Do not maintain a parallel hand-written prepared-reference list. The Reference U
 
 - generation hygiene:
 - applicable visible-structure bundles:
-- selected rendering-profile boundary:
+- selected render-profile boundary:
 - activated correction terms:
 - explicit user exclusions:
 - diagnostic sources retained only for review:

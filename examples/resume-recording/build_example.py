@@ -16,10 +16,15 @@ import work_ledger
 
 
 def summary(value):
-    return {'integrity_ok': value['integrity']['ok'], 'current_inputs': value['freshness']['current'],
-            'execution_state': value['execution']['state'],
-            'reservation_states': [x['status'] for x in value['reservations']],
-            'next': value['next'], 'available_operations': [x['operation'] for x in value['next_actions']]}
+    row = value['runs'][0]
+    action = row['next_action']
+    # The action's argv names the temporary Studio, so the recorded summary keeps its command and reason.
+    return {'integrity': row['integrity'],
+            'current_inputs': not row['freshness_diagnostics'],
+            'readiness': row['readiness'], 'submission': row['submission'],
+            'task_disposition': row['task_disposition'],
+            'next_action': None if action is None else {'command': action['command'], 'reason': action['reason']},
+            'freshness_codes': [item['code'] for item in row['freshness_diagnostics']]}
 
 
 def build():
@@ -38,10 +43,17 @@ def build():
             raise ValueError(before.stdout + before.stderr)
         (root / 'delivery.txt').write_text('Revised synthetic local instructions.\n', encoding='utf-8')
         after = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False, timeout=environment_seconds("EXAMPLE_COMMAND_TIMEOUT_SECONDS"))
-        if after.returncode != 1:
-            raise ValueError('The changed fixture must require updated execution inputs.')
-        return {'synthetic': True, 'before_change': summary(json.loads(before.stdout)),
-                'after_change': summary(json.loads(after.stdout))}
+        if after.returncode != 0:
+            raise ValueError('A changed live source must not make saved history unreadable: ' + after.stdout + after.stderr)
+        before_summary, after_summary = summary(json.loads(before.stdout)), summary(json.loads(after.stdout))
+        if after_summary['integrity'] != 'intact' or after_summary['readiness'] != 'blocked' or after_summary['current_inputs']:
+            raise ValueError('The changed fixture must retain history and diagnose execution freshness.')
+        import production_store as store
+        reservations = [row for row in store.event_rows(root, run) if row['event'] == 'reservation-created']
+        if reservations:
+            raise ValueError('Preparing or authorizing a local example must not reserve a generation request.')
+        return {'synthetic': True, 'reservation_count': len(reservations),
+                'before_change': before_summary, 'after_change': after_summary}
 
 
 def main():

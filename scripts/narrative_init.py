@@ -5,7 +5,7 @@ A series directory is any directory holding narrative/. Neutral initialization
 creates the full project design workspace, entity templates and a narrative
 with no declared cast, themes, arcs or chapters. It does not adopt an absence or
 claim a finished work. The explicit example seed adds a teaching scaffold;
-existing series directories are not overwritten or migrated.
+existing series directories are not overwritten.
 
 Usage:
 
@@ -17,6 +17,7 @@ world or design entries as useful and full personas when individualized
 portrayal matters; none is a requirement to invent characters or a plot.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -59,7 +60,7 @@ def render(source: Path, title: str, series_id: str, updated_at: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = _operation_context.ArgumentParser(
         description="Create a series directory holding a narrative and its entity files.")
     parser.add_argument("--out", required=True, help="New series directory")
     parser.add_argument("--series-id", required=True)
@@ -165,4 +166,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

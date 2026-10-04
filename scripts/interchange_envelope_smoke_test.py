@@ -10,6 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = ROOT / "examples" / "state-aware-pilot" / "character-identity-contract.json"
 PROFILE = "visual-contract-package"

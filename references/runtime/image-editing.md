@@ -31,15 +31,15 @@ Each intermediate canvas must have positive dimensions. The operation list has n
 Actual memory allocation and installed decoder safety checks still apply; no decoder protection is disabled.
 not an implicit first-frame conversion. Color management and artistic intent
 are not inferred. The executor converts decoded inputs to RGBA and emits PNG;
-inspect the result when profiles, typography, precision or fidelity matter.
+inspect the result when color, typography, precision or fidelity matter.
 
 ## Bind the operation to existing authority
 
 ```
-python scripts/image_edit.py intent --root PROJECT --run RUN --plan edit.json
+python scripts/image_edit.py intent --root STUDIO --run RUN --plan edit.json
 python scripts/production_workflow.py draft-authorization --help
-python scripts/production_workflow.py authorize --root PROJECT --run RUN --file edit-authorization.json
-python scripts/image_edit.py execute --root PROJECT --run RUN --plan edit.json --authorization RECEIPT_SHA256
+python scripts/production_workflow.py authorize --root STUDIO --run RUN --file edit-authorization.json
+python scripts/image_edit.py execute --root STUDIO --run RUN --plan edit.json --authorization RECEIPT_SHA256
 ```
 
 Use the exact JSON returned by `intent` when drafting authorization. The existing

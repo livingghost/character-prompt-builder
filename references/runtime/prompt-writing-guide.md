@@ -33,7 +33,7 @@ It returns:
 
 A record that lacks a family is reported as a non-tag target, and only the universal sections come back. `--list` names the families the resource carries, and `--dialect <id>` answers for a family that lacks a record.
 
-Add a family by adding a dialect entry with its sources; the scripts stay unchanged. Its regression test is `scripts/prompt_dialect_smoke_test.py`.
+Add a family by adding a dialect entry with its sources; the scripts stay unchanged. Its regression test is `scripts/prompt_dialect_smoke_test.py`. `schemas/prompt-dialect.schema.json` validates the dialect resource, and `schemas/prompt-writing-guide.schema.json` validates the guide.
 
 Resolve the guide on its own through the same explicit pack state when only its rules are wanted:
 
@@ -41,7 +41,7 @@ Resolve the guide on its own through the same explicit pack state when only its 
 python scripts/pack_cli.py resource prompt-writing-guide
 ```
 
-When a selected provider exists, read the complete resolved JSON before writing the final model-facing rendition, rather than a remembered excerpt. When every enabled provider lacks the optional resource, continue under the active adapter and model record alone.
+Read the complete resolved guide before writing the final model-facing rendition, rather than a remembered excerpt. When no enabled pack binds a guide, continue under the active adapter and model record alone.
 
 ## Application sequence
 

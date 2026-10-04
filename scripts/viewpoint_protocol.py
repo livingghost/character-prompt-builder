@@ -5,6 +5,7 @@ The code checks explicit camera, knowledge scope, audition, transition, and
 continuity records. It does not invent shot design or artistic intent.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -171,7 +172,7 @@ def validate_tree(root: Path, *, allow_templates: bool = False) -> dict[str, Any
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Series Viewpoint Protocol support tool")
+    parser = _operation_context.ArgumentParser(description="Series Viewpoint Protocol support tool")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_validate = sub.add_parser("validate", help="Validate one protocol artifact")
@@ -242,4 +243,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

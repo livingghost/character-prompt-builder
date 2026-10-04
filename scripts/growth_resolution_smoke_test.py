@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+
 from build_asset_render_spec import build_render_spec
 from state_protocol import (
     artifact_hash, finalize_artifact, load_json, plan_reference_bundle,

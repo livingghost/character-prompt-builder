@@ -34,7 +34,7 @@ CORE_EVALUATION_INCLUDES: frozenset[str] = frozenset()
 # ``config`` include beside the pack state the suite runs against.
 CORE_RELEASE_REGRESSION_CONTRACT = "config/default-release.json"
 CORE_EXAMPLE_INCLUDES = frozenset(
-    {"examples/render-contract", "examples/pack-authoring", "examples/feature-walkthrough", "examples/state-aware-pilot", "examples/declared-structures",
+    {"examples/render-contract", "examples/pack-authoring", "examples/feature-walkthrough", "examples/generation", "examples/state-aware-pilot", "examples/declared-structures",
      "examples/authorial-intent", "examples/world-realization", "examples/production-execution", "examples/protocol-exchange", "examples/story-context", "examples/reusable-authoring",
      "examples/cast-admission", "examples/resume-recording", "examples/input-assembly", "examples/craft-consultation", "examples/model-evidence", "examples/candidate-recipe"}
 )
@@ -64,11 +64,6 @@ class PackageMetadata:
     release_exclude_names: tuple[str, ...]
     release_pack_dirs: tuple[str, ...]
     default_pack_ids: tuple[str, ...]
-    default_resource_providers: tuple[tuple[str, str], ...]
-
-    @property
-    def resource_providers(self) -> dict[str, str]:
-        return dict(self.default_resource_providers)
 
     @property
     def release_artifact_name(self) -> str:
@@ -550,12 +545,6 @@ def load_package_metadata(
     default_pack_ids = tuple(str(value) for value in default_state.get("enabled_packs") or [])
     if not default_pack_ids or len(set(default_pack_ids)) != len(default_pack_ids):
         raise ValueError("default-pack-state enabled_packs must contain unique default pack IDs")
-    raw_resource_providers = default_state.get("resource_providers") or {}
-    if not isinstance(raw_resource_providers, Mapping):
-        raise ValueError("default-pack-state resource_providers must be an object")
-    default_resource_providers = tuple(
-        sorted((str(name), str(pack_id)) for name, pack_id in raw_resource_providers.items())
-    )
     included_pack_ids: list[str] = []
     for value, pack_root in included_pack_dirs.items():
         try:
@@ -567,15 +556,6 @@ def load_package_metadata(
         raise ValueError(
             "default-pack-state enabled_packs must exactly match individually included release packs"
         )
-    unknown_providers = sorted(
-        {pack_id for _, pack_id in default_resource_providers} - set(default_pack_ids)
-    )
-    if unknown_providers:
-        raise ValueError(
-            "default-pack-state resource providers must reference included default packs: "
-            + ", ".join(unknown_providers)
-        )
-
     return PackageMetadata(
         name=name,
         version=version,
@@ -595,7 +575,6 @@ def load_package_metadata(
         release_exclude_names=release_exclude_names,
         release_pack_dirs=tuple(sorted(included_pack_dirs)),
         default_pack_ids=default_pack_ids,
-        default_resource_providers=default_resource_providers,
     )
 
 
@@ -693,7 +672,6 @@ RELEASE_OUTPUT = _METADATA.release_output
 RELEASE_INCLUDE = _METADATA.release_include
 RELEASE_EXCLUDE_NAMES = _METADATA.release_exclude_names
 DEFAULT_PACK_IDS = _METADATA.default_pack_ids
-DEFAULT_RESOURCE_PROVIDERS = _METADATA.resource_providers
 RELEASE_OUTPUT_DIR = PurePosixPath(_METADATA.release_output).parts[0]
 NON_CONTENT_DIR_NAMES = frozenset({".git", RELEASE_OUTPUT_DIR})
 RELEASE_PACK_DIR_NAMES = frozenset(

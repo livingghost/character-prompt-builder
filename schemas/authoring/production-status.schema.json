@@ -1,0 +1,457 @@
+{
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "current_task": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/current_task"
+        }
+      ]
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/run"
+          },
+          {
+            "$ref": "#/$defs/blocked_run"
+          }
+        ]
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "external_effect": {
+      "type": "boolean"
+    },
+    "budget_effect": {
+      "type": "string",
+      "minLength": 1
+    },
+    "budget": {
+      "type": "object"
+    },
+    "staging": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "staging_details": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "unclaimed_journals": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "unregistered_publications": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "execution_completed": {
+      "type": "boolean"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "required": [
+    "ok",
+    "current_task",
+    "runs",
+    "diagnostics",
+    "external_effect",
+    "budget_effect",
+    "staging",
+    "staging_details",
+    "unclaimed_journals",
+    "unregistered_publications"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "preparation": {
+      "enum": [
+        "staged",
+        "prepared"
+      ]
+    },
+    "readiness": {
+      "enum": [
+        "ready",
+        "authorization_required",
+        "configuration_required",
+        "blocked"
+      ]
+    },
+    "submission": {
+      "enum": [
+        "unclaimed",
+        "reserved",
+        "send_started",
+        "acknowledged",
+        "outcome_unknown",
+        "not_executed"
+      ]
+    },
+    "capture": {
+      "enum": [
+        "none",
+        "partial",
+        "complete"
+      ]
+    },
+    "registration": {
+      "enum": [
+        "unregistered",
+        "registered",
+        "projection-missing"
+      ]
+    },
+    "review": {
+      "enum": [
+        "unreviewed",
+        "partial",
+        "complete"
+      ]
+    },
+    "task_disposition": {
+      "enum": [
+        "open",
+        "completed",
+        "abandoned"
+      ]
+    },
+    "diagnostic": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "next_action": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "minLength": 1
+            },
+            "argv": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 3
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "command",
+            "argv",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "current_task": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "goal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "next": {},
+        "production_run": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        }
+      },
+      "required": [
+        "task_id",
+        "goal",
+        "next",
+        "production_run"
+      ],
+      "additionalProperties": false
+    },
+    "effect": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result": {
+          "enum": [
+            "executed",
+            "unanswered",
+            "rejected",
+            "not_executed"
+          ]
+        }
+      },
+      "required": [
+        "step",
+        "operation",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "run": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "integrity": {
+          "const": "intact"
+        },
+        "preparation": {
+          "$ref": "#/$defs/preparation"
+        },
+        "readiness": {
+          "$ref": "#/$defs/readiness"
+        },
+        "readiness_diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        },
+        "submission": {
+          "$ref": "#/$defs/submission"
+        },
+        "send_started": {
+          "type": "boolean"
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
+        },
+        "capture": {
+          "$ref": "#/$defs/capture"
+        },
+        "capture_diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        },
+        "registration": {
+          "$ref": "#/$defs/registration"
+        },
+        "review": {
+          "$ref": "#/$defs/review"
+        },
+        "task_disposition": {
+          "$ref": "#/$defs/task_disposition"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "candidate_states": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "freshness_diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        },
+        "selection_diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        },
+        "selection_ready": {
+          "type": "boolean"
+        },
+        "settlement_open": {
+          "type": "boolean"
+        },
+        "reservation": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "reservation_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "release_eligible": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "reservation_id",
+                "status",
+                "release_eligible"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "journal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_action": {
+          "$ref": "#/$defs/next_action"
+        }
+      },
+      "required": [
+        "run",
+        "task_id",
+        "integrity",
+        "preparation",
+        "readiness",
+        "readiness_diagnostics",
+        "submission",
+        "send_started",
+        "effects",
+        "capture",
+        "capture_diagnostics",
+        "registration",
+        "review",
+        "task_disposition",
+        "candidates",
+        "candidate_states",
+        "freshness_diagnostics",
+        "selection_diagnostics",
+        "selection_ready",
+        "settlement_open",
+        "reservation",
+        "journal",
+        "logs",
+        "next_action"
+      ],
+      "additionalProperties": false
+    },
+    "blocked_run": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string",
+          "minLength": 1
+        },
+        "integrity": {
+          "const": "blocked"
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          },
+          "minItems": 1
+        },
+        "logs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_action": {
+          "$ref": "#/$defs/next_action"
+        }
+      },
+      "required": [
+        "run",
+        "integrity",
+        "diagnostics",
+        "logs",
+        "next_action"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

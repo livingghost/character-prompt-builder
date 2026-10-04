@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Validate Character Prompt Builder structure without claiming artistic quality."""
 from __future__ import annotations
+import operation_context as _operation_context
 
-import argparse
 import narrative_corpus
 import refusal_coverage
 from collections import Counter
@@ -33,7 +33,7 @@ from catalog_cli import (
     record_tier,
 )
 import catalog_cli as catalog_cli_module
-from pack_manager import PackSettings, validate_pack
+from pack_manager import PackSettings, species_scaffold_issues, validate_pack
 from execution_contract import sha256_file
 from validate_state_protocol import validate as validate_state_protocol
 from validate_reference_corpus import validate as validate_reference_corpus
@@ -58,7 +58,6 @@ from package_metadata import (
 )
 from reference_plan_cli_contract import plan_cli_example
 from runtime_read_footprint import count_words as _skill_word_count
-from io_budget import environment_seconds
 
 ROOT_REQUIRED = (
     'SKILL.md',
@@ -73,8 +72,6 @@ ROOT_REQUIRED = (
     'requirements.txt',
     'requirements-tested.txt',
     'DEPENDENCIES.md',
-    'PACKS.md',
-    'VISUAL-CORPUS.md',
     'agents/openai.yaml',
     'scripts/package_metadata.py',
     'scripts/check_dependencies.py',
@@ -105,6 +102,7 @@ ROOT_REQUIRED = (
     'scripts/pack_cache.py',
     'scripts/pack_cli.py',
     'scripts/pack_smoke_test.py',
+    'scripts/pack_selector_smoke_test.py',
     'scripts/pack_runtime_cli.py',
     'scripts/pack_release_gate.py',
     'scripts/pack_release_gate_smoke_test.py',
@@ -146,7 +144,6 @@ ROOT_REQUIRED = (
     'scripts/state_generation_smoke_test.py',
     'scripts/feature_workflow_smoke_test.py',
     'scripts/adoption_workflow.py',
-    'scripts/production_resume.py',
     'scripts/production_resume_smoke_test.py',
     'scripts/production_inputs.py',
     'scripts/craft_consultation.py',
@@ -160,7 +157,6 @@ ROOT_REQUIRED = (
     'scripts/production_input_model_smoke_test.py',
     'scripts/dispatch_preview_smoke_test.py',
     'scripts/schema_observation_smoke_test.py',
-    'scripts/production_variation_smoke_test.py',
     'scripts/runtime_evidence.py',
     'scripts/execution_policy.py',
     'scripts/request_validation.py',
@@ -168,7 +164,6 @@ ROOT_REQUIRED = (
     'scripts/request_renderer.py',
     'scripts/model_observation.py',
     'scripts/schema_observation.py',
-    'scripts/production_variation_adapter.py',
     'scripts/production_variation.py',
     'scripts/production_request.py',
     'schemas/authoring/production-input-draft.schema.json',
@@ -408,6 +403,12 @@ def run_preset_quality_audit(root: Path, errors: list[str]) -> None:
     detail = done.stdout.strip().splitlines()[-6:]
     errors.append("audit_preset_quality.py refused the shipped catalog: "
                   + " ".join(line.strip() for line in detail)[:600])
+
+
+def is_test_module(name: str) -> bool:
+    """Whether a script under ``scripts/`` is a test module, which ``scripts/run_checks.py`` runs."""
+
+    return name.endswith("_test.py") or name.startswith("test_")
 
 
 def check_model_record_keys(root, errors) -> None:
@@ -723,7 +724,7 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "load both [Morphology and Species Contracts]",
         "Before atomic retrieval, always run one `search --kind archetype`",
         "Run full `asset-lookup` for each record",
-        "The bundled commons pack selects `profile-clear-2d-illustration`",
+        "A new studio takes `profile-clear-2d-illustration`",
         "Read `query_token_count`, `axis_coverage`, and any `retrieval_note`",
     ),
     "references/runtime/sparse-discovery.md": (
@@ -746,7 +747,7 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "## Weighting and prompt pressure",
         "## Controlled comparison",
         "## Failure policy",
-        "When a selected provider exists, read the complete resolved JSON",
+        "Read the complete resolved guide before writing the final model-facing rendition",
         "The Skill-using agent decides which rules are relevant.",
     ),
     "references/runtime/reference-prompt-artifacts.md": (
@@ -1090,6 +1091,9 @@ def check_skill_documentation_contract(root: Path, errors: list[str]) -> dict[st
     scripts_root = root / "scripts"
     if scripts_root.is_dir():
         for script_path in sorted(scripts_root.glob("*.py")):
+            # The runner names every test module; the runner's own test settles that.
+            if is_test_module(script_path.name):
+                continue
             script_text = script_path.read_text(encoding="utf-8")
             if not re.search(
                 r"if\s+__name__\s*==\s*['\"]__main__['\"]\s*:",
@@ -1386,6 +1390,21 @@ def check_version_consistency(root: Path, errors: list[str]) -> dict[str, Any]:
             )
     observed["host manifests"] = len(host_manifests())
 
+    # The implementation index a prepared run pins is generated from the import
+    # closure of the production modules; a stale index pins the wrong files.
+    import production_workflow
+    try:
+        indexed = production_workflow.implementation_files()
+    except ValueError as exc:
+        errors.append(str(exc))
+    else:
+        if indexed != production_workflow.implementation_closure():
+            errors.append(
+                f"{production_workflow.IMPLEMENTATION_INDEX} differs from the import closure; "
+                "run scripts/rebuild_metadata.py"
+            )
+    observed["implementation index"] = production_workflow.IMPLEMENTATION_INDEX
+
     # The two repository guides are one document under the two names a host looks
     # for, rendered from one template. A hand edit to either is overwritten by the
     # next build, so it is reported here instead of disappearing silently.
@@ -1615,164 +1634,6 @@ def verify_release_line_endings(root: Path, metadata: Any) -> dict[str, Any]:
     }
 
 
-def run_visual_evidence_smoke(root: Path) -> dict[str, Any]:
-    """Run the production visual-operations gate and retain failure evidence."""
-
-    process = subprocess.run(
-        [sys.executable, "scripts/visual_evidence_smoke_test.py"],
-        cwd=root,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-        text=True,
-        encoding="utf-8",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    errors: list[str] = []
-    try:
-        parsed = json.loads(process.stdout)
-        if not isinstance(parsed, dict):
-            raise ValueError("visual smoke output must be a JSON object")
-        report: dict[str, Any] = parsed
-    except (json.JSONDecodeError, ValueError) as exc:
-        report = {"ok": False}
-        errors.append(f"visual smoke returned invalid JSON: {exc}")
-    if process.returncode != 0:
-        errors.append(f"visual smoke exited with status {process.returncode}")
-    if process.stderr.strip():
-        report["stderr"] = process.stderr.strip()
-    if errors:
-        report["ok"] = False
-        report["errors"] = [*report.get("errors", []), *errors]
-    else:
-        report.setdefault("errors", [])
-    report["command_returncode"] = process.returncode
-    return report
-
-
-
-def run_reference_runtime_smoke(root: Path) -> dict[str, Any]:
-    """Run automatic SVG activation and multi-reference transport regression."""
-
-    process = subprocess.run(
-        [sys.executable, "scripts/reference_runtime_smoke_test.py"],
-        cwd=root,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-        text=True,
-        encoding="utf-8",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    errors: list[str] = []
-    try:
-        parsed = json.loads(process.stdout)
-        if not isinstance(parsed, dict):
-            raise ValueError("reference runtime smoke output must be a JSON object")
-        report: dict[str, Any] = parsed
-    except (json.JSONDecodeError, ValueError) as exc:
-        report = {"ok": False}
-        errors.append(f"reference runtime smoke returned invalid JSON: {exc}")
-    if process.returncode != 0:
-        errors.append(f"reference runtime smoke exited with status {process.returncode}")
-    if process.stderr.strip():
-        report["stderr"] = process.stderr.strip()
-    if errors:
-        report["ok"] = False
-        report["errors"] = [*report.get("errors", []), *errors]
-    else:
-        report.setdefault("errors", [])
-    report["command_returncode"] = process.returncode
-    return report
-
-
-def run_nondefault_pack_isolation_smoke(root: Path) -> dict[str, Any]:
-    """Run the owner-pack isolation regression without reading owner pack content."""
-
-    process = subprocess.run(
-        [sys.executable, "scripts/nondefault_pack_isolation_smoke_test.py"],
-        cwd=root,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-        text=True,
-        encoding="utf-8",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    errors: list[str] = []
-    try:
-        parsed = json.loads(process.stdout)
-        if not isinstance(parsed, dict):
-            raise ValueError("nondefault-pack isolation output must be a JSON object")
-        report: dict[str, Any] = parsed
-    except (json.JSONDecodeError, ValueError) as exc:
-        report = {"ok": False}
-        errors.append(f"nondefault-pack isolation returned invalid JSON: {exc}")
-    if process.returncode != 0:
-        errors.append(f"nondefault-pack isolation exited with status {process.returncode}")
-    if process.stderr.strip():
-        report["stderr"] = process.stderr.strip()
-    if errors:
-        report["ok"] = False
-        report["errors"] = [*report.get("errors", []), *errors]
-    else:
-        report.setdefault("errors", [])
-    report["command_returncode"] = process.returncode
-    return report
-
-
-def run_preset_maintenance_smoke(root: Path) -> dict[str, Any]:
-    """Run duplicate-audit and transactional-removal regressions."""
-
-    process = subprocess.run(
-        [sys.executable, "scripts/preset_maintenance_smoke_test.py"],
-        cwd=root,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-        text=True,
-        encoding="utf-8",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    return {
-        "ok": process.returncode == 0,
-        "command_returncode": process.returncode,
-        "stdout": process.stdout.strip(),
-        "stderr": process.stderr.strip(),
-        "errors": [] if process.returncode == 0 else [
-            f"preset maintenance smoke exited with status {process.returncode}"
-        ],
-    }
-
-
-def run_feature_workflow_smoke(root: Path) -> dict[str, Any]:
-    process = subprocess.run([sys.executable, "scripts/feature_workflow_smoke_test.py"], cwd=root,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-        text=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
-    try:
-        result = json.loads(process.stdout)
-    except ValueError:
-        result = {"ok": False, "errors": ["feature workflow returned invalid JSON"], "stdout": process.stdout}
-    if process.returncode != 0 or process.stderr:
-        result["ok"] = False
-        result.setdefault("errors", []).append(f"feature workflow exited {process.returncode}: {process.stderr}")
-    return result
-
-
-def run_structure_neutrality_smoke(root: Path) -> dict[str, Any]:
-    process = subprocess.run([sys.executable, "scripts/structure_neutrality_smoke_test.py"], cwd=root,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-        text=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
-    try:
-        result = json.loads(process.stdout)
-    except ValueError:
-        result = {"ok": False, "errors": ["structure neutrality returned invalid JSON"], "stdout": process.stdout}
-    if process.returncode != 0 or process.stderr:
-        result["ok"] = False
-        result.setdefault("errors", []).append(f"structure neutrality exited {process.returncode}: {process.stderr}")
-    return result
-
-
 def non_english_characters(text: str) -> dict[int, str]:
     """Map each line number to the characters on it written in another script.
 
@@ -1834,62 +1695,61 @@ def check_english_content(root: Path) -> list[str]:
     return errors
 
 
-REGRESSION_TIMEOUT_VARIABLE = "VALIDATE_REGRESSION_TIMEOUT_SECONDS"
-
-
-def _captured_text(value: Any) -> str:
-    if isinstance(value, bytes):
-        return value.decode("utf-8", "replace")
-    return value or ""
-
-
-def run_standalone_regression(root: Path, name: str, *, output_format: str) -> dict:
-    """Run a registered suite and retain its evidence without weakening its exit status.
-
-    The suite runs to completion unless the operator sets
-    VALIDATE_REGRESSION_TIMEOUT_SECONDS; validation chooses no deadline of its
-    own. An exceeded deadline is reported in the result rather than ending
-    validation without one.
-    """
-    budget = environment_seconds(REGRESSION_TIMEOUT_VARIABLE)
-    try:
-        proc = subprocess.run(
-            [sys.executable, str(root / "scripts" / name)], cwd=root,
-            capture_output=True, text=True, encoding="utf-8", timeout=budget,
+def _pack_defaults_findings(defaults: dict[str, Any], profiles: list[dict[str, Any]]) -> list[str]:
+    """What one pack's pack-defaults lacks; the release runtime holds only the default packs."""
+    findings = list(validate_known_resource("pack-defaults", defaults))
+    if defaults.get("creative_policy", {}).get("art_direction_before_preset_search") is not True:
+        findings.append("art direction is not configured before preset search")
+    if defaults.get("creative_policy", {}).get("art_direction_contains_aesthetic_judgment") is not True:
+        findings.append("art direction does not explicitly contain aesthetic judgment")
+    expected_art_direction_fields = {
+        "center_of_appeal", "viewer_or_environment_relationship",
+        "composition_and_visual_hierarchy", "medium_family",
+        "shape_and_rhythm", "surface_and_tactility",
+        "color_and_light", "detail_hierarchy",
+    }
+    if set(defaults.get("art_direction_definition", {})) != expected_art_direction_fields:
+        findings.append(
+            "art-direction definition must cover the eight integrated visual decisions: "
+            f"expected {sorted(expected_art_direction_fields)}, got "
+            f"{sorted(defaults.get('art_direction_definition', {}))}"
         )
-    except subprocess.TimeoutExpired as exc:
-        return {
-            "ok": False, "returncode": None, "tests": 0,
-            "errors": [f"regression exceeded the explicit {budget}-second budget {REGRESSION_TIMEOUT_VARIABLE}"],
-            "stdout": _captured_text(exc.stdout), "stderr": _captured_text(exc.stderr),
-        }
-    if output_format == "json":
-        try:
-            result = json.loads(proc.stdout)
-        except json.JSONDecodeError:
-            result = {"ok": False, "errors": ["regression did not emit JSON"]}
-        if not isinstance(result, dict):
-            result = {"ok": False, "errors": ["regression result must be an object"]}
-        return {
-            **result, "ok": proc.returncode == 0 and result.get("ok") is True,
-            "returncode": proc.returncode, "stdout": proc.stdout, "stderr": proc.stderr,
-        }
-    if output_format == "unittest":
-        observed = re.search(r"Ran (\d+) tests? in ", proc.stderr)
-        count = int(observed.group(1)) if observed else 0
-        return {
-            "ok": proc.returncode == 0 and count > 0,
-            "tests": count, "returncode": proc.returncode,
-            "stdout": proc.stdout, "stderr": proc.stderr,
-        }
-    raise ValueError("unsupported regression output format")
+    if defaults.get("default_aesthetic_core") not in (None, ""):
+        findings.append("pack-defaults must not force a universal aesthetic core")
+    if defaults.get("default_style_family") not in (None, ""):
+        findings.append("pack-defaults must not force a concrete style family")
+    style_policy = defaults.get("style_family_policy", {})
+    for key in (
+        "style_family_is_optional_concrete_grammar",
+        "selected_style_family_is_primary_visual_grammar",
+        "linked_render_profile_supplies_medium_envelope_and_negative_boundary",
+        "do_not_append_two_complete_grammars",
+    ):
+        if style_policy.get(key) is not True:
+            findings.append(f"style-family policy is missing or disabled: {key}")
+    expected_realization_domains = {
+        "human", "anthropomorphic-animal", "animal",
+        "creature", "hybrid", "robot",
+    }
+    realization_map = defaults.get("default_domain_realization_by_domain", {})
+    if set(realization_map) != expected_realization_domains:
+        findings.append(
+            "default domain-realization map must cover the six subject domains: "
+            f"expected {sorted(expected_realization_domains)}, got {sorted(realization_map)}"
+        )
+    default_profile_id = str(defaults.get("default_render_profile") or "")
+    default_profile = next((item for item in profiles if item.get("id") == default_profile_id), None)
+    if not default_profile:
+        findings.append(f"default render profile does not exist: {default_profile_id}")
+    elif default_profile.get("curation_status") != "curated" or not default_profile.get("medium_family"):
+        findings.append(f"default render profile is not curated production knowledge: {default_profile_id}")
+    return findings
 
 
 def validate(
     root: Path,
     *,
     write_report: bool = False,
-    package_structural_only: bool = False,
     state_file: Path | None = None,
     cache_dir: Path | None = None,
     managed_root: Path | None = None,
@@ -1943,9 +1803,6 @@ def validate(
             managed_root=managed_root.resolve(),
             quarantine_root=(managed_root.resolve() / ".quarantine").resolve(),
             default_enabled_packs=tuple(metadata.default_pack_ids),
-            default_resource_providers=tuple(
-                sorted(metadata.resource_providers.items())
-            ),
         )
     )
     errors: list[str] = []
@@ -1962,49 +1819,9 @@ def validate(
             "validated release packs omit default-pack-state activations: "
             + ", ".join(missing_default_pack_ids)
         )
-    if package_structural_only:
-        dependency_report = {
-            "ok": None,
-            "profile": "tested",
-            "definition": TESTED_REQUIREMENTS.name,
-            "not_run": True,
-            "reason": "the release packager runs the exact dependency gate before structural validation",
-            "errors": [],
-        }
-        visual_evidence_smoke = {
-            "ok": None,
-            "not_run": True,
-            "reason": "the release packager runs visual-evidence validation before structural validation",
-            "errors": [],
-        }
-        reference_runtime_smoke = {
-            "ok": None,
-            "not_run": True,
-            "reason": "the release packager runs reference-runtime validation before structural validation",
-            "errors": [],
-        }
-    else:
-        dependency_report = check_dependencies(root / TESTED_REQUIREMENTS.name)
-        if not dependency_report.get("ok"):
-            errors.append("exact tested Python dependency validation failed")
-        visual_evidence_smoke = run_visual_evidence_smoke(root)
-        if not visual_evidence_smoke.get("ok"):
-            errors.append("production visual-evidence smoke validation failed")
-        reference_runtime_smoke = run_reference_runtime_smoke(root)
-        if not reference_runtime_smoke.get("ok"):
-            errors.append("visual-reference activation and transport smoke validation failed")
-    nondefault_pack_isolation_smoke = run_nondefault_pack_isolation_smoke(root)
-    if not nondefault_pack_isolation_smoke.get("ok"):
-        errors.append("nondefault-pack core-isolation smoke validation failed")
-    preset_maintenance_smoke = run_preset_maintenance_smoke(root)
-    if not preset_maintenance_smoke.get("ok"):
-        errors.append("preset duplicate and removal maintenance smoke validation failed")
-    structure_neutrality_smoke = run_structure_neutrality_smoke(root)
-    if not structure_neutrality_smoke.get("ok"):
-        errors.append("structure neutrality smoke validation failed")
-    feature_workflow_smoke = run_feature_workflow_smoke(root)
-    if not feature_workflow_smoke.get("ok"):
-        errors.append("feature workflow smoke validation failed")
+    dependency_report = check_dependencies(root / TESTED_REQUIREMENTS.name)
+    if not dependency_report.get("ok"):
+        errors.append("exact tested Python dependency validation failed")
     try:
         release_files = list(
             iter_release_files(
@@ -2070,28 +1887,8 @@ def validate(
     except (OSError, ValueError, KeyError, TypeError) as exc:
         errors.append(f"execution route contract is invalid: {exc}")
 
-    # A manifest entry proves a test exists, not that the release exercised it.
-    # Run JSON-report suites and unittest suites under their actual result formats.
-    regressions = {
-        "release_management_smoke_test.py": "json",
-        "readme_smoke_test.py": "json",
-        "evidence_tools_smoke_test.py": "json",
-        "reference_delivery_smoke_test.py": "json",
-        "scene_material_smoke_test.py": "unittest",
-        "agent_evaluation_smoke_test.py": "unittest",
-        "resource_handling_smoke_test.py": "unittest",
-        "reimplementation_smoke_test.py": "unittest",
-        "craft_consultation_smoke_test.py": "unittest",
-        "render_contract_smoke_test.py": "unittest",
-    }
-    for name, output_format in regressions.items():
-        result = run_standalone_regression(root, name, output_format=output_format)
-        documentation_observed[name] = result
-        if result["ok"] is not True:
-            errors.append(f"artifact evidence regression failed: {name}")
-
     link_documents: list[Path] = sorted(root.glob("*.md"))
-    for link_tree in ("references", "examples", "agents", "tests"):
+    for link_tree in ("references", "examples", "agents"):
         link_root = root / link_tree
         if link_root.is_dir():
             link_documents.extend(sorted(link_root.rglob("*.md")))
@@ -2372,68 +2169,24 @@ def validate(
             errors.append(f"duplicate catalog id {record_id}: {ids[record_id]} and {entry.kind}/{entry.category}")
         ids[record_id] = f"{entry.kind}/{entry.category}"
 
-    species_ids = {
-        str(entry.record.get("id") or "")
+    species_records = [
+        entry.record
         for entry in entries
         if entry.kind == "module" and entry.category == "species"
-    }
-    scaffold_path = named_resource_path("species-scaffold-map", required=False)
+    ]
+    scaffold_errors = species_scaffold_issues(species_records)
     species_scaffold_report = {
-        "ok": True,
-        "declared": scaffold_path is not None,
-        "species_records": len(species_ids),
-        "mapped_records": 0,
-        "fallback_records": 0,
-        "errors": [],
+        "ok": not scaffold_errors,
+        "species_records": len(species_records),
+        "fallback_records": sum(
+            1 for record in species_records
+            if isinstance(record.get("scaffold"), dict)
+            and record["scaffold"].get("family") == "direct-geometry-required"
+        ),
+        "errors": scaffold_errors,
     }
-    if scaffold_path is not None:
-        try:
-            scaffold_data = json.loads(scaffold_path.read_text(encoding="utf-8"))
-            mappings = scaffold_data.get("species_to_scaffold") or {}
-            families = scaffold_data.get("families") or {}
-            mapped_ids = set(map(str, mappings))
-            scaffold_errors = validate_known_resource(
-                "species-scaffold-map",
-                scaffold_data,
-            )
-            missing = sorted(species_ids - mapped_ids)
-            extra = sorted(mapped_ids - species_ids)
-            if missing:
-                scaffold_errors.append(f"missing species scaffold mappings: {missing}")
-            if extra:
-                scaffold_errors.append(f"unknown species scaffold mappings: {extra}")
-            invalid_families = sorted(
-                sid for sid, row in mappings.items()
-                if not isinstance(row, dict) or row.get("scaffold_family") not in families
-            )
-            if invalid_families:
-                scaffold_errors.append(f"invalid scaffold families: {invalid_families}")
-            if scaffold_data.get("species_count") != len(species_ids):
-                scaffold_errors.append("species scaffold species_count does not match the active catalog")
-            species_scaffold_report = {
-                "ok": not scaffold_errors,
-                "declared": True,
-                "species_records": len(species_ids),
-                "mapped_records": len(mapped_ids),
-                "fallback_records": sum(
-                    1 for row in mappings.values()
-                    if isinstance(row, dict)
-                    and row.get("scaffold_family") == "direct-geometry-required"
-                ),
-                "errors": scaffold_errors,
-            }
-            if scaffold_errors:
-                errors.append("species scaffold map validation failed")
-        except Exception as exc:  # noqa: BLE001
-            species_scaffold_report = {
-                "ok": False,
-                "declared": True,
-                "species_records": len(species_ids),
-                "mapped_records": 0,
-                "fallback_records": 0,
-                "errors": [str(exc)],
-            }
-            errors.append(f"species scaffold map validation failed: {exc}")
+    if scaffold_errors:
+        errors.append("species scaffold validation failed")
 
     scenes = [entry.record for entry in entries if entry.kind == "scene"]
     profiles = [entry.record for entry in entries if entry.kind == "profile"]
@@ -2484,66 +2237,21 @@ def validate(
     if not line_ending_verification.get("ok"):
         errors.append("release line-ending normalization failed")
 
-    defaults_path = named_resource_path("project-defaults")
-    assert defaults_path is not None
-    defaults = json.loads(defaults_path.read_text(encoding="utf-8"))
-    for message in validate_known_resource("project-defaults", defaults):
-        errors.append(f"selected project-defaults: {message}")
-    if defaults.get("medium_policy", {}).get("single_medium_family_by_default") is not True:
-        errors.append("single-medium policy is not enabled")
-    if defaults.get("medium_policy", {}).get("hybrid_requires_explicit_request") is not True:
-        errors.append("hybrid medium does not require an explicit request")
-
     negative_policy_path = named_resource_path("negative-policy")
     assert negative_policy_path is not None
     negative_policy = json.loads(negative_policy_path.read_text(encoding="utf-8"))
     for message in validate_known_resource("negative-policy", negative_policy):
-        errors.append(f"selected negative-policy: {message}")
-    if defaults.get("creative_policy", {}).get("art_direction_before_preset_search") is not True:
-        errors.append("art direction is not configured before preset search")
-    if defaults.get("creative_policy", {}).get("art_direction_contains_aesthetic_judgment") is not True:
-        errors.append("art direction does not explicitly contain aesthetic judgment")
-    expected_art_direction_fields = {
-        "center_of_appeal", "viewer_or_environment_relationship",
-        "composition_and_visual_hierarchy", "medium_family",
-        "shape_and_rhythm", "surface_and_tactility",
-        "color_and_light", "detail_hierarchy",
-    }
-    if set(defaults.get("art_direction_definition", {})) != expected_art_direction_fields:
-        errors.append(
-            "art-direction definition must cover the eight integrated visual decisions: "
-            f"expected {sorted(expected_art_direction_fields)}, got "
-            f"{sorted(defaults.get('art_direction_definition', {}))}"
+        errors.append(f"negative-policy: {message}")
+    shipped_defaults = load_pack_catalog().resources.get("pack-defaults")
+    if shipped_defaults is None:
+        errors.append("no default pack binds pack-defaults")
+    else:
+        errors.extend(
+            f"pack-defaults of {shipped_defaults.source_pack}: {message}"
+            for message in _pack_defaults_findings(
+                json.loads(shipped_defaults.path.read_text(encoding="utf-8")), profiles
+            )
         )
-    if defaults.get("default_aesthetic_core") not in (None, ""):
-        errors.append("project defaults must not force a universal aesthetic core")
-    if defaults.get("default_style_family") not in (None, ""):
-        errors.append("project defaults must not force a concrete style family")
-    style_policy = defaults.get("style_family_policy", {})
-    for key in (
-        "style_family_is_optional_concrete_grammar",
-        "selected_style_family_is_primary_visual_grammar",
-        "linked_render_profile_supplies_medium_envelope_and_negative_boundary",
-        "do_not_append_two_complete_grammars",
-    ):
-        if style_policy.get(key) is not True:
-            errors.append(f"style-family policy is missing or disabled: {key}")
-    expected_realization_domains = {
-        "human", "anthropomorphic-animal", "animal",
-        "creature", "hybrid", "robot",
-    }
-    realization_map = defaults.get("default_domain_realization_by_domain", {})
-    if set(realization_map) != expected_realization_domains:
-        errors.append(
-            "default domain-realization map must cover the six subject domains: "
-            f"expected {sorted(expected_realization_domains)}, got {sorted(realization_map)}"
-        )
-    default_profile_id = str(defaults.get("default_render_profile") or "")
-    default_profile = next((item for item in profiles if item.get("id") == default_profile_id), None)
-    if not default_profile:
-        errors.append(f"default rendering profile does not exist: {default_profile_id}")
-    elif default_profile.get("curation_status") != "curated" or not default_profile.get("medium_family"):
-        errors.append(f"default rendering profile is not curated production knowledge: {default_profile_id}")
 
     payload_template = json.loads((root / "templates/generation-package-template.json").read_text(encoding="utf-8"))
     if payload_template.get("status") != "template":
@@ -2803,64 +2511,31 @@ def validate(
     if handoff_errors:
         errors.append("shot-request handoff validation failed")
 
-    if not package_structural_only:
-        from default_release_smoke_test import evaluate_default_release
-
-        default_release_regression = evaluate_default_release(root)
-        if not default_release_regression.get("ok"):
-            errors.append("default-pack positive release regression failed")
-    else:
-        default_release_regression = {
-            "ok": None,
-            "total_cases": 0,
-            "passed": 0,
-            "failed": 0,
-            "skipped": 0,
-            "details": [],
-            "errors": [],
-            "not_run": True,
-            "reason": "the release packager runs the default-pack regression as a separate gate",
-        }
-
     measured = [
         path for path in files
         if path.name not in GENERATED_RELEASE_ARTIFACT_NAMES
     ]
     report = {
         "package": PACKAGE_NAME,
-
-
         "license": LICENSE_ID,
         "ok": not errors,
         "validation_scope": (
             "explicit release inventory, full MANIFEST integrity, LF-normalized release inventory, "
             "lean SKILL router and authoritative documentation routing, "
             "product-release identity, versionless internal artifacts, "
-            "default-pack catalog integrity and activation isolation, direct canonical-ID integrity, Shared State Protocol schemas and lineage, "
+            "default-pack catalog integrity and authoring conformance, direct canonical-ID integrity, "
+            "Shared State Protocol schemas and lineage, "
             "shot-request handoff, pack-declared reference-corpus disposition and full declared-bundle validation, "
-            "default-pack positive retrieval regression, exact payload transport, "
-            + (
-                "and package-delegated exact dependency and production visual gates; "
-                if package_structural_only
-                else "exact tested dependencies, and the production visual-evidence workflow; "
-            )
-            + "this report does "
-            "not claim artistic-quality validation"
+            "exact payload transport templates, and exact tested dependencies; "
+            "it runs no test suite, and it does not claim artistic-quality validation"
         ),
         "version_observed": version_observed,
         "documentation_observed": documentation_observed,
         "counts": counts,
         "dependencies": dependency_report,
-        "visual_evidence_smoke": visual_evidence_smoke,
-        "reference_runtime_smoke": reference_runtime_smoke,
-        "nondefault_pack_isolation_smoke": nondefault_pack_isolation_smoke,
-        "preset_maintenance_smoke": preset_maintenance_smoke,
-        "feature_workflow_smoke": feature_workflow_smoke,
-        "structure_neutrality_smoke": structure_neutrality_smoke,
         "release_manifest": manifest_verification,
         "release_line_endings": line_ending_verification,
-        "species_scaffold_map": species_scaffold_report,
-        "default_release_regression": default_release_regression,
+        "species_scaffolds": species_scaffold_report,
         "state_protocol": {
             "ok": state_protocol.get("ok"),
             "artifact_schema_count": state_protocol.get("artifact_schema_count"),
@@ -2893,7 +2568,6 @@ def validate(
             if row.get("pack_id") in set(metadata.default_pack_ids)
         ],
         "release_packs": workspace_pack_validation,
-        "package_structural_only": package_structural_only,
         "files": len(files),
         "bytes_excluding_manifest_and_report": sum(path.stat().st_size for path in measured),
         "errors": errors,
@@ -2932,7 +2606,7 @@ def validate(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = _operation_context.ArgumentParser()
     parser.add_argument("root", nargs="?", default=str(Path(__file__).resolve().parents[1]))
     parser.add_argument("--report-out", help="Optional external JSON report path")
     parser.add_argument("--state-file", type=Path, help="Explicit validation pack-state path")
@@ -2943,11 +2617,6 @@ def main() -> int:
         action="store_true",
         help="Require the complete tree to equal the declared release inventory plus MANIFEST.json.",
     )
-    parser.add_argument(
-        "--package-structural-only",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
     args = parser.parse_args()
     runtime_values = (args.state_file, args.cache_dir, args.managed_root)
     if any(value is not None for value in runtime_values) and not all(
@@ -2957,7 +2626,6 @@ def main() -> int:
     report = validate(
         Path(args.root).resolve(),
         write_report=False,
-        package_structural_only=args.package_structural_only,
         state_file=args.state_file,
         cache_dir=args.cache_dir,
         managed_root=args.managed_root,
@@ -2972,4 +2640,4 @@ def main() -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

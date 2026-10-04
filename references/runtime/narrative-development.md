@@ -49,7 +49,7 @@ character-first or image-first idea keeps that order. Recover existing anchors a
 records before adding anything. Delegated invention permits proposals; approval stays with the
 user. An answered question stays answered, and a rejected suggestion stays rejected.
 
-Record what serves this task in a project design note, in conversation or in `narrative/design/`.
+Record what serves this task in a design note, in conversation or in `narrative/design/`.
 Read the full design template, then work on the relevant sections. Each form is a working record,
 not a questionnaire to send wholesale to the user.
 
@@ -197,9 +197,9 @@ roles and local practice where it matters.
 ### Agents and persona
 
 When individualized behavior, dialogue or continuing identity matters, read the complete persona
-form and the existing applicable persona files first. Keep all twenty sections as the workspace:
+form and each applicable character profile (a persona file) first. Keep all twenty sections as the workspace:
 deepen causally relevant fields first and retain the rest as examined states or visible gaps. A
-summary may support comparison; the detailed form stays the record. Personas belong to portrayed
+summary may aid comparison; the detailed form stays the record. Personas belong to portrayed
 agents; scenery, forces, decorative crowds and collectives get one only when portrayed as agents,
 whatever a file format expects, and an impersonal process gets a process model.
 
@@ -328,7 +328,7 @@ Each kind of record has one home:
 - executed state in state artifacts.
 
 Link and summarize rather than create competing canonical copies. The persona's Design Ledger
-owns local behavior decisions; the project ledger references them when they affect other layers,
+owns local behavior decisions; the design ledger references them when they affect other layers,
 and a standalone persona keeps that scope in its own ledger.
 
 A world rule or theme can change across an authored phase, region, branch or revision. Record

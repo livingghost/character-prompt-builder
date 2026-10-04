@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -9,7 +10,7 @@ from visual_evidence import validate_bundle
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = _operation_context.ArgumentParser()
     parser.add_argument("path")
     args = parser.parse_args()
     root = Path(args.path)
@@ -43,4 +44,4 @@ def main() -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

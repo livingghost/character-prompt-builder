@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify and export an exact Character Prompt Builder generation payload."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -301,14 +302,15 @@ def _verify(
     *,
     package_root: Path | None = None,
     live: bool,
-    project: Path | None = None,
+    snapshot_inputs: bool = False,
+    studio: Path | None = None,
     reading_ledgers: list[Path] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("generation package must be an object")
     _require_exact_fields(data, GENERATION_PACKAGE_FIELDS, "generation package")
     import input_contracts
-    input_reader, validation_report = input_contracts.verify_fields(data, root=project or package_root, live=live)
+    input_reader, validation_report = input_contracts.verify_fields(data, root=studio or package_root, live=live and not snapshot_inputs)
     input_reader.basis(data['visual_continuity']['basis'])
     for field in ('request_validation_sha256','input_snapshots_sha256'):
         if data['generation_contract'].get(field) != data[field]:
@@ -316,7 +318,7 @@ def _verify(
     from route_reading import require_route_reading, validate_record_content, GENERATION_ROUTES
     validate_record_content(data["route_reading"])
     if live:
-        require_route_reading(data["route_reading"], project=project, ledgers=reading_ledgers,
+        require_route_reading(data["route_reading"], studio=studio, ledgers=reading_ledgers,
                               package_root=package_root, routes=GENERATION_ROUTES)
     reading_hash = sha256_json(data["route_reading"])
     if data["route_reading_sha256"] != reading_hash or data["generation_contract"].get("route_reading_sha256") != reading_hash:
@@ -476,7 +478,7 @@ def _verify(
             if isinstance(negative_limit, int) and len(str(payload.get("negative_prompt") or "")) > negative_limit:
                 raise ValueError("negative prompt exceeds the active model character limit")
         if model_record is not None:
-            require_route_reading(data['route_reading'], project=project, ledgers=reading_ledgers,
+            require_route_reading(data['route_reading'], studio=studio, ledgers=reading_ledgers,
                 package_root=package_root, routes=GENERATION_ROUTES,
                 dialect=model_record.get('prompt_dialect'))
     prompt = payload.get("prompt")
@@ -587,7 +589,7 @@ def _verify(
         raise ValueError('visual continuity hash mismatch')
     if live:
         require_visual(data['visual_continuity'], production_spec=production_spec,
-                       prepared=reference_set, root=project or package_root)
+                       prepared=reference_set, root=studio or package_root, basis_reader=input_reader)
     reference_set_hash = require_concrete_sha256(
         reference_set.get("prepared_reference_set_sha256"),
         "prepared_reference_set.prepared_reference_set_sha256",
@@ -727,7 +729,7 @@ def _verify(
     }
     from request_renderer import prepare_forwarding
     rendered_input = prepare_forwarding(data, {'selected_transport':selected_transport,'host_forwarding':host_forwarding},
-        root=project or package_root, model_id=model_id, model=model_record, offering=offering)
+        root=studio or package_root, model_id=model_id, model=model_record, offering=offering, live_inputs=not snapshot_inputs)
     if rendered_input['input_snapshots'] != data['input_snapshots']:
         raise ValueError('execution policy evidence is not completely captured in the generation input')
     host_forwarding = rendered_input['host_forwarding']
@@ -762,9 +764,9 @@ def _verify(
 
 
 def verify(data: dict[str, Any], *, package_root: Path | None = None,
-           project: Path | None = None, reading_ledgers: list[Path] | None = None) -> dict[str, Any]:
+           studio: Path | None = None, reading_ledgers: list[Path] | None = None, snapshot_inputs: bool = False) -> dict[str, Any]:
     """Verify a current execution input using active sources and reading evidence."""
-    return _verify(data, package_root=package_root, live=True, project=project,
+    return _verify(data, package_root=package_root, live=True, studio=studio, snapshot_inputs=snapshot_inputs,
                    reading_ledgers=reading_ledgers)
 
 
@@ -778,11 +780,11 @@ def emit_paste_for_target(
     target: str,
     *,
     package_root: Path | None = None,
-    project: Path | None = None,
+    studio: Path | None = None,
 ) -> dict[str, Any]:
     """Export only the already committed transport; never infer a new one."""
 
-    result = verify(data, package_root=package_root, project=project)
+    result = verify(data, package_root=package_root, studio=studio)
     if target != result["model"]:
         raise ValueError(
             f"requested target {target!r} differs from committed model {result['model']!r}"
@@ -820,14 +822,27 @@ def emit_paste_for_target(
     return exported
 
 
+# Each output option with the verified text it writes, byte for byte.
+OUTPUTS = (
+    ("--prompt-out", lambda result: result["host_forwarding"]["effective_prompt"].encode("utf-8")),
+    ("--negative-out", lambda result: result["negative_prompt"].encode("utf-8")),
+    ("--native-negative-out", lambda result: result["native_negative"].encode("utf-8")),
+    ("--payload-out", lambda result: (json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")),
+)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Verify an exact Character Prompt Builder payload.")
-    parser.add_argument("payload")
-    parser.add_argument("--studio-root", type=Path, help="Source and studio root for live visual checks")
-    parser.add_argument("--prompt-out")
-    parser.add_argument("--negative-out")
-    parser.add_argument("--native-negative-out")
-    parser.add_argument("--payload-out")
+    parser = _operation_context.ArgumentParser(
+        description="Verify an exact Character Prompt Builder payload.",
+        epilog="A relative path is a /-separated path below --studio-root; an absolute path is taken as given. "
+        "Each output is a new file holding the verified text exactly.",
+    )
+    parser.add_argument("payload", help="The Generation Package JSON")
+    parser.add_argument("--studio-root", type=Path, help="Source and studio root for live visual checks and relative paths")
+    parser.add_argument("--prompt-out", help="New file for the effective prompt")
+    parser.add_argument("--negative-out", help="New file for the portable negative prompt")
+    parser.add_argument("--native-negative-out", help="New file for the native negative subset")
+    parser.add_argument("--payload-out", help="New file for the verification result")
     parser.add_argument(
         "--target",
         help=(
@@ -840,39 +855,32 @@ def main(argv: Sequence[str] | None = None) -> int:
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
 
+    from production_binding import new_output, studio_file, report_failure, write_new
     try:
-        data = load_payload(Path(args.payload))
-        payload_path = Path(args.payload).resolve()
-        result = verify(data, package_root=payload_path.parent, project=args.studio_root)
+        root = args.studio_root.absolute() if args.studio_root is not None else None
+        payload_path = studio_file(root, args.payload, option="payload", root_option="--studio-root").resolve()
+        outputs = []
+        for option, render in OUTPUTS:
+            value = getattr(args, option[2:].replace("-", "_"))
+            if value is not None:
+                outputs.append((option, value, new_output(root, value, option=option, root_option="--studio-root"), render))
+        if len({path.absolute() for _, _, path, _ in outputs}) != len(outputs):
+            raise ValueError("each output option needs its own new file")
+        data = load_payload(payload_path)
+        result = verify(data, package_root=payload_path.parent, studio=args.studio_root)
         if args.target:
             result["paste"] = emit_paste_for_target(
                 data,
                 args.target,
                 package_root=payload_path.parent,
-                project=args.studio_root,
+                studio=args.studio_root,
             )
+        for option, value, path, render in outputs:
+            write_new(path, render(result), option=option, value=value)
     except (ValueError, OSError) as exc:
-        result = {
-            "verified": False,
-            "errors": list(dict.fromkeys(getattr(exc, "errors", None) or [str(exc)])),
-        }
-        print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
-        return 1
+        return report_failure(exc, phase="package-verification")
     finally:
         configure_pack_runtime(None)
-
-    if args.prompt_out:
-        Path(args.prompt_out).write_text(
-            result["host_forwarding"]["effective_prompt"] + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
-    if args.negative_out:
-        Path(args.negative_out).write_text(result["negative_prompt"] + "\n", encoding="utf-8", newline="\n")
-    if args.native_negative_out:
-        Path(args.native_negative_out).write_text(result["native_negative"] + "\n", encoding="utf-8", newline="\n")
-    if args.payload_out:
-        Path(args.payload_out).write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8", newline="\n")
     print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
     return 0
 
@@ -880,4 +888,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

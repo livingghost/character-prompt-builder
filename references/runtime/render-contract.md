@@ -16,7 +16,7 @@ Record who chose the direction (`user` or `agent`) and why.
 Ask about a material ambiguity; otherwise choose deliberately within the user's open creative space.
 Use regional overrides for a genuinely mixed treatment, naming each region and its reason.
 Do not combine mutually exclusive whole-image treatments into an accidental average.
-The registry is a discovery aid, not a closed list of all possible media.
+The registry is a discovery aid, not a closed list of media.
 
 ```bash
 python scripts/render_contract.py intent --preset flat-graphic --mode text-to-image \
@@ -47,7 +47,7 @@ python scripts/catalog_cli.py inspect <model-id>
 ```
 
 The first command prints one complete guidance card. Catalog inspection prints a card for each offering.
-Both resolve models from every enabled pack, including registered and user-installed packs.
+Both resolve models from every enabled pack.
 Pass the same state, cache, managed root, and extra pack roots to every model-aware command.
 The prompt-dialect command resolves the model, dialect, and writing guide in that same runtime.
 The prompt-dialect report and route reading with `--model` include the same cards.
@@ -55,26 +55,39 @@ They expose recommended positive and negative text, merge mode, parameter recomm
 size choices, prompt slot order, evidence basis, limitations, and every mode's controls.
 Read this output before preparing model-specific wording or values.
 A model change means a new card, prompt review, parameter resolution, and authorization scope review.
-Never replace the selected provider or model with another image tool merely because it is available.
+Never swap the selected provider or model for another image tool merely because it is available.
 
 Recommendations live in the model's existing `recommended_parameters`,
 `recommended_positive_prompt`, and `recommended_negative_prompt` fields.
 `execution_profile` belongs to the exact offering, or to a host-only model with no offering.
-The profile's controls point to recommendation names; they do not duplicate the values.
+Its controls point to recommendation names; they do not duplicate the values.
 One interface never inherits another interface's capabilities implicitly.
 
 A card may report `ready_for_parameter_resolution: false` for an unconfigured model.
 Its catalog entry remains readable, but generation requires an authored execution profile.
-Record exact provider documentation or stored schema evidence where available.
-Distinguish provider documentation, curated starting points, measured findings, and synthetic fixtures.
-Stored evidence is not a claim that a remote API was checked today.
-A quality finding needs its own measured scope; a successful request proves only acceptance.
-Never turn one image, dictionary hit, or different engine's result into a universal model recommendation.
+An execution profile's `basis.kind` is `provider-documentation`, `curated-starting-point`, `measured` or `synthetic`.
+A `measured` basis names the adopted observed request profile it rests on, by its path inside the pack and its SHA-256.
+No other kind names one.
+A synthetic basis from `scripts/render_contract_smoke_test.py`, trimmed:
+
+```json
+{"kind": "measured", "source": "Synthetic adopted trial.", "limitations": ["One request tuple."],
+ "observed_profile": {"path": "resources/observed-profiles/trial/profile.json", "sha256": "aaaaaaaa..."}}
+```
+
+`render_contract.py model` verifies that observed profile through request validation in `observed-profile` mode before it shows the card.
+A `measured` claim the pack cannot prove is refused (synthetic, from the same test):
+
+```json
+{"ok": false, "errors": ["a measured basis names an adopted observed request profile: resources/dialects.json"]}
+```
+
+[Model request evidence](model-evidence.md#keep-kinds-of-evidence-apart) keeps the kinds of evidence apart.
 
 ## Declare controls by operation
 
 Every mode names its media semantics and its controls using exact request paths.
-Nested controls use dotted paths in the profile and nested JSON objects in authored parameters.
+Nested controls use dotted paths in the execution profile and nested JSON objects in authored parameters.
 Every mode states a seed and output-count disposition, including interfaces that expose neither.
 
 | Status | Behavior |
@@ -91,15 +104,14 @@ Value schemas validate types and limits; the mode's `parameter_schema` validates
 For example, it can require either explicit width and height or a named resolution, but not both.
 Schema defaults never substitute for parameter decisions.
 
-For exposed sampling controls, declare steps, guidance, sampler, parser, and other meaningful controls explicitly.
+For exposed sampling controls, declare steps, guidance, sampler, parser, and other meaningful controls.
 For a managed instruction model, mark unavailable controls as backend-managed instead of fabricating them.
 A source-image denoising value applies only to a mode that exposes that control.
 A style reference is not automatically an img2img seed; the selected transport must match the intended influence.
 Weights on adapters, guidance inputs, and other optional features need their own declared paths and schemas.
 Keep source identity, rendering influence, composition influence, and transport roles separate.
 
-`schemas/model-execution-profile.schema.json` defines the profile.
-Validate a proposed profile with:
+Validate a proposed execution profile against `schemas/model-execution-profile.schema.json`:
 
 ```bash
 python scripts/render_contract.py validate-profile execution-profile.json
@@ -120,16 +132,16 @@ dispatch-required controls, non-applicable controls, and backend-managed control
 Each decision includes its reason. The plan retains both authored and effective parameters.
 `schemas/render-contract.schema.json` describes its public structure; runtime verification also checks derivation and hashes.
 Unknown or incomplete input fails with a nonzero exit and a concrete error; it creates no partial plan.
-The CLI creates a new output file and refuses to overwrite one.
+The CLI refuses to overwrite an existing output file.
 
 The Generation Package builder compiles this contract from its Production Specification.
 Its commitment includes the chosen intent, complete model card, recommendations, and resolved controls.
 Verification recomputes the decisions and checks the active interface against the pinned card.
-Dispatch checks explicit seed and count, compiles the real request, and checks the wire values again.
+Preparation compiles the real request with the task's seed and count and checks the wire values again.
 Transport adapters do not fill absent sampling, rendering, or output parameters behind this check.
-Existing request-schema, reference, studio, cost, and authority checks still apply.
+Request-schema, reference, studio, cost and authority checks apply as well.
 
-The dispatcher prints the rendering choice before the complete request preview.
+The dispatcher preview prints the rendering choice before the complete request.
 Read the final positive and negative transport and all applied values from that preview.
 A prompt-only answer uses the same deliberate finish choice and model guidance when a target is named,
 but does not need a submission authorization or an invented model when none was requested.
@@ -141,13 +153,13 @@ Choose the source finish deliberately, preserving its declared treatment unless 
 An interface without a text channel uses an empty `prompt_expression`; it does not receive invented prompt fields.
 A guided upscaler includes the retrieved expression in its explicit guidance prompt.
 The offering maps the neutral `scale` setting to its actual request field in `parameter_keys`.
-The upscale profile declares that field and every other setting, including unavailable seed and count controls.
-Pass the intent file to both request preparation and dispatch with `--render-intent`.
+The upscaler's execution profile declares that field and every other setting, including unavailable seed and count controls.
+Pass the intent file with `--render-intent` to `production_binding.py`, and to `dispatch.py --upscale` for its preview.
 The sealed request retains the complete resolved contract beside the source evidence.
 
 ## Extension and verification
 
-Author a profile for the interface actually exposed, not for a similarly named family.
+Author an execution profile for the interface actually exposed, not for a similarly named family.
 Retain the provider's true spelling, supported modes, value constraints, and unavailable controls.
 Give synthetic examples a synthetic basis and never ship them as measured provider advice.
 The agent owns recipe application and conflict review; deterministic code does not infer art direction from keywords.
@@ -163,6 +175,6 @@ python scripts/render_contract_smoke_test.py
 python scripts/model_contract_smoke_test.py
 ```
 
-The tests cover explicit choices, unsupported inputs, conditional controls, profile drift,
+The tests cover explicit choices, unsupported inputs, conditional controls, execution profile drift,
 parameter overrides, nested paths, request tampering, and model guidance visibility.
 They establish contract behavior, not artistic quality.

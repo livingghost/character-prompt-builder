@@ -2,46 +2,39 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-Character Prompt Builder turns a character idea, an existing design or a scene brief into a visual direction and the files that produce and review it. It can stop at a prompt, build a reusable character sheet, assemble reference images, or send an approved image request and keep every result beside the exact input that produced it.
+Character Prompt Builder turns a character idea, an existing design or a scene brief into a visual direction and the files that produce it. It can stop at a prompt, build a reusable character sheet, or send an approved image request. Every returned image is kept beside the exact request that produced it.
 
-It is an Agent Skill: instructions the agent follows, plus local Python tools the agent runs. The author and the agent decide what an image is for and judge what comes back. The tools search the bundled production knowledge, check inputs, keep files and hashes, rebuild a character's state at any point in the story from recorded events, and track what was approved. Authoring and the examples below run without an API key.
-
-The same workflow serves people, ordinary animals, anthropomorphic subjects, creatures, machines and scenes with no cast at all. A single image and a long-running project follow the same principles, and a short request stays short.
+It is an Agent Skill: instructions an agent follows, plus local Python tools the agent runs. The author and the agent decide what an image is for and judge what comes back. The tools search the bundled production knowledge, check inputs, keep files with their hashes and record each approval. Authoring and the examples below run without an API key.
 
 ## Who this project is for
 
-Use it when the job is more than finding a pleasing string of tags. You need to decide what an image should communicate, keep the subject you designed, let a reference influence only the parts it should, or continue from a result without losing the decisions behind it. An author with a one-line idea, an artist developing a reusable design and a production team revisiting one subject across scenes all follow the same path.
+Use it when the job is more than finding a pleasing string of tags:
 
-A typical brief fixes the subject's build and recognizable details and leaves lighting and composition open. The first job is to explore coherent directions around those fixed points. Once one is chosen, the skill writes the prompt, orders the references and sets the model parameters that express it. The returned image is evidence to inspect: it can be accepted, repaired or set aside, and it becomes part of the character's definition only when the author says so.
+- an author with a one-line idea who wants coherent alternatives before any image exists;
+- an artist developing a design that must stay recognizable from image to image;
+- a production team revisiting one subject across scenes, sessions and models.
+
+The subject can be a person, an animal, an anthropomorphic character, a creature, a machine or a scene with no cast. A short request stays short, and a long project follows the same path with more records.
 
 ## Core production chain
 
-```text
-brief, existing design or approved story state
-  -> fixed details and open visual decisions
-  -> options while meaningful decisions stay open
-  -> one selected direction and explicit rendering intent
-  -> full reading of the production records it uses
-  -> the character's current state and profile, when continuity matters
-  -> selected model guidance, prompt wording and resolved controls
-  -> checked generation package with ordered references
-  -> approved request and every returned image
-  -> review, local repair, selection, and write-back
-```
+Each step leaves a record, and the next step starts from it.
 
-**Settle the intent first.** The author supplies or decides the purpose, the fixed conditions and the acceptable freedom. The agent turns them into a complete image description: what the viewer should recognize, what carries the composition, how the subject is built, how the finish serves the purpose. When a sparse brief leaves several directions open, the agent compares complete alternatives instead of piling incompatible details into one prompt. A prompt-only request can stop here.
+1. **Settle the intent.** Decide what the image is for and which details may not change, and compare complete alternatives while real choices stay open. See [Sparse-Brief Discovery](references/runtime/sparse-discovery.md).
+2. **Read the production knowledge.** A catalog search finds production records, and the agent reads each selected record in full. See the [Preset System Contract](references/preset-system-contract.md).
+3. **Resolve the subject.** For a recurring character, its character profile, design and current story state say what stays fixed and what may vary. See [State-Aware Series](references/runtime/state-aware-series.md).
+4. **Choose the finish and the model controls.** Record the rendering intent, read the selected model's guidance and resolve each control it requires. See [Rendering choices and execution controls](references/runtime/render-contract.md).
+5. **Write the prompt and seal the request.** The prompt, the scoped negative, the settings and the ordered references are checked and bound to their files. See [Image Generation](references/runtime/image-generation.md).
+6. **Prepare, approve and send.** Preparation shows the complete request and its cost, and sending waits for a separate approval. See [Production Execution](references/runtime/production-execution.md).
+7. **Review and continue.** Every returned image is kept and compared with the stated intent before anything is selected. See the [Studio Runtime](references/runtime/studio.md).
 
-**Read what makes the direction possible.** Catalog search finds production records; the agent then reads the selected records in full, including their constraints and the conditions they apply under. For a recurring character, the character profile, the design, the author's aims and the current story state say what stays fixed and what may vary.
-
-**Turn the direction into exact inputs.** The agent decides how each requirement appears in text and references. The scripts check the declared model and service parameters, keep the attachment order and permitted influence of every reference, and bind the package to its actual files. Sending a request is a separate step that needs a prepared run and an explicit approval.
-
-**Inspect and continue deliberately.** Every returned image is kept with the input that produced it. The review compares the actual image with the stated intent, separates what was observed from why it might have happened, and targets a repair at the part that needs changing. Selecting an image for delivery, using it as a reference and making a detail a permanent part of the character are three separate decisions. A new session resumes from the saved project and its records.
+A request for a prompt alone ends once the prompt is written. Selecting an image, using it as a reference and making a detail permanent are three separate decisions, each the author's. The tools check that a request matches its declared inputs, and people judge whether the image succeeds.
 
 ## Installation
 
-Use Python 3.11 or later. Authoring, catalog access and the text examples use only the standard library. Image conversion, visual-evidence extraction and image editing need the optional visual dependencies.
+Use Python 3.11 or later. The core needs only the standard library. Image conversion, visual evidence and image editing need the optional visual dependencies.
 
-For a host that installs a skill directory, copy the complete extracted product folder to the host's skill location. For a plugin-capable host, use the package's plugin root with its host metadata. [SKILL.md](SKILL.md) is the agent's entry point; the scripts, schemas, resources and templates beside it are part of the product. A text-only chat can discuss a design but cannot run the tools.
+Copy the complete extracted product folder to the host's skill location, or install the package's plugin root on a plugin-capable host. [SKILL.md](SKILL.md) is the agent's entry point, and the scripts, schemas and resources beside it are part of the product. A text-only chat can discuss a design but cannot run the tools.
 
 Run the following from the extracted product folder with the interpreter the host will use:
 
@@ -51,19 +44,13 @@ python scripts/check_dependencies.py --profile core
 ```
 <!-- end-readme-example -->
 
-Without `--install` the check installs nothing. With it, the check prints the commands that install what is missing, runs them once you confirm, and checks again with the Python that received the packages. For image work:
+For image work, run the same check with `--profile visual --install`. It prints the commands that install what is missing, runs them once you confirm and checks again.
 
-```sh
-python scripts/check_dependencies.py --profile visual --install
-```
+[DEPENDENCIES.md](DEPENDENCIES.md) explains each dependency, Pythons managed by the system, virtual environments and fonts. The [core](requirements-core.txt), [visual](requirements-visual.txt) and [combined](requirements.txt) requirement files define the dependency profiles. The [tested requirements](requirements-tested.txt) pin the release-validation environment.
 
-The commands install into the Python that ran the check, through pip, or through `uv pip install --python` where that Python has no pip. Where the system manages that Python's packages (PEP 668), add `--venv DIR`. The commands then create a virtual environment at DIR when it is absent and install into it, and the tools run with its Python.
+## First commands
 
-Character-sheet text rendering needs an installed font. [DEPENDENCIES.md](DEPENDENCIES.md) explains each dependency and the native-library notes. The [core](requirements-core.txt), [visual](requirements-visual.txt) and [combined](requirements.txt) requirement files define the supported profiles; the [tested requirements](requirements-tested.txt) pin the release-validation environment.
-
-### First commands
-
-Once the core check passes, settle the content-pack state and ask the catalog for options around a real brief. These commands read local resources only and generate nothing.
+Settle the content-pack state, then ask the catalog for options around a real brief. These commands read local resources only and generate nothing:
 
 ```sh
 python scripts/pack_cli.py ready
@@ -71,137 +58,15 @@ python scripts/catalog_cli.py recommend "a retired lighthouse keeper at dawn, po
 python scripts/catalog_cli.py inspect RECORD_ID
 ```
 
-`recommend` returns options in `direction_cards`. The first option from that brief with only the bundled commons pack enabled, trimmed:
-
-```json
-{
-  "title": "Quiet window portrait",
-  "preserves": ["lighting: overcast light"],
-  "adds": ["restrained interior context", "lateral window illumination", "face-led visual hierarchy", "..."],
-  "adjustable": ["gaze target", "room character", "crop tightness", "wardrobe"],
-  "preset_ids": {"style_family": "style-family-clear-portrait", "scene": "scene-quiet-window-portrait",
-                 "camera": "camera-close-eye-level", "lighting": "lighting-overcast-ambient"},
-  "open_axes_after_card": ["identity", "role", "wardrobe", "pose", "performance", "environment", "mood"]
-}
-```
-
-`inspect` prints one full record with its constraints. A first request to the installed skill can then be:
+`ready` prints the enabled packs and any decision it waits on. `recommend` returns complete alternative directions, each naming what it keeps, what it adds and what stays adjustable. `inspect` prints one full record with its constraints. A first request to the installed skill can then be:
 
 > Develop an image prompt from this design. Preserve the attached identity details. Show alternatives only for decisions I have left open, state what you assumed, and do not send anything to a generation service.
 
-## Authoring
+### Examples that run locally
 
-Everything before a run: deciding what the image is for, developing the world and its subjects, reading production knowledge, and preparing reusable character and scene material.
+These constructed examples need no API key. They write into new directories beside the product folder.
 
-### Creative development and the author's aims
-
-The author's aims are their own record, kept apart from world facts and from a character's psychology. The [design form](templates/narrative/design/design-template.md) holds what the portrayal aims at, what a viewer should recognize, what may vary and the deliberate departures, each with its scope. The [character profile form](templates/narrative/personas/persona-template.md) ties a character's identity and its voice and body rules to those aims. Constancy can be the aim, and so can ambiguity. [Authorial Intent](references/runtime/authorial-intent.md) defines the records; [Authoring commands](references/narrative-authoring.md) create the full forms and audit the links between them.
-
-[World-Coherent Creative Development](references/runtime/narrative-development.md) connects world rules, themes, agents, events, information and expression, starting from the author's actual idea and iterating across the dependencies it touches. The narrative initializer creates the structure and leaves the cast and the plot to the author; world-only work, a changing focus, unpeopled observation and a scene with no dramatic turn are all ordinary cases. Fill the forms with what the idea needs.
-
-### Create a prompt from a brief
-
-The agent works in three moves:
-
-1. Decide what the image is for and what is fixed.
-2. Retrieve and read the production records that apply. A search match is a lead; the decision rests on the full record behind it.
-3. Choose one coherent direction and return the prompt with its negative prompt and the choices still open.
-
-For a recurring subject, supply the current character profile, design and state, and say which kind of request it is: a local variation, a redesign, a new condition in the story or an exploratory draft. A new camera angle leaves anatomy alone, and a new outfit leaves stable identity alone.
-
-### Find and inspect production knowledge
-
-Production knowledge comes in layers: appeal, finish, anatomy or construction, rendering mechanics, scene elements, modules and corrections. Combine layers only where their assumptions agree; a correction written for one model family belongs to that family. The [Preset System Contract](references/preset-system-contract.md) explains the layers.
-
-```sh
-python scripts/catalog_cli.py recommend "YOUR_BRIEF" --directions 4
-python scripts/catalog_cli.py inspire "YOUR_BRIEF" --categories composition,camera,lighting,emotion-nuance
-python scripts/catalog_cli.py inspect RECORD_ID
-```
-
-The preparation record keeps the complete inspected record, the reason for using it and any deliberate new expression. [Sparse-Brief Discovery](references/runtime/sparse-discovery.md) describes how to compare complete alternatives; [Prompt Vocabulary](references/runtime/prompt-vocabulary.md) describes model-scoped wording.
-
-### Deliberate finish and explicit controls
-
-Choose the image's medium, dimensionality, linework, shading, surface and detail treatment before final prompt construction.
-These are independent axes: a subject's species, age, build and wardrobe do not follow from a rendering style.
-Choose a starting preset or author a custom intent, recording who chose it and why.
-Regional overrides describe mixed treatments and where each applies; presentation separately names the intended artifact.
-
-After `pack_cli.py ready` has resolved the active packs, inspect the available treatments and the selected interface:
-
-```sh
-python scripts/render_contract.py presets
-python scripts/render_contract.py model --model MODEL_ID --service SERVICE_ID
-```
-
-Replace `MODEL_ID` and `SERVICE_ID` with the selected catalog model and its offering.
-The model command prints recommended positive and negative wording, recipe guidance, parameter recommendations, evidence and operation-specific control policies.
-Catalog model inspection, prompt-dialect inspection and route reading with `--model` also display this guidance.
-Models from enabled personal or registered external packs use the same path as bundled models.
-Keep the same `--state-file`, `--cache-dir`, `--managed-root` and any `--pack-root` arguments throughout that work.
-
-Retrieve wording before composing the final prompt. The Production Specification's `render_intent` records the chosen treatment and its exact `prompt_expression`.
-The builder checks that this expression, including any regional expressions, appears in the authored prompt.
-That check establishes inclusion, not whether the words produce the intended image.
-
-The exact interface's execution profile defines the controls available for each operation:
-
-| Control policy | What preparation does |
-|---|---|
-| Required | Uses an explicit value or a single authored recommendation, recording its source. A range still needs a choice. |
-| Optional | Leaves the feature unselected unless a value is supplied. |
-| Not applicable | Reports the reason and rejects a transmitted value, including null. |
-| Backend managed | Reports that the interface exposes no control and invents no internal value. |
-
-A model without an execution profile remains inspectable, but generation waits for that profile and all required decisions.
-The Generation Package seals the resolved settings and their provenance. The request preview shows the rendering choice and the complete request.
-Dispatch verifies those values against the active interface and the final request; it does not choose a different provider or add sampling defaults.
-
-Run a complete example with a fictional model and synthetic settings, without generating an image:
-
-```sh
-python examples/render-contract/build_example.py --check
-```
-
-[Rendering choices and execution controls](references/runtime/render-contract.md) gives the intent, profile and compilation commands.
-The [rendering-contract example](examples/render-contract/README.md) includes the model, intent, parameters and prompt it verifies.
-
-### Model-specific prompt construction
-
-The selected model record defines the target grammar and the service's parameter schema. Its prompt family decides which building blocks exist, in what order and with what vocabulary. The generation package carries the prompt, the scoped negative instructions, the production specification, the model settings and the ordered references, and records how the target receives each of them. It is verified again before sending, so a later edit cannot reuse an earlier approval.
-
-The prompt in the bundled [state-aware pilot](examples/state-aware-pilot/README.md) shows the level of specificity a package carries:
-
-```text
-Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered
-blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve
-the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and
-chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper
-ear rim, and one healed triangular notch on the outer upper subject-left ear tip. ...
-
-negative: photorealistic rendering, 3D render, swapped left and right details,
-missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and
-hand, unreadable facial markings
-```
-
-[Prompt Composition](references/runtime/prompt-composition.md), the [Prompt Writing Guide](references/runtime/prompt-writing-guide.md) and [Image Generation](references/runtime/image-generation.md) describe the steps.
-
-### Identity, morphology and visible performance
-
-Four inputs stay separate: stable identity, species or structural properties, individual morphology, and the state visible in one depiction. A camera change or an occlusion hides a feature without removing it. A temporary outfit, pose or expression becomes a permanent rule only when the author decides it does.
-
-Construction covers clothing fit, layered garments, growth, fixed marks and distinguishing details, described with spatial language and the conditions that apply. See [Garment Geometry](references/garment-geometry-specification.md), [Growth Geometry](references/growth-geometry-specification.md) and [Distinctive Details](references/distinctive-detail-specification.md). Performance is expressed through gaze, posture, contact, timing, voice, ears, tails or machine signals, according to the subject's design; [Performance Language](references/performance-language-specification.md) connects the chosen expression to the character.
-
-### Build and maintain a character sheet
-
-The order matters: author the structured sheet data, prepare the layout, obtain any generated panel images, then record acceptance after review. Until acceptance, a panel image is only a draft. The sheet is authoring data as well as a renderable layout; generated panels can be cropped and composed into place. Accepting an image for one panel, selecting a production candidate and adopting a permanent identity detail are three decisions with three scopes. A reference board exposes the aspects the requested production needs, sized to the subject rather than to a fixed number of views. [Character Sheet Discipline](references/runtime/character-sheet-discipline.md) gives the panel, mask and board workflow.
-
-### Prepare reusable scene material from a character profile
-
-Even an uneventful exchange can depend on definitions spread across the whole character profile (the Persona the tools read). During scene preparation the agent reads the complete applicable originals, selects the exact passages the scene needs, and records their conditions, dependencies and application. The result is a document that later writing, repair and resumption reuse within its reviewed scope, instead of guessing the needed sections again.
-
-Try the file workflow in an empty sibling directory. The example's few lines of subject definition demonstrate the data flow, not a real profile:
+Prepare scene material from a short synthetic character profile, then verify it and its archived sources:
 
 <!-- readme-example: authoring-material -->
 ```sh
@@ -211,164 +76,7 @@ python scripts/source_material.py verify --root ../cpb-authoring-demo --bundle s
 ```
 <!-- end-readme-example -->
 
-The generated `scene-material/persona.md` carries the definitions themselves, each tied to its source, the heading or field it quotes, and the whole-file hash:
-
-```text
-## Applicable definition text
-### attention
-Source: model, Controlling definition; complete source SHA-256: 568809ee...
-Reason for inclusion: The controlling definition governs expression.
-
-> Attend to the recipient before choosing a response.
-
-### expression
-Source: model, Expression; complete source SHA-256: 568809ee...
-Dependencies: attention
-
-> A pause is an available response, not automatically distress.
-
-## Application in this scene
-### response (option)
-A pause may be chosen after attending to the recipient; no exact line or motive is prescribed.
-```
-
-For real work, start a plan from a scene plot with `draft`, finish it against the [plan schema](schemas/authoring/scene-persona-plan.schema.json), and run `inspect`, `build` and `verify` with your own paths:
-
-```sh
-python scripts/scene_persona.py draft --root PROJECT --scene-plot narrative/scenes/SC01-plot.json --medium text --out scene-plan.json
-python scripts/scene_persona.py inspect --root PROJECT --plan scene-plan.json
-python scripts/scene_persona.py build --root PROJECT --plan scene-plan.json --out scene-material
-python scripts/scene_persona.py verify --root PROJECT --plan scene-plan.json --bundle scene-material --require-ready
-```
-
-In a production task, add `scene-persona` to `features` and list the material:
-
-```json
-"scene_materials": [
-  {"plan": "scene-plan.json", "bundle": "scene-material"}
-]
-```
-
-Preparation verifies the files and carries the text into the exact input handed to the generator. Author-only information stays out of the image prompt. Changing any complete source, quoted or not, invalidates reuse, and `scene_persona.py impact` lists the scenes, runs and images a persona change reaches. A new participant, topic or portrayal aim can call for fresh preparation even when no file changed. When a gap appears, go back to the originals. [Scene Persona Material](references/runtime/scene-persona.md) covers replacement and accepted external snapshots.
-
-### Resolve the story state and ground it in the world
-
-The state resolver rebuilds the state at any point in the story from declared events and processes, keeping stable identity, temporary state, what is visible and the observed output apart. [World Realization](references/runtime/world-realization.md) connects pinned sources, resolved events, the author's aims and what each reader may know, and can inspect, build, verify and report source-change impact without a model or a cast. [State-aware authoring](references/runtime/state-aware-series.md) covers the path; the [unpeopled worked example](examples/world-realization/README.md) is runnable.
-
-[Portrayal Principles](references/portrayal-principles.md) provides eight patterns for recognizable persistence, contrast, contextual expression, gradual change, disclosure, rupture and ambiguity. They are patterns to instantiate under the project's intent, not character types.
-
-### Bring in existing manuscripts and notes
-
-For an existing manuscript or notes, author a source plan naming the documents and the spans to analyze. Ingestion preserves the original bytes and records each span's completion status. Extraction proposals quote actual passages and mark each as a source statement, speech, observation, inference or unknown, so the author reviews them before anything updates the narrative or its state. A partial passage stays partial, and disagreement between a speaker, an observer and an inference stays visible. [Source Material](references/runtime/source-material.md) specifies the plans and commands.
-
-## Production
-
-Turning an approved direction into an exact, approved request: the task record, the dispatcher, Studio review, local editing and reference delivery.
-
-### Prepare and record a run
-
-Any task that saves a file is recorded as a task and prepared as a run. The task record names its purpose, source decisions, intended expression, output kind, review criteria and what the author has approved for it. Preparation freezes those inputs into a run; handing the input to the generator, sending, review, selection and making a result permanent follow as distinct steps, each leaving a record.
-
-```text
-brief and complete applicable sources
-  -> authored direction and scene material
-  -> prepared run and the exact input for the generator
-  -> approved hand-off and, when needed, approved sending
-  -> returned images and located observations
-  -> reviewed selection, optionally made permanent, completion
-```
-
-See the lifecycle without a service call by running the constructed text-production example into a new directory:
-
-<!-- readme-example: production-lifecycle -->
-```sh
-python examples/production-execution/run_example.py --out ../cpb-production-demo
-```
-<!-- end-readme-example -->
-
-The run leaves a chain of hash-linked records, one per event:
-
-```text
-authorization -> handoff -> candidate -> review -> authorization -> selection -> completion
-```
-
-Each record names the previous one, the input it applies to and the approvals it relies on:
-
-```json
-{
-  "event": "handoff",
-  "sequence": 2,
-  "previous": "1207092ad513911af14c14331d5e26633e89ccfd85eb798046b6c1a0be6d45ce",
-  "input_sha256": "b9ccb0b4a6538670677b823d7c5c50b153f19e953efeac58cdcc8e9d259eb8ae",
-  "data": {
-    "recipient": "synthetic fixture",
-    "method": "manual",
-    "authorizations": ["1207092ad513911af14c14331d5e26633e89ccfd85eb798046b6c1a0be6d45ce"]
-  }
-}
-```
-
-The example's approvals are labeled synthetic fixtures. Real work uses your own approvals. [Production Execution](references/runtime/production-execution.md) gives the task, authorization and review commands.
-
-### Send an approved image generation
-
-A live generation needs a configured service, a model record that describes that service's fields, credentials outside the project files, and a package bound to a prepared run. The included transport is for Runware. Another service is a service record whose `transport` names its module, an offering on each model record it exposes, and that module, `transport_<name>.py` beside the other scripts, written against [scripts/transport_contract.py](scripts/transport_contract.py); a service without a transport uses an explicitly recorded external hand-off. A dry run shows the exact request and saves what to approve:
-
-```sh
-python scripts/dispatch.py generation-package.json --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --intent-out intent.json
-```
-
-Approve `intent.json` with the real output count and cost bound, using `draft-authorization` and `authorize` from [Production Execution](references/runtime/production-execution.md). `authorize` prints the approval record; its `sha256` is `RECEIPT_SHA` below, and the live send carries it:
-
-<!-- readme-send: generation -->
-```sh
-python scripts/dispatch.py generation-package.json --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-authorization RECEIPT_SHA --send
-```
-<!-- end-readme-send -->
-
-### Upscale an approved source
-
-An upscale is its own prepared and approved task binding the source image, the upscaler, the factor and the settings, with its own approval:
-
-<!-- readme-send: upscale -->
-```sh
-python scripts/dispatch.py --upscale --model UPSCALER_ID --source SOURCE_IMAGE --scale 2 --render-intent RENDER_INTENT_JSON --request-validation-file VALIDATION_JSON --studio PROJECT --character SUBJECT_ID --slot SLOT_ID --production-authorization RECEIPT_SHA --send
-```
-<!-- end-readme-send -->
-
-`RENDER_INTENT_JSON` declares `execution_mode: upscale` and the source finish to preserve.
-Use that same intent during request preparation and dispatch. A text-free upscaler takes an empty `prompt_expression`, not an invented prompt.
-Use a factor the selected record supports. A changed input, reference order, count or setting needs a new approval.
-
-### Review Studio results and recover an interrupted run
-
-Studio keeps each returned image beside its request, and the gallery shows them all. Selecting one delivers it; making it part of the character's permanent identity is a separate decision. After an interruption, the recorded request and output show whether a result arrived but was not indexed or whether the remote result is still unknown, and recovery works from that evidence instead of a second paid request. The [Studio Runtime](references/runtime/studio.md) explains slots, iterations, selected images, recipes, the gallery and resumption from an open task.
-
-### Edit an existing image
-
-[Image Editing](references/runtime/image-editing.md) performs crop, resize, rotation and composition as new reviewed images under the run's existing approval and repair history. The source image remains the evidence for the edit; the edited file is inspected for the intended framing and for protected content before it is selected.
-
-### Control reference-image influence
-
-A reference can constrain identity, morphology, clothing, pose, palette or another declared aspect while leaving the rest free. The reference contract records the allowed influence and the exclusions, and delivery records the real attachment order or board placement, so the saved request describes what the target actually received. A hidden limb is still a limb, and an expression in a reference stays a moment rather than a trait. A reference can also carry derived visual evidence: which source was inspected, what was measured and what the measurement can show. See the [reference runtime](references/runtime/reference-prompt-artifacts.md) and [Derived Visual Evidence](references/derived-visual-evidence.md).
-
-## Review and evidence
-
-### Review actual results
-
-A production review records what was seen, where, how it was interpreted and what remains uncertain. A failed hard criterion blocks selection, and a changed image or task gets its own review. The HTML review export puts the recorded inputs, the exact input the generator received, every returned image, the observations and the selection reasons on one page. [Evidence Review](references/runtime/evidence-review.md) explains the export and the optional study built on it.
-
-### Investigate repeated failures
-
-A repair names the observed problem, the proposed change and the requirements that stay fixed. When failures repeat, [Repair Analysis](references/runtime/repair-analysis.md) groups them across runs by the criterion's actual definition and writes a readable report: whether the source run is current, its review record, the cited observations with their locations, and the reviewer's reason. A cause hypothesis carries its evidence, alternatives, protected requirements, scope and acceptance checks, and stays a proposal until a review confirms it.
-
-### Evaluate an explicitly selected agent
-
-The optional [Agent Evaluation](references/runtime/agent-evaluation.md) runner executes a host command you select and keeps the prompt, inputs, logs, timing and outputs. Three results are judged separately: whether the process ran, whether the evidence is complete, and how good the expression is. A missing output or a truncated log makes the trial incomplete whatever the exit code, and expressive quality waits for a human review. The runner gives each trial a fresh directory, not a sandbox: run trusted commands and account for their permissions and costs.
-
-### Exchange public artifacts
-
-Optional exchange uses public artifact schemas, content hashes and declared semantics, so another tool can accept a snapshot without reading this product's private directories. Export the constructed scene material from the example above:
+Export that scene material as a public artifact and verify it as a receiving tool would:
 
 <!-- readme-example: public-exchange -->
 ```sh
@@ -377,68 +85,90 @@ python scripts/protocol_exchange.py verify --root ../cpb-authoring-demo --bundle
 ```
 <!-- end-readme-example -->
 
-A receiver validates the snapshot and accepts it explicitly. Incoming paths are provenance labels.
+Run a synthetic text task from approval to completion, with one hash-linked record per event:
 
-## Project data
-
-### Content packs
-
-Persistent pack selection lives in user-level state:
-
+<!-- readme-example: production-lifecycle -->
 ```sh
-python scripts/pack_cli.py ready
-python scripts/pack_cli.py list
+python examples/production-execution/run_example.py --out ../cpb-production-demo
 ```
+<!-- end-readme-example -->
 
-Use explicit `--state-file`, `--cache-dir` and `--managed-root` locations to isolate a project or a test, and enable an additional pack by its discovered UUID. A missing model or vocabulary record usually means the pack is disabled or its provider unresolved; `ready` names both. [Content Packs](PACKS.md) explains activation and resource providers; the core ships the minimal [commons pack](packs/commons/).
+## Send an approved generation
 
-### Complete material and explicit budgets
+A live generation needs:
 
-A project is valid however long its sources are. Originals are kept in full, scene documents contain the definition text itself, and evaluation logs are retained whole. Where you set an explicit budget and the material exceeds it, the tool reports the conflict and stops; where a real limit such as memory, storage or a service quota is hit, it reports that limit. [Resource handling](references/resource-handling.md) lists the operator options and separates content limits from format rules and working buffers.
+- a service record, and a model record with an offering on that service;
+- the credential in the environment variable the service record names, never in studio files;
+- a prepared run and an approval that covers it.
 
-### Project files
-
-Keep projects and generated outputs outside the installed skill folder. Pack activation and personal packs live under `~/.character-prompt-builder/` and survive skill updates. This command creates a personal pack and enables it:
-
+<!-- readme-send: generation -->
 ```sh
-python scripts/pack_cli.py init ~/.character-prompt-builder/packs/NAME --name "NAME"
+python scripts/production_workflow.py prepare --root STUDIO --task task.json
+python scripts/production_workflow.py draft-execution --root STUDIO --run RUN --grant GRANT --out decisions.json
+python scripts/production_workflow.py execute --root STUDIO --run RUN --decisions-file decisions.json
 ```
+<!-- end-readme-send -->
 
-## Troubleshooting
+- `prepare` publishes the run with its exact request preview and execution plan. `check` takes the same arguments, runs every check and creates no run.
+- `draft-execution` writes the decision file, which you fill from the actual approval.
+- `execute` sends only what that file covers and records every returned image.
 
-**Scene material no longer verifies.** A source changed. Return to the complete originals and the scene's intended scope, review the changed definitions and rebuild the material.
+After an interruption, `resume` recovers the same execution from saved evidence and never sends its request twice. `status --budget` names each run's next command and how much of each approved budget remains. The included transport is for Runware, and [Image Generation](references/runtime/image-generation.md) shows how another service is added. The [synthetic generation example](examples/generation/README.md) runs the whole path with a local transport that makes no network request.
 
-**Sending is refused.** Check the prepared run, the exact approval, the service configuration and the credentials. The operation, input, output count and cost must fit the approval; `--send` alone approves nothing. An unknown remote result needs investigation before a new submission.
+## Where each topic is documented
 
-**Model guidance is visible, but generation is refused.** Check the selected offering's execution profile and operation.
-A missing profile, unresolved required value or unavailable control needs an explicit correction; inspecting a model does not configure its execution.
+[SKILL.md](SKILL.md) routes the agent to these documents, and a person can read them directly.
 
-**Catalog resources are missing.** Check discovered packs, enabled UUIDs and which pack supplies the missing resource. A folder on disk is active only once its pack is enabled.
+- Sparse briefs and alternative directions: [Sparse-Brief Discovery](references/runtime/sparse-discovery.md)
+- Prompt wording for a target model: [Prompt Composition](references/runtime/prompt-composition.md) and [Prompt Vocabulary](references/runtime/prompt-vocabulary.md)
+- Finish, model guidance and controls: [Rendering choices and execution controls](references/runtime/render-contract.md) and [Model request evidence](references/runtime/model-evidence.md)
+- Worlds, character profiles and the author's aims: [World-Coherent Creative Development](references/runtime/narrative-development.md), [Authorial Intent](references/runtime/authorial-intent.md) and [Narrative Authoring](references/narrative-authoring.md)
+- Identity, anatomy and expression: [Character Identity Contract](references/character-identity-contract.md), [Morphology and species contracts](references/morphology-and-species-contracts.md) and [Performance Language](references/performance-language-specification.md)
+- Clothing, growth and fixed marks: [Garment Geometry](references/garment-geometry-specification.md), [Growth Geometry](references/growth-geometry-specification.md) and [Distinctive Details](references/distinctive-detail-specification.md)
+- Character sheets: [Character Sheet Discipline](references/runtime/character-sheet-discipline.md)
+- Scene material from a character profile: [Scene Persona Material](references/runtime/scene-persona.md)
+- Story state and world facts: [State-Aware Series](references/runtime/state-aware-series.md) and [World Realization](references/runtime/world-realization.md)
+- Existing manuscripts and notes: [Source Material](references/runtime/source-material.md)
+- Reference images and their influence: [Prompt Artifact References](references/runtime/reference-prompt-artifacts.md) and [Derived Visual Evidence](references/derived-visual-evidence.md)
+- Runs, approvals, budgets and command logs: [Production Execution](references/runtime/production-execution.md), [Production Permissions](references/runtime/production-permissions.md) and [Operation Logs](references/runtime/operation-logs.md)
+- Character folders, galleries and resumption: [Studio Runtime](references/runtime/studio.md)
+- Editing and upscaling an approved image: [Image Editing](references/runtime/image-editing.md) and [Upscale Adapter](references/adapters/upscale.md)
+- Reviewing results, repeated failures and agent trials: [Evidence Review](references/runtime/evidence-review.md), [Repair Analysis](references/runtime/repair-analysis.md) and [Agent Evaluation](references/runtime/agent-evaluation.md)
+- Failures in the picture itself: [Troubleshooting](references/troubleshooting.md)
+- Exchange with other tools: [Protocol Exchange](references/protocol-exchange.md)
+- Long material and explicit budgets: [Resource handling](references/resource-handling.md)
 
-**Visual preflight fails.** Install and check the named dependencies with the interpreter that runs the tools. Fonts install through the operating system rather than pip. Authoring keeps working while visual inspection waits.
+## Packs and studios
+
+The bundled [commons pack](packs/commons/) is the one pack the product ships. Pack selection and personal packs live in the configuration directory, so they survive skill updates. `CPB_HOME` names that directory; it is `~/.character-prompt-builder/` while `CPB_HOME` is unset. A pack found on disk is used only once it is enabled.
+
+- [Pack State Runtime Quickstart](references/runtime/pack-state-quickstart.md) explains activation and isolated pack state.
+- [Pack Maintenance](references/maintenance/packs.md) creates, validates and releases a personal pack.
+- The [Pack Format Specification](references/pack-format-specification.md) defines a pack.
+
+Keep studios and generated images outside the installed skill folder. `studio.py init` creates a studio, and the [Studio Runtime](references/runtime/studio.md) defines it and its layout.
 
 ## Validation
 
-The README smoke test runs the examples above in temporary directories, checks the local links and checks the live command signatures without contacting a service. The repository diagnostic covers structure, files, hashes, recorded state, authority, packaging and the executable workflows, and needs the release dependencies.
-
 ```sh
-python scripts/readme_smoke_test.py
+python scripts/run_checks.py
 python scripts/validate.py .
+python scripts/package.py
 ```
 
-The [state-aware pilot](examples/state-aware-pilot/README.md) exercises recorded state, projection, a production specification and exact reference preparation as a deterministic structural example. [CONTRIBUTING.md](CONTRIBUTING.md) has the development and release procedures.
+- `run_checks.py` runs every test suite once, in parallel, with `CPB_HOME` at one scratch configuration directory whose pack state enables the shipped packs alone. CI runs the same command.
+- `validate.py` checks the structure, metadata, contracts and documentation of the tree, and runs no suite.
+- `package.py` builds the release archive and checks the extracted copy.
 
-## Scope and limitations
-
-The tools preserve declared inputs and evidence. Whether a source was understood, whether an omitted condition matters and whether an image succeeds artistically are judged by people, on the actual result. A verified request improves the odds of recognizable identity, correct anatomy and legible detail in the generated pixels without guaranteeing them. The [Blind Image Evaluation Protocol](references/blind-image-evaluation-protocol.md) describes a separate image-quality study.
+The checks use synthetic fixtures and never contact a service. [Release Validation](references/release/validation.md) is the authority for publication.
 
 ## Contributing
 
-[CONTRIBUTING.md](CONTRIBUTING.md) explains how to prepare a development checkout, run the checks and build a release. A contribution states the intended behavior, updates the documentation for it and adds a test that fails on the defect it addresses. Gates stay as they are, project data and credentials stay out of the product, and pack contributions follow the ownership and validation rules in [Content Packs](PACKS.md).
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to prepare a development checkout, run the checks and build a release. A contribution states the intended behavior, updates its documentation and adds a test that fails on the defect it addresses. Checks stay as they are, and studio data and credentials stay out of the product. Pack contributions follow [Pack Maintenance](references/maintenance/packs.md).
 
 ## Release management
 
-Releases use the CalVer scheme `YYYY.MM.DD.N` in UTC. [package-manifest.toml](package-manifest.toml) owns the release identity, and the generated host and Python distribution metadata are checked against it. [CHANGELOG.md](CHANGELOG.md) records each release under its version heading. Release commands and tag checks are in [CONTRIBUTING.md](CONTRIBUTING.md).
+Releases use the CalVer scheme `YYYY.MM.DD.N` in UTC. [package-manifest.toml](package-manifest.toml) owns the release identity, and the generated host and Python metadata are checked against it. [CHANGELOG.md](CHANGELOG.md) records each release under its version heading. Release commands are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

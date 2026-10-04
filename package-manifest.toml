@@ -1,6 +1,6 @@
 [package]
 name = "character-prompt-builder"
-version = "2026.09.24.3"
+version = "2026.10.04.1"
 version_scheme = "YYYY.MM.DD.N"
 release_timezone = "UTC"
 license = "GPL-3.0-only"
@@ -21,7 +21,7 @@ license_file = "LICENSE"
 changelog = "CHANGELOG.md"
 
 [release]
-output = "dist/character-prompt-builder-2026.09.24.3.zip"
+output = "dist/character-prompt-builder-2026.10.04.1.zip"
 include = [
   ".agents",
   ".claude-plugin",
@@ -35,8 +35,6 @@ include = [
   "LICENSE",
   "CHANGELOG.md",
   "DEPENDENCIES.md",
-  "PACKS.md",
-  "VISUAL-CORPUS.md",
   "package-manifest.toml",
   "pyproject.toml",
   "requirements-core.txt",
@@ -49,6 +47,7 @@ include = [
   "examples/render-contract",
   "examples/pack-authoring",
   "examples/feature-walkthrough",
+  "examples/generation",
   "examples/declared-structures",
   "examples/authorial-intent",
   "examples/world-realization",

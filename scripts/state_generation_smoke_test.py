@@ -7,6 +7,7 @@ from reading_fixtures import fixture_reading
 import base64
 import contextlib
 import copy
+import functools
 import importlib.util
 import io
 import json
@@ -18,6 +19,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 from unittest import mock
+
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "examples" / "state-aware-pilot"
@@ -99,7 +101,18 @@ def build_generation_main(argv):
 
 
 def build_state_generation_main(argv):
-    return cli_with_fixture_retrieval(_build_state_generation_main, argv)
+    """Run the state-aware builder on a fixture run whose delivery is the --prompt-file text.
+
+    The fixture helper reads --prompt-file to prepare that run. The builder
+    reads the prompt from the run, so the option stops at the helper.
+    """
+    @functools.wraps(_build_state_generation_main)
+    def delivered(args):
+        if "--prompt-file" in args:
+            index = args.index("--prompt-file")
+            args = [*args[:index], *args[index + 2:]]
+        return _build_state_generation_main(args)
+    return cli_with_fixture_retrieval(delivered, argv)
 
 
 STATE_REFERENCE_PACK_ID = "0198b361-1234-7abc-8def-0123456789ab"
@@ -542,6 +555,7 @@ def _write_state_reference_pack(pack_root: Path) -> Path:
                             "source": "author",
                         }
                     ],
+                    "scaffold": {"family": "direct-geometry-required", "confidence": "fallback"},
                 }
             ],
         },
@@ -1819,7 +1833,6 @@ def run() -> dict[str, Any]:
         {
             "pack_roots": [],
             "enabled_packs": [STATE_REFERENCE_PACK_ID],
-            "resource_providers": {},
         },
     )
     reference_runtime_arguments = [
@@ -1838,7 +1851,6 @@ def run() -> dict[str, Any]:
         cache_dir=reference_cache_dir,
         managed_root=reference_managed_root,
         default_enabled_packs=(),
-        default_resource_providers={},
     )
     configure_pack_runtime(reference_settings)
     active_sources = catalog_cli.active_pack_artifact_sources()
@@ -2653,8 +2665,8 @@ def run() -> dict[str, Any]:
                         *reference_runtime_arguments,
                     ]
                 )
-            if generic_state_exit == 1:
-                generic_state_error = "; ".join(json.loads(generic_state_stdout.getvalue())["errors"])
+            if generic_state_exit == 2:
+                generic_state_error = "; ".join(row["message"] for row in json.loads(generic_state_stdout.getvalue())["diagnostics"])
         finally:
             configure_pack_runtime(reference_settings)
         check(
@@ -2668,10 +2680,14 @@ def run() -> dict[str, Any]:
         state_cli_references = prepared_multi_root / "state-cli-references.json"
         write_json(state_cli_references, prepared_multi)
 
+        state_cli_parameters = state_cli_references.parent / "cli-parameters.json"
+        state_cli_parameters.write_text(json.dumps({"size": "1024x1024", "quality": "high"}), encoding="utf-8")
+
         def state_cli_arguments(
             *,
             prompt_path: Path,
-            output_path: Path,
+            output_path: Path | str,
+            scene_context_path: Path = GENERATED / "scene-context-snapshot.json",
         ) -> list[str]:
             return [
                 "--model",
@@ -2705,15 +2721,15 @@ def run() -> dict[str, Any]:
                 "--state-snapshot-file",
                 str(GENERATED / "state-snapshot-C01.json"),
                 "--scene-context-file",
-                str(GENERATED / "scene-context-snapshot.json"),
+                str(scene_context_path),
                 "--visual-projection-file",
                 str(GENERATED / "visual-state-projection.json"),
                 "--asset-render-spec-file",
                 str(GENERATED / "asset-render-specification.json"),
                 "--references-file",
                 str(state_cli_references),
-                "--parameters",
-                json.dumps({"size": "1024x1024", "quality": "high"}),
+                "--parameters-file",
+                str(state_cli_parameters),
                 "--out",
                 str(output_path),
                 *reference_runtime_arguments,
@@ -2733,10 +2749,8 @@ def run() -> dict[str, Any]:
         os.chmod(readonly_state_carrier, readonly_state_mode)
         observed_state_carrier_mode = stat.S_IMODE(readonly_state_carrier.stat().st_mode)
         try:
-            missing_state_prompt = temp / "missing-state-cli-prompt.txt"
+            missing_scene_context = temp / "missing-scene-context.json"
             state_precommit_output = temp / "state-readonly-precommit.json"
-            state_precommit_previous = b"prior state-aware package\n"
-            state_precommit_output.write_bytes(state_precommit_previous)
             state_precommit_companion = state_precommit_output.with_name(
                 state_precommit_output.stem + ".references"
             )
@@ -2749,8 +2763,9 @@ def run() -> dict[str, Any]:
             with contextlib.redirect_stdout(state_precommit_stdout):
                 state_precommit_exit = build_state_generation_main(
                     state_cli_arguments(
-                        prompt_path=missing_state_prompt,
+                        prompt_path=GENERATED / "prompt.txt",
                         output_path=state_precommit_output,
+                        scene_context_path=missing_scene_context,
                     )
                 )
             state_precommit_report = json.loads(state_precommit_stdout.getvalue())
@@ -2760,15 +2775,14 @@ def run() -> dict[str, Any]:
                 )
             )
             state_precommit_observed = {
-                "exit": state_precommit_exit == 1,
+                "exit": state_precommit_exit == 2,
                 "error": (
                     state_precommit_report.get("ok") is False
-                    and missing_state_prompt.name
-                    in state_precommit_report.get("errors", [""])[0]
+                    and [row["code"] for row in state_precommit_report["diagnostics"]] == ["INPUT_UNREADABLE"]
+                    and missing_scene_context.name
+                    in state_precommit_report["diagnostics"][0]["message"]
                 ),
-                "prior_output": (
-                    state_precommit_output.read_bytes() == state_precommit_previous
-                ),
+                "no_output": not state_precommit_output.exists(),
                 "no_companion": not state_precommit_companion.exists(),
                 "no_staging_leak": state_precommit_after == state_precommit_before,
                 "source_hash": sha256_file(readonly_state_carrier)
@@ -2777,14 +2791,12 @@ def run() -> dict[str, Any]:
                 == observed_state_carrier_mode,
             }
             check(
-                "state-aware CLI preserves a read-only source and prior output after a post-materialization failure",
+                "state-aware CLI preserves a read-only source and writes no output after a post-materialization failure",
                 all(state_precommit_observed.values()),
                 {"report": state_precommit_report, **state_precommit_observed},
             )
 
             state_cleanup_output = temp / "state-cleanup-failure.json"
-            state_cleanup_previous = b"state cleanup failure prior output\n"
-            state_cleanup_output.write_bytes(state_cleanup_previous)
             state_cleanup_before = set(
                 temp.glob(f".{state_cleanup_output.stem}-generation-package-*")
             )
@@ -2798,8 +2810,9 @@ def run() -> dict[str, Any]:
                 with contextlib.redirect_stdout(state_cleanup_stdout):
                     state_cleanup_exit = build_state_generation_main(
                         state_cli_arguments(
-                            prompt_path=missing_state_prompt,
+                            prompt_path=GENERATED / "prompt.txt",
                             output_path=state_cleanup_output,
+                            scene_context_path=missing_scene_context,
                         )
                     )
             state_cleanup_report = json.loads(state_cleanup_stdout.getvalue())
@@ -2808,17 +2821,17 @@ def run() -> dict[str, Any]:
             )
             state_cleanup_leaks = state_cleanup_after - state_cleanup_before
             state_cleanup_observed = {
-                "exit": state_cleanup_exit == 1,
+                "exit": state_cleanup_exit == 2,
                 "error_shape": state_cleanup_report.get("ok") is False
-                and len(state_cleanup_report.get("errors", [])) == 2,
-                "primary_error": missing_state_prompt.name
-                in state_cleanup_report["errors"][0],
+                and [row["code"] for row in state_cleanup_report["diagnostics"]]
+                == ["INPUT_UNREADABLE", "ARTIFACT_PUBLISH_FAILED"],
+                "primary_error": missing_scene_context.name
+                in state_cleanup_report["diagnostics"][0]["message"],
                 "cleanup_error": state_cleanup_message
-                in state_cleanup_report["errors"][1],
+                in state_cleanup_report["diagnostics"][1]["message"],
                 "recovery_location": "transaction staging remains at"
-                in state_cleanup_report["errors"][1],
-                "prior_output": state_cleanup_output.read_bytes()
-                == state_cleanup_previous,
+                in state_cleanup_report["diagnostics"][1]["message"],
+                "no_output": not state_cleanup_output.exists(),
                 "one_staging_leak": len(state_cleanup_leaks) == 1,
             }
             check(
@@ -2830,8 +2843,6 @@ def run() -> dict[str, Any]:
                 remove_cli_package_staging(leaked_staging)
 
             state_rollback_output = temp / "state-rollback-recovery.json"
-            state_rollback_previous = b"recoverable prior state-aware package\n"
-            state_rollback_output.write_bytes(state_rollback_previous)
             state_rollback_companion = state_rollback_output.with_name(
                 state_rollback_output.stem + ".references"
             )
@@ -2839,33 +2850,19 @@ def run() -> dict[str, Any]:
                 temp.glob(f".{state_rollback_output.stem}-generation-package-*")
             )
             publish_failure = "injected state JSON publication failure"
-            restore_failure = "injected prior state JSON restore failure"
-            real_replace = os.replace
+            restore_failure = "injected state companion rollback failure"
+            real_rename = os.rename
 
-            def fail_state_publish_and_restore(source: Any, destination: Any) -> None:
-                source_path = Path(source)
-                destination_path = Path(destination)
-                if (
-                    source_path.name == state_rollback_output.name
-                    and source_path.parent.name.startswith(
-                        f".{state_rollback_output.stem}-generation-package-"
-                    )
-                    and destination_path.resolve() == state_rollback_output.resolve()
-                ):
-                    raise OSError(publish_failure)
-                if (
-                    source_path.name == ".previous-generation-package.json"
-                    and destination_path.resolve() == state_rollback_output.resolve()
-                ):
+            def fail_state_publish(source: Any, destination: Any) -> None:
+                raise OSError(publish_failure)
+
+            def fail_companion_rollback(source: Any, destination: Any) -> None:
+                if Path(source).resolve() == state_rollback_companion.resolve():
                     raise OSError(restore_failure)
-                real_replace(source, destination)
+                real_rename(source, destination)
 
             state_rollback_stdout = io.StringIO()
-            with mock.patch.object(
-                generation_builder.os,
-                "replace",
-                side_effect=fail_state_publish_and_restore,
-            ):
+            with mock.patch.object(generation_builder, "publish_package_file", side_effect=fail_state_publish),                     mock.patch.object(generation_builder.os, "rename", side_effect=fail_companion_rollback):
                 with contextlib.redirect_stdout(state_rollback_stdout):
                     state_rollback_exit = build_state_generation_main(
                         state_cli_arguments(
@@ -2878,33 +2875,76 @@ def run() -> dict[str, Any]:
                 temp.glob(f".{state_rollback_output.stem}-generation-package-*")
             )
             recovery_staging = state_rollback_after - state_rollback_before
-            recovery_backup = (
-                next(iter(recovery_staging)) / ".previous-generation-package.json"
+            recovery_json = (
+                next(iter(recovery_staging)) / state_rollback_output.name
                 if len(recovery_staging) == 1
-                else temp / "missing-recovery-backup"
+                else temp / "missing-recovery-json"
             )
+            state_rollback_messages = [row["message"] for row in state_rollback_report.get("diagnostics", [])]
             check(
-                "state-aware CLI preserves and reports the prior package when publication rollback is incomplete",
-                state_rollback_exit == 1
+                "state-aware CLI keeps and reports its staging when the companion cannot move back",
+                state_rollback_exit == 4
+                and [row["code"] for row in state_rollback_report["diagnostics"]]
+                == ["ARTIFACT_PUBLISH_FAILED"] * 3
                 and state_rollback_report.get("ok") is False
-                and len(state_rollback_report.get("errors", [])) == 3
-                and state_rollback_report["errors"][0] == publish_failure
-                and restore_failure in state_rollback_report["errors"][1]
+                and len(state_rollback_messages) == 3
+                and state_rollback_messages[0] == publish_failure
+                and restore_failure in state_rollback_messages[1]
                 and "recovery staging was preserved at"
-                in state_rollback_report["errors"][2]
+                in state_rollback_messages[2]
                 and len(recovery_staging) == 1
-                and recovery_backup.read_bytes() == state_rollback_previous
+                and recovery_json.is_file()
                 and not state_rollback_output.exists()
-                and not state_rollback_companion.exists()
+                and state_rollback_companion.is_dir()
                 and sha256_file(readonly_state_carrier) == readonly_state_hash
                 and stat.S_IMODE(readonly_state_carrier.stat().st_mode)
                 == observed_state_carrier_mode,
                 state_rollback_report,
             )
-            if recovery_backup.is_file():
-                os.replace(recovery_backup, state_rollback_output)
+            if state_rollback_companion.is_dir():
+                remove_cli_package_staging(state_rollback_companion)
             for leaked_staging in recovery_staging:
                 remove_cli_package_staging(leaked_staging)
+
+            def state_cli(**arguments: Any) -> tuple[int, dict[str, Any]]:
+                printed = io.StringIO()
+                with contextlib.redirect_stdout(printed):
+                    code = build_state_generation_main(
+                        state_cli_arguments(prompt_path=GENERATED / "prompt.txt", **arguments)
+                    )
+                return code, json.loads(printed.getvalue())
+
+            state_built_output = temp / "state-cli-built.json"
+            state_built_exit, state_built = state_cli(output_path=state_built_output)
+            state_built_bytes = state_built_output.read_bytes() if state_built_output.is_file() else b""
+            state_again_exit, state_again = state_cli(output_path=state_built_output)
+            check(
+                "state-aware CLI takes the prompt from the prepared run and keeps an existing package",
+                state_built_exit == 0
+                and state_built.get("composition_prompt")
+                == (GENERATED / "prompt.txt").read_bytes().decode("utf-8")
+                and state_again_exit == 2
+                and [row["code"] for row in state_again["diagnostics"]] == ["OUTPUT_ALREADY_EXISTS"]
+                and state_again["diagnostics"][0]["required_action"] == "Choose a new --out."
+                and state_built_output.read_bytes() == state_built_bytes,
+                {"built_exit": state_built_exit, "again": state_again},
+            )
+
+            backslash_exit, backslash = state_cli(output_path="packages\\state.json")
+            with mock.patch.object(state_generation_builder, "run_inputs",
+                                   return_value={"plot": load_json(GENERATED / "prompt-plot.json")}):
+                competing_exit, competing = state_cli(output_path=temp / "state-competing.json")
+            check(
+                "state-aware CLI refuses a backslash --out and an option that competes with the run's own input",
+                backslash_exit == 2
+                and [row["code"] for row in backslash["diagnostics"]] == ["INPUT_SCHEMA_INVALID"]
+                and "--out packages/state.json" in backslash["diagnostics"][0]["required_action"]
+                and competing_exit == 2
+                and [row["code"] for row in competing["diagnostics"]] == ["INPUT_CONSISTENCY_ERROR"]
+                and "Drop --plot-file" in competing["diagnostics"][0]["required_action"]
+                and not (temp / "state-competing.json").exists(),
+                {"backslash": backslash, "competing": competing},
+            )
         finally:
             os.chmod(
                 readonly_state_carrier,

@@ -4,10 +4,11 @@
     python scripts/persona_expression_audit.py persona.md [other.md ...]
 
 Report existing form gaps and literal reuse of authored descriptions in known
-portrayal fields. No network, series, pack, generation, migration or approval.
+portrayal fields. No network, series, pack, generation or approval.
 See references/narrative-authoring.md#inspect-expression-drafting-hygiene.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -220,7 +221,7 @@ def positive_integer(value: str) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("personas", nargs="+", help="explicit Markdown file paths; inspected once each")
     parser.add_argument("--min-chars", type=positive_integer, default=24,
                         help="minimum Unicode length for literal duplicate triage (default: 24)")
@@ -240,4 +241,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

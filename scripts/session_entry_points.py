@@ -25,6 +25,7 @@ Usage:
   python scripts/session_entry_points.py [--state-file FILE] [--cache-dir DIR] [--managed-root DIR]
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -85,7 +86,7 @@ def authoring_lines(cwd: Path) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Announce the pack runtime this session starts from.")
+    parser = _operation_context.ArgumentParser(description="Announce the pack runtime this session starts from.")
     parser.add_argument("--state-file", type=Path)
     parser.add_argument("--cache-dir", type=Path)
     parser.add_argument("--managed-root", type=Path)
@@ -113,10 +114,10 @@ def main(argv: list[str] | None = None) -> int:
     state = read_state(state_file)
     counts = None
     if state is not None:
-        enabled, disabled, roots, providers = (
-            state.get(name) for name in ("enabled_packs", "disabled_packs", "pack_roots", "resource_providers"))
-        if all(isinstance(value, (list, dict, type(None))) for value in (enabled, disabled, roots, providers)):
-            counts = (len(enabled or []), len(disabled or []), len(roots or []), len(providers or {}))
+        enabled, disabled, roots = (
+            state.get(name) for name in ("enabled_packs", "disabled_packs", "pack_roots"))
+        if all(isinstance(value, (list, type(None))) for value in (enabled, disabled, roots)):
+            counts = (len(enabled or []), len(disabled or []), len(roots or []))
     if state is None:
         lines.append(
             f"No pack runtime at {state_file}. Files under the skill directory are not "
@@ -128,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         lines.append(
             f"Pack runtime: {state_file}, {counts[0]} pack(s) enabled, {counts[1]} disabled by the author, "
-            f"{counts[2]} root(s) registered, {counts[3]} resource provider(s) selected."
+            f"{counts[2]} root(s) registered."
         )
         lines.append(
             "Packs that appeared since the author last decided are not checked here. "
@@ -141,4 +142,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

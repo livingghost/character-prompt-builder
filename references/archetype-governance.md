@@ -2,7 +2,7 @@
 
 A character archetype is a reusable identity contract for a recurring subject. It is not a synonym for species, body build, color, occupation, outfit, scene, or style.
 
-The machine-readable policy is `cpb-resource:archetype-policy` resolved from the explicitly selected provider. The prose and machine-readable policy are one governance contract and must be revised together.
+The machine-readable policy is `cpb-resource:archetype-policy`. The prose and machine-readable policy are one governance contract and must be revised together.
 
 ## 1. What an archetype owns
 

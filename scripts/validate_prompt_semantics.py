@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check a semantic plan for structure-count, action and camera contradictions before a prompt is delivered."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -289,7 +290,7 @@ def _help_epilog() -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, epilog=_help_epilog(),
+    parser = _operation_context.ArgumentParser(description=__doc__, epilog=_help_epilog(),
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("plan", nargs="?", type=Path, help="the plan JSON file")
     parser.add_argument("--template", action="store_true", help="print a valid plan to start from")
@@ -317,4 +318,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

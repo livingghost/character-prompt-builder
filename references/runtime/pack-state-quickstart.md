@@ -12,21 +12,22 @@ left out: spare-shelf 01a0cb9d-1ac3-7f2a-beac-af4b6d1362e2 (disabled)
 
 ## Choose one pack runtime
 
-`pack-state.json` is the complete activation authority. It governs discovery roots, enabled UUIDs, the packs the author disabled, and logical-resource providers. Providers are never implicit, and enabling a pack does not change existing selections.
+`pack-state.json` is the complete activation authority. It governs discovery roots, enabled UUIDs, the packs the author disabled, and `pack_order`. Each named resource comes from the highest-ranked enabled pack that binds it, as [Pack Format Specification](../pack-format-specification.md) states.
 
 State resolution is deterministic:
 
 1. An explicit `--state-file` path is the complete authority for that invocation.
-2. Without `--state-file`, commands use the persistent user state at `~/.character-prompt-builder/pack-state.json` on every platform, with the cache in `cache/` and personal or installed packs in `packs/` beside it; an explicit state file has the same neighbors. Runtime state never lives inside the Skill directory, so those packs and activation survive Skill updates.
-3. While the selected state file does not exist, `config/pack-initialization.json` enables every discovered pack on top of the minimal `config/default-pack-state.json` seed; `ready --only PACK_ID`, repeated for each pack, enables exactly the named packs instead and reads nothing of the others but `pack.json`. A logical resource with exactly one provider gets that provider; competing providers stay unselected.
+2. Without `--state-file`, the configuration directory is the one `CPB_HOME` names, or `~/.character-prompt-builder` on every platform while `CPB_HOME` is unset.
+3. Commands then use `pack-state.json` in that directory, with the cache in `cache/` and personal or installed packs in `packs/` beside it; an explicit state file has the same neighbors. Runtime state never lives inside the Skill directory, so those packs and activation survive Skill updates.
+4. While the selected state file does not exist, `config/pack-initialization.json` enables every discovered pack on top of the minimal `config/default-pack-state.json` seed; `ready --only PACK_ID`, repeated for each pack, enables exactly the named packs instead and reads nothing of the others but `pack.json`.
 
-Once a state file exists it is complete: nothing re-enables a pack the author disabled or overwrites a provider choice. `disable`, `ready --without` and `ready --only` record that decision in `disabled_packs`, and `enable` clears it; `ready` asks only about a discovered pack in neither list.
+Once a state file exists it is complete: nothing re-enables a pack the author disabled. `disable`, `ready --without` and `ready --only` record that decision in `disabled_packs`, and `enable` clears it; `ready` asks only about a discovered pack in neither list.
 
 A pack the catalog cannot use is left out: an invalid pack, a missing one, one whose required pack is not in use, an unreadable `pack.json`, or one pack ID in two roots. Every command that reads the catalog names it once, in the `warning:` line shown above.
 
 Choose capabilities before retrieval. A core-only installation supplies generic direction; a full source installation initially enables all discovered packs, but capabilities still come from validated active manifests rather than promises based on filenames. Existing evidence-artifact prompt packages require enabled `searchable-assets` and `evidence-artifact-reference`; derived evidence also requires `visual-evidence`, and reusable authored identity requires `character-archetypes`. If none is discovered, stop on that prerequisite rather than fabricate references.
 
-## Enable packs and select providers
+## Enable packs
 
 Use one explicit prefix for every command; global options precede the subcommand:
 
@@ -38,14 +39,12 @@ python scripts/pack_cli.py \
   root-add PACK_OR_CONTAINER
 ```
 
-Replace the final `root-add` line with one needed subcommand. `list` exposes UUIDs and capabilities; `inspect` exposes a manifest and validation. Select by capability, not name.
+Replace the final `root-add` line with one needed subcommand. `list` exposes UUIDs and capabilities, and `validate --pack` returns one pack's manifest and validation. Select by capability, not name.
 
 ```bash
 list
-inspect <pack-uuid>
+validate --pack <pack-uuid>
 enable <pack-uuid>
-provider-list
-provider-select <logical-name> <pack-uuid>
 resources
 resource <logical-name>
 ```
@@ -56,7 +55,23 @@ For the bundled commons pack context, retrieve the selected negative-policy reso
 python scripts/pack_cli.py resource negative-policy
 ```
 
-Enable dependencies first. `provider-clear` leaves a resource unresolved. Disabling or removing a pack clears the provider choices it owned, lists them in `cleared_providers`, and never selects a replacement. Unselected resources remain excluded with a warning. Requesting one without a selected available provider still fails.
+Enable dependencies first. Where two packs bind one resource name, the pack that requires the other supplies it. Where neither requires the other, the pack earlier in `pack_order` supplies it (synthetic fixture):
+
+```json
+{
+  "pack_roots": [],
+  "enabled_packs": [
+    "01a10705-c12f-7e46-93a8-fac87fe3af01",
+    "01a10705-c144-7330-b426-1c9cbe41964b"
+  ],
+  "pack_order": [
+    "01a10705-c144-7330-b426-1c9cbe41964b",
+    "01a10705-c12f-7e46-93a8-fac87fe3af01"
+  ]
+}
+```
+
+When neither rule orders two packs that bind one name with different files, that resource is left out, and `ready` prints one decision naming both packs.
 
 ## Cache freshness
 
@@ -75,7 +90,7 @@ python scripts/catalog_cli.py \
   search "coherent craft question"
 ```
 
-Repeat `--pack-root` for each additional root and pass identical context through retrieval, inspection, asset lookup, planning, state, materialization, Generation Package, and verification. Invocation options isolate a run. On first initialization, all valid packs found through those roots are enabled. Once the selected state exists, adding a root only discovers a pack; enable its UUID explicitly and choose required providers.
+Repeat `--pack-root` for each additional root and pass identical context through retrieval, inspection, asset lookup, planning, state, materialization, Generation Package, and verification. Invocation options isolate a run. On first initialization, all valid packs found through those roots are enabled. Once the selected state exists, adding a root only discovers a pack; enable its UUID explicitly.
 
 ## Batched complete inspection
 

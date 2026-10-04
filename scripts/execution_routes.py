@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Resolve task-scoped reads and verify artifact-bearing execution routes."""
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse
 import ast
 import json
@@ -57,7 +58,7 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
                 if set(s['inputs'])-available: raise ValueError(f'{sid}: unavailable inputs')
                 available.update(s['outputs'])
                 wanted=ids[i+1] if i+1<len(ids) else 'done'
-                if s['next']!=wanted or s['on_failure'] not in ids:
+                if not isinstance(s['next'], list) or wanted not in s['next'] or s['on_failure'] not in ids:
                     raise ValueError(f'{sid}: disconnected success or failure path')
                 script,fn=s['owner'].split(':')
                 tree=ast.parse(read(local(root,script)).decode('utf-8'))
@@ -84,7 +85,7 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser=argparse.ArgumentParser(description=__doc__)
+    parser=_operation_context.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='command',required=True)
     p=sub.add_parser('inspect'); p.add_argument('route'); p.add_argument('--feature',action='append',default=[])
     reading = sub.add_parser('read', help='Read the complete route documents, record issuance and write the reading record to complete')
@@ -103,4 +104,4 @@ def main() -> int:
 if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

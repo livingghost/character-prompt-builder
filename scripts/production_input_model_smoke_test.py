@@ -10,25 +10,24 @@ from input_evidence import InputEvidence
 import production_inputs as inputs
 import production_input_adapters as adapters
 import production_workflow_smoke_test as fixtures
-import reading_fixtures
 import request_validation
 
 
 class ModelInputTests(unittest.TestCase):
     def setUp(self):
         fixtures.PackageIntegrationTests.setUp(self)
-        self.spec['route'] = 'generation'
-        self.spec['artifact'] = 'image'
-        reading_fixtures.task_reading(self.root, self.spec)
+        # Reuse the task/reading actually committed by the package fixture.
+        # A new reading locator would be a new task, not the prepared basis.
+        self.assertEqual(self.spec['route'], 'generation')
+        self.assertEqual(self.spec['artifact'], 'image')
         reading = c.load(self.root / self.spec['route_reading'])
-        self.write('task.json', self.spec)
         self.write('production-spec.json', self.package['production_spec'])
         self.write('prepared-references.json', self.package['prepared_reference_set'])
         validation = self.package['request_validation']
         self.target = validation['target']
-        service = {'id': self.target['service'],
-                   'endpoint': {'base_url': 'https://example.invalid/synthetic-interface'},
-                   'operations': {self.target['operation']: {}}}
+        from catalog_retrieval.runtime import load_pack_catalog
+        service_source = load_pack_catalog().resources['service-profiles'].path
+        service = c.load(Path(service_source))['services'][self.target['service']]
         self.write('services.json', {'services': {self.target['service']: service}})
         visual = copy.deepcopy(self.package['visual_continuity'])
         visual['basis'].pop('sha256')
@@ -119,7 +118,7 @@ class ModelInputTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.build()
 
-    def test_next_builder_keeps_selected_runtime_and_input_roots(self):
+    def test_next_prepare_keeps_selected_runtime_and_names_built_inputs(self):
         from pack_manager import default_settings
         settings = default_settings(state_file=self.base / 'pack-state.json',
                                     cache_dir=self.base / 'cache',
@@ -127,24 +126,25 @@ class ModelInputTests(unittest.TestCase):
         context = {'state-file': str(settings.state_file), 'cache-dir': str(settings.cache_dir),
                    'managed-root': str(settings.managed_root), 'pack-root': []}
         result = inputs.build_inputs(self.root, 'task.json', 'choices.json', 'built', runtime_arguments=context)
-        action = next(item for item in result['next_actions'] if item['operation'] == 'build-generation-payload')
-        self.assertEqual(action['args']['production-root'], str(self.root))
-        self.assertNotIn('continuity', action['required_args'])
+        self.assertEqual([item['operation'] for item in result['next_actions']], ['prepare', 'draft-execution', 'execute'])
+        action = result['next_actions'][0]
+        self.assertEqual(action['args']['root'], str(self.root))
         for key, value in context.items():
             self.assertEqual(action['args'][key], value)
+        self.assertIn("Name built/visual-continuity.json as the task's generation.visual_continuity.", action['requires'])
+        self.assertIn("Name built/request-validation.json as the task's generation.request_validation.", action['requires'])
         saved = c.load(self.root / 'built/input-report.json')
         self.assertEqual(saved['next_actions'], result['next_actions'])
         self.assertFalse(result['execution_ready'])
 
-    def test_null_choices_leave_continuity_and_validation_to_the_builder(self):
+    def test_null_choices_leave_continuity_and_validation_to_prepare(self):
         self.choices['visual'] = None
         self.choices['validation'] = None
         result = self.build()
         self.assertEqual(sorted(result['inputs']), ['input-snapshots', 'production-task', 'route-reading'])
-        action = next(item for item in result['next_actions'] if item['operation'] == 'build-generation-payload')
-        self.assertEqual({key for key in action['args'] if key.endswith('-file')}, set())
-        self.assertEqual(action['required_args'], ['model', 'prompt-file', 'plot-file', 'retrieval-record-file',
-                                                   'production-spec-file', 'continuity', 'out'])
+        action = result['next_actions'][0]
+        self.assertEqual(action['operation'], 'prepare')
+        self.assertEqual(action['requires'], ['Complete the declared delivery, source and authority files.'])
 
     def test_side_effect_entrypoints_are_not_called(self):
         import production_workflow

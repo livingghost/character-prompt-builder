@@ -1,7 +1,5 @@
 # Style-Family Taxonomy Audit Contract
 
-This contract defines the evidence and boundary review for concrete style families. Pack-specific family decisions, release histories, and canonical IDs belong in a resource owned by the pack being audited.
-
 ## Required evidence matrix
 
 For every family, evaluate recurring behavior on all eight axes:
@@ -24,13 +22,16 @@ For every family, evaluate recurring behavior on all eight axes:
 3. Nearest-family boundary test: name the closest canonical family and state the durable difference.
 4. Decomposition test: prefer an existing family plus scene or atomic modules when that composition explains the evidence completely.
 
-## Pack-owned audit resource
+## Family record fields
 
-When the selected pack state provides `cpb-resource:style-family-taxonomy-audit`, resolve it from the explicitly selected provider. Record accepted and rejected family decisions there using exact current IDs, evidence sets, excluded content, and nearest-family comparisons. The audit must agree with the provider's machine-readable taxonomy and catalog.
+Each style-family record carries its review:
 
-Validate a released pack through its exact one-pack
-`scripts/pack_release_gate.py` invocation after changing a family. Use
-`scripts/style_family_audit.py` only as a focused development diagnostic with
-the same explicit pack runtime. Structural success confirms ID and
-schema integrity; artistic justification still depends on the recorded
-evidence and boundary tests.
+- `status`: `retained`, `revised-and-generalized` or `new`.
+- `evidence_basis`: scenes showing the finish; a revised or new family lists three or more.
+- `recurring_axes`: six or more of the eight axes.
+- `excluded_scene_attributes`: two or more attributes kept out of the grammar.
+- `nearest_family` and `boundary`: the closest other family, in any enabled pack, and the durable difference.
+- `review_notes`: eight or more words for a revised or new family.
+- `deferred_candidates`: proposals compared with this family and kept out of the catalog.
+
+`scripts/style_family_audit.py` applies these rules across every enabled pack's families. After changing a family, run `scripts/pack_release_gate.py` on the released pack and its dependencies. Structural success confirms ID and schema integrity; artistic justification rests on the recorded evidence and boundary tests.

@@ -3,6 +3,7 @@
 
 Catalog and vocabulary searches given `--record` append the lookups; this tool records each element's outcome."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -253,7 +254,7 @@ def require_generation_retrieval(value: Any, *, prompt: str, plot: dict[str, Any
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("record", type=Path)
     parser.add_argument("--settle", action="store_true", help="Explicitly settle decisions for the supplied authored prompt and plot")
     parser.add_argument("--prompt-file", type=Path)
@@ -301,4 +302,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

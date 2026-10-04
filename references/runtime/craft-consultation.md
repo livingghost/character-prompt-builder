@@ -12,8 +12,8 @@ Existing approvals establish the status of those assets; execution and identity 
 Its image and video paths also show the active catalog scope.
 `catalog_cli.py consult` provides the same layered search without a production task.
 
-The consultation reports discovered packs, enabled packs, searchable counts, selected providers, and resolution diagnostics.
-Confirm the intended library is active before interpreting results.
+The consultation reports discovered packs, enabled packs, searchable counts, the pack each named resource comes from, and resolution diagnostics.
+Confirm the intended pack is active before interpreting results.
 Use the pack manager to change activation explicitly.
 File presence and an empty result describe different conditions.
 
@@ -23,7 +23,7 @@ Select a focus for each question:
 |---|---|
 | scene | Scenes and recipes in separate groups |
 | detail | Modules for a local craft question |
-| finish | Style families, profiles, aesthetic cores, and domain realizations |
+| finish | Style families, render profiles, aesthetic cores, and domain realizations |
 | repair | Corrections for an observed problem |
 | identity | Archetypes within the declared subject requirements |
 | all | All of these layers, kept separate |
@@ -38,8 +38,8 @@ Search rank supplies candidates, not a quality or acceptance verdict.
 ## Read and choose
 
 Use `--inspect` with explicit record IDs to open their complete records and linked asset information.
-Recipes also open their declared scene and rendering profile.
-Style families open their declared rendering profile.
+Recipes also open their declared scene and render profile.
+Style families open their declared render profile.
 Opened dependencies remain distinct from selected applications.
 
 `--previous` carries the earlier questions and inspected choices into another consultation on the same catalog snapshot.
@@ -47,7 +47,7 @@ Both queries and inspections use the selected pack runtime.
 Pass the same state, cache, managed root, and additional pack roots to subsequent operations.
 A changed catalog requires a current consultation; the earlier evidence remains a record of its own scope.
 
-The workflow writes `consultation.json` and an unanswered `decisions.json` into a new project directory.
+The workflow writes `consultation.json` and an unanswered `decisions.json` into a new studio-relative directory.
 Returned actions name the report, decision file, runtime, and remaining arguments.
 The public [consultation example](../../examples/craft-consultation/README.md) runs these commands and shows their actual output summary.
 
@@ -63,7 +63,7 @@ Each use names:
 - existing `review_criteria` IDs and an authored `review_question`.
 
 An unused inspected record carries its ID and reason.
-Use no preset when none fits; application records are useful evidence, not a new mandatory gate.
+Use no record when none fits; application records are useful evidence, not a new mandatory gate.
 For an unchanged technique, describe its retained scope rather than inventing a modification.
 
 The tool resolves record hashes, target values, and selected IDs from these choices.
@@ -84,7 +84,7 @@ The existing retrieval record identifies prompt-wording provenance.
 The application source identifies craft adaptation, including combinations of several records.
 Use the existing retrieval gate for final wording and inspect actual assets before transferring their visual authority.
 
-## Review and return to the library
+## Review and return to the packs
 
 Preparation captures the application as an ordinary production source.
 `draft-review` copies its authored questions into the matching criterion reasons with `not-assessed` verdicts and empty observations.
@@ -95,12 +95,12 @@ Distinguish successful lookup, intended application, and observed effect.
 An approved pattern in one scope is a useful starting point, not proof of success in every new context.
 
 `repair-analysis` offers the repair-focused consultation operation after grouping recorded failures.
-`draft-variation` offers consultation alongside the next input work.
+`variant` reuses the existing craft sources only where they still apply; consult again for changed artistic decisions.
 The agent translates the observation into a craft question before choosing a correction.
 
 When a technique works, attach the actual result and scope through the existing review and owning-pack maintenance workflow.
 Refine an existing record where it represents the same knowledge.
-Evaluate useful application and avoided repetition, rather than search counts, adoption counts, or a new preset for every image.
+Evaluate useful application and avoided repetition, not search counts, adoption counts, or a new record for every image.
 
 ## Verification
 

@@ -520,9 +520,50 @@
                     "type": "string",
                     "minLength": 1
                   }
+                },
+                "observed_profile": {
+                  "description": "The adopted observed request profile a measured basis rests on: a /-separated path inside the pack that holds the model record, and its SHA-256.",
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "additionalProperties": false
                 }
               },
-              "additionalProperties": false
+              "additionalProperties": false,
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "measured"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "then": {
+                "required": [
+                  "observed_profile"
+                ]
+              },
+              "else": {
+                "not": {
+                  "required": [
+                    "observed_profile"
+                  ]
+                }
+              }
             },
             "prompt_recipe": {
               "type": "object",
@@ -743,8 +784,252 @@
               "$ref": "#/$defs/non-empty-string"
             }
           }
+        },
+        {
+          "if": {
+            "required": [
+              "category"
+            ],
+            "properties": {
+              "category": {
+                "const": "species"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "scaffold"
+            ],
+            "properties": {
+              "scaffold": {
+                "$ref": "#/$defs/species-scaffold"
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "scaffold"
+              ]
+            }
+          }
         }
       ]
+    },
+    "species-scaffold": {
+      "type": "object",
+      "description": "The prompt-prior scaffold family a species record calibrates face geometry against. The user's species and the approved Character Identity Contract stay the identity authority; the scaffold only guides geometry wording.",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "confidence"
+      ],
+      "properties": {
+        "family": {
+          "description": "The scaffold family whose prompt prior calibrates face geometry. Each value describes the geometry it invokes.",
+          "oneOf": [
+            {
+              "const": "amphibian",
+              "description": "broad or delicate amphibian head, eye placement, moist skin and limb geometry described directly"
+            },
+            {
+              "const": "arachnid",
+              "description": "cephalothorax and abdomen structure, eight-limb plan, eye arrangement and pedipalp geometry"
+            },
+            {
+              "const": "avian",
+              "description": "beak geometry, eye placement, crest or ear-tuft equivalent, wing plan and feather grouping"
+            },
+            {
+              "const": "bat",
+              "description": "mammalian muzzle, large ear geometry, wing membrane attachment and compact hind limbs"
+            },
+            {
+              "const": "bovine",
+              "description": "broad herbivore muzzle, heavy forehead, lateral ears and horn or poll structure"
+            },
+            {
+              "const": "camelid",
+              "description": "long neck, tapered muzzle, split upper lip and tall ear silhouette"
+            },
+            {
+              "const": "canine",
+              "description": "clearly projecting muzzle with a visible bridge and converging side planes; longer wedge-shaped muzzle shadow; pointed high-set or breed-specific ears; thicker nose pad at the terminal muzzle tip; jaw follows the taper"
+            },
+            {
+              "const": "caprine-ovine",
+              "description": "narrow herbivore muzzle, horn or poll structure, lateral ears and compact ruminant face"
+            },
+            {
+              "const": "cephalopod",
+              "description": "mantle, eye placement, arm or tentacle count, sucker pattern and aquatic motion geometry"
+            },
+            {
+              "const": "cervid",
+              "description": "long tapered herbivore muzzle, lateral ears, light jaw and antler-compatible skull"
+            },
+            {
+              "const": "cheloniid",
+              "description": "beaked reptile head, shell integration, flipper or limb geometry and short tail"
+            },
+            {
+              "const": "constructed",
+              "description": "panel, joint, optic, casing, manipulator and propulsion geometry described directly"
+            },
+            {
+              "const": "crocodilian",
+              "description": "long broad armored snout, high-set eyes, heavy jaw and low powerful body"
+            },
+            {
+              "const": "crustacean",
+              "description": "carapace, segmented limbs, claws, antennae and aquatic body plan described directly"
+            },
+            {
+              "const": "direct-geometry-required",
+              "description": "state the approved identity once and describe the complete visible geometry directly"
+            },
+            {
+              "const": "draconic",
+              "description": "dragon skull, horn and crest plan, wing or fin plan, limb count, scale system and tail described directly"
+            },
+            {
+              "const": "elemental-abstract",
+              "description": "material behavior, sensory focus, silhouette logic and motion field described directly"
+            },
+            {
+              "const": "equine",
+              "description": "elongated face, high lateral eyes, tall ears and powerful neck line"
+            },
+            {
+              "const": "feline",
+              "description": "short deep broad muzzle with near-parallel side planes and a blunt front; compact block-like muzzle shadow; rounded or softly squared ear tips with broad bases; relatively thin nose pad close to the facial front; heavy cheek and jaw mass"
+            },
+            {
+              "const": "fish",
+              "description": "species-specific head, eye placement, fin plan, body depth and tail geometry described directly"
+            },
+            {
+              "const": "giraffid",
+              "description": "very long neck, ossicone-bearing skull, large lateral eyes and tapered muzzle"
+            },
+            {
+              "const": "hybrid-fantasy",
+              "description": "one primary body plan with explicit transition zones and independently described component systems"
+            },
+            {
+              "const": "hyena",
+              "description": "broad deep muzzle, heavy jaw, wide ears and sloped shoulder-to-hip body rhythm"
+            },
+            {
+              "const": "insect",
+              "description": "segmented body, antennae, compound or simple eyes, leg count and wing plan described directly"
+            },
+            {
+              "const": "lagomorph",
+              "description": "long ears, short delicate muzzle, light jaw and compact face"
+            },
+            {
+              "const": "large-herbivore",
+              "description": "species-specific massive skull, broad muzzle and weight-bearing body geometry described directly"
+            },
+            {
+              "const": "lizard",
+              "description": "species-specific reptile skull, lateral eye and jaw geometry, scaled body and tail described directly"
+            },
+            {
+              "const": "macropod",
+              "description": "small head, long upright ears, huge hind-limb emphasis and balancing tail"
+            },
+            {
+              "const": "marine-mammal",
+              "description": "streamlined mammalian head, flipper plan, dorsal contour and tail-fluke geometry"
+            },
+            {
+              "const": "marsupial-other",
+              "description": "species-specific marsupial head, ear, limb and tail geometry described directly"
+            },
+            {
+              "const": "monotreme",
+              "description": "species-specific mammalian body with bill or spines and unusual limb carriers described directly"
+            },
+            {
+              "const": "mustelid",
+              "description": "small rounded ears, short muzzle, long low body and compact limb rhythm"
+            },
+            {
+              "const": "porcine",
+              "description": "disk-like snout, heavy cheek and jaw mass, compact ears and barrel body rhythm"
+            },
+            {
+              "const": "primate",
+              "description": "forward eyes, short facial projection, mobile lips, ear placement and hand-led body language"
+            },
+            {
+              "const": "procyonid",
+              "description": "rounded face, short pointed muzzle, mask-prone eye zone and ringed-tail carrier"
+            },
+            {
+              "const": "rodent",
+              "description": "small rounded or pointed ears, short muzzle, incisors and compact head-body rhythm"
+            },
+            {
+              "const": "serpent",
+              "description": "limbless body plan, skull and jaw geometry, scale pattern and coil behavior described directly"
+            },
+            {
+              "const": "shark-ray",
+              "description": "cartilaginous fish head, gill placement, fin plan, tail and waterline body geometry"
+            },
+            {
+              "const": "sloth",
+              "description": "small rounded head, long curved claws, slow hanging limb geometry and dense coat"
+            },
+            {
+              "const": "undead-humanoid",
+              "description": "humanoid or creature skeleton and tissue state described directly from the approved identity"
+            },
+            {
+              "const": "ursine",
+              "description": "massive rounded skull, small round ears, thick muzzle, heavy neck and broad paws"
+            }
+          ]
+        },
+        "confidence": {
+          "description": "direct: the family is the species' own. nearest: the closest family. fallback: the family is direct-geometry-required.",
+          "enum": [
+            "direct",
+            "nearest",
+            "fallback"
+          ]
+        }
+      },
+      "if": {
+        "required": [
+          "family"
+        ],
+        "properties": {
+          "family": {
+            "const": "direct-geometry-required"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "confidence": {
+            "const": "fallback"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "confidence": {
+            "enum": [
+              "direct",
+              "nearest"
+            ]
+          }
+        }
+      }
     },
     "profile": {
       "allOf": [
@@ -834,7 +1119,14 @@
             "base_render_profile_id",
             "domains",
             "search_terms",
-            "tags"
+            "tags",
+            "status",
+            "evidence_basis",
+            "recurring_axes",
+            "excluded_scene_attributes",
+            "nearest_family",
+            "boundary",
+            "review_notes"
           ],
           "properties": {
             "category": {
@@ -851,10 +1143,97 @@
             },
             "base_render_profile_id": {
               "$ref": "#/$defs/identifier"
+            },
+            "status": {
+              "enum": [
+                "retained",
+                "revised-and-generalized",
+                "new"
+              ],
+              "description": "The outcome of the family's latest boundary review."
+            },
+            "evidence_basis": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/non-empty-string"
+              },
+              "description": "The materially different scenes or sources that show the finish recurring."
+            },
+            "recurring_axes": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "line",
+                  "form",
+                  "shadow_and_value",
+                  "highlight",
+                  "color",
+                  "surface",
+                  "background",
+                  "detail_hierarchy"
+                ]
+              },
+              "description": "The finish axes that recur across the evidence."
+            },
+            "excluded_scene_attributes": {
+              "$ref": "#/$defs/string-array",
+              "description": "Scene content removed from the family grammar, such as a location or a pose."
+            },
+            "nearest_family": {
+              "$ref": "#/$defs/identifier",
+              "description": "The id of the closest other style family, from any enabled pack."
+            },
+            "boundary": {
+              "$ref": "#/$defs/non-empty-string",
+              "description": "The visible rules that separate this family from its nearest family."
+            },
+            "review_notes": {
+              "$ref": "#/$defs/non-empty-string"
+            },
+            "deferred_candidates": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/deferred-style-family-candidate"
+              },
+              "description": "Proposed families compared against this one and kept out of the catalog."
             }
           }
         }
       ]
+    },
+    "deferred-style-family-candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "label",
+        "decision",
+        "available_evidence",
+        "evidence_gap",
+        "reconsideration_condition"
+      ],
+      "properties": {
+        "candidate_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "label": {
+          "$ref": "#/$defs/non-empty-string"
+        },
+        "decision": {
+          "const": "deferred-not-canonical"
+        },
+        "available_evidence": {
+          "$ref": "#/$defs/string-array"
+        },
+        "evidence_gap": {
+          "$ref": "#/$defs/non-empty-string"
+        },
+        "reconsideration_condition": {
+          "$ref": "#/$defs/non-empty-string"
+        }
+      }
     },
     "domain-realization": {
       "allOf": [
@@ -1250,9 +1629,50 @@
                         "type": "string",
                         "minLength": 1
                       }
+                    },
+                    "observed_profile": {
+                      "description": "The adopted observed request profile a measured basis rests on: a /-separated path inside the pack that holds the model record, and its SHA-256.",
+                      "type": "object",
+                      "required": [
+                        "path",
+                        "sha256"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      },
+                      "additionalProperties": false
                     }
                   },
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "measured"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "observed_profile"
+                    ]
+                  },
+                  "else": {
+                    "not": {
+                      "required": [
+                        "observed_profile"
+                      ]
+                    }
+                  }
                 },
                 "prompt_recipe": {
                   "type": "object",

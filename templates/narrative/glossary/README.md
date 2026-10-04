@@ -21,7 +21,7 @@ references: [kanda-station]
 ```
 
 `kind` is what this file is, and it has to match the directory the file sits in. `id` is what the
-rest of the project calls it, and it has to match the file name, because that is how the project
+rest of the series calls it, and it has to match the file name, because that is how the series
 finds it. `references` names the other ids this file talks about.
 
 That last line is what makes the check run both ways. A file nothing names is reported, and a name

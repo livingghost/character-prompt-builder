@@ -3,15 +3,23 @@
 
     python scripts/validate_studio.py <studio-dir> [--json]
 
-What it refuses: a manifest that is not what init writes, a character the
-manifest lists without a directory or a directory it does not list, a character
-id that ends in a dot or differs from another only by case, an iteration whose
-files are missing or whose hashes no longer match, a slot with two accepted
-iterations, an accepted iteration whose accepted copy is missing, an acceptance
-history that names an iteration of another slot, and a work trail the ledger
-cannot account for.
+What it refuses:
+
+- a manifest that is not what init writes;
+- a character the manifest lists without a directory, or a directory it does not list;
+- a character id that ends in a dot or differs from another only by case;
+- an iteration whose files are missing or whose hashes moved;
+- a slot with two accepted iterations, or an accepted iteration without its accepted copy;
+- an acceptance history that names an iteration of another slot;
+- an imported iteration without external-import provenance, or a rejection that names no actor;
+- a Production candidate row that stores a judgment field, or whose run cannot be read;
+- a Production candidate a dispatcher run recorded for this studio with no row here;
+- a stale sheet binding or an incomplete adoption step;
+- a gallery that differs from what the records produce;
+- a work trail the ledger cannot account for.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -25,11 +33,14 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import studio  # noqa: E402
 import work_ledger  # noqa: E402
 
-MANIFEST_FIELDS = {"studio_id", "title", "created_at", "characters"}
+MANIFEST_FIELDS = {
+    "studio_id", "title", "default_render_profile", "default_creative_latitude", "default_interaction_mode",
+    "default_style_family", "created_at", "characters",
+}
 ITERATION_FIELDS = {
     "iteration_id", "at", "character", "slot", "status", "acceptances", "result", "package", "request",
     "request_layout", "response", "answer", "service", "seed", "note", "accepted_path", "superseded_by", "rejected_at",
-    "reason",
+    "reason", "actor", "provenance", "production", "adoption_status",
 }
 
 
@@ -119,6 +130,37 @@ def check_layout(root: Path, row: dict[str, Any], label: str, errors: list[str])
         errors.append(f"{label}: {exc}")
 
 
+def unshown_candidates(root: Path, characters: set[str], shown: set[tuple[str, str]]) -> list[str]:
+    """Production candidates a dispatcher run recorded for a character here that no iteration row shows."""
+    import sqlite3
+    import production_store
+    import production_workflow
+    try:
+        runs = [item["run_id"] for item in production_store.runs(root)]
+    except (ValueError, OSError, sqlite3.Error) as exc:
+        return [f"production records: {exc}"]
+    errors = []
+    for run in runs:
+        try:
+            _, prepared, _, events = production_workflow.load_run(root, run)
+        except (ValueError, OSError, KeyError) as exc:
+            errors.append(f"production run {run}: {exc}")
+            continue
+        recording = prepared["task"].get("recording") or {}
+        if prepared["task"]["execution"] != "dispatcher" or recording.get("character") not in characters:
+            continue
+        # An upscale output that broke its contract is kept as evidence and never shown.
+        invalid = {index for event in events if event["event"] == "dispatch-results"
+                   for index in event["data"].get("invalid_output_indices", [])}
+        for event in events:
+            if event["event"] == "candidate" and event["data"].get("output_index") not in invalid \
+                    and (run, event["sha256"]) not in shown:
+                errors.append(f"production run {run}: candidate {event['sha256']} has no iteration row in "
+                              f"characters/{recording['character']}; "
+                              f"python scripts/production_workflow.py resume --root {root} --run {run} records it")
+    return errors
+
+
 def validate(root: Path) -> list[str]:
     errors: list[str] = []
     if not root.exists():
@@ -139,6 +181,11 @@ def validate(root: Path) -> list[str]:
         errors.append(f"{studio.MANIFEST}: unexpected {extra}")
     if not isinstance(document.get("studio_id"), str) or not studio.STUDIO_ID.match(document.get("studio_id") or ""):
         errors.append(f"{studio.MANIFEST}: studio_id is not a studio id")
+    for name in ("default_render_profile", "default_creative_latitude", "default_interaction_mode"):
+        if not isinstance(document.get(name), str) or not document[name]:
+            errors.append(f"{studio.MANIFEST}: {name} must name a value")
+    if document.get("default_style_family") is not None and not isinstance(document["default_style_family"], str):
+        errors.append(f"{studio.MANIFEST}: default_style_family must be a style family id or null")
     for name in studio.DIRECTORIES:
         if not (root / name).is_dir():
             errors.append(f"missing directory: {name}")
@@ -153,6 +200,7 @@ def validate(root: Path) -> list[str]:
     for character in on_disk:
         if character not in listed:
             errors.append(f"characters/{character} is on disk and not listed in {studio.MANIFEST}")
+    shown: set[tuple[str, str]] = set()
     for character in on_disk:
         home = root / "characters" / character
         for name in studio.CHARACTER_DIRECTORIES:
@@ -161,6 +209,7 @@ def validate(root: Path) -> list[str]:
         if not (home / "sheet" / "sheet-data.json").is_file():
             errors.append(f"characters/{character}: sheet/sheet-data.json is missing")
         try:
+            raw_rows = studio.read_iterations(home, project=False)
             rows = studio.read_iterations(home)
         except (ValueError, OSError) as exc:
             errors.append(str(exc))
@@ -169,11 +218,35 @@ def validate(root: Path) -> list[str]:
         ids: list[str] = []
         for number, row in enumerate(rows, 1):
             label = f"characters/{character}/iterations.jsonl:{number}"
-            unknown = sorted(set(row) - ITERATION_FIELDS)
+            stored = raw_rows[number - 1]
+            unknown = sorted(set(stored) - ITERATION_FIELDS)
             if unknown:
                 errors.append(f"{label}: unknown fields {unknown}")
-            if row.get("status") not in studio.STATUSES:
-                errors.append(f"{label}: status {row.get('status')!r} is not one of {studio.STATUSES}")
+            origin = stored.get("production")
+            if origin is not None:
+                if not isinstance(origin, dict) or set(origin) != {"run", "candidate"} or not all(isinstance(origin.get(k), str) and origin[k].strip() for k in ("run", "candidate")):
+                    errors.append(f"{label}: production must name exactly a run and candidate")
+                else:
+                    shown.add((origin["run"], origin["candidate"]))
+                if "provenance" in stored:
+                    errors.append(f"{label}: a Production candidate cannot also be an external import")
+                if stored.get("adoption_status") not in {"none", "accepted", "superseded"}:
+                    errors.append(f"{label}: invalid adoption_status")
+                forbidden = sorted(set(stored) & {"status", "actor", "rejected_at", *studio.PRODUCTION_PROJECTION})
+                if forbidden:
+                    errors.append(f"{label}: Production-derived judgment fields must not be stored: {forbidden}")
+                if row.get("production_diagnostic"):
+                    diagnostic = row["production_diagnostic"]
+                    errors.append(f"{label}: Production projection unavailable: {diagnostic.get('code')}: {diagnostic.get('message')}")
+                elif row.get("status") not in studio.PRODUCTION_STATUSES:
+                    errors.append(f"{label}: status {row.get('status')!r} is not one of {studio.PRODUCTION_STATUSES}")
+            else:
+                if stored.get("provenance") != "external-import":
+                    errors.append(f"{label}: an imported result must declare external-import provenance")
+                if stored.get("status") == "rejected" and (not isinstance(stored.get("actor"), str) or not stored["actor"].strip()):
+                    errors.append(f"{label}: rejection requires its actual actor")
+                if row.get("status") not in studio.STATUSES:
+                    errors.append(f"{label}: status {row.get('status')!r} is not one of {studio.STATUSES}")
             if not isinstance(row.get("slot"), str) or not studio.SLOT.match(row.get("slot") or ""):
                 errors.append(f"{label}: slot is not a slot name")
             ids.append(str(row.get("iteration_id")))
@@ -193,6 +266,7 @@ def validate(root: Path) -> list[str]:
         if len(ids) != len(set(ids)):
             errors.append(f"characters/{character}/iterations.jsonl: an iteration id repeats")
         check_history(rows, character, errors)
+    errors.extend(unshown_candidates(root, set(listed), shown))
     from adoption_workflow import reference_index
     for character in on_disk:
         if not studio.valid_character_id(character):
@@ -214,7 +288,7 @@ def validate(root: Path) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("studio", type=Path)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
@@ -231,4 +305,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -77,7 +78,7 @@ def check_no_input_under_output(inputs: dict[str, Path], out: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build a conditional prompt-only or generation-ready artifact package.")
+    parser = _operation_context.ArgumentParser(description="Build a conditional prompt-only or generation-ready artifact package.")
     parser.add_argument("--prompt", required=True, type=Path)
     parser.add_argument("--negative", type=Path)
     parser.add_argument("--out-dir", required=True, type=Path)
@@ -253,4 +254,4 @@ def main() -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

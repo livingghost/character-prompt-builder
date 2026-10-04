@@ -74,6 +74,29 @@ def handoff(root: Path, run: str, recipient: str, method: str) -> dict:
     return w.handoff(root, run, recipient, method, authorization)
 
 
+def scratch_home_dir(folder: Path) -> Path:
+    """`folder` as a configuration directory whose pack state enables the shipped default packs alone.
+
+    A command started with CPB_HOME at this folder reads that state, never the
+    pack state of the person running the suite or the packs beside the shipped ones.
+    """
+    import shutil
+    folder.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(Path(__file__).resolve().parents[1] / 'config' / 'default-pack-state.json', folder / 'pack-state.json')
+    return folder
+
+
+def scratch_home(folder: Path):
+    """A patch that points CPB_HOME at `folder`, prepared by `scratch_home_dir`.
+
+    Operation logs and the home reading ledger of one test then stay in that folder.
+    """
+    import os
+    from unittest.mock import patch
+    scratch_home_dir(folder)
+    return patch.dict(os.environ, {'CPB_HOME': str(folder)})
+
+
 def observation(value: dict) -> dict:
     for item in value['observations']:
         item['evidence'] = 'candidate'
@@ -124,22 +147,21 @@ def claim(root: Path, run: str, package: dict, verified: dict, journal: Path, co
     return w.claim_dispatch(root, run, package, verified, journal, intent, authorization, rendered=rendered)
 
 
-def prepare_dispatch(root: Path, prompt: str, *, route: str = 'generation',
+def prepare_external_delivery(root: Path, prompt: str, *, route: str = 'generation',
                      artifact: str = 'image', sources: list | None = None) -> str:
     """Explicit local test setup; never imported by an operational entrypoint."""
     import work_ledger
     import production_workflow as w
-    started = work_ledger.begin(root, 'Synthetic dispatch', ['prepare', 'render'])
+    started = work_ledger.begin(root, 'Synthetic external package construction', ['prepare', 'inspect'])
     (root / 'fixture-delivery.txt').write_text(prompt, encoding='utf-8')
     spec = {'task_id': started['task_id'], 'route': route, 'features': [],
             'sources': sources or [], 'delivery': {'path': 'fixture-delivery.txt',
             'transport': 'authored-rendition', 'translation_notes': 'Exact synthetic test input.'},
             'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect actual received fixture bytes.'}],
             'world_views': []}
-    task(root, spec, artifact=artifact, execution='dispatcher')
+    task(root, spec, artifact=artifact, execution='external')
     (root / 'fixture-task.json').write_bytes(c.encoded(spec))
     run = w.prepare(root, 'fixture-task.json')['run']
-    handoff(root, run, 'synthetic-transport', 'dispatcher')
     return run
 
 

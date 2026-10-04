@@ -231,9 +231,11 @@
             "enum": [
               "pass",
               "fail",
+              "indeterminate",
               "not-assessed",
               "not-applicable"
-            ]
+            ],
+            "description": "indeterminate: the reviewer observed the criterion and could not decide it."
           },
           "observation_indices": {
             "type": "array",

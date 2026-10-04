@@ -5,6 +5,7 @@ The dictionary supplies candidate wording. The calling agent remains
 responsible for selecting, combining, adapting, or ignoring every result.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -513,7 +514,7 @@ def load_queries(source: str) -> list[tuple[str, str]]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument("query", nargs="?", help="English term or concept to search")
     parser.add_argument("--queries", metavar="JSON_OR_PATH",
                         help='Several searches in one run: {"ELEMENT": ["QUERY", ...]} as literal JSON, '
@@ -616,4 +617,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

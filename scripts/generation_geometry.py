@@ -29,6 +29,7 @@ the report's size_fields is null.
 Output is JSON on stdout. The exit status is 1 when a size is refused.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -119,7 +120,7 @@ def schema_refusals(record: dict[str, Any], service: str | None, model_id: str, 
     if offering is None:
         return [], None
     fields = size_fields(offering, width, height, ratio)
-    found = offering_schema(offering, pack_root if pack_root is not None else model_pack_root(model_id))
+    found = offering_schema(offering, pack_root if pack_root is not None else model_pack_root(model_id), model_id)
     summary = {"service": offering["service"], "model_identifier": offering["model_identifier"],
                "observed_at": offering.get("observed_at"), "size_fields": fields}
     if found is None or fields is None:
@@ -147,7 +148,7 @@ def schema_refusals(record: dict[str, Any], service: str | None, model_id: str, 
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--model", required=True, help="A model record in the active pack runtime")
     parser.add_argument("--service", help="The service, when the record is exposed on more than one")
     parser.add_argument("--list", action="store_true", help="Print the sizes the record declares")
@@ -235,4 +236,4 @@ def settle(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

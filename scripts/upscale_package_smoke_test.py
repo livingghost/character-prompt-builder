@@ -15,9 +15,10 @@ from pack_manager import default_settings, write_lock
 from state_protocol import finalize_artifact
 from upscale_package import build_upscale_package, verify_upscale_package
 
+
 ROOT = Path(__file__).resolve().parents[1]
 PACK_ID = "0190c000-0000-7000-8000-000000000077"
-EXPECTED_CHECKS = 18
+EXPECTED_CHECKS = 19
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -147,7 +148,6 @@ def main() -> int:
             {
                 "pack_roots": [str(pack_parent)],
                 "enabled_packs": [PACK_ID],
-                "resource_providers": {},
             },
         )
         settings = default_settings(
@@ -284,13 +284,15 @@ def main() -> int:
                 "plan": "personal",
                 "variations": 1,
             },
-            guidance_prompt="preserve the existing silhouette and markings",
+            guidance_prompt="  preserve the existing silhouette and markings\r\n",
             audit_status="pending",
             audit_notes=["Identity census not yet completed."],
         )
         check("creative pending audit requires review", creative_pending["status"] == "review-required")
         verify_upscale_package(creative_pending, package_root=package_root)
         check("review-required creative package remains verifiable", True)
+        check("authored guidance whitespace survives package construction and verification",
+              creative_pending["guidance_prompt"] == "  preserve the existing silhouette and markings\r\n")
 
         creative_ready = build_upscale_package(
             model="fixture-creative-upscaler",

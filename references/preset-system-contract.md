@@ -1,10 +1,10 @@
 # Preset System Contract
 
-This contract defines the authority, purpose, and runtime use of Character Prompt Builder's production-knowledge library.
+This contract defines the authority, purpose, and runtime use of Character Prompt Builder's production-knowledge packs.
 
 ## Core principle
 
-A preset is reusable visual production knowledge. It is not a replacement for language understanding, image intent, or art direction.
+A record is reusable visual production knowledge. It is not a replacement for language understanding, image intent, or art direction.
 
 The authority order is:
 
@@ -13,15 +13,15 @@ The authority order is:
 2. meaning of the user's whole brief
 3. chosen image intent and art direction
 4. series identity locks, when any
-5. selected preset records
-6. project defaults
+5. selected pack records
+6. pack-defaults
 ```
 
 A lower layer cannot silently override a higher one.
 
 ## Art direction and sparse exploration
 
-A well-specified brief establishes these decisions before focused preset retrieval:
+A well-specified brief establishes these decisions before focused record retrieval:
 
 - center of appeal
 - subject relationship
@@ -76,7 +76,7 @@ A universal core uses `domains: ["shared"]`. It contains no domain anatomy, loco
 
 One concrete finish language binding line hierarchy, form abstraction, value and shadow design, highlight placement, color behavior, surface grouping, background treatment, detail hierarchy, and subject-domain overlays. Use zero or one family after the art direction is chosen.
 
-The selected family is the primary positive grammar. Its linked rendering profile supplies the medium envelope and scoped negative boundary. The two full grammars are not concatenated. Aesthetic touches remain subordinate to the family's compatibility policy.
+The selected family is the primary positive grammar. Its linked render profile supplies the medium envelope and scoped negative boundary. The two full grammars are not concatenated. Aesthetic touches remain subordinate to the family's compatibility policy.
 
 ### Domain realization
 
@@ -95,11 +95,11 @@ It defines how the chosen art direction and any selected universal core become v
 
 Use the baseline domain realization matching the subject unless a more specific curated realization is clearly relevant. A scene with materially different subject domains may use one realization for each represented domain. Baseline versus specialized is a record-level realization tier, never a content-pack boundary.
 
-### Rendering profile
+### Render profile
 
-One coherent medium grammar: line, shape language, value structure, color behavior, surface rendering, light response, background policy, detail hierarchy, and medium-drift terms.
+A render profile is a pack record of kind `profile`: one coherent medium grammar of line, shape language, value structure, color behavior, surface rendering, light response, background policy, detail hierarchy, and medium-drift terms.
 
-Use at most one profile. A hybrid medium is a separate art direction.
+Use at most one render profile. A hybrid medium is a separate art direction.
 
 ### Base scene
 
@@ -107,7 +107,7 @@ A reusable staging blueprint. It stores body or structural geometry, action, gaz
 
 ### Finished recipe
 
-A repeatable production template combining one complete scene and one complete rendering profile. It is not the default source of a new concept.
+A repeatable production template combining one complete scene and one complete render profile. It is not the default source of a new concept.
 
 ### Distinctive-detail module
 
@@ -123,7 +123,7 @@ A positive repair for one concrete failure risk. It defines trigger, diagnosis, 
 
 ## Retrieval and inspection
 
-Catalog retrieval is deterministic textual evidence, not artistic judgment. Preset names and IDs are not required for discovery.
+Catalog retrieval is deterministic textual evidence, not artistic judgment. Record names and IDs are not required for discovery.
 
 Record retrieval has three modes:
 
@@ -156,7 +156,7 @@ python scripts/reference_runtime.py execute \
 
 `inspect` and `asset-lookup` are discovery-only operations. They expose complete canonical records, linked asset records, technical roles, owning-pack coordinates, resource paths, media types, and hashes, but they do not activate or prepare a generation reference. After adopting records, each repeated `--record-use RECORD_ID=INTENDED_INFLUENCE` declares why a canonical record contributes visual authority. The planner rejects an influence that the complete canonical record does not affirmatively support. Record-use order establishes precedence. The planner resolves suitable active linked assets and records each source, semantic role, authority boundary, prohibited influence, and Surface and Lighting Plan.
 
-`reference_runtime.py execute` validates the sealed plan against the same active pack runtime and materializes the sole canonical `prepared-reference-set`. `preserve` is resolved only by an item with `intended_influence=lighting` and `technical_role=faithful-archival-vector`; `specular-audit` alone remains candidate highlight evidence and cannot own full shadow or material behavior. Surface-plan `source_evidence_roles` records the qualifying items' unique semantic roles and must exactly match the plan validator's recomputation. `rescope` and `replace` require explicit target light sources and material responses before model-facing execution. Prompt delivery includes the actual selected SVG files; model-facing modes keep the authoritative source and exact transport separate and commit both hashes. A finalized state Reference Selection, when present, enters that same execution through `--reference-selection` to constrain eligibility and preserve state scope. Generation Package construction copies the committed carriers into its self-contained `<out-stem>.references/` companion, rebases the canonical set to those paths, and embeds that set and its hash. Any selected source or transport failure blocks packaging rather than silently removing a reference. For visual inspection without ranking, rewriting, or merging records, export an explicit pack set or enabled state with `scripts/catalog_html.py`.
+`reference_runtime.py execute` validates the sealed plan against the same active pack runtime and materializes the sole canonical `prepared-reference-set`. `preserve` is resolved only by an item with `intended_influence=lighting` and `technical_role=faithful-archival-vector`; `specular-audit` alone remains supporting highlight evidence and cannot own full shadow or material behavior. Surface-plan `source_evidence_roles` records the qualifying items' unique semantic roles and must exactly match the plan validator's recomputation. `rescope` and `replace` require explicit target light sources and material responses before model-facing execution. Prompt delivery includes the actual selected SVG files; model-facing modes keep the authoritative source and exact transport separate and commit both hashes. A finalized state Reference Selection, when present, enters that same execution through `--reference-selection` to constrain eligibility and preserve state scope. Generation Package construction copies the committed carriers into its self-contained `<out-stem>.references/` companion, rebases the canonical set to those paths, and embeds that set and its hash. Any selected source or transport failure blocks packaging rather than silently removing a reference. For visual inspection without ranking, rewriting, or merging records, export an explicit pack set or enabled state with `scripts/catalog_html.py`.
 
 Request-supplied images are not catalog records. `prepare_generation_references.py --supplied-selection-file` accepts only explicit `supplied-file` sources and produces the same canonical prepared reference set. Pack-owned sources always derive from the Reference Use Plan and runtime.
 
@@ -171,7 +171,7 @@ subject_archetypes
 atomic categories
 ```
 
-Base scenes and finished recipes are reachable through `search --kind scene` and `search --include-recipes`. An empty requested category is a valid result. Reformulate and retry only when the semantic craft question itself should be expressed differently, and do not infer absent catalog coverage from a single query.
+Base scenes and finished recipes are reachable through `search --kind scene` and `search --include-recipes`. Reformulate and retry only when the semantic craft question should be expressed differently, and do not infer absent catalog coverage from a single query.
 
 Do not concatenate these records blindly. Adapt each according to its function.
 
@@ -180,10 +180,10 @@ Do not concatenate these records blindly. Adapt each according to its function.
 - The art direction remains authoritative.
 - Use zero or one universal core.
 - Use one matching realization per represented subject domain.
-- Use zero or one compatible rendering profile.
+- Use zero or one compatible render profile.
 - Use atomic records only for relevant construction questions.
 - Keep finished recipes optional.
-- Do not average several complete cores, profiles, or scenes.
+- Do not average several complete cores, render profiles, or scenes.
 - Do not let a vocabulary record invent missing staging.
 - Do not let a domain realization become an aesthetic style or a scene.
 - Do not let a universal core introduce anatomy.
@@ -205,17 +205,17 @@ The following remain diagnostic unless activated through policy:
 - archetype diagnostics
 - correction avoidance terms
 
-Negative output is assembled according to `cpb-resource:negative-policy` resolved from the explicitly selected provider, using applicable technical hygiene, selected medium boundaries, activated corrections, and explicit user exclusions.
+Negative output is assembled according to `cpb-resource:negative-policy`, using applicable technical hygiene, selected medium boundaries, activated corrections, and explicit user exclusions.
 
 ## Canonical interface
 
-Current identifiers are exact. Tiers, domains, categories, and preset IDs must match the current catalog. Duplicate consolidation updates internal references and leaves one canonical record.
+Current identifiers are exact. Tiers, domains, categories, and record IDs must match the current catalog. Duplicate consolidation updates internal references and leaves one canonical record.
 
 The automatically invalidated pack cache is a derived many-to-many English discovery index. It maps ordinary canonical phrases to one or more records with facet, source, and weight evidence, and stores search profiles for curated records. Every record reference uses a current canonical ID directly. The calling agent translates arbitrary user-language briefs into canonical English or supplies `schemas/catalog-query.schema.json`; the package maintains no per-language alias dictionaries.
 
 ## New-session reconstruction
 
-Before using the library in a new session, read:
+Before using the packs in a new session, read:
 
 1. this contract
 2. `references/preset-workflow.md`
@@ -227,4 +227,4 @@ Before editing records, also read:
 
 4. `references/preset-authoring-standard.md`
 
-This reading order establishes the purpose of the library before any record is selected.
+This reading order establishes the purpose of the packs before any record is selected.

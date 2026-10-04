@@ -15,6 +15,9 @@ import integration_contract as contract
 import protocol_exchange
 from unittest.mock import patch
 
+import production_fixtures
+
+
 ROOT=Path(__file__).resolve().parents[1]
 FIX=ROOT/'examples/protocol-exchange/fixtures'
 
@@ -40,7 +43,7 @@ class Boundary(unittest.TestCase):
         options={'capabilities':self.caps,'direction':'consumes','declaration':self.caps,'payload_root':self.root};options.update(kw)
         return contract.validate_envelope(value or self.envelope,**options)
     def command(self,*args):
-        env={k:v for k,v in os.environ.items() if k not in {'PYTHONPATH'}};env['PYTHONDONTWRITEBYTECODE']='1';env['HOME']=str(self.root/'home');Path(env['HOME']).mkdir(exist_ok=True)
+        env={k:v for k,v in os.environ.items() if k not in {'PYTHONPATH'}};env['PYTHONDONTWRITEBYTECODE']='1';env['CPB_HOME']=str(production_fixtures.scratch_home_dir(self.root/'home'))
         return subprocess.run([sys.executable,str(ROOT/'scripts/build_interchange_envelope.py'),*map(str,args)],cwd=self.root,env=env,capture_output=True,text=True,encoding='utf-8',timeout=30)
     def args(self,out):
         return ['--profile','shot-request','--payload',self.root/'artifact.json','--payload-type',self.kind,'--payload-id',self.envelope['payload']['artifact_id'],'--out',out]

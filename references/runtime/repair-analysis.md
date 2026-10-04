@@ -4,10 +4,10 @@ Use recorded evidence to improve an unsuccessful result, so that each retry buil
 
 ## Select the runs to analyze
 
-Run the command from the installed skill directory and use a new project-relative output directory:
+Run the command from the installed skill directory and use a new studio-relative output directory:
 
 ```sh
-python scripts/repair_analysis.py --root PROJECT --run RUN_ID --run ANOTHER_RUN_ID --out analysis/observed-failures
+python scripts/repair_analysis.py --root STUDIO --run RUN_ID --run ANOTHER_RUN_ID --out analysis/observed-failures
 ```
 
 The tool reads existing production evidence and groups failed checks by the actual criterion definition, since a local criterion ID is something another task might reuse. Multiple candidates from one run remain one run rather than independent trials.
@@ -51,7 +51,7 @@ After reading the evidence, an agent or reviewer can prepare a `hypotheses.json`
 To retain those proposals with the evidence:
 
 ```sh
-python scripts/repair_analysis.py --root PROJECT --run RUN_ID --out analysis/proposed-repair --hypotheses hypotheses.json
+python scripts/repair_analysis.py --root STUDIO --run RUN_ID --out analysis/proposed-repair --hypotheses hypotheses.json
 ```
 
 Every hypothesis must cite a real failure group, and its status remains `hypothesis-not-established`. The readable report keeps evidence groups, explanation, alternatives, proposed change, protected requirements, acceptance check and scope as separate sections, so each survives a compressed summary.

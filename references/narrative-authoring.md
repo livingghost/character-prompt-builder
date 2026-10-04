@@ -56,7 +56,7 @@ their own owners, and its PHYSICAL section defers to them for measurements and m
 current health, wardrobe and knowledge in time; a future plan is a plan rather than an established
 event. A handoff includes relevant world and persona content, beyond file paths alone.
 
-## Initialize a workspace
+## Initialize a series
 
 ```bash
 python scripts/narrative_init.py --out <directory> --series-id <id> --title "<title>" \
@@ -82,8 +82,7 @@ forced into scene JSON.
 
 Init refuses an invalid series ID or a nonempty destination, and treats a missing or empty full
 template as an error rather than permission to substitute a short form. A failed initialization
-may leave a partial new directory; inspect it rather than claiming success. Migrating an existing
-project is outside init.
+may leave a partial new directory; inspect it rather than claiming success.
 
 ## Create and maintain records
 
@@ -99,7 +98,7 @@ python scripts/narrative_entity.py --series <directory> remove <id> [--force]
 Kinds are `design`, `persona`, `location`, `faction`, `system`, `artifact` and `term`. Design and
 persona creation use the installed current full templates, the identity-led form and the
 authorial intent register, as their sole form authority, through one creation path with no
-abbreviated form or version adaptation; project copies of the forms are reading material rather
+abbreviated form or version adaptation; studio copies of the forms are reading material rather
 than alternate creation sources. Other kinds receive prompts appropriate to their responsibility.
 
 Adding a persona leaves the narrative character, phase history and adoption to the author: set the
@@ -169,14 +168,14 @@ characters; its fragment is `#intent-<id>`. Plain prose remains the source of me
 a JSON rule engine.
 
 Use a top-level `- **authorial_intent_refs**:` field with ordinary relative Markdown links in the
-persona profile, world record or scoped realization note; indented continuation is supported. Use
+persona, world record or scoped realization note; indented continuation is supported. Use
 `n/a: reason` or `none: reason` only for an examined non-applicability. Add the owning entity ID to
 front-matter references for lifecycle tracking. Entity rename updates the active links in this field; links inside fenced examples, quotations
 and ordinary prose stay as they are, so inspect them after such an edit.
 
 ```bash
-python scripts/authorial_intent_audit.py --root <project-directory> narrative/personas/<id>.md
-python scripts/authorial_intent_audit.py --root <project-directory> narrative/design/project.md --fail-on-gaps
+python scripts/authorial_intent_audit.py --root <series> narrative/personas/<id>.md
+python scripts/authorial_intent_audit.py --root <series> narrative/design/project.md --fail-on-gaps
 python scripts/authorial_intent_audit.py --help
 python scripts/authorial_intent_smoke_test.py
 ```
@@ -193,7 +192,7 @@ resolved links, structural gaps and errors, and omits the substantive aim and hi
 remains author-facing metadata rather than an automatically filtered runtime view. Status is
 reported as declared, unverified; a link to a proposed, rejected or deferred entry receives a
 review note rather than inferred adoption. Scope, precedence, truth and artistic coherence stay
-outside the audit, which writes and migrates nothing.
+outside the audit, which writes nothing.
 
 Exit 0 means error-free structure, reads and links, and nothing about readiness; exit 1 reports
 errors; exit 2 reports unresolved fields under `--fail-on-gaps` or invalid CLI arguments through
@@ -239,7 +238,7 @@ before evaluating a realization; update only the owning record at the authorized
 Authoring Markdown and shared JSON fields keep their separate responsibilities.
 
 Entity renames also update active `authorial_intent_refs` links throughout regular, non-hidden
-project Markdown, retaining their exact intent IDs and declared status; fenced examples, comments,
+series Markdown, retaining their exact intent IDs and declared status; fenced examples, comments,
 quoted material and ordinary prose links are ordinary text rather than active bindings and stay as
 written, and unregistered prose references remain an editorial concern. Run the intent audit on
 affected source records after a rename; a path update is a path update rather than a renewed
@@ -290,10 +289,10 @@ than another narrative or state ledger, created only when useful, and a cast or 
 only when authored.
 
 ```bash
-python scripts/world_realization.py inspect --root <project> --plan <relative-plan.json>
-python scripts/world_realization.py build --root <project> --plan <relative-plan.json> --out <new-output-directory>
-python scripts/world_realization.py verify --root <project> --plan <relative-plan.json> --bundle <output-directory>
-python scripts/world_realization.py impact --root <project> --plan <relative-plan.json>
+python scripts/world_realization.py inspect --root STUDIO --plan <relative-plan.json>
+python scripts/world_realization.py build --root STUDIO --plan <relative-plan.json> --out <new-output-directory>
+python scripts/world_realization.py verify --root STUDIO --plan <relative-plan.json> --bundle <output-directory>
+python scripts/world_realization.py impact --root STUDIO --plan <relative-plan.json>
 ```
 
 Ordinary narrative entity rename leaves the plan's pinned file inventory unchanged. After moving or

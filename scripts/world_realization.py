@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Compile scoped realizations from the existing state ledger, without creating canon.
 
-    python scripts/world_realization.py inspect --root PROJECT --plan plan.json
-    python scripts/world_realization.py build --root PROJECT --plan plan.json --out NEW_DIR
-    python scripts/world_realization.py verify --root PROJECT --plan plan.json --bundle DIR
-    python scripts/world_realization.py impact --root PROJECT --plan plan.json
+    python scripts/world_realization.py inspect --root STUDIO --plan plan.json
+    python scripts/world_realization.py build --root STUDIO --plan plan.json --out NEW_DIR
+    python scripts/world_realization.py verify --root STUDIO --plan plan.json --bundle DIR
+    python scripts/world_realization.py impact --root STUDIO --plan plan.json
 
 Only current local, hash-pinned inputs are read. No network, rendering, implicit
-state propagation, approval, semantic inference, source writes or format migration.
+state propagation, approval, semantic inference or source writes.
 See references/runtime/world-realization.md for the contract and review limits.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import copy
@@ -36,7 +37,7 @@ EVIDENCE_BASES = {'source-explicit', 'author-decision', 'inference', 'observatio
 
 
 def local_path(root: Path, supplied: str) -> Path:
-    """A portable, literal, project-relative file. No URL decoding or path guessing."""
+    """A portable, literal, studio-relative file. No URL decoding or path guessing."""
     if (not supplied or '\\' in supplied or '\x00' in supplied
             or re.match(r'^[A-Za-z][A-Za-z0-9+.-]*:', supplied)):
         raise ValueError('expected a literal relative local path')
@@ -450,7 +451,7 @@ def verify_bundle(root: Path, relative: str, directory: Path) -> dict[str, Any]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser=argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    parser=_operation_context.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('command',choices=('inspect','build','verify','impact'))
     parser.add_argument('--root',type=Path,required=True)
     parser.add_argument('--plan',required=True,help='literal path relative to root')
@@ -461,10 +462,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error('--out is required only for build; --bundle is required only for verify')
     try:
         if args.root.is_symlink():
-            raise ValueError('project root must not be a symbolic link')
+            raise ValueError('studio root must not be a symbolic link')
         root=args.root.resolve(strict=True)
         if not root.is_dir():
-            raise ValueError('project root must be a directory')
+            raise ValueError('studio root must be a directory')
         if args.command=='impact':
             result=impact(root,args.plan)
         elif args.command=='verify':
@@ -485,4 +486,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

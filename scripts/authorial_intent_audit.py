@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Inspect current authorial-intent records and explicit links; never rate a portrayal.
 
-    python scripts/authorial_intent_audit.py --root <project> <record.md> [other.md ...]
+    python scripts/authorial_intent_audit.py --root <studio> <record.md> [other.md ...]
 
 Reads only explicit Markdown inputs and their authorial_intent_refs dependencies.
 Reports declared status, structural gaps, exact intent targets and source hashes.
-No network, writes, approval, migration, applicability decision or spoiler filtering.
+No network, writes, approval, applicability decision or spoiler filtering.
 See references/narrative-authoring.md#inspect-authorial-intent-links.
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -132,7 +133,7 @@ def bounded_path(root: Path, supplied: Path) -> Path:
             raise ValueError("symbolic links are not allowed in inspected paths")
     resolved = candidate.resolve()
     if not resolved.is_relative_to(root):
-        raise ValueError("file is outside the declared project root")
+        raise ValueError("file is outside the declared studio root")
     if resolved.suffix.lower() != ".md":
         raise ValueError("expected a Markdown (.md) file")
     if not resolved.is_file():
@@ -168,7 +169,7 @@ def audit(root: str | Path, paths: Sequence[str | Path], *, max_bytes: int | Non
     }
     errors, gaps = report["errors"], report["gaps"]
     if not root_path.is_dir():
-        errors.append({"path": str(root_path), "message": "project root must be an existing directory"})
+        errors.append({"path": str(root_path), "message": "studio root must be an existing directory"})
     if not paths:
         errors.append({"path": str(root_path), "message": "at least one explicit Markdown input is required"})
     pending: list[Path] = []
@@ -226,7 +227,7 @@ def audit(root: str | Path, paths: Sequence[str | Path], *, max_bytes: int | Non
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--root", type=Path, required=True, help="Boundary for local inputs and referenced Markdown")
     parser.add_argument("paths", nargs="+", help="Explicit paths, absolute or relative to --root")
     parser.add_argument("--fail-on-gaps", action="store_true", help="Exit 2 for unresolved fields; does not assess meaning or adoption")
@@ -241,4 +242,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import json
@@ -19,7 +20,7 @@ def count_words(text: str) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = _operation_context.ArgumentParser()
     parser.add_argument("--routes", type=Path, default=ROOT / "config/runtime-read-routes.json")
     args = parser.parse_args()
     routes = json.loads(args.routes.read_text(encoding="utf-8"))
@@ -48,4 +49,4 @@ def main() -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

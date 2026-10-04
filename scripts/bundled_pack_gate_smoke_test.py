@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
 
-from pack_manager import initialize_pack, write_lock
-from package_full import run_bundled_pack_release_gates
+from pack_manager import COMMONS_PACK_ID, PackError, initialize_pack, write_lock
+from package_full import run_bundled_pack_release_gates, validate_all_packs
 
-EXPECTED_CHECKS = 8
+
+EXPECTED_CHECKS = 11
 
 FAKE_GATE = r'''#!/usr/bin/env python3
 import argparse, json
@@ -24,8 +26,10 @@ p.add_argument('--report-out', type=Path, required=True)
 a=p.parse_args()
 manifest=json.loads((a.pack/'pack.json').read_text(encoding='utf-8'))
 state=json.loads(a.state_file.read_text(encoding='utf-8'))
-exact=(state.get('enabled_packs') == [manifest['pack_id']] and state.get('pack_roots') == [str(a.pack.resolve())])
-forced=(a.pack/'FAIL-GATE').exists()
+required=sorted(str(r.get('pack_id')) for r in manifest.get('dependencies') or [] if isinstance(r,dict) and r.get('pack_id'))
+roots=state.get('pack_roots') or []
+exact=(state.get('enabled_packs') == [manifest['pack_id'],*required] and roots[:1] == [str(a.pack.resolve())] and len(roots) == 1+len(required))
+forced=(a.pack/'FAIL-GATE.txt').exists()
 value={'ok': bool(exact and not forced), 'suites': [{'id':'fixture','ok':bool(exact and not forced)}], 'observed_state':state}
 a.report_out.parent.mkdir(parents=True, exist_ok=True)
 a.report_out.write_text(json.dumps(value, indent=2)+'\n', encoding='utf-8')
@@ -53,6 +57,9 @@ def main() -> int:
             manifest = initialize_pack(pack, name=f"Pack {index}", release=f"2026.08.24.{index}")
             (pack / "notice.txt").write_text(f"pack {index} fixture\n", encoding="utf-8", newline="\n")
             manifest["content"]["resource_globs"] = ["*.txt"]
+            if index == 2:
+                # The second pack requires the first, so its gate runtime holds both.
+                manifest["dependencies"] = [{"pack_id": pack_ids[0]}]
             (pack / "pack.json").write_text(
                 json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
@@ -75,9 +82,12 @@ def main() -> int:
         check("each isolated state enables exactly one Pack", all(len(row.get("suite_results") or []) == 1 for row in result["packs"]))
         check("aggregate gate report is persisted", (reports / "fixture-bundled-pack-gates.json").is_file())
         check("per-Pack reports are persisted", all((reports / f"fixture-pack-gate-{pack_id}.json").is_file() for pack_id in pack_ids))
+        dependent_state = json.loads((root / "runtime-pass" / pack_ids[1] / "state.json").read_text(encoding="utf-8"))
+        check("a dependent Pack's gate runtime enables its required dependency after it",
+              dependent_state["enabled_packs"] == [pack_ids[1], pack_ids[0]] and len(dependent_state["pack_roots"]) == 2, dependent_state)
 
         failing_pack = root / "packs" / "pack-2"
-        (failing_pack / "FAIL-GATE").write_text("fail\n", encoding="utf-8")
+        (failing_pack / "FAIL-GATE.txt").write_text("fail\n", encoding="utf-8")
         write_lock(failing_pack)
         try:
             run_bundled_pack_release_gates(
@@ -93,6 +103,24 @@ def main() -> int:
         check("one failed Pack gate blocks the Full builder", blocked)
         failure_report = json.loads((reports / "failure-bundled-pack-gates.json").read_text(encoding="utf-8"))
         check("failure report names the failed release boundary", failure_report["ok"] is False and bool(failure_report["errors"]))
+
+        # The shipped commons has no lock; the core manifest verifies it. Every other staged pack needs one.
+        shutil.copytree(Path(__file__).resolve().parents[1] / "packs" / "commons", root / "packs" / "commons")
+        staged = validate_all_packs(root)["packs"]
+        check("the shipped commons is staged without a lock beside locked packs",
+              len(staged) == 3 and COMMONS_PACK_ID in {row["pack_id"] for row in staged}, staged)
+        unlocked = root / "packs" / "pack-3"
+        manifest = initialize_pack(unlocked, name="Pack 3", release="2026.08.24.3")
+        (unlocked / "notice.txt").write_text("pack 3 fixture\n", encoding="utf-8", newline="\n")
+        manifest["content"]["resource_globs"] = ["*.txt"]
+        (unlocked / "pack.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+        try:
+            validate_all_packs(root)
+        except PackError as exc:
+            refused = "pack.lock.json" in str(exc)
+        else:
+            refused = False
+        check("a staged pack other than the commons needs its lock", refused)
 
     report = {
         "ok": len(rows) == EXPECTED_CHECKS and all(row["passed"] for row in rows),

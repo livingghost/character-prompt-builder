@@ -27,7 +27,7 @@ Do not hand an author-only note to a limited-viewpoint consumer when it exposes 
 The Authorial intent register explicitly retains the creator's choices about recognition,
 variation, contrast/cadence, departure and audience information. Each `### Intent <id>` entry owns
 its status and rule; the decision ledger refers to it. Use `authorial_intent_refs` links from
-subject profiles or realization notes, and entity IDs in front-matter references. World facts
+character profiles or realization notes, and entity IDs in front-matter references. World facts
 stay in world records, internal traits in persona, and actual cues in a realization.
 
 The installed skill's `authorial_intent_audit.py` checks exact intent targets, required fields and

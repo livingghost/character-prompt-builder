@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import operation_context as _operation_context
 import argparse, json
 from pathlib import Path
 from visual_evidence import canonicalize_svg
 
 def main() -> int:
-    parser=argparse.ArgumentParser(description="Validate and canonicalize one safe static SVG.")
+    parser=_operation_context.ArgumentParser(description="Validate and canonicalize one safe static SVG.")
     parser.add_argument("source")
     parser.add_argument("output")
     args=parser.parse_args()
@@ -18,4 +19,4 @@ def main() -> int:
 if __name__=="__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

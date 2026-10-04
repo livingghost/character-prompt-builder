@@ -72,7 +72,7 @@
             "properties": {
               "uses": {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 0
               },
               "outputs": {
                 "type": "integer",
@@ -146,6 +146,28 @@
               ]
             },
             "uniqueItems": true
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effective_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

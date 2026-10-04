@@ -78,9 +78,9 @@ without silently treating either as the other.
 Run from the directory containing `SKILL.md`. Choose a new directory for output.
 
 ```text
-python scripts/story_context.py inspect --root PROJECT --query query.json
-python scripts/story_context.py build --root PROJECT --query query.json --out OUTPUT --require-fields
-python scripts/story_context.py verify --root PROJECT --query query.json --bundle OUTPUT --require-fields
+python scripts/story_context.py inspect --root STUDIO --query query.json
+python scripts/story_context.py build --root STUDIO --query query.json --out OUTPUT --require-fields
+python scripts/story_context.py verify --root STUDIO --query query.json --bundle OUTPUT --require-fields
 python scripts/story_context_smoke_test.py
 python examples/story-context/run_example.py --out EXAMPLE_DIRECTORY
 ```

@@ -2,7 +2,7 @@
 
 ## Conditional catalog examples
 
-Every literal catalog ID in this document is actionable only when its owning pack is present, enabled by the selected state, and the exact ID resolves in the active catalog. If an example ID is absent, use the morphology contracts and geometry guidance directly, search enabled records for genuinely matching knowledge, or proceed without preset support. Never substitute an unrelated ID or assume that an external-pack example belongs to the default pack.
+Every literal catalog ID in this document is actionable only when its owning pack is present, enabled by the selected state, and the exact ID resolves in the active catalog. If an example ID is absent, use the morphology contracts and geometry guidance directly, search enabled records for genuinely matching knowledge, or proceed without record support. Never substitute an unrelated ID or assume that an external-pack example belongs to the default pack.
 
 ## Canonical morphology layer
 
@@ -14,7 +14,7 @@ Species scaffold heuristics are diagnostic aids, not the complete anatomy record
 
 Do not use a scaffold family as a substitute for the species profile. A fictional species can be defined entirely through direct topology and feature records without borrowing a real species noun.
 
-A species noun in a prompt is both an identity statement and a geometry vote: every mention can re-summon that species' default proportions from the generator prior. This reference records prompt-prior scaffold families so authors and composing agents can diagnose facial architecture before choosing geometry wording. It is not a complete biological taxonomy, and it does not authorize a silent species substitution. Enabled `module` records in category `species` stay deliberately minimal; this document carries the family-level geometry they invoke.
+A species noun in a prompt is both an identity statement and a geometry vote: every mention can re-summon that species' default proportions from the generator prior. This reference records prompt-prior scaffold families so authors and composing agents can diagnose facial architecture before choosing geometry wording. It is not a complete biological taxonomy, and it does not authorize a silent species substitution. Enabled `module` records in category `species` stay deliberately minimal; `schemas/pack-record-file.schema.json` describes each `scaffold.family` value.
 
 ## How to use
 
@@ -22,13 +22,13 @@ When the user or Character Identity Contract states a species, preserve that ide
 
 Use a second species noun only when the user approves a disclosed scaffold modification. The agent must state which identity wording is being supplemented, which scaffold noun is being introduced, and why the change is necessary. A Character Identity Contract outranks the scaffold heuristic.
 
-Reverse calibration follows the same order: measure the reference geometry first and compare it with the family rows. When the selected pack state provides `cpb-resource:species-scaffold-map`, also consult the resource resolved from its explicitly selected provider. Preserve the approved identity and use direct geometry wording for any mismatch or absent resource. Ears carry three independent axes: shape, set, and orientation. A diagnosis or record states all three.
+Reverse calibration follows the same order: measure the reference geometry first and compare it with the family rows and the species record's `scaffold`. Preserve the approved identity and use direct geometry wording for any mismatch. Ears carry three independent axes: shape, set, and orientation. A diagnosis or record states all three.
 
 Mixed designs are normal in kemono and hybrid art. Their coat, tail, markings, horns, mane, hairstyle, and other visual carriers can preserve identity while the face uses carefully described geometry. The package still treats any different species noun as an explicit modification, not an invisible implementation detail.
 
 An enabled pack may also carry curated `creature-anatomy` module records that state one lineage's anthro anatomy grammar (surface, ears, muzzle, limbs, appendage, and lineage-tied dimorphism). Retrieve the matching record by lineage name and use it as generic species-neutral anatomy knowledge beneath the identity contract: it supplies the drawable baseline, while the user's declared species and the identity contract keep authority over the actual subject.
 
-The map covers every current species ID. A `direct-geometry-required` result means the family table does not supply a strong enough prior, so the prompt must carry the geometry directly. See `references/prompt-composition-geometry.md` and the troubleshooting entry "Calibrate the species scaffold while preserving the identity anchor."
+Every species record names its family in `scaffold.family`, with `scaffold.confidence` `direct` or `nearest`. The family `direct-geometry-required`, with confidence `fallback`, means no family supplies a strong enough prior, so the prompt carries the geometry directly. See `references/prompt-composition-geometry.md` and the troubleshooting entry "Calibrate the species scaffold while preserving the identity anchor."
 
 ## Reference-based feline and canine disambiguation
 

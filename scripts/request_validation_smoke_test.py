@@ -9,6 +9,7 @@ import request_scope as scope
 from input_evidence import InputEvidence
 import request_contract_smoke_test as fixture
 
+
 class ValidationTests(unittest.TestCase):
     def setUp(self):
         fixture.RequestContractTests.setUp(self);self.rendered=fixture.RequestContractTests.seal(self)
@@ -26,8 +27,17 @@ class ValidationTests(unittest.TestCase):
     def build(self):return rv.build_record(self.choices,self.reader,expected_target=self.target,execution=self.execution,rendered=self.rendered)
     def probe(self):
         self.acquisition['status']={'document_status':'schema-not-provided'};self.evidence=self.save('acquisition.json',self.acquisition)
-        plan={'artifact_type':'model-probe-plan','target':self.target,'reason':'Synthetic one-output trial.',
-            'basis':self.evidence,'reference_schemas':[],'fixed_request_profile':self.rendered['sealed'],'unknowns':[]}
+        plan={'artifact_type':'model-trial-plan','target':self.target,'purpose':'request_acceptance','question':'Does this exact synthetic request complete and return one judgeable output?',
+            'basis':self.evidence,'reference_schemas':[],'fixed_request_profile':self.rendered['sealed'],
+            'change_factor':{'id':'exact-request','statement':'The exact request tuple is the single bounded factor under test.'},
+            'fixed_conditions':['Target, request fields, output count, and synthetic input form are fixed by the sealed profile.'],
+            'comparison':'Compare the saved provider outcome with the declared exact request and its one expected output.',
+            'observation_targets':['Request acceptance and presence of the single returned output.'],
+            'decision_method':'Adopt no behavioral claim beyond the exact recorded request and output evidence.',
+            'indeterminate_handling':'Retain the trial as inconclusive and do not publish an observed profile.',
+            'recommendation_deviation':{'deviates':False,'reason':'The synthetic fixture has no provider sampling recommendation to depart from.'},
+            'quantity':{'uses':1,'outputs':1},'cost_conditions':'Synthetic fixture: no paid service and no monetary charge.',
+            'stop_conditions':['Stop after one request or any malformed, unauthorized, or indeterminate outcome.'],'unknowns':[]}
         self.save('probe.json',plan);self.choices.update(mode='bounded-probe',contract='probe.json');return plan
     def test_01_target_document_matches_its_exact_bytes(self):self.assertEqual(self.build()['unmeasured'],[])
     def test_02_other_target_source_refused(self):
@@ -109,6 +119,7 @@ class ObservedSchemaTests(unittest.TestCase):
             'model_identifier':'synthetic:model','observed_at':'2026-01-01','source':'Synthetic observation','schema':self.schema}
         self.offering={'service':'synthetic','model_identifier':'synthetic:model','observed_at':'2026-01-01','schema_snapshot':'schema.json'}
         self.model={'id':'synthetic-model','operation_kind':'generation'}
+        self.snapshot_original=dict(self.snapshot)
         self.write()
         (self.root/'transport.py').write_text('# synthetic transport\n',encoding='utf-8');self.envelope=[*self.layout['management'],self.layout['operation']]
     def tearDown(self):self.temp.cleanup()
@@ -140,12 +151,12 @@ class ObservedSchemaTests(unittest.TestCase):
     def test_05_contract_is_its_own_evidence(self):
         (self.pack/'other.json').write_bytes(c.encoded(self.snapshot))
         with self.assertRaisesRegex(ValueError,'own evidence'):self.build(evidence='@pack/p/other.json')
-    def test_06_project_file_is_not_a_pack_observation(self):
+    def test_06_studio_file_is_not_a_pack_observation(self):
         (self.root/'schema.json').write_bytes(c.encoded(self.snapshot))
         with self.assertRaisesRegex(ValueError,'active pack'):self.build('schema.json')
     def test_07_other_service_is_refused(self):
         self.snapshot['service']='other';self.write()
-        with self.assertRaisesRegex(ValueError,'another service'):self.build()
+        with self.assertRaisesRegex(ValueError,"records service 'other'"):self.build()
     def test_08_changed_pack_bytes_are_refused(self):
         record=self.build();self.schema['properties']['extra']={};self.write()
         with self.assertRaisesRegex(ValueError,'differ'):rv.require(record,self.reader)
@@ -158,6 +169,27 @@ class ObservedSchemaTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'execution policy'):self.derive(production_context_transport='none')
     def test_12_transport_names_its_operation(self):
         with self.assertRaisesRegex(ValueError,'OPERATIONS'):self.derive(operations=None)
+    def readers(self):
+        """What each reader of the stored file says: pack validation, request building and request validation."""
+        import model_contract,pack_manager
+        self.reader=InputEvidence(self.root,named_roots={'@pack/p':self.pack})
+        found=[pack_manager._snapshot_issues(self.pack,self.offering,'synthetic-model')]
+        for read in (lambda:model_contract.offering_schema(self.offering,self.pack,'synthetic-model'),self.derive):
+            try:read();found.append([])
+            except ValueError as exc:found.append([str(exc)])
+        return found
+    def test_13_every_reader_applies_one_contract(self):
+        self.assertEqual(self.readers(),[[],[],[]])
+        for change,words in (({'model_id':'other-model'},"model_id 'other-model'"),({'notes':'synthetic'},"unexpected properties ['notes']"),
+                             ({'artifact_type':'model-schema-contract'},'artifact_type'),({'observed_at':'2026-02-02'},"observed_at '2026-02-02'")):
+            with self.subTest(change=change):
+                self.snapshot=dict(self.snapshot_original,**change);self.write()
+                found=self.readers()
+                self.assertTrue(all(len(issues)==1 and words in issues[0] for issues in found),found)
+    def test_14_schema_names_the_model_it_describes(self):
+        self.offering['request_keys']={'model':['model'],'prompt':['prompt']}
+        self.schema['properties']['model']={'const':'synthetic:other'};self.write()
+        self.assertTrue(all(len(issues)==1 and "fixes 'model'" in issues[0] for issues in self.readers()))
 
 class DelegationTests(unittest.TestCase):
     def setUp(self):

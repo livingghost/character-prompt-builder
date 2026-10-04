@@ -18,6 +18,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+
 import execution_contract  # noqa: E402
 import studio  # noqa: E402
 import validate_studio  # noqa: E402
@@ -58,8 +59,8 @@ def cli(*argv: str) -> tuple[int, str, str]:
     return code, out.getvalue(), err.getvalue()
 
 
-def waits_for_the_project_lock(root: Path, action) -> bool:
-    """True when the action waits while another thread holds the project lock, then completes."""
+def waits_for_the_studio_lock(root: Path, action) -> bool:
+    """True when the action waits while another thread holds the studio lock, then completes."""
     held, release = threading.Event(), threading.Event()
     failures: list[BaseException] = []
 
@@ -114,7 +115,7 @@ def regressions(tmp: Path, source: Path, check) -> None:
         ["iterate", *named, "--slot", "base", "--result", str(source / "a.png")],
         ["iterate", *named, "--slot", "base", "--result", str(source / "b.png")],
         ["accept", *named, "--iteration", "it-0001"],
-        ["reject", *named, "--iteration", "it-0002", "--reason", "too dark"],
+        ["reject", *named, "--iteration", "it-0002", "--reason", "too dark", "--actor", "Synthetic test author"],
         ["status", "--studio", str(after)],
         ["gallery", "--studio", str(after)],
     ]
@@ -125,7 +126,7 @@ def regressions(tmp: Path, source: Path, check) -> None:
     guide = (ROOT / "references" / "runtime" / "studio.md").read_text(encoding="utf-8")
     check("Studio Runtime writes --studio after the command everywhere", "studio.py --studio" not in guide)
 
-    # A record is replaced whole, under the one project lock every writer takes.
+    # A record is replaced whole, under the one studio lock every writer takes.
     crash = studio.init(tmp / "crash", "crash-studio", "Crash")
     crash_home = studio.add_character(crash, "C06", "")
     recorded(crash, "C06", "a.png")
@@ -150,11 +151,11 @@ def regressions(tmp: Path, source: Path, check) -> None:
         "character add": (locked, lambda: studio.add_character(locked, "C08", "")),
         "iterate": (locked, lambda: recorded(locked, "C07", "c.png")),
         "accept": (locked, lambda: studio.accept(locked, "C07", "it-0001")),
-        "reject": (locked, lambda: studio.reject(locked, "C07", "it-0002", "too dark")),
+        "reject": (locked, lambda: studio.reject(locked, "C07", "it-0002", "too dark", actor="Synthetic test author")),
         "gallery": (locked, lambda: studio.write_gallery(locked)),
     }
-    waited = {name: waits_for_the_project_lock(root, action) for name, (root, action) in writers.items()}
-    check("every writer waits for the project lock", all(waited.values()), waited)
+    waited = {name: waits_for_the_studio_lock(root, action) for name, (root, action) in writers.items()}
+    check("every writer waits for the studio lock", all(waited.values()), waited)
     swap = studio.init(tmp / "swap", "swap-studio", "Swap")
     swap_home = studio.add_character(swap, "C09", "")
     (source / "d.jpg").write_bytes(b"\xff\xd8JPEG-d")
@@ -360,8 +361,8 @@ def main() -> int:
         rows = studio.read_iterations(home)
         check("accepting another iteration supersedes the previous one", rows[0]["status"] == "superseded" and rows[0]["superseded_by"] == "it-0002" and (again.get("acceptances") or [{}])[-1].get("supersedes") == "it-0001")
         check("the accepted copy follows the newly accepted iteration", (root / again["accepted_path"]).read_bytes() == b"\x89PNG-b" and len(list((home / "accepted").glob("base.front.*"))) == 1)
-        check("an accepted iteration cannot be rejected", refused(lambda: studio.reject(root, "C01", "it-0002", "no"), "is accepted"))
-        rejected = studio.reject(root, "C01", "it-0003", "jaw too narrow")
+        check("an accepted iteration cannot be rejected", refused(lambda: studio.reject(root, "C01", "it-0002", "no", actor="Synthetic test author"), "is accepted"))
+        rejected = studio.reject(root, "C01", "it-0003", "jaw too narrow", actor="Synthetic test author")
         check("a rejected iteration keeps its reason", rejected["status"] == "rejected" and rejected["reason"] == "jaw too narrow")
         check("a rejected iteration cannot be accepted", refused(lambda: studio.accept(root, "C01", "it-0003"), "was rejected"))
         recipe = studio.recipe(root, "C01", "base.front")

@@ -23,6 +23,7 @@ from state_protocol import (
     validate_artifact,
 )
 
+
 ROOT = Path(__file__).resolve().parents[1]
 
 

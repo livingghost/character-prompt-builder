@@ -642,7 +642,6 @@ def _build_into(output_dir: Path) -> list[Path]:
         settings = default_settings(
             state_file=root / "pack-state.json", cache_dir=root / "cache",
             default_enabled_packs=[COMMONS_PACK_ID],
-            default_resource_providers={name: COMMONS_PACK_ID for name in commons["content"]["resource_bindings"]},
         )
         with using_pack_runtime(settings):
             return _build_into_pinned(output_dir)
@@ -877,7 +876,7 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
         critical_avoidance_integrated=False,
     )
     write_json(generated / "generation-package.json", payload)
-    verification = verify(payload, project=generated)
+    verification = verify(payload, studio=generated)
     if verification.get("verified") is not True:
         raise ValueError("generated package verification failed: " + "; ".join(verification.get("errors", [])))
     write_json(generated / "generation-package-verification.json", verification)
@@ -894,7 +893,7 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
     )
     checked_artifact(plan, "reference-bundle-plan")
 
-    # The project lock the build took is released by now and is not pilot output.
+    # The studio lock the build took is released by now and is not pilot output.
     (generated / LOCK_FILE).unlink(missing_ok=True)
     return sorted(
         (path.relative_to(generated) for path in generated.rglob("*") if path.is_file()),

@@ -63,7 +63,7 @@ def run(out: Path) -> dict:
     for i in [1,2]: command('work_ledger.py','--studio',out,'step',i,parse=False)
     command('work_ledger.py','--studio',out,'finish',parse=False)
     resumed=workflow('resume'); workflow('impact')
-    final={'ok':resumed['ok'] and resumed['next']=='done','run':rid,'commands':len(log),'output':str(out/'output.txt'),'fixture_only':True}
+    final={'ok':resumed['ok'] and resumed['runs'][0]['task_disposition']=='completed' and resumed['runs'][0]['next_action'] is None,'run':rid,'commands':len(log),'output':str(out/'output.txt'),'fixture_only':True}
     write('result.json',final); return final
 
 

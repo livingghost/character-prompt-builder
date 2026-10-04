@@ -11,6 +11,7 @@ records their exact references.
     python scripts/production_spec.py validate production-spec.json --require-content
 """
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import hashlib
@@ -193,11 +194,14 @@ def build_arguments(path: str, subject: str, continuity: str, character: str | N
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Draft, validate, show or hash a Production Specification.")
+    parser = _operation_context.ArgumentParser(description="Draft, validate, show or hash a Production Specification.")
     sub = parser.add_subparsers(dest="command", required=True)
     make = sub.add_parser("draft", help="Write the smallest valid specification for one subject")
-    make.add_argument("out", help="New file to write; an existing file is never replaced")
-    make.add_argument("--render-intent", required=True, help="Explicit finish choice JSON from render_contract.py intent")
+    make.add_argument("out", help="New file to write, a /-separated path relative to --root or an absolute path; "
+                      "an existing file is never replaced")
+    make.add_argument("--root", type=Path, help="The studio every relative path of this command is below")
+    make.add_argument("--render-intent", required=True,
+                      help="Explicit finish choice JSON from render_contract.py intent, relative to --root or absolute")
     make.add_argument("--model", required=True, help="The model record the image is made with")
     make.add_argument("--brief", required=True, help="The request in one sentence")
     make.add_argument("--subject", default="C01", help="Subject ID the builder's --continuity names (default C01)")
@@ -221,13 +225,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     result: Any
     try:
         if args.command == "draft":
-            out = Path(args.out)
-            if out.exists():
-                raise ValueError(f"{out} already exists; choose a new path")
-            spec = draft(model=args.model, brief=args.brief, subject=args.subject,
-                         kind=args.kind, framing=args.framing, render_intent=load(Path(args.render_intent)))
-            with out.open("x", encoding="utf-8", newline="\n") as handle:
-                handle.write(json.dumps(spec, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
+            from production_binding import new_output, studio_file, write_new
+            root = args.root.absolute() if args.root is not None else None
+            out = new_output(root, args.out, option="output path")
+            spec = draft(model=args.model, brief=args.brief, subject=args.subject, kind=args.kind, framing=args.framing,
+                         render_intent=load(studio_file(root, args.render_intent, option="--render-intent")))
+            write_new(out, (json.dumps(spec, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8"),
+                      option="output path", value=args.out)
             result = {"created": args.out, "sha256": digest(spec),
                       "build_with": build_arguments(args.out, args.subject, args.continuity, args.character)}
         else:
@@ -239,7 +243,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             else:
                 result = {"sha256": digest(data)}
     except (ValueError, OSError) as exc:
-        result = {"ok": False, "errors": getattr(exc, "errors", None) or [str(exc)]}
+        diagnostic = getattr(exc, "diagnostic", None)
+        action = f" {diagnostic.required_action}" if diagnostic is not None else ""
+        result = {"ok": False, "errors": getattr(exc, "errors", None) or [str(exc) + action]}
     print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
     return 0 if not isinstance(result, dict) or result.get("ok", True) else 1
 
@@ -247,4 +253,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))

@@ -1,1006 +1,399 @@
 #!/usr/bin/env python3
-"""Exercise dispatch preflight and post-send recovery without credentials or a service."""
-from __future__ import annotations
+"""End-to-end dispatch recovery with actual task snapshots and no public service.
 
+Synthetic image data and the optional test-created loopback endpoint are the
+only transports. Authority, publication, sealed requests, accounting, capture,
+image bytes and Studio projection use their production implementations.
+"""
+from __future__ import annotations
 import argparse
-import copy
-import hashlib
+import base64
 import contextlib
+import copy
+import importlib
 import io
 import json
 import os
+from pathlib import Path
+import socket
 import sys
 import tempfile
 import unittest
-from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
-from smoke_fixtures import isolate_home
-
-isolate_home()
+import execution_contract as c
 import dispatch
+import production_case_fixtures as cases
+import production_execution as execution
+import production_fixtures
+import production_workflow as workflow
+import production_store as store
+import production_variation as variation
+import reservation_lifecycle as accounting
 import studio
+import transport_synthetic
+from test_production_execution import decisions
 
 
 class DispatchRecoveryTests(unittest.TestCase):
+    """Each test works on its own copy of one prepared studio and its own home.
+
+    The class builds the pack, runtime state, catalog cache, studio, prepared
+    run and decision file once. No test here edits the pack or the runtime state.
+    """
+    @classmethod
+    def setUpClass(cls):
+        from catalog_retrieval import runtime
+        temp=tempfile.TemporaryDirectory();cls.addClassCleanup(temp.cleanup)
+        base=Path(temp.name);cls.enterClassContext(production_fixtures.scratch_home(base/'home'))
+        cls.addClassCleanup(runtime.configure_pack_runtime,None)
+        cls.case=cases.create(base/'studio',base/'runtime');cls.origin=cls.case['root']
+        task=c.load(cls.origin/'task.json');task['generation']['count']=2
+        cases.write(cls.origin/'task.json',task)
+        cls.prepared_run=workflow.prepare(cls.origin,'task.json')['run']
+        cls.prepared_decisions=decisions(cls.origin,cls.prepared_run)
+
     def setUp(self):
-        from PIL import Image
-        import execution_contract as c
-        import input_contracts
-        import transport_runware
-        from request_validation_fixtures import interface_validation
-        from visual_continuity import file_ref
+        from catalog_retrieval import runtime
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.base=Path(self.temp.name);self.enterContext(production_fixtures.scratch_home(self.base/'home'))
+        runtime.configure_pack_runtime(self.case['settings'])
+        self.root=cases.copy_studio(self.origin,self.base/'studio')
+        self.run=self.prepared_run;self.decision_file=self.prepared_decisions
+        # Every copy carries the same request_id, so each test meets a synthetic service that has answered nothing.
+        self.enterContext(patch.dict(transport_synthetic._ANSWERED,clear=True))
+        self.actual_send=transport_synthetic.send
+        self.send=self.enterContext(patch.object(transport_synthetic,'send',wraps=self.actual_send))
+        self.upload=self.enterContext(patch.object(transport_synthetic,'upload_bytes',wraps=transport_synthetic.upload_bytes))
+        self.key=self.enterContext(patch.object(dispatch,'api_key',side_effect=AssertionError('No real credentials in synthetic execution')))
 
-        self.temporary = tempfile.TemporaryDirectory(prefix="cpb-dispatch-recovery-")
-        self.addCleanup(self.temporary.cleanup)
-        self.base = Path(self.temporary.name)
-        self.root = studio.init(self.base / "studio", "recovery-test", "Synthetic recovery tests")
-        self.home = studio.add_character(self.root, "C01", "")
-        self.source = self.root / "source.png"
-        Image.new("RGB", (8, 8)).save(self.source)
-        output = io.BytesIO()
-        Image.new("RGB", (16, 16)).save(output, format="PNG")
-        self.result_bytes = output.getvalue()
-        self.prompt = "A synthetic single-subject study."
-        self.request_id = "fixed-fixture-task-uuid"
-        self.offering = {
-            "service": "fixture", "model_identifier": "fixture-model", "observed_at": "2000-01-01",
-            "request_keys": {"prompt": ["positivePrompt"], "negative prompt": ["negativePrompt"],
-                             "reference images": ["inputs.referenceImages"], "input image": ["inputImage"]},
-            "parameter_keys": {"scale": "upscaleFactor"},
-        }
-        from render_contract_fixtures import control, profile
-        execution_profile = profile(seed=True)
-        execution_profile["modes"]["upscale"] = {
-            "media": "input-image", "parameter_schema": {},
-            "controls": {
-                "upscaleFactor": control("required", schema={"type": "number", "enum": [2, 4]}),
-                "seed": control("backend-managed", binding="dispatch-seed"),
-                "numberResults": control("not-applicable", binding="dispatch-count"),
-            },
-        }
-        self.offering["execution_profile"] = execution_profile
-        self.record = {"operation_kind": "upscale", "supported_scale_factors": [2],
-                       "upscale_settings": {}, "upscaler_class": "deterministic"}
-        self.service = {"id": "fixture", "transport": "fixture", "endpoint": {"base_url": "https://example.invalid"},
-                        "operations": {"imageInference": {}, "imageUpscale": {}}}
-        self.answer = {"data": [{"imageURL": "https://example.invalid/one.png"}]}
-        self.entries = [{"url": "https://example.invalid/one.png", "id": "one", "seed": 11},
-                        {"url": "https://example.invalid/two.png", "id": "two", "seed": 12}]
-
-        def compile_generation(*args, **kwargs):
-            result = transport_runware.compile_request(*args, **kwargs)
-            result["request"]["taskUUID"] = self.request_id
-            return result
-
-        def compile_upscale(*args, **kwargs):
-            result = transport_runware.compile_upscale(*args, **kwargs)
-            result["request"]["taskUUID"] = self.request_id
-            return result
-
-        self.transport = SimpleNamespace(
-            __file__=transport_runware.__file__, RESULT_HOSTS=frozenset({"example.invalid"}),
-            compile_request=compile_generation, compile_upscale=compile_upscale,
-            upload_bytes=Mock(return_value="uploaded-fixture"),
-            send=Mock(return_value=self.answer), rejections=Mock(return_value=[]),
-            results=Mock(side_effect=lambda answer: list(self.entries)),
-            observation_outcome=Mock(return_value="accepted"),
-        )
-        validation = interface_validation(
-            self.root, target={"service": "fixture", "model_identifier": "fixture-model",
-                               "operation": "imageInference"},
-            record=self.record, offering=self.offering, service_record=self.service,
-            transport=self.transport, reference_mode="authored-rendition",
-        )
-        reader, _ = input_contracts.capture_validation(validation, root=self.root)
-        self.execution_policy = reader.json(validation["execution_policy"])
-        basis = self.root / "visual-basis.txt"
-        basis.write_text("Synthetic single-subject exploration; no author acceptance is asserted.\n", encoding="utf-8")
-        visual = {
-            "purpose": "sheet-panel", "basis": file_ref(self.root, basis.name, locator="whole"),
-            "subjects": {"subject": {"continuity": "undecided", "character_id": None,
-                        "studio_character": "C01", "identity_refs": []}},
-        }
-        self.reference_rows = [{
-            "role": "scene", "source": {"sha256": c.digest(self.source.read_bytes())},
-            "authority": {"controls": ["lighting"], "must_not_control": ["identity"]},
-        }]
-        from render_contract_fixtures import intent
-        import render_contract_lib as rendering
-        package = {
-            "generation_payload": {}, "production_binding": {"run": "synthetic-boundary-stub"},
-            "composition_prompt": self.prompt,
-            "visual_continuity": visual, "production_spec": {"subjects": [{"id": "subject"}]},
-            "prepared_reference_set": {"transport_mode": "multi-image",
-                                      "selected_references": self.reference_rows, "single_board": None},
-            "render_contract": rendering.compile_contract(
-                self.record, self.offering, intent(self.prompt, "reference-guided"), {},
-                prompt=self.prompt, reference_count=1),
-        }
-        input_contracts.attach(package, validation, reader)
-        self.package = self.base / "generation-package.json"
-        self.package.write_bytes(c.encoded(package))
-        upscale_validation = interface_validation(
-            self.root, target={"service": "fixture", "model_identifier": "fixture-model",
-                               "operation": "imageUpscale"},
-            record=self.record, offering=self.offering, service_record=self.service,
-            transport=self.transport, reference_mode="authored-rendition",
-        )
-        self.validation_file = self.root / "upscale-validation.json"
-        self.validation_file.write_bytes(c.encoded(upscale_validation))
-        self.render_intent = intent("", "upscale")
-        self.render_intent_file = self.base / "render-intent.json"
-        self.render_intent_file.write_bytes(c.encoded(self.render_intent))
-        self.options = argparse.Namespace(
-            package=self.package, service=None, profiles=None, seed=7, count=2, send=True,
-            character="C01", slot="base.front", note=None, source=self.source, model="fixture",
-            scale=2, settings="{}", guidance=None, production_authorization="synthetic-receipt-stub",
-            request_validation_file=self.validation_file, render_intent=self.render_intent_file,
-        )
-        self.request = {
-            "taskType": "imageInference", "taskUUID": self.request_id, "model": "fixture-model",
-            "positivePrompt": self.prompt, "inputs": {"referenceImages": ["uploaded-fixture"]},
-            "numberResults": 2, "seed": 7,
-        }
-        self.stack = contextlib.ExitStack()
-        self.addCleanup(self.stack.close)
-        self.stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-        self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
-        # This suite isolates filesystem and transport failures. Request rendering,
-        # sealing, validation and visual correspondence use their real contracts.
-        # The integrated workflow suites exercise the live authority and claim.
-        for target in ("production_binding.validate_live", "production_binding.validate_upscale_live"):
-            self.stack.enter_context(patch(target))
-        self.results_recorded = self.stack.enter_context(patch("production_workflow.record_dispatch_results"))
-        self.stack.enter_context(patch("production_workflow.claim_dispatch",
-                                       return_value={"sha256": "c" * 64}))
-        self.started = self.stack.enter_context(patch("reservation_lifecycle.begin_step"))
-        self.loaded = self.stack.enter_context(patch("transport_contract.load", return_value=self.transport))
-        self.patches = {}
-        for name, kwargs in {
-            "verify": {"side_effect": self.verified},
-            "validate_generation_package_carrier_paths": {"return_value": None},
-            "resolve_model_record": {"return_value": ("fixture", self.record)},
-            "select_offering": {"return_value": self.offering},
-            "service_for": {"return_value": ("fixture", self.service, self.transport)},
-            "check_request": {}, "validate_generation_parameters": {},
-            "model_pack_root": {"return_value": self.base},
-            "api_key": {"return_value": "TEST-CREDENTIAL-MUST-NEVER-BE-SAVED"},
-            "save": {"side_effect": self.save},
-            "open_run": {"return_value": "synthetic-boundary-stub"},
-        }.items():
-            self.patches[name] = self.stack.enter_context(patch.object(dispatch, name, **kwargs))
-
-    def verified(self, package, *, package_root, project=None, source=None):
-        from reference_delivery import bindings
-        source = source or self.source
-        return {
-            "model": "fixture", "bindings": bindings("multi-image", self.reference_rows),
-            "execution_policy": self.execution_policy, "review_requirements": [],
-            "host_forwarding": {
-                "effective_prompt": self.prompt, "parameters": {},
-                "selected_transport": {"mode": "separate-field", "rendition": {"negative": ""}},
-                "selected_references": [{"role": "scene", "resolved_path": str(source),
-                    "media_type": "image/png", "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}],
-            },
-        }
-
-    def save(self, url, destination, hosts):
-        self.assertEqual(hosts, self.transport.RESULT_HOSTS)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(self.result_bytes)
-        return hashlib.sha256(self.result_bytes).hexdigest()
-
-    def call(self, mode="generation"):
-        if mode == "upscale":
-            self.entries = self.entries[:1]
-        return getattr(dispatch, "dispatch_" + mode)(self.options, self.root)
-
+    def call(self):return execution.execute(self.root,self.run,decisions_file=self.decision_file)
+    def rows(self):return store.event_rows(self.root,self.run)
     def journal(self):
-        paths = list((self.root / "runs").glob("*/run.json"))
-        self.assertEqual(len(paths), 1)
-        return paths[0].parent, json.loads(paths[0].read_text(encoding="utf-8"))
+        return dispatch.RunJournal.open(c.local(self.root,workflow.find(self.rows(),'dispatch-claim')['data']['journal']))
+    def candidates(self):return [row for row in self.rows() if row['event']=='candidate']
+    def no_effect(self):
+        self.send.assert_not_called();self.upload.assert_not_called();self.assertEqual(accounting.all_states(self.root),[])
+    def low_level_options(self):
+        """The dispatcher preview of the run's own sealed package."""
+        saved=execution.compiled(self.root,self.run)
+        return argparse.Namespace(package=saved[0]/'package.json',character='robot',slot='candidate',
+            pack_settings=self.case['settings'],preview_out=None)
 
-    def assert_no_network(self):
-        self.transport.upload_bytes.assert_not_called()
-        self.transport.send.assert_not_called()
-        self.patches["api_key"].assert_not_called()
+    def preview_refusal(self,options):
+        with contextlib.redirect_stdout(io.StringIO()),self.assertRaises(ValueError) as caught:
+            dispatch.dispatch_generation(options,self.root)
+        self.no_effect()
+        return caught.exception.diagnostic.code
 
-    def fake_upscale_builder(self, **kwargs):
-        # The package builder has its own image/model contract suite. Here the
-        # storage contract is the relative source and output it was handed.
-        return {"artifact_type": "upscale-package", "source": kwargs["source_stored_path"],
-                "output": kwargs["output_stored_path"]}
+    def test_success_records_exact_wire_request_and_each_output(self):
+        report=self.call();journal=self.journal()
+        self.assertTrue(report['execution_completed']);self.assertEqual(len(self.candidates()),2)
+        self.assertEqual(c.load(journal.path/'request.json'),self.send.call_args.args[0])
+        self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'robot'))),2)
+        self.key.assert_not_called()
 
-    def test_unknown_character_is_rejected_before_upload_in_both_modes(self):
-        for mode in ("generation", "upscale"):
-            with self.subTest(mode=mode):
-                self.options.character = "MISSING"
-                with self.assertRaisesRegex(ValueError, "not in this studio"):
-                    self.call(mode)
-                self.assert_no_network()
+    def test_low_level_preview_writes_no_events_or_reservation(self):
+        options=self.low_level_options();before=self.rows()
+        with contextlib.redirect_stdout(io.StringIO()):self.assertEqual(dispatch.dispatch_generation(options,self.root),0)
+        self.assertEqual(self.rows(),before);self.no_effect()
 
-    def test_invalid_slots_and_trailing_newlines_are_rejected_before_upload(self):
-        for mode in ("generation", "upscale"):
-            for slot in ("../escape", "Base Front", "base.front\n", ""):
-                with self.subTest(mode=mode, slot=slot):
-                    self.options.slot = slot
-                    with self.assertRaisesRegex(ValueError, "slot must be"):
-                        self.call(mode)
-                    self.assert_no_network()
-        self.options.character = "C01\n"
-        with self.assertRaisesRegex(ValueError, "character id"):
-            self.call()
+    def test_low_level_preview_target_recording_is_exact(self):
+        options=self.low_level_options();options.slot='another-candidate'
+        self.assertEqual(self.preview_refusal(options),'INPUT_CONSISTENCY_ERROR')
 
-    def test_missing_run_directory_is_refused_before_upload(self):
-        runs = self.root / "runs"
-        (runs / "README.md").unlink()
-        runs.rmdir()
-        runs.write_text("not a directory", encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, "recording destination"):
-            self.call()
-        self.assert_no_network()
+    def test_low_level_preview_refuses_changed_input(self):
+        options=self.low_level_options()
+        (self.root/'prompt.txt').write_text('A different, unreviewed source.',encoding='utf-8')
+        self.assertEqual(self.preview_refusal(options),'SOURCE_CHANGED')
 
-    def test_unwritable_destination_is_refused_before_upload(self):
-        with patch.object(studio.tempfile, "mkstemp", side_effect=PermissionError("write denied")):
-            with self.assertRaises(PermissionError):
-                self.call()
-        self.assert_no_network()
+    def test_low_level_preview_refuses_another_package(self):
+        options=self.low_level_options();package=c.load(options.package);package['source_brief']='Changed brief.'
+        changed=self.root/'changed-package.json';changed.write_bytes(c.encoded(package));options.package=changed
+        self.assertEqual(self.preview_refusal(options),'INPUT_CONSISTENCY_ERROR')
 
-    def test_corrupt_iteration_log_is_refused_before_upload(self):
-        (self.home / "iterations.jsonl").write_text("broken json", encoding="utf-8")
-        with self.assertRaises(ValueError):
-            self.call()
-        self.assert_no_network()
+    def test_recording_write_failure_stops_before_claim(self):
+        actual=studio.validate_recording_target
+        def check(*args,**kwargs):
+            if kwargs.get('writable'):raise PermissionError('Synthetic recording access denial')
+            return actual(*args,**kwargs)
+        with patch.object(studio,'validate_recording_target',side_effect=check),self.assertRaises(PermissionError):self.call()
+        self.no_effect();self.assertEqual(self.rows(),[])
 
-    def test_dry_run_writes_nothing_and_sends_nothing_in_both_modes(self):
-        self.options.send = False
-        before = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
-        for mode in ("generation", "upscale"):
-            with self.subTest(mode=mode):
-                self.assertEqual(self.call(mode), 0)
-                self.assert_no_network()
-        after = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
-        self.assertEqual(before, after)
+    def test_changed_input_is_not_sent(self):
+        (self.root/'prompt.txt').write_text('A different, unreviewed source.',encoding='utf-8')
+        with self.assertRaises(ValueError):self.call()
+        self.no_effect()
 
-    def test_success_records_every_image_seed_and_exact_request(self):
-        self.assertEqual(self.call(), 0)
-        path, journal = self.journal()
-        self.assertEqual(journal["status"], "complete")
-        self.assertEqual(journal["iterations"], ["it-0001", "it-0002"])
-        self.assertEqual(json.loads((path / "request.json").read_text(encoding="utf-8")), self.request)
-        self.assertEqual(json.loads((path / "answer.json").read_text(encoding="utf-8")), self.answer)
-        self.assertEqual([row["seed"] for row in studio.read_iterations(self.home)], [11, 12])
-        for file in self.root.rglob("*.json"):
-            self.assertNotIn("TEST-CREDENTIAL-MUST-NEVER-BE-SAVED", file.read_text(encoding="utf-8"))
+    def test_incomplete_permission_rolls_back_before_claim(self):
+        value=c.load(self.root/self.decision_file);value['authorizations']=value['authorizations'][:1]
+        cases.write(self.root/self.decision_file,value)
+        with self.assertRaises(ValueError):self.call()
+        self.no_effect();self.assertEqual(self.rows(),[])
 
-    def test_generation_uploads_reverified_saved_carriers_not_live_author_files(self):
-        companion = self.base / "fixture.references"
-        companion.mkdir()
-        carrier = self.source.read_bytes()
-        (companion / "input.png").write_bytes(carrier)
-        self.patches["validate_generation_package_carrier_paths"].return_value = companion.name
-        self.patches["verify"].side_effect = lambda package, *, package_root, project=None: self.verified(
-            package, package_root=package_root, project=project,
-            source=package_root / companion.name / "input.png")
-        self.assertEqual(self.call(), 0)
-        run, _ = self.journal()
-        self.assertEqual(self.patches["verify"].call_count, 2)
-        self.transport.upload_bytes.assert_called_once_with(carrier, "image/png", self.service,
-                                                     "TEST-CREDENTIAL-MUST-NEVER-BE-SAVED")
-        self.assertEqual((run / companion.name / "input.png").read_bytes(), carrier)
-        sealed = json.loads((run / "request-contract.json").read_text(encoding="utf-8"))
-        self.assertEqual(sealed["media"][0]["path"], str(run / companion.name / "input.png"))
+    def test_full_budget_blocks_before_provider_contact(self):
+        authority=c.load(self.root/'fixture-authority.json');authority['grants'][0]['limits']['outputs']=1
+        cases.write(self.root/'amended.json',authority)
+        prior=store.authority_record(self.root,authority['task_id']);store.import_authority(self.root,'amended.json',expected=prior['sha256'])
+        with self.assertRaises(ValueError):self.call()
+        self.no_effect()
 
+    def test_publication_failure_does_not_send(self):
+        with patch.object(execution,'_journal',side_effect=OSError('Synthetic durable storage failure')),self.assertRaises(OSError):self.call()
+        self.no_effect();self.assertEqual(self.rows(),[])
 
-    def test_package_changed_during_snapshot_is_rejected_before_upload(self):
-        keep = dispatch.RunJournal.keep
-        def changed(journal, source, name):
-            if name == "package.json":
-                source.write_text('{"generation_payload": {}, "changed": true}', encoding="utf-8")
-            return keep(journal, source, name)
-        with patch.object(dispatch.RunJournal, "keep", changed), self.assertRaisesRegex(ValueError, "changed"):
-            self.call()
-        self.transport.upload_bytes.assert_not_called()
-        self.transport.send.assert_not_called()
-        run, document = self.journal()
-        self.assertEqual(document["status"], "failed")
-        self.assertTrue((run / "package.json").is_file())
+    def test_claim_failure_precedes_irreversible_request(self):
+        with patch.object(workflow,'claim_dispatch',side_effect=OSError('Synthetic claim transaction failure')),self.assertRaises(OSError):self.call()
+        self.no_effect();self.assertEqual(self.rows(),[])
+        # The journal written for the failed claim is listed, never as eligible while its owner process runs.
+        listed=execution.status(self.root)['unclaimed_journals']
+        self.assertEqual([(row['production_run'],row['eligible']) for row in listed],[(self.run,False)])
+        self.assertEqual(listed[0]['pid'],os.getpid())
 
-    def test_upload_failure_preserves_package_and_does_not_send(self):
-        self.transport.upload_bytes.side_effect = OSError("simulated upload failure")
-        with self.assertRaises(OSError):
-            self.call()
-        path, journal = self.journal()
-        self.assertEqual(journal["failed_at"], "uploading")
-        self.assertEqual((path / "package.json").read_bytes(), self.package.read_bytes())
-        self.transport.send.assert_not_called()
-
-    def test_a_send_without_an_answer_is_indeterminate_kept_and_never_resent_in_both_modes(self):
-        import transport_contract
-        failures = {"generation": OSError("simulated network failure at 203.0.113.9"),
-                    "upscale": transport_contract.Indeterminate("the service answered 502", status=502, body=b"bad gateway")}
-        kept = {"generation": {"outcome": "indeterminate", "http_status": None, "body": None,
-                               "reason": "the connection ended before a complete answer (OSError)"},
-                "upscale": {"outcome": "indeterminate", "http_status": 502, "body": "bad gateway",
-                            "reason": "the service answered 502"}}
-        for mode, failure in failures.items():
-            with self.subTest(mode=mode):
-                self.transport.send.reset_mock()
-                self.transport.send.side_effect = failure
-                said = io.StringIO()
-                with contextlib.redirect_stderr(said), patch.object(dispatch, "build_upscale_package",
-                                                                    side_effect=self.fake_upscale_builder):
-                    self.assertEqual(self.call(mode), 1)
-                path = next(folder for folder in (self.root / "runs").iterdir()
-                            if (folder / "run.json").is_file()
-                            and json.loads((folder / "run.json").read_text(encoding="utf-8"))["operation"] == mode)
-                journal = json.loads((path / "run.json").read_text(encoding="utf-8"))
-                self.assertEqual(journal["status"], "indeterminate")
-                self.assertEqual(json.loads((path / "indeterminate.json").read_text(encoding="utf-8")), kept[mode])
-                self.assertTrue((path / "request.json").is_file())
-                self.assertFalse((path / "answer.json").exists() or (path / "transport-outcome.json").exists())
-                self.assertEqual(self.transport.send.call_count, 1)
-                self.assertIn("Nothing is sent again", said.getvalue())
-                self.assertNotIn("203.0.113.9", said.getvalue() + (path / "indeterminate.json").read_text(encoding="utf-8"))
-        path, journal = next((folder, json.loads((folder / "run.json").read_text(encoding="utf-8")))
-                             for folder in (self.root / "runs").iterdir() if (folder / "run.json").is_file()
-                             and json.loads((folder / "run.json").read_text(encoding="utf-8"))["operation"] == "generation")
-        self.assertEqual(json.loads((path / "request.json").read_text(encoding="utf-8")), self.request)
-        self.assertEqual(journal["transport"], "fixture")
-
-    def test_service_refusal_preserves_exact_answer(self):
-        self.entries = []
-        self.transport.rejections.return_value = [{"reason": "simulated refusal"}]
-        self.assertEqual(self.call(), 1)
-        path, journal = self.journal()
-        self.assertEqual(journal["status"], "refused")
-        self.assertEqual(journal["refused"], [{"reason": "simulated refusal"}])
-        self.assertEqual(json.loads((path / "answer.json").read_text(encoding="utf-8")), self.answer)
-        self.assertEqual(studio.read_iterations(self.home), [])
-
-    def test_images_beside_a_refusal_are_downloaded_and_recorded(self):
-        self.transport.rejections.return_value = [{"reason": "simulated partial refusal"}]
-        self.assertEqual(self.call(), 1)
-        path, journal = self.journal()
-        self.assertEqual(journal["refused"], [{"reason": "simulated partial refusal"}])
-        self.assertEqual((journal["expected"], journal["received"]), (2, 2))
-        self.assertEqual(journal["iterations"], ["it-0001", "it-0002"])
-        self.assertTrue((path / "result-2.png").is_file())
-
-    def test_empty_result_preserves_answer_in_both_modes(self):
-        self.entries = []
-        self.assertEqual(self.call(), 1)
-        path, journal = self.journal()
-        self.assertEqual((journal["status"], journal["expected"], journal["received"]), ("no-results", 2, 0))
-        self.assertTrue((path / "answer.json").is_file())
-        self.assertEqual(self.call("upscale"), 1)
-        for file in (self.root / "runs").glob("*/run.json"):
-            self.assertEqual(json.loads(file.read_text(encoding="utf-8"))["status"], "no-results")
-        self.results_recorded.assert_not_called()
-
-    def test_count_mismatch_records_every_image_and_no_production_result(self):
-        for count in (3, 1):
-            with self.subTest(count=count):
-                self.options.count = count
-                before = len(studio.read_iterations(self.home))
-                self.assertEqual(self.call(), 1)
-                journals = [json.loads(path.read_text(encoding="utf-8")) for path in (self.root / "runs").glob("*/run.json")]
-                journal = next(row for row in journals if row["expected"] == count)
-                self.assertEqual((journal["status"], journal["received"]), ("count-mismatch", 2))
-                self.assertEqual(len(studio.read_iterations(self.home)), before + 2)
-        self.results_recorded.assert_not_called()
-        self.assertEqual(self.transport.send.call_count, 2)
-
-    def test_download_failure_preserves_answer_and_result_metadata(self):
-        self.patches["save"].side_effect = OSError("simulated download failure")
-        self.assertEqual(self.call(), 1)
-        path, journal = self.journal()
-        self.assertEqual(journal["status"], "download-incomplete")
-        self.assertEqual([row["index"] for row in journal["failed_downloads"]], [1, 2])
-        self.assertTrue((path / "answer.json").is_file())
-        self.assertEqual(json.loads((path / "response-1.json").read_text(encoding="utf-8"))["url"], self.entries[0]["url"])
-        self.results_recorded.assert_not_called()
-
-    def test_one_failed_download_keeps_the_rest_and_recovery_fetches_it_without_sending(self):
-        def second_fails(url, destination, hosts):
-            if url.endswith("two.png"):
-                raise OSError("simulated download failure")
-            return self.save(url, destination, hosts)
-        self.patches["save"].side_effect = second_fails
-        self.assertEqual(self.call(), 1)
-        path, journal = self.journal()
-        self.assertEqual(journal["status"], "download-incomplete")
-        self.assertEqual(journal["iterations"], ["it-0001"])
-        self.assertTrue((path / "result-1.png").is_file() and not (path / "result-2.png").exists())
-        self.results_recorded.assert_not_called()
-        self.patches["save"].side_effect = self.save
-        self.assertEqual(dispatch.recover(self.root, "synthetic-boundary-stub", path), 1)
-        self.assertEqual(dispatch.recover(self.root, "synthetic-boundary-stub", path), 0)
-        self.loaded.assert_called_with("fixture")
-        _, journal = self.journal()
-        self.assertEqual((journal["status"], journal["iterations"]), ("complete", ["it-0001", "it-0002"]))
-        self.assertEqual(len(studio.read_iterations(self.home)), 2)
-        self.assertEqual(self.results_recorded.call_count, 2)
-        self.assertEqual([p.name for p in self.results_recorded.call_args.args[4]], ["result-1.png", "result-2.png"])
-        self.assertEqual((self.transport.send.call_count, self.transport.upload_bytes.call_count), (1, 1))
-        with self.assertRaisesRegex(ValueError, "another production run"):
-            dispatch.recover(self.root, "01900000-0000-7000-8000-00000000000f", path)
-
-    def test_upscale_download_failure_is_recovered_from_the_saved_answer(self):
-        self.patches["save"].side_effect = OSError("simulated download failure")
-        with patch.object(dispatch, "build_upscale_package", side_effect=self.fake_upscale_builder):
-            self.assertEqual(self.call("upscale"), 1)
-            path, journal = self.journal()
-            self.assertEqual((journal["status"], journal["iterations"]), ("download-incomplete", []))
-            self.assertTrue((path / "upscale.references/source.png").is_file())
-            self.patches["save"].side_effect = self.save
-            self.assertEqual(dispatch.recover(self.root, "synthetic-boundary-stub", path), 1)
-        _, journal = self.journal()
-        self.assertEqual((journal["status"], len(journal["iterations"])), ("complete", 1))
-        self.assertTrue((path / "upscale-package-1.json").is_file())
-        self.results_recorded.assert_called_once()
-        self.assertEqual((self.transport.send.call_count, self.transport.upload_bytes.call_count), (1, 1))
-
-    def test_recovery_needs_a_dispatch_journal(self):
-        empty = self.root / "runs" / "empty"
-        empty.mkdir()
-        with self.assertRaisesRegex(ValueError, "holds no dispatch journal"):
-            dispatch.recover(self.root, "synthetic-boundary-stub", empty)
-
-    def test_recovery_never_sends_when_the_answer_was_not_saved(self):
-        self.transport.send.side_effect = TimeoutError("simulated network failure")
-        self.assertEqual(self.call(), 1)
-        path, _ = self.journal()
-        with self.assertRaisesRegex(ValueError, "outcome is unknown"):
-            dispatch.recover(self.root, "synthetic-boundary-stub", path)
-        self.assertEqual(self.transport.send.call_count, 1)
-        self.patches["save"].assert_not_called()
-
-    def test_run_journal_names_the_run_and_the_authorized_count(self):
-        self.assertEqual(self.call(), 0)
-        _, journal = self.journal()
-        self.assertEqual((journal["production_run"], journal["expected"], journal["received"], journal["refused"],
-                          journal["failed_downloads"]), ("synthetic-boundary-stub", 2, 2, [], []))
-        self.results_recorded.assert_called_once()
-
-    def test_preview_prints_plain_lines_before_the_request(self):
-        self.options.send = False
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            self.assertEqual(self.call(), 0)
-        text = output.getvalue()
-        head, _, body = text.partition("request (sha256 ")
-        render_head, _, plain_head = head.partition("model: fixture as fixture-model")
-        self.assertIn("Render contract", render_head)
-        for line in ("service: fixture at https://example.invalid", "outputs: 2",
-                     "negative prompt: none authored", "cost: unknown", "production run: synthetic-boundary-stub",
-                     "shown, not sent"):
-            self.assertIn(line, plain_head)
-        request = json.loads(body.partition("\n")[2])
-        self.assertEqual(request["positivePrompt"], self.prompt)
-        self.assertNotIn("request_trace", text)
-        self.assertNotIn("base64", text)
-        self.assertLess(len(plain_head.splitlines()), 9)
-
-    def test_preview_says_plainly_when_the_authored_negative_is_not_sent(self):
-        verified = {"negative_prompt": "blurry",
-                    "host_forwarding": {"selected_transport": {"mode": "integrated-critical"}}}
-        unnegated = {**self.offering, "request_keys": {"prompt": ["positivePrompt"]}}
-        self.assertEqual(dispatch.negative_line(verified, {"layout": {"negative_text": None}}, unnegated),
-                         "not sent; this target has no negative field, so the authored negative stays in the package")
-        self.assertEqual(dispatch.negative_line(verified, {"layout": {"negative_text": None}}, self.offering),
-                         "not sent under the record's integrated-critical negative transport; "
-                         "the authored negative stays in the package")
-        self.assertEqual(dispatch.negative_line(verified, {"layout": {"negative_text": ["negativePrompt"]}}, self.offering),
-                         "sent on negativePrompt")
-        self.assertEqual(dispatch.negative_line({}, {"layout": {"negative_text": None}}, self.offering), "none authored")
-
-    def test_inline_results_are_decoded_without_a_download_and_recovered_the_same_way(self):
-        import base64
-        encoded = base64.b64encode(self.result_bytes).decode("ascii")
-        self.entries = [{"data": encoded, "id": "one", "seed": 11}, {"data": encoded, "id": "two", "seed": 12}]
-        real = dispatch.inline_image
-        calls = []
-
-        def second_fails(data):
-            calls.append(data)
-            if len(calls) == 2:
-                raise OSError("simulated disk failure")
-            return real(data)
-
-        with patch.object(dispatch, "inline_image", side_effect=second_fails):
-            self.assertEqual(self.call(), 1)
-        path, journal = self.journal()
-        self.assertEqual((journal["status"], journal["iterations"]), ("download-incomplete", ["it-0001"]))
-        self.assertEqual((path / "result-1.png").read_bytes(), self.result_bytes)
-        self.assertEqual(dispatch.recover(self.root, "synthetic-boundary-stub", path), 0)
-        _, journal = self.journal()
-        self.assertEqual((journal["status"], journal["iterations"]), ("complete", ["it-0001", "it-0002"]))
-        self.assertEqual((path / "result-2.png").read_bytes(), self.result_bytes)
-        self.assertIsNone(json.loads((path / "response-2.json").read_text(encoding="utf-8"))["url"])
-        self.patches["save"].assert_not_called()
-        self.assertEqual([row["seed"] for row in studio.read_iterations(self.home)], [11, 12])
-        self.assertEqual((self.transport.send.call_count, self.transport.upload_bytes.call_count), (1, 1))
-
-    def test_an_inline_answer_is_kept_once_and_each_response_names_its_place_in_it(self):
-        import base64
-        import validate_studio
-        encoded = base64.b64encode(self.result_bytes).decode("ascii")
-        self.answer["data"] = [{"imageBase64Data": encoded, "seed": 11}, {"imageBase64Data": encoded, "seed": 12}]
-        self.entries = [{"data": encoded, "id": "one", "seed": 11}, {"data": encoded, "id": "two", "seed": 12}]
-        self.assertEqual(self.call(), 0)
-        path, _ = self.journal()
-        answer_sha256 = hashlib.sha256((path / "answer.json").read_bytes()).hexdigest()
-        for index, name in ((1, "one"), (2, "two")):
-            named = json.loads((path / f"response-{index}.json").read_text(encoding="utf-8"))
-            self.assertEqual({key: value for key, value in named.items() if key != "at"},
-                             {"answer_sha256": answer_sha256, "index": index, "seed": 10 + index, "id": name, "url": None})
-        holding = lambda folder: sorted(p.name for p in folder.rglob("*.json") if encoded in p.read_text(encoding="utf-8"))
-        self.assertEqual(holding(path), ["answer.json"])
-        rows = studio.read_iterations(self.home)
-        self.assertEqual(rows[0]["answer"], rows[1]["answer"])
-        self.assertEqual(rows[0]["answer"]["sha256"], answer_sha256)
-        self.assertEqual(holding(self.home), ["answer.json"])
-        self.assertEqual(studio.recipe(self.root, "C01", "base.front", iteration="it-0002")["evidence"]["answer"]["sha256"],
-                         answer_sha256)
-        self.assertEqual([error for error in validate_studio.validate(self.root) if "answer" in error or "response" in error], [])
-
-    def test_recovery_refuses_a_response_that_names_another_answer(self):
-        import base64
-        encoded = base64.b64encode(self.result_bytes).decode("ascii")
-        self.entries = [{"data": encoded, "id": "one", "seed": 11}, {"data": encoded, "id": "two", "seed": 12}]
-        real = dispatch.inline_image
-        with patch.object(dispatch, "inline_image", side_effect=[real(encoded), OSError("simulated disk failure")]):
-            self.assertEqual(self.call(), 1)
-        path, _ = self.journal()
-        response = path / "response-2.json"
-        response.write_text(json.dumps({**json.loads(response.read_text(encoding="utf-8")), "answer_sha256": "0" * 64}), encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, "names another answer"):
-            dispatch.recover(self.root, "synthetic-boundary-stub", path)
-        self.assertFalse((path / "result-2.png").exists())
-        self.assertEqual(len(studio.read_iterations(self.home)), 1)
-
-    def test_recording_failure_preserves_result_and_reference_companion_for_recovery(self):
-        companion = self.base / "generation-package.references"
-        companion.mkdir()
-        (companion / "reference.svg").write_text("synthetic reference", encoding="utf-8")
-        self.patches["validate_generation_package_carrier_paths"].return_value = companion.name
-        with patch.object(studio, "iterate", side_effect=OSError("simulated disk failure")):
-            with self.assertRaises(OSError):
-                self.call()
-        path, journal = self.journal()
-        self.assertEqual(journal["failed_at"], "recording")
-        self.assertEqual((path / "result-1.png").read_bytes(), self.result_bytes)
-        self.assertTrue((path / companion.name / "reference.svg").is_file())
-        # Re-record the saved files locally, with no second service request.
-        row = studio.iterate(self.root, "C01", "base.front", path / "result-1.png", package=path / "package.json",
-                             request=path / "request.json", response=path / "response-1.json", note="recovered",
-                             package_companion=path / companion.name, answer=path / "answer.json")
-        self.assertEqual(row["seed"], 11)
-        self.assertEqual(row["answer"]["sha256"], hashlib.sha256((path / "answer.json").read_bytes()).hexdigest())
-        other = self.base / "other-answer.json"
-        other.write_text('{"data": []}', encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, "does not name the answer"):
-            studio.iterate(self.root, "C01", "base.front", path / "result-1.png", package=path / "package.json",
-                           request=path / "request.json", response=path / "response-1.json", note="recovered",
-                           answer=other)
-        self.assertEqual(self.transport.send.call_count, 1)
-
-    def test_recovery_cli_keeps_saved_companion_without_resending(self):
+    def test_claimed_journal_is_never_listed_as_unclaimed(self):
         self.call()
-        path, _ = self.journal()
-        companion = path / "saved.references"
-        companion.mkdir()
-        (companion / "ref.svg").write_text("synthetic reference", encoding="utf-8")
-        result = studio.main([
-            "--studio", str(self.root), "iterate", "--character", "C01", "--slot", "recovered.front",
-            "--result", str(path / "result-1.png"), "--package", str(path / "package.json"),
-            "--request", str(path / "request.json"), "--response", str(path / "response-1.json"),
-            "--package-companion", str(companion),
-        ])
-        self.assertEqual(result, 0)
-        row = studio.read_iterations(self.home)[-1]
-        self.assertTrue((self.root / row["package"]["path"]).parent.joinpath("saved.references/ref.svg").is_file())
-        self.assertEqual(self.transport.send.call_count, 1)
+        self.assertEqual(execution.unclaimed_journals(self.root),[])
+        self.assertEqual(self.journal().document['owner']['pid'],os.getpid())
 
-    def test_partial_recording_keeps_prior_iteration_and_remaining_download(self):
-        actual = studio.iterate
-        count = 0
-        def fail_second(*args, **kwargs):
-            nonlocal count
-            count += 1
-            if count == 2:
-                raise OSError("simulated second record failure")
-            return actual(*args, **kwargs)
-        with patch.object(studio, "iterate", side_effect=fail_second):
-            with self.assertRaises(OSError):
-                self.call()
-        path, journal = self.journal()
-        self.assertEqual(journal["iterations"], ["it-0001"])
-        self.assertTrue((path / "result-2.png").is_file())
-        self.assertEqual(len(studio.read_iterations(self.home)), 1)
+    def test_timeout_retains_one_unknown_claim(self):
+        self.send.side_effect=TimeoutError('Synthetic response loss')
+        report=self.call();again=execution.resume(self.root,self.run)
+        self.assertEqual(report['runs'][0]['submission'],'outcome_unknown')
+        self.assertEqual(again['runs'][0]['submission'],'outcome_unknown');self.assertEqual(self.send.call_count,1)
+        self.assertFalse(accounting.releasable(accounting.all_states(self.root)[0]))
 
-    def test_upscale_package_failure_preserves_source_output_and_answer(self):
-        with patch.object(dispatch, "build_upscale_package", side_effect=ValueError("simulated invalid dimensions")):
-            with self.assertRaises(ValueError):
-                self.call("upscale")
-        path, journal = self.journal()
-        self.assertEqual(journal["failed_at"], "building-package")
-        self.assertEqual((path / "upscale.references/source.png").read_bytes(), self.source.read_bytes())
-        self.assertTrue((path / "upscale.references/output-1.png").is_file())
-        self.assertTrue((path / "answer.json").is_file())
+    def test_lost_answer_is_recovered_by_lookup_without_resend(self):
+        def lose(*args):
+            self.actual_send(*args);raise TimeoutError('Synthetic answer loss after the service carried out the request')
+        self.send.side_effect=lose
+        first=self.call();self.assertEqual(first['runs'][0]['submission'],'outcome_unknown')
+        again=execution.resume(self.root,self.run)
+        self.assertTrue(again['execution_completed']);self.assertEqual(len(self.candidates()),2)
+        self.assertEqual(self.send.call_count,1);self.key.assert_not_called()
+        self.assertEqual(again['runs'][0]['submission'],'acknowledged')
+        lookup=c.load(self.journal().path/'lookup-001.json')
+        self.assertEqual((lookup['outcome'],lookup['transport']),('found','synthetic'))
 
-    def test_upscale_records_all_results_with_portable_source_and_output(self):
-        with patch.object(dispatch, "build_upscale_package", side_effect=self.fake_upscale_builder):
-            self.assertEqual(self.call("upscale"), 0)
-        path, journal = self.journal()
-        self.assertEqual(journal["status"], "complete")
-        self.assertEqual(len(journal["iterations"]), 1)
-        for row in studio.read_iterations(self.home):
-            package_path = self.root / row["package"]["path"]
-            package = json.loads(package_path.read_text(encoding="utf-8"))
-            self.assertTrue((package_path.parent / package["source"]).is_file())
-            self.assertTrue((package_path.parent / package["output"]).is_file())
+    def test_refusal_has_saved_response_and_no_invented_candidate(self):
+        self.send.return_value={'errors':[{'code':'synthetic-refusal','message':'Synthetic fixture refusal.'}]};self.send.side_effect=lambda *args:self.send.return_value
+        report=self.call();self.assertFalse(report['execution_completed']);self.assertEqual(self.candidates(),[])
+        self.assertTrue((self.journal().path/'answer.json').is_file());self.assertTrue(self.journal().document['refused'])
 
-    def test_repeated_task_uuid_never_overwrites_previous_run(self):
-        self.assertEqual(self.call(), 0)
-        self.assertEqual(self.call(), 0)
-        self.assertEqual(len(list((self.root / "runs").glob("*/request.json"))), 2)
-        self.assertEqual(len(studio.read_iterations(self.home)), 4)
+    def test_refusal_does_not_discard_returned_images(self):
+        def answer(*args):
+            result=self.actual_send(*args);result['errors']=[{'code':'synthetic-partial','message':'A synthetic supplementary refusal.'}];return result
+        self.send.side_effect=answer;report=self.call()
+        self.assertEqual(len(self.candidates()),2);self.assertTrue(self.journal().document['refused'])
+        self.assertFalse(report['execution_completed'])
+
+    def test_empty_answer_does_not_trigger_another_send(self):
+        self.send.side_effect=lambda *args:{'data':[]}
+        first=self.call();second=execution.resume(self.root,self.run)
+        self.assertFalse(first['execution_completed']);self.assertFalse(second['execution_completed']);self.assertEqual(self.send.call_count,1)
+
+    def test_partial_count_keeps_real_candidate(self):
+        def answer(*args):
+            result=self.actual_send(*args);result['data']=result['data'][:1];return result
+        self.send.side_effect=answer;result=self.call()
+        self.assertFalse(result['execution_completed']);self.assertEqual(len(self.candidates()),1)
+        self.assertEqual(self.journal().document['received'],1)
+
+    def test_extra_count_does_not_become_authorized_success(self):
+        def answer(*args):
+            result=self.actual_send(*args);result['data'].append({**result['data'][0],'id':'extra-output'});return result
+        self.send.side_effect=answer;result=self.call()
+        self.assertFalse(result['execution_completed']);self.assertEqual(len(self.candidates()),3)
+        self.assertEqual(accounting.budget(self.root)['grants'][0]['consumed']['outputs'],3)
+
+    def test_failed_decode_preserves_other_acquired_output(self):
+        original=dispatch.inline_image;seen=[]
+        def decode(value):
+            seen.append(value)
+            if len(seen)==1:raise ValueError('Synthetic incomplete inline bytes')
+            return original(value)
+        with patch.object(dispatch,'inline_image',side_effect=decode):first=self.call()
+        self.assertEqual(len(self.candidates()),1);self.assertFalse(first['execution_completed'])
+        second=execution.resume(self.root,self.run)
+        self.assertTrue(second['execution_completed']);self.assertEqual(len(self.candidates()),2);self.assertEqual(self.send.call_count,1)
+
+    def test_completed_inline_files_are_not_rewritten(self):
+        self.call();journal=self.journal();paths=sorted(journal.path.glob('result-*'))
+        before={p.name:(p.stat().st_mtime_ns,p.read_bytes()) for p in paths}
+        execution.resume(self.root,self.run)
+        self.assertEqual(before,{p.name:(p.stat().st_mtime_ns,p.read_bytes()) for p in paths})
+
+    def test_corrupt_response_provenance_stops_registration(self):
+        with patch.object(workflow,'record_dispatch_results',side_effect=OSError('Synthetic interrupted registration')),self.assertRaises(OSError):self.call()
+        response=self.journal().path/'response-1.json';value=c.load(response);value['answer_sha256']='a'*64;cases.write(response,value)
+        with self.assertRaises(ValueError):execution.resume(self.root,self.run)
+        self.assertEqual(self.candidates(),[]);self.assertEqual(self.send.call_count,1)
+
+    def test_corrupt_answer_is_not_reinterpreted_as_new_result(self):
+        with patch.object(workflow,'record_dispatch_results',side_effect=OSError('Synthetic interrupted registration')),self.assertRaises(OSError):self.call()
+        cases.write(self.journal().path/'answer.json',{'data':[]})
+        with self.assertRaises(ValueError):execution.resume(self.root,self.run)
+        self.assertEqual(self.send.call_count,1)
+
+    def test_missing_answer_after_send_remains_unknown(self):
+        self.send.side_effect=TimeoutError('Synthetic timeout');self.call()
+        result=execution.resume(self.root,self.run)
+        self.assertEqual(result['runs'][0]['submission'],'outcome_unknown');self.assertEqual(self.send.call_count,1)
+
+    def test_projection_failure_preserves_formal_candidates(self):
+        with patch.object(studio,'iterate',side_effect=OSError('Synthetic projection failure')):first=self.call()
+        self.assertFalse(first['execution_completed']);self.assertEqual(len(self.candidates()),2)
+        self.assertEqual(first['runs'][0]['registration'],'projection-missing')
+        self.assertEqual(self.journal().document['status'],'projection-missing')
+        self.assertEqual(first['runs'][0]['next_action']['command'],'resume')
+        second=execution.resume(self.root,self.run);self.assertTrue(second['execution_completed'])
+        self.assertEqual(second['runs'][0]['registration'],'registered')
+        self.assertEqual(self.send.call_count,1)
+
+    def test_partial_projection_is_idempotent(self):
+        actual=studio.iterate;calls=[]
+        def fail_second(*args,**kwargs):
+            calls.append(1)
+            if len(calls)==2:raise OSError('Synthetic second projection failure')
+            return actual(*args,**kwargs)
+        with patch.object(studio,'iterate',side_effect=fail_second):self.call()
+        execution.resume(self.root,self.run);execution.resume(self.root,self.run)
+        self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'robot'))),2)
+        self.assertEqual(len(self.candidates()),2);self.assertEqual(self.send.call_count,1)
+
+    def test_original_sources_are_not_needed_for_saved_answer(self):
+        with patch.object(workflow,'record_dispatch_results',side_effect=OSError('Synthetic interrupted registration')),self.assertRaises(OSError):self.call()
+        (self.root/'prompt.txt').unlink();(self.root/'fixture-authority-basis.txt').unlink()
+        result=execution.resume(self.root,self.run)
+        self.assertTrue(result['execution_completed']);self.assertEqual(self.send.call_count,1)
+
+    def test_source_change_does_not_hide_unknown_result(self):
+        self.send.side_effect=TimeoutError('Synthetic timeout');self.call();(self.root/'prompt.txt').unlink()
+        result=execution.status(self.root,self.run)['runs'][0]
+        self.assertEqual(result['submission'],'outcome_unknown');self.assertEqual(result['integrity'],'intact')
+
+    def test_repeated_execute_does_not_create_second_claim(self):
+        self.call()
+        with self.assertRaises(ValueError):self.call()
+        self.assertEqual(self.send.call_count,1);self.assertEqual(len([r for r in self.rows() if r['event']=='dispatch-claim']),1)
+
+    def test_intentional_repeat_creates_distinct_journal(self):
+        self.call();first=self.journal().path
+        child=variation.derive(self.root,self.run,prepare=True)['run']
+        execution.execute(self.root,child,decisions_file=decisions(self.root,child))
+        claim=workflow.find(store.event_rows(self.root,child),'dispatch-claim')
+        self.assertNotEqual(c.local(self.root,claim['data']['journal']),first);self.assertEqual(self.send.call_count,2)
 
 
 class ResumeOffersDownload(unittest.TestCase):
-    """A claimed run whose answer was saved offers recover-recording, which sends nothing again."""
-
-    def test_saved_answer_offers_recover_recording(self):
-        import production_workflow as w
-        from production_resume_smoke_test import ResumeFixture, RUN
-
-        class Fixture(ResumeFixture, unittest.TestCase):
-            def runTest(self):
-                pass
-
-        fixture = Fixture()
-        fixture.setUp()
-        self.addCleanup(fixture.doCleanups)
-        fixture.start()
-        offered = lambda: [a["operation"] for a in w.status(fixture.root, RUN)["next_actions"]]
-        self.assertNotIn("recover-recording", offered())
-        journal = fixture.root / "runs" / "synthetic-journal"
-        journal.mkdir(parents=True)
-        (journal / "answer.json").write_text('{"data": []}', encoding="utf-8")
-        self.assertIn("recover-recording", offered())
+    """The complete setup from an empty folder, run end to end in one test so the uncopied path stays covered."""
+    def test_saved_answer_is_recovered_through_resume(self):
+        with tempfile.TemporaryDirectory() as t:
+            b=Path(t);case=cases.create(b/'studio',b/'runtime');root=case['root'];run=workflow.prepare(root,'task.json')['run']
+            with patch.object(workflow,'record_dispatch_results',side_effect=OSError('Synthetic interrupted registration')):
+                with self.assertRaises(OSError):execution.execute(root,run,decisions_file=decisions(root,run))
+            self.assertEqual(execution.status(root,run)['runs'][0]['next_action']['command'],'resume')
+            with patch.object(transport_synthetic,'send',side_effect=AssertionError('No retransmission')):
+                self.assertTrue(execution.resume(root,run)['execution_completed'])
 
 
-# A second service, as its author would add it: a transport module written
-# against scripts/transport_contract.py, named by the service record rather than
-# by the service's key. The model and the operation travel in the address, the
-# text on the offering's keys, and images come back inline as base64. It sends
-# through the contract's post() to a loopback service the test starts.
-SECOND_TRANSPORT = '''"""A synthetic second service for the dispatch tests; it reaches only the test's loopback service."""
-import json
-
-from model_contract import NEGATIVE_ROLE, PROMPT_ROLE, required_request_key
-from request_contract import RequestWriter, path_parts
-from transport_contract import address, post
-
-OPERATIONS = {"generation": "text-to-image"}
-RESULT_HOSTS = frozenset()
-
-
-def endpoint(service):
-    return address(service["endpoint"]["base_url"])
-
-
-def compile_request(verified, offering, service, media_ids=None, seed=None, count=1):
-    forwarding = verified["host_forwarding"]
-    writer = RequestWriter()
-    source = [{"kind": "offering", "service": offering["service"], "model_identifier": offering["model_identifier"]}]
-
-    def write(path, value, kind, transform):
-        writer.write(path, value, source_kind=kind, source_refs=source, transform_id=transform)
-
-    prompt = path_parts(required_request_key(offering, PROMPT_ROLE))
-    write(prompt, forwarding["effective_prompt"], "authored", "selected-rendition")
-    layout = {"model": None, "operation": None, "primary_text": prompt, "negative_text": None,
-              "output_count": ["num_images"], "fixed_output_count": None, "seed": None, "media": [],
-              "management": [], "content": [{"id": "prompt", "field": prompt}],
-              "fields": [{"id": "prompt", "field": prompt, "kind": "content"},
-                         {"id": "count", "field": ["num_images"], "kind": "parameter"}]}
-    selected = forwarding["selected_transport"]
-    negative = selected["rendition"].get("negative") or ""
-    if selected["mode"] in {"separate-field", "native-subset"} and negative:
-        field = path_parts(required_request_key(offering, NEGATIVE_ROLE))
-        write(field, negative, "authored", "selected-negative-channel")
-        layout["negative_text"] = field
-        layout["content"].append({"id": "negative", "field": field})
-        layout["fields"].append({"id": "negative", "field": field, "kind": "content"})
-    for name, value in sorted((forwarding.get("parameters") or {}).items()):
-        write(path_parts(name), value, "model-setting", "selected-parameter")
-        layout["fields"].append({"id": "parameter:" + name, "field": path_parts(name), "kind": "parameter"})
-    write(["num_images"], count, "model-setting", "explicit-output-count")
-    if seed is not None:
-        write(["seed"], seed, "model-setting", "explicit-seed")
-        layout["seed"] = ["seed"]
-        layout["fields"].append({"id": "seed", "field": ["seed"], "kind": "parameter"})
-    return {"request": writer.request, "layout": layout, "request_trace": writer.trace}
-
-
-def added_parameters(offering, seed=None, count=1):
-    return {"num_images": count, **({"seed": seed} if seed is not None else {})}
-
-
-def upload_bytes(data, media_type, service, key):
-    raise ValueError("the fixture service takes no media")
-
-
-def send(request, service, key):
-    status, body = post(endpoint(service), json.dumps(request).encode("utf-8"),
-                        {"Content-Type": "application/json", "Authorization": "Key " + key})
-    answer = json.loads(body.decode("utf-8"))
-    return answer if status == 200 else {"errors": [{"status": status, **answer}]}
-
-
-def rejections(answer):
-    return list(answer.get("errors") or [])
-
-
-def results(answer):
-    return [{"data": item["b64"], "seed": item.get("seed"), "id": item.get("id")} for item in answer.get("images") or []]
-
-
-def observation_outcome(answer):
-    return "rejected" if rejections(answer) else "accepted" if results(answer) else "indeterminate"
-'''
+SECOND_TRANSPORT = '"""A synthetic second service for the dispatch tests; it reaches only the test\'s loopback service."""\nimport json\n\nfrom model_contract import NEGATIVE_ROLE, PROMPT_ROLE, required_request_key\nfrom request_contract import RequestWriter, path_parts\nfrom transport_contract import address, post\n\nOPERATIONS = {"generation": "text-to-image"}\nRESULT_HOSTS = frozenset()\n\n\ndef endpoint(service):\n    return address(service["endpoint"]["base_url"])\n\n\ndef compile_request(verified, offering, service, media_ids=None, seed=None, count=1):\n    forwarding = verified["host_forwarding"]\n    writer = RequestWriter()\n    source = [{"kind": "offering", "service": offering["service"], "model_identifier": offering["model_identifier"]}]\n\n    def write(path, value, kind, transform):\n        writer.write(path, value, source_kind=kind, source_refs=source, transform_id=transform)\n\n    prompt = path_parts(required_request_key(offering, PROMPT_ROLE))\n    write(prompt, forwarding["effective_prompt"], "authored", "selected-rendition")\n    layout = {"model": None, "operation": None, "primary_text": prompt, "negative_text": None,\n              "output_count": ["num_images"], "fixed_output_count": None, "seed": None, "media": [],\n              "management": [], "content": [{"id": "prompt", "field": prompt}],\n              "fields": [{"id": "prompt", "field": prompt, "kind": "content"},\n                         {"id": "count", "field": ["num_images"], "kind": "parameter"}]}\n    selected = forwarding["selected_transport"]\n    negative = selected["rendition"].get("negative") or ""\n    if selected["mode"] in {"separate-field", "native-subset"} and negative:\n        field = path_parts(required_request_key(offering, NEGATIVE_ROLE))\n        write(field, negative, "authored", "selected-negative-channel")\n        layout["negative_text"] = field\n        layout["content"].append({"id": "negative", "field": field})\n        layout["fields"].append({"id": "negative", "field": field, "kind": "content"})\n    for name, value in sorted((forwarding.get("parameters") or {}).items()):\n        write(path_parts(name), value, "model-setting", "selected-parameter")\n        layout["fields"].append({"id": "parameter:" + name, "field": path_parts(name), "kind": "parameter"})\n    write(["num_images"], count, "model-setting", "explicit-output-count")\n    if seed is not None:\n        write(["seed"], seed, "model-setting", "explicit-seed")\n        layout["seed"] = ["seed"]\n        layout["fields"].append({"id": "seed", "field": ["seed"], "kind": "parameter"})\n    return {"request": writer.request, "layout": layout, "request_trace": writer.trace}\n\n\ndef added_parameters(offering, seed=None, count=1):\n    return {"num_images": count, **({"seed": seed} if seed is not None else {})}\n\n\ndef upload_bytes(data, media_type, service, key):\n    raise ValueError("the fixture service takes no media")\n\n\ndef send(request, service, key):\n    status, body = post(endpoint(service), json.dumps(request).encode("utf-8"),\n                        {"Content-Type": "application/json", "Authorization": "Key " + key})\n    answer = json.loads(body.decode("utf-8"))\n    return answer if status == 200 else {"errors": [{"status": status, **answer}]}\n\n\ndef rejections(answer):\n    return list(answer.get("errors") or [])\n\n\ndef results(answer):\n    return [{"data": item["b64"], "seed": item.get("seed"), "id": item.get("id")} for item in answer.get("images") or []]\n\n\ndef observation_outcome(answer):\n    return "rejected" if rejections(answer) else "accepted" if results(answer) else "indeterminate"\n\n\ndef usage(answer):\n    return None\n'
 
 
 class SecondServiceTests(unittest.TestCase):
-    """A service that is not Runware is data plus the transport module its record names, with no Runware code on the path."""
+    """A separately implemented transport and loopback endpoint, with no provider calls.
 
-    @classmethod
-    def setUpClass(cls):
-        import feature_workflow_smoke_test as generation_fixture
-        cls.fixture = generation_fixture
-        generation_fixture.FeatureWorkflowTests.setUpClass.__func__(cls)
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.fixture.FeatureWorkflowTests.tearDownClass.__func__(cls)
-        cls.fixture.catalog_cli.configure_pack_runtime(None)
-
+    Each test edits its pack and runtime state, so each builds its own setup.
+    """
     def setUp(self):
         from dispatch_smoke_test import LoopbackService
-        self.fixture.FeatureWorkflowTests.setUp(self)
-        self.loopback = LoopbackService()
-        self.addCleanup(self.loopback.__exit__)
-        import build_generation_payload
-        import prepare_generation_references
-        record_patcher = patch.object(build_generation_payload, "resolve_model_record",
-                                      side_effect=lambda model: (model, self.record))
-        record_patcher.start()
-        self.addCleanup(record_patcher.stop)
-        pack_root_patcher = patch.object(prepare_generation_references, "model_pack_root",
-                                         side_effect=lambda model: self.schema_pack)
-        pack_root_patcher.start()
-        self.addCleanup(pack_root_patcher.stop)
-
-    def prepare(self):
-        """The records, the bound package and its authorization for one send of two images through the second service."""
-        import importlib
-        import input_contracts
-        import production_fixtures
-        import production_workflow as workflow
-        import request_renderer
-        import execution_contract as c
-        from build_generation_payload import generation_input_sha256
-        from model_contract import validate_model_record
-        from prepare_generation_references import resolve_model_record
+        from catalog_retrieval import runtime
         from request_validation_fixtures import interface_validation
-        from verify_generation_payload import verify
+        from reading_fixtures import fixture_reading
+        import service_profile
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        base=Path(self.temp.name);case=cases.create(base/'studio',base/'runtime');self.root=case['root'];self.case=case
+        self.loopback=LoopbackService();self.addCleanup(self.loopback.__exit__)
+        module_dir=base/'transport';module_dir.mkdir();(module_dir/'transport_loopback_fixture.py').write_text(SECOND_TRANSPORT,encoding='utf-8')
+        sys.path.insert(0,str(module_dir));self.addCleanup(sys.path.remove,str(module_dir));self.addCleanup(sys.modules.pop,'transport_loopback_fixture',None)
+        self.transport=importlib.import_module('transport_loopback_fixture')
+        service={'label':'Synthetic loopback test interface','transport':'loopback_fixture',
+                 'endpoint':{'base_url':self.loopback.url+'/model/text-to-image','method':'POST'},
+                 'auth':{'env_var':'CPB_SECOND_SYNTHETIC_KEY'},'operations':{'text-to-image':{}}}
+        services=c.load(case['pack']/'resources/services.json');services['services']['second-fixture']=service
+        cases.write(case['pack']/'resources/services.json',services)
+        records=c.load(case['pack']/'records/models.json');model=records['records'][0]
+        offering=model['offerings'][0];offering.update(service='second-fixture',model_identifier='loopback-model',
+            request_keys={'prompt':['prompt'],'negative prompt':['negative_prompt']})
+        for profile in (model['execution_profile'],offering['execution_profile']):
+            for mode in profile['modes'].values():
+                mode['controls']['num_images']=mode['controls'].pop('count')
+        cases.write(case['pack']/'records/models.json',records);cases.packs.write_lock(case['pack']);runtime.configure_pack_runtime(case['settings'])
+        catalog=runtime.load_pack_catalog();loaded=service_profile.load_service('second-fixture',case['pack']/'resources/services.json')
+        validation=interface_validation(self.root,target={'service':'second-fixture','model_identifier':'loopback-model','operation':'text-to-image'},
+                                       record=model,offering=offering,service_record=loaded,transport=self.transport,reference_mode='authored-rendition')
+        cases.write(self.root/'validation.json',validation)
+        retrieval=c.load(self.root/'retrieval.json');retrieval['pack_state']=catalog.fingerprint;cases.write(self.root/'retrieval.json',retrieval)
+        task=c.load(self.root/'task.json');task['generation'].update(service='second-fixture',count=2)
+        cases.write(self.root/'reading.json',fixture_reading(route='generation',studio=self.root,ledger=self.root/'work/reads.jsonl'))
+        cases.write(self.root/'task.json',task)
+        self.run=workflow.prepare(self.root,'task.json')['run'];self.decisions=decisions(self.root,self.run)
+        self.enterContext(patch.dict(os.environ,{'CPB_SECOND_SYNTHETIC_KEY':'SYNTHETIC-LOOPBACK-KEY'}))
+        real_connect=socket.create_connection;port=self.loopback.server.server_address[1]
+        def loopback_only(address,*args,**kwargs):
+            if tuple(address[:2])!=('127.0.0.1',port):raise AssertionError('Test attempted a non-loopback connection')
+            return real_connect(address,*args,**kwargs)
+        self.enterContext(patch.object(socket,'create_connection',loopback_only))
+        self.enterContext(patch.object(dispatch,'save',side_effect=AssertionError('Inline output is not downloaded')))
 
-        folder = self.work / "second-service"
-        folder.mkdir()
-        (folder / "transport_loopback_fixture.py").write_text(SECOND_TRANSPORT, encoding="utf-8")
-        sys.path.insert(0, str(folder))
-        self.addCleanup(sys.path.remove, str(folder))
-        self.addCleanup(sys.modules.pop, "transport_loopback_fixture", None)
-        transport = importlib.import_module("transport_loopback_fixture")
+    def execute(self):
+        # The selected module is a separate implementation; request rendering
+        # and execution cannot quietly fall back to Runware.
+        with patch.dict(sys.modules,{'transport_runware':None}):
+            return execution.execute(self.root,self.run,decisions_file=self.decisions)
 
-        # The service record, the offering with its keys, and the service's observed schema: data only.
-        service = {"label": "Second fixture service", "observed_at": "2026-09-23", "source": "synthetic fixture",
-                   "transport": "loopback_fixture",
-                   "endpoint": {"base_url": self.loopback.url + "/v1/second-model/text-to-image", "method": "POST"},
-                   "auth": {"env_var": "SECOND_FIXTURE_KEY"}, "operations": {"text-to-image": {}}}
-        profiles = self.work / "services.json"
-        profiles.write_text(json.dumps({"services": {"second-fixture": service}}), encoding="utf-8")
-        snapshot = "resources/observed-schemas/second-model.second-fixture.json"
-        self.schema_pack = self.work / "second-pack"
-        (self.schema_pack / snapshot).parent.mkdir(parents=True)
-        (self.schema_pack / snapshot).write_text(json.dumps({"observed_at": "2026-09-23", "schema": {
-            "type": "object", "required": ["prompt"], "additionalProperties": False,
-            "properties": {"prompt": {"type": "string", "minLength": 1}, "negative_prompt": {"type": "string"},
-                           "num_images": {"type": "integer", "minimum": 1, "maximum": 4}, "seed": {"type": "integer"},
-                           "size": {"enum": ["1024x1024"]}, "quality": {"enum": ["high"]}}}}), encoding="utf-8")
-        offering = {"service": "second-fixture", "model_identifier": "vendor/second-model", "observed_at": "2026-09-23",
-                    "request_keys": {"prompt": ["prompt"], "negative prompt": ["negative_prompt"]},
-                    "constraints": {}, "schema_snapshot": snapshot}
-        from render_contract_fixtures import control
-        offering["execution_profile"] = {
-            "id": "second-fixture-interface",
-            "basis": {"kind": "synthetic", "source": "Synthetic second-service interface declaration.",
-                      "limitations": ["No provider capability or image quality is claimed."]},
-            "prompt_recipe": {"order": ["rendering", "subject", "composition", "constraints"],
-                              "guidance": ["Author a coherent rendering phrase after retrieval."]},
-            "modes": {"text-to-image": {"media": "none", "parameter_schema": {}, "controls": {
-                "size": control("required", schema={"type": "string"}),
-                "quality": control("required", schema={"type": "string"}),
-                "seed": control("optional", schema={"type": "integer"}, binding="dispatch-seed"),
-                "num_images": control("required", schema={"type": "integer", "minimum": 1, "maximum": 4},
-                                      binding="dispatch-count"),
-            }}},
-        }
-        self.production_run = production_fixtures.prepare_dispatch(self.root, self.fixture.PROMPT)
-        package = production_fixtures.bind_package(self.root, self.production_run, self.package)
-        _, record = resolve_model_record(package["model"])
-        self.record = copy.deepcopy(record)
-        self.record["offerings"] = [offering]
-        self.assertEqual(validate_model_record(self.record), [])
-        validation = interface_validation(self.root, target={"service": "second-fixture", "model_identifier": "vendor/second-model",
-            "operation": "text-to-image"}, record=self.record, offering=offering, service_record=service,
-            transport=transport, reference_mode="prompt-prefix")
-        reader, _ = input_contracts.capture_validation(validation, root=self.root)
-        reader.basis(package["visual_continuity"]["basis"])
-        input_contracts.attach(package, validation, reader)
-        from render_contract_lib import compile_contract
-        references = package["prepared_reference_set"].get("selected_references") or []
-        package["render_contract"] = compile_contract(self.record, offering,
-            package["production_spec"]["render_intent"], package["render_contract"]["authored_parameters"],
-            prompt=package["composition_prompt"],
-            reference_count=1 if package["prepared_reference_set"].get("single_board") else len(references))
-        package["generation_payload"]["service"] = {"id": "second-fixture", "model_identifier": "vendor/second-model",
-                                                    "observed_at": "2026-09-23", "schema_snapshot": snapshot}
-        for key in ("request_validation_sha256", "input_snapshots_sha256"):
-            package["generation_contract"][key] = package[key]
-        package["generation_input_sha256"] = generation_input_sha256(package)
-        package["generation_contract"]["generation_input_sha256"] = package["generation_input_sha256"]
-        path = self.root / "bound.json"
-        path.write_bytes(c.encoded(package))
-        self.model = package["model"]
-        rendered = request_renderer.generation(package, verify(package, package_root=self.root, project=self.root),
-                                               self.record, offering, service, transport, seed=7, count=2)
-        authorization = production_fixtures.grant(self.root, self.production_run, workflow.submission_intent(
-            package, rendered=rendered, seed=7, count=2, offering=offering, service=service))
-        return argparse.Namespace(package=path, service=None, profiles=str(profiles), seed=7, count=2, send=False,
-                                  character="C01", slot="base.front", note="Synthetic second service.",
-                                  production_authorization=authorization), rendered
+    def test_preview_send_and_inline_recovery_through_second_service(self):
+        raw=transport_synthetic._png(32,32,b'\x30\x50\x70')
+        answer={'images':[{'id':'a','b64':base64.b64encode(raw).decode('ascii')},
+                          {'id':'b','b64':base64.b64encode(raw).decode('ascii')}]}
+        self.loopback.reply=(200,{'Content-Type':'application/json'},c.encoded(answer))
+        with patch.object(studio,'iterate',side_effect=OSError('Synthetic projection interruption')):first=self.execute()
+        self.assertFalse(first['execution_completed']);self.assertEqual(len(first['runs'][0]['candidates']),2)
+        second=execution.resume(self.root,self.run);self.assertTrue(second['execution_completed'])
+        self.assertEqual(len(self.loopback.received),1)
+        self.assertEqual(json.loads(self.loopback.received[0]['body'])['num_images'],2)
+        self.assertEqual(self.loopback.received[0]['headers']['Authorization'],'Key SYNTHETIC-LOOPBACK-KEY')
+        for path in self.root.rglob('*.json'):
+            self.assertNotIn('SYNTHETIC-LOOPBACK-KEY',path.read_text(encoding='utf-8'))
 
-    @contextlib.contextmanager
-    def only_the_loopback_service(self):
-        """No Runware code, no connection but to the loopback service, and no download of an inline image."""
-        import socket
-        connect = socket.create_connection
-        port = self.loopback.server.server_address[1]
+    def test_5xx_retains_unknown_outcome_and_never_retries(self):
+        self.loopback.reply=(503,{},b'synthetic busy')
+        result=self.execute();again=execution.resume(self.root,self.run)
+        self.assertEqual(result['runs'][0]['submission'],'outcome_unknown')
+        self.assertEqual(again['runs'][0]['submission'],'outcome_unknown');self.assertEqual(len(self.loopback.received),1)
+        # This transport defines no lookup, so resume asks nothing and records no new fact.
+        self.assertEqual([item['code'] for item in again['warnings']],['PROVIDER_LOOKUP_UNSUPPORTED'])
+        self.assertFalse(any(row['event']=='execution-outcome' and row['data'].get('lookup')
+                             for row in store.event_rows(self.root,self.run)))
 
-        def loopback_only(address, *args, **kwargs):
-            if tuple(address[:2]) != ("127.0.0.1", port):
-                raise AssertionError(f"the second-service dispatch connected to {address}")
-            return connect(address, *args, **kwargs)
-
-        with patch.dict(sys.modules, {"transport_runware": None}), \
-                patch.dict(os.environ, {"SECOND_FIXTURE_KEY": "SYNTHETIC-SECOND-KEY"}), \
-                patch.object(socket, "create_connection", loopback_only), \
-                patch.object(dispatch, "resolve_model_record", return_value=(self.model, self.record)), \
-                patch.object(dispatch, "model_pack_root", return_value=self.schema_pack), \
-                patch.object(dispatch, "save", side_effect=AssertionError("an inline image was downloaded")):
-            yield
-
-    def test_preview_send_and_inline_recovery_through_a_second_service(self):
-        import base64
-        import production_workflow as workflow
-        from PIL import Image
-        from generation_payload_smoke_test import NEGATIVE
-
-        options, rendered = self.prepare()
-        output = io.BytesIO()
-        Image.new("RGB", (24, 24), "white").save(output, format="PNG")
-        image = output.getvalue()
-        self.loopback.reply = (200, {"Content-Type": "application/json"}, json.dumps({"images": [
-            {"b64": base64.b64encode(image).decode("ascii"), "seed": 101, "id": "a"},
-            {"b64": base64.b64encode(image).decode("ascii"), "seed": 102, "id": "b"}]}).encode("utf-8"))
-        real = dispatch.inline_image
-        calls = []
-
-        def second_fails(data):
-            calls.append(data)
-            if len(calls) == 2:
-                raise OSError("simulated disk failure")
-            return real(data)
-
-        shown = io.StringIO()
-        with self.only_the_loopback_service():
-            with contextlib.redirect_stdout(shown):
-                self.assertEqual(dispatch.dispatch_generation(options, self.root), 0)
-            head, _, body = shown.getvalue().partition("request (sha256 ")
-            previewed = json.loads(body.partition("\n")[2])
-            self.assertIn(f"service: second-fixture at {self.loopback.url}/v1/second-model/text-to-image", head)
-            self.assertIn("negative prompt: sent on negative_prompt", head)
-            self.assertEqual(previewed, {"prompt": rendered["request"]["prompt"], "negative_prompt": NEGATIVE,
-                                         "num_images": 2, "seed": 7, "size": "1024x1024", "quality": "high"})
-            self.assertEqual(self.loopback.received, [])
-            options.send = True
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
-                    patch.object(dispatch, "inline_image", side_effect=second_fails):
-                self.assertEqual(dispatch.dispatch_generation(options, self.root), 1)
-            with contextlib.redirect_stdout(io.StringIO()):
-                recovered = workflow.recover_recording(self.root, self.production_run)
-        self.assertEqual([(row["path"], json.loads(row["body"])) for row in self.loopback.received],
-                         [("/v1/second-model/text-to-image", previewed)])
-        self.assertEqual((len(recovered["iterations"]), recovered["network_calls"]), (2, 0))
-        journal = next((self.root / "runs").glob("*/run.json")).parent
-        self.assertEqual({key: json.loads((journal / "run.json").read_text(encoding="utf-8"))[key]
-                          for key in ("status", "service", "transport")},
-                         {"status": "complete", "service": "second-fixture", "transport": "loopback_fixture"})
-        self.assertEqual([(journal / f"result-{index}.png").read_bytes() for index in (1, 2)], [image, image])
-        rows = studio.read_iterations(self.home)
-        self.assertEqual([row["seed"] for row in rows], [101, 102])
-        self.assertEqual(rows[0]["request_layout"]["negative_text"], ["negative_prompt"])
-        recipe = studio.recipe(self.root, "C01", "base.front", iteration=rows[0]["iteration_id"])
-        self.assertNotIn("seed", recipe["settings"])
-        self.assertEqual(recipe["settings"]["prompt"], previewed["prompt"])
-        for file in self.root.rglob("*.json"):
-            self.assertNotIn("SYNTHETIC-SECOND-KEY", file.read_text(encoding="utf-8"))
-
-    def unanswered(self, reply):
-        """Send once to a loopback service that gives `reply`; the run's saved evidence and what was said."""
-        import production_workflow as workflow
-        options, _ = self.prepare()
-        options.send = True
-        self.loopback.reply = reply
-        said = io.StringIO()
-        with self.only_the_loopback_service():
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(said):
-                self.assertEqual(dispatch.dispatch_generation(options, self.root), 1)
-            with contextlib.redirect_stdout(io.StringIO()), self.assertRaisesRegex(ValueError, "outcome is unknown"):
-                workflow.recover_recording(self.root, self.production_run)
-        self.assertEqual(len(self.loopback.received), 1)
-        journal = next((self.root / "runs").glob("*/run.json")).parent
-        self.assertEqual(json.loads((journal / "run.json").read_text(encoding="utf-8"))["status"], "indeterminate")
-        self.assertFalse((journal / "answer.json").exists())
-        resume = workflow.status(self.root, self.production_run)
-        self.assertEqual(resume["next"], "recover-recording-or-resolve-remote-status")
-        self.assertNotIn("recover-recording", [action["operation"] for action in resume["next_actions"]])
-        self.assertEqual(studio.read_iterations(self.home), [])
-        self.assertIn("Nothing is sent again", said.getvalue())
-        return json.loads((journal / "indeterminate.json").read_text(encoding="utf-8"))
-
-    def test_a_5xx_answer_is_indeterminate_and_sent_once(self):
-        self.assertEqual(self.unanswered((503, {}, b"upstream busy")),
-                         {"outcome": "indeterminate", "reason": "the service answered 503", "http_status": 503,
-                          "body": "upstream busy"})
-
-    def test_a_dropped_connection_is_indeterminate_and_sent_once(self):
-        kept = self.unanswered("drop")
-        self.assertEqual((kept["http_status"], kept["body"]), (None, None))
-        self.assertTrue(kept["reason"].startswith("the connection ended before a complete answer"), kept)
+    def test_dropped_connection_retains_unknown_outcome(self):
+        self.loopback.reply='drop'
+        result=self.execute();execution.resume(self.root,self.run)
+        self.assertEqual(result['runs'][0]['submission'],'outcome_unknown');self.assertEqual(len(self.loopback.received),1)
 
 
 def main():
-    stream = io.StringIO()
-    suite = unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(case)
-                                for case in (DispatchRecoveryTests, ResumeOffersDownload, SecondServiceTests)])
-    result = unittest.TextTestRunner(stream=stream).run(suite)
-    print(json.dumps({"ok": result.wasSuccessful(), "checks": result.testsRun,
-                      "failures": len(result.failures), "error_count": len(result.errors),
-                      "errors": [f"{case.id()}: {detail}" for case, detail in result.failures + result.errors],
-                      "detail": stream.getvalue()}, indent=2))
+    stream=io.StringIO()
+    suite=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case)
+                             for case in (DispatchRecoveryTests,ResumeOffersDownload,SecondServiceTests))
+    result=unittest.TextTestRunner(stream=stream,verbosity=2).run(suite)
+    print(json.dumps({'ok':result.wasSuccessful(),'checks':result.testsRun,
+        'failures':len(result.failures),'error_count':len(result.errors),
+        'errors':[case.id()+': '+detail for case,detail in result.failures+result.errors],
+        'detail':stream.getvalue()},indent=2))
     return 0 if result.wasSuccessful() else 1
 
 
-if __name__ == "__main__":
+if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()
     raise SystemExit(main())

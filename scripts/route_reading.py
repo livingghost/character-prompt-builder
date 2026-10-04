@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read complete route documents and bind authored applications to issued evidence."""
 from __future__ import annotations
+import operation_context as _operation_context
 
 import argparse
 import datetime
@@ -127,22 +128,23 @@ def _studio(path: Path | None) -> Path | None:
     return None
 
 
-def ledger_candidates(*, project: Path | None = None, package_root: Path | None = None) -> list[Path]:
+def ledger_candidates(*, studio: Path | None = None, package_root: Path | None = None) -> list[Path]:
     explicit = os.environ.get('CPB_READS_LEDGER')
     if explicit is not None:
         if not explicit.strip():
             raise ValueError('CPB_READS_LEDGER must name a file')
         return [Path(explicit).absolute()]
     output = []
-    if project is not None:
-        output.append(project.absolute() / 'work/reads.jsonl')
+    if studio is not None:
+        output.append(studio.absolute() / 'work/reads.jsonl')
     if package_root is not None:
         output.append(package_root.absolute() / 'reads.jsonl')
     for value in (Path.cwd(), package_root):
-        studio = _studio(value)
-        if studio is not None:
-            output.append(studio / 'work/reads.jsonl')
-    output.append(Path.home() / '.character-prompt-builder/reads.jsonl')
+        found = _studio(value)
+        if found is not None:
+            output.append(found / 'work/reads.jsonl')
+    import pack_manager
+    output.append(pack_manager._user_data_home() / 'reads.jsonl')
     return list(dict.fromkeys(output))
 
 
@@ -174,7 +176,7 @@ def _capture_resources(manifest: dict, bodies: list, dialect: Any) -> None:
     from catalog_retrieval.runtime import load_pack_catalog
     from pack_cache import resource_warning
     catalog = load_pack_catalog()
-    # A selected provider that failed is not an absent resource: refuse with
+    # A named resource that failed is not an absent resource: refuse with
     # the one line that names the pack and its fix. Other packs' problems do not block a reading.
     for name in ('prompt-writing-guide', 'prompt-dialects'):
         problem = resource_warning(catalog, name)
@@ -185,24 +187,17 @@ def _capture_resources(manifest: dict, bodies: list, dialect: Any) -> None:
         if resource is None:
             manifest['resources'][name] = {'status': 'unavailable'}
             continue
-        path = Path(resource.path).absolute()
-        roots = {entry.source_root.absolute() for entry in catalog.entries if entry.source_pack == resource.source_pack}
-        if not roots:
-            for folder in path.parents:
-                candidate = folder / 'pack.json'
-                if candidate.is_file() and c.load(candidate).get('pack_id') == resource.source_pack:
-                    roots.add(folder); break
-        if len(roots) != 1:
-            raise ValueError('resource provider must identify exactly one pack root: ' + name)
-        relative = path.relative_to(next(iter(roots))).as_posix()
-        raw = c.read(c.local(next(iter(roots)), relative))
-        meta = {'status': 'present', 'source_pack': resource.source_pack, 'path': relative, 'sha256': c.digest(raw)}
+        if resource.source_pack not in catalog.pack_roots:
+            raise ValueError(f'named resource {name} comes from a pack without an active root: {resource.source_pack}')
+        raw = c.read(c.local(Path(catalog.pack_roots[resource.source_pack]), resource.relative_path))
+        meta = {'status': 'present', 'source_pack': resource.source_pack, 'path': resource.relative_path,
+                'sha256': c.digest(raw)}
         if dialect is not EVERY_FAMILY:
             if name == 'prompt-dialects' and dialect is not None:
                 from pack_manager import PackError
                 from prompt_dialect import find_dialect
                 try:
-                    find_dialect(dialect, path)
+                    find_dialect(dialect, Path(resource.path))
                 except PackError as exc:
                     raise ValueError(str(exc)) from None
             meta['dialect'] = dialect
@@ -227,7 +222,7 @@ def _validate_resources(value: dict) -> None:
                     'reading resource')
             if item['status'] != 'present':
                 raise ValueError('invalid resource status')
-            c.sha(item['sha256']); c.text(item['source_pack'], 'resource provider')
+            c.sha(item['sha256']); c.text(item['source_pack'], 'resource pack')
             c.local(ROOT, item['path'], exists=False)
             if 'dialect' in item and item['dialect'] is not None:
                 c.text(item['dialect'], 'reading model family')
@@ -365,12 +360,12 @@ def _issue(manifest: dict, ledger: Path, *, key: str | None = None, at: str | No
 
 
 def issue(route: str, features: list[str] | None = None, *, root: Path = ROOT,
-          project: Path | None = None, ledger: Path | None = None, stream: TextIO | None = None,
+          studio: Path | None = None, ledger: Path | None = None, stream: TextIO | None = None,
           key: str | None = None, at: str | None = None, cwd: str | None = None,
           dialect: Any = EVERY_FAMILY) -> dict:
     """Output all bytes before issuing evidence. Fixed key/time are fixture inputs."""
     stream = sys.stdout if stream is None else stream
-    target = ledger if ledger is not None else ledger_candidates(project=project)[0]
+    target = ledger if ledger is not None else ledger_candidates(studio=studio)[0]
     manifest, bodies = capture(route, features, root=root, dialect=dialect)
     for meta, raw in bodies:
         stream.write('--- ' + json.dumps(meta, ensure_ascii=False) + ' ---\n')
@@ -428,7 +423,7 @@ def validate_record_content(record: Any) -> None:
 
 
 def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path] | None = None,
-                          project: Path | None = None, package_root: Path | None = None,
+                          studio: Path | None = None, package_root: Path | None = None,
                           routes: set[str] | None = None, features: list[str] | None = None,
                           dialect: Any = _NO_MODEL) -> dict:
     """Verify the issued full-text read and each application the author declares.
@@ -447,7 +442,7 @@ def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path]
     for field in current:
         if record[field] != current[field]:
             raise ValueError('reading ' + field + ' differs from the current sources; read again')
-    row = _find_row(record, ledgers if ledgers is not None else ledger_candidates(project=project, package_root=package_root))
+    row = _find_row(record, ledgers if ledgers is not None else ledger_candidates(studio=studio, package_root=package_root))
     available = {meta['path']: raw.decode('utf-8') for meta, raw in bodies if meta['kind'] == 'document'}
     for item in record['applied']:
         quote = _normalized(item['quote'])
@@ -457,11 +452,11 @@ def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path]
     return row
 
 
-def resolve_issuance(key: str, *, project: Path | None = None,
+def resolve_issuance(key: str, *, studio: Path | None = None,
                      ledgers: list[Path] | None = None) -> dict:
     """Resolve a supplied key to one consistent locally issued document edition."""
     digest = c.digest(_hex(key, 32, 'reading key').encode('ascii'))
-    matches = [row for path in dict.fromkeys(ledgers if ledgers is not None else ledger_candidates(project=project))
+    matches = [row for path in dict.fromkeys(ledgers if ledgers is not None else ledger_candidates(studio=studio))
                for row in ledger_rows(path) if row['key_sha256'] == digest]
     if not matches:
         raise ValueError('reading key has no issuance row in the selected ledgers')
@@ -471,11 +466,11 @@ def resolve_issuance(key: str, *, project: Path | None = None,
     return {'reading_key': key, 'row': matches[0]}
 
 
-def check_snapshot_issuance(snapshot: str, issued: dict, *, project: Path | None = None) -> None:
+def check_snapshot_issuance(snapshot: str, issued: dict, *, studio: Path | None = None) -> None:
     """Check a supplied delivery selector without making retention a key condition."""
     _hex(snapshot, 64, 'reading snapshot')
     paths = [path.parent / 'reading-snapshots' / snapshot / 'snapshot.json'
-             for path in ledger_candidates(project=project)]
+             for path in ledger_candidates(studio=studio)]
     existing = [path for path in dict.fromkeys(paths) if path.is_file()]
     if not existing:
         # A completed delivery snapshot may be discarded. The issuance row
@@ -490,22 +485,22 @@ def check_snapshot_issuance(snapshot: str, issued: dict, *, project: Path | None
 
 
 def build_record(issued: dict, applications: dict, *, root: Path = ROOT,
-                 project: Path | None = None, ledgers: list[Path] | None = None,
+                 studio: Path | None = None, ledgers: list[Path] | None = None,
                  dialect: Any = _NO_MODEL) -> dict:
     c.exact(issued, {'reading_key', 'row'}, 'issued reading')
     row = issued['row']
     result = {key: row[key] for key in sorted({'route', 'features', 'documents'} | RESOURCE_FIELDS)}
     result.update(reading_key=issued['reading_key'], applied=applications['applied'],
                   resource_applied=applications['resource_applied'])
-    require_route_reading(result, root=root, project=project, ledgers=ledgers, dialect=dialect)
+    require_route_reading(result, root=root, studio=studio, ledgers=ledgers, dialect=dialect)
     return result
 
 
 
-def copy_issuance(record: dict, destination: Path, *, root: Path = ROOT, project: Path | None = None,
+def copy_issuance(record: dict, destination: Path, *, root: Path = ROOT, studio: Path | None = None,
                   ledgers: list[Path] | None = None, package_root: Path | None = None) -> dict:
     """Copy a verified issuance row without issuing a key or an application."""
-    row = require_route_reading(record, root=root, project=project, ledgers=ledgers, package_root=package_root)
+    row = require_route_reading(record, root=root, studio=studio, ledgers=ledgers, package_root=package_root)
     with c.lock(destination.parent):
         rows = ledger_rows(destination)
         matching = [old for old in rows if old['key_sha256'] == row['key_sha256']]
@@ -546,14 +541,14 @@ def _position(snapshot: dict, offset: int) -> tuple[int, int]:
 
 def read_page(*, route: str | None = None, features: list[str] | None = None,
               cursor: str | None = None, replay: bool = False, page_bytes: int = 16384,
-              root: Path = ROOT, project: Path | None = None, ledger: Path | None = None,
+              root: Path = ROOT, studio: Path | None = None, ledger: Path | None = None,
               stream: TextIO | None = None, runtime: dict | None = None,
               dialect: Any = EVERY_FAMILY) -> dict:
     """Deliver an immutable page, then record its exact byte range under a lock."""
     if isinstance(page_bytes, bool) or not isinstance(page_bytes, int) or page_bytes < 4:
         raise ValueError('page-bytes must be an integer of at least four')
     stream = sys.stdout if stream is None else stream
-    ledger = ledger if ledger is not None else ledger_candidates(project=project)[0]
+    ledger = ledger if ledger is not None else ledger_candidates(studio=studio)[0]
     with c.lock(ledger.parent):
         if cursor is None:
             if route is None:
@@ -681,7 +676,7 @@ def _model_family(model: str) -> str | None:
 def add_read_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('route', nargs='?')
     parser.add_argument('--feature', action='append', default=[])
-    parser.add_argument('--root', type=Path, help='Project or studio root for the reading ledger')
+    parser.add_argument('--root', type=Path, help='Studio root for the reading ledger')
     family = parser.add_mutually_exclusive_group()
     family.add_argument('--model', help="Read only the writing guide sections for this model's prompt family")
     family.add_argument('--dialect', metavar='ID',
@@ -696,7 +691,7 @@ def add_read_arguments(parser: argparse.ArgumentParser) -> None:
 def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
     """Read, then write the draft reading record for the issued key and print its path."""
     runtime = _configure_runtime(args, parser)
-    ledger = ledger_candidates(project=args.root)[0]
+    ledger = ledger_candidates(studio=args.root)[0]
     dialect = EVERY_FAMILY if args.dialect is None else args.dialect
     if args.model is not None:
         dialect = _model_family(args.model)
@@ -717,19 +712,19 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
         result = issued = issue(args.route, args.feature, ledger=ledger, dialect=dialect)
     if issued is not None:
         path = write_draft(issued, ledger)
-        project = args.root.absolute() if args.root is not None else None
-        shown = path.relative_to(project).as_posix() if project is not None and path.is_relative_to(project) else str(path)
+        studio = args.root.absolute() if args.root is not None else None
+        shown = path.relative_to(studio).as_posix() if studio is not None and path.is_relative_to(studio) else str(path)
         print('reading-record: ' + shown, flush=True)
     return result
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument('record', type=Path)
     parser.add_argument('--root', type=Path)
     args = parser.parse_args()
     try:
-        row = require_route_reading(c.load(args.record), project=args.root, package_root=args.record.parent)
+        row = require_route_reading(c.load(args.record), studio=args.root, package_root=args.record.parent)
         print(json.dumps({'ok': True, 'route': row['route'], 'evidence': 'issuance and exact quotation'}, indent=2))
         return 0
     except (ValueError, OSError) as exc:
@@ -739,4 +734,4 @@ def main() -> int:
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    raise SystemExit(_operation_context.run_cli(main))
