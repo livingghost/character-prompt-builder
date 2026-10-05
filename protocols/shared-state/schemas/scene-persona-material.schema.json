@@ -444,15 +444,7 @@
             "type": "string",
             "minLength": 1
           },
-          "studio_character": {
-            "type": "string",
-            "minLength": 1
-          },
-          "slot": {
-            "type": "string",
-            "minLength": 1
-          },
-          "iteration_id": {
+          "path": {
             "type": "string",
             "minLength": 1
           },
@@ -463,9 +455,7 @@
         },
         "required": [
           "subject_id",
-          "studio_character",
-          "slot",
-          "iteration_id",
+          "path",
           "image_sha256"
         ],
         "additionalProperties": false

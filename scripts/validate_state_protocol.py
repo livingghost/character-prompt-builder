@@ -50,25 +50,46 @@ REQUIRED_DOCS=(
 REQUIRED_HANDOFF=(
  'scripts/shot_request.py',
  'scripts/shot_request_smoke_test.py',
- 'schemas/viewpoint/shot-request.schema.json',
- 'templates/handoff/shot-request.template.json',
+ 'protocols/viewpoint/schemas/shot-request.schema.json',
+ 'protocols/viewpoint/templates/shot-request.template.json',
 )
 
 REQUIRED_AUXILIARY_CONTRACTS=(
- ('schemas/reference-use-plan.schema.json','templates/reference-use-plan.json'),
- ('schemas/surface-lighting-plan.schema.json','templates/surface-lighting-plan.json'),
- ('schemas/prepared-reference-set.schema.json','templates/prepared-reference-set.json'),
+ ('protocols/shared-state/schemas/reference-use-plan.schema.json','protocols/shared-state/templates/reference-use-plan.template.json'),
+ ('protocols/shared-state/schemas/surface-lighting-plan.schema.json','protocols/shared-state/templates/surface-lighting-plan.template.json'),
+ ('protocols/shared-state/schemas/prepared-reference-set.schema.json','templates/prepared-reference-set.json'),
 )
 
 DISTINCTIVE_DETAIL_OBSERVATION_PATHS=(
  'schemas/distinctive-detail-observation.schema.json',
- 'schemas/distinctive-detail.schema.json',
+ 'protocols/shared-state/schemas/distinctive-detail.schema.json',
  'templates/distinctive-detail-observation-template.json',
 )
 
+PLACEHOLDER_SHA256='0'*64
+_DIGEST=re.compile(r'^[0-9a-f]{64}$')
 
 
+def foreign_digests(value:Any,path:str='$')->list[str]:
+    """The paths of every 64-hex digest in a template that is not the all-zero placeholder.
 
+    A template is an unfilled starter: each digest it carries, a reference and
+    its own self hash alike, is the placeholder, and the author seals the real
+    values at use. A real digest binds the file to one producer's state and
+    goes stale with it.
+    """
+    if isinstance(value,dict):
+        return [found for key,child in value.items() for found in foreign_digests(child,f'{path}.{key}')]
+    if isinstance(value,list):
+        return [found for index,child in enumerate(value) for found in foreign_digests(child,f'{path}[{index}]')]
+    if isinstance(value,str) and _DIGEST.match(value) and value!=PLACEHOLDER_SHA256:
+        return [path]
+    return []
+
+
+def template_digest_errors(relative:str,value:Any)->list[str]:
+    found=foreign_digests(value)
+    return [f'{relative}: template carries a real digest at {", ".join(found)}; a template holds the all-zero placeholder'] if found else []
 
 
 
@@ -272,24 +293,38 @@ def validate(root:Path=ROOT)->dict[str,Any]:
         except Exception as exc:
             errors.append(f'distinctive-detail observation contract validation failed: {exc}')
     handoff_validated=False
-    handoff_template=root/'templates/handoff/shot-request.template.json'
+    handoff_template=root/'protocols/viewpoint/templates/shot-request.template.json'
     if handoff_template.is_file():
         try:
-            handoff_errors=validate_shot_request(load_json(handoff_template), allow_placeholder_hash=True)
+            handoff_value=load_json(handoff_template)
+            handoff_errors=validate_shot_request(handoff_value, allow_placeholder_hash=True)
+            handoff_errors+=template_digest_errors('protocols/viewpoint/templates/shot-request.template.json',handoff_value)
             handoff_validated=not handoff_errors
             if handoff_errors: errors.append('shot-request template: '+'; '.join(handoff_errors))
         except Exception as exc:
             errors.append(f'shot-request template validation failed: {exc}')
 
-    template_dir=root/'templates/state'
+    template_dir=root/'protocols/shared-state/templates'
     for path in sorted(template_dir.glob('*.json')):
         try: data=load_json(path)
         except Exception as exc:
             errors.append(f'invalid state template {path.name}: {exc}'); continue
 
+        errors.extend(template_digest_errors(path.relative_to(root).as_posix(),data))
         if data.get('artifact_type'):
             report=validate_artifact(data,allow_placeholder_hashes=True); validated.append(path.name)
             if not report.get('ok'): errors.append(f'{path.name}: '+'; '.join(report.get('errors',[])))
+
+    viewpoint_templates=root/'protocols/viewpoint/templates'
+    try:
+        import viewpoint_protocol
+        viewpoint_report=viewpoint_protocol.validate_tree(viewpoint_templates,allow_templates=True)
+        if not viewpoint_report.get('ok'):
+            errors.append('viewpoint templates: '+'; '.join(str(item) for item in viewpoint_report.get('errors',[])))
+        for path in sorted(viewpoint_templates.glob('*.json')):
+            errors.extend(template_digest_errors(path.relative_to(root).as_posix(),load_json(path)))
+    except Exception as exc:
+        errors.append(f'viewpoint template validation failed: {exc}')
 
     pilot_source=root/'examples/state-aware-pilot'
     for source_name, expected_kind in (

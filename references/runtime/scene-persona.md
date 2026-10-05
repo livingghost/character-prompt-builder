@@ -88,8 +88,10 @@ the form as scenes need it. A Persona in a custom format names no core.
 
 An adopted identity image holds the appearance, as
 [Time and ownership](cast-and-persona-depth.md#time-and-ownership) says, and the
-material records its studio character, slot, iteration and hash. `verify` and
-production refuse the material unless that image is accepted and bound.
+material records the image by its path and its hash. The studio character,
+slot and iteration that hold the image stay in the studio's own records.
+`verify` and production refuse the material unless that image is accepted and
+bound.
 
 When the scene source is a scene plot and the narrative declares persona
 phases, each Persona subject reads the file of the phase its chapter falls in,

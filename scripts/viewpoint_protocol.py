@@ -23,7 +23,6 @@ from protocol_contract import (
 
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_DIR = ROOT / "protocols" / "viewpoint"
-SCHEMA_DIR = ROOT / load_json(ROOT / "config/protocol-layout.json")["viewpoint"]
 PROFILE_DIR = PROTOCOL_DIR / "profiles"
 
 SELF_HASH_FIELDS = {

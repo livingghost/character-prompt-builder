@@ -29,61 +29,25 @@ from temporal_state import (
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_DIR = ROOT / "schemas"
 
-# This registry is the validation boundary for typed CPB artifacts.  Schema
-# selection must never be derived from an untrusted artifact_type string.
+# This registry is the validation boundary for the artifact types this tool
+# defines itself, each with its schema file under schemas/. A public artifact
+# type resolves through the protocol registry instead. Schema selection must
+# never be derived from an untrusted artifact_type string.
 ARTIFACT_SCHEMA_FILES = {
     "render-intent": "render-intent.schema.json",
     "render-contract": "render-contract.schema.json",
-    "adoption-receipt": "adoption-receipt.schema.json",
-    "appearance-adaptation-proposal": "appearance-adaptation-proposal.schema.json",
-    "appearance-variant-contract": "appearance-variant-contract.schema.json",
-    "asset-render-specification": "asset-render-specification.schema.json",
     "audit-extraction-set": "audit-extraction-set.schema.json",
-    "candidate-manifest": "candidate-manifest.schema.json",
-    "character-identity-contract": "character-identity-contract.schema.json",
-    "character-state-schema": "character-state-schema.schema.json",
-    "drift-observation": "drift-observation.schema.json",
-    "environment-snapshot": "environment-snapshot.schema.json",
-    "external-contract-reference": "external-contract-reference.schema.json",
-    "era-contract": "era-contract.schema.json",
-    "form-contract": "form-contract.schema.json",
-    "individual-morphology-contract": "individual-morphology-contract.schema.json",
-    "integration-capability-manifest": "integration-capability-manifest.schema.json",
-    "interchange-envelope": "interchange-envelope.schema.json",
-    "inventory-state": "inventory-state.schema.json",
     "observed-parameter-schema": "observed-parameter-schema.schema.json",
-    "observed-render-state": "observed-render-state.schema.json",
     "prompt-plot": "prompt-plot.schema.json",
     "prompt-retrieval-record": "prompt-retrieval-record.schema.json",
-    "reference-bundle-plan": "reference-bundle-plan.schema.json",
     "reference-corpus-manifest": "reference-corpus-manifest.schema.json",
-    "reference-selection": "reference-selection.schema.json",
-    "reference-use-plan": "reference-use-plan.schema.json",
-    "prepared-reference-set": "prepared-reference-set.schema.json",
-    "surface-lighting-plan": "surface-lighting-plan.schema.json",
     "upscale-package": "upscale-package.schema.json",
     "reference-semantic-region-map": "reference-semantic-region-map.schema.json",
     "reference-visual-authority": "reference-visual-authority.schema.json",
-    "relationship-projection": "relationship-projection.schema.json",
-    "relationship-state": "relationship-state.schema.json",
     "runtime-attachment-build": "runtime-attachment-build.schema.json",
-    "scene-context-snapshot": "scene-context-snapshot.schema.json",
     "semantic-region-map": "semantic-region-map.schema.json",
-    "species-morphology-profile": "species-morphology-profile.schema.json",
-    "state-aware-reference-binding": "state-aware-reference-binding.schema.json",
-    "state-event": "state-event.schema.json",
-    "state-lineage": "state-lineage.schema.json",
-    "state-process": "state-process.schema.json",
-    "state-snapshot": "state-snapshot.schema.json",
     "vectorization-result": "vectorization-result.schema.json",
-    "visual-authority": "visual-authority.schema.json",
-    "visual-evidence-bundle": "visual-evidence-bundle.schema.json",
-    "visual-state-projection": "visual-state-projection.schema.json",
-    "wardrobe-state": "wardrobe-state.schema.json",
-    "world-state-snapshot": "world-state-snapshot.schema.json",
 }
-
-ARTIFACT_SCHEMA_FILES.update({kind: kind + '.schema.json' for kind in ('scene-persona-material', 'source-material-index', 'source-extraction-proposal')})
 
 ZERO_SHA256 = "0" * 64
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
@@ -396,15 +360,30 @@ def _json_pointer(root: Any, fragment: str) -> dict[str, Any]:
     return current
 
 
+def schema_file(relative: str) -> Path:
+    """The file a schema reference names.
+
+    A bare name registered in the protocol manifest is that public schema under
+    protocols/. Every other reference is one of this tool's own schemas under
+    schemas/, and a reference that leaves that directory is refused.
+    """
+    if "/" not in relative:
+        public = {row["schema"].split("/", 1)[1]: row["schema"] for row in public_contract.registry()["schemas"]}
+        if relative in public:
+            return public_contract.schema_path(public[relative])
+    path = (SCHEMA_DIR / relative).resolve()
+    if SCHEMA_DIR.resolve() not in path.parents and path != SCHEMA_DIR.resolve():
+        raise ValueError(f"schema reference escapes schema directory: {relative}")
+    return path
+
+
 def _resolve_ref(ref: str, root_schema: dict[str, Any], documents: dict[Path, dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
     if ref.startswith("http://") or ref.startswith("https://"):
         raise ValueError(f"remote schema references are unsupported: {ref}")
     if ref.startswith("#"):
         return _json_pointer(root_schema, ref), root_schema
     relative, separator, fragment = ref.partition("#")
-    path = (SCHEMA_DIR / relative).resolve()
-    if SCHEMA_DIR.resolve() not in path.parents and path != SCHEMA_DIR.resolve():
-        raise ValueError(f"schema reference escapes schema directory: {ref}")
+    path = schema_file(relative)
     if path not in documents:
         documents[path] = load_json(path)
     referenced_root = documents[path]
@@ -1211,7 +1190,7 @@ def _changed_growth_paths(before: Any, after: Any, path: str = "") -> list[str]:
 
 
 def _checked_growth(value: Any, name: str) -> dict[str, Any]:
-    schema = load_json(ROOT / "schemas" / "growth-geometry.schema.json")
+    schema = load_json(schema_file("growth-geometry.schema.json"))
     errors = validate_against_schema(value, schema)
     if errors:
         raise ValueError(f"invalid {name}: " + "; ".join(errors))

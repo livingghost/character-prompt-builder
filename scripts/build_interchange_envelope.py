@@ -14,7 +14,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from integration_contract import finalize, find_interface, load_capabilities, validate_envelope, canonical_json, sha256_json
+from integration_contract import finalize, find_interface, installed_contract_set_sha256, load_capabilities, validate_envelope, canonical_json, sha256_json
 from io_budget import read_stream
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,6 +60,7 @@ def main() -> int:
             raise ValueError("unsupported optional export feature")
         value = {
             "artifact_type": "interchange-envelope", "envelope_id": "",
+            "contract_set_sha256": installed_contract_set_sha256(),
             "contract_profile": a.profile, "profile_sha256": profile["profile_sha256"],
             "origin": {"capability_manifest_sha256": caps["manifest_sha256"]},
             "payload": {"artifact_type": a.payload_type, "artifact_id": a.payload_id,

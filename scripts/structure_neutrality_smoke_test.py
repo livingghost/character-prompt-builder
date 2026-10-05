@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from state_protocol import (artifact_hash, finalize_artifact, load_json, parse_json,
-                            plan_reference_bundle, resolve_growth_geometry,
+                            plan_reference_bundle, resolve_growth_geometry, schema_file,
                             validate_against_schema, validate_artifact,
                             validate_state_artifact_graph)
 from structure_contract import KINDS, inspect_contract, structure_view
@@ -34,7 +34,7 @@ def fixture(name):
 
 
 def schema_errors(value, kind):
-    return validate_against_schema(value, load_json(ROOT / "schemas" / (kind + ".schema.json")))
+    return validate_against_schema(value, load_json(schema_file(kind + ".schema.json")))
 
 
 class StructureNeutralityTests(unittest.TestCase):
@@ -58,7 +58,8 @@ class StructureNeutralityTests(unittest.TestCase):
 
 
     def test_authored_geometry_in_templates_examples_and_pack_records(self):
-        paths = list((ROOT / "templates").rglob("*.json")) + list((ROOT / "examples").rglob("*.json"))
+        paths = (list((ROOT / "templates").rglob("*.json")) + list((ROOT / "protocols").glob("*/templates/*.json"))
+                 + list((ROOT / "examples").rglob("*.json")))
         for records in (ROOT / "packs").glob("*/records"):
             paths.extend(records.rglob("*.json"))
         checked = 0
@@ -240,15 +241,15 @@ class StructureNeutralityTests(unittest.TestCase):
     def test_morphology_starters_do_not_invent_paired_eyes_or_human_scale(self):
         for kind in ("species-morphology-profile", "individual-morphology-contract", "visual-state-projection"):
             with self.subTest(kind=kind):
-                value = load_json(ROOT / "templates/state" / (kind + ".template.json"))
+                value = load_json(ROOT / "protocols/shared-state/templates" / (kind + ".template.json"))
                 self.assertEqual([], schema_errors(value, kind))
                 text = json.dumps(value)
                 for assumption in ("head.eye.pair", "region-head", "eye count remains two", "human-scale unless"):
                     self.assertNotIn(assumption, text)
-        individual = load_json(ROOT / "templates/state/individual-morphology-contract.template.json")
+        individual = load_json(ROOT / "protocols/shared-state/templates/individual-morphology-contract.template.json")
         self.assertNotIn("head_to_body_ratio", individual["individual_measurements"])
         self.assertNotIn("limb_ratios", individual["individual_measurements"])
-        species = load_json(ROOT / "templates/state/species-morphology-profile.template.json")
+        species = load_json(ROOT / "protocols/shared-state/templates/species-morphology-profile.template.json")
         self.assertEqual("declared-structures", species["frame_character_model"]["default"]["representation"])
         self.assertNotIn("face_body_coherence_rule", species["frame_character_model"])
 
@@ -317,7 +318,7 @@ class StructureNeutralityTests(unittest.TestCase):
 
     def test_declared_approved_change_and_temporary_state_are_preserved(self):
         graph = self.graph(); identity = graph["identity_contract"]
-        variant = load_json(ROOT / "templates/state/appearance-variant-contract.template.json")
+        variant = load_json(ROOT / "protocols/shared-state/templates/appearance-variant-contract.template.json")
         variant.update(variant_class="grooming", canon_status="approved", parent_identity_contract_sha256=artifact_hash(identity), growth_geometry=self.declaration())
         variant["growth_geometry"]["structures"]["edge-filaments"]["geometry"]["color"] = "approved cyan"
         graph["appearance_variant"] = variant; relink(graph)

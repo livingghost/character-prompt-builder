@@ -2,6 +2,18 @@
   "protocol": "shared-production-contracts",
   "schemas": [
     {
+      "schema": "interchange/integration-capability-manifest.schema.json",
+      "sha256": "1cc7f7f5044c609c047f1e08e85841639f62995bfff817d254e985bf7e552464"
+    },
+    {
+      "schema": "interchange/integration-interface.schema.json",
+      "sha256": "dac79e490d2bfb69629bfd9bc59856fb6164fdf77d9fe5481ce6e5412a69344e"
+    },
+    {
+      "schema": "interchange/interchange-envelope.schema.json",
+      "sha256": "bd0cd058fbcf0d2dc4319a37fa629d5189993f98f41762c4e3bfeed6d05708b9"
+    },
+    {
       "schema": "shared-state/accessory-geometry.schema.json",
       "sha256": "37fc043666bcf7291b059370b12f8cf67c227de490058f7c48ba1bf5f3d77c89"
     },
@@ -23,7 +35,7 @@
     },
     {
       "schema": "shared-state/camera-framing-contract.schema.json",
-      "sha256": "1b0a3e750e7b0510579e4e708f5896d82b29ae35959e0e3a492f14ae32ae1e9c"
+      "sha256": "d0addf37f01c0cf9d53a69e109c3f0b4a27009bc55256e0be65de034b1c60269"
     },
     {
       "schema": "shared-state/candidate-manifest.schema.json",
@@ -103,7 +115,7 @@
     },
     {
       "schema": "shared-state/performance-language.schema.json",
-      "sha256": "bca72e549dbb46b77edc4b45441498cf44a9c032efe632594eccbad837adcf58"
+      "sha256": "0949a783838e7e8486dc7e621855cb3abacbedccea156188553ef8c31dc34907"
     },
     {
       "schema": "shared-state/prepared-generation-reference.schema.json",
@@ -115,7 +127,7 @@
     },
     {
       "schema": "shared-state/production-spec.schema.json",
-      "sha256": "c555b1a1c11a7b34be2525f7d62f2157abd6a3b9271b28b6f39f7edda61a5190"
+      "sha256": "ecdce1d900b343a96f03e75582641b4b7fc3e7ddd8a126c26e5a14e5d88be4e4"
     },
     {
       "schema": "shared-state/reference-bundle-plan.schema.json",
@@ -147,7 +159,7 @@
     },
     {
       "schema": "shared-state/scene-persona-material.schema.json",
-      "sha256": "80671b761c757a317d98530a6ba38ea4b52338f5fea95af98b99dac364f593e6"
+      "sha256": "992b776f28ccbe41bf2620de1e3e194f96c1d1d5115baff9e8e63b96ad39d400"
     },
     {
       "schema": "shared-state/source-extraction-proposal.schema.json",
@@ -207,11 +219,11 @@
     },
     {
       "schema": "viewpoint/scene-viewpoint-plan.schema.json",
-      "sha256": "df196bacc504353049f05bdef2c4755bbcb6e4494e9a609b7259a73fa228916f"
+      "sha256": "59f06d0812659ef6e3234a7fa5fa9f653e727c654405f52d0835aeb0159d7fcd"
     },
     {
       "schema": "viewpoint/shot-camera-spec.schema.json",
-      "sha256": "3c9a44ab15814451da5e4d787b4a8a9a6b90f22abc2cf71c6bada3694cbd1e83"
+      "sha256": "e9bbf6c56ec0755064f117472b8ff64f454671188ac22872a1d94bfee3df1467"
     },
     {
       "schema": "viewpoint/shot-continuity-ledger.schema.json",
@@ -231,7 +243,259 @@
     },
     {
       "schema": "viewpoint/viewpoint-transition.schema.json",
-      "sha256": "752fed4d55d6d59fa68eedd348ea327e5e58d615bef3e40cb7fd429262a1098c"
+      "sha256": "91db332609d7820c603a4b1cd10ef672f838822d501c35ef272a72f754f4e61d"
+    }
+  ],
+  "templates": [
+    {
+      "path": "protocols/interchange/templates/interchange-envelope.template.json",
+      "sha256": "17710ba27bec41ffcb5e90c1439c9de8bf05eb9e41838d455e83554c4ba60825"
+    },
+    {
+      "path": "protocols/shared-state/templates/adoption-decision.template.json",
+      "sha256": "5e3e72c45bec3a37f6c0d3eb79b1a6518649e738afa54bbdb65b7c5936d17836"
+    },
+    {
+      "path": "protocols/shared-state/templates/adoption-receipt.template.json",
+      "sha256": "259917806c1aa84be3ac98e69fe72313ac96c6e0e9c59e284f2a5b41d5989857"
+    },
+    {
+      "path": "protocols/shared-state/templates/appearance-adaptation-proposal.template.json",
+      "sha256": "adaa3f5029f64ded1b2b965ac059a3c78c16a0f1c8bb8befb2b3ac5d2e57eabc"
+    },
+    {
+      "path": "protocols/shared-state/templates/appearance-variant-contract.template.json",
+      "sha256": "be5fadd10d05911367f79f2b1e49d06295814811760374fd648466228c53bd04"
+    },
+    {
+      "path": "protocols/shared-state/templates/asset-render-specification.template.json",
+      "sha256": "ce25f685e925fe70513b3778e7006799d8c0f6fbe96b076be1c0ff61226bd610"
+    },
+    {
+      "path": "protocols/shared-state/templates/candidate-inspection.template.json",
+      "sha256": "d0949c85385ce7a97a54c2ea0a46ee332dfd824525ead50d0c096cb09a41086f"
+    },
+    {
+      "path": "protocols/shared-state/templates/candidate-manifest.template.json",
+      "sha256": "6cc368d8f0f7f05e604b173ae93b5a834507dc0ce493a11062e4605f6d7509b7"
+    },
+    {
+      "path": "protocols/shared-state/templates/character-identity-contract.template.json",
+      "sha256": "d0473ca454580da3ff73ae63762420118b1623a228d6933f9d8c8ef34fd5e9e4"
+    },
+    {
+      "path": "protocols/shared-state/templates/character-state-schema.template.json",
+      "sha256": "7afdf77c07731f4c68853ef028490d8bfc8ff36880c40600c60047f9ef50fdeb"
+    },
+    {
+      "path": "protocols/shared-state/templates/drift-observation.template.json",
+      "sha256": "43ca716c47c065efa190b4d7d9af3d5837d8f366b166b10ef20226cac9f91707"
+    },
+    {
+      "path": "protocols/shared-state/templates/environment-snapshot.template.json",
+      "sha256": "06d70a9b9dc2f02d8541e4f98f6155e62858b24f0669e1b25dd95226a6abf66c"
+    },
+    {
+      "path": "protocols/shared-state/templates/era-contract.template.json",
+      "sha256": "6f6a8c4b913c995fde8fc8de05ae5ffc4d3bbb6e650e9ac5bc23aafded473e34"
+    },
+    {
+      "path": "protocols/shared-state/templates/external-contract-reference.template.json",
+      "sha256": "5f6c6a55babe701bea1b5af32e0ca8a9fa4de2982ffcae1acf57e24979e210ec"
+    },
+    {
+      "path": "protocols/shared-state/templates/form-contract.template.json",
+      "sha256": "00e595b1917f5aa2e1102dbbe642b7e0f03fc851ab85fa05a77d3b92747bc5ad"
+    },
+    {
+      "path": "protocols/shared-state/templates/individual-morphology-contract.template.json",
+      "sha256": "3d6ac9ffbcbf70a04a00f83554e140d916b9c8f885d6dc382b1954cb0f2d9438"
+    },
+    {
+      "path": "protocols/shared-state/templates/inventory-state.template.json",
+      "sha256": "758cad4069db22915f4267850bae126546ecde1a6d5a39733d712abe1c06508f"
+    },
+    {
+      "path": "protocols/shared-state/templates/observed-render-state.template.json",
+      "sha256": "3fa9fff59f305471e64357350333be8b5cb6eea24ea2925f8027173fcca57f49"
+    },
+    {
+      "path": "protocols/shared-state/templates/projection-request.template.json",
+      "sha256": "e9b8886313a50464f2d0d55fca08d59be1324e2bc8e33301396fab3cd97fbb69"
+    },
+    {
+      "path": "protocols/shared-state/templates/reference-bundle-plan.template.json",
+      "sha256": "a9756abf146768fe0cdad110e0847e46a8a4a37973c61b28abd17219b0479bc7"
+    },
+    {
+      "path": "protocols/shared-state/templates/reference-selection.template.json",
+      "sha256": "50dcea53a616339397855728b5e3484f27f7a3fe6ac14ba2497f9cc0481def51"
+    },
+    {
+      "path": "protocols/shared-state/templates/reference-use-plan.template.json",
+      "sha256": "564b4adf212cb04ab2915350b6651202ece52b5a5d1e940ec12f1cdc0f574d55"
+    },
+    {
+      "path": "protocols/shared-state/templates/relationship-projection.template.json",
+      "sha256": "873e93a2e947fa1cceee95ebe364169d9569c73a352cf5777d6112015256c23a"
+    },
+    {
+      "path": "protocols/shared-state/templates/relationship-state.template.json",
+      "sha256": "805dbf393fd50e4d81dd068d591f78433b53d66e499f71ac82ab201004c7656c"
+    },
+    {
+      "path": "protocols/shared-state/templates/render-spec-request.template.json",
+      "sha256": "3fd06da6eda1a3181a2372c14d9196b95da3dfc80a6b51aeca2e282b5cb4dbf7"
+    },
+    {
+      "path": "protocols/shared-state/templates/scene-context-request.template.json",
+      "sha256": "374f8b59934382c0542de497007c0e6e9608efc46539e1fd929f1f8a3a38e631"
+    },
+    {
+      "path": "protocols/shared-state/templates/scene-context-snapshot.template.json",
+      "sha256": "f4834ea181e183ed9c84a92fad7019f73d62edab7a7dd8615c642ee61731243f"
+    },
+    {
+      "path": "protocols/shared-state/templates/species-morphology-profile.template.json",
+      "sha256": "38a5051c22a49d5f3b97f807a9e2f77e26fc991443f56c04ee746822a3f901d2"
+    },
+    {
+      "path": "protocols/shared-state/templates/state-aware-reference-binding.template.json",
+      "sha256": "e80ec4156963face3a5c56ab666a8d624e6f0692b2158706175fdb6a08c22768"
+    },
+    {
+      "path": "protocols/shared-state/templates/state-event-temporary-until-cleared.template.json",
+      "sha256": "052eaabf74c3aa001c70a8122933244afed2572893cea669db0da1c0697df0a4"
+    },
+    {
+      "path": "protocols/shared-state/templates/state-event.template.json",
+      "sha256": "e352d6136ff418cfb390ce5894cd3010cc0d8dd2b847ef5814f650e63d71a6cc"
+    },
+    {
+      "path": "protocols/shared-state/templates/state-lineage-state-aware.template.json",
+      "sha256": "3a8397f04c22ef3afa3f959d9f14f88b685080df0fca32a0bd437623ace974de"
+    },
+    {
+      "path": "protocols/shared-state/templates/state-lineage.template.json",
+      "sha256": "879e9f0f820ae80f89e1826de4bc0c51cc469a228e744f740c22efd6de06edce"
+    },
+    {
+      "path": "protocols/shared-state/templates/state-process.template.json",
+      "sha256": "805d02a209e1790025f4e5afad59632c1b84b0dc037915603ca9b8d716f8d723"
+    },
+    {
+      "path": "protocols/shared-state/templates/state-snapshot.template.json",
+      "sha256": "800c3038a0bff8f1d7413740caef685a94545b9fc34e4a35863bb5149a4424cd"
+    },
+    {
+      "path": "protocols/shared-state/templates/surface-lighting-plan.template.json",
+      "sha256": "d49408c1c5f3547a1f3600248f836768a82adf8376fce49ab9152b7ff6090ca3"
+    },
+    {
+      "path": "protocols/shared-state/templates/visual-authority.template.json",
+      "sha256": "64175b167a3f7e3907a419ea53ce000259680b928585b6ebc0085d81f7f0e025"
+    },
+    {
+      "path": "protocols/shared-state/templates/visual-evidence-bundle.template.json",
+      "sha256": "1a95f461ff5a4383b0f135a6b00849f41a4ac8527336a3079fbbac42bdec6d03"
+    },
+    {
+      "path": "protocols/shared-state/templates/visual-state-projection.template.json",
+      "sha256": "68b9845fa3b7d322ff4a17040b7d827cf416fcebbac1d2c68749fc22d0cea6f2"
+    },
+    {
+      "path": "protocols/shared-state/templates/wardrobe-state.template.json",
+      "sha256": "76ffbac28bcf201fd7009a58e3e3fa07efaa44dbf1d25cc86f55e2bfa3c6b8b9"
+    },
+    {
+      "path": "protocols/shared-state/templates/world-state-base.template.json",
+      "sha256": "1ec765a51846c1e787f675e211df62e4533b65da08767cfc31b0460ced6f36c2"
+    },
+    {
+      "path": "protocols/shared-state/templates/world-state-snapshot.template.json",
+      "sha256": "f4c558bc29f9f7a50a12158caba7ee6a8dc496c82b0cbc96eb7614e7f64b4f3a"
+    },
+    {
+      "path": "protocols/viewpoint/templates/scene-viewpoint-plan.template.json",
+      "sha256": "7913fba92ac81313187f90254f6faef0f2a63557f7356a504ddd425dae1d9c75"
+    },
+    {
+      "path": "protocols/viewpoint/templates/shot-camera-spec.template.json",
+      "sha256": "18b5be3dd6b52317c759f1ad45eb61da324fdb7a10d47f4c30e1bfa686b7649b"
+    },
+    {
+      "path": "protocols/viewpoint/templates/shot-continuity-ledger.template.json",
+      "sha256": "a8f719e96854df7ffe0627176da5ff22123d336ff58aef5336d5f507ce4caa19"
+    },
+    {
+      "path": "protocols/viewpoint/templates/shot-request.template.json",
+      "sha256": "aaf30da8a5f1aa1803ed61b3a0d1ac1594be10d8beb85f25cbf929531bcf6013"
+    },
+    {
+      "path": "protocols/viewpoint/templates/shot-visual-projection.template.json",
+      "sha256": "3cfbe9d13b5bbb41b3ef5c147e5a53f78530e2135126eb814a06a61bdf023f5c"
+    },
+    {
+      "path": "protocols/viewpoint/templates/viewpoint-profile.template.json",
+      "sha256": "b29b9922e7a98ee1fc96cdba35dda8e52218962b609fc5c74524fef4bc1e50ee"
+    },
+    {
+      "path": "protocols/viewpoint/templates/viewpoint-transition.template.json",
+      "sha256": "a4f1721ed116c76a5f3d1907890ebdac6de2bca92b96ad783ff1677e0ff6a47d"
+    }
+  ],
+  "documents": [
+    {
+      "path": "protocols/README.md",
+      "sha256": "a3db94744f2b6d98b4924dfb4129500d6aa74bfcb1ec00da986e1146d2855fa3"
+    },
+    {
+      "path": "protocols/interchange/README.md",
+      "sha256": "abc0ef78fcb17ab97fce9a567212a70fc284bb11bee211c31e5497ea20537641"
+    },
+    {
+      "path": "protocols/shared-state/README.md",
+      "sha256": "7366e9486b4fb7e450850be3d78d133bf7cf3886ca75d843500ac826625bb965"
+    },
+    {
+      "path": "protocols/shared-state/protocol-manifest.json",
+      "sha256": "0ab70623d9c1cba9db65a67879b435479609364d3aed44423ebb847bc77ee8fb"
+    },
+    {
+      "path": "protocols/viewpoint/README.md",
+      "sha256": "2e992df807145ec51ead87e47ab83ffadef538c9db736ac713fc2ff611326e98"
+    },
+    {
+      "path": "protocols/viewpoint/profiles/embodied-first-person.json",
+      "sha256": "8e9d3d9f85aa20e90d5d978375d7daad7f0b19f49fe9fd1c12b039d7f12bdf26"
+    },
+    {
+      "path": "protocols/viewpoint/profiles/external-character-aligned-third-person.json",
+      "sha256": "30ddd2065fce34169d8f8e7ffc8cb36c6d671f6eb341f9ab42c71e89f71b3d04"
+    },
+    {
+      "path": "protocols/viewpoint/profiles/external-objective-third-person.json",
+      "sha256": "b5b0c4269fabb99530c4e1fee2d956654957eedb7e90ade4870d05f2d79dad67"
+    },
+    {
+      "path": "protocols/viewpoint/profiles/external-omniscient-third-person.json",
+      "sha256": "45a5e9f67948cd7557535e0ebbe8fc5f6d94626a2939f25da63a4db9f8e71c32"
+    },
+    {
+      "path": "protocols/viewpoint/profiles/fixed-diegetic-observer.json",
+      "sha256": "57604342221f42613ec967b141d44e6c1824018c26bd6bd248bc73c43d3d35b5"
+    },
+    {
+      "path": "protocols/viewpoint/profiles/held-device-first-person.json",
+      "sha256": "37d36f5a523a309a00afcadffd0a24f22e7a6aec7bc280b3f978e4922923a93e"
+    },
+    {
+      "path": "protocols/viewpoint/profiles/over-the-shoulder.json",
+      "sha256": "d67d335ed6a807477cae79479ad933ee77952175f6ad4f3c49f0e3dbf28d7ab2"
+    },
+    {
+      "path": "protocols/viewpoint/protocol-manifest.json",
+      "sha256": "ad5bfbebf56a90436d7a61a5f4ad06cbad8c2f380283efe9c6b5d4c6def17217"
     }
   ],
   "artifacts": {
@@ -414,7 +678,11 @@
   },
   "semantics": {
     "path": "protocols/semantics.md",
-    "sha256": "66c9493cc37279641df3a64c21a1fa29c2e5d86743d30ea4aa21b1b194825d1a"
+    "sha256": "bc4c1745650a65dcf19200e380148e346a726d95e4309d6de68ff8939e4767cb"
   },
-  "contract_set_sha256": "da4864c01cb57361fddef4f023574fc98f83296537bb329ef272e1288d6986bb"
+  "validator": {
+    "path": "scripts/protocol_contract.py",
+    "sha256": "23ddb11ecb60c27c11f965bda72862774877a7288ece4530047b8f10c524bdef"
+  },
+  "contract_set_sha256": "768d6bd38dec30f15dd163e414e3dbf6b6899c147521827af8b637915cd9a00c"
 }

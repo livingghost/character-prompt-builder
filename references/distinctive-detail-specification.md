@@ -49,7 +49,7 @@ A production specification may include several distinctive details per subject. 
 - reusable curated examples: enabled `module` records in category `distinctive-detail`
 - per-image or per-series structured records: `subjects[].distinctive_details` in the production specification
 - reusable blank record: `templates/distinctive-detail-template.json`
-- structural validation: `schemas/distinctive-detail.schema.json`
+- structural validation: `protocols/shared-state/schemas/distinctive-detail.schema.json`
 
 ## Corpus-derived observation guide
 

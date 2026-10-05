@@ -23,12 +23,12 @@ A Production Specification may be regenerated whenever scene-visible semantic in
 
 Use `state_context.mode: "stateless"` for a one-off image and for the first images of a character, when no approved temporal canon exists. A stateless `state_context` holds only the mode and optional notes, and the builder seals the stateless lineage.
 
-For every such image, including prompt-only delivery, draft the smallest valid specification for its subject, replace each `"unspecified"` the author decides, and validate it before final prompt delivery or packaging:
+For every such image, including prompt-only delivery, draft the smallest valid specification for its subject, replace each `"unspecified"` the author decides, add the camera contract and the performance record once decided, and validate it before final prompt delivery or packaging:
 
 ```bash
 python scripts/production_spec.py draft production-spec.json --root STUDIO --model grok-imagine-image-2.0 \
   --render-intent render-intent.json --brief "An old lighthouse keeper watches the sea from a window at dawn." \
-  --kind human --framing upper-thigh --continuity undecided
+  --kind human --continuity undecided
 python scripts/production_spec.py validate STUDIO/production-spec.json --require-content
 ```
 
@@ -37,7 +37,7 @@ It refuses a relative path without `--root`, and it refuses an existing output, 
 The draft prints the builder arguments that name its subject (synthetic brief):
 
 ```json
-{"created": "production-spec.json", "sha256": "2129b1733664e5379d10c948dc78c3bdcaa4d6780e893da93fa71b1c82418ac0",
+{"created": "production-spec.json", "sha256": "8f24ca9f06b2a96c63d35fa29f136f748b38e23af229bc37331b0d9386de4894",
  "build_with": ["--production-spec-file", "production-spec.json", "--continuity", "C01=undecided"]}
 ```
 
@@ -102,7 +102,7 @@ The Visual State Projection owns which current cues must be visible. The Product
 
 ## Camera framing contract
 
-`camera` uses `camera-framing-contract.schema.json`. A repeatable shot records shot scale, distance class, subject-relative distance, optional human-scale metre guidance, camera height against a body or environmental landmark, pitch, yaw, roll, lens behavior, frame occupancy, exact crop landmarks, eye-line position, nearest form, perspective scale change, required visible elements, allowed off-screen elements, focal sequence, and stability invariants.
+`camera` uses `camera-framing-contract.schema.json`, and the specification carries it once the shot is decided. A repeatable shot records shot scale, distance class, subject-relative distance, optional human-scale metre guidance, camera height against a body or environmental landmark, pitch, yaw, roll, lens behavior, frame occupancy, exact crop landmarks, eye-line position, nearest form, perspective scale change, required visible elements, allowed off-screen elements, focal sequence, and stability invariants.
 
 The subject-relative measurement is authoritative across humans, animals, creatures, and robots. A metre range is a translation aid rather than a replacement for the subject-relative distance.
 
@@ -151,7 +151,7 @@ A style family is an indivisible concrete drawing grammar. When selected, use it
 
 ## Modular control
 
-A field the author does not decide holds the string `"unspecified"`: free text, each `camera` field and each `performance` field alike. An optional structure the image does not depend on is left out. Either is preferable to invented filler. A sparse portrait may need little more than the draft; a multi-character contact scene, reference sheet, state transition, or recurring series image may need a complete one.
+A free text field the author does not decide holds the string `"unspecified"`. The `camera` contract and a subject's `performance` record are whole structures: the specification carries each only once the author decides it, and a draft carries neither. An optional structure the image does not depend on is left out. Each is preferable to invented filler. A sparse portrait may need little more than the draft; a multi-character contact scene, reference sheet, state transition, or recurring series image may need a complete one.
 
 ## Prompt assembly
 

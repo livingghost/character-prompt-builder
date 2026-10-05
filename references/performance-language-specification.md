@@ -54,7 +54,7 @@ Repeated evidence and explicit user approval may establish a conditional manneri
 
 ## 3. Structured record
 
-Use [the schema](../schemas/performance-language.schema.json) and [the template](../templates/performance-language-template.json) for structured records.
+Use [the schema](../protocols/shared-state/schemas/performance-language.schema.json) and [the template](../templates/performance-language-template.json) for structured records.
 
 The record stores:
 

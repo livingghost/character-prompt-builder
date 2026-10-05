@@ -650,7 +650,6 @@ def main() -> int:
         generated_relative_paths = (
             Path("references/catalog-index.md"),
             Path("config/integration-capabilities.json"),
-            Path("templates/handoff/interchange-envelope.template.json"),
         )
         readonly_generated = tuple(
             readonly_source / relative for relative in generated_relative_paths

@@ -63,8 +63,61 @@ class Contracts(unittest.TestCase):
         p=self.root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(exchange.encoded(value));return p
     def assertValid(self,value):
         report=pc.validate_artifact(value);self.assertTrue(report['ok'],report)
+    def installation(self):
+        """A copy of the sealed protocol set and the validator under a temporary root."""
+        root=self.root/'install';shutil.copytree(ROOT/'protocols',root/'protocols')
+        (root/'scripts').mkdir();shutil.copy2(ROOT/pc.VALIDATOR_PATH,root/pc.VALIDATOR_PATH)
+        return root,pc.registry()
     def test_complete_installed_closure(self):
         report=exchange.check_installed();self.assertTrue(report['ok']);self.assertEqual(report['public_artifacts'],len(pc.ARTIFACT_TYPES))
+        self.assertEqual(report,pc.check_installed());self.assertEqual(report['validator_sha256'],exchange.digest((ROOT/pc.VALIDATOR_PATH).read_bytes()))
+    def test_registry_shape_names_the_validator(self):
+        value=pc.registry();self.assertEqual(set(value),pc.REGISTRY_KEYS)
+        without=copy.deepcopy(value);del without['validator']
+        with self.assertRaises(ValueError):pc._registry_shape(without)
+        other=copy.deepcopy(value);other['validator']['path']='scripts/other.py'
+        with self.assertRaisesRegex(ValueError,'invalid validator path'):pc._registry_shape(other)
+        moved=copy.deepcopy(value);moved['templates'].append({'path':'templates/elsewhere.json','sha256':'a'*64})
+        with self.assertRaisesRegex(ValueError,'invalid template path'):pc._registry_shape(moved)
+    def test_installation_refuses_changed_validator_bytes(self):
+        root,value=self.installation();pc.verify_installation(value,root)
+        with (root/pc.VALIDATOR_PATH).open('ab') as f:f.write(b'\n')
+        with self.assertRaisesRegex(ValueError,'validator byte hash mismatch'):pc.verify_installation(value,root)
+        sealed=pc.parse_json(pc.seal_registry((ROOT/pc.MANIFEST_PATH).read_text(encoding='utf-8'),root))
+        self.assertEqual(sealed['validator']['sha256'],exchange.digest((root/pc.VALIDATOR_PATH).read_bytes()))
+        self.assertNotEqual(sealed['contract_set_sha256'],value['contract_set_sha256'])
+    def test_installation_refuses_unlisted_and_changed_members(self):
+        root,value=self.installation()
+        (root/'protocols/stray.json').write_bytes(b'{}\n')
+        with self.assertRaisesRegex(ValueError,'protocols/stray.json'):pc.verify_installation(value,root)
+        with self.assertRaisesRegex(ValueError,'protocols/stray.json'):pc.seal_registry((ROOT/pc.MANIFEST_PATH).read_text(encoding='utf-8'),root)
+        (root/'protocols/stray.json').unlink()
+        row=value['templates'][0]
+        with (root/row['path']).open('ab') as f:f.write(b'\n')
+        with self.assertRaisesRegex(ValueError,'template byte hash mismatch: '+row['path']):pc.verify_installation(value,root)
+    def test_sealed_manifest_is_current(self):
+        raw=(ROOT/pc.MANIFEST_PATH).read_text(encoding='utf-8');self.assertEqual(pc.seal_registry(raw),raw)
+    def test_descriptor_commits_the_validator(self):
+        d=pc.contract_descriptor('state-event');self.assertEqual(exchange.describe('state-event'),d)
+        self.assertEqual(set(d),{'public_type','schemas','semantics_sha256','validator_sha256','contract_sha256'})
+        self.assertEqual(d['validator_sha256'],exchange.digest((ROOT/pc.VALIDATOR_PATH).read_bytes()))
+        other={k:v for k,v in d.items() if k!='contract_sha256'};other['validator_sha256']='a'*64
+        self.assertNotEqual(pc.sha256_json(other),d['contract_sha256'])
+    def test_alternatives_wording(self):
+        schema={'anyOf':[{'type':'number'},{'const':'unspecified'}]}
+        self.assertEqual(pc.validate_against_schema('x',schema,'$.camera.pitch_degrees'),["$.camera.pitch_degrees: value matches none of the 2 alternatives: expected type ['number'], got str; or expected constant 'unspecified'"])
+        self.assertEqual(pc.validate_against_schema(1,{'oneOf':[{'type':'number'},{'type':'integer'}]}),['$: value matches 2 of the 2 alternatives; exactly one must match'])
+    def test_const_enum_and_unique_items_compare_json_values(self):
+        self.assertTrue(pc.validate_against_schema(1,{'const':True}));self.assertTrue(pc.validate_against_schema(True,{'enum':[1]}))
+        self.assertEqual(pc.validate_against_schema(1.0,{'const':1}),[]);self.assertTrue(pc.validate_against_schema([1,1.0],{'uniqueItems':True}))
+    def test_material_invariants_live_in_the_validator(self):
+        for name in ('scene_persona','source_material'):sys.modules.pop(name,None)
+        for kind in sorted(pc.MATERIAL_ARTIFACT_TYPES):
+            with self.subTest(kind=kind):self.assertValid(fixture(kind))
+        self.assertFalse({'scene_persona','source_material'}&set(sys.modules))
+        value=fixture('scene-persona-material');value['identities']=[{'subject_id':'nobody'}];value['medium']='text'
+        errors=pc.material_errors(value)
+        self.assertIn('an identity image names no Persona subject: nobody',errors);self.assertIn('only an image material records an identity image',errors)
     def test_every_public_root_has_current_fixture(self):
         index=pc.load_json(EXAMPLE/'fixture-index.json')
         self.assertEqual({r['artifact_type'] for r in index['artifacts']},pc.ARTIFACT_TYPES)
@@ -79,6 +132,11 @@ class Contracts(unittest.TestCase):
         schema={'$defs':{'value':{'type':'string'}},'$ref':'#/$defs/value','minLength':3}
         self.assertTrue(pc.validate_against_schema('a',schema));self.assertEqual(pc.validate_against_schema('abc',schema),[])
         self.assertEqual(pc.validate_against_schema(fixture('character-identity-contract')['stable_identity']['frame_character'],pc.schema_named('frame-character.schema.json')),[])
+    def test_resolver_is_threaded_through_the_walk(self):
+        seen=[]
+        def resolver(ref,root):seen.append(ref);return {'type':'string'},root
+        schema={'type':'object','properties':{'a':{'items':{'$ref':'local.json'}}}}
+        self.assertEqual(pc.validate_against_schema({'a':['x']},schema,resolver=resolver),[]);self.assertEqual(seen,['local.json'])
     def test_strict_json_input(self):
         for text in ['{"x":1,"x":2}','{"x":NaN}','{"x":Infinity}']:
             with self.subTest(text=text),self.assertRaises(ValueError):pc.parse_json(text)

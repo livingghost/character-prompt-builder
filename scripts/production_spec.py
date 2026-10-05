@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Draft, validate, inspect, and hash the Production Specification of one image.
 
-The specification records the scene the author decided for one image. A field
-the author leaves open holds the string "unspecified". Stable identity and
+The specification records the scene the author decided for one image. A free
+text field the author leaves open holds the string "unspecified". The camera
+contract and a subject's performance record are whole structures: the author
+adds each once decided, and a draft carries neither. Stable identity and
 temporal canon live in separate contracts; a specification that uses them
 records their exact references.
 
     python scripts/production_spec.py draft production-spec.json --model MODEL \\
-        --render-intent render-intent.json --brief TEXT --kind human --framing waist-up --continuity one-off
+        --render-intent render-intent.json --brief TEXT --kind human --continuity one-off
     python scripts/production_spec.py validate production-spec.json --require-content
 """
 from __future__ import annotations
@@ -24,11 +26,8 @@ from state_protocol import find_non_finite_numbers, parse_json, validate_against
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "templates" / "production-spec-template.json"
 UNSPECIFIED = "unspecified"
-PRODUCTION_SPEC_SCHEMA = json.loads((ROOT / "schemas" / "production-spec.schema.json").read_text(encoding="utf-8"))
-PERFORMANCE_SCHEMA = json.loads((ROOT / "schemas" / "performance-language.schema.json").read_text(encoding="utf-8"))
-CAMERA_SCHEMA = json.loads((ROOT / "schemas" / "camera-framing-contract.schema.json").read_text(encoding="utf-8"))
+PRODUCTION_SPEC_SCHEMA = json.loads((ROOT / "protocols" / "shared-state" / "schemas" / "production-spec.schema.json").read_text(encoding="utf-8"))
 DOMAINS = tuple(PRODUCTION_SPEC_SCHEMA["properties"]["subjects"]["items"]["properties"]["domain"]["enum"])
-FRAMINGS = tuple(value for value in CAMERA_SCHEMA["properties"]["shot_scale"]["enum"] if value != UNSPECIFIED)
 CONTINUITIES = ("one-off", "undecided", "recurring")
 ART_FIELDS = tuple(PRODUCTION_SPEC_SCHEMA["properties"]["art_direction"]["required"])
 STATE_AWARE_ONLY = ("$.state_context.state_lineage_sha256", "$.state_context.scene_context_ref")
@@ -160,14 +159,17 @@ def require_lineage(spec: dict[str, Any], lineage: dict[str, Any]) -> None:
         raise ValueError("production specification state-lineage hash mismatch")
 
 
-def draft(*, model: str, brief: str, subject: str, kind: str, framing: str, render_intent: dict) -> dict[str, Any]:
-    """The smallest specification the builder accepts for one subject."""
+def draft(*, model: str, brief: str, subject: str, kind: str, render_intent: dict) -> dict[str, Any]:
+    """The smallest specification the builder accepts for one subject.
+
+    The draft carries no camera contract and no performance record: the author
+    adds each whole once decided, and an absent one is undecided.
+    """
     spec = load(TEMPLATE)
     spec["render_intent"] = render_intent
     spec["source_brief"] = brief
     spec["image_promise"] = brief
     spec["target_model"] = model
-    spec["camera"]["shot_scale"] = framing
     spec["subjects"] = [{
         "id": subject,
         "domain": kind,
@@ -176,7 +178,6 @@ def draft(*, model: str, brief: str, subject: str, kind: str, framing: str, rend
         "proportions_and_form": UNSPECIFIED,
         "surfaces_and_markings": UNSPECIFIED,
         "distinctive_details": [],
-        "performance": {field: UNSPECIFIED for field in PERFORMANCE_SCHEMA["required"]},
         "wardrobe_and_accessories": UNSPECIFIED,
         "pose_and_body_geometry": UNSPECIFIED,
         "props_and_contacts": UNSPECIFIED,
@@ -206,7 +207,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     make.add_argument("--brief", required=True, help="The request in one sentence")
     make.add_argument("--subject", default="C01", help="Subject ID the builder's --continuity names (default C01)")
     make.add_argument("--kind", required=True, choices=DOMAINS)
-    make.add_argument("--framing", required=True, choices=FRAMINGS)
     make.add_argument("--continuity", required=True, choices=CONTINUITIES,
                       help="one-off, or undecided for the first images of a character that may recur; "
                            "recurring once the author has accepted an identity image")
@@ -228,7 +228,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             from production_binding import new_output, studio_file, write_new
             root = args.root.absolute() if args.root is not None else None
             out = new_output(root, args.out, option="output path")
-            spec = draft(model=args.model, brief=args.brief, subject=args.subject, kind=args.kind, framing=args.framing,
+            spec = draft(model=args.model, brief=args.brief, subject=args.subject, kind=args.kind,
                          render_intent=load(studio_file(root, args.render_intent, option="--render-intent")))
             write_new(out, (json.dumps(spec, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8"),
                       option="output path", value=args.out)

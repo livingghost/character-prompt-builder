@@ -14,7 +14,7 @@
     },
     {
       "path": "references/runtime/state-aware-series.md",
-      "sha256": "b6023c821777d51287031c1653c7442b4945fb03396c72478cc36cd0ad7c8ce1"
+      "sha256": "6fe39048408424f3ea6b51c928052c1a3d8bc9a61df170bcfb4cff2fbdd0729c"
     },
     {
       "path": "references/runtime/prompt-writing-guide.md",
@@ -59,7 +59,7 @@
     }
   },
   "route": "state-series",
-  "reading_key": "65173bbfa57878679150d9a4f4624d22",
+  "reading_key": "8a59d3ee099efc22801321cca49008ff",
   "applied": [
     {
       "path": "references/runtime/state-aware-series.md",

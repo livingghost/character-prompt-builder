@@ -36,7 +36,7 @@ PACK_LOCK_SCHEMA_PATH = SCHEMA_ROOT / "pack-lock.schema.json"
 COMMONS_PACK_ID = "01a0043b-2250-720d-87b7-f1e6fd7ed230"
 PACK_RECORD_SCHEMA_PATH = SCHEMA_ROOT / "pack-record-file.schema.json"
 PACK_STATE_SCHEMA_PATH = SCHEMA_ROOT / "pack-state.schema.json"
-VISUAL_EVIDENCE_BUNDLE_SCHEMA_PATH = SCHEMA_ROOT / "visual-evidence-bundle.schema.json"
+VISUAL_EVIDENCE_BUNDLE_SCHEMA_PATH = ROOT / "protocols" / "shared-state" / "schemas" / "visual-evidence-bundle.schema.json"
 DEFAULT_PACK_STATE_PATH = ROOT / "config" / "default-pack-state.json"
 PACK_INITIALIZATION_PATH = ROOT / "config" / "pack-initialization.json"
 

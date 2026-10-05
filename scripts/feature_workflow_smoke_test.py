@@ -11,6 +11,7 @@ import contextlib
 import copy
 import io
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -544,11 +545,12 @@ class FeatureWorkflowTests(unittest.TestCase):
         ids={excerpt['excerpt_id'] for excerpt in finish_draft(self.root,'plan.json')['excerpts']}
         self.assertNotIn('C01-appearance-1',ids); self.assertIn('C02-appearance-1',ids)
         built=scene.build(self.root,'plan.json','material')
-        self.assertEqual(built['identities'],[{'subject_id':'C01','studio_character':'C01','slot':'base.front',
-            'iteration_id':row['iteration_id'],'image_sha256':row['result']['sha256']}])
+        self.assertEqual(built['identities'],[{'subject_id':'C01','path':row['result']['path'],
+            'image_sha256':row['result']['sha256']}])
         self.assertTrue(scene.verify(self.root,'plan.json','material')['ok'])
         newer=self.iteration('red'); studio.accept(self.root,'C01',newer['iteration_id'])
-        with self.assertRaisesRegex(ValueError,'C01: the identity image base.front .* is not accepted and bound'):
+        with self.assertRaisesRegex(ValueError,'C01: the identity image '+re.escape(row['result']['path'])
+                                    +' .* is not accepted and bound'):
             scene.verify(self.root,'plan.json','material')
 
 

@@ -9,8 +9,8 @@ from typing import Any, Mapping
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SURFACE_LIGHTING_SCHEMA = ROOT / "schemas" / "surface-lighting-plan.schema.json"
-SURFACE_LIGHTING_TEMPLATE = ROOT / "templates" / "surface-lighting-plan.json"
+SURFACE_LIGHTING_SCHEMA = ROOT / "protocols" / "shared-state" / "schemas" / "surface-lighting-plan.schema.json"
+SURFACE_LIGHTING_TEMPLATE = ROOT / "protocols" / "shared-state" / "templates" / "surface-lighting-plan.template.json"
 
 
 def _load_object(path: Path) -> dict[str, Any]:

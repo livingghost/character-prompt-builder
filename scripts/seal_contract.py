@@ -12,9 +12,10 @@ Which files are published is read from the block itself, so adding one is a
 matter of adding its line to the block by hand and running this.
 
 It also seals `protocols/contract-manifest.json`, the public contract set: the
-byte hash of each registered schema, found through `config/protocol-layout.json`,
-and of the semantics document, then the digest of the set. Which schemas are
-registered is read from the manifest.
+byte hash of each listed schema, template and document, of the semantics
+document and of the validator `scripts/protocol_contract.py`, then the digest
+of the set. Which files are listed is read from the manifest. A file under
+`protocols/` that the manifest does not list stops the seal and is named.
 
     python scripts/seal_contract.py            seal, and say what moved
     python scripts/seal_contract.py --check    say whether sealing would move anything, exit 1 if so
@@ -22,11 +23,11 @@ registered is read from the manifest.
 from __future__ import annotations
 import operation_context as _operation_context
 
-import argparse
 import hashlib
-import json
 import re
 from pathlib import Path
+
+import protocol_contract as contract
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = "references/narrative-protocol.md"
@@ -40,12 +41,12 @@ def normalised(path: Path) -> str:
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
-def sealed(contract: str, carrier: str) -> tuple[str, str, str]:
+def sealed(contract_text: str, carrier: str) -> tuple[str, str, str]:
     """The contract and carrier as sealing leaves them, and the digest written."""
-    block = PUBLISHED.search(contract)
+    block = PUBLISHED.search(contract_text)
     if not block:
         raise SystemExit(f"{CONTRACT}: the published block is not there")
-    digest = hashlib.sha256(PUBLISHED.sub("", contract).encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(PUBLISHED.sub("", contract_text).encode("utf-8")).hexdigest()
     if not DIGEST_FIELD.search(carrier):
         raise SystemExit(f"{CARRIER}: carries no CONTRACT_SHA256 field")
     carrier = DIGEST_FIELD.sub(f'CONTRACT_SHA256 = "{digest}"', carrier)
@@ -59,25 +60,7 @@ def sealed(contract: str, carrier: str) -> tuple[str, str, str]:
             raise SystemExit(f"{relative}: published but not on disk")
     width = max(len(relative) for relative in hashes)
     rebuilt = "```text\n" + "".join(f"{relative:<{width}}  {digest}\n" for relative, digest in hashes.items()) + "```\n"
-    return contract.replace(block.group(0), rebuilt), carrier, digest
-
-
-MANIFEST = "protocols/contract-manifest.json"
-LAYOUT = "config/protocol-layout.json"
-
-
-def sealed_manifest(raw: str) -> str:
-    """The public contract manifest with every byte hash and its set digest current."""
-    value = json.loads(raw)
-    layout = json.loads((ROOT / LAYOUT).read_text(encoding="utf-8"))
-    for row in value["schemas"]:
-        group, name = row["schema"].split("/", 1)
-        row["sha256"] = hashlib.sha256((ROOT / layout[group] / name).read_bytes()).hexdigest()
-    value["semantics"]["sha256"] = hashlib.sha256((ROOT / value["semantics"]["path"]).read_bytes()).hexdigest()
-    content = {key: item for key, item in value.items() if key != "contract_set_sha256"}
-    canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
-    value["contract_set_sha256"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-    return json.dumps(value, indent=2, ensure_ascii=False) + "\n"
+    return contract_text.replace(block.group(0), rebuilt), carrier, digest
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -85,14 +68,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true", help="Report what sealing would move; write nothing")
     args = parser.parse_args(argv)
     contract_path, carrier_path = ROOT / CONTRACT, ROOT / CARRIER
-    contract = contract_path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    contract_text = contract_path.read_text(encoding="utf-8").replace("\r\n", "\n")
     carrier = carrier_path.read_text(encoding="utf-8").replace("\r\n", "\n")
-    manifest_path = ROOT / MANIFEST
+    manifest_path = ROOT / contract.MANIFEST_PATH
     manifest = manifest_path.read_text(encoding="utf-8").replace("\r\n", "\n")
-    new_manifest = sealed_manifest(manifest)
-    new_contract, new_carrier, digest = sealed(contract, carrier)
-    moved = [name for name, before, after in ((CONTRACT, contract, new_contract), (CARRIER, carrier, new_carrier),
-                                               (MANIFEST, manifest, new_manifest))
+    try:
+        new_manifest = contract.seal_registry(manifest)
+    except ValueError as exc:
+        raise SystemExit(f"{contract.MANIFEST_PATH}: {exc}")
+    new_contract, new_carrier, digest = sealed(contract_text, carrier)
+    moved = [name for name, before, after in ((CONTRACT, contract_text, new_contract), (CARRIER, carrier, new_carrier),
+                                               (contract.MANIFEST_PATH, manifest, new_manifest))
              if before != after]
     print(f"CONTRACT_SHA256 = {digest}")
     for line in LINE.findall(PUBLISHED.search(new_contract).group(0)):

@@ -1,6 +1,6 @@
 # Protocol Exchange
 
-Use public artifacts to deliver or receive state, morphology, reference, adoption and viewpoint records. The [contract registry](../protocols/contract-manifest.json) lists public types and schema dependencies; the [semantic rules](../protocols/semantics.md) define their interpretation and content hashes. The [schema path mapping](../config/protocol-layout.json) locates the definitions used by the validator.
+Use public artifacts to deliver or receive state, morphology, reference, adoption and viewpoint records. The [contract registry](../protocols/contract-manifest.json) lists public types and schema dependencies; the [semantic rules](../protocols/semantics.md) define their interpretation and content hashes. The validator reads each registered schema from `protocols/<group>/schemas/`.
 
 ## Inspect, export and verify
 

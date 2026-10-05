@@ -97,7 +97,7 @@ def run(root: Path = ROOT) -> dict[str, Any]:
         }
         request["request_sha256"] = viewpoint_hash(request)
         request_schema = load_json(
-            root / "schemas" / "viewpoint" / "shot-request.schema.json"
+            root / "protocols" / "viewpoint" / "schemas" / "shot-request.schema.json"
         )
         request_schema_errors = validate_against_schema(request, request_schema)
         report = validate_bundle(

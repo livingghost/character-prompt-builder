@@ -35,7 +35,7 @@ from catalog_cli import (
 import catalog_cli as catalog_cli_module
 from pack_manager import PackSettings, species_scaffold_issues, validate_pack
 from execution_contract import sha256_file
-from validate_state_protocol import validate as validate_state_protocol
+from validate_state_protocol import template_digest_errors, validate as validate_state_protocol
 from validate_reference_corpus import validate as validate_reference_corpus
 from check_dependencies import TESTED as TESTED_REQUIREMENTS, check as check_dependencies
 from shot_request import validate_request as validate_shot_request
@@ -193,12 +193,12 @@ ROOT_REQUIRED = (
     'scripts/native_vector_visual_evidence.py',
     'scripts/compact_perceptual_visual_evidence.py',
     'scripts/validate_reference_corpus.py',
-    'schemas/frame-character.schema.json',
-    'schemas/part-measurement.schema.json',
-    'schemas/accessory-geometry.schema.json',
-    'schemas/visual-authority.schema.json',
+    'protocols/shared-state/schemas/frame-character.schema.json',
+    'protocols/shared-state/schemas/part-measurement.schema.json',
+    'protocols/shared-state/schemas/accessory-geometry.schema.json',
+    'protocols/shared-state/schemas/visual-authority.schema.json',
     'schemas/semantic-region-map.schema.json',
-    'schemas/visual-evidence-bundle.schema.json',
+    'protocols/shared-state/schemas/visual-evidence-bundle.schema.json',
     'schemas/vectorization-result.schema.json',
     'schemas/audit-extraction-set.schema.json',
     'schemas/runtime-attachment-build.schema.json',
@@ -211,15 +211,15 @@ ROOT_REQUIRED = (
     'schemas/pack-state.schema.json',
     'schemas/prompt-vocabulary.schema.json',
     'schemas/prompt-writing-guide.schema.json',
-    'schemas/prepared-generation-reference.schema.json',
+    'protocols/shared-state/schemas/prepared-generation-reference.schema.json',
     'schemas/upscale-package.schema.json',
     'schemas/character-sheet-data.schema.json',
     'schemas/character-sheet-render-profile.schema.json',
-    'schemas/reference-use-plan.schema.json',
-    'schemas/surface-lighting-plan.schema.json',
-    'schemas/prepared-reference-set.schema.json',
-    'templates/reference-use-plan.json',
-    'templates/surface-lighting-plan.json',
+    'protocols/shared-state/schemas/reference-use-plan.schema.json',
+    'protocols/shared-state/schemas/surface-lighting-plan.schema.json',
+    'protocols/shared-state/schemas/prepared-reference-set.schema.json',
+    'protocols/shared-state/templates/reference-use-plan.template.json',
+    'protocols/shared-state/templates/surface-lighting-plan.template.json',
     'templates/prepared-reference-set.json',
     'templates/upscale-package-template.json',
     'templates/character-sheet.template.html',
@@ -228,19 +228,19 @@ ROOT_REQUIRED = (
     'templates/reference-visual-authority.template.json',
     'templates/reference-semantic-region-map.template.json',
     'templates/vectorization-result.template.json',
-    'schemas/morphology-feature.schema.json',
-    'schemas/morphology-feature-instance.schema.json',
-    'schemas/species-morphology-profile.schema.json',
-    'schemas/individual-morphology-contract.schema.json',
-    'schemas/resolved-morphology.schema.json',
-    'templates/state/species-morphology-profile.template.json',
-    'templates/state/individual-morphology-contract.template.json',
+    'protocols/shared-state/schemas/morphology-feature.schema.json',
+    'protocols/shared-state/schemas/morphology-feature-instance.schema.json',
+    'protocols/shared-state/schemas/species-morphology-profile.schema.json',
+    'protocols/shared-state/schemas/individual-morphology-contract.schema.json',
+    'protocols/shared-state/schemas/resolved-morphology.schema.json',
+    'protocols/shared-state/templates/species-morphology-profile.template.json',
+    'protocols/shared-state/templates/individual-morphology-contract.template.json',
     'templates/frame-character-template.json',
     'templates/part-measurement-template.json',
     'templates/accessory-geometry-template.json',
-    'templates/state/visual-authority.template.json',
-    'templates/state/semantic-region-map.template.json',
-    'templates/state/visual-evidence-bundle.template.json',
+    'protocols/shared-state/templates/visual-authority.template.json',
+    'templates/semantic-region-map.template.json',
+    'protocols/shared-state/templates/visual-evidence-bundle.template.json',
     'references/runtime/prompt-composition.md',
     'references/runtime/prompt-vocabulary.md',
     'references/runtime/prompt-writing-guide.md',
@@ -260,10 +260,10 @@ ROOT_REQUIRED = (
     'references/catalog-cache-lifecycle.md',
     'config/default-pack-state.json',
     'config/integration-capabilities.json',
-    'schemas/integration-interface.schema.json',
-    'schemas/integration-capability-manifest.schema.json',
-    'schemas/interchange-envelope.schema.json',
-    'templates/handoff/interchange-envelope.template.json',
+    'protocols/interchange/schemas/integration-interface.schema.json',
+    'protocols/interchange/schemas/integration-capability-manifest.schema.json',
+    'protocols/interchange/schemas/interchange-envelope.schema.json',
+    'protocols/interchange/templates/interchange-envelope.template.json',
     'scripts/search_regression.py',
     'scripts/search_discovery.py',
     'scripts/search_discovery_smoke_test.py',
@@ -290,34 +290,34 @@ ROOT_REQUIRED = (
     'templates/growth-geometry-template.json',
     'templates/terminal-growth-contract-template.json',
     'templates/generation-package-template.json',
-    'schemas/production-spec.schema.json',
+    'protocols/shared-state/schemas/production-spec.schema.json',
     'schemas/catalog-query.schema.json',
-    'schemas/distinctive-detail.schema.json',
+    'protocols/shared-state/schemas/distinctive-detail.schema.json',
     'schemas/distinctive-detail-observation.schema.json',
     'templates/distinctive-detail-observation-template.json',
-    'schemas/performance-language.schema.json',
-    'schemas/camera-framing-contract.schema.json',
-    'schemas/garment-geometry.schema.json',
-    'schemas/growth-geometry.schema.json',
+    'protocols/shared-state/schemas/performance-language.schema.json',
+    'protocols/shared-state/schemas/camera-framing-contract.schema.json',
+    'protocols/shared-state/schemas/garment-geometry.schema.json',
+    'protocols/shared-state/schemas/growth-geometry.schema.json',
     'schemas/terminal-growth-contract.schema.json',
-    'schemas/character-identity-contract.schema.json',
-    'schemas/state-event.schema.json',
-    'schemas/state-process.schema.json',
-    'schemas/state-snapshot.schema.json',
-    'schemas/scene-context-snapshot.schema.json',
-    'schemas/visual-state-projection.schema.json',
-    'schemas/state-lineage.schema.json',
-    'schemas/reference-bundle-plan.schema.json',
-    'schemas/candidate-manifest.schema.json',
-    'schemas/adoption-receipt.schema.json',
-    'schemas/viewpoint/shot-request.schema.json',
-    'templates/state/character-identity-contract.template.json',
-    'templates/state/state-event.template.json',
-    'templates/state/state-snapshot.template.json',
-    'templates/state/scene-context-snapshot.template.json',
-    'templates/state/visual-state-projection.template.json',
-    'templates/state/state-lineage.template.json',
-    'templates/handoff/shot-request.template.json',
+    'protocols/shared-state/schemas/character-identity-contract.schema.json',
+    'protocols/shared-state/schemas/state-event.schema.json',
+    'protocols/shared-state/schemas/state-process.schema.json',
+    'protocols/shared-state/schemas/state-snapshot.schema.json',
+    'protocols/shared-state/schemas/scene-context-snapshot.schema.json',
+    'protocols/shared-state/schemas/visual-state-projection.schema.json',
+    'protocols/shared-state/schemas/state-lineage.schema.json',
+    'protocols/shared-state/schemas/reference-bundle-plan.schema.json',
+    'protocols/shared-state/schemas/candidate-manifest.schema.json',
+    'protocols/shared-state/schemas/adoption-receipt.schema.json',
+    'protocols/viewpoint/schemas/shot-request.schema.json',
+    'protocols/shared-state/templates/character-identity-contract.template.json',
+    'protocols/shared-state/templates/state-event.template.json',
+    'protocols/shared-state/templates/state-snapshot.template.json',
+    'protocols/shared-state/templates/scene-context-snapshot.template.json',
+    'protocols/shared-state/templates/visual-state-projection.template.json',
+    'protocols/shared-state/templates/state-lineage.template.json',
+    'protocols/viewpoint/templates/shot-request.template.json',
     'references/creative-core.md',
     'references/aesthetic-language.md',
     'references/production-specification.md',
@@ -2049,8 +2049,8 @@ def validate(
     # Lint every schema document statically. Instance-driven validation only
     # visits the branches an artifact happens to exercise, so an unimplemented
     # keyword parked in an unvisited branch would stay a silent no-op.
-    schema_root = root / "schemas"
-    for schema_path in sorted(schema_root.rglob("*.json"), key=lambda value: value.as_posix()):
+    schema_paths = list((root / "schemas").rglob("*.json")) + list((root / "protocols").glob("*/schemas/*.json"))
+    for schema_path in sorted(schema_paths, key=lambda value: value.as_posix()):
         rel = schema_path.relative_to(root).as_posix()
         schema_document = parsed_json.get(rel)
         if not isinstance(schema_document, dict):
@@ -2275,7 +2275,7 @@ def validate(
         errors.append("generation package domain_realizations must be an object keyed by subject domain")
     production_spec_template = json.loads((root / "templates/production-spec-template.json").read_text(encoding="utf-8"))
     distinctive_detail_template = json.loads((root / "templates/distinctive-detail-template.json").read_text(encoding="utf-8"))
-    distinctive_detail_schema = json.loads((root / "schemas/distinctive-detail.schema.json").read_text(encoding="utf-8"))
+    distinctive_detail_schema = json.loads((root / "protocols/shared-state/schemas/distinctive-detail.schema.json").read_text(encoding="utf-8"))
     expected_detail_fields = {
         "id", "feature_type", "target_region", "laterality",
         "landmark_relation", "count_or_distribution", "relative_size",
@@ -2290,7 +2290,7 @@ def validate(
         errors.append("distinctive-detail schema required fields are invalid")
 
     performance_template = json.loads((root / "templates/performance-language-template.json").read_text(encoding="utf-8"))
-    performance_schema = json.loads((root / "schemas/performance-language.schema.json").read_text(encoding="utf-8"))
+    performance_schema = json.loads((root / "protocols/shared-state/schemas/performance-language.schema.json").read_text(encoding="utf-8"))
     expected_performance_fields = {
         "felt_emotion", "displayed_emotion", "masked_or_conflicted_emotion",
         "intent", "viewer_or_partner_relationship", "intensity", "temporal_phase",
@@ -2321,10 +2321,10 @@ def validate(
         errors.append("search discovery does not route body-language-cue records to performance")
 
     structural_contracts = [
-        ("camera-framing", "templates/camera-framing-contract-template.json", "schemas/camera-framing-contract.schema.json"),
-        ("garment-geometry", "templates/garment-geometry-template.json", "schemas/garment-geometry.schema.json"),
+        ("camera-framing", "templates/camera-framing-contract-template.json", "protocols/shared-state/schemas/camera-framing-contract.schema.json"),
+        ("garment-geometry", "templates/garment-geometry-template.json", "protocols/shared-state/schemas/garment-geometry.schema.json"),
         ("terminal-growth", "templates/terminal-growth-contract-template.json", "schemas/terminal-growth-contract.schema.json"),
-        ("growth-geometry", "templates/growth-geometry-template.json", "schemas/growth-geometry.schema.json"),
+        ("growth-geometry", "templates/growth-geometry-template.json", "protocols/shared-state/schemas/growth-geometry.schema.json"),
     ]
     for label, template_rel, schema_rel in structural_contracts:
         template_value = json.loads((root / template_rel).read_text(encoding="utf-8"))
@@ -2338,7 +2338,7 @@ def validate(
 
     required_spec_fields = {
         "source_brief", "target_model", "creative_latitude",
-        "image_promise", "art_direction", "state_context", "subjects", "scene", "camera",
+        "image_promise", "art_direction", "state_context", "subjects", "scene",
         "lighting", "visual_language", "constraints", "selected_preset_ids", "render_intent",
     }
     if set(production_spec_template) != required_spec_fields:
@@ -2346,6 +2346,19 @@ def validate(
             "production-spec template top-level fields are invalid: "
             f"expected {sorted(required_spec_fields)}, got {sorted(production_spec_template)}"
         )
+    # A structured contract is present only once decided; "unspecified" is for free text.
+    structured_blocks = [("$.camera", production_spec_template.get("camera"))]
+    for index, subject in enumerate(production_spec_template.get("subjects", [])):
+        if isinstance(subject, dict):
+            structured_blocks.extend(
+                (f"$.subjects[{index}].{field}", subject.get(field))
+                for field in ("performance", "resolved_morphology", "frame_character", "growth_geometry",
+                              "load_bearing_part_measurements", "accessory_geometry", "garment_geometry",
+                              "distinctive_details")
+            )
+    for path, block in structured_blocks:
+        if block is not None and "unspecified" in json.dumps(block, ensure_ascii=False):
+            errors.append(f"production-spec template holds 'unspecified' inside a structured contract: {path}")
     visual_language = production_spec_template.get("visual_language", {})
     expected_visual_language = {
         "aesthetic_core", "style_family", "domain_realizations",
@@ -2353,7 +2366,7 @@ def validate(
     }
     if set(visual_language) != expected_visual_language:
         errors.append("production-spec visual_language fields are invalid")
-    production_schema = json.loads((root / "schemas/production-spec.schema.json").read_text(encoding="utf-8"))
+    production_schema = json.loads((root / "protocols/shared-state/schemas/production-spec.schema.json").read_text(encoding="utf-8"))
     subject_required = set(production_schema.get("properties", {}).get("subjects", {}).get("items", {}).get("required", []))
     subject_properties = production_schema.get("properties", {}).get("subjects", {}).get("items", {}).get("properties", {})
     if subject_properties.get("growth_geometry", {}).get("$ref") != "growth-geometry.schema.json":
@@ -2371,14 +2384,14 @@ def validate(
     performance_contract = production_schema.get("properties", {}).get("subjects", {}).get("items", {}).get("properties", {}).get("performance", {})
     if performance_contract.get("$ref") != "performance-language.schema.json":
         errors.append("production-spec subjects.performance must reference performance-language.schema.json")
-    identity_schema = json.loads((root / "schemas/character-identity-contract.schema.json").read_text(encoding="utf-8"))
+    identity_schema = json.loads((root / "protocols/shared-state/schemas/character-identity-contract.schema.json").read_text(encoding="utf-8"))
     stable_identity = identity_schema.get("properties", {}).get("stable_identity", {})
     if "growth_geometry" not in set(stable_identity.get("required", [])):
         errors.append("character identity stable_identity must require growth_geometry")
     if stable_identity.get("properties", {}).get("growth_geometry", {}).get("$ref") != "growth-geometry.schema.json":
         errors.append("character identity stable_identity.growth_geometry must reference growth-geometry.schema.json")
 
-    projection_schema = json.loads((root / "schemas/visual-state-projection.schema.json").read_text(encoding="utf-8"))
+    projection_schema = json.loads((root / "protocols/shared-state/schemas/visual-state-projection.schema.json").read_text(encoding="utf-8"))
     projection_performance = projection_schema.get("properties", {}).get("performance_language", {})
     if projection_performance.get("$ref") != "performance-language.schema.json":
         errors.append("visual-state-projection performance_language must reference performance-language.schema.json")
@@ -2492,12 +2505,25 @@ def validate(
     check_declared_enumerations(root, errors)
     check_model_record_keys(root, errors)
 
-    handoff_template_path = root / "templates/handoff/shot-request.template.json"
+    handoff_template_path = root / "protocols/viewpoint/templates/shot-request.template.json"
     try:
         handoff_template = json.loads(handoff_template_path.read_text(encoding="utf-8"))
         handoff_errors.extend(validate_shot_request(handoff_template, allow_placeholder_hash=True))
     except Exception as exc:  # noqa: BLE001
         handoff_errors.append(f"shot-request handoff validation failed: {exc}")
+    # The envelope is not a registered artifact and its run-time check binds a
+    # capability manifest, so the template is checked against its schema alone,
+    # with every digest the placeholder.
+    envelope_template_relative = "protocols/interchange/templates/interchange-envelope.template.json"
+    try:
+        envelope_template = json.loads((root / envelope_template_relative).read_text(encoding="utf-8"))
+        envelope_schema = json.loads(
+            (root / "protocols/interchange/schemas/interchange-envelope.schema.json").read_text(encoding="utf-8"))
+        handoff_errors.extend(f"{envelope_template_relative}: {message}"
+                              for message in validate_against_schema(envelope_template, envelope_schema))
+        handoff_errors.extend(template_digest_errors(envelope_template_relative, envelope_template))
+    except Exception as exc:  # noqa: BLE001
+        handoff_errors.append(f"interchange envelope template validation failed: {exc}")
     shot_binding_regression = state_protocol.get("shot_binding_regression") or {
         "ok": False,
         "checks": 0,
@@ -2589,8 +2615,8 @@ def validate(
                 root / "scripts" / "pack_cache.py",
                 root / "schemas" / "catalog-query.schema.json",
                 root / "templates" / "catalog-query-template.json",
-                root / "schemas" / "viewpoint" / "shot-request.schema.json",
-                root / "templates" / "handoff" / "shot-request.template.json",
+                root / "protocols" / "viewpoint" / "schemas" / "shot-request.schema.json",
+                root / "protocols" / "viewpoint" / "templates" / "shot-request.template.json",
                 root / "scripts" / "shot_request.py",
                 root / "scripts" / "shot_request_smoke_test.py",
             )

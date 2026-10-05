@@ -6,6 +6,7 @@
   "required": [
     "artifact_type",
     "envelope_id",
+    "contract_set_sha256",
     "contract_profile",
     "profile_sha256",
     "origin",
@@ -22,6 +23,10 @@
     "envelope_id": {
       "type": "string",
       "minLength": 1
+    },
+    "contract_set_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "contract_profile": {
       "type": "string",

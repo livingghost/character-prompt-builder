@@ -212,11 +212,12 @@ class ConsultationTests(unittest.TestCase):
         camera = copy.deepcopy(self.choices['uses'][0])
         camera.update(record_id='camera-close-eye-level', borrowed='Eye-level portrait framing.',
                       preserved='The declared identity proportions.', changed='Apply to this local frame.',
-                      targets=['/camera/pitch_degrees'], review_question='Does the observed framing preserve the intended viewpoint?')
+                      targets=['/art_direction/composition_and_visual_hierarchy'],
+                      review_question='Does the observed framing preserve the intended viewpoint?')
         self.choices['uses'].append(camera); self.write('decisions.json', self.choices)
         result = self.apply(); app = c.load(self.root / result['application'])
         self.assertEqual(len(app['applications']), 2)
-        self.assertEqual(set(app['applications'][1]['target_values']), {'/camera/pitch_degrees'})
+        self.assertEqual(set(app['applications'][1]['target_values']), {'/art_direction/composition_and_visual_hierarchy'})
         self.assertEqual(len(tool.review_questions(self.root, c.load(self.root / result['task']))['lamp']), 2)
 
     def test_review_reads_the_prepared_application_snapshot(self):

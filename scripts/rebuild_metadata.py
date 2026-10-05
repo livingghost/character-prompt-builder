@@ -21,6 +21,7 @@ from catalog_cli import (
 from execution_contract import atomic, sha256_file
 from integration_contract import (
     content_hash,
+    installed_contract_set_sha256,
     profile_hash,
     validate_capabilities,
     validate_envelope,
@@ -102,7 +103,12 @@ def rebuild_implementation_index() -> list[str]:
 
 
 def rebuild_integration_capabilities() -> dict[str, Any]:
-    """Finalize capabilities and the canonical envelope before release hashing."""
+    """Finalize the capability manifest before release hashing.
+
+    Each produced profile is checked by sealing an envelope for it in memory;
+    the protocol's envelope template is a source file with placeholder hashes
+    and is never rewritten here.
+    """
 
     path = ROOT / "config" / "integration-capabilities.json"
     value = load_json(path)
@@ -128,36 +134,32 @@ def rebuild_integration_capabilities() -> dict[str, Any]:
             "finalized integration capability manifest is invalid: "
             + "; ".join(report.get("errors", []))
         )
-    envelope_path = ROOT / "templates" / "handoff" / "interchange-envelope.template.json"
-    envelope = load_json(envelope_path)
-    if not isinstance(envelope, dict):
-        raise RuntimeError("interchange envelope template must be an object")
-    produces = interfaces["produces"]
-    # A profile is unique within a direction, so the profile name settles which
-    # row this envelope belongs to. Matching additionally on who is at the other
-    # end would tie the template to a name nothing here can verify.
-    matching_profiles = [
-        row for row in produces if row.get("profile") == envelope.get("contract_profile")
-    ]
-    if len(matching_profiles) != 1:
-        raise RuntimeError(
-            "interchange envelope must identify exactly one produced capability profile"
-        )
-    envelope["profile_sha256"] = matching_profiles[0]["profile_sha256"]
-    envelope["required_features"] = list(matching_profiles[0]["required_features"])
-    origin = envelope.get("origin")
-    if not isinstance(origin, dict):
-        raise RuntimeError("interchange envelope origin must be an object")
-    origin["capability_manifest_sha256"] = value["manifest_sha256"]
-    envelope["envelope_sha256"] = content_hash(envelope, "envelope_sha256")
-    envelope_report = validate_envelope(envelope, capabilities=value, direction="produces")
-    if not envelope_report.get("ok"):
-        raise RuntimeError(
-            "finalized interchange envelope template is invalid: "
-            + "; ".join(envelope_report.get("errors", []))
-        )
+    for row in interfaces["produces"]:
+        envelope = {
+            "artifact_type": "interchange-envelope",
+            "envelope_id": "IE-" + row["profile"].upper(),
+            "contract_set_sha256": installed_contract_set_sha256(),
+            "contract_profile": row["profile"],
+            "profile_sha256": row["profile_sha256"],
+            "origin": {"capability_manifest_sha256": value["manifest_sha256"]},
+            "payload": {
+                "artifact_type": row["artifact_types"][0],
+                "artifact_id": "self-check",
+                "media_type": "application/json",
+                "sha256": "0" * 64,
+            },
+            "required_features": list(row["required_features"]),
+            "optional_features": [],
+            "extensions": {},
+        }
+        envelope["envelope_sha256"] = content_hash(envelope, "envelope_sha256")
+        envelope_report = validate_envelope(envelope, capabilities=value, direction="produces")
+        if not envelope_report.get("ok"):
+            raise RuntimeError(
+                f"an envelope sealed for the produced profile {row['profile']} is invalid: "
+                + "; ".join(envelope_report.get("errors", []))
+            )
     dump_json(path, value)
-    dump_json(envelope_path, envelope)
     return value
 
 

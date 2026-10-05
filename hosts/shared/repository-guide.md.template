@@ -12,7 +12,7 @@ Generated file. Edit `hosts/shared/repository-guide.md.template`.
   SKILL.md                                        the skill, and the plugin root
   .claude-plugin/ .codex-plugin/ .agents/ hooks/ MANIFEST.json      generated
   hosts/shared/                                   templates for the generated
-  references/ scripts/ schemas/ templates/ config/ packs/ agents/
+  references/ scripts/ schemas/ templates/ protocols/ config/ packs/ agents/
   examples/ .github/ .gitattributes .gitignore
 ```
 
@@ -130,13 +130,12 @@ The product's own tests and release checks run on a commons-only pack state
 (`pack_cli.py ready --only <commons-id>`), so a personal pack never changes
 their result.
 
-`.claude-plugin/`, `.codex-plugin/`, `.agents/`, `hooks/`, `MANIFEST.json`,
-`config/integration-capabilities.json` and the handoff envelope template are
-generated from `[package]` in `package-manifest.toml`, and
-`config/implementation-files.json` from the import closure of the production
-modules, with the digest of each module. A preparation refuses an index whose
-modules changed since it was written. Edit the metadata and the templates,
-never the generated files.
+`.claude-plugin/`, `.codex-plugin/`, `.agents/`, `hooks/`, `MANIFEST.json` and
+`config/integration-capabilities.json` are generated from `[package]` in
+`package-manifest.toml`, and `config/implementation-files.json` from the import
+closure of the production modules, with the digest of each module. A
+preparation refuses an index whose modules changed since it was written. Edit
+the metadata and the templates, never the generated files.
 
 The required checks are in [CONTRIBUTING.md](CONTRIBUTING.md), and
 [Release Validation](references/release/validation.md) is the sole authority for

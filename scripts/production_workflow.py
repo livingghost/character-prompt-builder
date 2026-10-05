@@ -228,11 +228,12 @@ def implementation_files() -> list[str]:
             raise ProductionError('IMPLEMENTATION_CHANGED',
                                   f'A module of the installed implementation differs from {IMPLEMENTATION_INDEX}.',
                                   phase='implementation', file=path, expected=expected, actual=actual, required_action=rebuild)
-    schemas = sorted(path.relative_to(ROOT).as_posix() for path in (ROOT / 'schemas').rglob('*.json'))
-    if schemas != [path for path in files if path.startswith('schemas/')]:
-        raise ProductionError('IMPLEMENTATION_CHANGED',
-                              f'The schema directory differs from the schemas {IMPLEMENTATION_INDEX} lists.',
-                              phase='implementation', file='schemas', required_action=rebuild)
+    for parent in ('schemas', 'protocols'):
+        listed = sorted(path.relative_to(ROOT).as_posix() for path in (ROOT / parent).rglob('*.json'))
+        if listed != [path for path in files if path.startswith(parent + '/')]:
+            raise ProductionError('IMPLEMENTATION_CHANGED',
+                                  f'The {parent} directory differs from the files {IMPLEMENTATION_INDEX} lists for it.',
+                                  phase='implementation', file=parent, required_action=rebuild)
     return sorted(set(files) | {IMPLEMENTATION_INDEX})
 
 
@@ -257,8 +258,10 @@ def implementation_closure() -> list[str]:
             literals.update(strings)
             pending.extend(found)
     files = set(modules) | {execution_routes.MANIFEST, IMPLEMENTATION_INDEX}
-    # Validators choose schema files by computed names, so every schema is part of the implementation.
-    files.update(f.relative_to(ROOT).as_posix() for f in (ROOT / 'schemas').rglob('*.json'))
+    # Validators choose schema files by computed names, so every schema and every
+    # protocol record is part of the implementation.
+    for parent in ('schemas', 'protocols'):
+        files.update(f.relative_to(ROOT).as_posix() for f in (ROOT / parent).rglob('*.json'))
     files.update(f.relative_to(ROOT).as_posix() for f in scripts.glob('*.json') if f.name in literals)
     return sorted(files)
 

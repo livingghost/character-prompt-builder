@@ -1,0 +1,348 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "performance-language.schema.json",
+  "title": "Performance Language",
+  "type": "object",
+  "required": [
+    "felt_emotion",
+    "displayed_emotion",
+    "masked_or_conflicted_emotion",
+    "intent",
+    "viewer_or_partner_relationship",
+    "intensity",
+    "temporal_phase",
+    "channel_cues",
+    "interpretation_candidates",
+    "selected_interpretation",
+    "ambiguity_notes",
+    "prompt_projection"
+  ],
+  "properties": {
+    "felt_emotion": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "displayed_emotion": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "masked_or_conflicted_emotion": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "intent": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "viewer_or_partner_relationship": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "intensity": {
+      "enum": [
+        "subtle",
+        "moderate",
+        "strong",
+        "extreme"
+      ]
+    },
+    "temporal_phase": {
+      "enum": [
+        "anticipation",
+        "onset",
+        "held",
+        "peak",
+        "release",
+        "aftermath"
+      ]
+    },
+    "channel_cues": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "cue_id",
+          "channel",
+          "observation",
+          "visual_instruction",
+          "laterality",
+          "intensity",
+          "direction_or_target",
+          "visibility",
+          "evidence_status",
+          "confidence",
+          "stability"
+        ],
+        "properties": {
+          "cue_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "channel": {
+            "enum": [
+              "gaze",
+              "eyes-lids-brows",
+              "mouth-jaw-tongue",
+              "cheeks-skin-color",
+              "head-neck",
+              "torso-posture",
+              "arms-hands-manipulators",
+              "legs-feet-locomotion",
+              "distance-contact",
+              "breath-voice",
+              "physiology",
+              "ears",
+              "tail",
+              "whiskers",
+              "crest-feathers",
+              "wings",
+              "horns-antennae-tentacles",
+              "surface-response",
+              "optics-sensors",
+              "panels-fins",
+              "actuators-servos",
+              "indicators-emissives",
+              "ventilation-sound",
+              "other"
+            ]
+          },
+          "observation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "visual_instruction": {
+            "type": "string",
+            "minLength": 1
+          },
+          "laterality": {
+            "enum": [
+              "left",
+              "right",
+              "bilateral",
+              "centerline",
+              "distributed",
+              "variable",
+              "not-applicable"
+            ]
+          },
+          "intensity": {
+            "enum": [
+              "subtle",
+              "moderate",
+              "strong",
+              "extreme"
+            ]
+          },
+          "direction_or_target": {
+            "type": "string",
+            "minLength": 1
+          },
+          "visibility": {
+            "enum": [
+              "visible",
+              "partially-visible",
+              "occluded",
+              "inferred-off-frame"
+            ]
+          },
+          "evidence_status": {
+            "enum": [
+              "observed",
+              "user-specified",
+              "state-derived",
+              "inferred"
+            ]
+          },
+          "confidence": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "stability": {
+            "enum": [
+              "identity-vocabulary",
+              "current-state",
+              "transient-action",
+              "environment-response"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "interpretation_candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "meaning",
+          "supported_by",
+          "context",
+          "confidence",
+          "content_intensity"
+        ],
+        "properties": {
+          "meaning": {
+            "type": "string",
+            "minLength": 1
+          },
+          "supported_by": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "context": {
+            "type": "string",
+            "minLength": 1
+          },
+          "confidence": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "content_intensity": {
+            "type": "string",
+            "minLength": 1
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "selected_interpretation": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "meaning",
+            "supported_by",
+            "context",
+            "confidence",
+            "content_intensity"
+          ],
+          "properties": {
+            "meaning": {
+              "type": "string",
+              "minLength": 1
+            },
+            "supported_by": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "context": {
+              "type": "string",
+              "minLength": 1
+            },
+            "confidence": {
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            },
+            "content_intensity": {
+              "type": "string",
+              "minLength": 1
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ambiguity_notes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "prompt_projection": {
+      "type": "object",
+      "required": [
+        "primary_clause",
+        "supporting_clauses",
+        "search_facets",
+        "review_checks"
+      ],
+      "properties": {
+        "primary_clause": {
+          "type": "string",
+          "minLength": 1
+        },
+        "supporting_clauses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "search_facets": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "review_checks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

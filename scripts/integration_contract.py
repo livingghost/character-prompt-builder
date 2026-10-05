@@ -4,7 +4,8 @@
 A declaration states supported artifact profiles, not a product identity. Schema
 locations are explicitly listed in this distribution's configuration. Received declarations are
 ordinary input data. Direction is supplied by the operation and is never inferred
-from a name, path, or equality of capability hashes.
+from a name, path, or equality of capability hashes. An envelope names the sealed
+protocol set it was produced under; a digest other than this installation's is refused.
 """
 from __future__ import annotations
 
@@ -78,11 +79,7 @@ def confined_path(root: Path, relative: str) -> Path:
 
 
 def capability_path(root: Path) -> Path:
-    layout = read_json(confined_path(root, "config/protocol-layout.json"))
-    path = layout.get("capabilities")
-    if not isinstance(path, str):
-        raise ValueError("protocol path configuration must declare capabilities")
-    return confined_path(root, path)
+    return confined_path(root, "config/integration-capabilities.json")
 
 
 def load_capabilities(root: Path) -> dict[str, Any]:
@@ -176,6 +173,18 @@ def envelope_hash(value: dict[str, Any]) -> str:
     return content_hash(value, "envelope_sha256")
 
 
+def installed_contract_set_sha256() -> str:
+    """The sealed digest of this installation's protocol set."""
+    import protocol_contract as contract
+    return contract.registry()["contract_set_sha256"]
+
+
+def contract_set_mismatch(declared: str, installed: str) -> str:
+    return (f"envelope contract_set_sha256 {declared} differs from this installation's sealed protocol set {installed}; "
+            "both installations must hold the same sealed protocol set: replicate protocols/ and "
+            "scripts/protocol_contract.py byte for byte, then seal each with scripts/seal_contract.py")
+
+
 PAYLOAD_IDENTIFIERS = {'asset-render-specification': 'render_spec_id', 'candidate-manifest': 'manifest_id', 'character-identity-contract': 'contract_id', 'individual-morphology-contract': 'contract_id', 'prepared-reference-set': 'set_id', 'reference-bundle-plan': 'bundle_id', 'reference-use-plan': 'plan_id', 'shot-request': 'request_id', 'species-morphology-profile': 'profile_id', 'surface-lighting-plan': 'plan_id', 'visual-authority': 'authority_id', 'visual-evidence-bundle': 'bundle_id'}
 
 PAYLOAD_IDENTIFIERS.update({'scene-persona-material': 'material_id', 'source-material-index': 'material_id', 'source-extraction-proposal': 'proposal_id'})
@@ -191,7 +200,7 @@ def validate_envelope(value: Any, *, capabilities: dict[str, Any], direction: st
                       declaration: dict[str, Any] | None = None,
                       payload_root: Path | None = None, allow_placeholder_hash: bool = False) -> dict[str, Any]:
     errors: list[str] = []
-    fields = {"artifact_type", "envelope_id", "contract_profile", "profile_sha256", "origin", "payload", "required_features", "optional_features", "extensions", "envelope_sha256"}
+    fields = {"artifact_type", "envelope_id", "contract_set_sha256", "contract_profile", "profile_sha256", "origin", "payload", "required_features", "optional_features", "extensions", "envelope_sha256"}
     if not _shape(value, fields, "envelope", errors):
         return {"ok": False, "errors": errors}
     errors.extend(validate_capabilities(capabilities)["errors"])
@@ -208,6 +217,13 @@ def validate_envelope(value: Any, *, capabilities: dict[str, Any], direction: st
     if _shape(origin, {"capability_manifest_sha256"}, "origin", errors):
         if not isinstance(origin.get("capability_manifest_sha256"), str) or not HASH_RE.fullmatch(origin["capability_manifest_sha256"]):
             errors.append("invalid origin capability hash")
+    declared_set = value.get("contract_set_sha256")
+    if not isinstance(declared_set, str) or not HASH_RE.fullmatch(declared_set):
+        errors.append("contract_set_sha256 must be a lowercase SHA-256")
+    else:
+        installed = installed_contract_set_sha256()
+        if declared_set != installed:
+            errors.append(contract_set_mismatch(declared_set, installed))
     payload = value.get("payload")
     if not isinstance(payload, dict):
         errors.append("payload must be an object")

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from pack_manager import validate_pack
-from state_protocol import artifact_hash, validate_artifact
+from state_protocol import artifact_hash, finalize_artifact, validate_artifact
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -136,7 +136,7 @@ def evaluate(root: Path = ROOT) -> dict[str, Any]:
             path.relative_to(root).as_posix(),
             references,
         )
-    for path in sorted((root / "templates" / "state").glob("*.json")):
+    for path in sorted((root / "protocols" / "shared-state" / "templates").glob("*.json")):
         data = _load_json(path)
         refs = data.get("canonical_record_refs") if isinstance(data, dict) else None
         if isinstance(refs, list):
@@ -269,14 +269,17 @@ def evaluate(root: Path = ROOT) -> dict[str, Any]:
     if intent.get("aesthetic_core", "missing") is not None:
         errors.append("pilot creative intent must represent no aesthetic core as null")
 
+    # A template carries placeholder hashes, its own self hash included; the
+    # author seals it at use. Each starter is sealed here to show it is complete.
     neutral_template_contract: dict[str, dict[str, Any]] = {}
     neutral_templates: dict[str, dict[str, Any]] = {}
-    for name, self_hash_field in (
-        ("semantic-region-map.template.json", "semantic_region_map_sha256"),
-        ("visual-authority.template.json", "visual_authority_sha256"),
-        ("visual-evidence-bundle.template.json", "visual_evidence_bundle_sha256"),
+    for relative, self_hash_field in (
+        ("templates/semantic-region-map.template.json", "semantic_region_map_sha256"),
+        ("protocols/shared-state/templates/visual-authority.template.json", "visual_authority_sha256"),
+        ("protocols/shared-state/templates/visual-evidence-bundle.template.json", "visual_evidence_bundle_sha256"),
     ):
-        value = _load_json(root / "templates" / "state" / name)
+        name = relative.rsplit("/", 1)[1]
+        value = finalize_artifact(_load_json(root / relative))
         neutral_templates[name] = value
         validation_report = validate_artifact(value, allow_placeholder_hashes=True)
         neutral_template_contract[name] = {
@@ -294,11 +297,8 @@ def evaluate(root: Path = ROOT) -> dict[str, Any]:
             errors.append(f"neutral core template must start with no record binding: {name}")
         if value.get("source_sha256") != ZERO_SHA256:
             errors.append(f"neutral core template contains an authoritative source hash: {name}")
-        self_hash = value.get(self_hash_field)
-        if self_hash == ZERO_SHA256 or self_hash != artifact_hash(value):
-            errors.append(
-                f"neutral core template self hash is not formally sealed: {name}"
-            )
+        if value.get(self_hash_field) != artifact_hash(value):
+            errors.append(f"neutral core template does not seal: {name}")
         notes = value.get("notes")
         if not isinstance(notes, list) or "no authority" not in " ".join(
             str(item).lower() for item in notes
@@ -325,15 +325,21 @@ def evaluate(root: Path = ROOT) -> dict[str, Any]:
             "an archival vector"
         )
 
-    evidence_bundle = neutral_templates["visual-evidence-bundle.template.json"]
+    evidence_bundle = copy.deepcopy(neutral_templates["visual-evidence-bundle.template.json"])
     expected_authority_ref = {
         "id": visual_authority.get("authority_id"),
         "sha256": visual_authority.get("visual_authority_sha256"),
     }
-    if evidence_bundle.get("visual_authority_ref") != expected_authority_ref:
+    if (evidence_bundle.get("visual_authority_ref") or {}).get("id") != expected_authority_ref["id"]:
+        errors.append("neutral visual-evidence bundle does not name the neutral visual-authority artifact")
+    # At use the bundle takes the sealed authority's hash and seals itself.
+    evidence_bundle["visual_authority_ref"] = expected_authority_ref
+    evidence_bundle = finalize_artifact(evidence_bundle)
+    linked_report = validate_artifact(evidence_bundle, allow_placeholder_hashes=True)
+    if not linked_report.get("ok"):
         errors.append(
-            "neutral visual-evidence bundle does not link to the sealed neutral "
-            "visual-authority artifact"
+            "neutral visual-evidence bundle does not seal against the sealed neutral visual-authority artifact: "
+            + "; ".join(str(item) for item in linked_report.get("errors", []))
         )
     for index, artifact in enumerate(evidence_bundle.get("artifacts", [])):
         if not isinstance(artifact, dict) or artifact.get("sha256") != ZERO_SHA256:

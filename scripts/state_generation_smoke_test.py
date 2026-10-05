@@ -8,6 +8,7 @@ import base64
 import contextlib
 import copy
 import functools
+import hashlib
 import importlib.util
 import io
 import json
@@ -81,6 +82,7 @@ from state_protocol import (  # noqa: E402
     precondition_holds,
     propose_environment_adaptations,
     resolve_world,
+    schema_file,
     schema_for,
     unsupported_schema_keywords,
     validate_against_schema,
@@ -873,38 +875,33 @@ def run() -> dict[str, Any]:
     else:
         check("unknown artifact type cannot select a schema path", False)
 
-    stateless = load_json(ROOT / "templates" / "state" / "state-lineage.template.json")
+    # A template carries placeholder hashes; the author seals it at use, as here.
+    stateless = finalize_artifact(
+        load_json(ROOT / "protocols" / "shared-state" / "templates" / "state-lineage.template.json")
+    )
     stateless_report = validate_artifact(stateless)
     check(
-        "stateless lineage uses null graph nodes and a concrete self hash",
+        "the sealed stateless lineage starter uses null graph nodes",
         stateless_report.get("ok")
-        and all(stateless.get(field) is None for field in STATE_LINEAGE_ARTIFACT_FIELDS)
-        and stateless.get("lineage_sha256") != ZERO_SHA256,
+        and all(stateless.get(field) is None for field in STATE_LINEAGE_ARTIFACT_FIELDS),
         stateless_report.get("errors"),
     )
     state_aware_template = load_json(
-        ROOT / "templates" / "state" / "state-lineage-state-aware.template.json"
+        ROOT / "protocols" / "shared-state" / "templates" / "state-lineage-state-aware.template.json"
     )
+    for field in STATE_AWARE_REQUIRED_LINEAGE_FIELDS:
+        state_aware_template[field] = hashlib.sha256(field.encode("utf-8")).hexdigest()
+    state_aware_template = finalize_artifact(state_aware_template)
     state_aware_template_report = validate_artifact(state_aware_template)
     check(
-        "state-aware lineage template preserves the complete required graph",
+        "the state-aware lineage starter seals once every node hash is filled",
         state_aware_template_report.get("ok")
         and state_aware_template.get("mode") == "state-aware"
-        and all(
-            isinstance(state_aware_template.get(field), str)
-            and len(state_aware_template[field]) == 64
-            and state_aware_template[field] != ZERO_SHA256
-            for field in STATE_AWARE_REQUIRED_LINEAGE_FIELDS
-        )
-        and state_aware_template.get("lineage_sha256")
-        == artifact_hash(state_aware_template),
+        and state_aware_template.get("lineage_sha256") == artifact_hash(state_aware_template),
         state_aware_template_report.get("errors"),
     )
     temporary_event_template = load_json(
-        ROOT
-        / "templates"
-        / "state"
-        / "state-event-temporary-until-cleared.template.json"
+        ROOT / "protocols" / "shared-state" / "templates" / "state-event-temporary-until-cleared.template.json"
     )
     temporary_event_report = validate_artifact(temporary_event_template)
     temporary_change = temporary_event_template.get("changes", [{}])[0]
@@ -968,7 +965,7 @@ def run() -> dict[str, Any]:
         )
 
     off_type_values = (None, 0, True, "", "x", [], [1], {}, {"a": 1}, 1.5)
-    sweep_sources = sorted((ROOT / "templates" / "state").glob("*.json")) + sorted(
+    sweep_sources = sorted((ROOT / "protocols" / "shared-state" / "templates").glob("*.json")) + sorted(
         EXAMPLE.glob("*.json")
     )
     sweep_documents = 0
@@ -1014,7 +1011,7 @@ def run() -> dict[str, Any]:
         },
     )
 
-    growth_schema = load_json(ROOT / "schemas" / "growth-geometry.schema.json")
+    growth_schema = load_json(ROOT / "protocols" / "shared-state" / "schemas" / "growth-geometry.schema.json")
     growth_template = load_json(ROOT / "templates" / "growth-geometry-template.json")
     growth_errors = validate_against_schema(growth_template, growth_schema)
     check("growth template validates its declared structures", not growth_errors, growth_errors)
@@ -1056,7 +1053,7 @@ def run() -> dict[str, Any]:
     check("growth schema rejects undeclared covering fields", bool(validate_against_schema(undeclared_field, growth_schema)))
     closed_value_union = set()
     for schema_name in ("growth-geometry", "terminal-growth-contract", "declared-structures"):
-        closed_value_union.update(_closed_value_property_names(load_json(ROOT / "schemas" / (schema_name + ".schema.json"))))
+        closed_value_union.update(_closed_value_property_names(load_json(schema_file(schema_name + ".schema.json"))))
     check("growth contracts close value sets only for representation, presence and source confidence",
           closed_value_union == {"representation", "presence", "source_confidence"})
     declared_subject = copy.deepcopy(growth_template)
@@ -3299,7 +3296,7 @@ def run() -> dict[str, Any]:
             out_dir=bundle_dir,
         )
         camera_required = set(
-            load_json(ROOT / "schemas" / "camera-framing-contract.schema.json")["required"]
+            load_json(ROOT / "protocols" / "shared-state" / "schemas" / "camera-framing-contract.schema.json")["required"]
         )
         render_specs_by_file: dict[str, dict[str, Any]] = {}
         child_reports: list[bool] = []
@@ -3309,7 +3306,7 @@ def run() -> dict[str, Any]:
             child_reports.append(
                 validate_artifact(child).get("ok")
                 and camera_required <= set(child["camera"])
-                and set(child["camera"]) <= set(load_json(ROOT / "schemas" / "camera-framing-contract.schema.json")["properties"])
+                and set(child["camera"]) <= set(load_json(ROOT / "protocols" / "shared-state" / "schemas" / "camera-framing-contract.schema.json")["properties"])
                 and row["render_spec_sha256"] == artifact_hash(child)
             )
         bundle_graph_report = validate_reference_bundle_graph(

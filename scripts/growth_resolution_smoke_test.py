@@ -81,7 +81,7 @@ class GrowthResolutionTests(unittest.TestCase):
         self.base = self.identity["stable_identity"]["growth_geometry"]
 
     def variant(self):
-        value = load_json(ROOT / "templates/state/appearance-variant-contract.template.json")
+        value = load_json(ROOT / "protocols/shared-state/templates/appearance-variant-contract.template.json")
         value.update(variant_class="grooming", canon_status="approved",
                      parent_identity_contract_sha256=artifact_hash(self.identity),
                      growth_geometry=copy.deepcopy(self.base))
@@ -201,7 +201,7 @@ class GrowthResolutionTests(unittest.TestCase):
         for kind, field, argument in (("era", "approved_changes", "era_contract"),
                                       ("form", "surface_system", "form_contract")):
             with self.subTest(kind=kind):
-                contract = load_json(ROOT / f"templates/state/{kind}-contract.template.json")
+                contract = load_json(ROOT / f"protocols/shared-state/templates/{kind}-contract.template.json")
                 contract.update(canon_status="approved", parent_identity_contract_sha256=artifact_hash(self.identity))
                 geometry = copy.deepcopy(self.base)
                 geometry["structures"]["fur-tail"]["geometry"]["length"] = "twice the approved length"
@@ -212,7 +212,7 @@ class GrowthResolutionTests(unittest.TestCase):
                     resolve_growth_geometry(self.identity, **{argument: contract})
 
     def test_form_render_requires_the_snapshot_that_binds_its_hash(self):
-        form = load_json(ROOT / "templates/state/form-contract.template.json")
+        form = load_json(ROOT / "protocols/shared-state/templates/form-contract.template.json")
         form.update(canon_status="approved", parent_identity_contract_sha256=artifact_hash(self.identity))
         form["surface_system"]["growth_geometry"] = copy.deepcopy(self.base)
         kwargs = dict(request=load_json(PILOT / "render-spec-request.json"), identity_contract=self.identity,

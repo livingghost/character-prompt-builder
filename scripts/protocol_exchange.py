@@ -56,55 +56,12 @@ def decode(raw: bytes) -> dict:
     return value
 
 
-def refs(value: Any):
-    if isinstance(value,dict):
-        if '$ref' in value: yield value['$ref']
-        for item in value.values(): yield from refs(item)
-    elif isinstance(value,list):
-        for item in value: yield from refs(item)
-
-
 def check_installed() -> dict:
-    registry = contract.registry()
-    rows=registry['schemas']
-    names={row['schema'].split('/',1)[1]:row['schema'] for row in rows}
-    if len(names)!=len(rows): raise ValueError('duplicate schema basenames')
-    errors=[]
-    for row in rows:
-        schema = contract.schema_named(row['schema'].split('/',1)[1])
-        for ref in refs(schema):
-            try: contract._resolve_ref(ref,schema)
-            except (ValueError,KeyError,OSError) as exc:errors.append(f"{row['schema']}: {exc}")
-    for kind,row in registry['artifacts'].items():
-        schema=contract.schema_for({'artifact_type':kind})
-        if schema.get('properties',{}).get('artifact_type',{}).get('const')!=kind:
-            errors.append(f'{kind}: registry and schema artifact type disagree')
-        field=row['self_hash_field']
-        if field and field not in schema.get('properties',{}):errors.append(f'{kind}: missing self-hash declaration')
-    if errors: raise ValueError('; '.join(errors))
-    return {'ok':True,'contract_set_sha256':registry['contract_set_sha256'],
-            'schemas':len(rows),'public_artifacts':len(registry['artifacts']),
-            'semantic_contract_sha256':registry['semantics']['sha256']}
+    return contract.check_installed()
 
 
 def describe(kind: str) -> dict:
-    registry=contract.registry()
-    if kind not in registry['artifacts']: raise ValueError('unknown public artifact')
-    pending=[registry['artifacts'][kind]['schema']];members={}
-    by_name={row['schema'].split('/',1)[1]:row['schema'] for row in registry['schemas']}
-    while pending:
-        key=pending.pop()
-        if key in members:continue
-        schema=contract.schema_named(key.split('/',1)[1])
-        members[key]=digest(read(contract.schema_path(key)))
-        for ref in refs(schema):
-            name=ref.split('#',1)[0]
-            contract._resolve_ref(ref,schema)
-            if name:pending.append(by_name[name])
-    value={'public_type':kind,'schemas':[{'schema':k,'sha256':v} for k,v in sorted(members.items())],
-           'semantics_sha256':registry['semantics']['sha256']}
-    value['contract_sha256']=contract.sha256_json(value)
-    return value
+    return contract.contract_descriptor(kind)
 
 
 def inspect_artifact(root:Path,path:str,expected_contract:str|None=None) -> dict:

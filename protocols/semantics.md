@@ -1,6 +1,6 @@
 # Shared Production Contracts
 
-These contracts define state, morphology, references, adoption and viewpoint artifacts. The contract manifest identifies each schema and these semantic rules by SHA-256.
+These contracts define state, morphology, references, adoption and viewpoint artifacts. The contract manifest identifies each schema, each template, each protocol document, these semantic rules and the validator by SHA-256.
 
 ## Validation and content identity
 
@@ -98,13 +98,13 @@ meaning of continuity requirements during the authoring review.
 
 ## Exchange bundle
 
-An exchange bundle contains exactly `artifact.json`, `contract.json` and `manifest.json`. The manifest commits the exact bytes of the artifact and contract descriptor. The descriptor commits the artifact's schema dependency closure and these semantic rules. Verify those commitments and the artifact constraints before using the content.
+An exchange bundle contains exactly `artifact.json`, `contract.json` and `manifest.json`. The manifest commits the exact bytes of the artifact and contract descriptor. The descriptor commits the artifact's schema dependency closure, these semantic rules and the validator. Verify those commitments and the artifact constraints before using the content.
 
 Verification does not authenticate an approving actor. Adoption, event write-back and submission permission remain explicit decisions recorded for their respective uses.
 
 ## Capability declarations
 
-A capability declaration lists the artifact types and features available for a profile. Select `produces` for export and `consumes` for receipt; identical declarations do not determine the direction. Required features must be understood. Unknown optional features remain uninterpreted evidence. Bind the payload type, ID and exact bytes to its envelope and supplied declaration.
+A capability declaration lists the artifact types and features available for a profile. Select `produces` for export and `consumes` for receipt; identical declarations do not determine the direction. Required features must be understood. Unknown optional features remain uninterpreted evidence. Bind the payload type, ID and exact bytes to its envelope and supplied declaration. An envelope names the `contract_set_sha256` of the sealed protocol set it was produced under. A receiver compares that digest with its own sealed set and refuses the envelope when they differ.
 
 ## Moment resolution
 
@@ -138,9 +138,12 @@ claims, not proof that the author actually read or understood a source. Structur
 validation and a `ready` decision do not demonstrate artistic correctness.
 
 The material is valid only within its stated scene, purpose, conditions and
-medium; a material prepared for text does not serve an image or video. New
-participants, information, topics or intended behavior can require preparation
-even when no existing file changed. Unknowns and deliberate ambiguity stay visible.
+medium; a material prepared for text does not serve an image or video. An image
+material's `identities` name, by producer-private path and image digest, the
+accepted image that holds a Persona subject's appearance; a text material records
+none. New participants, information, topics or intended behavior can require
+preparation even when no existing file changed. Unknowns and deliberate ambiguity
+stay visible.
 An explicit size budget is a refusal-to-truncate bound, not a summarization rule.
 No number of participants, human anatomy, spoken language, genre or conflict is
 required. Producer-private paths are source labels for a receiving consumer; they
@@ -167,5 +170,5 @@ shading, surface treatment and detail. Presentation remains separate from identi
 The declaration records whether the user or agent selected the treatment and why.
 Regional overrides name their scope. A rendering choice grants no authority to
 change a subject, source state, wardrobe, proportions or accepted design.
-Each executable image operation resolves the exact interface profile and explicit
+Each executable operation resolves the exact interface profile and explicit
 controls. Unavailable controls remain distinguished from unselected features.

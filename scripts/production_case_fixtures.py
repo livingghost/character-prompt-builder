@@ -107,7 +107,7 @@ def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate
     if not any(e.record.get('id')==MODEL_ID for e in catalog.entries):raise ValueError('Synthetic example pack did not validate.')
     begun=work_ledger.begin(root,'Synthetic no-network generation',['prepare','execute','inspect'])
     specification=production_spec.draft(model=MODEL_ID,brief='A synthetic robot demonstrates the input and execution contracts.',
-                                       subject='robot',kind='robot',framing='full-body',render_intent=intent(PROMPT))
+                                       subject='robot',kind='robot',render_intent=intent(PROMPT))
     specification['subjects'][0]['identity']=['A deliberately unspecified synthetic test robot, not a real recurring character.']
     plot={'artifact_type':'prompt-plot','story':[{'id':'s1','beat':'The synthetic robot stands for a protocol demonstration.','visibility':'visible'}],
           'derived':[{'kind':'shows','statement':'one synthetic robot','from':['s1']},

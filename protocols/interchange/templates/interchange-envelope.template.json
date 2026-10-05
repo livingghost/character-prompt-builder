@@ -1,0 +1,27 @@
+{
+  "artifact_type": "interchange-envelope",
+  "envelope_id": "IE-SHOT-EXAMPLE",
+  "contract_set_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "contract_profile": "shot-request",
+  "profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "origin": {
+    "capability_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "payload": {
+    "artifact_type": "shot-request",
+    "artifact_id": "SR-SC01-SH01",
+    "media_type": "application/json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "required_features": [
+    "camera-hash-binding",
+    "hash-bound-payload",
+    "identity-hash-binding",
+    "shot-context-binding",
+    "state-hash-binding",
+    "visible-feature-obligations"
+  ],
+  "optional_features": [],
+  "extensions": {},
+  "envelope_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

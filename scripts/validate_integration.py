@@ -8,7 +8,7 @@ import hashlib
 import json
 import tempfile
 from pathlib import Path
-from integration_contract import finalize, load_capabilities, validate_capabilities, validate_envelope, read_json, payload_identity
+from integration_contract import finalize, installed_contract_set_sha256, load_capabilities, validate_capabilities, validate_envelope, read_json, payload_identity
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,6 +27,7 @@ def self_test(capabilities: dict) -> dict:
             raw = source.read_bytes();(root/"artifact.json").write_bytes(raw)
             envelope = finalize({
                 "artifact_type":"interchange-envelope", "envelope_id":"IE-fixture",
+                "contract_set_sha256":installed_contract_set_sha256(),
                 "contract_profile":emitted["profile"],"profile_sha256":emitted["profile_sha256"],
                 "origin":{"capability_manifest_sha256":capabilities["manifest_sha256"]},
                 "payload":{"artifact_type":kind,"artifact_id":payload_identity(read_json(source)),"media_type":"application/json","path":"artifact.json","sha256":hashlib.sha256(raw).hexdigest()},

@@ -2,7 +2,7 @@
   "artifact_type": "world-state-snapshot",
   "snapshot_id": "WORLD-main-0",
   "timeline_id": "main",
-  "scene_context_id": "SC-0001",
+  "scene_context_id": "SC01",
   "story_order": 0,
   "story_time": "story:",
   "entities": {

@@ -1,14 +1,15 @@
 # Shared State Protocol
 
 This public contract describes authored identity, morphology, state, reference
-selection and adoption. It creates neither a shared application nor a new owner
-of either project's data. A project may fill every required role on its own.
+selection and adoption. Each project keeps ownership of its own data. A project
+may fill every required role on its own.
 
 The [registry](../contract-manifest.json) and [semantic contract](../semantics.md)
-are normative. Their SHA-256 commitments, not product names or guessed format
-numbers, identify the installed contract. All schema reference dependencies ship
-locally, and [protocol exchange](../../references/protocol-exchange.md) verifies
-selected artifacts using only its installed public contract.
+are normative. The registry commits each schema, template, protocol document, the
+semantic contract and the validator by SHA-256. Those commitments identify the
+installed contract; product names and format numbers do not. All schema reference
+dependencies ship locally. `python scripts/protocol_exchange.py verify` checks a
+selected artifact using only the installed public contract.
 
 ## Boundaries
 
@@ -27,7 +28,8 @@ selected artifacts using only its installed public contract.
   automatically canon. Routing hints identify responsible roles, not applications.
 - Canonical content hashing excludes only the registered self-hash field. Hashless
   artifacts, such as identity and event records, are committed by external references.
-  All-zero template hashes are not valid exchange commitments.
+  Templates carry all-zero placeholder hashes; a runtime artifact carries computed
+  canonical hashes.
 
 ## Commands
 

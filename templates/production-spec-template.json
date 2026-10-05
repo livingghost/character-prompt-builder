@@ -24,28 +24,6 @@
     "depth_order": [],
     "atmosphere": "unspecified"
   },
-  "camera": {
-    "shot_type": "unspecified",
-    "shot_scale": "unspecified",
-    "distance_class": "unspecified",
-    "subject_relative_distance": "unspecified",
-    "camera_height": "unspecified",
-    "pitch_degrees": "unspecified",
-    "yaw_degrees": "unspecified",
-    "roll_degrees": "unspecified",
-    "lens_or_perspective": "unspecified",
-    "lens_equivalent_mm": "unspecified",
-    "projection_behavior": "unspecified",
-    "frame_occupancy": "unspecified",
-    "framing_and_crop": "unspecified",
-    "coverage_landmarks": "unspecified",
-    "nearest_form": "unspecified",
-    "perspective_scale_change": "unspecified",
-    "required_visible_elements": "unspecified",
-    "allowed_offscreen_elements": "unspecified",
-    "focal_sequence": "unspecified",
-    "stability_invariants": "unspecified"
-  },
   "lighting": {
     "key_light": "unspecified",
     "fill_or_ambient": "unspecified",

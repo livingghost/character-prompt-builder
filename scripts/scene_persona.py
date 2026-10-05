@@ -223,7 +223,12 @@ def follows_form(found: list[dict]) -> bool:
 
 
 def adopted_identities(root: Path, character_id: str) -> list[dict]:
-    """The identity images a studio root holds accepted and bound for one character of the work."""
+    """The identity images a studio root holds accepted and bound for one character of the work.
+
+    Each row names the image by its root-relative path and its SHA-256, the
+    two values a reader of the material can check. Where the studio keeps the
+    image stays in the studio's own records.
+    """
     import studio
     if not (root / studio.MANIFEST).is_file():
         return []
@@ -237,6 +242,7 @@ def adopted_identities(root: Path, character_id: str) -> list[dict]:
     for character in characters:
         try:
             bindings = adoption.reference_index(root, character)['bindings']
+            rows = studio.read_iterations(studio.character_dir(root, character))
         except IDENTITY_ERRORS:
             continue
         for binding in bindings:
@@ -245,27 +251,21 @@ def adopted_identities(root: Path, character_id: str) -> list[dict]:
             selector = {'slot': binding['slot'], 'iteration_id': binding['iteration_id']}
             try:
                 accepted_identity(root, character, selector, character_id=character_id)
+                kept = studio._find(rows, binding['iteration_id'])['result']
             except IDENTITY_ERRORS:
                 continue
-            found.append({'subject_id': character_id, 'studio_character': character, **selector,
-                          'image_sha256': binding['image_sha256']})
+            found.append({'subject_id': character_id, 'path': kept['path'], 'image_sha256': binding['image_sha256']})
     return found
 
 
 def identity_problems(root: Path, value: dict) -> list[str]:
     """Each identity image a material recorded that is not accepted and bound for its character now."""
-    from visual_continuity import accepted_identity
     problems = []
     for row in value.get('identities') or []:
-        try:
-            current = accepted_identity(root, row['studio_character'],
-                                        {'slot': row['slot'], 'iteration_id': row['iteration_id']},
-                                        character_id=row['subject_id'])
-            if current['image_sha256'] != row['image_sha256']:
-                raise ValueError('its image changed')
-        except IDENTITY_ERRORS as exc:
-            problems.append(f"{row['subject_id']}: the identity image {row['slot']} ({row['iteration_id']}) of "
-                            f"{row['studio_character']} is not accepted and bound: {exc}")
+        current = adopted_identities(root, row['subject_id'])
+        if not any(found['path'] == row['path'] and found['image_sha256'] == row['image_sha256'] for found in current):
+            problems.append(f"{row['subject_id']}: the identity image {row['path']} (SHA-256 {row['image_sha256']}) "
+                            'is not accepted and bound')
     return problems
 
 
@@ -399,8 +399,7 @@ def render(value: dict) -> str:
     lines += ['', '## Subjects']
     for row in value['subjects']:
         lines += [f"### {row['subject_id']}", f"Model: {row['model']}", row['portrayal_basis']]
-        lines.extend(f"Appearance: the identity image {i['slot']} ({i['iteration_id']}) of studio character "
-                     f"{i['studio_character']}, image SHA-256 {i['image_sha256']}"
+        lines.extend(f"Appearance: the identity image {i['path']}, SHA-256 {i['image_sha256']}"
                      for i in value['identities'] if i['subject_id'] == row['subject_id'])
         lines.append('')
     lines += ['## Applicable definition text']

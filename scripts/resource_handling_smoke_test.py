@@ -131,8 +131,7 @@ class CompleteMaterialTests(unittest.TestCase):
     def test_large_definition_is_valid_without_schema_text_ceiling(self):
         # Test the actual schema fragments for open-ended authored strings.
         import state_protocol
-        path = ROOT / 'schemas/scene-persona-material.schema.json'
-        if not path.exists(): path = ROOT / 'protocols/shared-state/schemas/scene-persona-material.schema.json'
+        path = ROOT / 'protocols/shared-state/schemas/scene-persona-material.schema.json'
         schema = json.loads(path.read_text(encoding="utf-8"))
         def nodes(value):
             if isinstance(value, dict):

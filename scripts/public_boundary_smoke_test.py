@@ -33,6 +33,7 @@ class Boundary(unittest.TestCase):
         self.envelope=self.make(self.raw,self.profile)
     def make(self,raw,profile):
         return contract.finalize({'artifact_type':'interchange-envelope','envelope_id':'IE-fixture',
+            'contract_set_sha256':contract.installed_contract_set_sha256(),
             'contract_profile':profile['profile'],'profile_sha256':profile['profile_sha256'],
             'origin':{'capability_manifest_sha256':self.caps['manifest_sha256']},
             'payload':{'artifact_type':json.loads(raw)['artifact_type'],
@@ -69,6 +70,17 @@ class Boundary(unittest.TestCase):
     def test_required_feature_checked(self):
         changed=copy.deepcopy(self.caps);row=contract.find_interface(changed,'produces','shot-request');row['supported_features']=sorted(row['supported_features']+['missing-required']);row['required_features']=sorted(row['required_features']+['missing-required']);row.update(contract.finalize(row,'profile_sha256'));changed=contract.finalize(changed,'manifest_sha256')
         v=copy.deepcopy(self.envelope);v['origin']['capability_manifest_sha256']=changed['manifest_sha256'];v['profile_sha256']=row['profile_sha256'];v['required_features']=row['required_features'];v=contract.finalize(v,'envelope_sha256');self.assertFalse(self.check(v,declaration=changed)['ok'])
+    def test_envelope_binds_the_installed_protocol_set(self):
+        other='f'*64;installed=contract.installed_contract_set_sha256()
+        v=copy.deepcopy(self.envelope);v['contract_set_sha256']=other;v=contract.finalize(v,'envelope_sha256')
+        for options in ({},{'direction':'produces','declaration':None}):
+            with self.subTest(**options):
+                report=self.check(v,**options);self.assertFalse(report['ok'])
+                named=[e for e in report['errors'] if 'contract_set_sha256' in e];self.assertEqual(len(named),1,report)
+                self.assertIn(other,named[0]);self.assertIn(installed,named[0]);self.assertIn('same sealed protocol set',named[0])
+    def test_envelope_without_protocol_set_digest_is_refused(self):
+        v={k:val for k,val in self.envelope.items() if k!='contract_set_sha256'};v=contract.finalize(v,'envelope_sha256')
+        report=self.check(v);self.assertFalse(report['ok']);self.assertTrue(any('contract_set_sha256' in e for e in report['errors']),report)
     def test_payload_identifier(self):
         v=copy.deepcopy(self.envelope);v['payload']['artifact_id']='another-artifact';v=contract.finalize(v,'envelope_sha256');self.assertFalse(self.check(v)['ok'])
     def test_payload_bytes(self):
@@ -82,7 +94,7 @@ class Boundary(unittest.TestCase):
     def test_data_path_containment(self):
         v=copy.deepcopy(self.envelope);v['payload']['path']='../artifact.json';v=contract.finalize(v,'envelope_sha256');self.assertFalse(self.check(v)['ok'])
     def test_declared_capability_path(self):
-        (self.root/'config').mkdir();(self.root/'data').mkdir();(self.root/'data/declaration.json').write_text(json.dumps(self.caps), encoding='utf-8');(self.root/'config/protocol-layout.json').write_text(json.dumps({'capabilities':'data/declaration.json'}), encoding='utf-8')
+        (self.root/'config').mkdir();(self.root/'config/integration-capabilities.json').write_text(json.dumps(self.caps), encoding='utf-8')
         (self.root/'irrelevant').mkdir();(self.root/'irrelevant/integration-capabilities.json').write_text('{}',encoding='utf-8');self.assertEqual(contract.load_capabilities(self.root),self.caps)
     def test_malformed_declaration_is_reported(self):
         result=self.check(declaration={'artifact_type':'integration-capability-manifest','interfaces':None,'manifest_sha256':'x'});self.assertFalse(result['ok'])
@@ -96,6 +108,7 @@ class Boundary(unittest.TestCase):
         out=self.root/'bundle';result=self.command(*self.args(out));self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         self.assertEqual({p.name for p in out.iterdir()},{'artifact.json','declaration.json','envelope.json'});self.assertEqual((out/'artifact.json').read_bytes(),self.raw)
         report=contract.validate_envelope(contract.read_json(out/'envelope.json'),capabilities=self.caps,direction='consumes',declaration=contract.read_json(out/'declaration.json'),payload_root=out);self.assertTrue(report['ok'],report)
+        self.assertEqual(contract.read_json(out/'envelope.json')['contract_set_sha256'],contract.installed_contract_set_sha256())
     def test_cli_existing_output_preserved(self):
         out=self.root/'bundle';out.mkdir();(out/'keep').write_text('keep',encoding='utf-8');result=self.command(*self.args(out));self.assertNotEqual(result.returncode,0);self.assertEqual((out/'keep').read_text(encoding='utf-8'),'keep')
     def test_cli_existing_lock_preserved(self):

@@ -161,7 +161,7 @@ def run(out: Path) -> dict:
                      '--reason','A photographic treatment supports the synthetic rainy-day portrait.','--presentation','waist-up portrait',
                      '--prompt-expression','Photographic portrait.','--out',str(root/'render-intent.json'))
             walk.run('production_spec','draft',str(root/'production-spec.json'),'--render-intent',str(root/'render-intent.json'),
-                     '--model',MODEL,'--brief',BRIEF,'--kind','human','--framing','waist-up','--continuity','one-off')
+                     '--model',MODEL,'--brief',BRIEF,'--kind','human','--continuity','one-off')
             write(root/'parameters.json',{'width':832,'height':1248})
             write(root/'creative-intent.json',{'image_promise':'An explicitly synthetic preview of a quiet rainy-day portrait.'})
             # The fixture helper quotes actual route documents and labels every

@@ -13,7 +13,6 @@
     "state_context",
     "subjects",
     "scene",
-    "camera",
     "lighting",
     "visual_language",
     "constraints",
@@ -142,7 +141,6 @@
           "proportions_and_form",
           "surfaces_and_markings",
           "distinctive_details",
-          "performance",
           "wardrobe_and_accessories",
           "pose_and_body_geometry",
           "props_and_contacts"

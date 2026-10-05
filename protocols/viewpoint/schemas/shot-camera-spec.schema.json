@@ -36,11 +36,11 @@
     },
     "shot_id": {
       "type": "string",
-      "pattern": "^[A-Z0-9-]+$"
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
     },
     "scene_id": {
       "type": "string",
-      "pattern": "^[A-Z0-9-]+$"
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
     },
     "order_index": {
       "type": "integer",

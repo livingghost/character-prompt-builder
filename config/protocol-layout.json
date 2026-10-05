@@ -1,5 +1,0 @@
-{
-  "shared-state": "schemas",
-  "viewpoint": "schemas/viewpoint",
-  "capabilities": "config/integration-capabilities.json"
-}

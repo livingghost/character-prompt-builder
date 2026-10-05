@@ -2,7 +2,6 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "camera-framing-contract.schema.json",
   "title": "Camera Framing Contract",
-  "description": "Each field holds the value the author decided, or the string \"unspecified\" where the author leaves it open.",
   "type": "object",
   "required": [
     "shot_type",
@@ -44,8 +43,7 @@
         "full-body",
         "wide-environmental",
         "reference-sheet",
-        "custom",
-        "unspecified"
+        "custom"
       ]
     },
     "distance_class": {
@@ -57,45 +55,37 @@
         "medium",
         "medium-long",
         "long",
-        "custom",
-        "unspecified"
+        "custom"
       ]
     },
     "subject_relative_distance": {
-      "anyOf": [
-        {
-          "type": "object",
-          "required": [
-            "basis",
-            "minimum",
-            "maximum"
-          ],
-          "properties": {
-            "basis": {
-              "enum": [
-                "head-heights",
-                "visible-torso-heights",
-                "full-body-heights",
-                "subject-widths",
-                "metres",
-                "custom"
-              ]
-            },
-            "minimum": {
-              "type": "number",
-              "minimum": 0
-            },
-            "maximum": {
-              "type": "number",
-              "minimum": 0
-            }
-          },
-          "additionalProperties": false
+      "type": "object",
+      "required": [
+        "basis",
+        "minimum",
+        "maximum"
+      ],
+      "properties": {
+        "basis": {
+          "enum": [
+            "head-heights",
+            "visible-torso-heights",
+            "full-body-heights",
+            "subject-widths",
+            "metres",
+            "custom"
+          ]
         },
-        {
-          "const": "unspecified"
+        "minimum": {
+          "type": "number",
+          "minimum": 0
+        },
+        "maximum": {
+          "type": "number",
+          "minimum": 0
         }
-      ]
+      },
+      "additionalProperties": false
     },
     "human_scale_distance_equivalent_m": {
       "oneOf": [
@@ -119,72 +109,41 @@
             }
           },
           "additionalProperties": false
-        },
-        {
-          "const": "unspecified"
         }
       ]
     },
     "camera_height": {
-      "anyOf": [
-        {
-          "type": "object",
-          "required": [
-            "reference_landmark",
-            "offset"
-          ],
-          "properties": {
-            "reference_landmark": {
-              "type": "string",
-              "minLength": 1
-            },
-            "offset": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "additionalProperties": false
+      "type": "object",
+      "required": [
+        "reference_landmark",
+        "offset"
+      ],
+      "properties": {
+        "reference_landmark": {
+          "type": "string",
+          "minLength": 1
         },
-        {
-          "const": "unspecified"
+        "offset": {
+          "type": "string",
+          "minLength": 1
         }
-      ]
+      },
+      "additionalProperties": false
     },
     "pitch_degrees": {
-      "anyOf": [
-        {
-          "type": "number",
-          "minimum": -90,
-          "maximum": 90
-        },
-        {
-          "const": "unspecified"
-        }
-      ]
+      "type": "number",
+      "minimum": -90,
+      "maximum": 90
     },
     "yaw_degrees": {
-      "anyOf": [
-        {
-          "type": "number",
-          "minimum": -180,
-          "maximum": 180
-        },
-        {
-          "const": "unspecified"
-        }
-      ]
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180
     },
     "roll_degrees": {
-      "anyOf": [
-        {
-          "type": "number",
-          "minimum": -180,
-          "maximum": 180
-        },
-        {
-          "const": "unspecified"
-        }
-      ]
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180
     },
     "lens_or_perspective": {
       "type": "string",
@@ -212,9 +171,6 @@
             }
           },
           "additionalProperties": false
-        },
-        {
-          "const": "unspecified"
         }
       ]
     },
@@ -226,101 +182,86 @@
         "mild-wide",
         "wide",
         "fisheye",
-        "custom",
-        "unspecified"
+        "custom"
       ]
     },
     "frame_occupancy": {
-      "anyOf": [
-        {
+      "type": "object",
+      "required": [
+        "subject_height_percent",
+        "subject_width_percent"
+      ],
+      "properties": {
+        "subject_height_percent": {
           "type": "object",
           "required": [
-            "subject_height_percent",
-            "subject_width_percent"
+            "minimum",
+            "maximum"
           ],
           "properties": {
-            "subject_height_percent": {
-              "type": "object",
-              "required": [
-                "minimum",
-                "maximum"
-              ],
-              "properties": {
-                "minimum": {
-                  "type": "number",
-                  "minimum": 0
-                },
-                "maximum": {
-                  "type": "number",
-                  "minimum": 0
-                }
-              },
-              "additionalProperties": false
+            "minimum": {
+              "type": "number",
+              "minimum": 0
             },
-            "subject_width_percent": {
-              "type": "object",
-              "required": [
-                "minimum",
-                "maximum"
-              ],
-              "properties": {
-                "minimum": {
-                  "type": "number",
-                  "minimum": 0
-                },
-                "maximum": {
-                  "type": "number",
-                  "minimum": 0
-                }
-              },
-              "additionalProperties": false
+            "maximum": {
+              "type": "number",
+              "minimum": 0
             }
           },
           "additionalProperties": false
         },
-        {
-          "const": "unspecified"
+        "subject_width_percent": {
+          "type": "object",
+          "required": [
+            "minimum",
+            "maximum"
+          ],
+          "properties": {
+            "minimum": {
+              "type": "number",
+              "minimum": 0
+            },
+            "maximum": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
         }
-      ]
+      },
+      "additionalProperties": false
     },
     "framing_and_crop": {
       "type": "string",
       "minLength": 1
     },
     "coverage_landmarks": {
-      "anyOf": [
-        {
-          "type": "object",
-          "required": [
-            "top",
-            "bottom",
-            "left",
-            "right"
-          ],
-          "properties": {
-            "top": {
-              "type": "string",
-              "minLength": 1
-            },
-            "bottom": {
-              "type": "string",
-              "minLength": 1
-            },
-            "left": {
-              "type": "string",
-              "minLength": 1
-            },
-            "right": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "additionalProperties": false
+      "type": "object",
+      "required": [
+        "top",
+        "bottom",
+        "left",
+        "right"
+      ],
+      "properties": {
+        "top": {
+          "type": "string",
+          "minLength": 1
         },
-        {
-          "const": "unspecified"
+        "bottom": {
+          "type": "string",
+          "minLength": 1
+        },
+        "left": {
+          "type": "string",
+          "minLength": 1
+        },
+        "right": {
+          "type": "string",
+          "minLength": 1
         }
-      ]
+      },
+      "additionalProperties": false
     },
     "eye_line_position": {
       "oneOf": [
@@ -376,9 +317,6 @@
             }
           },
           "additionalProperties": false
-        },
-        {
-          "const": "unspecified"
         }
       ]
     },
@@ -391,66 +329,38 @@
       "minLength": 1
     },
     "required_visible_elements": {
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "minItems": 1,
-          "uniqueItems": true
-        },
-        {
-          "const": "unspecified"
-        }
-      ]
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
     },
     "allowed_offscreen_elements": {
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "uniqueItems": true
-        },
-        {
-          "const": "unspecified"
-        }
-      ]
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
     },
     "focal_sequence": {
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "minItems": 1
-        },
-        {
-          "const": "unspecified"
-        }
-      ]
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
     },
     "stability_invariants": {
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "minItems": 3,
-          "uniqueItems": true
-        },
-        {
-          "const": "unspecified"
-        }
-      ]
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 3,
+      "uniqueItems": true
     },
     "reference_landmark_position": {
       "type": [

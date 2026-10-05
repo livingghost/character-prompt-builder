@@ -19,5 +19,5 @@
   ],
   "transition_ids": [],
   "knowledge_policy": "Keep the camera aligned with C01 knowledge unless a shot explicitly changes focalization.",
-  "scene_plan_sha256": "618e1a9c15dd4e47be14fa03e5f34c330c19073e99ce8df83171db491b1cac92"
+  "scene_plan_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
 }

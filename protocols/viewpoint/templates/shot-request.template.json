@@ -44,7 +44,7 @@
     "style_family_policy": "use the approved series style family without averaging",
     "state_lineage_required": true
   },
-  "request_sha256": "3b7ed1b78434f3419c2195e19e012e61944cf4d7748f919837789174671a1b06",
+  "request_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
   "visible_morphology_feature_refs_by_character": {
     "C01": [
       "head.eye.pair",

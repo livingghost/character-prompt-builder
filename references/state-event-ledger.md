@@ -17,7 +17,7 @@ Lifecycle actions do not carry state-mutation persistence or a value. Every chan
 
 A temporary state requires an expiry order, a clear event, or a process.
 
-Use `templates/state/state-event.template.json` for a simple scene-local mutation. Use `templates/state/state-event-temporary-until-cleared.template.json` for the complete temporary-state relationship: preconditions, per-change `effective_until_order`, `clear_event_id`, and the required later clearing mutation on the same timeline, entity, and path.
+Use `protocols/shared-state/templates/state-event.template.json` for a simple scene-local mutation. Use `protocols/shared-state/templates/state-event-temporary-until-cleared.template.json` for the complete temporary-state relationship: preconditions, per-change `effective_until_order`, `clear_event_id`, and the required later clearing mutation on the same timeline, entity, and path.
 
 Use entity-relative paths such as:
 

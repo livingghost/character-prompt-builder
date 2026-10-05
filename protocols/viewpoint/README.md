@@ -1,4 +1,4 @@
-# Series Viewpoint Protocol
+# Viewpoint Protocol
 
 This public protocol separates camera ownership, narrative focalization, point of
 audition, shot geometry, visible obligations and viewpoint transitions. Its
@@ -44,6 +44,8 @@ python scripts/shot_request.py request.json --help
 python scripts/protocol_exchange.py describe --type shot-request
 ```
 
-See [protocol exchange](../../references/protocol-exchange.md) for exact bundle
-verification and complete binding checks. Private production runs, persona records,
-world bases and model controls are not implied dependencies of a shared request.
+`python scripts/protocol_exchange.py verify` checks an exchange bundle;
+`python scripts/shot_request.py` checks a request's complete binding. Templates
+carry all-zero placeholder hashes; a runtime artifact carries computed canonical
+hashes. Private production runs, persona records, world bases and model controls
+are not implied dependencies of a shared request.

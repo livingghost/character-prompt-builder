@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026.10.05.1
+
+- The protocol members live under `protocols/` in one shared layout: `protocols/<group>/schemas` and `protocols/<group>/templates`. The set is replicated by copying that directory and `scripts/protocol_contract.py`. `config/protocol-layout.json` is gone.
+- The protocol is identified by `contract_set_sha256` over its schemas, templates, documents, semantic rules and validator. `python scripts/seal_contract.py --check` reports whether sealing would move anything, and a file under `protocols/` that the manifest does not list is refused.
+- An interchange envelope carries the sender's `contract_set_sha256`. Receipt refuses an envelope sealed under a different set and names both digests.
+- `scripts/protocol_contract.py` is a sealed protocol member and uses the standard library alone. The Persona material and source material invariants it checked through tool modules are protocol rules inside it.
+- A production specification holds no sentinel camera or performance values. `production_spec.py draft` writes only decided fields, and `--framing` is gone; framing stays in the render intent.
+- Scene, shot and transition ids accept `^[A-Za-z0-9][A-Za-z0-9._:-]*$` in every viewpoint schema.
+- Scene Persona material carries `medium` and identity rows of `subject_id`, `path` and `image_sha256` alone.
+- The interchange envelope template is a protocol file with placeholder digests, not a generated file.
+
 ## 2026.10.04.3
 
 - The studio copy fixture checks for a directory junction on Windows alone, with the names the platform defines. 2026.10.04.2 compared reparse tags through `getattr` with a fallback constant.

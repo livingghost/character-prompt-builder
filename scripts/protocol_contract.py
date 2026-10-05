@@ -2,6 +2,11 @@
 """Validate public artifacts, their schema constraints and content commitments.
 
 Only the JSON Schema keywords explicitly implemented here are permitted.
+
+The contract manifest seals each schema, template and document, the semantic
+rules and this file by SHA-256. The registry refuses an installation whose
+bytes differ from the manifest or whose protocols/ directory holds a file
+the manifest does not list.
 """
 from __future__ import annotations
 import copy
@@ -12,7 +17,7 @@ import math
 from functools import lru_cache
 import re
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 ROOT = Path(__file__).resolve().parents[1]
 _ARRAY_INDEX = re.compile(r"^(?:0|[1-9][0-9]*)$")
 
@@ -205,27 +210,152 @@ def artifact_type(data: dict[str, Any]) -> str:
 
 
 
+MANIFEST_PATH = "protocols/contract-manifest.json"
+SEMANTICS_PATH = "protocols/semantics.md"
+VALIDATOR_PATH = "scripts/protocol_contract.py"
+PROTOCOLS_DIR = "protocols"
+REGISTRY_KEYS = frozenset({
+    "protocol", "schemas", "templates", "documents", "artifacts",
+    "semantics", "validator", "contract_set_sha256",
+})
+
+
+def _file_digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _plain_name(value: Any) -> bool:
+    """One path component: no separators, no parent references."""
+    return (
+        isinstance(value, str)
+        and value not in {"", ".", ".."}
+        and "\\" not in value
+        and Path(value).name == value
+    )
+
+
+def schema_file(key: str) -> str:
+    """The installation-relative path of a registered schema key `<group>/<name>`."""
+    group, separator, name = key.partition("/") if isinstance(key, str) else ("", "", "")
+    if not separator or not _plain_name(group) or not _plain_name(name):
+        raise ValueError(f"invalid schema key: {key!r}")
+    return f"{PROTOCOLS_DIR}/{group}/schemas/{name}"
+
+
+def _protocol_file(value: Any, label: str) -> str:
+    """A listed path: relative, forward slashes, inside protocols/."""
+    parts = value.split("/") if isinstance(value, str) else []
+    if len(parts) < 2 or parts[0] != PROTOCOLS_DIR or not all(_plain_name(part) for part in parts[1:]):
+        raise ValueError(f"invalid {label} path: {value!r}")
+    return value
+
+
+def _rows(value: Any, fields: set[str], label: str) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or any(
+        not isinstance(row, dict) or set(row) != fields or not isinstance(row["sha256"], str)
+        for row in value
+    ):
+        raise ValueError(f"invalid {label} rows in the public manifest")
+    return value
+
+
+def _registry_shape(value: Any) -> dict[str, Any]:
+    """The one manifest shape. Digests are compared by the caller."""
+    if not isinstance(value, dict) or set(value) != REGISTRY_KEYS:
+        raise ValueError("invalid contract manifest fields")
+    keys = [row["schema"] for row in _rows(value["schemas"], {"schema", "sha256"}, "schema")]
+    for key in keys:
+        schema_file(key)
+    if len(set(keys)) != len(keys):
+        raise ValueError("duplicate schema in the public manifest")
+    for section in ("templates", "documents"):
+        label = section[:-1]
+        paths = [_protocol_file(row["path"], label) for row in _rows(value[section], {"path", "sha256"}, label)]
+        if len(set(paths)) != len(paths):
+            raise ValueError(f"duplicate {label} in the public manifest")
+    artifacts = value["artifacts"]
+    if not isinstance(artifacts, dict) or any(
+        not isinstance(row, dict) or set(row) != {"schema", "self_hash_field"} or row["schema"] not in keys
+        for row in artifacts.values()
+    ):
+        raise ValueError("invalid artifact rows in the public manifest")
+    semantics = value["semantics"]
+    if not isinstance(semantics, dict) or set(semantics) != {"path", "sha256"} or semantics["path"] != SEMANTICS_PATH:
+        raise ValueError("invalid semantic contract path")
+    validator = value["validator"]
+    if not isinstance(validator, dict) or set(validator) != {"path", "sha256"} or validator["path"] != VALIDATOR_PATH:
+        raise ValueError("invalid validator path")
+    return value
+
+
+def members(value: dict[str, Any]) -> list[tuple[str, str, str]]:
+    """Every sealed member as (label, installation-relative path, sha256)."""
+    rows = [("public schema", schema_file(row["schema"]), row["sha256"]) for row in value["schemas"]]
+    rows.extend(("template", row["path"], row["sha256"]) for row in value["templates"])
+    rows.extend(("document", row["path"], row["sha256"]) for row in value["documents"])
+    rows.append(("semantic contract", value["semantics"]["path"], value["semantics"]["sha256"]))
+    rows.append(("validator", value["validator"]["path"], value["validator"]["sha256"]))
+    return rows
+
+
+def _member_digest(root: Path, label: str, relative: str) -> str:
+    path = root / relative
+    if not path.is_file():
+        raise ValueError(f"{label} is missing: {relative}")
+    return _file_digest(path)
+
+
+def unlisted_files(value: dict[str, Any], root: Path = ROOT) -> list[str]:
+    """Files under protocols/ that no manifest entry names, the manifest itself aside."""
+    listed = {relative for _, relative, _ in members(value)} | {MANIFEST_PATH}
+    present = {
+        path.relative_to(root).as_posix()
+        for path in (root / PROTOCOLS_DIR).rglob("*")
+        if path.is_file()
+    }
+    return sorted(present - listed)
+
+
+def verify_installation(value: dict[str, Any], root: Path = ROOT) -> None:
+    """Every listed member holds its sealed bytes and nothing under protocols/ is unlisted."""
+    for label, relative, expected in members(value):
+        if _member_digest(root, label, relative) != expected:
+            raise ValueError(f"{label} byte hash mismatch: {relative}")
+    stray = unlisted_files(value, root)
+    if stray:
+        raise ValueError("file under protocols/ is not in the contract manifest: " + ", ".join(stray))
+
+
 @lru_cache(maxsize=16)
 def _checked_registry_bytes(raw: bytes) -> dict[str, Any]:
-    value = parse_json(raw.decode("utf-8"))
+    value = _registry_shape(parse_json(raw.decode("utf-8")))
     content = {key: item for key, item in value.items() if key != "contract_set_sha256"}
-    if sha256_json(content) != value.get("contract_set_sha256"):
+    if sha256_json(content) != value["contract_set_sha256"]:
         raise ValueError("public contract manifest hash mismatch")
-    rows = value["schemas"]
-    if len({row["schema"] for row in rows}) != len(rows):
-        raise ValueError("duplicate schema in the public manifest")
-    if value["semantics"]["path"] != "protocols/semantics.md":
-        raise ValueError("invalid semantic contract path")
     return value
+
+
+@lru_cache(maxsize=16)
+def _checked_installation(raw: bytes) -> bool:
+    # The whole installation is verified once for each manifest the process
+    # reads. The manifest, the semantic contract, the validator and every schema
+    # in use are re-read on every use.
+    verify_installation(_checked_registry_bytes(raw))
+    return True
 
 
 def registry() -> dict[str, Any]:
     # Cache parsing by exact bytes, never by a pathname or a timestamp. Re-read
     # commitments on every use, so edits cannot reuse a stale validated cache.
-    value = _checked_registry_bytes((ROOT / "protocols/contract-manifest.json").read_bytes())
+    raw = (ROOT / MANIFEST_PATH).read_bytes()
+    value = _checked_registry_bytes(raw)
+    _checked_installation(raw)
     semantics = value["semantics"]
-    if hashlib.sha256((ROOT / semantics["path"]).read_bytes()).hexdigest() != semantics["sha256"]:
-        raise ValueError("semantic contract byte hash mismatch")
+    if _file_digest(ROOT / semantics["path"]) != semantics["sha256"]:
+        raise ValueError("semantic contract byte hash mismatch: " + semantics["path"])
+    validator = value["validator"]
+    if _file_digest(ROOT / validator["path"]) != validator["sha256"]:
+        raise ValueError("validator byte hash mismatch: " + validator["path"])
     return copy.deepcopy(value)
 
 
@@ -241,13 +371,7 @@ def _checked_schema_bytes(raw: bytes) -> dict[str, Any]:
 def schema_path(key: str) -> Path:
     if key not in {row["schema"] for row in registry()["schemas"]}:
         raise ValueError(f"unregistered public schema: {key}")
-    group, name = key.split("/", 1)
-    layout = load_json(ROOT / "config" / "protocol-layout.json")
-    base = (ROOT / layout[group]).resolve()
-    path = (base / name).resolve()
-    if ROOT.resolve() not in base.parents or base not in path.parents:
-        raise ValueError("schema path leaves the distribution directory")
-    return path
+    return ROOT / schema_file(key)
 
 
 def schema_named(name: str) -> dict[str, Any]:
@@ -272,13 +396,29 @@ def schema_for(data: dict[str, Any]) -> dict[str, Any]:
     return schema_named(entry["schema"].split("/", 1)[1])
 
 
-SELF_HASH_FIELDS = {kind: row["self_hash_field"] for kind, row in registry()["artifacts"].items() if row["self_hash_field"]}
-ARTIFACT_TYPES = frozenset(registry()["artifacts"])
+def self_hash_fields() -> dict[str, str]:
+    """The self-hash field of each registered artifact type that has one."""
+    return {kind: row["self_hash_field"] for kind, row in registry()["artifacts"].items() if row["self_hash_field"]}
+
+
+def artifact_types() -> frozenset[str]:
+    return frozenset(registry()["artifacts"])
+
+
+def __getattr__(name: str) -> Any:
+    # SELF_HASH_FIELDS and ARTIFACT_TYPES read the registry when first used, so
+    # importing this module does not read it, and the sealer can repair a
+    # manifest the registry refuses.
+    if name == "SELF_HASH_FIELDS":
+        return self_hash_fields()
+    if name == "ARTIFACT_TYPES":
+        return artifact_types()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def artifact_content_for_hash(data: dict[str, Any]) -> dict[str, Any]:
     value = copy.deepcopy(data)
-    field = SELF_HASH_FIELDS.get(str(value.get("artifact_type") or ""))
+    field = self_hash_fields().get(str(value.get("artifact_type") or ""))
     if field:
         value.pop(field, None)
     return value
@@ -293,7 +433,7 @@ def artifact_hash(data: dict[str, Any]) -> str:
 def finalize_artifact(data: dict[str, Any]) -> dict[str, Any]:
     result = copy.deepcopy(data)
     kind = artifact_type(result)
-    field = SELF_HASH_FIELDS.get(kind)
+    field = self_hash_fields().get(kind)
     if field:
         result[field] = artifact_hash(result)
     return result
@@ -419,33 +559,59 @@ def _no_alternative(path: str, branch_errors: list[list[str]]) -> str:
     return f"{path}: value matches none of the {len(branch_errors)} alternatives{detail}"
 
 
+def _instance_key(value: Any) -> tuple:
+    """JSON instance equality: 1 and 1.0 are one value, true and 1 are not."""
+    if value is None:
+        return ("null",)
+    if isinstance(value, bool):
+        return ("boolean", value)
+    if isinstance(value, (int, float)):
+        return ("number", value)
+    if isinstance(value, str):
+        return ("string", value)
+    if isinstance(value, list):
+        return ("array", tuple(_instance_key(item) for item in value))
+    if isinstance(value, dict):
+        return ("object", frozenset((key, _instance_key(item)) for key, item in value.items()))
+    return ("non-json", type(value).__name__, repr(value))
+
+
+Resolver = Callable[[str, dict[str, Any]], tuple[dict[str, Any], dict[str, Any]]]
+
+
 def validate_against_schema(
     value: Any,
     schema: dict[str, Any],
     path: str = "$",
     _root_schema: dict[str, Any] | None = None,
+    *,
+    resolver: Resolver = _resolve_ref,
 ) -> list[str]:
-    """Validate the subset of JSON Schema used by this package."""
+    """Validate the subset of JSON Schema used by this package.
+
+    `resolver(ref, root_schema)` returns the referenced schema and the document
+    it belongs to; the default reads registered schemas.
+    """
     root_schema = schema if _root_schema is None else _root_schema
     errors: list[str] = []
     if "$ref" in schema:
-        resolved, resolved_root = _resolve_ref(str(schema["$ref"]), root_schema)
-        errors.extend(validate_against_schema(value, resolved, path, resolved_root))
+        resolved, resolved_root = resolver(str(schema["$ref"]), root_schema)
+        errors.extend(validate_against_schema(value, resolved, path, resolved_root, resolver=resolver))
         siblings = {key: item for key, item in schema.items() if key != "$ref"}
         if siblings:
-            errors.extend(validate_against_schema(value, siblings, path, root_schema))
+            errors.extend(validate_against_schema(value, siblings, path, root_schema, resolver=resolver))
         return errors
 
     all_of = schema.get("allOf")
     if isinstance(all_of, list):
         for branch in all_of:
             if isinstance(branch, dict):
-                errors.extend(validate_against_schema(value, branch, path, root_schema))
+                errors.extend(validate_against_schema(value, branch, path, root_schema, resolver=resolver))
 
     any_of = schema.get("anyOf")
     if isinstance(any_of, list):
         branch_errors = [
-            validate_against_schema(value, branch, path, root_schema)
+            validate_against_schema(value, branch, path, root_schema, resolver=resolver)
             for branch in any_of
             if isinstance(branch, dict)
         ]
@@ -455,7 +621,7 @@ def validate_against_schema(
     one_of = schema.get("oneOf")
     if isinstance(one_of, list):
         branch_errors = [
-            validate_against_schema(value, branch, path, root_schema)
+            validate_against_schema(value, branch, path, root_schema, resolver=resolver)
             for branch in one_of
             if isinstance(branch, dict)
         ]
@@ -469,19 +635,19 @@ def validate_against_schema(
 
     not_schema = schema.get("not")
     if isinstance(not_schema, dict):
-        if not validate_against_schema(value, not_schema, path, root_schema):
+        if not validate_against_schema(value, not_schema, path, root_schema, resolver=resolver):
             errors.append(f"{path}: value satisfies a forbidden schema")
 
     condition = schema.get("if")
     if isinstance(condition, dict):
-        branch = "then" if not validate_against_schema(value, condition, path, root_schema) else "else"
+        branch = "then" if not validate_against_schema(value, condition, path, root_schema, resolver=resolver) else "else"
         consequence = schema.get(branch)
         if isinstance(consequence, dict):
-            errors.extend(validate_against_schema(value, consequence, path, root_schema))
+            errors.extend(validate_against_schema(value, consequence, path, root_schema, resolver=resolver))
 
-    if "const" in schema and value != schema["const"]:
+    if "const" in schema and _instance_key(value) != _instance_key(schema["const"]):
         errors.append(f"{path}: expected constant {schema['const']!r}")
-    if "enum" in schema and value not in schema["enum"]:
+    if "enum" in schema and _instance_key(value) not in {_instance_key(item) for item in schema["enum"]}:
         errors.append(f"{path}: value {value!r} is not in {schema['enum']!r}")
 
     expected = schema.get("type")
@@ -536,19 +702,19 @@ def validate_against_schema(
             errors.append(f"{path}: array is longer than maxItems")
         contains = schema.get("contains")
         if isinstance(contains, dict) and not any(
-            not validate_against_schema(item, contains, f"{path}[{index}]", root_schema)
+            not validate_against_schema(item, contains, f"{path}[{index}]", root_schema, resolver=resolver)
             for index, item in enumerate(value)
         ):
             errors.append(f"{path}: no item satisfies contains")
         if schema.get("uniqueItems"):
-            encoded = [canonical_json(item) for item in value]
-            if len(encoded) != len(set(encoded)):
+            keys = [_instance_key(item) for item in value]
+            if len(keys) != len(set(keys)):
                 errors.append(f"{path}: array items are not unique")
         item_schema = schema.get("items")
         if isinstance(item_schema, dict):
             for index, item in enumerate(value):
                 errors.extend(
-                    validate_against_schema(item, item_schema, f"{path}[{index}]", root_schema)
+                    validate_against_schema(item, item_schema, f"{path}[{index}]", root_schema, resolver=resolver)
                 )
 
     if isinstance(value, dict):
@@ -572,14 +738,14 @@ def validate_against_schema(
             for name, child_schema in properties.items():
                 if name in value and isinstance(child_schema, dict):
                     errors.extend(
-                        validate_against_schema(value[name], child_schema, f"{path}.{name}", root_schema)
+                        validate_against_schema(value[name], child_schema, f"{path}.{name}", root_schema, resolver=resolver)
                     )
         property_names = schema.get("propertyNames")
         if isinstance(property_names, dict):
             for name in value:
                 errors.extend(
                     validate_against_schema(
-                        str(name), property_names, f"{path}.<property-name:{name}>", root_schema
+                        str(name), property_names, f"{path}.<property-name:{name}>", root_schema, resolver=resolver
                     )
                 )
         if isinstance(properties, dict):
@@ -590,7 +756,7 @@ def validate_against_schema(
             elif isinstance(additional, dict):
                 for name in extras:
                     errors.extend(
-                        validate_against_schema(value[name], additional, f"{path}.{name}", root_schema)
+                        validate_against_schema(value[name], additional, f"{path}.{name}", root_schema, resolver=resolver)
                     )
 
     if schema.get("$id") == "declared-structures.schema.json" and not errors:
@@ -1057,12 +1223,15 @@ def _state_invariants(
     if kind == "state-lineage":
         mode = data.get("mode")
         if mode == "state-aware":
+            # A template holds the all-zero placeholder where a sealed node hash goes.
+            def settled(value: Any) -> bool:
+                return is_concrete_sha256(value) or (allow_placeholder_hashes and value == ZERO_SHA256)
             for name in STATE_AWARE_REQUIRED_LINEAGE_FIELDS:
-                if not is_concrete_sha256(data.get(name)):
+                if not settled(data.get(name)):
                     errors.append(f"state-aware lineage requires a concrete {name}")
             for name in STATE_LINEAGE_ARTIFACT_FIELDS:
                 value = data.get(name)
-                if value is not None and not is_concrete_sha256(value):
+                if value is not None and not settled(value):
                     errors.append(f"state-aware lineage {name} must be null or a concrete lowercase SHA-256")
         elif mode == "stateless":
             populated = [name for name in STATE_LINEAGE_ARTIFACT_FIELDS if data.get(name) is not None]
@@ -1073,7 +1242,7 @@ def _state_invariants(
         for path in find_placeholder_hashes(data):
             errors.append(f"{path}: all-zero SHA-256 placeholders are not valid runtime hashes")
 
-    self_field = SELF_HASH_FIELDS.get(kind)
+    self_field = self_hash_fields().get(kind)
     if self_field:
         expected = data.get(self_field)
         if expected == ZERO_SHA256 and allow_placeholder_hashes:
@@ -1272,16 +1441,152 @@ def _viewpoint_invariants(data: dict[str, Any], *, allow_placeholder_hashes: boo
 
 
 
+MATERIAL_ARTIFACT_TYPES = frozenset({
+    "scene-persona-material", "source-material-index", "source-extraction-proposal",
+})
+
+
+def _indexed(rows: Any, key: str, label: str) -> dict[str, dict[str, Any]]:
+    """Rows by identifier; a repeated identifier is an error."""
+    if not isinstance(rows, list):
+        raise ValueError(label + " must be a list")
+    result: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError(label + " must contain objects")
+        identifier = row.get(key)
+        if not isinstance(identifier, str) or not identifier.strip():
+            raise ValueError(key + " must be nonempty text")
+        if identifier in result:
+            raise ValueError("duplicate " + key + ": " + identifier)
+        result[identifier] = row
+    return result
+
+
+def _persona_material_errors(value: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    try:
+        sources = _indexed(value["sources"], "source_id", "sources")
+        excerpts = _indexed(value["definitions"], "excerpt_id", "definitions")
+        subjects = _indexed(value["subjects"], "subject_id", "subjects")
+        applications = _indexed(value["applications"], "application_id", "applications")
+        interactions = _indexed(value["interactions"], "interaction_id", "interactions")
+        scene_source = sources.get(value["scene_source_id"])
+        if not scene_source or scene_source["role"] != "scene":
+            errors.append("scene_source_id must identify the selected complete scene source")
+        for source in sources.values():
+            if set(source["subject_ids"]) - subjects.keys():
+                errors.append("source names an undeclared subject: " + source["source_id"])
+        for subject in subjects.values():
+            refs_ = set(subject["source_ids"])
+            if refs_ - sources.keys():
+                errors.append("subject names a missing source: " + subject["subject_id"])
+            if subject["model"] == "persona":
+                owned = {
+                    s for s in refs_
+                    if s in sources and sources[s]["role"] == "persona" and subject["subject_id"] in sources[s]["subject_ids"]
+                }
+                if not owned:
+                    errors.append("Persona subject needs a complete applicable Persona source")
+                if not any(d["source_id"] in owned and subject["subject_id"] in d["subject_ids"] for d in excerpts.values()):
+                    errors.append("Persona subject needs its actual definition text in the material")
+        for row in excerpts.values():
+            source = sources.get(row["source_id"])
+            if source is None:
+                errors.append("definition names a missing source")
+            else:
+                if row["source_sha256"] != source["sha256"]:
+                    errors.append("definition is not bound to its complete source")
+                read = {unit["anchor"] for unit in source["units"]}
+                if set(row["covers"]) - read:
+                    errors.append("definition covers a heading or field its source did not record: " + row["excerpt_id"])
+            if sha256_text(row["text"]) != row["text_sha256"]:
+                errors.append("definition text hash mismatch")
+            if row["anchor"] not in row["covers"]:
+                errors.append("definition does not cover its own anchor: " + row["excerpt_id"])
+            if set(row["subject_ids"]) - subjects.keys():
+                errors.append("definition names an undeclared subject")
+            if set(row["depends_on"]) - excerpts.keys():
+                errors.append("definition has unresolved definition dependencies")
+            # Cycles are legal: two definitions can mutually constrain each other.
+            if row["excerpt_id"] in row["depends_on"]:
+                errors.append("self-dependency does not identify another definition")
+        for row in [*applications.values(), *interactions.values()]:
+            if set(row["subject_ids"]) - subjects.keys():
+                errors.append("application/interaction names an undeclared subject")
+            if set(row["definition_ids"]) - excerpts.keys():
+                errors.append("application/interaction names an absent definition")
+        for identity in value["identities"]:
+            if subjects.get(identity["subject_id"], {}).get("model") != "persona":
+                errors.append("an identity image names no Persona subject: " + identity["subject_id"])
+        if value["identities"] and value["medium"] != "image":
+            errors.append("only an image material records an identity image")
+        for revision in value["review"]["revisions"]:
+            if revision["source_id"] not in sources:
+                errors.append("a recorded revision names a missing source: " + revision["source_id"])
+        source_commitments = [{"source_id": s["source_id"], "sha256": s["sha256"]} for s in value["sources"]]
+        if sha256_json(source_commitments) != value["source_set_sha256"]:
+            errors.append("whole-source set hash mismatch")
+        if value["review"]["decision"] == "ready" and any(a["kind"] == "unresolved" for a in applications.values()):
+            # Intentional unknowns can remain ready if their scope is explicitly acknowledged.
+            if not value["review"]["limitations"]:
+                errors.append("ready material with unresolved applications needs explicit review limitations")
+    except (KeyError, TypeError, ValueError) as exc:
+        errors.append(str(exc))
+    return errors
+
+
+def _source_material_errors(value: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    try:
+        if value["artifact_type"] == "source-material-index":
+            docs = _indexed(value["documents"], "source_id", "documents")
+            _indexed(value["segments"], "segment_id", "segments")
+            for row in value["segments"]:
+                source = docs.get(row["source_id"])
+                if not source:
+                    errors.append("segment names an absent document")
+                elif row["source_sha256"] != source["sha256"]:
+                    errors.append("segment source commitment differs")
+                elif not 1 <= row["start_line"] <= row["end_line"] <= source["line_count"]:
+                    errors.append("segment lies outside its document")
+        else:
+            docs = _indexed(value["documents"], "source_id", "documents")
+            claims = _indexed(value["claims"], "claim_id", "claims")
+            for claim in claims.values():
+                if set(claim["conflicts_with"]) - claims.keys():
+                    errors.append("claim names an absent conflict")
+                if claim["claim_id"] in claim["conflicts_with"]:
+                    errors.append("claim cannot conflict with itself")
+                for evidence in claim["evidence"]:
+                    doc = docs.get(evidence["source_id"])
+                    if not doc or doc["sha256"] != evidence["source_sha256"]:
+                        errors.append("claim evidence source is not committed")
+                    elif not 1 <= evidence["start_line"] <= evidence["end_line"] <= doc["line_count"]:
+                        errors.append("claim evidence lies outside its source")
+                    if sha256_text(evidence["quote"]) != evidence["quote_sha256"]:
+                        errors.append("claim quote hash mismatch")
+    except (KeyError, ValueError, TypeError) as exc:
+        errors.append(str(exc))
+    return errors
+
+
+def material_errors(data: dict[str, Any]) -> list[str]:
+    """Cross-invariants of the scene material and source material artifacts."""
+    kind = artifact_type(data)
+    if kind == "scene-persona-material":
+        return _persona_material_errors(data)
+    if kind in MATERIAL_ARTIFACT_TYPES:
+        return _source_material_errors(data)
+    return []
+
+
 def validate_cross_invariants(data: dict[str, Any], *, allow_placeholder_hashes: bool = False) -> list[str]:
     errors = _state_invariants(data, allow_placeholder_hashes=allow_placeholder_hashes)
     errors.extend(_viewpoint_invariants(data, allow_placeholder_hashes=allow_placeholder_hashes))
     kind = artifact_type(data)
-    if kind == "scene-persona-material":
-        from scene_persona import public_errors
-        errors.extend(public_errors(data))
-    elif kind in {"source-material-index", "source-extraction-proposal"}:
-        from source_material import public_errors
-        errors.extend(public_errors(data))
+    if kind in MATERIAL_ARTIFACT_TYPES:
+        errors.extend(material_errors(data))
     if kind == "state-event" and data.get("supersedes_event_ids"):
         if data.get("event_scope") != "editorial-revision" or data.get("occurrence") != "editorial":
             errors.append("supersedes_event_ids requires an editorial-revision event with occurrence=editorial")
@@ -1331,3 +1636,103 @@ def validate_artifact(data: dict[str, Any], *, allow_placeholder_hashes: bool = 
         errors.append(str(exc))
     return {"artifact_type": data.get("artifact_type") if isinstance(data, dict) else None,
             "ok": not errors, "errors": errors, "content_sha256": digest}
+
+
+def refs(value: Any) -> Iterable[str]:
+    """Every `$ref` in a schema document, in document order."""
+    if isinstance(value, dict):
+        if "$ref" in value:
+            yield str(value["$ref"])
+        for item in value.values():
+            yield from refs(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from refs(item)
+
+
+def seal_registry(raw: str, root: Path = ROOT) -> str:
+    """The contract manifest text with every byte hash and the set digest current.
+
+    Rows are authored; this fills their digests from the files as they are.
+    It reads the manifest it is given, never the installed registry, so it can
+    repair a manifest the registry refuses. A file under protocols/ that the
+    manifest does not list stops the seal.
+    """
+    value = _registry_shape(parse_json(raw))
+    stray = unlisted_files(value, root)
+    if stray:
+        raise ValueError("file under protocols/ is not in the contract manifest: " + ", ".join(stray))
+    for row in value["schemas"]:
+        row["sha256"] = _member_digest(root, "public schema", schema_file(row["schema"]))
+    for section in ("templates", "documents"):
+        for row in value[section]:
+            row["sha256"] = _member_digest(root, section[:-1], row["path"])
+    value["semantics"]["sha256"] = _member_digest(root, "semantic contract", value["semantics"]["path"])
+    value["validator"]["sha256"] = _member_digest(root, "validator", value["validator"]["path"])
+    content = {key: item for key, item in value.items() if key != "contract_set_sha256"}
+    value["contract_set_sha256"] = sha256_json(content)
+    return json.dumps(value, indent=2, ensure_ascii=False) + "\n"
+
+
+def contract_descriptor(kind: str) -> dict[str, Any]:
+    """What a receiver compares: the schema closure, the semantic rules and the validator."""
+    value = registry()
+    if kind not in value["artifacts"]:
+        raise ValueError("unknown public artifact")
+    by_name = {row["schema"].split("/", 1)[1]: row["schema"] for row in value["schemas"]}
+    pending = [value["artifacts"][kind]["schema"]]
+    closure: dict[str, str] = {}
+    while pending:
+        key = pending.pop()
+        if key in closure:
+            continue
+        schema = schema_named(key.split("/", 1)[1])
+        closure[key] = _file_digest(schema_path(key))
+        for ref in refs(schema):
+            _resolve_ref(ref, schema)
+            name = ref.split("#", 1)[0]
+            if name:
+                pending.append(by_name[name])
+    descriptor: dict[str, Any] = {
+        "public_type": kind,
+        "schemas": [{"schema": key, "sha256": digest} for key, digest in sorted(closure.items())],
+        "semantics_sha256": value["semantics"]["sha256"],
+        "validator_sha256": value["validator"]["sha256"],
+    }
+    descriptor["contract_sha256"] = sha256_json(descriptor)
+    return descriptor
+
+
+def check_installed() -> dict[str, Any]:
+    """Verify the whole installation and every registered schema's references."""
+    value = registry()
+    verify_installation(value)
+    rows = value["schemas"]
+    names = {row["schema"].split("/", 1)[1]: row["schema"] for row in rows}
+    if len(names) != len(rows):
+        raise ValueError("duplicate schema basenames")
+    errors: list[str] = []
+    for row in rows:
+        schema = schema_named(row["schema"].split("/", 1)[1])
+        for ref in refs(schema):
+            try:
+                _resolve_ref(ref, schema)
+            except (ValueError, KeyError, OSError) as exc:
+                errors.append(f"{row['schema']}: {exc}")
+    for kind, row in value["artifacts"].items():
+        schema = schema_for({"artifact_type": kind})
+        if schema.get("properties", {}).get("artifact_type", {}).get("const") != kind:
+            errors.append(f"{kind}: registry and schema artifact type disagree")
+        field = row["self_hash_field"]
+        if field and field not in schema.get("properties", {}):
+            errors.append(f"{kind}: missing self-hash declaration")
+    if errors:
+        raise ValueError("; ".join(errors))
+    return {
+        "ok": True,
+        "contract_set_sha256": value["contract_set_sha256"],
+        "schemas": len(rows),
+        "public_artifacts": len(value["artifacts"]),
+        "semantic_contract_sha256": value["semantics"]["sha256"],
+        "validator_sha256": value["validator"]["sha256"],
+    }

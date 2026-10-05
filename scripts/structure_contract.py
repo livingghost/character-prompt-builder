@@ -114,8 +114,8 @@ def structure_view(value: dict[str, Any], kind: str) -> dict[str, Any]:
 
 
 def inspect_contract(value: dict[str, Any], kind: str) -> dict[str, Any]:
-    from state_protocol import load_json, validate_against_schema
-    errors = validate_against_schema(value, load_json(ROOT / "schemas" / f"{kind}.schema.json"))
+    from state_protocol import load_json, schema_file, validate_against_schema
+    errors = validate_against_schema(value, load_json(schema_file(f"{kind}.schema.json")))
     return {"ok": not errors, "errors": errors,
             "view": structure_view(value, kind) if not errors else None}
 

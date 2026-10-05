@@ -3132,7 +3132,7 @@ def run_derived_inputs() -> dict[str, Any]:
             drafted = io.StringIO()
             with contextlib.redirect_stdout(drafted):
                 draft_exit = production_spec.main(["draft", str(base / "spec.json"), "--render-intent", str(base / "render-intent.json"), "--model", model, "--brief", PROMPT,
-                                                   "--kind", "human", "--framing", "upper-thigh", "--continuity", "one-off"])
+                                                   "--kind", "human", "--continuity", "one-off"])
             lean = json.loads((base / "spec.json").read_text(encoding="utf-8"))
             checked(draft_exit == 0 and json.loads(drafted.getvalue())["build_with"]
                     == ["--production-spec-file", str(base / "spec.json"), "--continuity", "C01=one-off"],
@@ -3140,16 +3140,19 @@ def run_derived_inputs() -> dict[str, Any]:
             checked(lean["state_context"] == {"mode": "stateless", "notes": []}
                     and not any(key.endswith("_ref") or key == "resolved_morphology" for key in lean["subjects"][0]),
                     "the drafted specification carries lineage or morphology references")
+            # An undecided camera or performance contract is left out, never filled with a sentinel.
+            checked("camera" not in lean and "performance" not in lean["subjects"][0],
+                    "the drafted specification carries an undecided camera or performance contract")
             from state_protocol import validate_state_artifact_graph
             graph = validate_state_artifact_graph(lineage=_stateless_lineage(), production_spec=lean)
             checked(graph["ok"], f"the stateless graph refuses the drafted specification: {graph['errors']}")
             with contextlib.redirect_stdout(io.StringIO()):
                 checked(production_spec.main(["draft", str(base / "spec.json"), "--render-intent", str(base / "render-intent.json"), "--model", model, "--brief", PROMPT,
-                                              "--kind", "human", "--framing", "upper-thigh", "--continuity", "one-off"]) == 1,
+                                              "--kind", "human", "--continuity", "one-off"]) == 1,
                         "the draft replaced an existing file")
             # A relative draft path is below --root, never the working directory.
             draft_relative = ["draft", "drafts/spec.json", "--render-intent", "render-intent.json", "--model", model,
-                              "--brief", PROMPT, "--kind", "human", "--framing", "upper-thigh", "--continuity", "one-off"]
+                              "--brief", PROMPT, "--kind", "human", "--continuity", "one-off"]
             unrooted = io.StringIO()
             with contextlib.redirect_stdout(unrooted):
                 checked(production_spec.main(draft_relative) == 1, "a relative draft path was resolved without --root")
@@ -3224,7 +3227,7 @@ def run_derived_inputs() -> dict[str, Any]:
             # Specification errors come back as JSON, each once, from the builder and the verifier.
             broken = copy.deepcopy(lean)
             broken["state_context"]["state_lineage_sha256"] = "a" * 64
-            broken["camera"]["pitch_degrees"] = "level"
+            broken["creative_latitude"] = "unbounded"
             broken["subjects"][0]["identity_contract_ref"] = {"id": "identity", "sha256": "b" * 64}
             atomic_write_json(base / "broken-spec.json", broken)
             errors = refusal("--production-spec-file", str(base / "broken-spec.json"), "--continuity", "C01=one-off")

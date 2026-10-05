@@ -25,7 +25,7 @@
 
 `state-event` uses per-change expiry and clear references, exact scene binding for scene-local mutations, and explicit process lifecycle actions. `state-process` uses authored integer milestones and one required interruption policy. World and character snapshots record the target scene context used for resolution.
 
-The reusable starters preserve both event modes: `templates/state/state-event.template.json` demonstrates a scene-local mutation, and `templates/state/state-event-temporary-until-cleared.template.json` demonstrates preconditions plus per-change clearing and expiry.
+The reusable starters preserve both event modes: `protocols/shared-state/templates/state-event.template.json` demonstrates a scene-local mutation, and `protocols/shared-state/templates/state-event-temporary-until-cleared.template.json` demonstrates preconditions plus per-change clearing and expiry.
 
 ## Projection and generation
 
@@ -55,13 +55,13 @@ explicit canonical record uses
 → verifier-produced host forwarding
 ```
 
-State Lineage also has two independent starters. `templates/state/state-lineage.template.json` is stateless; `templates/state/state-lineage-state-aware.template.json` exposes every required state-aware graph hash without replacing the stateless example.
+State Lineage also has two independent starters. `protocols/shared-state/templates/state-lineage.template.json` is stateless; `protocols/shared-state/templates/state-lineage-state-aware.template.json` exposes every required state-aware graph hash without replacing the stateless example.
 
 The Reference Selection and Reference Use Plan are not parallel activation lists. The Reference Selection proves story-time eligibility for committed binding sources and intended influences. The Reference Use Plan is the only activation, authority, technical-artifact, precedence, transport-mode, and surface-lighting decision. State-aware execution intersects the plan with the selection; it never unions their authority.
 
 ## References, adoption, and observation
 
-The reusable core visual-evidence starters at `templates/state/semantic-region-map.template.json`, `templates/state/visual-authority.template.json`, and `templates/state/visual-evidence-bundle.template.json` are neutral and unbound. Their `canonical_record_refs` arrays are empty, and placeholder source and derivative values carry no authority. Populate source hashes, derivative artifacts, semantic observations, and record bindings only after reviewing real evidence. Run `python scripts/default_only_example_resolution_smoke_test.py` to resolve every non-empty catalog-selection field in the state-aware pilot and core state templates against `packs/commons` alone. Pack-specific evidence remains in its owning pack and is validated through that pack's lock and release gate.
+The reusable core visual-evidence starters at `templates/semantic-region-map.template.json`, `protocols/shared-state/templates/visual-authority.template.json`, and `protocols/shared-state/templates/visual-evidence-bundle.template.json` are neutral and unbound. Their `canonical_record_refs` arrays are empty, and placeholder source and derivative values carry no authority. Populate source hashes, derivative artifacts, semantic observations, and record bindings only after reviewing real evidence. Run `python scripts/default_only_example_resolution_smoke_test.py` to resolve every non-empty catalog-selection field in the state-aware pilot and core state templates against `packs/commons` alone. Pack-specific evidence remains in its owning pack and is validated through that pack's lock and release gate.
 
 - `reference-bundle-plan.schema.json`
 - `candidate-manifest.schema.json`
@@ -100,6 +100,6 @@ Portable carriers use paths relative to the prepared-reference package and, afte
 
 Only the verifier may turn a Generation Package into a host request. It resolves and rehashes package-relative carriers and emits an effective prompt plus ordered forwarding rows containing only `role`, resolved `resolved_path`, `media_type`, and `sha256`. The returned `reference_preamble` is an audit field already incorporated into the effective prompt. `multi-image` forwards each verified role transport. `single-board` forwards one `composite-reference-board`; its panel source and transport hashes remain sealed in the Prepared Reference Set. Prompt-package `prompt-artifacts` and `svg-bundle` modes are not model-forwarding contracts.
 
-These schemas and templates are CPB-owned. Optional consumers receive content-addressed interchange envelopes and declared features rather than byte-identical copies of the CPB source tree.
+These schemas and templates are an installed copy of the public protocol. Consumers receive content-addressed interchange envelopes and declared features rather than copies of this source tree.
 
 - [`prompt-semantic-preflight.schema.json`](../schemas/prompt-semantic-preflight.schema.json): structured anatomy and camera contradiction preflight for prompt construction.
