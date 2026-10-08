@@ -17,6 +17,10 @@ does again or skips.
     python scripts/work_ledger.py step --studio DIR <n> [--note "..."]
     python scripts/work_ledger.py note --studio DIR "..."
     python scripts/work_ledger.py block --studio DIR "the question the user has to answer"
+    python scripts/work_ledger.py respond --studio DIR --question-id ID --answer "..." --actor "..."
+    python scripts/work_ledger.py reopen --studio DIR --from-step 1 --reason "..." --actor "..."
+    python scripts/work_ledger.py suspend --studio DIR --reason "..."
+    python scripts/work_ledger.py resume-task --studio DIR --task-id ID
     python scripts/work_ledger.py finish --studio DIR
     python scripts/work_ledger.py abandon --studio DIR --reason "..." [--actor "..."]
     python scripts/work_ledger.py show --studio DIR
@@ -31,7 +35,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from execution_contract import now
+from studio_activity import timestamp as now
 
 SCRIPT = Path(__file__).resolve()
 WORK_DIR = "work"
@@ -56,7 +60,26 @@ def read_current(root: Path) -> dict[str, Any] | None:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"{path}: not an object")
-    return value
+    saved = task_path(root, value['task_id'])
+    if saved.is_file():
+        latest = json.loads(saved.read_text(encoding='utf-8'))
+        if latest.get('work_state') != 'active':
+            return None
+        return latest
+    raise ValueError('active task snapshot is missing: ' + str(saved))
+
+
+def task_path(root: Path, task_id: str) -> Path:
+    from execution_contract import local
+    import uuid
+    if str(uuid.UUID(task_id)) != task_id:
+        raise ValueError('task ID must be a canonical UUID')
+    return local(root, 'work/tasks/' + task_id + '/task.json', exists=False)
+
+
+def save_task(root: Path, task: dict) -> None:
+    from execution_contract import atomic_write_json
+    atomic_write_json(task_path(root, task['task_id']), task)
 
 
 def write_current(root: Path, value: dict[str, Any] | None) -> None:
@@ -67,14 +90,22 @@ def write_current(root: Path, value: dict[str, Any] | None) -> None:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     from execution_contract import atomic, encoded
+    save_task(root, value)
     atomic(path, encoded(value), replace=True)
 
 
 def append(root: Path, entry: dict[str, Any]) -> None:
     path = work_dir(root) / LEDGER
     path.parent.mkdir(parents=True, exist_ok=True)
+    import os
+    from pack_manager import generate_uuid7
+    entry = {**entry, 'event_id': generate_uuid7()}
     with path.open("a", encoding="utf-8", newline="\n") as stream:
         stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        stream.flush(); os.fsync(stream.fileno())
+    import studio_activity as activity
+    activity.changed(path, 'work-' + entry['event'], subject=entry['task_id'], revision=entry['event_id'],
+                     details={**entry, 'formal_ledger': 'work/ledger.jsonl'})
 
 
 def read_ledger(root: Path) -> list[dict[str, Any]]:
@@ -102,6 +133,8 @@ def next_step(task: dict[str, Any]) -> dict[str, Any] | None:
 def refreshed(task: dict[str, Any]) -> dict[str, Any]:
     step = next_step(task)
     task["next"] = step["text"] if step else None
+    unanswered = [q for q in task.get('questions', []) if q['state'] == 'open']
+    task['blocked_on'] = unanswered[0]['question'] if unanswered else None
     return task
 
 
@@ -118,7 +151,7 @@ def begin(root: Path, goal: str, steps: list[str]) -> dict[str, Any]:
 
 def _begin_locked(root: Path, goal: str, steps: list[str]) -> dict[str, Any]:
     if read_current(root) is not None:
-        raise ValueError("a task is already open; finish or abandon it before opening another")
+        raise ValueError("a task is already open; suspend, finish or abandon it before opening another")
     if not goal.strip():
         raise ValueError("a task needs a goal")
     if not steps or not all(text.strip() for text in steps):
@@ -131,6 +164,7 @@ def _begin_locked(root: Path, goal: str, steps: list[str]) -> dict[str, Any]:
         "next": None,
         "notes": [],
         "blocked_on": None,
+        "questions": [], "revision": 1, "work_state": "active", "revisions": [],
     })
     write_current(root, task)
     append(root, {"at": task["opened_at"], "task_id": task["task_id"], "event": "opened", "text": task["goal"],
@@ -162,7 +196,6 @@ def _step_done_locked(root: Path, number: int, note: str | None = None) -> dict[
     found["done_at"] = now()
     if note:
         found["note"] = note.strip()
-    task["blocked_on"] = None
     write_current(root, refreshed(task))
     append(root, {"at": found["done_at"], "task_id": task["task_id"], "event": "step", "n": number,
                   "text": found["text"], "note": note.strip() if note else None})
@@ -195,10 +228,109 @@ def _block_locked(root: Path, question: str) -> dict[str, Any]:
     task = require_open(root)
     if not question.strip():
         raise ValueError("say what the task is blocked on")
-    task["blocked_on"] = question.strip()
-    write_current(root, task)
-    append(root, {"at": now(), "task_id": task["task_id"], "event": "blocked", "text": question.strip()})
+    from pack_manager import generate_uuid7
+    question_id = generate_uuid7()
+    task.setdefault('questions', []).append({'question_id': question_id, 'question': question.strip(),
+        'opened_at': now(), 'state': 'open', 'answer': None, 'candidates': []})
+    write_current(root, refreshed(task))
+    append(root, {"at": now(), "task_id": task["task_id"], "event": "blocked", "text": question.strip(),
+                  'question_id': question_id})
     return task
+
+
+def respond(root: Path, question_id: str, answer: str, *, actor: str,
+            evidence: str | None = None, candidates: list[str] | None = None) -> dict:
+    """Record an actual answer, without inferring approval or changing artwork."""
+    import execution_contract as c
+    with c.lock(root):
+        task = require_open(root)
+        question = next((q for q in task['questions'] if q['question_id'] == question_id), None)
+        if question is None:
+            raise ValueError('question is not recorded in the active task')
+        c.text(answer, 'answer'); c.text(actor, 'responding actor')
+        proof = None
+        if evidence is not None:
+            proof = {'path': evidence, 'sha256': c.sha256_file(c.local(root, evidence))}
+        response = {'text': answer.strip(), 'actor': actor.strip(), 'evidence': proof}
+        if question['state'] == 'answered':
+            if {k: question['answer'][k] for k in response} == response:
+                return task
+            raise ValueError('question already has an answer; open a new question for a revised decision')
+        question.update(state='answered', answer={**response, 'at': now()}, candidates=candidates or [])
+        write_current(root, refreshed(task))
+        append(root, {'at': now(), 'task_id': task['task_id'], 'event': 'answered',
+                      'question_id': question_id, 'actor': actor, 'text': answer, 'evidence': proof,
+                      'candidates': candidates or []})
+        return task
+
+
+def reopen(root: Path, from_step: int, *, reason: str, actor: str) -> dict:
+    """Reopen this and later steps as a new work revision, retaining the old plan and runs."""
+    import execution_contract as c
+    with c.lock(root):
+        task = require_open(root)
+        c.text(reason, 'reopen reason'); c.text(actor, 'reopening actor')
+        if type(from_step) is not int or from_step not in {s['n'] for s in task['steps']}:
+            raise ValueError('reopen must name an existing step')
+        old = json.loads(json.dumps(task))
+        revision = task['revision']
+        archive = task_path(root, task['task_id']).parent / 'revisions' / f'{revision:06d}.json'
+        if archive.exists() and c.load(archive) != old:
+            raise ValueError('work revision archive conflicts with the current revision')
+        if not archive.exists(): c.atomic(archive, c.encoded(old))
+        task['revisions'].append({'revision': revision, 'at': now(), 'from_step': from_step,
+                                  'reason': reason, 'actor': actor,
+                                  'snapshot': archive.relative_to(root).as_posix(),
+                                  'production_run': task.get('production_run')})
+        task['revision'] += 1
+        for step in task['steps']:
+            if step['n'] >= from_step:
+                step['done_at'] = None
+                step.pop('note', None)
+        task.pop('production_run', None)
+        write_current(root, refreshed(task))
+        append(root, {'at': now(), 'task_id': task['task_id'], 'event': 'reopened',
+                      'from_step': from_step, 'revision': task['revision'], 'actor': actor, 'text': reason})
+        return task
+
+
+def suspend(root: Path, *, reason: str) -> dict:
+    import execution_contract as c
+    with c.lock(root):
+        task = require_open(root)
+        c.text(reason, 'suspension reason')
+        task.update(work_state='suspended', suspended_at=now(), suspension_reason=reason.strip())
+        save_task(root, task)
+        append(root, {'at': now(), 'task_id': task['task_id'], 'event': 'suspended', 'text': reason})
+        write_current(root, None)
+        return task
+
+
+def resume_task(root: Path, task_id: str) -> dict:
+    import execution_contract as c
+    with c.lock(root):
+        current = read_current(root)
+        if current is not None:
+            if current['task_id'] == task_id: return current
+            raise ValueError('suspend the active task before resuming another task')
+        task = c.load(task_path(root, task_id))
+        if task.get('work_state') not in {'suspended', 'active'}:
+            raise ValueError('only a suspended task can be resumed')
+        task.update(work_state='active', resumed_at=now())
+        write_current(root, refreshed(task))
+        append(root, {'at': now(), 'task_id': task_id, 'event': 'resumed', 'text': task['goal']})
+        return task
+
+
+def suspended_tasks(root: Path) -> list[dict]:
+    rows = []
+    for path in sorted((root / 'work/tasks').glob('*/task.json')):
+        try:
+            task = json.loads(path.read_text(encoding='utf-8'))
+            if task.get('work_state') == 'suspended': rows.append(task)
+        except (ValueError, OSError):
+            continue
+    return sorted(rows, key=lambda row: row['suspended_at'], reverse=True)
 
 
 def finish(root: Path) -> dict[str, Any]:
@@ -208,7 +340,29 @@ def finish(root: Path) -> dict[str, Any]:
 
 
 def _finish_verified(root: Path) -> dict[str, Any]:
-    task = require_open(root)
+    task = read_current(root)
+    if task is None:
+        # Completion is durable before its active pointer is removed. A crash at
+        # that boundary must be recoverable without reopening the closed task.
+        pointer = work_dir(root) / CURRENT
+        if pointer.is_file():
+            held = json.loads(pointer.read_text(encoding='utf-8'))
+            saved = task_path(root, held['task_id'])
+            closed = json.loads(saved.read_text(encoding='utf-8'))
+            if closed.get('work_state') == 'completed':
+                from production_workflow import verify_completion
+                run = closed.get('production_run')
+                completion = verify_completion(root, run, closed['task_id'])
+                matching = [entry for entry in read_ledger(root) if entry.get('event') == 'finished'
+                            and entry.get('task_id') == closed['task_id']]
+                if (len(matching) != 1 or matching[0].get('production_run') != run
+                        or matching[0].get('completion_sha256') != completion['sha256']):
+                    raise ValueError('closed task completion journal conflicts with the verified evidence')
+                write_current(root, None)
+                return closed
+        raise ValueError(f"no task is open; open one with: {begin_command(root)}")
+    if task.get("blocked_on"):
+        raise ValueError("resolve the open author questions before finishing")
     left = [step for step in task.get("steps") or [] if not step.get("done_at")]
     if left:
         raise ValueError(
@@ -227,6 +381,8 @@ def _finish_verified(root: Path) -> dict[str, Any]:
     else:
         append(root, {"at": now(), "task_id": task["task_id"], "event": "finished", "text": task["goal"],
                       "production_run": run, "completion_sha256": completion["sha256"]})
+    task.update(work_state='completed', closed_at=now())
+    save_task(root, task)
     write_current(root, None)
     return task
 
@@ -240,7 +396,7 @@ def abandon(root: Path, reason: str, *, actor: str | None = None) -> dict[str, A
 def _abandon_locked(root: Path, reason: str, actor: str | None) -> dict[str, Any]:
     """Close the open task. A task with production runs is first abandoned in the Production record.
 
-    The Production record keeps every reservation as it is; only a release or a
+    The Production record keeps every execution as it is; only an evidenced result or a
     settlement closes one. This ledger entry is the trail, not that record.
     """
     task = require_open(root)
@@ -256,6 +412,8 @@ def _abandon_locked(root: Path, reason: str, actor: str | None) -> dict[str, Any
     append(root, {"at": now(), "task_id": task["task_id"], "event": "abandoned", "text": reason.strip(),
                   "left": [s["text"] for s in task.get("steps") or [] if not s.get("done_at")],
                   "production_runs": production_runs})
+    task.update(work_state='abandoned', closed_at=now())
+    save_task(root, task)
     write_current(root, None)
     return task
 
@@ -264,6 +422,11 @@ def show(root: Path) -> str:
     """What a session reads first: the open task and where it stands, or the trail."""
     task = read_current(root)
     lines: list[str] = []
+    paused = suspended_tasks(root)
+    if paused:
+        lines.append(f'{len(paused)} suspended task(s):')
+        for row in paused[:10]:
+            lines.append(f"  {row['task_id']}: {row['goal']} (resume-task --task-id {row['task_id']})")
     if task is not None:
         steps = task.get("steps") or []
         done = sum(1 for step in steps if step.get("done_at"))
@@ -272,7 +435,9 @@ def show(root: Path) -> str:
             mark = "done" if step.get("done_at") else "    "
             lines.append(f"  [{mark}] {step['n']}. {step['text']}" + (f"  ({step['note']})" if step.get("note") else ""))
         if task.get("blocked_on"):
-            lines.append(f"  blocked on: {task['blocked_on']}")
+            for question in task.get('questions', []):
+                if question['state'] == 'open':
+                    lines.append(f"  blocked on: {question['question']} (question {question['question_id']})")
         elif task.get("next"):
             lines.append(f"  next: {task['next']}")
         for text in (task.get("notes") or [])[-5:]:
@@ -303,7 +468,7 @@ def check(root: Path) -> list[str]:
         for name in ("at", "task_id", "event"):
             if not isinstance(entry.get(name), str) or not entry[name]:
                 errors.append(f"{WORK_DIR}/{LEDGER}:{number}: {name} is missing")
-        if entry.get("event") not in ("opened", "step", "note", "blocked", "finished", "abandoned"):
+        if entry.get("event") not in ("opened", "step", "note", "blocked", "answered", "reopened", "suspended", "resumed", "finished", "abandoned"):
             errors.append(f"{WORK_DIR}/{LEDGER}:{number}: unknown event {entry.get('event')!r}")
     try:
         task = read_current(root)
@@ -340,6 +505,20 @@ def main(argv: list[str] | None = None) -> int:
     note_parser.add_argument("text")
     block_parser = commands.add_parser("block", help="record what the open task waits on", parents=[after])
     block_parser.add_argument("question")
+    respond_parser = commands.add_parser('respond', help='record the answer to an exact question; does not approve any execution', parents=[after])
+    respond_parser.add_argument('--question-id', required=True)
+    respond_parser.add_argument('--answer', required=True)
+    respond_parser.add_argument('--actor', required=True)
+    respond_parser.add_argument('--evidence')
+    respond_parser.add_argument('--candidate', action='append', default=[])
+    reopen_parser = commands.add_parser('reopen', help='reopen a step and its downstream steps as a new revision', parents=[after])
+    reopen_parser.add_argument('--from-step', type=int, required=True)
+    reopen_parser.add_argument('--reason', required=True)
+    reopen_parser.add_argument('--actor', required=True)
+    suspend_parser = commands.add_parser('suspend', help='pause without completing or abandoning work', parents=[after])
+    suspend_parser.add_argument('--reason', required=True)
+    resume_parser = commands.add_parser('resume-task', help='restore a suspended task with its questions and exact next step', parents=[after])
+    resume_parser.add_argument('--task-id', required=True)
     commands.add_parser("finish", help="close the open task; every step must be done", parents=[after])
     abandon_parser = commands.add_parser("abandon", help="close the open task without finishing it", parents=[after])
     abandon_parser.add_argument("--reason", required=True)
@@ -356,6 +535,14 @@ def main(argv: list[str] | None = None) -> int:
             note(root, args.text)
         elif args.command == "block":
             block(root, args.question)
+        elif args.command == 'respond':
+            respond(root, args.question_id, args.answer, actor=args.actor, evidence=args.evidence, candidates=args.candidate)
+        elif args.command == 'reopen':
+            reopen(root, args.from_step, reason=args.reason, actor=args.actor)
+        elif args.command == 'suspend':
+            suspend(root, reason=args.reason)
+        elif args.command == 'resume-task':
+            resume_task(root, args.task_id)
         elif args.command == "finish":
             finish(root)
         elif args.command == "abandon":

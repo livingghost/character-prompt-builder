@@ -28472,7 +28472,10 @@
         },
         {
           "term": "neck ruff",
-          "description": "A stiff pleated frill standing out in a wide circle around the neck, in old European fashion."
+          "description": "A stiff pleated frill standing out in a wide circle around the neck, in old European fashion.",
+          "usage_notes": [
+            "This dictionary entry describes a garment collar. It does not mean a biological neck-fur tuft; inspect the definition before authoring an identity detail."
+          ]
         },
         {
           "term": "plastron (necklace)",

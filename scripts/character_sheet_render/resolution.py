@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from character_sheet import resolve_sheet_relative
+from sheet_artifacts import current_artifact
 from character_sheet_render.profiles import (
     ASPECT_LIMIT,
     BORDER,
@@ -68,7 +69,8 @@ def slot_image(
     sheet: Mapping[str, Any], box: Mapping[str, Any], sheet_dir: Path
 ) -> tuple[str | None, Mapping[str, Any] | None, str, Path | None]:
     resolved_id, slot = resolve_slot(sheet, box)
-    relative = meaningful(slot.get("image_path", "")) if slot else ""
+    artifact = current_artifact(slot)
+    relative = artifact["image"]["path"] if artifact else ""
     if not relative:
         return resolved_id, slot, "", None
     slot_label = resolved_id or box["slot_id"]
@@ -80,6 +82,8 @@ def slot_image(
         )
     except OSError as exc:
         raise ValueError(f"slot {slot_label} image does not exist: {relative}") from exc
+    from sheet_artifacts import verify_acceptance
+    verify_acceptance(slot["current"], sheet_dir, slot_label)
     return resolved_id, slot, relative, image_path
 
 
@@ -235,7 +239,7 @@ def effective_fill_state(
     if policy == "keep":
         if image_path is None:
             raise ValueError(
-                f"slot {box['slot_id']} requests fill_policy=keep but has no accepted image_path"
+                f"slot {box['slot_id']} requests fill_policy=keep but has no accepted artwork"
             )
         return "keep"
     if image_path is not None:

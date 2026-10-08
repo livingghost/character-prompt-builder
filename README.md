@@ -113,7 +113,7 @@ python scripts/production_workflow.py execute --root STUDIO --run RUN --decision
 - `draft-execution` writes the decision file, which you fill from the actual approval.
 - `execute` sends only what that file covers and records every returned image.
 
-After an interruption, `resume` recovers the same execution from saved evidence and never sends its request twice. `status --budget` names each run's next command and how much of each approved budget remains. The included transport is for Runware, and [Image Generation](references/runtime/image-generation.md) shows how another service is added. The [synthetic generation example](examples/generation/README.md) runs the whole path with a local transport that makes no network request.
+After an interruption, `resume` recovers the same execution from saved evidence and never sends its request twice. `status` names each run's next command and its recorded submissions and images. The included transport is for Runware, and [Image Generation](references/runtime/image-generation.md) shows how another service is added. The [synthetic generation example](examples/generation/README.md) runs the whole path with a local transport that makes no network request.
 
 ## Where each topic is documented
 
@@ -130,7 +130,7 @@ After an interruption, `resume` recovers the same execution from saved evidence 
 - Story state and world facts: [State-Aware Series](references/runtime/state-aware-series.md) and [World Realization](references/runtime/world-realization.md)
 - Existing manuscripts and notes: [Source Material](references/runtime/source-material.md)
 - Reference images and their influence: [Prompt Artifact References](references/runtime/reference-prompt-artifacts.md) and [Derived Visual Evidence](references/derived-visual-evidence.md)
-- Runs, approvals, budgets and command logs: [Production Execution](references/runtime/production-execution.md), [Production Permissions](references/runtime/production-permissions.md) and [Operation Logs](references/runtime/operation-logs.md)
+- Runs, approvals, execution records and command logs: [Production Execution](references/runtime/production-execution.md), [Production Permissions](references/runtime/production-permissions.md) and [Operation Logs](references/runtime/operation-logs.md)
 - Character folders, galleries and resumption: [Studio Runtime](references/runtime/studio.md)
 - Editing and upscaling an approved image: [Image Editing](references/runtime/image-editing.md) and [Upscale Adapter](references/adapters/upscale.md)
 - Reviewing results, repeated failures and agent trials: [Evidence Review](references/runtime/evidence-review.md), [Repair Analysis](references/runtime/repair-analysis.md) and [Agent Evaluation](references/runtime/agent-evaluation.md)

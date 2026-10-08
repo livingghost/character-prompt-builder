@@ -29,7 +29,7 @@ import production_fixtures
 import production_workflow as workflow
 import production_store as store
 import production_variation as variation
-import reservation_lifecycle as accounting
+import execution_lifecycle as accounting
 import studio
 import transport_synthetic
 from test_production_execution import decisions
@@ -93,7 +93,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'robot'))),2)
         self.key.assert_not_called()
 
-    def test_low_level_preview_writes_no_events_or_reservation(self):
+    def test_low_level_preview_writes_no_events_or_claim(self):
         options=self.low_level_options();before=self.rows()
         with contextlib.redirect_stdout(io.StringIO()):self.assertEqual(dispatch.dispatch_generation(options,self.root),0)
         self.assertEqual(self.rows(),before);self.no_effect()
@@ -131,12 +131,6 @@ class DispatchRecoveryTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.call()
         self.no_effect();self.assertEqual(self.rows(),[])
 
-    def test_full_budget_blocks_before_provider_contact(self):
-        authority=c.load(self.root/'fixture-authority.json');authority['grants'][0]['limits']['outputs']=1
-        cases.write(self.root/'amended.json',authority)
-        prior=store.authority_record(self.root,authority['task_id']);store.import_authority(self.root,'amended.json',expected=prior['sha256'])
-        with self.assertRaises(ValueError):self.call()
-        self.no_effect()
 
     def test_publication_failure_does_not_send(self):
         with patch.object(execution,'_journal',side_effect=OSError('Synthetic durable storage failure')),self.assertRaises(OSError):self.call()
@@ -160,7 +154,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         report=self.call();again=execution.resume(self.root,self.run)
         self.assertEqual(report['runs'][0]['submission'],'outcome_unknown')
         self.assertEqual(again['runs'][0]['submission'],'outcome_unknown');self.assertEqual(self.send.call_count,1)
-        self.assertFalse(accounting.releasable(accounting.all_states(self.root)[0]))
+        self.assertEqual(accounting.all_states(self.root)[0]['status'],'started')
 
     def test_lost_answer_is_recovered_by_lookup_without_resend(self):
         def lose(*args):
@@ -203,7 +197,7 @@ class DispatchRecoveryTests(unittest.TestCase):
             result=self.actual_send(*args);result['data'].append({**result['data'][0],'id':'extra-output'});return result
         self.send.side_effect=answer;result=self.call()
         self.assertFalse(result['execution_completed']);self.assertEqual(len(self.candidates()),3)
-        self.assertEqual(accounting.budget(self.root)['grants'][0]['consumed']['outputs'],3)
+        self.assertEqual(accounting.summary(self.root)['captured_outputs'],3)
 
     def test_failed_decode_preserves_other_acquired_output(self):
         original=dispatch.inline_image;seen=[]

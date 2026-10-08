@@ -5,30 +5,30 @@
     "artifact_type": "execution-policy",
     "basis": {
       "locator": "whole",
-      "path": "synthetic-validation/6869870cd69c35fe/basis.txt",
+      "path": "synthetic-validation/6d7df66dca004613/basis.txt",
       "sha256": "424db1c13f6c398026a9d9ae39d4e8f294e1274d4e2d1dec1ab501e7d61e06c5"
     },
     "production_context_transport": "none",
     "reference_instruction_transport": {
       "contract": {
-        "path": "synthetic-validation/6869870cd69c35fe/references.json",
-        "sha256": "dd47652d589485206629c27dc73250e071b4979245061171bcd834489ba1a49e"
+        "path": "synthetic-validation/6d7df66dca004613/references.json",
+        "sha256": "5be786f108d2b6ce788f7c685a3b6129385ca54a8ee34f73026f89313810a67e"
       },
       "mode": "prompt-prefix"
     },
     "target": {
-      "model_identifier": "gpt-image-2.5-flare",
-      "operation": "generation",
-      "service": "synthetic-host"
+      "model_identifier": "openai:gpt-image@2.5-flare",
+      "operation": "generate",
+      "service": "runware"
     },
     "text_dialect": "synthetic-prose"
   },
   "request_validation_report": {
     "mode": "target-schema",
     "target": {
-      "service": "synthetic-host",
-      "model_identifier": "gpt-image-2.5-flare",
-      "operation": "generation"
+      "service": "runware",
+      "model_identifier": "openai:gpt-image@2.5-flare",
+      "operation": "generate"
     },
     "checked": [],
     "unmeasured": []
@@ -58,136 +58,153 @@
     },
     "model_card": {
       "model": "gpt-image-2.5-flare",
-      "service": null,
-      "model_identifier": "gpt-image-2.5-flare",
+      "service": "runware",
+      "model_identifier": "openai:gpt-image@2.5-flare",
       "ready_for_parameter_resolution": true,
       "execution_profile": {
         "basis": {
-          "kind": "curated-starting-point",
+          "kind": "provider-documentation",
           "limitations": [
-            "Host request validation supplies the actual callable interface. No sampling controls or image-quality outcome are asserted."
+            "The stored schema is dated interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
+            "This profile declares geometry, settings, output, count and media controls. Sampling controls (steps, guidance, scheduler, seed) are backend-managed: the schema exposes none of them."
           ],
-          "source": "Model record prompt_style, ordering and size_hints"
+          "source": "resources/observed-schemas/gpt-image-2-5-flare.runware.json"
         },
-        "id": "host-prose-image",
+        "id": "runware-gpt-image-2-5-flare-interface",
         "modes": {
-          "instruction-edit": {
-            "controls": {
-              "CFGScale": {
-                "binding": "package",
-                "reason": "No guidance-scale control is declared by this host record.",
-                "recommendation": null,
-                "schema": null,
-                "status": "backend-managed"
-              },
-              "numberResults": {
-                "binding": "dispatch-count",
-                "reason": "Output count belongs to the selected host invocation.",
-                "recommendation": null,
-                "schema": null,
-                "status": "backend-managed"
-              },
-              "quality": {
-                "binding": "package",
-                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
-                "recommendation": null,
-                "schema": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "status": "required"
-              },
-              "seed": {
-                "binding": "dispatch-seed",
-                "reason": "This host-only record exposes no seed control.",
-                "recommendation": null,
-                "schema": null,
-                "status": "backend-managed"
-              },
-              "size": {
-                "binding": "package",
-                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
-                "recommendation": null,
-                "schema": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "status": "required"
-              },
-              "steps": {
-                "binding": "package",
-                "reason": "No sampling-step control is declared by this host record.",
-                "recommendation": null,
-                "schema": null,
-                "status": "backend-managed"
-              },
-              "strength": {
-                "binding": "package",
-                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
-                "recommendation": null,
-                "schema": null,
-                "status": "not-applicable"
-              }
-            },
-            "media": "references",
-            "parameter_schema": {}
-          },
           "reference-guided": {
             "controls": {
               "CFGScale": {
                 "binding": "package",
-                "reason": "No guidance-scale control is declared by this host record.",
+                "reason": "The instruction model exposes no guidance control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
+              },
+              "height": {
+                "binding": "package",
+                "reason": "Height 16 to 3840 in steps of 16, set together with width; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 3840,
+                  "minimum": 16,
+                  "multipleOf": 16,
+                  "title": "Height",
+                  "type": "integer"
+                },
+                "status": "optional"
               },
               "numberResults": {
                 "binding": "dispatch-count",
-                "reason": "Output count belongs to the selected host invocation.",
+                "reason": "Result count 1 to 20, set by the dispatch authorization.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 20,
+                  "minimum": 1,
+                  "title": "Number of Results",
+                  "type": "integer"
+                },
+                "status": "required"
+              },
+              "outputFormat": {
+                "binding": "package",
+                "reason": "Optional output encoding from the stored schema.",
+                "recommendation": null,
+                "schema": {
+                  "enum": [
+                    "JPG",
+                    "PNG",
+                    "WEBP"
+                  ],
+                  "title": "Output Format",
+                  "type": "string"
+                },
+                "status": "optional"
+              },
+              "safety.checkContent": {
+                "binding": "package",
+                "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it.",
+                "recommendation": "safety.checkContent",
+                "schema": {
+                  "description": "Enable or disable content safety checking. Increases total generation time.",
+                  "title": "Check Content",
+                  "type": "boolean"
+                },
+                "status": "required"
+              },
+              "scheduler": {
+                "binding": "package",
+                "reason": "The instruction model exposes no scheduler control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
-              },
-              "quality": {
-                "binding": "package",
-                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
-                "recommendation": null,
-                "schema": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "status": "required"
               },
               "seed": {
                 "binding": "dispatch-seed",
-                "reason": "This host-only record exposes no seed control.",
+                "reason": "The stored schema exposes no seed control; never invent one.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
               },
-              "size": {
+              "settings.background": {
                 "binding": "package",
-                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
+                "reason": "Optional background handling; transparent requires outputFormat PNG or WEBP.",
                 "recommendation": null,
                 "schema": {
-                  "minLength": 1,
+                  "enum": [
+                    "auto",
+                    "opaque",
+                    "transparent"
+                  ],
+                  "title": "Background",
                   "type": "string"
                 },
-                "status": "required"
+                "status": "optional"
+              },
+              "settings.quality": {
+                "binding": "package",
+                "reason": "Optional quality level from the stored schema.",
+                "recommendation": null,
+                "schema": {
+                  "enum": [
+                    "auto",
+                    "max",
+                    "xhigh",
+                    "high",
+                    "medium",
+                    "low"
+                  ],
+                  "title": "Quality",
+                  "type": "string"
+                },
+                "status": "optional"
               },
               "steps": {
                 "binding": "package",
-                "reason": "No sampling-step control is declared by this host record.",
+                "reason": "The instruction model exposes no step control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
               },
               "strength": {
                 "binding": "package",
-                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
+                "reason": "No source-image denoising control exists on this interface; reference influence is not weightable here.",
                 "recommendation": null,
                 "schema": null,
                 "status": "not-applicable"
+              },
+              "width": {
+                "binding": "package",
+                "reason": "Width 16 to 3840 in steps of 16, set together with height; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 3840,
+                  "minimum": 16,
+                  "multipleOf": 16,
+                  "title": "Width",
+                  "type": "integer"
+                },
+                "status": "optional"
               }
             },
             "media": "references",
@@ -197,58 +214,135 @@
             "controls": {
               "CFGScale": {
                 "binding": "package",
-                "reason": "No guidance-scale control is declared by this host record.",
+                "reason": "The instruction model exposes no guidance control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
+              },
+              "height": {
+                "binding": "package",
+                "reason": "Height 16 to 3840 in steps of 16, set together with width; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 3840,
+                  "minimum": 16,
+                  "multipleOf": 16,
+                  "title": "Height",
+                  "type": "integer"
+                },
+                "status": "optional"
               },
               "numberResults": {
                 "binding": "dispatch-count",
-                "reason": "Output count belongs to the selected host invocation.",
+                "reason": "Result count 1 to 20, set by the dispatch authorization.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 20,
+                  "minimum": 1,
+                  "title": "Number of Results",
+                  "type": "integer"
+                },
+                "status": "required"
+              },
+              "outputFormat": {
+                "binding": "package",
+                "reason": "Optional output encoding from the stored schema.",
+                "recommendation": null,
+                "schema": {
+                  "enum": [
+                    "JPG",
+                    "PNG",
+                    "WEBP"
+                  ],
+                  "title": "Output Format",
+                  "type": "string"
+                },
+                "status": "optional"
+              },
+              "safety.checkContent": {
+                "binding": "package",
+                "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it.",
+                "recommendation": "safety.checkContent",
+                "schema": {
+                  "description": "Enable or disable content safety checking. Increases total generation time.",
+                  "title": "Check Content",
+                  "type": "boolean"
+                },
+                "status": "required"
+              },
+              "scheduler": {
+                "binding": "package",
+                "reason": "The instruction model exposes no scheduler control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
-              },
-              "quality": {
-                "binding": "package",
-                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
-                "recommendation": null,
-                "schema": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "status": "required"
               },
               "seed": {
                 "binding": "dispatch-seed",
-                "reason": "This host-only record exposes no seed control.",
+                "reason": "The stored schema exposes no seed control; never invent one.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
               },
-              "size": {
+              "settings.background": {
                 "binding": "package",
-                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
+                "reason": "Optional background handling; transparent requires outputFormat PNG or WEBP.",
                 "recommendation": null,
                 "schema": {
-                  "minLength": 1,
+                  "enum": [
+                    "auto",
+                    "opaque",
+                    "transparent"
+                  ],
+                  "title": "Background",
                   "type": "string"
                 },
-                "status": "required"
+                "status": "optional"
+              },
+              "settings.quality": {
+                "binding": "package",
+                "reason": "Optional quality level from the stored schema.",
+                "recommendation": null,
+                "schema": {
+                  "enum": [
+                    "auto",
+                    "max",
+                    "xhigh",
+                    "high",
+                    "medium",
+                    "low"
+                  ],
+                  "title": "Quality",
+                  "type": "string"
+                },
+                "status": "optional"
               },
               "steps": {
                 "binding": "package",
-                "reason": "No sampling-step control is declared by this host record.",
+                "reason": "The instruction model exposes no step control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
               },
               "strength": {
                 "binding": "package",
-                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
+                "reason": "No source-image denoising control exists on this interface; reference influence is not weightable here.",
                 "recommendation": null,
                 "schema": null,
                 "status": "not-applicable"
+              },
+              "width": {
+                "binding": "package",
+                "reason": "Width 16 to 3840 in steps of 16, set together with height; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 3840,
+                  "minimum": 16,
+                  "multipleOf": 16,
+                  "title": "Width",
+                  "type": "integer"
+                },
+                "status": "optional"
               }
             },
             "media": "none",
@@ -258,18 +352,24 @@
         "prompt_recipe": {
           "guidance": [
             "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
-            "Keep the chosen finish in the authored prompt. Preserve user anchors and reference authority."
+            "Name each figure's preserved identity separately; prose models conflate unnamed lookalikes."
           ],
           "order": [
             "purpose",
-            "subject",
-            "composition",
+            "subject and permanent identity",
+            "scene-specific character state",
+            "action and relationships",
+            "setting",
+            "composition and camera",
+            "lighting and color",
             "rendering",
             "constraints"
           ]
         }
       },
-      "recommended_parameters": {},
+      "recommended_parameters": {
+        "safety.checkContent": false
+      },
       "recommended_positive_prompt": "",
       "recommended_negative_prompt": "",
       "recommendation_merge_mode": "advisory-only",
@@ -283,57 +383,96 @@
       },
       "note": "Recommendations are starting points. Interface validity and observed image quality are separate evidence."
     },
-    "profile_sha256": "53005e9a9d2af9574f8f322dae0243e11e28a4c3664e191d0c207e29d39aad02",
+    "profile_sha256": "35f37938fe6a3bec575f982ea893225faeff848253a3688624d1b42ec00ccbbb",
     "authored_parameters": {
-      "size": "1024x1024",
-      "quality": "high"
+      "width": 1024,
+      "height": 1024,
+      "settings": {
+        "quality": "high"
+      }
     },
     "parameters": {
-      "quality": "high",
-      "size": "1024x1024"
+      "height": 1024,
+      "safety": {
+        "checkContent": false
+      },
+      "settings": {
+        "quality": "high"
+      },
+      "width": 1024
     },
     "parameter_decisions": [
       {
         "key": "CFGScale",
         "status": "backend-managed",
         "value": null,
-        "reason": "No guidance-scale control is declared by this host record."
+        "reason": "The instruction model exposes no guidance control."
+      },
+      {
+        "key": "height",
+        "status": "explicit",
+        "value": 1024,
+        "reason": "Height 16 to 3840 in steps of 16, set together with width; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
       },
       {
         "key": "numberResults",
-        "status": "backend-managed",
+        "status": "dispatch-required",
         "value": null,
-        "reason": "Output count belongs to the selected host invocation."
+        "reason": "Result count 1 to 20, set by the dispatch authorization."
       },
       {
-        "key": "quality",
-        "status": "explicit",
-        "value": "high",
-        "reason": "Choose output quality explicitly and validate it against the selected host interface."
+        "key": "outputFormat",
+        "status": "not-selected",
+        "value": null,
+        "reason": "Optional output encoding from the stored schema."
+      },
+      {
+        "key": "safety.checkContent",
+        "status": "model-recommendation",
+        "value": false,
+        "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
+      },
+      {
+        "key": "scheduler",
+        "status": "backend-managed",
+        "value": null,
+        "reason": "The instruction model exposes no scheduler control."
       },
       {
         "key": "seed",
         "status": "backend-managed",
         "value": null,
-        "reason": "This host-only record exposes no seed control."
+        "reason": "The stored schema exposes no seed control; never invent one."
       },
       {
-        "key": "size",
+        "key": "settings.background",
+        "status": "not-selected",
+        "value": null,
+        "reason": "Optional background handling; transparent requires outputFormat PNG or WEBP."
+      },
+      {
+        "key": "settings.quality",
         "status": "explicit",
-        "value": "1024x1024",
-        "reason": "Select the requested output geometry explicitly; consult the host size contract."
+        "value": "high",
+        "reason": "Optional quality level from the stored schema."
       },
       {
         "key": "steps",
         "status": "backend-managed",
         "value": null,
-        "reason": "No sampling-step control is declared by this host record."
+        "reason": "The instruction model exposes no step control."
       },
       {
         "key": "strength",
         "status": "not-applicable",
         "value": null,
-        "reason": "No denoising control is declared; reference input is not an img2img strength setting."
+        "reason": "No source-image denoising control exists on this interface; reference influence is not weightable here."
+      },
+      {
+        "key": "width",
+        "status": "explicit",
+        "value": 1024,
+        "reason": "Width 16 to 3840 in steps of 16, set together with height; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
       }
     ],
     "reference_count": 0,
@@ -3038,10 +3177,16 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "6272d6d01b04a69893312fda4adcd6d6722019c1b8f9abda9753476911c4b075",
+  "generation_input_sha256": "3cf1d68725e97c965033e121f9e0bc079f34ba7d467c8b8c7280d66c2f621286",
   "parameters": {
-    "quality": "high",
-    "size": "1024x1024"
+    "height": 1024,
+    "safety": {
+      "checkContent": false
+    },
+    "settings": {
+      "quality": "high"
+    },
+    "width": 1024
   },
   "selected_transport": {
     "mode": "integrated-critical",
@@ -3058,8 +3203,14 @@
   "host_forwarding": {
     "model": "gpt-image-2.5-flare",
     "parameters": {
-      "quality": "high",
-      "size": "1024x1024"
+      "height": 1024,
+      "safety": {
+        "checkContent": false
+      },
+      "settings": {
+        "quality": "high"
+      },
+      "width": 1024
     },
     "selected_transport": {
       "mode": "integrated-critical",
@@ -3077,7 +3228,7 @@
     "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
     "effective_prompt_sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1",
     "selected_references": [],
-    "generation_input_sha256": "6272d6d01b04a69893312fda4adcd6d6722019c1b8f9abda9753476911c4b075",
+    "generation_input_sha256": "3cf1d68725e97c965033e121f9e0bc079f34ba7d467c8b8c7280d66c2f621286",
     "prompt_trace": [
       {
         "source_kind": "authored",

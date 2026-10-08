@@ -301,8 +301,9 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
             index = adoption.reference_index(root, character)
             if not index['ok']:
                 raise ValueError(ident + ': reference workflow is incomplete: ' + '; '.join(index['errors']))
+            attached = {entry['source']['sha256'] for entry in prepared['selected_references']}
             refs = [{'slot': x['slot'], 'iteration_id': x['iteration_id']} for x in index['bindings']
-                    if x['influence'] == 'identity' and x['image_path']]
+                    if x['influence'] == 'identity' and x['image_path'] and x['image_sha256'] in attached]
         character_id = None
         if continuity == 'recurring':
             character_id = work_ids.get(ident)

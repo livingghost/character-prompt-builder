@@ -2,7 +2,7 @@
 """Create a complete, explicitly synthetic no-network generation studio.
 
 A scenario option prepares one more situation in the studio and prints the
-commands that show it in `scenario.next`. Decisions, reviews and releases that a
+commands that show it in `scenario.next`. Decisions and reviews that a
 scenario records are made by the labeled synthetic fixture operator, never by a
 user, and authorize no real service.
 """
@@ -22,11 +22,9 @@ SCENARIOS = {
     'prompt-change': 'Change one prompt field, with the retrieval record reassessed for the new wording.',
     'reference': 'Change a run without references into one with a prepared reference set.',
     'sheet': 'Record the output into a character sheet slot.',
-    'scope-shortage': 'Prepare under a grant that lacks one handoff target, so execute stops before any reservation.',
-    'budget-change': 'Replace the grant with a larger cost limit and query the budget.',
+    'scope-shortage': 'Prepare under a grant that lacks one handoff target, so execute stops before any execution claim.',
     'outcome-unknown': 'Leave a send whose answer was lost, for resume.',
     'partial-review': 'Reject a candidate on one failed criterion and leave the other one unassessed.',
-    'release': 'Query the budget and release a reservation that made no external effect.',
     'log-export': 'List and export the automatic operation logs.',
 }
 
@@ -89,16 +87,6 @@ def scenario(name: str, root: Path, runtime: list[str]) -> dict:
         fixtures.fill_decisions(root, run, 'scope/decisions.json')
         return {'run': run, 'next': [command('status', '--root', R, '--run', run),
                                      command('execute', '--root', R, '--run', run, '--decisions-file', 'scope/decisions.json')]}
-    if name == 'budget-change':
-        run = prepared(root)
-        task_id = c.load(root / 'task.json')['task_id']
-        document = copy.deepcopy(store.authority(root, task_id))
-        document['grants'][0]['limits']['cost']['amount'] = '250'
-        fixtures.write(root / 'budget/authority.json', document)
-        event = store.authority_record(root, task_id)['sha256']
-        return {'run': run, 'authority_event': event,
-                'next': [command('authority-import', '--root', R, '--file', 'budget/authority.json', '--expected-event', event),
-                         command('status', '--root', R, '--budget')]}
     if name == 'outcome-unknown':
         import transport_synthetic
         run = prepared(root)
@@ -134,19 +122,6 @@ def scenario(name: str, root: Path, runtime: list[str]) -> dict:
         status = command('candidate-status', '--root', R, '--run', run, '--candidate', candidate)
         return {'run': run, 'candidate': candidate,
                 'next': [status, command('disposition', '--root', R, '--run', run, '--file', 'review/disposition.json'), status]}
-    if name == 'release':
-        import production_execution as execution
-        from production_fixtures import ACTOR
-        run = prepared(root)
-        # The execution stops after its reservation and before any external effect.
-        with patch.object(execution, '_transmit', return_value={'stopped_before_effect': True}):
-            executed(root, run, 'release/decisions.json')
-        import reservation_lifecycle as accounting
-        reservation = accounting.all_states(root, run=run)[0]['reservation_id']
-        return {'run': run, 'reservation': reservation, 'release_actor': ACTOR,
-                'next': [command('status', '--root', R, '--budget'),
-                         command('draft-release', '--root', R, '--run', run, '--reservation', reservation, '--out', 'release/request.json'),
-                         command('release-reservation', '--root', R, '--run', run, '--request', 'release/request.json')]}
     if name == 'log-export':
         return {'run': None, 'next': [command('prepare', '--root', R, '--task', 'task.json', *runtime),
                                       command('logs', '--root', R),

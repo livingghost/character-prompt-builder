@@ -36,13 +36,6 @@
     "external_effect": {
       "type": "boolean"
     },
-    "budget_effect": {
-      "type": "string",
-      "minLength": 1
-    },
-    "budget": {
-      "type": "object"
-    },
     "staging": {
       "type": "array",
       "items": {
@@ -75,6 +68,9 @@
       "items": {
         "$ref": "#/$defs/diagnostic"
       }
+    },
+    "execution_records": {
+      "type": "object"
     }
   },
   "required": [
@@ -83,11 +79,11 @@
     "runs",
     "diagnostics",
     "external_effect",
-    "budget_effect",
     "staging",
     "staging_details",
     "unclaimed_journals",
-    "unregistered_publications"
+    "unregistered_publications",
+    "execution_records"
   ],
   "additionalProperties": false,
   "$defs": {
@@ -108,7 +104,7 @@
     "submission": {
       "enum": [
         "unclaimed",
-        "reserved",
+        "claimed",
         "send_started",
         "acknowledged",
         "outcome_unknown",
@@ -182,6 +178,13 @@
             "reason": {
               "type": "string",
               "minLength": 1
+            },
+            "draft": {
+              "type": "string",
+              "minLength": 1
+            },
+            "requires_author_input": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -344,35 +347,6 @@
         "settlement_open": {
           "type": "boolean"
         },
-        "reservation": {
-          "anyOf": [
-            {
-              "type": "null"
-            },
-            {
-              "type": "object",
-              "properties": {
-                "reservation_id": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "status": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "release_eligible": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "reservation_id",
-                "status",
-                "release_eligible"
-              ],
-              "additionalProperties": false
-            }
-          ]
-        },
         "journal": {
           "type": [
             "string",
@@ -387,6 +361,31 @@
         },
         "next_action": {
           "$ref": "#/$defs/next_action"
+        },
+        "execution": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "execution_id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "execution_id",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          ]
         }
       },
       "required": [
@@ -410,7 +409,7 @@
         "selection_diagnostics",
         "selection_ready",
         "settlement_open",
-        "reservation",
+        "execution",
         "journal",
         "logs",
         "next_action"

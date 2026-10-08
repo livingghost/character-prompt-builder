@@ -15,7 +15,7 @@ Identify the artifact, purpose, user anchors, creative space and material ambigu
 
 Never alter an anchor silently. Disclose each modification and its reason. Assumptions fill open space; modifications change intent. Keep creator portrayal intent separate from facts and psychology; apply it across outputs.
 
-The user owns acceptance and delegation. Bind the exact input, target, count and quoted cost to actual authority; distinguish direction, edits, submission, selection and canonical adoption. Act within explicit delegation without repeated unnecessary approval, and stop outside it. Observe actual outputs, distinguish intended from observed effects, and revise only within the authorized scope.
+The user owns acceptance and delegation. Bind the exact input, target and count to actual authority; distinguish direction, edits, submission, selection and canonical adoption. Act within explicit delegation without repeated unnecessary approval, and stop outside it. Observe actual outputs, distinguish intended from observed effects, and revise only within the authorized scope.
 
 Preserve supported production knowledge at full specificity across every genre and intensity level, from everyday and wholesome subjects to sensitive material such as violent, medical, grotesque, body-altering, or adult knowledge, without exception. Read [Prompt Knowledge and Execution Boundary](references/prompt-knowledge-boundary.md) when relevant.
 
@@ -80,7 +80,7 @@ Each item names a route or `--feature` whose read prints its documents. A prompt
 - the same character in a new pose or scene: route `repose`;
 - deterministic editing of pinned stills: feature `image-edit`;
 - enlarging a finished image: route `upscale` with an active upscaler model record;
-- canonical identity, a character sheet, its panels, candidates or reference board: route `character-sheet`; a new pose or scene for an accepted character uses `repose` or `generation` instead;
+- canonical identity, a character sheet, its panels, candidates or reference board: route `character-sheet`, [Sheet fills](references/runtime/sheet-fill-workflow.md); a new pose or scene for an accepted character uses `repose` or `generation` instead;
 - sheet, iteration, or accepted-image work, which lives in a studio: feature `studio` first;
 - explicit selection for a canonical owner: route or feature `adoption`;
 - scoped changes or review of existing artifacts: route `revise` or feature `revision-guidance`;
@@ -94,6 +94,8 @@ Add a specialist feature only for a load-bearing subject: `geometry` for exact m
 
 Persistent character production, sheets, and recorded generation live in a studio. When `python scripts/session_entry_points.py` reports none, create one (`studio.py init`) before any sheet or generation work, generate through `production_workflow.py execute`, and follow [Studio Runtime](references/runtime/studio.md). Authoring whose decisions a later draft reuses lives there too, with or without images: resolve or create the studio before the first draft that will be revised or reused. A one-off answer needs none.
 
+For repeated sheet work, use managed attempts and their index in [Sheet fills](references/runtime/sheet-fill-workflow.md), not hand-written round scripts or shared output filenames. Apply HTML author edits with `sheet_workflow.py apply-edit`; never replace the sidecar from a stale screen. Record an actual answer with `work_ledger.py respond`, reopen the indicated step explicitly, and suspend/resume tasks rather than abandoning work just to switch context. `studio.py status` or `sync` reconstructs gallery and activity views without repeating any generation.
+
 ## Common runtime sequence
 
 For image work:
@@ -104,10 +106,10 @@ For image work:
 4. Author the plot, prompt, render intent, scoped references and criteria. Obtain actual plot approval and settle retrieval against the final wording.
 5. Put the single final prompt and generation settings in the task's declared inputs. Declare the Studio recording destination in that task.
 6. `production_workflow.py check --task task.json` reports diagnostics and creates no run. `prepare` with the same arguments runs those checks, then publishes a run with its package, request preview and execution plan.
-7. Review the complete preview, cost and operation targets. `draft-execution --run RUN --grant GRANT --out decisions.json` writes the unanswered decisions; complete them from actual authority. Preparation and a CLI invocation are not consent.
+7. Review the complete request preview and operation targets. `draft-execution --run RUN --grant GRANT --out decisions.json` writes the unanswered decisions; complete them from actual authority. Preparation and a CLI invocation are not consent.
 8. Run `execute --run RUN --decisions-file decisions.json`. Existing exact receipts can be reused with their current grant instead. After an interrupted send, `resume --run RUN` recovers the same execution; do not repeat the send.
 9. Inspect actual candidates and record observations before selection. `variant --from RUN --changes-file changes.json --prepare` changes declared fields; `repeat --from RUN --prepare` prepares the same input again. Use `retarget` with a reassessed task to change the model or service.
-10. `status --budget` reports each run, its next command and the remaining budget. `logs` lists and `logs-export --out DIR` exports [operation logs](references/runtime/operation-logs.md); `logs-cleanup` removes only those. If `status` reports abandoned compiler staging, inspect `staging-cleanup` first and apply it only to the exact stored owner operation.
+10. `status` reports each run, its next command and actual execution records. `logs` lists and `logs-export --out DIR` exports [operation logs](references/runtime/operation-logs.md); `logs-cleanup` removes only those. If `status` reports abandoned compiler staging, inspect `staging-cleanup` first and apply it only to the exact stored owner operation.
 
 Each of these commands takes `--root STUDIO`; Production Execution defines them. Authored prose and conversation-only prompts do not acquire image-generation requirements.
 
@@ -146,4 +148,4 @@ Do not read maintenance, pack-release, release-validation, state-aware, or unsel
 
 ## Resource handling
 
-Read complete material by default. For reads, imports, evaluation, review exports or execution budgets, use [Resource handling](references/resource-handling.md).
+Read complete material by default. For reads, imports, evaluation, review exports or resource limits, use [Resource handling](references/resource-handling.md).

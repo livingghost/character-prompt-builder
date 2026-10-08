@@ -53,9 +53,6 @@
     "external_effect": {
       "const": false
     },
-    "budget_effect": {
-      "const": "none"
-    },
     "formal_run_created": {
       "const": false
     },
@@ -87,7 +84,6 @@
     "diagnostics",
     "checks",
     "external_effect",
-    "budget_effect",
     "formal_run_created"
   ],
   "dependentRequired": {

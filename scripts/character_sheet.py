@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate and bind safe JSON sidecars for the CPB Character Sheet."""
+"""Validate safe JSON sidecars and immutable artwork selections for the CPB Character Sheet."""
 from __future__ import annotations
 import operation_context as _operation_context
 
@@ -31,9 +31,8 @@ def sheet_status(value: Mapping[str, Any]) -> str:
         return "draft"
     slots = value.get("slots") if isinstance(value.get("slots"), Mapping) else {}
     primary = slots.get("canon.primary") if isinstance(slots.get("canon.primary"), Mapping) else {}
-    if meaningful_identity(primary.get("image_path")) and meaningful_identity(
-        primary.get("generation_package")
-    ):
+    from sheet_artifacts import current_artifact
+    if current_artifact(primary) is not None:
         return "reference-ready"
     return "identity-ready"
 
@@ -141,73 +140,24 @@ def validate_sidecar(
         row_ids = [row.get("row_id") for row in rows if isinstance(row, Mapping)]
         if len(row_ids) != len(set(row_ids)):
             raise ValueError(f"tables.{table_id} contains duplicate row_id values")
-    if verify_files:
-        if sheet_root is None:
-            raise ValueError("verify_files requires sheet_root")
-        for slot_id, raw_slot in sorted(value["slots"].items()):
-            if not isinstance(raw_slot, Mapping):
-                continue
-            image_path = str(raw_slot.get("image_path") or "")
-            package_path = str(raw_slot.get("generation_package") or "")
-            if not image_path and not package_path:
-                continue
-            if not image_path or not package_path:
-                raise ValueError(
-                    f"slots.{slot_id} must declare both image_path and generation_package"
-                )
-            image = resolve_sheet_relative(
-                image_path, root=sheet_root, field=f"slots.{slot_id}.image_path"
-            )
-            package = resolve_sheet_relative(
-                package_path,
-                root=sheet_root,
-                field=f"slots.{slot_id}.generation_package",
-            )
-            try:
-                package_value = parse_json(package.read_text(encoding="utf-8"))
-            except (UnicodeDecodeError, ValueError) as exc:
-                raise ValueError(
-                    f"slots.{slot_id}.generation_package is not valid UTF-8 JSON"
-                ) from exc
-            _validate_ready_package(
-                package_value,
-                field=f"slots.{slot_id}.generation_package",
-            )
-            for key, actual in (
-                ("image_sha256", sha256_file(image)),
-                ("generation_package_sha256", sha256_file(package)),
-            ):
-                committed = raw_slot.get(key)
-                if committed is not None and committed != actual:
-                    raise ValueError(f"slots.{slot_id}.{key} mismatch")
+    from sheet_artifacts import verify_artifact, verify_acceptance
+    for slot_id, slot in value['slots'].items():
+        candidate_ids = [item['artifact_id'] for item in slot['candidates']]
+        if len(candidate_ids) != len(set(candidate_ids)):
+            raise ValueError(f'slots.{slot_id} contains duplicate candidates')
+        current = slot['current']
+        if current is not None and current['artifact']['artifact_id'] in candidate_ids:
+            raise ValueError(f'slots.{slot_id} current artwork must not also be a candidate')
+        if verify_files:
+            if sheet_root is None:
+                raise ValueError('verify_files requires sheet_root')
+            for item in slot['candidates']:
+                verify_artifact(item, sheet_root)
+            for accepted in [*slot['history'], *([current] if current is not None else [])]:
+                verify_acceptance(accepted, sheet_root, slot_id)
     return json.loads(json.dumps(value, ensure_ascii=False))
 
 
-def bind_sidecar(value: Any, *, sheet_root: Path) -> dict[str, Any]:
-    normalized = validate_sidecar(value, sheet_root=sheet_root, verify_files=False)
-    for slot_id, slot in normalized["slots"].items():
-        image_path = str(slot.get("image_path") or "")
-        package_path = str(slot.get("generation_package") or "")
-        if not image_path and not package_path:
-            continue
-        if not image_path or not package_path:
-            raise ValueError(
-                f"slots.{slot_id} must declare both image_path and generation_package before binding"
-            )
-        image = resolve_sheet_relative(
-            image_path,
-            root=sheet_root,
-            field=f"slots.{slot_id}.image_path",
-        )
-        package = resolve_sheet_relative(
-            package_path,
-            root=sheet_root,
-            field=f"slots.{slot_id}.generation_package",
-        )
-        slot["image_sha256"] = sha256_file(image)
-        slot["generation_package_sha256"] = sha256_file(package)
-    normalized["sheet_status"] = sheet_status(normalized)
-    return validate_sidecar(normalized, sheet_root=sheet_root, verify_files=True)
 
 
 def initialize_sidecar(sheet_dir: Path, *, profile: str = "") -> Path:
@@ -246,9 +196,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     validate_parser = sub.add_parser("validate")
     validate_parser.add_argument("sidecar", type=Path)
     validate_parser.add_argument("--verify-files", action="store_true")
-    bind_parser = sub.add_parser("bind")
-    bind_parser.add_argument("sidecar", type=Path)
-    bind_parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "init":
         output_path = initialize_sidecar(args.sheet_dir, profile=args.profile)
@@ -262,20 +209,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     sidecar_path = args.sidecar.resolve(strict=True)
     value = parse_json(sidecar_path.read_text(encoding="utf-8"))
-    if args.command == "validate":
-        result = validate_sidecar(
-            value,
-            sheet_root=sidecar_path.parent,
-            verify_files=args.verify_files,
-        )
-    else:
-        result = bind_sidecar(value, sheet_root=sidecar_path.parent)
-        output_path = args.out.resolve()
-        if output_path == sidecar_path:
-            raise ValueError("--out must not overwrite the input sidecar")
-        if not output_path.parent.is_dir():
-            raise ValueError("--out parent directory does not exist")
-        atomic_write_json(output_path, result)
+    result = validate_sidecar(value, sheet_root=sidecar_path.parent, verify_files=args.verify_files)
     print(json.dumps({"ok": True, "sheet_status": result["sheet_status"]}, indent=2))
     return 0
 

@@ -154,7 +154,7 @@ def next_actions(inputs: dict, task: dict, root: Path, *, runtime_arguments: dic
                      if key in inputs]
     actions = [{'operation': 'prepare', 'script': workflow,
                 'args': {'root': str(root), 'task': inputs['production-task']['path'], **(runtime_arguments or {})},
-                'external_effect': False, 'budget_effect': 'none', 'requires': requires}]
+                'external_effect': False, 'requires': requires}]
     if task.get('execution') != 'dispatcher':
         return actions
     if task.get('route') == 'upscale':
@@ -162,14 +162,14 @@ def next_actions(inputs: dict, task: dict, root: Path, *, runtime_arguments: dic
             'args': {'root': str(root), 'request-validation-file': str(root / inputs['request-validation']['path'])},
             'requires': ['Select source, model, scale, settings, and render-intent.',
                          'Write the declaration to the task delivery path before prepare.'],
-            'external_effect': False, 'budget_effect': 'none'})
+            'external_effect': False})
     actions += [
         {'operation': 'draft-execution', 'script': workflow, 'args': {'root': str(root)},
-         'required_args': ['run', 'grant', 'out'], 'external_effect': False, 'budget_effect': 'none'},
+         'required_args': ['run', 'grant', 'out'], 'external_effect': False},
         {'operation': 'execute', 'script': workflow, 'args': {'root': str(root)},
          'required_args': ['run', 'decisions-file'],
          'requires': ['Answer every decision in the file draft-execution wrote.'],
-         'external_effect': True, 'budget_effect': 'settled-or-outstanding'},
+         'external_effect': True},
     ]
     return actions
 

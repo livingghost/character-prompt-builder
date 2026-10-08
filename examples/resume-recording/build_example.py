@@ -49,7 +49,7 @@ def build():
         if after_summary['integrity'] != 'intact' or after_summary['readiness'] != 'blocked' or after_summary['current_inputs']:
             raise ValueError('The changed fixture must retain history and diagnose execution freshness.')
         import production_store as store
-        reservations = [row for row in store.event_rows(root, run) if row['event'] == 'reservation-created']
+        reservations = [row for row in store.event_rows(root, run) if row['event'] == 'execution-created']
         if reservations:
             raise ValueError('Preparing or authorizing a local example must not reserve a generation request.')
         return {'synthetic': True, 'reservation_count': len(reservations),

@@ -8,8 +8,7 @@
     "choices",
     "unresolved",
     "derived_from",
-    "external_effect",
-    "budget_effect"
+    "external_effect"
   ],
   "properties": {
     "state": {
@@ -17,9 +16,6 @@
     },
     "external_effect": {
       "const": false
-    },
-    "budget_effect": {
-      "const": "none"
     },
     "derived_from": {
       "type": "object"

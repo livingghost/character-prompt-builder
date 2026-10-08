@@ -279,7 +279,7 @@ def regressions(tmp: Path, source: Path, check) -> None:
                                   management=[["request_id"]], media=[["input", "images", 0]], seed=["seed"]))
     recorded(shown, "C11", "b.png", request=source / "upscale-request.json", layout=layout(None, media=[["inputImage"]]))
     recorded(shown, "C11", "c.png", package=source / "acme-package.json", request=source / "hand-request.json")
-    entries = json.loads((shown / "gallery.json").read_text(encoding="utf-8"))["entries"]
+    entries = sorted(json.loads((shown / "gallery.json").read_text(encoding="utf-8"))["entries"], key=lambda e:e["iteration_id"])
     page = (shown / "gallery.html").read_text(encoding="utf-8")
     check("the gallery reads prompt, negative, settings and media through the recorded fields",
           entries[0]["prompt"] == "a heron" and entries[0]["negative_prompt"] == "blur"
@@ -389,13 +389,13 @@ def main() -> int:
         html_path, json_path = studio.write_gallery(root)
         index = json.loads(json_path.read_text(encoding="utf-8"))
         check(
-            "the gallery index lists every iteration oldest first with prompt, model, settings, and seed",
-            [e["iteration_id"] for e in index["entries"]] == ["it-0001", "it-0002", "it-0003"]
-            and index["entries"][0]["prompt"] == "a wolf"
-            and index["entries"][0]["settings"] == {"width": 1024, "height": 1024, "seed": 7}
-            and index["entries"][0]["service"]["model_identifier"] == "vendor:model@1"
-            and index["entries"][0]["seed"] == 7,
-            index["entries"][0],
+            "the gallery index lists every iteration newest first with prompt, model, settings, and seed",
+            [e["iteration_id"] for e in index["entries"]] == ["it-0003", "it-0002", "it-0001"]
+            and index["entries"][2]["prompt"] == "a wolf"
+            and index["entries"][2]["settings"] == {"width": 1024, "height": 1024, "seed": 7}
+            and index["entries"][2]["service"]["model_identifier"] == "vendor:model@1"
+            and index["entries"][2]["seed"] == 7,
+            index["entries"][2],
         )
         page = html_path.read_text(encoding="utf-8")
         check(
@@ -424,6 +424,8 @@ def main() -> int:
         check("a result whose bytes moved is reported", any("no longer matches" in error for error in validate_studio.validate(root)), validate_studio.validate(root))
         (root / first["result"]["path"]).write_bytes(b"\x89PNG-a")
 
+        question = work_ledger.read_current(root)['questions'][-1]
+        work_ledger.respond(root, question['question_id'], 'Use the second synthetic image.', actor='Synthetic test author')
         work_ledger.step_done(root, 2)
         work_ledger.step_done(root, 3)
         # This test's explicit synthetic review binds the delivered real fixture

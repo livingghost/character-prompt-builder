@@ -78,7 +78,7 @@ def navigation(root: Path, task_path: str | None = None, *, include_scope: bool 
             'focuses': {key: [name for name, _ in rows] for key, rows in LAYERS.items()},
             'next_actions': [{'operation': 'consult-presets', 'script': 'scripts/production_workflow.py',
                               'args': args, 'required_args': ['out-dir', *(['task'] if task_path is None else [])],
-                              'external_effect': False, 'budget_effect': 'none'}],
+                              'external_effect': False}],
             'use': 'Consult while choosing a direction, resolving one craft question, or investigating an observed failure.'}
 
 
@@ -165,7 +165,7 @@ def consult(questions: list[dict], identifiers: list[str], *, settings=None,
             'use_fields': ['record_id', 'borrowed', 'preserved', 'changed', 'targets', 'review_criteria', 'review_question'],
             'empty_result': 'An empty layer concerns these questions and this catalog. Refine the question or choose another layer.',
             'selection': 'Read the complete records. Choose fitting knowledge, including none; relevance is not acceptance.',
-            'external_effect': False, 'budget_effect': 'none'}
+            'external_effect': False}
 
 
 def pointer_value(value: Any, pointer: str) -> Any:
@@ -303,10 +303,9 @@ def apply(root: Path, task_path: str, report_path: str, decisions_path: str,
     return {'ok': True, 'task': out_dir + '/production-task.json', 'production_spec': new_spec,
             'application': app_path, 'selected_preset_ids': selected_ids,
             'preserved_selected_preset_ids': preserved, 'applied_record_ids': selected, 'execution_ready': False,
-            'external_effect': False, 'budget_effect': 'none',
-            'next_actions': [{'operation': 'draft-inputs', 'script': 'scripts/production_workflow.py',
+            'external_effect': False, 'next_actions': [{'operation': 'draft-inputs', 'script': 'scripts/production_workflow.py',
                 'args': {'root': str(root), 'task': out_dir + '/production-task.json', **(runtime_arguments or {})},
-                'required_args': ['out-dir'], 'external_effect': False, 'budget_effect': 'none'}]}
+                'required_args': ['out-dir'], 'external_effect': False}]}
 
 
 def review_questions(root: Path, task: dict, *, directory: Path | None = None,
@@ -376,11 +375,11 @@ def command(args, parser) -> dict:
             {'operation': 'consult-presets', 'script': 'scripts/production_workflow.py',
              'args': {'root': str(root), 'task': args.task, 'previous': args.out_dir + '/consultation.json',
                       **runtime_arguments}, 'required_args': ['out-dir'],
-             'external_effect': False, 'budget_effect': 'none'},
+             'external_effect': False},
             {'operation': 'apply-presets', 'script': 'scripts/production_workflow.py',
              'args': {'root': str(root), 'task': args.task, 'consultation': args.out_dir + '/consultation.json',
                       'decisions': args.out_dir + '/decisions.json', **runtime_arguments},
-             'required_args': ['spec', 'out-dir'], 'external_effect': False, 'budget_effect': 'none'}]
+             'required_args': ['spec', 'out-dir'], 'external_effect': False}]
         files = {'consultation.json': c.encoded(result), 'decisions.json': c.encoded(result['application_template'])}
         inputs._publish(root, args.out_dir, files, reader=reader)
         return {**result, 'consultation': args.out_dir + '/consultation.json',

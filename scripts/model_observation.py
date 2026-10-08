@@ -48,13 +48,13 @@ def _load_recorded(source: dict):
 
 def _derive(source:dict)->dict:
     import production_workflow as w
-    import reservation_lifecycle as lifecycle
+    import execution_lifecycle as lifecycle
     prepared,consumer,rows,journal=_load_recorded(source)
     claims=[r for r in rows if r['event']=='dispatch-claim']
     if len(claims)!=1:raise ValueError('observation requires exactly one recorded dispatch claim')
-    claim=claims[0];token=_reservation(claim);state=lifecycle.require_active(rows,prepared,source['run'],token)
-    if state['operation']!='submit' or state['status'] not in {'started','partially_settled','settled'} or not any(s['operation']=='send' for s in state['steps']):
-        raise ValueError('observation requires the recorded send boundary for this reservation')
+    claim=claims[0];token=_execution(claim);state=lifecycle.require_active(rows,prepared,source['run'],token)
+    if state['status'] not in {'started','captured','complete'} or not any(s['operation']=='send' for s in state['steps']):
+        raise ValueError('observation requires the recorded send boundary for this execution')
     for name in ('request-contract.json','request.json'):
         if name not in journal:raise ValueError('observation lacks recorded '+name)
     rendered=c.decode(journal['request-contract.json']);rc.validate_seal(rendered)
@@ -126,7 +126,7 @@ def _derive(source:dict)->dict:
     if observed_time.tzinfo is None:
         raise ValueError('recorded observation time must include a timezone')
     return {'target':rendered['sealed']['target'],'outcome':outcome,'request':rendered,'claim':claim['sha256'],
-        'reservation':state['reservation_id'],'results':outputs,'observed_at':observed_at}
+        'execution':state['execution_id'],'results':outputs,'observed_at':observed_at}
 
 
 
@@ -191,7 +191,7 @@ def validate_adoption(value:dict,*,target:dict,results:list[str],question:str,pu
     return value
 
 def validate_observation(value:dict,reader:InputEvidence)->dict:
-    c.exact(value,{'artifact_type','target','observed_at','outcome','request','source','claim','reservation','results','limitations'},'request observation')
+    c.exact(value,{'artifact_type','target','observed_at','outcome','request','source','claim','execution','results','limitations'},'request observation')
     if value['artifact_type']!='model-request-observation':raise ValueError('expected a recorded request observation')
     try:stamp=datetime.fromisoformat(value['observed_at'].replace('Z','+00:00'))
     except (ValueError,AttributeError) as exc:raise ValueError('observation needs an ISO timestamp') from exc
@@ -264,9 +264,9 @@ def publish(root:Path,run:str,out_dir:Path,*,relative_prefix:str,adoption:dict|N
     return result
 
 
-def _reservation(claim:dict)->str:
+def _execution(claim:dict)->str:
     values=claim['data']['authorizations']
-    if len(values)!=1:raise ValueError('dispatch observation needs its exact submit reservation')
+    if len(values)!=1:raise ValueError('dispatch observation needs its exact submit execution')
     return values[0]
 
 

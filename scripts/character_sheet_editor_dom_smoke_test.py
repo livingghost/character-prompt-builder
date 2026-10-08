@@ -259,15 +259,14 @@ def main() -> int:
         and "Importing sheet data adds any further slots" in html,
     )
     check(
-        "non-object slot values remain opaque during import and export",
-        html.index("if(!raw||typeof raw!=='object'||Array.isArray(raw))")
-        < html.index("const slot=ensureSlotEditor(slotId);")
-        and "Object.prototype.hasOwnProperty.call(passthrough.slots,slotId)" in html,
+        "accepted artwork fields are read-only and complete selections round-trip",
+        "input.readOnly=true" in html
+        and "raw.current?.artifact?.image?.path" in html
+        and "current:null,candidates:[],history:[],...extras" in html,
     )
     check(
         "untouched auto artifact editors do not create empty slot records",
-        "!state.imagePath&&!state.packagePath&&state.fillPolicy==='auto'&&!Object.keys(extras).length"
-        in html
+        "!Object.keys(extras).length&&state.fillPolicy==='auto'" in html
         and "delete slots[slotId];continue" in html,
     )
     check(

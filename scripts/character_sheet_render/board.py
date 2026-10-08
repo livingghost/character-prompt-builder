@@ -575,7 +575,7 @@ def write_panel_fill_requests(
         else:
             request["generation_stage"] = 3
             request["required_accepted_reference_results"] = (
-                canonical_request_ids or [identity_anchor_request_id]
+                [identity_anchor_request_id]
             )
 
     manifest = {
@@ -590,7 +590,7 @@ def write_panel_fill_requests(
                 if panel_geometries
                 else None
             ),
-            "generation_order": "accept the identity anchor, derive and accept canonical views, then generate remaining panels with accepted canonical results attached as identity references",
+            "generation_order": "accept the identity anchor, derive and accept canonical views, then explicitly select accepted references for each remaining panel within the model attachment limit",
         },
         "identity_anchor_request_id": identity_anchor_request_id,
         "scaffold": {
@@ -653,7 +653,7 @@ def write_reference_bundle(
                     "image_sha256": sha256_file(image_path),
                     "width": width,
                     "height": height,
-                    "generation_package": meaningful(str(slot.get("generation_package", ""))) or None,
+                    "artifact": __import__("sheet_artifacts").current_artifact(slot),
                 }
             )
     roles: dict[str, int] = {}
@@ -663,7 +663,7 @@ def write_reference_bundle(
         "artifact_type": "character-sheet-reference-bundle",
         "producer": {"id": RENDERER_ID},
         "profile": profile_id,
-        "sheet_data_sha256": sha256_file(sidecar_path) if sidecar_path else None,
+        "sheet_accepted_sha256": __import__("sheet_artifacts").accepted_sha256(__import__("execution_contract").load(sidecar_path)) if sidecar_path else None,
         "board": {
             "path": board_png.name,
             "sha256": sha256_file(board_png),
@@ -1174,7 +1174,7 @@ def render_sheet(
         "form_lineage": form_lineage,
         "profile_sha256": profile_sha256,
         "sheet_data_source": str(sidecar_path) if sidecar_path else None,
-        "sheet_data_sha256": sha256_file(sidecar_path) if sidecar_path else None,
+        "sheet_accepted_sha256": __import__("sheet_artifacts").accepted_sha256(__import__("execution_contract").load(sidecar_path)) if sidecar_path else None,
         "inputs": inputs,
         "layout_sha256": sha256_file(layout_path),
         "svg_sha256": sha256_file(svg_path),

@@ -1,192 +1,114 @@
 # Production permissions
 
-A task points to an `authority` JSON file that follows `schemas/authoring/production-authority.schema.json`.
-Its `issuer` and `evidence.path`/`locator` refer to the instruction or approval whose bytes are pinned during preparation.
-The host must check that this is the user's real authority.
-The schema authenticates no issuer, proves no natural-language condition, and turns no agent-filled form into consent.
+A task points to an `authority` JSON file following
+`schemas/authoring/production-authority.schema.json`. Its issuer and evidence
+path/locator identify the instruction whose bytes are pinned during preparation.
+The host checks real user authority: a schema authenticates no issuer and an
+agent-filled form is not consent.
 
-Each grant names:
+Each grant names an id, actor, direct/delegated mode, allowed operations, exact
+targets, protected criteria, optional request scope, submission validation modes,
+and expiry/effective/revocation timestamps. Direction, edit, submit, select and
+adopt are independent operations. Permission to submit is not canonical adoption
+or permission to change personality. Permission to select is not permission for
+another submission. Stop outside the stated scope or on ambiguous conditions.
 
-- `id` and `actor`;
-- `mode`, `direct` or `delegated`, which records the source of the instruction; both modes are bounded and bind the actual operation;
-- the allowed `operations` and the exact `targets`;
-- `limits` and `protected_criteria`;
-- `request_scope`, the delegated cases a model request may fall in, or null;
-- `submission_validation_modes`, the request validation modes a submission may use;
-- `expires_at`, a UTC time or null, and optional UTC `effective_at` and `revoked_at`.
+Targets are exact strings: `purpose`, `decision:<id>`, `delivery`, `canon:sheet`,
+`canon:catalog`, and changed `source:<id>`, `criterion:<id>`, `execution` or
+`authority` scopes. Grant only necessary targets. Calling a repair a local edit
+does not exempt its changed sources or protected criteria.
 
-Use an explicit stop decision for ambiguity, contradictory constraints, unavailable controls or exhausted authority.
-
-Operations are independent: `direction`, `edit`, `submit`, `select`, `adopt`.
-A budget leaves personality change and canonical adoption unauthorized.
-Permission to select a delivery leaves a new submission unauthorized.
-Delegated creative decisions can proceed on their own, within their scope, protected conditions and stop conditions.
-
-Targets are exact strings rather than wildcards:
-
-- Direction uses `purpose` and `decision:<id>`.
-- Submission and delivery selection use `delivery`.
-- Canonical owner operations use `canon:sheet` or `canon:catalog`.
-- A repair can affect `purpose`, `decision:<id>`, `source:<id>`, `criterion:<id>`, `delivery`, `execution` or `authority`, as the preparation comparison detects.
-
-Grant only the necessary targets.
-A changed source or criterion is detected whatever the repair is labeled, "local edit" included.
-Protected criteria are checked on revision and on the next direction handoff.
-
-`limits.uses` counts distinct external generation requests, and `limits.outputs` counts requested or captured outputs.
-`limits.cost` is null for no paid work, or `{currency, amount}`.
-Money is a nonnegative decimal **string**, never a floating-point estimate.
-Budget arithmetic is exact Decimal arithmetic and never rounds.
-A submit request carries a quoted `basis`, or an explicit zero-cost basis, and binds its exact output count.
-Reserve a conservative permitted upper bound rather than a promise of final billing.
-Independent grants share a budget only when the author deliberately uses the same grant identity and limit.
-
-## Reservation and consumption
+## Authorization and execution records
 
 ```text
 python scripts/production_workflow.py draft-authorization --root STUDIO --run RUN --grant GRANT --intent intent.json --out authorization.json
 python scripts/production_workflow.py authorize --root STUDIO --run RUN --file authorization.json
 ```
 
-An intent command such as `handoff-intent` or `selection-intent` prints the exact operation to save as `intent.json`.
-`draft-authorization` writes an **unapproved** draft with a blank reason, an empty cost and stop assessments set to false.
-Creating it grants nothing.
-Fill its reason, its quote when submitting, and every stop assessment from actual evidence.
-`authorize` checks the declared grant and records an authorization receipt in the run.
-The receipt records the IDs and digest of the criteria its grant protects, and it reserves no budget.
-The consuming operation takes the receipt digest and rechecks the exact payload, actor, target set, authority, expiry and cumulative limits.
-Execution reserves one use at the execution boundary, in one transaction with the current grant check and the dispatch claim.
+`handoff-intent` or `selection-intent` prints the exact intent to save.
+`draft-authorization` leaves reasons and stop assessments unapproved. Fill them
+from actual evidence. `authorize` validates current authority and records a
+receipt, including the protected criteria and their digest. It performs no send.
+The consuming operation checks the exact payload, actor, targets, scope, expiry,
+revocation and current authority again. Scalar types and ordered array elements
+are compared as well as object fields; a boolean is not an authorized number.
 
-An exact comparison covers scalar types and ordered array elements as well as object fields.
-A boolean is not an authorized number.
-A mismatch names the nested field or array element and the expected and actual value types.
-The JSON Schema checker also treats booleans and numbers as different types, while 1 and 1.0 are equal schema values.
-The prepared operation keeps its selected representation for request hashing and authorization.
+A dispatcher submission carries `request_decision`:
 
-A model dispatcher submission also carries `request_decision`, with four fields:
+- `case`: a declared request-scope case, or null.
+- `assessments`: each case criterion, exact request hash, satisfied conclusion
+  and actual reason.
+- `principal_approval`: the exact request hash, principal and
+  `evidence{path,sha256,locator}`, or null when a delegated case applies.
+- `rendition_review`: request hash, reviewer, satisfied conclusion, reason and
+  every transported reference binding id.
 
-- `case`: the ID of the grant's `request_scope` case that the request falls in, or null when the grant has no request scope.
-- `assessments`: one `{criterion, request_sha256, conclusion, reason}` for each review criterion of that case; each must conclude `satisfied`.
-- `principal_approval`: `{request_sha256, principal, evidence{path, sha256, locator}}` naming the authority issuer, or null. A grant without a request scope needs it.
-- `rendition_review`: `{request_sha256, reviewer, conclusion, reason, binding_ids}`, the actor's review of the exact final request. Its conclusion is `satisfied`, and `binding_ids` lists every transported reference binding.
+`draft-execution` derives identifiers but never fills judgments. Inspect its
+complete request, references, controls and `execution_plan.prompt_check` before
+approving. Tag-check notes and dictionary meanings are evidence to examine, not
+an automatic acceptance verdict. An unscoped request needs principal approval;
+a scoped delegation needs satisfied assessments. `GRANT_SCOPE_EXCEEDED` names
+missing targets and the current granted set without narrowing the requested work.
 
-`draft-execution` derives the identifiers and leaves every judgment empty.
-The actual principal fills `principal_approval`; a delegated case with satisfied assessments stands in for it.
-A synthetic draft without reference bindings (trimmed):
+An execution claim records the unique owner of an authorized submission. The
+owner, request hash and requested output count are durable before external I/O.
+Each upload and send has a unique step, committed immediately before I/O after
+current source, authority and implementation checks. One execution can start its
+send only once. A transport wait holds no Studio transaction.
 
-```json
-{"case": null, "assessments": [], "principal_approval": null,
- "rendition_review": {"request_sha256": "71bece6826a2...", "reviewer": "SYNTHETIC FIXTURE OPERATOR - NOT USER CONSENT",
-  "conclusion": null, "reason": "", "binding_ids": []}}
-```
+The exact per-request count remains part of the sealed request and is checked
+against model capabilities. Execution authorization does not contain cumulative
+monetary, send-count or image-count limits. Tasks contain no predicted-cost
+conditions. Provider pricing does not decide whether approved work can proceed.
 
-A missing target stops authorization as `GRANT_SCOPE_EXCEEDED`.
-The diagnostic names the operation, the grant, its `granted` targets and the `missing` ones.
-A synthetic `execute` under a grant that lacks `decision:expression` exits 3 with (trimmed):
+## Result capture and recovery
 
-```json
-{"code": "GRANT_SCOPE_EXCEEDED", "phase": "authorization", "pointer": "$.targets",
- "required_action": "Obtain a current grant covering the missing targets; do not remove decisions or narrow targets.",
- "operation": "direction", "grant": "fixture-grant",
- "granted": ["canon:sheet", "delivery", "purpose"], "missing": ["decision:expression"]}
-```
+Every external step retains its provider identifier, response and optional
+usage. Each acquired image and its native dimensions/hash are recorded even if
+another output has not arrived. Execution results record actual submission and
+captured-image counts. Missing usage remains unknown; it is never replaced with
+zero and never prevents image recovery or execution completion.
 
-Reservations accumulate across all preparations with the same work task and grant ID.
-Repeating preparation or revising the task leaves usage where it is.
-A reservation stays outstanding until a settlement records the actual outputs and cost, or `release-reservation` returns it.
-Abandoning the work task releases nothing, as [Production execution](production-execution.md#status-and-resume) describes.
+`status` includes `execution_records`, whose `submissions`, `captured_outputs`,
+`reported_cost` and `usage_complete` are projections of formal events. Known final
+provider charges are added exactly once per currency using decimal strings.
+These are retrospective records, not quotas or permission. The same records can
+be filtered to a run without rewriting Studio history.
 
-A reservation can be released while no started step can have had an external effect.
-A started upload or send blocks release until its saved result shows that it made nothing.
-That result is `rejected` by the provider, or `not_executed` on the actor's evidence.
-An error, a timeout or a lost connection alone is not that evidence.
+`resume` reuses the same claim. It recovers saved answers and missing outputs,
+reuses completed uploads, or checks the provider's recorded outcome. It never
+resends a started request. A timeout, disconnect or missing image is not evidence
+that the provider did nothing. `draft-outcome` leaves an evidenced `not_executed`
+statement for an authorized actor when the provider's own records establish that
+outcome. A new request requires a distinct preparation and authorization.
+Abandoning a task neither deletes the execution nor resolves an unknown outcome.
 
-Input changes require a current preparation.
-An edit may intentionally change the parent's source files, while changed authority evidence and changed implementation are excluded from reuse.
-A changed quote, service, package, seed, count, selection reason or recipient requires a new matching authorization.
-Receipts are integrity records rather than cryptographic user signatures.
-Leave run files unedited and undeleted, whatever budget they hold.
-The host reports its own tool calls; the script cannot observe an unreported call outside this process.
+Input changes require a current preparation. A changed service, package, seed,
+count, selected reference, selection reason or recipient needs a matching
+approval. Receipts are integrity records, not cryptographic user signatures.
+Leave run evidence unedited. Calls outside the recorded execution cannot be
+inferred by the runtime and must be explicitly recorded by the host.
 
-Canonical adoption needs the owner's approval plus its own `adopt` authorization.
-[Production execution](production-execution.md#select-optionally-adopt-and-finish) gives the order of selection, adoption and completion.
-Low-level packaging and owner utilities show nothing about whether a production task has passed these gates.
+## Current authority and adoption
 
-## Current grant and execution budget
+A prepared input does not pin the mutable grant declaration or a whole work
+ledger tail. Evidence is captured with its path, hash, locator, time and purpose;
+a later ledger append does not invalidate an earlier reading.
+`authority-import --root STUDIO --file FILE --expected-event EVENT` records a real
+authority update and its predecessor. Revocation is checked again at every new
+external boundary. Updating authority does not authorize different request bytes.
 
-A prepared input does not pin the changing grant declaration or the work ledger's tail.
-Each cited evidence reading is stored by path and SHA-256, with its locator, capture time and purpose.
-A later append to a ledger therefore leaves an earlier approval of it valid.
+A review repair binds its changed creative scopes and revised input hash. An
+authority-only update is separate from a creative variant, and a revoked grant
+stops consumption of an edit receipt as `GRANT_REVOKED`.
 
-Import a real authority update with `authority-import --root STUDIO --file FILE --expected-event EVENT`.
-Its evidence and predecessor are retained.
-Used quantities and outstanding reservations stay in the same formal event store.
-Increasing a limit does not authorize different request bytes.
-A decrease below recorded obligations shows as negative remaining budget, not rewritten history.
-Where consumption alone exceeds a limit, `overrun` is true for that unit or currency.
-The current limit is checked again immediately before every external-effect boundary.
+Canonical adoption requires the owner's explicit approval plus its own `adopt`
+authorization. It does not submit an image request. Follow selection, adoption and
+completion in [Production execution](production-execution.md#select-optionally-adopt-and-finish).
+The sheet stores the selected immutable image and provenance together; candidates
+and historical selections cannot silently replace the current image.
 
-The direction, handoff and submission receipts of one request share its single use.
-A local adoption needs no generation reservation.
-Unknown actual cost stays unknown, even after the images are acquired.
-A transport wait holds no studio transaction.
-
-`status --budget` reports used, outstanding and remaining quantities from the same events at Studio, grant and run scope.
-Remaining is always grant-wide.
-With `--run`, the view keeps that run's task and adds `run_share`, the run's own consumed and outstanding amounts.
-Each reservation lists `release_eligible` and `release_reason`.
-A synthetic grant with one unsent reservation (trimmed):
-
-```json
-{"grant": "fixture-grant", "limits": {"uses": 100, "outputs": 20, "cost": {"currency": "USD", "amount": "100"}},
- "consumed": {"uses": 0, "outputs": 0, "cost": {}},
- "outstanding_reserved": {"uses": 1, "outputs": 1, "cost": {"USD": "0"}},
- "remaining": {"uses": 99, "outputs": 19, "cost": {"USD": "100"}},
- "overrun": {"uses": false, "outputs": false, "cost": {"USD": false}},
- "run_share": {"run": "01a1032a-d1c8-...", "consumed": {"uses": 0, "outputs": 0, "cost": {}},
-  "outstanding_reserved": {"uses": 1, "outputs": 1, "cost": {"USD": "0"}}}}
-```
-
-```text
-python scripts/production_workflow.py draft-release --root STUDIO --run RUN --reservation RESERVATION --out release.json
-python scripts/production_workflow.py release-reservation --root STUDIO --run RUN --request release.json
-```
-
-`draft-release` writes the release request with the actor's fields empty.
-Fill in the actual actor, evidence and reason, then pass that file to `release-reservation`.
-The actor is the reserving actor or the authority issuer.
-Both commands check the request against `schemas/authoring/production-release.schema.json`.
-A filled synthetic request:
-
-```json
-{"reservation_id": "01a1032b-09d5-78fa-86fe-e10849b84acd", "actor": "SYNTHETIC FIXTURE OPERATOR - NOT USER CONSENT",
- "evidence": {"path": "release/evidence.txt", "sha256": "4a43229abb8e0977a306a8b61ff4cc1ace0a5ea4b5171b332b74f3c09ca5e34e", "locator": "whole"},
- "reason": "Synthetic no-effect reservation release."}
-```
-
-Repeating the release reports `already_released` and releases nothing twice.
-
-## Charges for separate external effects
-
-The execution plan lists a send ceiling and, when media is uploaded, a separate aggregate upload ceiling.
-Each uploaded input has one durable `external-step` and one `external-effect-result` receipt with the actual provider response.
-The transport returns `provider_id`, `response` and `usage`.
-`usage` is null, or a currency, a decimal-string amount and a `final` boolean.
-No receipt is inferred from a quoted ceiling, and send usage covers the send alone.
-
-Budget views show known effect charges as consumed, even when a later effect times out.
-The unconfirmed remainder of the ceiling stays reserved.
-Missing upload usage is never replaced by zero or by a known send charge.
-Complete final receipts are summed once per currency.
-A reported overrun is kept, and an overrun of an effect ceiling stops every later unsent effect.
-
-Protocol tests with explicitly synthetic fees are in `scripts/test_production_execution.py` (`ExternalEffectAccountingTests`).
-They do not establish a real provider's fee schedule.
-
-## Authority updates during reviewed repairs
-
-A review repair binds its changed creative scopes and `revised_input_sha256`.
-Changing a grant limit or its evidence does not change that repair input.
-The exact edit receipt still needs a current, valid grant when it is consumed.
-A revoked grant stops the edit as `GRANT_REVOKED`, rather than inventing a creative scope change.
-Import the actual authority update separately; an authority-only update is not a creative variant.
+Protocol tests use independent synthetic packs and authored fixture approvals:
+`scripts/execution_lifecycle_smoke_test.py`, `scripts/test_production_execution.py`
+and `scripts/test_production_adoption.py`. Synthetic usage proves accounting
+mechanics, not provider prices or real user approval.

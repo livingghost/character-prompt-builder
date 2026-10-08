@@ -23,7 +23,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
 
 import studio
-from character_sheet import bind_sidecar, resolve_sheet_relative, validate_sidecar, _validate_ready_package
+from character_sheet import resolve_sheet_relative, validate_sidecar, _validate_ready_package
+from sheet_artifacts import current_artifact
 from pack_manager import (atomic_write_json, generate_uuid7, validate_pack, write_lock,
                           add_pack_root, enable_pack, load_effective_state)
 from prompt_plot import APPROVED_AT
@@ -75,60 +76,29 @@ def validate_approval(value: Any, character: str, row: dict[str, Any]) -> dict[s
     return copy.deepcopy(value)
 
 
-def _bind_sheet(root: Path, home: Path, row: dict[str, Any]) -> dict[str, Any]:
-    sheet = home / "sheet"
-    sidecar_path = sheet / "sheet-data.json"
-    safe_file(root, sidecar_path.relative_to(root).as_posix())
-    sidecar = studio.read_json(sidecar_path)
-    validate_sidecar(sidecar, sheet_root=sheet, verify_files=True)
-    source = safe_file(root, row["result"]["path"], row["result"]["sha256"])
-    if not row.get("package"):
-        raise ValueError("sheet adoption requires the recorded generation package; record its provenance before adopting")
-    package = safe_file(root, row["package"]["path"], row["package"]["sha256"])
-    package_value = studio.read_json(package)
-    _validate_ready_package(package_value, field="iteration package")
-    # Copies remain inside the sheet. Never weaken its containment rules.
-    bindings = sheet / "bindings"
-    if bindings.is_symlink():
-        raise ValueError("sheet bindings must not be a symbolic link")
-    bindings.mkdir(exist_ok=True)
-    destination = bindings / row["iteration_id"]
-    if destination.is_symlink():
-        raise ValueError("sheet binding must not be a symbolic link")
-    image_name = "image" + source.suffix.lower()
-    if not destination.exists():
-        staging = Path(tempfile.mkdtemp(prefix=".binding-", dir=bindings))
-        try:
-            shutil.copyfile(source, staging / image_name)
-            shutil.copyfile(package, staging / "package.json")
-            # Preserve portable carriers under their committed names. A copy of
-            # the package without its companion is not a reusable provenance file.
-            from build_generation_payload import validate_generation_package_carrier_paths
-            prepared = package_value.get("prepared_reference_set")
-            if isinstance(prepared, dict):
-                companion = validate_generation_package_carrier_paths(prepared, package_root=package.parent)
-                if companion:
-                    source_dir = package.parent / companion
-                    if source_dir.is_symlink() or any(p.is_symlink() for p in source_dir.rglob("*")):
-                        raise ValueError("package companion must contain no symbolic links")
-                    shutil.copytree(source_dir, staging / companion)
-            os.rename(staging, destination)
-        finally:
-            if staging.exists():
-                shutil.rmtree(staging)
-    safe_file(sheet, (destination / image_name).relative_to(sheet).as_posix(), row["result"]["sha256"])
-    safe_file(sheet, (destination / "package.json").relative_to(sheet).as_posix(), row["package"]["sha256"])
-    existing = sidecar["slots"].get(row["slot"], {})
-    sidecar["slots"][row["slot"]] = {
-        **existing,
-        "image_path": (destination / image_name).relative_to(sheet).as_posix(),
-        "generation_package": (destination / "package.json").relative_to(sheet).as_posix(),
-        "image_sha256": row["result"]["sha256"],
-        "generation_package_sha256": row["package"]["sha256"],
-    }
-    bound = bind_sidecar(sidecar, sheet_root=sheet)
-    atomic_write_json(sidecar_path, bound)
-    return bound["slots"][row["slot"]]
+def _bind_sheet(root: Path, home: Path, row: dict[str, Any], approval: dict, journal: dict) -> dict[str, Any]:
+    import sheet_artifacts as fills
+    sheet = home / 'sheet'
+    sidecar_path = sheet / 'sheet-data.json'
+    artifact = fills.from_iteration(root, row['character'], row)
+    # The adoption journal pins expected_current before its first bind. Retrying
+    # does not replace a different selection made after that author decision.
+    decision = journal.get('sheet_decision')
+    if decision is None:
+        decision = fills.draft_adoption(sidecar_path, row['slot'], artifact['artifact_id'])
+        evidence_file = _journal_path(home, row['iteration_id']).with_suffix('.approval.json')
+        if evidence_file.exists() and studio.read_json(evidence_file) != approval:
+            raise ValueError('recorded adoption approval differs from its immutable evidence')
+        if not evidence_file.exists(): atomic_write_json(evidence_file, approval)
+        decision.update(by=approval['by'], at=approval['at'],
+            reason=approval.get('note') or 'Explicit author approval for the named Studio iteration.',
+            evidence={'path': evidence_file.relative_to(root).as_posix(), 'sha256': studio.sha256_file(evidence_file), 'locator': 'whole approval'})
+        if row.get('production'):
+            decision['basis'] = {'kind': 'production', 'claim': journal['production_claim'], 'approval': approval}
+        journal['sheet_decision'] = decision
+        atomic_write_json(_journal_path(home, row['iteration_id']), journal)
+    fills.adopt(sidecar_path, decision, evidence_root=root)
+    return studio.read_json(sidecar_path)['slots'][row['slot']]
 
 
 def _registration(root: Path, row: dict[str, Any], journal: dict[str, Any], record: dict[str, Any], target: Path) -> dict[str, Any]:
@@ -274,13 +244,14 @@ def adopt(root: Path, character: str, iteration: str, approval: Any, *,
             journal["registration_target"] = target
             journal.setdefault("registration_pack_id", generate_uuid7())
             journal["runtime_state_file"] = str(settings.state_file)
+        if production_claim is not None: journal['production_claim'] = production_claim
         atomic_write_json(path, journal)
         try:
             if row["status"] != "accepted":
                 row = studio._record_accept(root, character, iteration)
             journal.update(status="candidate-accepted", next_action="bind-sheet")
             atomic_write_json(path, journal)
-            slot = _bind_sheet(root, home, row)
+            slot = _bind_sheet(root, home, row, confirmed, journal)
             journal.update(status="sheet-bound", sheet_binding=slot,
                            next_action="register-pack" if confirmed["scope"] == "catalog" else None)
             atomic_write_json(path, journal)
@@ -309,7 +280,7 @@ def reference_index(root: Path, character: str) -> dict[str, Any]:
     home = studio.character_dir(root, character)
     sheet = home / "sheet"
     sidecar = studio.read_json(sheet / "sheet-data.json")
-    validate_sidecar(sidecar, sheet_root=sheet, verify_files=True)
+    validate_sidecar(sidecar, sheet_root=sheet, verify_files=False)
     rows = studio.read_iterations(home)
     accepted = {row["slot"]: row for row in rows if row.get("status") == "accepted"}
     errors: list[str] = []
@@ -324,12 +295,23 @@ def reference_index(root: Path, character: str) -> dict[str, Any]:
                 errors.append(f"{row['slot']}: adoption incomplete; resume {row['iteration_id']}: {journal['next_action']}")
     bindings: list[dict[str, Any]] = []
     for slot, row in sorted(accepted.items()):
-        safe_file(root, row["result"]["path"], row["result"]["sha256"])
+        try:
+            safe_file(root, row["result"]["path"], row["result"]["sha256"])
+            current = (sidecar["slots"].get(slot) or {}).get("current")
+            if current:
+                from sheet_artifacts import verify_acceptance
+                verify_acceptance(current, sheet, slot)
+        except (ValueError, OSError, KeyError) as exc:
+            errors.append(f"{slot}: accepted reference is unavailable: {exc}")
+            bindings.append({"slot": slot, "iteration_id": row["iteration_id"], "status": "unavailable",
+                             "image_sha256": row["result"]["sha256"], "image_path": None,
+                             "influence": "identity", "registration": None, "next_action": "repair-reference"})
+            continue
         path = _journal_path(home, row["iteration_id"])
         journal = studio.read_json(path) if path.is_file() else None
-        bound = sidecar["slots"].get(slot)
-        has_binding = bool(bound and bound.get("image_path"))
-        complete = has_binding and bound.get("image_sha256") == row["result"]["sha256"]
+        bound = current_artifact(sidecar["slots"].get(slot))
+        has_binding = bool(bound and bound.get("image"))
+        complete = has_binding and bound["image"]["sha256"] == row["result"]["sha256"]
         state = "sheet-bound" if complete else "candidate-accepted"
         if has_binding and not complete:
             errors.append(f"{slot}: latest accepted image is not bound to the sheet; resume adoption of {row['iteration_id']}")
@@ -344,7 +326,7 @@ def reference_index(root: Path, character: str) -> dict[str, Any]:
                 state = "catalog-registered"
         bindings.append({"slot": slot, "iteration_id": row["iteration_id"], "status": state,
                          "image_sha256": row["result"]["sha256"],
-                         "image_path": str((sheet / bound["image_path"]).resolve()) if complete else None,
+                         "image_path": str((sheet / bound["image"]["path"]).resolve()) if complete else None,
                          "influence": journal["approval"]["influence"] if journal else "identity",
                          "registration": journal.get("registration") if journal else None,
                          "next_action": journal.get("next_action") if journal else (None if complete else "adopt-with-sheet-scope")})

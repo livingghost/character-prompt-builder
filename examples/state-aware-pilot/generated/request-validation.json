@@ -1,24 +1,24 @@
 {
   "mode": "target-schema",
   "target": {
-    "service": "synthetic-host",
-    "model_identifier": "gpt-image-2.5-flare",
-    "operation": "generation"
+    "service": "runware",
+    "model_identifier": "openai:gpt-image@2.5-flare",
+    "operation": "generate"
   },
-  "service_execution_sha256": "e2c94ad4f0fa1f9f6c2e9590a0e0be44a49c1e392533176adff057306a476841",
-  "offering_contract_sha256": "058ab3daa688218e22c4ce3f1776e5941e152406c016a2988f7ed7f493c45211",
-  "transport_sha256": "1abb6d4164bae914c942be47c1e08ffcd2c242c7f9640d77c3da3304aeb9e9a5",
+  "service_execution_sha256": "c468dc49632b76eaaf46631530ecc19ef5a4838b2ba95f9a4d5c04fc8bbaecbb",
+  "offering_contract_sha256": "4eaa61dfbc30ee5df561e7aeb04a6fc146eb4300fe166254ee171d28967ecc1b",
+  "transport_sha256": "487061ef201b0a39f8e3d13cd1a7930dce8f32540da58eb336a1589ee95c5a96",
   "contract": {
-    "path": "synthetic-validation/6869870cd69c35fe/contract.json",
-    "sha256": "8fc608f33f28192b0dc1ffc42e79a48503645c3b623d735c5b9120be58574450"
+    "path": "synthetic-validation/6d7df66dca004613/contract.json",
+    "sha256": "cdd7df03e86e1987057c723ddd339a0cf6e6399f23d1a4e09c0b82f66e07c2b4"
   },
   "evidence": {
-    "path": "synthetic-validation/6869870cd69c35fe/acquisition.json",
-    "sha256": "036408fe95c13ce89411aace5ce972abd7026b92968a9159449123831ef829e1"
+    "path": "synthetic-validation/6d7df66dca004613/acquisition.json",
+    "sha256": "a174f8887d1bb333c9547e645b852ca32911652c2ae87e252d1b04111f86e579"
   },
   "execution_policy": {
-    "path": "synthetic-validation/6869870cd69c35fe/policy.json",
-    "sha256": "a42d3281e7a989fb0d2be0d083f27e4d5364982447d75b043ad100a8fa335a84"
+    "path": "synthetic-validation/6d7df66dca004613/policy.json",
+    "sha256": "a90e988e88f970ba9df081df3e129234358b30a3ceb16836afc433a27a89d8e3"
   },
   "unmeasured": []
 }

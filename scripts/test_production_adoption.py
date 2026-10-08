@@ -12,7 +12,7 @@ import production_fixtures as fixture
 import production_execution as execution
 import production_workflow as workflow
 import production_store as store
-import reservation_lifecycle as accounting
+import execution_lifecycle as accounting
 import studio
 from production_diagnostics import ProductionError
 from test_production_execution import decisions
@@ -79,7 +79,7 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual(record['event'],'adoption-result');self.assertEqual(self.adopt(token),record)
         self.select_adoption();workflow.complete(self.root,self.run)
         self.assertEqual(workflow.verify_completion(self.root,self.run,self.task['task_id'])['event'],'completion')
-        self.assertEqual(accounting.budget(self.root)['grants'][0]['consumed']['uses'],1)
+        self.assertEqual(accounting.summary(self.root)['submissions'],1)
         self.assertIsNone(execution.status(self.root,self.run)['runs'][0]['next_action'])
 
     def test_low_level_adoption_needs_the_production_claim(self):
@@ -93,12 +93,18 @@ class AdoptionTests(unittest.TestCase):
 
     def test_studio_adoption_selection_needs_the_run_adoption_result(self):
         self.select()
-        with patch.object(adoption_workflow,'require_production_claim'):
-            adoption_workflow.adopt(self.root,'robot',self.row['iteration_id'],self.approval)
+        token=self.authorize_adoption()
+        append=workflow.append_record
+        def interrupted(*args, **kwargs):
+            if args[3]=='adoption-result':
+                raise OSError('Synthetic interruption after Studio adoption.')
+            return append(*args, **kwargs)
+        with patch.object(workflow,'append_record',side_effect=interrupted):
+            with self.assertRaises(OSError): self.adopt(token)
         with self.assertRaises(ProductionError) as caught:self.select_adoption()
         self.assertEqual(caught.exception.diagnostic.code,'ADOPTION_RESULT_MISSING')
 
-    def test_interrupted_local_adoption_does_not_require_generation_reservation(self):
+    def test_interrupted_local_adoption_reuses_generation_execution(self):
         self.select()
         token=self.authorize_adoption()
         with patch.object(adoption_workflow,'_bind_sheet',side_effect=OSError('Synthetic adoption save interruption')):
@@ -108,7 +114,7 @@ class AdoptionTests(unittest.TestCase):
         rows=store.event_rows(self.root,self.run)
         self.assertEqual(sum(r['event']=='adoption-claim' for r in rows),1)
         self.assertEqual(len(accounting.all_states(self.root)),1)
-        self.assertEqual(accounting.budget(self.root)['grants'][0]['consumed']['uses'],1)
+        self.assertEqual(accounting.summary(self.root)['submissions'],1)
 
     def test_different_continuity_evidence_cannot_be_substituted(self):
         self.select()

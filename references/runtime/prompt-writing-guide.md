@@ -50,8 +50,9 @@ Read the complete resolved guide before writing the final model-facing rendition
 3. Resolve the active model's family and the rules that apply to it with `scripts/prompt_dialect.py --model <model-id>`. A rule from a section that names a different family stays unapplied.
 4. Apply interface-neutral construction rules that improve hierarchy, concision, visible scope, and controlled testing.
 5. Apply parser-specific separators, attention syntax, LoRA notation, negative transport, embeddings, or editor shortcuts only when the active interface supports that exact behavior.
-6. Render selected vocabulary terms into one coherent prompt. Search results and guide examples are candidates and grammar demonstrations rather than automatic prompt expansion or boilerplate.
-7. Review the final rendition against the image intent, anchors, Production Specification, adapter contract, and model-record recommendations.
+6. Take the wording from the pack's vocabulary, not from memory. The prompt-vocabulary dictionary aggregates Danbooru and e621 tag lists and states the effect each term has, so a term found there needs no web lookup. Search it for each planned element through `scripts/catalog_cli.py search` or by reading the dictionary itself, and prefer a carried term with the effect you mean over a remembered spelling. Reserve outside dictionaries for a term the resource does not carry, and treat that term as unverified until an image proves it.
+7. Render selected vocabulary terms into one coherent prompt. Search results and guide examples are candidates and grammar demonstrations rather than automatic prompt expansion or boilerplate.
+8. Review the final rendition against the image intent, anchors, Production Specification, adapter contract, and model-record recommendations.
 
 The Skill-using agent decides which rules are relevant. The active adapter and model record decide what the interface can receive. The guide's authority ends at the rendition; the requested concept, medium, identity, scene state, visual authority, and negative-transport contract lie outside it.
 
@@ -98,7 +99,7 @@ With `--model` the rendition is also held to the record's declared prompt length
 - an explicit weight outside the range the family works in;
 - a rating, period, or quality term inside a longer tag, such as the period term old in old man.
 
-Output is JSON on stdout with a `findings` list and the family checked under `dialect`. A problem is a statement about the rendition's own grammar or about a pair the vocabulary calls incompatible; a note is a reading worth confirming, such as a term missing from the vocabulary or a chunk after a break that lacks a count tag. The exit status is 1 when a problem is reported, and the command exits with a message when the dictionary path is anything but a file. The check only reports; which finding to act on is the agent's decision. Its regression test is `scripts/check_tag_prompt_smoke_test.py`.
+Output is JSON on stdout with a `findings` list and the family checked under `dialect`. A problem is a statement about the rendition's own grammar or about a pair the vocabulary calls incompatible; a note is a reading worth confirming, such as a term missing from the vocabulary or a chunk after a break that lacks a count tag. The exit status is 1 when a problem is reported, and the command exits with a message when the dictionary path is anything but a file. The standalone command reports evidence; preparation blocks mechanical problems, while the author evaluates notes and intended meaning. Its regression test is `scripts/check_tag_prompt_smoke_test.py`.
 
 ## Failure policy
 
@@ -118,3 +119,13 @@ python scripts/prompt_writing_guide_smoke_test.py
 ```
 
 The regression uses a fictional temporary guide. It leaves every owner-maintained pack's current rules, examples, wording, and section count uninspected and unfixed as expectations.
+
+### Final-request dictionary evidence
+
+For a model with `prompt_dialect`, `prepare` checks the actual sealed positive and
+negative text after model recommendations and transport conversion. Mechanical
+`problem` findings stop preparation; `note` findings and each matched term's
+dictionary meaning/usage notes are saved in `execution_plan.prompt_check`. Inspect
+that report with the complete request before approving it. A known word can still
+be the wrong word for the intended anatomy or garment: membership is not semantic
+approval. Fix the authored prompt or model guidance rather than bypassing the gate.

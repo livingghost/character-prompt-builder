@@ -175,8 +175,8 @@ def append(root: Path, scope: str, input_sha256: str | None, event: str, data: d
         operation = current()
         if operation:
             links = {'run': scope} if input_sha256 is not None else {}
-            if data.get('reservation_id'):
-                links['reservation'] = data['reservation_id']
+            if data.get('execution_id'):
+                links['execution'] = data['execution_id']
             if event == 'authorization':
                 links['grant'] = data['request']['grant']
             if event == 'candidate':
@@ -194,19 +194,25 @@ def register_run(root: Path, run: str, prepared: dict, directory: Path) -> None:
              c.sha256_file(directory/'manifest.json'),directory.relative_to(root).as_posix(),c.now()))
 
 
-def latest_run(root: Path, task_id: str, *, production_id: str | None = None) -> str | None:
-    """The run registered last for a work task, optionally within one production series.
+def latest_run(root: Path, task_id: str, *, production_id: str | None = None,
+               through: str | None = None) -> str | None:
+    """Look up registered order, optionally within a series and a fixed boundary.
 
-    Registration order is the formal order. Call it inside the publishing
-    transaction, so the answer cannot change before the new run is registered.
+    This index answers ownership without opening unrelated historical manifests.
+    A selected run is still fully verified by its consumer before use.
     """
     with reader(root) as connection:
         if connection is None: return None
-        if production_id is None:
-            row = connection.execute('SELECT run_id FROM runs WHERE task_id=? ORDER BY rowid DESC LIMIT 1',(task_id,)).fetchone()
-        else:
-            row = connection.execute('SELECT run_id FROM runs WHERE task_id=? AND production_id=? ORDER BY rowid DESC LIMIT 1',
-                                     (task_id,production_id)).fetchone()
+        conditions, arguments = ['task_id=?'], [task_id]
+        if production_id is not None:
+            conditions.append('production_id=?'); arguments.append(production_id)
+        if through is not None:
+            boundary = connection.execute('SELECT rowid, task_id FROM runs WHERE run_id=?',(through,)).fetchone()
+            if boundary is None or boundary['task_id'] != task_id:
+                raise ValueError('predecessor is not registered in this work task')
+            conditions.append('rowid<=?'); arguments.append(boundary['rowid'])
+        row = connection.execute('SELECT run_id FROM runs WHERE ' + ' AND '.join(conditions)
+                                 + ' ORDER BY rowid DESC LIMIT 1', arguments).fetchone()
     return row['run_id'] if row else None
 
 

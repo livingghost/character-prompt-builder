@@ -151,7 +151,7 @@ def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate
         'criteria':['output'],'depends_on':[],'deviations':[]}]
     task['generation']={'parameters':'parameters.json','production_spec':'spec.json','plot':'plot.json','retrieval_record':'retrieval.json',
         'creative_intent':'creative-intent.json','request_validation':'validation.json','service':'synthetic','count':1,'seed':None,
-        'continuity':{'robot':'one-off'},'cost':{'currency':'USD','amount':'0','basis':'Local synthetic transport performs no network request.'}}
+        'continuity':{'robot':'one-off'}}
     task['recording']={'character':'robot','slot':'candidate','subject_map':{},'sheet_panel':False,'role':'synthetic-example'}
     if not with_authority:task['authority']=None
     # Stable issuer ledger belongs to this studio so another CLI can verify it.
@@ -235,8 +235,7 @@ def upscale_task(root:Path,*,source:str='upscale/source.png',scale:int=2)->str:
     task['sources']=[{'id':'source','path':source,'role':'upscale-source','disposition':'applied','locator':'whole image',
                      'reason':'The explicitly declared synthetic image to enlarge.'}]
     production_fixtures.task(root,task,artifact='image',execution='dispatcher')
-    task['upscale']={'service':'synthetic','cost':{'currency':'USD','amount':'0','basis':'Local synthetic enlargement; no network use.'},
-        'external_costs':[{'operation':'upload','currency':'USD','amount':'0','basis':'Local synthetic source registration; no network use.'}]}
+    task['upscale']={'service':'synthetic'}
     validation=fixture_validation(root,UPSCALE_MODEL_ID,reference_mode='authored-rendition',service='synthetic')
     request=upscale_request(root,root/source,UPSCALE_MODEL_ID,scale,{},None,request_validation=validation,render_intent=intent('','upscale'))
     write(root/'upscale/input.json',request)
@@ -282,8 +281,3 @@ def fill_decisions(root:Path,run:str,path:str)->str:
     return path
 
 
-def fill_release(root:Path,draft:dict,*,actor:str,evidence:str)->dict:
-    """Complete a drafted release request as the labeled synthetic fixture operator."""
-    write(root/evidence,'Synthetic explicit release decision. Not user approval.\n')
-    return {**draft,'actor':actor,'reason':'Synthetic release of a reservation that made no external effect.',
-            'evidence':{'path':evidence,'sha256':c.sha256_file(root/evidence),'locator':'whole'}}

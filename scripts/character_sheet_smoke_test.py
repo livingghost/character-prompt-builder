@@ -17,7 +17,7 @@ from unittest import mock
 import resvg_py
 from PIL import Image, ImageDraw, ImageFont
 
-from character_sheet import bind_sidecar, initialize_sidecar, sheet_status, validate_sidecar
+from character_sheet import initialize_sidecar, sheet_status, validate_sidecar
 from character_sheet_render import textmetrics
 from character_sheet_render.board import rasterize_board
 from character_sheet_render.textmetrics import font_has_glyph, segment_text_by_font
@@ -51,6 +51,8 @@ from render_character_sheet import (
     PROFILE_SCHEMA_PATH,
 )
 from state_protocol import validate_against_schema
+import sheet_artifacts as fills
+from sheet_fixtures import accepted_slot, unverified_slot
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -156,8 +158,8 @@ def base_sidecar() -> dict[str, Any]:
             ]
         },
         "slots": {
-            "canon.primary": {"image_path": "", "generation_package": ""},
-            "identity.icon": {"image_path": "", "generation_package": ""},
+            "canon.primary": fills.empty_slot(),
+            "identity.icon": fills.empty_slot(),
         },
     }
 
@@ -406,7 +408,7 @@ def render_sidecar() -> dict[str, Any]:
                 }
             ],
         },
-        "slots": {slot_id: {"image_path": "", "generation_package": ""} for slot_id in slot_ids},
+        "slots": {slot_id: fills.empty_slot() for slot_id in slot_ids},
     }
 
 
@@ -576,69 +578,33 @@ def main() -> int:
             newline="\n",
         )
         reference = copy.deepcopy(identity)
-        reference["sheet_status"] = "reference-ready"
-        reference["slots"]["canon.primary"] = {
-            "image_path": "front.png",
-            "generation_package": "front.package.json",
-        }
-        check(
-            "primary image and package paths produce reference readiness",
-            sheet_status(reference) == "reference-ready",
-        )
-        bound = bind_sidecar(reference, sheet_root=root)
-        check(
-            "binding commits both image and package hashes",
-            len(bound["slots"]["canon.primary"]["image_sha256"]) == 64
-            and len(bound["slots"]["canon.primary"]["generation_package_sha256"]) == 64,
-        )
+        reference['slots']['canon.primary'] = accepted_slot(root, 'front.png', package='front.package.json')
+        reference['sheet_status'] = sheet_status(reference)
+        check('an explicitly adopted primary artifact produces reference readiness', reference['sheet_status'] == 'reference-ready')
+        bound = reference
+        artifact = fills.current_artifact(bound['slots']['canon.primary'])
+        check('adoption commits image and provenance together',
+              len(artifact['image']['sha256']) == 64 and len(artifact['provenance']['sha256']) == 64)
         validated_bound = validate_sidecar(bound, sheet_root=root, verify_files=True)
-        check(
-            "bound reference sidecar verifies",
-            validated_bound["slots"]["canon.primary"]["image_sha256"]
-            == bound["slots"]["canon.primary"]["image_sha256"]
-            and validated_bound["slots"]["canon.primary"]["generation_package_sha256"]
-            == bound["slots"]["canon.primary"]["generation_package_sha256"],
-        )
-
-        original_image = image_path.read_bytes()
-        Image.new("RGB", (4, 6), (90, 60, 30)).save(image_path, format="PNG")
-        check(
-            "image mutation breaks the committed binding",
-            expect_error(
-                lambda: validate_sidecar(bound, sheet_root=root, verify_files=True),
-                "image_sha256 mismatch",
-            ),
-        )
-        image_path.write_bytes(original_image)
-
-        package_path.write_text(json.dumps({"status": "ready"}) + "\n", encoding="utf-8", newline="\n")
-        unbound = copy.deepcopy(reference)
-        check(
-            "uncommitted ready-looking JSON is not accepted as a generation package",
-            expect_error(lambda: bind_sidecar(unbound, sheet_root=root), "structurally committed"),
-        )
-        package_path.write_text(
-            json.dumps(generation_package(), ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
-
-        traversal = copy.deepcopy(reference)
-        traversal["slots"]["canon.primary"]["image_path"] = "../outside.png"
-        check(
-            "carrier path traversal is rejected",
-            expect_error(lambda: bind_sidecar(traversal, sheet_root=root), "safe path relative"),
-        )
-
-        incomplete_optional = copy.deepcopy(identity)
-        incomplete_optional["slots"]["identity.icon"] = {
-            "image_path": "front.png",
-            "generation_package": "",
-        }
-        check(
-            "a populated optional slot must still identify its matching package",
-            expect_error(lambda: bind_sidecar(incomplete_optional, sheet_root=root), "declare both"),
-        )
+        check('the complete accepted artifact verifies', validated_bound == bound)
+        immutable_image = root / artifact['image']['path']
+        original_image = immutable_image.read_bytes()
+        Image.new('RGB', (4, 6), (90, 60, 30)).save(immutable_image, format='PNG')
+        check('image mutation breaks accepted provenance',
+              expect_error(lambda: validate_sidecar(bound, sheet_root=root, verify_files=True), 'hash mismatch'))
+        immutable_image.write_bytes(original_image)
+        package_path.write_text(json.dumps({'status': 'ready'}) + '\n', encoding='utf-8')
+        check('a generation candidate requires committed package content',
+              expect_error(lambda: fills.publish(root, image_path, kind='generation', recipe={}, package=package_path), 'structurally committed'))
+        package_path.write_text(json.dumps(generation_package()) + '\n', encoding='utf-8')
+        traversal = copy.deepcopy(bound)
+        traversal['slots']['canon.primary']['current']['artifact']['image']['path'] = '../outside.png'
+        check('carrier path traversal is rejected',
+              expect_error(lambda: validate_sidecar(traversal, sheet_root=root, verify_files=True), 'safe path relative'))
+        candidate_only = copy.deepcopy(identity)
+        candidate_only['slots']['identity.icon'] = {**fills.empty_slot(), 'candidates': [artifact]}
+        check('a valid optional candidate does not become accepted automatically',
+              validate_sidecar(candidate_only, sheet_root=root, verify_files=True)['slots']['identity.icon']['current'] is None)
 
         render_root = root / "render-sheet"
         render_root.mkdir()
@@ -1233,13 +1199,13 @@ def main() -> int:
         )
         render_package = json.loads(scaffold["package"].read_text(encoding="utf-8"))
         check(
-            "render package commits profile sidecar layout PNG mask and panel request manifest",
+            "render package commits profile accepted sheet layout PNG mask and panel request manifest",
             render_package["renderer"].get("id") == "render_character_sheet"
             and all(
                 isinstance(render_package.get(key), str) and len(render_package[key]) == 64
                 for key in (
                     "profile_sha256",
-                    "sheet_data_sha256",
+                    "sheet_accepted_sha256",
                     "layout_sha256",
                     "png_sha256",
                     "edit_mask_sha256",
@@ -1375,11 +1341,7 @@ def main() -> int:
         )
 
         forced_value = copy.deepcopy(sparse_value)
-        forced_value["slots"]["slot.mark.01"] = {
-            "image_path": "",
-            "generation_package": "",
-            "fill_policy": "fill",
-        }
+        forced_value["slots"]["slot.mark.01"] = fills.empty_slot(fill_policy='fill')
         check(
             "fill policy cannot force a panel whose persistent source row was deleted",
             expect_error(
@@ -1407,7 +1369,7 @@ def main() -> int:
                     mode="scaffold",
                     out_dir=render_root / "invalid-keep",
                 ),
-                "has no accepted image_path",
+                "has no accepted artwork",
             ),
         )
 
@@ -1438,6 +1400,9 @@ def main() -> int:
                 (target["generation_w"], target["generation_h"]),
                 color,
             ).save(panel_results_dir / request["result_file"], format="PNG")
+            per_panel_package = generation_package()
+            per_panel_package['generation_payload'] = {'synthetic_panel': request['request_id']}
+            (panel_results_dir / request['result_file']).with_suffix('.package.json').write_text(json.dumps(per_panel_package) + '\n', encoding='utf-8')
         filled_path = render_root / "filled.png"
         composition = compose_panel_fills(
             scaffold["panel_requests"],
@@ -1465,19 +1430,19 @@ def main() -> int:
             scaffold["panel_requests"],
             panel_results_dir,
             out_path=render_root / "filled-bound.png",
-            update_sidecar_path=bound_sidecar_path,
+            register_sidecar_path=bound_sidecar_path,
         )
         bound_sidecar = json.loads(bound_sidecar_path.read_text(encoding="utf-8"))
         first_request = panel_requests["requests"][0]
         bound_slot = bound_sidecar["slots"].get(first_request["slot_id"]) or bound_sidecar["slots"].get(
             first_request["resolved_slot_id"]
         )
-        with Image.open(render_root / bound_slot["image_path"]) as bound_image:
+        with Image.open(render_root / bound_slot["candidates"][0]["image"]["path"]) as bound_image:
             bound_size = bound_image.size
         check(
-            "compose binds each slot to the full-size result, not to a board crop",
-            bound["sidecar_update"] is not None
-            and bound_slot["image_path"] == f"panel-results/{first_request['result_file']}"
+            "compose registers full-size candidates without changing the current selection",
+            bound["candidate_registration"] is not None
+            and bound_slot["current"] is None and bound_slot["candidates"][0]["image"]["sha256"] == hashlib.sha256((panel_results_dir / first_request["result_file"]).read_bytes()).hexdigest()
             and bound_size == (first_request["target"]["generation_w"], first_request["target"]["generation_h"]),
             f"bound {bound_slot} size {bound_size}",
         )
@@ -1486,11 +1451,12 @@ def main() -> int:
         staged_dir.mkdir(exist_ok=True)
         staged_first = panel_requests["requests"][0]
         shutil.copyfile(panel_results_dir / staged_first["result_file"], staged_dir / staged_first["result_file"])
+        shutil.copyfile((panel_results_dir / staged_first['result_file']).with_suffix('.package.json'), (staged_dir / staged_first['result_file']).with_suffix('.package.json'))
         staged = compose_panel_fills(
             scaffold["panel_requests"],
             staged_dir,
             out_path=render_root / "filled-staged.png",
-            update_sidecar_path=bound_sidecar_path,
+            register_sidecar_path=bound_sidecar_path,
             only=[staged_first["slot_id"]],
             allow_missing=True,
         )
@@ -1499,10 +1465,10 @@ def main() -> int:
             staged_first["resolved_slot_id"]
         )
         check(
-            "a staged fill binds the accepted anchor while the other panels have no result yet",
+            "a staged fill registers an anchor candidate while the other panels have no result yet",
             len(staged["results"]) == 1
             and len(staged["missing_results"]) == len(panel_requests["requests"]) - 1
-            and staged_bound["image_path"] == f"panel-results-staged/{staged_first['result_file']}"
+            and staged_bound["current"] is None and len(staged_bound["candidates"]) == 1
             and expect_error(
                 lambda: compose_panel_fills(
                     scaffold["panel_requests"], staged_dir, out_path=render_root / "filled-staged.png"
@@ -1518,7 +1484,7 @@ def main() -> int:
             scaffold["panel_requests"],
             panel_results_dir,
             out_path=render_root / "filled-bound.png",
-            update_sidecar_path=bound_sidecar_path,
+            register_sidecar_path=bound_sidecar_path,
             only=[first_request["slot_id"]],
         )
         only_sidecar = json.loads(bound_sidecar_path.read_text(encoding="utf-8"))
@@ -1526,9 +1492,9 @@ def main() -> int:
             first_request["resolved_slot_id"]
         )
         check(
-            "compose --only binds the accepted slot and leaves the others unbound",
-            only_first["image_path"] == f"panel-results/{first_request['result_file']}"
-            and not only_sidecar["slots"].get(second_slot_id, {}).get("image_path"),
+            "compose --only registers the selected candidate and leaves other slots unchanged",
+            len(only_first["candidates"]) == 1 and only_first["current"] is None
+            and not only_sidecar["slots"].get(second_slot_id, {}).get("candidates"),
             f"second slot {second_slot_id}: {only_sidecar['slots'].get(second_slot_id)}",
         )
         try:
@@ -1536,7 +1502,7 @@ def main() -> int:
                 scaffold["panel_requests"],
                 panel_results_dir,
                 out_path=render_root / "filled-bound.png",
-                update_sidecar_path=bound_sidecar_path,
+                register_sidecar_path=bound_sidecar_path,
                 only=["no.such.slot"],
             )
             only_unknown = None
@@ -1562,7 +1528,7 @@ def main() -> int:
         )
         check(
             "candidate harvest leaves the sidecar unchanged until explicit acceptance",
-            candidate["sidecar_update"] is None
+            candidate["candidate_registration"] is None
             and sidecar_path.read_bytes() == candidate_sidecar_before
             and len(candidate["crops"]) == sum(1 for box in layout["boxes"] if box["harvest"]),
         )
@@ -1572,7 +1538,7 @@ def main() -> int:
             filled_path,
             layout_path=scaffold["layout"],
             out_dir=crops_dir,
-            update_sidecar_path=sidecar_path,
+            register_sidecar_path=sidecar_path,
             generation_package=sheet_package_path,
         )
         check(
@@ -1612,20 +1578,24 @@ def main() -> int:
         )
         updated = json.loads(sidecar_path.read_text(encoding="utf-8"))
         check(
-            "sidecar update uses current persistent eye and mark slot IDs",
-            updated["slots"]["eye.left.detail"]["image_path"]
-            == "crops/left-eye-detail.png"
-            and updated["slots"]["slot.mark.01"]["image_path"]
-            == "crops/mark-01.png",
+            "candidate registration uses persistent eye and mark slot IDs",
+            updated['slots']['eye.left.detail']['candidates'][0]['image']['sha256']
+            == hashlib.sha256((crops_dir / 'left-eye-detail.png').read_bytes()).hexdigest()
+            and updated['slots']['slot.mark.01']['candidates'][0]['image']['sha256']
+            == hashlib.sha256((crops_dir / 'mark-01.png').read_bytes()).hexdigest(),
         )
+        from sheet_artifacts_smoke_test import decision as synthetic_decision
+        registered_only = updated['sheet_status'] == 'identity-ready' and all(slot['current'] is None for slot in updated['slots'].values())
+        for slot_id, slot in updated['slots'].items():
+            if slot['candidates']:
+                chosen = slot['candidates'][0]
+                fills.adopt(sidecar_path, synthetic_decision(sidecar_path, slot_id, chosen), evidence_root=render_root)
+        updated = json.loads(sidecar_path.read_text(encoding='utf-8'))
         check(
-            "accepted harvest updates provenance and reference readiness",
-            updated["sheet_status"] == "reference-ready"
-            and all(
-                slot["generation_package"] == "sheet.package.json"
-                for slot in updated["slots"].values()
-                if slot["image_path"]
-            ),
+            "explicit author adoption promotes harvested candidates and retains their full-sheet source",
+            registered_only and updated['sheet_status'] == 'reference-ready'
+            and all(fills.verify_artifact(slot['current']['artifact'], render_root)['sources']
+                    for slot in updated['slots'].values() if slot['current'] is not None),
         )
         composite_dir = render_root / "composite"
         composite = render_sheet(
@@ -1757,7 +1727,7 @@ def main() -> int:
                     filled_path,
                     layout_path=scaffold["layout"],
                     out_dir=outside_dir,
-                    update_sidecar_path=sidecar_path,
+                    register_sidecar_path=sidecar_path,
                     generation_package=sheet_package_path,
                 ),
                 "inside the Character Sheet folder",
@@ -2148,6 +2118,9 @@ def main() -> int:
             and "Never add humanoid anatomy" in nonhuman_prompt,
         )
 
+        stable_root = profile_root / "row-stability"
+        (stable_root / "crops").mkdir(parents=True)
+        Image.new("RGB", (32, 32), (70, 100, 140)).save(stable_root / "crops/mark-01.png")
         stable_mark_sheet = {
             "sheet_status": "identity-ready",
             "fields": {
@@ -2172,18 +2145,14 @@ def main() -> int:
                 ],
             },
             "slots": {
-                "slot.mark.01": {
-                    "image_path": "crops/mark-01.png",
-                    "generation_package": "",
-                    "fill_policy": "auto",
-                }
+                "slot.mark.01": accepted_slot(stable_root, 'crops/mark-01.png', slot_id='slot.mark.01')
             },
         }
         stable_resolved, _ = resolve_state_panels(profile, stable_mark_sheet)
         stable_plan = build_panel_plan(
             apply_sheet_context(stable_resolved, stable_mark_sheet),
             stable_mark_sheet,
-            sheet_dir=render_root,
+            sheet_dir=stable_root,
             mode="scaffold",
             reference_scope="identity",
         )
@@ -2220,14 +2189,8 @@ def main() -> int:
             profile_root / "variable-mark.png", format="PNG"
         )
         variable_sheet["slots"] = {
-            "canon.primary": {
-                "image_path": "variable-front.png",
-                "generation_package": "",
-            },
-            "slot.mark.01": {
-                "image_path": "variable-mark.png",
-                "generation_package": "",
-            },
+            "canon.primary": accepted_slot(profile_root, 'variable-front.png'),
+            "slot.mark.01": accepted_slot(profile_root, 'variable-mark.png', slot_id='slot.mark.01'),
         }
         variable_reference = render_sheet(
             general_profile,
@@ -3035,8 +2998,8 @@ def main() -> int:
         )
 
     check(
-        "empty placeholder images are not exported as committed paths",
-        "image_path:state.imagePath" in html and "naturalWidth" not in html,
+        "the editor preserves immutable selections and edits only fill policy",
+        "current:null,candidates:[],history:[],...extras,fill_policy:state.fillPolicy" in html and "input.readOnly=true" in html,
     )
     check(
         "mark rows expose stable columns matching their headers",
@@ -3076,7 +3039,8 @@ def main() -> int:
     )
     check(
         "template explains the render harvest and reference-board loop",
-        "Export sheet-data.json" in html
+        "Export authored edit" in html
+        and "sheet_workflow.py apply-edit" in html
         and "exact panel-only requests" in html
         and "Never send the full sheet" in html
         and "Harvest the returned sheet as candidates" in html
@@ -3195,7 +3159,9 @@ def main() -> int:
         (containment_root / "outside.png").write_bytes(b"outside")
         containment_sheet = containment_root / "sheet"
         containment_sheet.mkdir()
-        (containment_sheet / "inside.png").write_bytes(b"inside")
+        Image.new("RGB", (32, 32), "white").save(containment_sheet / "inside.png")
+        valid_inside_slot = accepted_slot(containment_sheet, "inside.png")
+        valid_inside_path = valid_inside_slot["current"]["artifact"]["image"]["path"]
         containment_box = {"slot_id": "canon.primary", "aliases": []}
 
         def containment_slot_image(stored: str) -> Any:
@@ -3206,10 +3172,7 @@ def main() -> int:
                         "fields": {},
                         "tables": {},
                         "slots": {
-                            "canon.primary": {
-                                "image_path": stored,
-                                "generation_package": "",
-                            }
+                            "canon.primary": (valid_inside_slot if stored == valid_inside_path else unverified_slot(stored)) if stored else fills.empty_slot()
                         },
                     },
                     ensure_ascii=False,
@@ -3239,11 +3202,11 @@ def main() -> int:
             escape_details,
         )
 
-        inside_result = containment_slot_image("inside.png")
+        inside_result = containment_slot_image(valid_inside_path)
         check(
             "slot_image still resolves an image inside the sheet folder",
-            inside_result[2] == "inside.png"
-            and inside_result[3] == (containment_sheet / "inside.png").resolve(),
+            inside_result[2] == valid_inside_path
+            and inside_result[3] == (containment_sheet / valid_inside_path).resolve(),
             [inside_result[2], str(inside_result[3])],
         )
         empty_result = containment_slot_image("")

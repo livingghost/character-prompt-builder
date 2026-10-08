@@ -1,6 +1,6 @@
 """Execute and recover the one sealed request owned by a prepared run.
 
-The production transaction owns permission, reservation and claim. Network I/O
+The production transaction owns permission and execution claims. Network I/O
 starts only after that transaction commits. Recovery reads durable answers; it
 never interprets a timeout as evidence that a request was not sent. A lost
 answer is asked for again only through the transport's lookup, and an author's
@@ -17,7 +17,7 @@ from typing import Any
 
 import execution_contract as c
 import production_store as store
-import reservation_lifecycle as accounting
+import execution_lifecycle as accounting
 from operation_context import current, current_operation_id, stage
 from production_diagnostics import ProductionError, compare_exact, from_exception
 
@@ -78,9 +78,6 @@ def draft_execution(root: Path, run: str, grant: str) -> dict:
     import production_workflow as workflow
     directory, prepared, _, _, _, _, plan, _, _ = compiled(root, run, fresh=True)
     authorizations = [workflow.draft_authorization(root, run, grant, intent) for intent in plan['operations']]
-    for request in authorizations:
-        if request['operation'] == 'submit':
-            request['cost'] = copy.deepcopy(plan['cost'])
     return {'run': run, 'input_sha256': prepared['input_sha256'],
             'request_sha256': plan['request_sha256'], 'authorizations': authorizations}
 
@@ -97,8 +94,6 @@ def authorize_decisions(root: Path, run: str, path: str, prepared: dict, plan: d
         raise ProductionError('AUTHORIZATION_MISMATCH', 'Supply every prepared operation exactly once.', phase='authorization', pointer='$.authorizations')
     for intent, request in zip(plan['operations'], requests):
         compare_exact(intent, {key: request[key] for key in ('operation', 'targets', 'payload')})
-        if request['operation'] == 'submit':
-            compare_exact(plan['cost'], request['cost'], pointer='$.cost')
     for request in requests:
         workflow.authorize_value(root, run, request, evidence_files=[path], expected_source=(path, c.digest(raw)))
 
@@ -119,8 +114,6 @@ def receipts(root: Path, prepared: dict, rows: list[dict], plan: dict) -> dict[s
         for row in matches:
             try:
                 request = workflow._permission(root, prepared, rows, row['sha256'], **intent)
-                if intent['operation'] == 'submit':
-                    compare_exact(plan['cost'], request['cost'], pointer='$.cost')
                 selected[intent['operation']] = row['sha256']
                 break
             except (ValueError, OSError) as exc:
@@ -176,7 +169,11 @@ def _journal(root: Path, run: str, data: tuple):
     directory, prepared, _, _, package, rendered, plan, target, _ = data
     recording = prepared['task']['recording']
     operation = 'upscale' if package.get('artifact_type')=='upscale-request' else 'generation'
-    companion = 'upscale.references' if operation=='upscale' else ('package.references' if (directory / 'package.references').is_dir() else None)
+    if operation == 'upscale':
+        companion = 'upscale.references'
+    else:
+        from build_generation_payload import validate_generation_package_carrier_paths
+        companion = validate_generation_package_carrier_paths(package['prepared_reference_set'], package_root=directory)
     journal = dispatch.RunJournal.create(root, operation=operation, character=recording['character'],
         slot=recording['slot'], service=plan['service'], transport=plan['transport'], model=plan['model'],
         production_run=run, expected=plan['quantities']['outputs'], note='Executed from the sealed production input.',
@@ -212,8 +209,6 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
             raise ProductionError('DISPATCH_ALREADY_CLAIMED', 'This run already owns an execution.', phase='execution', run=run,
                 required_action='Use resume for this execution, variant for changed input, or repeat for an intentional new run.')
         require_recording(root, prepared)
-        if plan['cost'] is None:
-            raise ProductionError('COST_UNCONFIRMED', 'The prepared request has no explicit cost conditions.', phase='execution')
         key = _credential(transport, target['service'])
         descriptor = prepared['runtime_snapshot']
         with runtime_snapshot.using(runtime_snapshot.path(root, descriptor), descriptor):
@@ -230,7 +225,7 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
         # accounting.begin_step, after authorization and immediately before I/O.
         # That check is independent of the presence of a diagnostic operation.
 
-    with stage('authorization-and-budget'), store.transaction(root):
+    with stage('authorization-and-claim'), store.transaction(root):
         if decisions_file is not None:
             authorize_decisions(root, run, decisions_file, prepared, plan)
         _, live_prepared, _, rows = workflow.assert_current(root, run)
@@ -281,7 +276,7 @@ def _record_no_effect(root: Path, run: str, authorization: str, claim: dict, ste
         if not any(item['step'] == step and item['claim'] == claim['sha256'] for item in state['steps']):
             raise ProductionError('SETTLEMENT_EVIDENCE_REQUIRED', 'No exact external boundary supports this outcome.',
                                   phase='result-capture', run=run)
-        data = {'reservation_id': state['reservation_id'], 'claim': claim['sha256'], 'step': step,
+        data = {'execution_id': state['execution_id'], 'claim': claim['sha256'], 'step': step,
                 'usage': None, 'evidence': evidence, 'outcome': outcome}
         previous = state['effect_results'].get(step)
         if previous is not None:
@@ -292,26 +287,6 @@ def _record_no_effect(root: Path, run: str, authorization: str, claim: dict, ste
             return next(row for row in rows if row['event'] == 'external-effect-result' and row['data'] == data)
         return workflow.append_record(directory, prepared, rows, 'external-effect-result', data)
 
-
-def _check_effect_ceilings(root: Path, run: str, authorization: str) -> None:
-    """Retain unexpected charges, but do not start another effect past its authorized ceiling."""
-    import production_workflow as workflow
-    from decimal import Decimal
-    directory,prepared,_,rows=workflow.load_run(root,run)
-    state=accounting.require_active(rows,prepared,run,authorization)
-    plan=c.load(directory/'execution-plan.json')
-    for effect in plan['external_effects']:
-        steps={item['step'] for item in state['steps'] if item['operation']==effect['operation']}
-        actual=accounting._add_money([
-            {'currency':value['usage']['currency'],'amount':value['usage']['amount']}
-            for step,value in state['effect_results'].items() if step in steps
-            and value['usage'] is not None and value['usage']['final']])
-        quote=effect['cost']
-        if actual and (quote is None or any(currency!=quote['currency'] or Decimal(amount)>Decimal(quote['amount'])
-                                                   for currency,amount in actual.items())):
-            raise ProductionError('EXTERNAL_COST_LIMIT_EXCEEDED','The reported charge exceeds this effect ceiling; no further effect was started.',
-                                  phase='before-send',run=run,expected=quote,actual=actual,
-                                  required_action='Inspect the real provider charge and obtain a revised exact authorization before another execution.')
 
 
 def _owner() -> dict:
@@ -336,7 +311,6 @@ def _transmit(root: Path, run: str, journal, rendered: dict, claim: dict, author
                 step=f'upload:{index}'
                 started=any(entry['step']==step for entry in state['steps'])
                 if not started:
-                    _check_effect_ceilings(root,run,authorization)
                     accounting.begin_step(root, run, authorization, claim=claim['sha256'], step=step, operation='upload')
                     try:
                         uploaded=transport.upload_bytes(raw,item['media_type'],target['service'],key)
@@ -356,7 +330,6 @@ def _transmit(root: Path, run: str, journal, rendered: dict, claim: dict, author
         # answer can be looked up without reading the journal.
         identifiers = [{'field': list(path), 'value': rc.get(request, path)} for path in rendered['layout']['management']]
         with stage('provider-wait'):
-            _check_effect_ceilings(root,run,authorization)
             journal.update(sender=_owner())
             accounting.begin_step(root, run, authorization, claim=claim['sha256'], step='send', operation='send',
                                   identifiers=identifiers)
@@ -367,11 +340,11 @@ def _transmit(root: Path, run: str, journal, rendered: dict, claim: dict, author
                 'reason': 'The send started without a saved provider answer.',
                 'evidence': _evidence(root, run, journal, ['request-contract.json', 'request.json', 'indeterminate.json'])})
             result = status(root, run)
-            result.update(ok=False, execution_completed=False, external_effect=True, budget_effect='reserved-outcome-unknown')
+            result.update(ok=False, execution_completed=False, external_effect=True)
             return result
         _acknowledge(root, run, journal, claim)
         result = _finish(root, run, journal, transport)
-        result.update(external_effect=True, budget_effect='settled-or-outstanding')
+        result.update(external_effect=True)
         return result
     except BaseException as exc:
         _record_execution_failure(root, run, journal, claim, exc)
@@ -393,14 +366,14 @@ def _refused_upload(root: Path, run: str, journal, claim: dict, authorization: s
     journal.update(status='upload-refused')
     evidence = _evidence(root, run, journal, [name])
     _record_no_effect(root, run, authorization, claim, f'upload:{index}', 'rejected', evidence)
-    _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'reserved',
+    _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'claimed',
         'code': 'PROVIDER_REJECTION', 'step': f'upload:{index}', 'evidence': evidence})
     result = status(root, run)
-    result.update(ok=False, execution_completed=False, external_effect=False, budget_effect='reserved-releasable')
+    result.update(ok=False, execution_completed=False, external_effect=False)
     return result
 
 
-def _claim_reservation(rows: list[dict], prepared: dict, run: str, claim: dict) -> dict | None:
+def _claim_execution(rows: list[dict], prepared: dict, run: str, claim: dict) -> dict | None:
     states = accounting.derive(rows, prepared, run)
     return next((item for item in states.values() if item['authorization_sha256'] in claim['data']['authorizations']), None)
 
@@ -408,7 +381,7 @@ def _claim_reservation(rows: list[dict], prepared: dict, run: str, claim: dict) 
 def submission_state(rows: list[dict], prepared: dict, run: str, *, sender_alive: bool = False) -> tuple[str, list[dict]]:
     """The submission axis and the started external effects, from formal events only.
 
-    A dispatcher run with no send step is reserved, whatever its uploads did. A
+    A dispatcher run with no send step is claimed, whatever its uploads did. A
     send step is send_started while its owner operation still runs and
     outcome_unknown once it does not, until a receipt acknowledges an answer or
     evidence shows the provider never executed it.
@@ -418,19 +391,19 @@ def submission_state(rows: list[dict], prepared: dict, run: str, *, sender_alive
     if not claims and not external:
         return 'unclaimed', []
     claim = (claims or external)[-1]
-    state = _claim_reservation(rows, prepared, run, claim)
+    state = _claim_execution(rows, prepared, run, claim)
     steps = state['steps'] if state else []
     results = state['effect_results'] if state else {}
     effects = [{'step': item['step'], 'operation': item['operation'],
                 'result': (results[item['step']].get('outcome', 'executed') if item['step'] in results else 'unanswered')}
                for item in steps]
     if external:
-        if any(row['event'] == 'candidate' for row in rows) or any(row['event'] == 'reservation-settled' for row in rows):
+        if any(row['event'] == 'candidate' for row in rows) or any(row['event'] == 'execution-result' for row in rows):
             return 'acknowledged', effects
         return 'outcome_unknown', effects
     send = next((item for item in steps if item['operation'] == 'send'), None)
     if send is None:
-        return 'reserved', effects
+        return 'claimed', effects
     if (results.get(send['step']) or {}).get('outcome') == 'not_executed':
         return 'not_executed', effects
     outcomes = [row['data']['submission'] for row in rows
@@ -527,9 +500,9 @@ def _finish_captured(root: Path, run: str, journal, transport: Any) -> dict:
             _upload_receipt(root,run,journal,rendered,claim,authorization,index)
         accounting.record_effect(root,run,authorization,claim=claim['sha256'],step='send',usage=usage,evidence=[response_ref])
         state=accounting.require_active(store.event_rows(root,run),prepared,run,authorization)
-        actual_cost,final=accounting.effect_total(state)
-        accounting.settle(root, run, authorization, outputs=len(acquisition['acquired']),
-            cost=actual_cost, final=final and not acquisition['failed'], evidence=[response_ref])
+        actual_cost,_=accounting.effect_total(state)
+        accounting.record_result(root, run, authorization, outputs=len(acquisition['acquired']),
+            cost=actual_cost, final=not acquisition['failed'], evidence=[response_ref])
         _append(root, run, 'capture-status', {'claim': claim['sha256'], 'capture': 'complete' if result['data']['complete'] else 'partial',
             'received': acquisition['entries'], 'registered': len(acquisition['acquired']), 'expected': journal.document['expected'], 'diagnostics':capture_diagnostics})
     # These files are projections. A slot removed during generation cannot
@@ -551,6 +524,10 @@ def _finish_captured(root: Path, run: str, journal, transport: Any) -> dict:
                         package_companion=(journal.path / journal.document['companion']) if journal.document.get('companion') else None,
                         layout=c.load(journal.path / 'request-contract.json')['layout'])
                     found = row['iteration_id']
+                if prepared['task']['recording']['sheet_panel']:
+                    import sheet_artifacts
+                    row = studio._find(studio.read_iterations(studio.character_home(root, journal.document['character'])), found)
+                    sheet_artifacts.from_iteration(root, journal.document['character'], row)
                 if found not in recorded:
                     recorded.append(found)
             journal.update(status='capture-invalid' if invalid_upscale else ('complete' if result['data']['complete'] else 'capture-incomplete'), iterations=recorded)
@@ -601,7 +578,7 @@ def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transpo
         journal.update(status='answered')
         _acknowledge(root, run, journal, claim, witnesses=(name,), reconciled='provider-lookup', lookup='found')
         result = _finish(root, run, journal, transport)
-        result.update(external_effect=True, budget_effect='settled-or-outstanding')
+        result.update(external_effect=True)
         return result
     journal.write(name, receipt)
     _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'outcome_unknown',
@@ -624,7 +601,7 @@ def draft_outcome(root: Path, run: str) -> dict:
             'evidence': {'path': '', 'sha256': '', 'locator': ''}}
 
 
-def _record_not_executed(root: Path, run: str, journal, claim: dict, reservation: dict, outcome_file: str) -> dict:
+def _record_not_executed(root: Path, run: str, journal, claim: dict, execution_state: dict, outcome_file: str) -> dict:
     """Record the author's evidenced statement that the provider never executed the started send."""
     import production_workflow as workflow
     raw = store.stable_bytes(root, outcome_file)
@@ -636,16 +613,16 @@ def _record_not_executed(root: Path, run: str, journal, claim: dict, reservation
     c.text(statement['evidence']['locator'], 'evidence locator')
     compare_exact({'run': run, 'claim': claim['sha256'], 'outcome': 'not_executed'},
                   {key: statement[key] for key in ('run', 'claim', 'outcome')}, pointer='$', phase='resume')
-    send = next((item for item in reservation['steps'] if item['operation'] == 'send'), None)
+    send = next((item for item in execution_state['steps'] if item['operation'] == 'send'), None)
     if send is None:
         raise ProductionError('OUTCOME_STATEMENT_NOT_APPLICABLE', 'No send started for this execution.', phase='resume', run=run,
-                              required_action='Release the unused reservation with draft-release and release-reservation.')
+                              required_action='Resume this unsent execution, or abandon the task without changing its history.')
     if (journal.path / 'answer.json').is_file():
         raise ProductionError('OUTCOME_STATEMENT_CONFLICT', 'The provider answer for this send is saved.', phase='resume', run=run,
                               required_action='Run resume without --outcome-file to register the saved answer.')
-    if statement['actor'] not in reservation['release_actors']:
-        raise ProductionError('AUTHORIZATION_MISMATCH', 'This actor cannot state the outcome of this reservation.', phase='resume',
-                              run=run, expected=reservation['release_actors'], actual=statement['actor'])
+    if statement['actor'] not in execution_state['outcome_actors']:
+        raise ProductionError('AUTHORIZATION_MISMATCH', 'This actor cannot state the outcome of this execution_state.', phase='resume',
+                              run=run, expected=execution_state['outcome_actors'], actual=statement['actor'])
     if c.digest(store.stable_bytes(root, statement['evidence']['path'])) != statement['evidence']['sha256']:
         raise ProductionError('SOURCE_CHANGED', 'The statement evidence differs from its declared digest.', phase='resume',
                               file=statement['evidence']['path'], expected=statement['evidence']['sha256'])
@@ -683,10 +660,10 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
         return status(root, run)
     claim = claims[-1]
     journal = dispatch.RunJournal.open(c.local(root, claim['data']['journal']))
-    reservation = _claim_reservation(rows, prepared, run, claim)
+    execution_state = _claim_execution(rows, prepared, run, claim)
     if outcome_file is not None:
-        return _record_not_executed(root, run, journal, claim, reservation, outcome_file)
-    send = next((step for step in reservation['steps'] if step['operation'] == 'send'), None)
+        return _record_not_executed(root, run, journal, claim, execution_state, outcome_file)
+    send = next((step for step in execution_state['steps'] if step['operation'] == 'send'), None)
     if (journal.path / 'answer.json').is_file():
         acknowledged = any(row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
                            and row['data'].get('submission') == 'acknowledged' for row in rows)
@@ -694,19 +671,16 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
             # The answer was saved, and the process stopped before committing its receipt.
             _acknowledge(root, run, journal, claim, reconciled='saved-answer')
         return _finish(root, run, journal, transport)
-    if reservation['status'] == 'released':
-        result = status(root, run)
-        result.update(ok=False, execution_completed=False)
-        return result
+
     if send is not None:
-        if (reservation['effect_results'].get(send['step']) or {}).get('outcome') == 'not_executed':
+        if (execution_state['effect_results'].get(send['step']) or {}).get('outcome') == 'not_executed':
             result = status(root, run)
             result.update(execution_completed=False)
             return result
         return _reconcile(root, run, journal, claim, target, transport)
     # Only completed, durably saved uploads may be reused before the first send.
     # A step without a response remains unknown and is never reissued.
-    for step in reservation['steps']:
+    for step in execution_state['steps']:
         if step['operation']!='upload' or not step['step'].startswith('upload:'):
             raise ProductionError('REMOTE_OUTCOME_UNKNOWN','Unresolved external step prevents further effects.',phase='resume',run=run)
         index=int(step['step'].split(':',1)[1])
@@ -810,6 +784,29 @@ def _action(command: str, root: Path, arguments: list[str], reason: str) -> dict
     return {'command': command, 'argv': _argv(command, root, *arguments), 'reason': reason}
 
 
+def _draft_action(root: Path, run: str, kind: str, *, candidate: str | None = None,
+                  basis: object = None, grant: str | None = None) -> dict:
+    """Name drafts by run, candidate and decision basis, never by a shared filename."""
+    identity = c.content_id({'run': run, 'candidate': candidate, 'basis': basis, 'grant': grant})[:24]
+    relative = f'production/decisions/{run}/{kind}/{identity}.json'
+    path = c.local(root, relative, exists=False)
+    apply_name, option = {'review':('review','--file'), 'selection':('select','--file'),
+                          'execution':('execute','--decisions-file'), 'outcome':('resume','--outcome-file')}[kind]
+    apply_args = ['--run', run, option, relative]
+    if path.exists():
+        return {**_action(apply_name, root, apply_args,
+            f'Existing {kind} draft: {relative}. Inspect and complete it from actual evidence, then apply it. '
+            'The draft is not itself approval; do not recreate or overwrite it.'),
+            'draft': relative, 'requires_author_input': True}
+    arguments = ['--run', run]
+    if candidate is not None: arguments += ['--candidate', candidate]
+    if grant is not None: arguments += ['--grant', grant]
+    arguments += ['--out', relative]
+    return {**_action('draft-' + kind, root, arguments,
+        f'Create the {kind} draft for this exact run and candidate in {relative}. '
+        'Fill it from actual review or authority evidence; then use the next status action.'), 'draft': relative}
+
+
 def _sender_alive(root: Path, claims: list[dict]) -> bool:
     from production_compiler import _pid_active
     if not claims:
@@ -850,15 +847,13 @@ def _unknown_outcome_action(root: Path, run: str, rows: list[dict]) -> dict:
     """Ask the provider first; after it gave no answer, the author's evidenced statement is next."""
     lookups = [row['data'].get('lookup') for row in rows if row['event'] == 'execution-outcome' and row['data'].get('lookup')]
     if lookups and lookups[-1] == 'no-answer':
-        return _action('draft-outcome', root, ['--run', run, '--out', 'outcome.json'],
-            "The provider gave no answer for this request. When its own records hold no such task, fill outcome.json "
-            f"with that evidence and run: python {SCRIPT} resume --root {root} --run {run} --outcome-file outcome.json")
+        return _draft_action(root, run, 'outcome', basis='provider-no-answer')
     return _action('resume', root, ['--run', run],
         "resume asks the provider for the lost answer where the transport can; it never sends again. When the provider's "
         'records hold no such task, record that with draft-outcome and resume --outcome-file.')
 
 
-def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, reservation: dict | None,
+def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, execution_state: dict | None,
                  authority: dict | None) -> dict | None:
     """The one concrete command that moves this run forward, with why."""
     import production_workflow as workflow
@@ -868,11 +863,6 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
     if report['task_disposition'] == 'completed':
         return None
     if report['task_disposition'] == 'abandoned':
-        # Abandoning closes no reservation; each one closes on its own evidence.
-        if reservation is not None and reservation['status'] != 'released' and accounting.releasable(reservation):
-            return _action('draft-release', root, ['--run', run, '--reservation', reservation['reservation_id'], '--out', 'release.json'],
-                'The task is abandoned and no started step had an external effect. Fill release.json and run: '
-                f'python {SCRIPT} release-reservation --root {root} --run {run} --request release.json')
         if report['submission'] == 'outcome_unknown':
             return _unknown_outcome_action(root, run, rows)
         return None
@@ -899,13 +889,10 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
             except (ValueError, KeyError):
                 continue
             if candidate.get('disposition') != 'not_selected':
-                out = 'selection.json'
-                return _action('draft-selection', root, ['--run', run, '--candidate', candidate['candidate'], '--out', out],
-                    f'Fill {out} with the actual selection decision, then run: python {SCRIPT} select --root {root} --run {run} --file {out}')
+                return _draft_action(root, run, 'selection', candidate=candidate['candidate'], basis=candidate.get('review'))
         unreviewed = [row['candidate'] for row in report['candidate_states'] if row['review'] is None] or report['candidates']
-        out = 'review.json'
-        return _action('draft-review', root, ['--run', run, '--candidate', unreviewed[0], '--out', out],
-            f'Fill {out} from your own inspection of the candidate, then run: python {SCRIPT} review --root {root} --run {run} --file {out}')
+        previous = next((row.get('review') for row in report['candidate_states'] if row['candidate'] == unreviewed[0]), None)
+        return _draft_action(root, run, 'review', candidate=unreviewed[0], basis=previous)
     if report['submission'] == 'unclaimed' and 'handoff' not in events and report['readiness'] == 'blocked':
         diagnostic = report['readiness_diagnostics'][0]
         if not report['freshness_diagnostics']:
@@ -921,27 +908,19 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
             if report['readiness'] == 'authorization_required':
                 grants = [item['id'] for item in (authority or {}).get('grants', []) if not item.get('revoked_at')]
                 grant = grants[0] if len(grants) == 1 else '<grant-id>'
-                out = 'decisions.json'
-                return _action('draft-execution', root, ['--run', run, '--grant', grant, '--out', out],
-                    f'Fill {out} from the actual approval or delegation, then run: '
-                    f'python {SCRIPT} execute --root {root} --run {run} --decisions-file {out}')
+                return _draft_action(root, run, 'execution', grant=grant, basis=c.content_id(authority or {}))
             return _action('execute', root, ['--run', run], 'Every prepared operation has a current exact authorization.')
-        if submission == 'reserved':
-            if reservation is not None and accounting.releasable(reservation) and reservation['steps']:
-                return _action('draft-release', root, ['--run', run, '--reservation', reservation['reservation_id'], '--out', 'release.json'],
-                    'The provider refused an upload, so nothing was made. Fill release.json and run: '
-                    f'python {SCRIPT} release-reservation --root {root} --run {run} --request release.json')
+        if submission == 'claimed':
+            if any(item['result'] == 'rejected' for item in report['effects']):
+                return _action('repeat', root, ['--from', run, '--prepare'],
+                    'The provider refused an upload. Prepare a new request and obtain its exact approval.')
             return _action('resume', root, ['--run', run],
-                'No send has started; resume rechecks current conditions and continues, or release the unused reservation with draft-release.')
+                'No send has started; resume rechecks current conditions and continues the same execution.')
         if submission == 'send_started':
             return _action('status', root, ['--run', run], 'The owner operation is still sending; check again after it ends.')
         if submission == 'outcome_unknown':
             return _unknown_outcome_action(root, run, rows)
         if submission == 'not_executed':
-            if reservation is not None and accounting.releasable(reservation):
-                return _action('draft-release', root, ['--run', run, '--reservation', reservation['reservation_id'], '--out', 'release.json'],
-                    'The provider never executed the send. Fill release.json and run: '
-                    f'python {SCRIPT} release-reservation --root {root} --run {run} --request release.json')
             return _action('repeat', root, ['--from', run, '--prepare'],
                 'The provider never executed the send; prepare an intentional new run.')
         return _action('repeat', root, ['--from', run, '--prepare'],
@@ -971,9 +950,9 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
     settlement_open = False
     if external_claims:
         capture = 'complete' if len(candidates) == external_claims[-1]['data']['count'] else 'partial' if candidates else 'none'
-        settlement_open = any(entry['status'] != 'settled' for entry in states.values())
+        settlement_open = any(entry['status'] != 'complete' for entry in states.values())
     claim = (claims or external_claims or [None])[-1]
-    reservation = _claim_reservation(rows, prepared, identifier, claim) if claim else None
+    execution_state = _claim_execution(rows, prepared, identifier, claim) if claim else None
     candidate_states = [workflow.candidate_state(root, identifier, key, loaded=(directory, prepared, None, rows)) for key in candidates]
     freshness = workflow.freshness_diagnostics(root, identifier, loaded=(directory, prepared, None, rows))
     events = {row['event'] for row in rows}
@@ -1001,16 +980,10 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         readiness_diagnostics.append(authority_error)
     if not claims and mode == 'dispatcher' and readiness != 'blocked' and task_disposition == 'open':
         plan = c.load(directory / 'execution-plan.json')
-        if plan['cost'] is None:
-            readiness = 'configuration_required'
-            readiness_diagnostics.append(from_exception(ProductionError('COST_UNCONFIRMED',
-                'Every external effect needs explicit cost conditions before execution.', phase='readiness',
-                required_action='Declare the cost for every external effect and prepare the completed execution plan.'), phase='readiness'))
         try:
             receipts(root, prepared, rows, plan)
         except INSPECTION_ERRORS as exc:
-            if readiness != 'configuration_required':
-                readiness = 'authorization_required'
+            readiness = 'authorization_required'
             readiness_diagnostics.append(from_exception(exc, phase='readiness'))
     reviewed = [row for row in candidate_states if row['review'] is not None]
     review_state = ('unreviewed' if not reviewed else
@@ -1018,16 +991,15 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         else 'partial')
     report = {'run': identifier, 'task_id': task_id, 'integrity': 'intact',
         'preparation': 'prepared', 'readiness': readiness, 'readiness_diagnostics': readiness_diagnostics,
-        'submission': submission, 'send_started': submission not in {'unclaimed', 'reserved'},
+        'submission': submission, 'send_started': submission not in {'unclaimed', 'claimed'},
         'effects': effects, 'capture': capture, 'capture_diagnostics': captures[-1]['data'].get('diagnostics', []) if captures else [],
         'registration': _registration(root, prepared, rows), 'review': review_state, 'task_disposition': task_disposition,
         'candidates': candidates, 'candidate_states': candidate_states, 'freshness_diagnostics': freshness,
         'selection_diagnostics': selection_diagnostics, 'selection_ready': selection_ready, 'settlement_open': settlement_open,
-        'reservation': None if reservation is None else {'reservation_id': reservation['reservation_id'], 'status': reservation['status'],
-                                                         'release_eligible': accounting.releasable(reservation)},
+        'execution': None if execution_state is None else {'execution_id': execution_state['execution_id'], 'status': execution_state['status']},
         'journal': claims[-1]['data']['journal'] if claims else None,
         'logs': logs.get(identifier, [])}
-    report['next_action'] = _next_action(root, report, prepared, rows, reservation=reservation, authority=authority)
+    report['next_action'] = _next_action(root, report, prepared, rows, execution_state=execution_state, authority=authority)
     return report
 
 
@@ -1038,13 +1010,13 @@ def _blocked_run(root: Path, identifier: str, exc: BaseException, logs: dict[str
 
 
 @_public_call
-def status(root: Path, run: str | None = None, *, budget: bool = False) -> dict:
+def status(root: Path, run: str | None = None) -> dict:
     """Every run's state on its separate axes, isolating each failure to the part it affects."""
     import production_workflow as workflow
     from production_compiler import staging_cleanup, unregistered_publications
     root = Path(root)
     result = {'ok': True, 'current_task': _current_task(root), 'runs': [], 'diagnostics': [],
-              'external_effect': False, 'budget_effect': 'none'}
+              'external_effect': False}
     if run is not None:
         workflow.run_identifier(run)
     try:
@@ -1071,11 +1043,7 @@ def status(root: Path, run: str | None = None, *, budget: bool = False) -> dict:
     authority_errors = [error for _, error in authorities.values() if error is not None]
     result['ok'] = (not result['diagnostics'] and not authority_errors
                     and all(row['integrity'] == 'intact' for row in result['runs']))
-    if budget:
-        try:
-            result['budget'] = accounting.budget(root, run=run, isolate=True)
-        except INSPECTION_ERRORS as exc:
-            result['budget'] = {'complete': False, 'diagnostics': [from_exception(exc, phase='budget')]}
+    result['execution_records'] = accounting.summary(root, run=run, isolate=True)
     try:
         staging = staging_cleanup(root)
         result['staging'] = [row['name'] for row in staging['items']]

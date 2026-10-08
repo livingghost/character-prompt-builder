@@ -36,7 +36,7 @@ class ValidationTests(unittest.TestCase):
             'decision_method':'Adopt no behavioral claim beyond the exact recorded request and output evidence.',
             'indeterminate_handling':'Retain the trial as inconclusive and do not publish an observed profile.',
             'recommendation_deviation':{'deviates':False,'reason':'The synthetic fixture has no provider sampling recommendation to depart from.'},
-            'quantity':{'uses':1,'outputs':1},'cost_conditions':'Synthetic fixture: no paid service and no monetary charge.',
+            'quantity':{'uses':1,'outputs':1},
             'stop_conditions':['Stop after one request or any malformed, unauthorized, or indeterminate outcome.'],'unknowns':[]}
         self.save('probe.json',plan);self.choices.update(mode='bounded-probe',contract='probe.json');return plan
     def test_01_target_document_matches_its_exact_bytes(self):self.assertEqual(self.build()['unmeasured'],[])
@@ -207,7 +207,7 @@ class DelegationTests(unittest.TestCase):
         self.assertNotEqual(initial,self.rendered['request_sha256']);self.assertEqual(self.assess()['state'],'delegated-ready')
     def test_03_outside_seed_needs_principal(self):
         self.request['seed']=5;self.rendered=fixture.RequestContractTests.seal(self);self.assertEqual(self.assess()['state'],'principal-decision-required')
-    def test_04_budget_does_not_authorize_probe_mode(self):self.assertEqual(self.assess(modes=['target-schema'])['state'],'principal-decision-required')
+    def test_04_quantity_does_not_authorize_probe_mode(self):self.assertEqual(self.assess(modes=['target-schema'])['state'],'principal-decision-required')
     def test_05_subject_change_is_not_a_seed_variation(self):
         self.rendered=rc.seal(self.request,self.layout,self.media,self.target,self.execution,[],[],{'subjects':{'new':'person'},'output_kind':'image'})
         self.assertEqual(self.assess()['state'],'principal-decision-required')

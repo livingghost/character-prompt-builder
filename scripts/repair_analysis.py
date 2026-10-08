@@ -298,8 +298,7 @@ def analyze(root: Path, runs: list[str], output: str, hypotheses_path: str | Non
     for report in reports:
         lookup_actions.append({'operation': 'consult-presets', 'script': 'scripts/production_workflow.py',
             'args': {'root': str(root), 'task': report['task_path'], 'focus': 'repair', **(runtime_arguments or {})},
-            'required_args': ['query', 'out-dir'], 'external_effect': False, 'budget_effect': 'none',
-            'question_owner': 'Translate the observed issue into a craft question and inspect fitting prior knowledge.'})
+            'required_args': ['query', 'out-dir'], 'external_effect': False, 'question_owner': 'Translate the observed issue into a craft question and inspect fitting prior knowledge.'})
 
     files = {
         "analysis.json": m.encoded(result),

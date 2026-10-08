@@ -627,7 +627,8 @@
     },
     "character-sheet": {
       "reads": [
-        "references/runtime/character-sheet-discipline.md"
+        "references/runtime/character-sheet-discipline.md",
+        "references/runtime/sheet-fill-workflow.md"
       ],
       "features": [
         "authorial-intent",
@@ -714,7 +715,6 @@
     "scripts/visual_continuity_smoke_test.py",
     "scripts/request_contract_smoke_test.py",
     "scripts/request_validation_smoke_test.py",
-    "scripts/reservation_lifecycle_smoke_test.py",
     "scripts/production_series_smoke_test.py",
     "scripts/craft_consultation_smoke_test.py",
     "scripts/render_contract_smoke_test.py",
@@ -724,7 +724,6 @@
     "scripts/test_production_variation.py",
     "scripts/test_production_cli.py",
     "scripts/test_production_review.py",
-    "scripts/test_production_budget.py",
     "scripts/test_production_adoption.py",
     "scripts/test_production_boundaries.py",
     "scripts/test_production_retarget.py",
@@ -738,12 +737,12 @@
     "authorize": {
       "owner": "scripts/production_workflow.py:authorize",
       "command": "python scripts/production_workflow.py authorize --help",
-      "effect": "reserve exact scoped operation in the run"
+      "effect": "record exact scoped authorization in the run"
     },
     "claim-external": {
       "owner": "scripts/production_workflow.py:claim_external",
       "command": "python scripts/production_workflow.py claim-external --help",
-      "effect": "reserve external submission before the host calls it"
+      "effect": "claim external submission before the host calls it"
     },
     "revision-intent": {
       "owner": "scripts/production_workflow.py:revision_intent",
@@ -854,7 +853,7 @@
     "check": {
       "owner": "scripts/production_compiler.py:check_task",
       "command": "python scripts/production_workflow.py check --help",
-      "effect": "report every preparation check, the request preview and the execution plan; no run, authorization or reservation"
+      "effect": "report every preparation check, the request preview and the execution plan; no run, authorization or execution claim"
     },
     "draft-execution": {
       "owner": "scripts/production_execution.py:draft_execution",
@@ -874,7 +873,7 @@
     "status": {
       "owner": "scripts/production_execution.py:status",
       "command": "python scripts/production_workflow.py status --help",
-      "effect": "read-only run state, next command and, with --budget, grant budgets"
+      "effect": "read-only run state, next command and actual execution records"
     },
     "draft-outcome": {
       "owner": "scripts/production_execution.py:draft_outcome",
@@ -911,16 +910,6 @@
       "command": "python scripts/production_workflow.py authority-import --help",
       "effect": "import or replace the work task grant file, keeping its evidence and predecessor"
     },
-    "release-reservation": {
-      "owner": "scripts/reservation_lifecycle.py:release",
-      "command": "python scripts/production_workflow.py release-reservation --help",
-      "effect": "release an unused reservation with a completed release request"
-    },
-    "draft-release": {
-      "owner": "scripts/reservation_lifecycle.py:draft_release",
-      "command": "python scripts/production_workflow.py draft-release --help",
-      "effect": "write the release request form of one reservation"
-    },
     "draft-disposition": {
       "owner": "scripts/production_workflow.py:draft_disposition",
       "command": "python scripts/production_workflow.py draft-disposition --help",
@@ -935,6 +924,11 @@
       "owner": "scripts/production_workflow.py:candidate_state",
       "command": "python scripts/production_workflow.py candidate-status --help",
       "effect": "read-only evaluation, disposition and selection state of one candidate"
+    },
+    "sheet-workflow": {
+      "owner": "scripts/sheet_workflow.py:main",
+      "command": "python scripts/sheet_workflow.py --help",
+      "effect": "prepare approved panel executions; record immutable candidates, derivatives and review evidence; adopt only through explicit decisions"
     }
   }
 }

@@ -7,8 +7,8 @@ result PNG into each editable content rectangle for the board, and leaves every
 other scaffold pixel unchanged.
 
 The result file is the panel. The board holds a reduced copy of it for viewing,
-and with --update-sidecar each slot is bound to the full-size result rather than
-to anything cut back out of the board.
+and --register-sidecar records full-size candidates with their own packages.
+Author adoption is separate; rendering never changes a current selection.
 """
 from __future__ import annotations
 import operation_context as _operation_context
@@ -22,7 +22,7 @@ from typing import Any, Mapping, Sequence
 from PIL import Image, ImageOps
 
 from execution_contract import sha256_file
-from harvest_sheet_render import bind_slot_images, load_json_object, validate_layout
+from harvest_sheet_render import register_panel_results, load_json_object, validate_layout
 
 COMPOSITOR_ID = "compose_sheet_panel_fills"
 PANEL_FILL_TRANSPORT = "panel-images"
@@ -86,15 +86,12 @@ def compose_panel_fills(
     *,
     out_path: Path,
     composition_manifest_path: Path | None = None,
-    update_sidecar_path: Path | None = None,
-    generation_package: Path | None = None,
+    register_sidecar_path: Path | None = None,
     only: Sequence[str] | None = None,
     allow_missing: bool = False,
 ) -> dict[str, Any]:
-    if generation_package is not None and update_sidecar_path is None:
-        raise ValueError("--generation-package requires --update-sidecar")
-    if only is not None and update_sidecar_path is None:
-        raise ValueError("--only requires --update-sidecar")
+    if only is not None and register_sidecar_path is None:
+        raise ValueError("--only requires --register-sidecar")
     request_manifest_path = request_manifest_path.resolve(strict=True)
     manifest_dir = request_manifest_path.parent
     manifest = load_json_object(request_manifest_path, label="panel request manifest")
@@ -208,10 +205,10 @@ def compose_panel_fills(
         )
 
     sidecar_report = None
-    if update_sidecar_path is not None:
-        update_sidecar_path = update_sidecar_path.resolve()
-        if not update_sidecar_path.is_file():
-            raise ValueError(f"--update-sidecar does not exist: {update_sidecar_path}")
+    if register_sidecar_path is not None:
+        register_sidecar_path = register_sidecar_path.resolve()
+        if not register_sidecar_path.is_file():
+            raise ValueError(f"--register-sidecar does not exist: {register_sidecar_path}")
         accepted = present
         if only is not None:
             wanted = {str(slot_id) for slot_id in only}
@@ -233,8 +230,8 @@ def compose_panel_fills(
                 if str(request["slot_id"]) in wanted
                 or str(request.get("resolved_slot_id", request["slot_id"])) in wanted
             ]
-        sidecar_report = bind_slot_images(
-            update_sidecar_path,
+        sidecar_report = register_panel_results(
+            register_sidecar_path,
             images=[
                 (
                     editable_boxes[str(request["request_id"])],
@@ -242,7 +239,6 @@ def compose_panel_fills(
                 )
                 for request in accepted
             ],
-            generation_package=generation_package.resolve() if generation_package else None,
         )
 
     out_path = out_path.resolve()
@@ -264,7 +260,7 @@ def compose_panel_fills(
         "results": result_records,
         "missing_results": missing_results,
         "output": {"path": str(out_path), "sha256": sha256_file(out_path)},
-        "sidecar_update": sidecar_report,
+        "candidate_registration": sidecar_report,
     }
     composition_manifest_path.write_text(
         json.dumps(composition, ensure_ascii=False, indent=2) + "\n",
@@ -276,7 +272,7 @@ def compose_panel_fills(
         "manifest": composition_manifest_path,
         "results": result_records,
         "missing_results": missing_results,
-        "sidecar_update": sidecar_report,
+        "candidate_registration": sidecar_report,
     }
 
 
@@ -287,20 +283,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--manifest-out", type=Path)
     parser.add_argument(
-        "--update-sidecar",
+        "--register-sidecar",
         type=Path,
-        help="accepted sheet-data.json; binds each slot to its full-size result file",
-    )
-    parser.add_argument(
-        "--generation-package",
-        type=Path,
-        help="Generation Package for the results; requires --update-sidecar and must be inside the sheet folder",
+        help="sheet-data.json; registers each full-size result with its own package as a candidate",
     )
     parser.add_argument(
         "--only",
         nargs="+",
         metavar="SLOT_ID",
-        help="bind only these accepted slots; the board still shows every result",
+        help="register candidates only for these slots; the board still shows every result",
     )
     parser.add_argument(
         "--allow-missing",
@@ -313,8 +304,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.results_dir,
         out_path=args.out,
         composition_manifest_path=args.manifest_out,
-        update_sidecar_path=args.update_sidecar,
-        generation_package=args.generation_package,
+        register_sidecar_path=args.register_sidecar,
         only=args.only,
         allow_missing=args.allow_missing,
     )
@@ -326,7 +316,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "manifest": str(result["manifest"]),
                 "result_count": len(result["results"]),
                 "missing_results": result["missing_results"],
-                "sidecar_update": result["sidecar_update"],
+                "candidate_registration": result["candidate_registration"],
             },
             ensure_ascii=False,
         )

@@ -80,7 +80,7 @@ LONGEST_FIRST = (
     "scripts/test_production_foundation.py",
     "scripts/test_production_review.py",
     "scripts/state_generation_smoke_test.py",
-    "scripts/test_production_budget.py",
+    "scripts/execution_lifecycle_smoke_test.py",
     "scripts/dispatch_recovery_smoke_test.py",
     "scripts/test_production_variation.py",
     "scripts/test_production_boundaries.py",

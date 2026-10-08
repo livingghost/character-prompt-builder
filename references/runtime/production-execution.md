@@ -39,7 +39,7 @@ The compiler derives its packaged and delivered forms without separate editing.
 ```text
 python scripts/production_workflow.py check --root STUDIO --task task.json
 python scripts/production_workflow.py prepare --root STUDIO --task task.json
-python scripts/production_workflow.py status --root STUDIO --budget
+python scripts/production_workflow.py status --root STUDIO
 ```
 
 File arguments are studio-relative paths with `/` separators, or absolute paths inside the studio.
@@ -48,7 +48,6 @@ Each call may name `-` for one of these JSON options, which then reads standard 
 - `--decisions-file` of `execute` and `--outcome-file` of `resume`;
 - `--changes-file` of `variant` and `--intent` of `draft-authorization`;
 - `--file` of `authorize`, `review`, `disposition`, `selection-intent`, `select`, `settle-external` and `authority-import`;
-- `--request` of `release-reservation`;
 - `--approval` and `--registration-record` of `adoption-intent` and `adopt`.
 
 Except for `--changes-file`, the bytes read are kept as `production/runs/RUN/objects/SHA256`, and that path is the recorded evidence.
@@ -58,7 +57,7 @@ Every `--out` names a new file; an existing one gives `OUTPUT_ALREADY_EXISTS`.
 
 `check` returns a compilation report (`schemas/authoring/production-compilation-report.schema.json`) with `run: null`.
 Its execution plan also has a null `run`.
-It creates no formal run, authorization, reservation or external request, and never changes pack selection.
+It creates no formal run, authorization, execution claim or external request, and never changes pack selection.
 `prepare` performs the same compilation, so running `check` first is optional.
 It publishes the package, request preview and execution plan (`schemas/authoring/production-execution-plan.schema.json`) as one run.
 A complete run that waits for authority is a normal prepared result.
@@ -142,29 +141,29 @@ python scripts/production_workflow.py execute --root STUDIO --run RUN --decision
 The draft follows `schemas/authoring/production-execution-decisions.schema.json`.
 It contains the run, input digest, request digest and every required authorization.
 Complete its reasons, stop-condition assessments and final-request assessment from actual evidence.
-[Production permissions](production-permissions.md#reservation-and-consumption) describes each authorization and its `request_decision`.
+[Production permissions](production-permissions.md#authorization-and-execution-records) describes each authorization and its `request_decision`.
 A draft has unanswered judgments and grants no permission.
 A supplied decision file must cover the complete operation set; altering targets does not narrow the prepared requirement.
 With valid exact receipts already recorded, `execute --root STUDIO --run RUN` needs no decision file.
 
 The run owns one sealed package, request and execution plan, with its handoff recipient and method.
 A different parameter, count, model, service, media binding or recipient requires a newly prepared input.
-A receipt for another request cannot replace that contract, and a mismatch names the field before any budget is reserved.
+A receipt for another request cannot replace that contract, and a mismatch names the field before an execution claim is committed.
 
 `execute` performs these steps in order:
 
 1. It loads the sealed package and exact request.
 2. It rechecks the recording destination: the Studio character, the slot, the sheet-panel condition and the subject mapping.
-3. It checks current grants, the credential and the cost conditions.
-4. In one transaction, it records the dispatcher handoff, reserves one external request and claims the run.
+3. It checks current grants, the credential and exact request approval.
+4. In one transaction, it records the dispatcher handoff, records execution ownership and claims the run.
 5. The transaction commits before network I/O; each upload and the send then gets its own durable start boundary.
 6. It saves the provider answer, downloads every returned image and registers each one as a candidate.
 
-Missing scope or budget rolls back step 4 before any upload or send.
+Missing scope or approval rolls back step 4 before any upload or send.
 Each start boundary checks the current grant and the live packs again, whatever an earlier check cached.
 Revocation after a start boundary cannot undo the started request.
 The send boundary records the management identifiers sent with the request.
-Low-level `authorize` and the dispatcher share the same permission and reservation implementation.
+Low-level `authorize` and the dispatcher share the same permission and execution-claim implementation.
 A request has one claim even when it returns several images.
 Use `resume` for recovery, `variant` for changed input, and `repeat` for an intentional additional request.
 
@@ -197,7 +196,7 @@ A synthetic `execute` without a decision file exits 3 and prints (trimmed):
 ## Status and resume
 
 ```text
-python scripts/production_workflow.py status --root STUDIO --run RUN --budget
+python scripts/production_workflow.py status --root STUDIO --run RUN
 python scripts/production_workflow.py resume --root STUDIO --run RUN
 python scripts/production_workflow.py draft-outcome --root STUDIO --run RUN --out outcome.json
 python scripts/production_workflow.py resume --root STUDIO --run RUN --outcome-file outcome.json
@@ -212,21 +211,21 @@ Each run reports these state axes:
 |---|---|
 | `preparation` | `staged`, `prepared` |
 | `readiness` | `ready`, `authorization_required`, `configuration_required`, `blocked` |
-| `submission` | `unclaimed`, `reserved`, `send_started`, `acknowledged`, `outcome_unknown`, `not_executed` |
+| `submission` | `unclaimed`, `claimed`, `send_started`, `acknowledged`, `outcome_unknown`, `not_executed` |
 | `capture` | `none`, `partial`, `complete` |
 | `registration` | `unregistered`, `registered`, `projection-missing` |
 | `review` | `unreviewed`, `partial`, `complete` |
 | `task_disposition` | `open`, `completed`, `abandoned` |
 
 `submission` comes only from the claim, the send step and `execution-outcome` events.
-`readiness` keeps missing cost configuration and missing authorization apart, with both diagnostics when both apply.
+`readiness` reports current authority, credentials, input and recording diagnostics before any send.
 A complete review is not necessarily a passing one.
 `registration` is `unregistered` with candidates when the recording destination is gone; the run keeps the captured bytes.
 `projection-missing` means the destination exists and only its Studio rows are missing.
-Each run also lists its candidates with their states, freshness and selection diagnostics, its reservation, its journal and its logs.
+Each run also lists its candidates with their states, freshness and selection diagnostics, its execution record, its journal and its logs.
 
 `next_action` is the one command that moves the run forward, as `{command, argv, reason}`.
-It is null when nothing is left: a completed run, or an abandoned run with no releasable reservation and no unknown outcome.
+It is null when nothing is left: a completed run, or an abandoned run with no unknown outcome.
 A step that needs an authored file names its draft command, and the reason names the command that consumes the file.
 A run whose live sources changed before anything was handed over points to `prepare`.
 A synthetic prepared run that waits for authority shows (trimmed, the studio path shortened):
@@ -242,11 +241,11 @@ A synthetic prepared run that waits for authority shows (trimmed, the studio pat
 
 - A saved provider answer is registered again without sending. Repeated recovery creates no second candidate, Studio iteration or settlement.
 - Every acquired output is kept, including partial or unexpected output counts.
-- A reservation with no started step continues after current conditions are checked again. A failed check is recorded as a stopped attempt of the same claim.
+- An execution with no started step continues after current conditions are checked again. A failed check is recorded as a stopped attempt of the same claim.
 - A durably completed upload can be reused before the first send; an upload without a saved response stays unknown.
 - A started send without a saved answer is `outcome_unknown`. `resume` asks the provider once per call through the transport's lookup.
 - When the lookup finds no answer, `draft-outcome` writes the statement form. The actor fills it with evidence that the provider's records hold no such task.
-- `resume --outcome-file` records that statement as `not_executed`; the actor must be one of the reservation's release actors.
+- `resume --outcome-file` records that statement as `not_executed`; the actor must be one of the execution's recorded outcome actors.
 
 A synthetic send whose answer was lost makes `resume` exit 4 after the lookup, with this run state (trimmed):
 
@@ -256,13 +255,13 @@ A synthetic send whose answer was lost makes `resume` exit 4 after the lookup, w
  "next_action": {"command": "draft-outcome", "argv": ["python", "scripts/production_workflow.py", "draft-outcome", "--root", "STUDIO", "--run", "01a10322-adb4-...", "--out", "outcome.json"]}}
 ```
 
-An outcome-unknown reservation stays reserved; release it only on the evidence [Production permissions](production-permissions.md#reservation-and-consumption) names.
+An outcome-unknown execution stays unresolved. Inspect provider evidence; a timeout or missing file never authorizes resending.
 A transport without lookup returns the warning `PROVIDER_LOOKUP_UNSUPPORTED`.
 The [synthetic resume example](../../examples/resume-recording/README.md) shows a real report before and after an input change.
 
 Abandon a work task with `work_ledger.py --studio STUDIO abandon --reason TEXT --actor NAME`.
 It records `abandoned` on each open run of the task and releases nothing.
-An abandoned run's `next_action` points to `draft-release` while its reservation is releasable, or to `resume`, then `draft-outcome`, while its outcome is unknown.
+An abandoned run's `next_action` points to recovery while its outcome is unknown. Abandonment does not erase or reset a started send.
 
 `impact --root STUDIO --run RUN` compares current sources and recorded outputs with their pinned bytes.
 It reports declared dependency effects, including transitive decisions and criterion IDs.
@@ -350,7 +349,7 @@ Exit 2 applies unless a row says otherwise.
 | `EVENT_CHAIN_CORRUPT` | Formal events do not form one chain. |
 | `EVENT_CONFLICT` | Another operation committed first; reload the current state. |
 | `AUTHORITY_STATE_CORRUPT` | The stored authority is not the last committed event or differs from its digest. |
-| `RESERVATION_CORRUPT` | A reservation names an invalid identity or authorization. |
+| `EXECUTION_RECORD_CORRUPT` | An execution transition names an invalid identity or authorization. |
 
 **Pack and runtime drift**
 
@@ -371,27 +370,21 @@ Exit 2 applies unless a row says otherwise.
 
 A drift diagnostic adds `affected_runs` and `actions`.
 
-**Authorization and budget**
+**Authorization and execution ownership**
 
 | Code | Reports |
 |---|---|
 | `AUTHORIZATION_REQUIRED` | Exit 3. No exact authorization covers a prepared operation. |
 | `AUTHORIZATION_MISMATCH` | Exit 3. An authorization differs from the prepared operation; names the field and the `intent`. |
-| `GRANT_SCOPE_EXCEEDED` | Exit 3. No current grant covers the targets, or the grant names another actor, omits the operation, or refuses the quoted cost or currency. A target shortfall adds `granted`, `missing` and `coverage`. |
+| `GRANT_SCOPE_EXCEEDED` | Exit 3. No current grant covers the targets, or the grant names another actor, omits the operation. A target shortfall adds `granted`, `missing` and `coverage`. |
 | `GRANT_REVOKED` | Exit 3. The current authority does not contain the grant, or the grant is revoked or expired. |
 | `GRANT_NOT_EFFECTIVE` | Exit 3. The grant is not yet effective. |
-| `BUDGET_LIMIT_EXCEEDED` | Exit 3. The request exceeds the grant's remaining uses, outputs or cost. |
-| `COST_UNCONFIRMED` | Exit 3. An external effect lacks an explicit, compatible cost condition. |
 | `EXTERNAL_COST_LIMIT_EXCEEDED` | Exit 3. A reported charge exceeds its effect ceiling; no further effect starts. |
 | `CREDENTIAL_UNAVAILABLE` | Exit 3. The credential variable the service record names is not set. |
 | `HANDOFF_REQUIRED` | Exit 3. The operation needs a recorded handoff that the run lacks. |
 | `HANDOFF_NOT_PERFORMED` | A low-level dispatcher handoff is refused; `execute` records that handoff. |
 | `TASK_ABANDONED` | The run's work task was abandoned, so no new operation starts. |
 | `AUTHORITY_UPDATE_CONFLICT` | An authority import names a stale current event. |
-| `RESERVATION_REQUIRED` | The run's reservation was released; prepare a new run. |
-| `RESERVATION_NOT_FOUND` | No reservation has this ID. |
-| `RESERVATION_NOT_RELEASABLE` | The reservation is already released, or a started step or uncertain charge blocks release. |
-| `RESERVATION_NOT_APPLICABLE` | Only an external submission consumes generation budget. |
 
 **Execution**
 
@@ -472,7 +465,7 @@ A drift diagnostic adds `affected_runs` and `actions`.
 Authored text uses the same immutable sources and formal event store, without a model package.
 `handoff-intent`, `draft-authorization`, `authorize` and `handoff` describe an actual conversation or manual handoff.
 For an external tool, authorize its `external-intent`, then `claim-external` before the host runs it.
-The claim commits its reservation and the external-send boundary together before control returns to the host.
+The claim commits execution ownership and the external-send boundary together before control returns to the host.
 A repeated lookup of that claim is not permission to call the host tool twice.
 Capture returned files with `capture`; identical bytes are idempotent, and a reused filename cannot exceed the approved count.
 Receiving an already delegated result uses saved evidence, even when the original creative files or grant evidence were removed.
@@ -492,7 +485,7 @@ The receipt follows `schemas/authoring/production-external-receipt.schema.json`:
 - `final` states whether the host response is final, and `reason` records the executor's conclusion from evidence.
 
 This command records evidence and never invokes the host.
-A cost above the approved estimate is recorded without truncation, and unknown billing stays reserved.
+Reported provider usage is retained exactly. Unknown billing remains unknown without blocking result capture or completion.
 Final billing closes accounting, not artistic review, and an identical receipt does not settle twice.
 `production_direction_smoke_test.py` exercises this workflow with synthetic local files and no provider call.
 
@@ -620,7 +613,7 @@ python scripts/production_workflow.py revise --root STUDIO --run RUN --task revi
 
 Authorize the returned edit intent, then `revise` creates a new run linked to the parent candidate, latest review, repair and exact changed input.
 The new run needs its own direction and submit authorization and real evidence.
-Its preparation restores no used budget and transfers none of the parent's passing checks.
+Its preparation transfers none of the parent's passing checks or permission to send.
 Changed approval evidence requires new authority, not a repair that grants itself more power.
 
 ## Deterministic pixel realization
@@ -710,7 +703,7 @@ A synthetic parameter variant from standard input reports this derivation (trimm
 
 Its new run holds `inputs/parameters.json`, `inputs/requested-changes.json` and `inputs/task.json`.
 
-`repeat` creates another run for the same input and semantic request, with its own future claim and reservation.
+`repeat` creates another run for the same input and semantic request, with its own future execution claim.
 It compares the repeated input before registration and publishes nothing on a mismatch.
 It never borrows its parent's exact execution decisions; `resume` instead recovers the parent's execution.
 Neither variants nor repeats change a candidate's disposition, select a result or adopt identity.
@@ -730,7 +723,7 @@ Without `--prepare`, the shared compiler checks the task and returns a preview w
 With it, the new run records its parent input and request.
 Unchanged authored source files can be referenced directly, without copying or editing them again.
 Target-specific guidance, execution profiles, retrieval applicability and reference transport are validated again.
-Exact authorizations, claims, reservations and image reviews are not inherited.
+Exact authorizations, claims and image reviews are not inherited.
 
 Retargeting resolves the currently selected runtime, including explicit `--state-file`, `--cache-dir`, `--managed-root` and `--pack-root` options.
 The same target is accepted when the current pack runtime differs from the parent's fixed runtime.
@@ -748,7 +741,7 @@ These developer checks exercise the same public contracts; an ordinary productio
 | Evidence, transactions and operation diagnostics | [test_production_foundation.py](../../scripts/test_production_foundation.py), [test_production_operations.py](../../scripts/test_production_operations.py) |
 | Fixed runtime snapshot reuse and irreversible-boundary checks | [test_runtime_snapshot.py](../../scripts/test_runtime_snapshot.py) |
 | Exact execution and handoff boundaries | [test_production_execution.py](../../scripts/test_production_execution.py), [test_production_boundaries.py](../../scripts/test_production_boundaries.py) |
-| Current grants, reservations and accounting | [test_production_budget.py](../../scripts/test_production_budget.py) |
+| Current grants, execution ownership and result records | [execution_lifecycle_smoke_test.py](../../scripts/execution_lifecycle_smoke_test.py) |
 | Input variants and explicit target changes | [test_production_variation.py](../../scripts/test_production_variation.py), [test_production_retarget.py](../../scripts/test_production_retarget.py) |
 | Public commands, JSON files and standard input | [test_production_cli.py](../../scripts/test_production_cli.py), [test_production_file_input.py](../../scripts/test_production_file_input.py) |
 | Candidate evaluation and canonical adoption | [test_production_review.py](../../scripts/test_production_review.py), [test_production_adoption.py](../../scripts/test_production_adoption.py) |
@@ -757,3 +750,12 @@ These developer checks exercise the same public contracts; an ordinary productio
 Run them all from the installed source root with `python -m unittest discover -s scripts -p 'test_*.py' -v`.
 Tests use labeled synthetic approvals and local transports, never real credentials.
 A passing test is evidence of its checked contract, not a visual quality judgment or a release certification.
+
+
+## Managed next-action drafts during repeated work
+
+`status` names a draft under `production/decisions/RUN/KIND/BASIS_DIGEST.json`, scoped to the exact run, candidate and decision basis. When that draft exists, the next action points to inspection/completion and the appropriate apply command instead of repeating a failing `--out` write. A completed draft is not evidence of approval until the usual validator accepts its actual author evidence. A new review basis gets a different draft; no existing decision file is overwritten.
+
+The Production run registry resolves the prior run in the **same task and production series at the saved registration boundary**. It does not open every unrelated historical run merely to find that owner. The selected required predecessor is fully verified; a damaged required series run stops protected-criteria use with `PREDECESSOR_UNAVAILABLE`, rather than silently skipping the comparison.
+
+Sheet batching uses the same commands and statuses. [Sheet fills](sheet-fill-workflow.md) adds dated result ownership, frozen batch inputs and discovery. [Studio Runtime](studio.md) documents gallery and timeline recovery; [Operation diagnostics](operation-logs.md) distinguishes auxiliary views from the formal records required before a send.

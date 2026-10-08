@@ -1,0 +1,215 @@
+{
+  "artifact_type": "observed-parameter-schema",
+  "model_id": "gpt-image-2.5-flare",
+  "service": "runware",
+  "model_identifier": "openai:gpt-image@2.5-flare",
+  "observed_at": "2026-10-06",
+  "source": "service schema endpoint response for openai:gpt-image@2.5-flare, observed live 2026-10-06; taskType and taskUUID removed from required because the transport adds them",
+  "schema": {
+    "type": "object",
+    "x-constraints": [
+      {"operation": "area", "parameters": ["width", "height"], "minimum": 655360, "maximum": 8294400},
+      {"operation": "ratio", "parameters": ["width", "height"], "minimum": 0.3333333333333333, "maximum": 3}
+    ],
+    "properties": {
+      "model": {
+        "title": "Model",
+        "description": "Identifier of the model to use for generation.",
+        "type": "string",
+        "const": "openai:gpt-image@2.5-flare"
+      },
+      "inputs": {
+        "title": "Inputs",
+        "description": "Input assets for the task.",
+        "type": "object",
+        "properties": {
+          "maskImage": {
+            "title": "Mask Image",
+            "description": "Image used to specify which areas of the input image should be edited (UUID, URL, Data URI, or Base64). White marks the area to edit, black is preserved. The model treats the mask as guidance rather than a hard boundary, so edits can extend past its shape. With several reference images the mask applies to the first.",
+            "type": "string",
+            "anyOf": [{"format": "uuid"}, {"format": "uri"}, {"pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"}, {"pattern": "^[a-zA-Z0-9+/=]+$"}]
+          },
+          "referenceImages": {
+            "title": "Reference Images",
+            "description": "List of reference images (UUID, URL, Data URI, or Base64).",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "title": "Image",
+              "description": "Image input (UUID, URL, Data URI, or Base64).",
+              "type": "string",
+              "anyOf": [{"format": "uuid"}, {"format": "uri"}, {"pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"}, {"pattern": "^[a-zA-Z0-9+/=]+$"}]
+            },
+            "maxItems": 16
+          }
+        },
+        "additionalProperties": false
+      },
+      "positivePrompt": {
+        "title": "Positive Prompt",
+        "description": "Text prompt describing elements to include in the generated output.",
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 32000
+      },
+      "width": {
+        "title": "Width",
+        "description": "Width of the generated media in pixels.",
+        "type": "integer",
+        "minimum": 16,
+        "maximum": 3840,
+        "multipleOf": 16
+      },
+      "height": {
+        "title": "Height",
+        "description": "Height of the generated media in pixels.",
+        "type": "integer",
+        "minimum": 16,
+        "maximum": 3840,
+        "multipleOf": 16
+      },
+      "settings": {
+        "title": "Settings",
+        "description": "Global inference settings.",
+        "type": "object",
+        "properties": {
+          "background": {
+            "title": "Background",
+            "description": "Background handling in generated images.",
+            "type": "string",
+            "oneOf": [
+              {"const": "auto", "description": "Automatically determines the most appropriate background based on content."},
+              {"const": "opaque", "description": "Solid background, no transparency."},
+              {"const": "transparent", "description": "Transparent background areas where applicable."}
+            ],
+            "default": "auto"
+          },
+          "moderation": {
+            "title": "Moderation",
+            "description": "Content moderation level.",
+            "type": "string",
+            "oneOf": [
+              {"const": "auto", "description": "Standard filtering that limits creating certain categories of potentially age-inappropriate content."},
+              {"const": "low", "description": "Less restrictive filtering."}
+            ],
+            "default": "auto"
+          },
+          "quality": {
+            "title": "Quality",
+            "description": "Image quality level.",
+            "type": "string",
+            "enum": ["auto", "max", "xhigh", "high", "medium", "low"],
+            "default": "auto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "includeCost": {
+        "title": "Include Cost",
+        "description": "Include task cost in the response.",
+        "type": "boolean"
+      },
+      "numberResults": {
+        "title": "Number of Results",
+        "description": "Number of results to generate. Each result uses a different seed, producing variations of the same parameters.",
+        "type": "integer",
+        "minimum": 1,
+        "default": 1,
+        "maximum": 20
+      },
+      "uploadEndpoint": {
+        "title": "Upload Endpoint",
+        "description": "URL to upload content via HTTP PUT. The request body will contain the raw binary data.",
+        "type": "string",
+        "format": "uri"
+      },
+      "ttl": {
+        "title": "TTL",
+        "description": "Time-to-live (TTL) in seconds for generated content. Only applies when `outputType` is `URL`.",
+        "type": "integer",
+        "minimum": 60
+      },
+      "outputType": {
+        "title": "Output Type",
+        "description": "Image output type.",
+        "type": "string",
+        "enum": ["URL", "base64Data", "dataURI"],
+        "default": "URL"
+      },
+      "outputFormat": {
+        "title": "Output Format",
+        "description": "File format for the generated image.",
+        "type": "string",
+        "enum": ["JPG", "PNG", "WEBP"],
+        "default": "JPG"
+      },
+      "outputQuality": {
+        "title": "Output Quality",
+        "description": "Compression quality of the output. Higher values preserve quality but increase file size.",
+        "type": "integer",
+        "minimum": 20,
+        "maximum": 99,
+        "default": 95
+      },
+      "safety": {
+        "type": "object",
+        "title": "Safety Settings",
+        "description": "Content safety checking configuration for image generation.",
+        "properties": {
+          "checkContent": {
+            "title": "Check Content",
+            "description": "Enable or disable content safety checking. Increases total generation time.",
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "advancedFeatures": {
+        "title": "Advanced Features",
+        "description": "Model-specific advanced configuration options.",
+        "type": "object",
+        "properties": {
+          "watermark": {
+            "title": "Watermark",
+            "description": "Watermark configuration.",
+            "type": "object",
+            "properties": {
+              "text": {"title": "Watermark Text", "description": "Watermark text.", "type": "string", "minLength": 2, "maxLength": 32},
+              "image": {
+                "title": "Watermark Image",
+                "description": "Watermark image (UUID, URL, Data URI, or Base64).",
+                "type": "string",
+                "anyOf": [{"format": "uuid"}, {"format": "uri"}, {"pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"}, {"pattern": "^[a-zA-Z0-9+/=]+$"}]
+              },
+              "displayPosition": {
+                "title": "Display Position",
+                "description": "Watermark position.",
+                "type": "string",
+                "enum": ["top-left", "top-center", "top-right", "center-left", "center-center", "center-right", "bottom-left", "bottom-center", "bottom-right", "tiled"]
+              },
+              "opacity": {"title": "Watermark Opacity", "description": "Watermark opacity.", "type": "number", "multipleOf": 0.01, "minimum": 0.1, "maximum": 1},
+              "fontColor": {"title": "Font Color", "description": "Text color in hex format.", "type": "string", "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"},
+              "bgColor": {"title": "Background Color", "description": "Background color in hex format.", "type": "string", "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"}
+            },
+            "oneOf": [{"required": ["text"]}, {"required": ["image"]}],
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "required": ["positivePrompt", "model"],
+    "allOf": [
+      {"dependentRequired": {"width": ["height"], "height": ["width"]}},
+      {
+        "if": {"properties": {"settings": {"properties": {"background": {"const": "transparent"}}, "required": ["background"]}}, "required": ["settings"]},
+        "then": {"properties": {"outputFormat": {"enum": ["PNG", "WEBP"]}}, "required": ["outputFormat"]}
+      },
+      {
+        "if": {"properties": {"inputs": {"required": ["maskImage"]}}, "required": ["inputs"]},
+        "then": {"properties": {"inputs": {"required": ["referenceImages"]}}, "required": ["inputs"]}
+      }
+    ],
+    "additionalProperties": false
+  }
+}

@@ -256,13 +256,6 @@ class LifecycleTests(unittest.TestCase):
         a=self.authority();a['grants'][0]['targets']=['delivery'];self.write('fixture-authority.json',a)
         run=self.prepare()
         with self.assertRaises(ValueError):fixture.grant(self.root,run,w.handoff_intent(self.root,run,'author','manual'))
-    def test_grant_uses_survive_repreparation(self):
-        a=self.authority();a['grants'][0]['limits']['uses']=1;self.write('fixture-authority.json',a)
-        import reservation_lifecycle as life
-        intent={'operation':'submit','targets':['delivery'],'payload':{'count':1,'test':'synthetic'}}
-        run=self.prepare();first=fixture.grant(self.root,run,intent);life.reserve(self.root,run,first)
-        other=self.prepare();second=fixture.grant(self.root,other,intent)
-        with self.assertRaisesRegex(ValueError,'BUDGET_LIMIT_EXCEEDED'):life.reserve(self.root,other,second)
     def external_case(self):
         self.task['execution'] = 'external'; self.write('task.json', self.task)
         run = self.prepare(); fixture.handoff(self.root, run, 'synthetic external host', 'manual')
@@ -279,29 +272,29 @@ class LifecycleTests(unittest.TestCase):
         self.write(filename, receipt)
         return receipt
 
-    def test_external_claim_protects_unknown_result_budget_and_logs(self):
+    def test_external_claim_protects_unknown_result_records_and_logs(self):
         import operation_context as ops
-        import reservation_lifecycle as life
+        import execution_lifecycle as life
         from test_production_operations import OperationTests
         run, token, claim = self.external_case()
         prepared, rows = w.load_run(self.root, run)[1::2]
         state = life.by_authorization(rows, prepared, run, token)
         self.assertEqual(len(state['steps']), 1)
         self.assertEqual(state['steps'][0]['operation'], 'send')
-        self.assertFalse(life.releasable(state))
+        self.assertEqual(state['status'],'started')
         self.assertTrue(ops._run_has_unresolved_external_effect(self.root, run))
         folder = OperationTests._fake_operation(self, self.root, 'external-host-diagnostics', run=run)
         result = ops.cleanup_logs(self.root, operation_id=folder.name, apply=True)
         self.assertEqual(result['deleted'], [])
         self.assertTrue(folder.is_dir())
         from production_execution import status
-        report = status(self.root, run, budget=True)['runs'][0]
+        report = status(self.root, run)['runs'][0]
         self.assertEqual(report['submission'], 'outcome_unknown')
         self.assertEqual(w.claim_external(self.root, run, 1, token)['sha256'], claim['sha256'])
         self.assertEqual(len(life.by_authorization(w.load_run(self.root, run)[3], prepared, run, token)['steps']), 1)
 
-    def test_external_boundary_failure_rolls_back_claim_and_reservation(self):
-        import reservation_lifecycle as life
+    def test_external_boundary_failure_rolls_back_execution_claim(self):
+        import execution_lifecycle as life
         self.task['execution'] = 'external'; self.write('task.json', self.task)
         run = self.prepare(); fixture.handoff(self.root, run, 'synthetic host', 'manual')
         token = fixture.grant(self.root, run, w.external_intent(self.root, run, 1))
@@ -328,7 +321,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_external_settlement_is_evidenced_idempotent_and_releases_diagnostic_protection(self):
         import operation_context as ops
-        import reservation_lifecycle as life
+        import execution_lifecycle as life
         from production_execution import status
         run, token, claim = self.external_case()
         self.write('external.png', png()); w.capture(self.root, run, 'external.png', 'Synthetic received image.')
@@ -336,23 +329,26 @@ class LifecycleTests(unittest.TestCase):
         self.external_receipt(run, claim)
         first = w.settle_external(self.root, run, 'external-receipt.json')
         second = w.settle_external(self.root, run, 'external-receipt.json')
-        self.assertTrue(first['settled']); self.assertTrue(first['execution_completed'])
+        self.assertTrue(first['recorded']); self.assertTrue(first['execution_completed'])
         self.assertEqual(first['receipt']['sha256'], second['receipt']['sha256'])
         self.assertFalse(ops._run_has_unresolved_external_effect(self.root, run))
         state = life.by_authorization(w.load_run(self.root, run)[3], w.load_run(self.root, run)[1], run, token)
-        self.assertEqual(state['consumed_uses'], 1); self.assertEqual(state['captured_outputs'], 1)
+        self.assertEqual(state['submissions'], 1); self.assertEqual(state['captured_outputs'], 1)
         self.assertEqual(status(self.root, run)['runs'][0]['capture'], 'complete')
 
-    def test_external_unknown_cost_stays_reserved_until_confirmed(self):
+    def test_external_completion_does_not_require_reported_price(self):
         import operation_context as ops
+        import execution_lifecycle as life
         run, token, claim = self.external_case()
-        self.write('external.png', png()); w.capture(self.root, run, 'external.png', 'Synthetic received image.')
-        self.external_receipt(run, claim, amount=None, filename='pending-receipt.json')
-        self.assertFalse(w.settle_external(self.root, run, 'pending-receipt.json')['settled'])
-        self.assertTrue(ops._run_has_unresolved_external_effect(self.root, run))
-        self.external_receipt(run, claim, amount='0.01')
-        self.assertTrue(w.settle_external(self.root, run, 'external-receipt.json')['settled'])
+        self.write('external.png', png())
+        w.capture(self.root, run, 'external.png', 'Synthetic received image.')
+        self.external_receipt(run, claim, amount=None, filename='external-receipt.json')
+        result = w.settle_external(self.root, run, 'external-receipt.json')
+        self.assertTrue(result['recorded'])
+        self.assertTrue(result['execution_completed'])
         self.assertFalse(ops._run_has_unresolved_external_effect(self.root, run))
+        self.assertFalse(life.summary(self.root, run=run)['usage_complete'])
+
 
     def test_external_receipt_rejects_different_actor_count_or_response(self):
         run, token, claim = self.external_case()
@@ -362,7 +358,7 @@ class LifecycleTests(unittest.TestCase):
             with self.subTest(field=key):
                 self.write('bad-receipt.json', {**good, key:value})
                 with self.assertRaises(ValueError): w.settle_external(self.root, run, 'bad-receipt.json')
-        self.assertFalse(any(row['event'] == 'reservation-settled' for row in w.load_run(self.root, run)[3]))
+        self.assertFalse(any(row['event'] == 'execution-result' for row in w.load_run(self.root, run)[3]))
 
     def test_external_outputs_are_capped(self):
         self.task['execution']='external';self.write('task.json',self.task)
@@ -471,13 +467,13 @@ class LifecycleTests(unittest.TestCase):
         authorization = fixture.grant(self.root, run, intent)
         child = w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', authorization)
         self.assertNotEqual(child['run'], run)
-    def test_grant_limit_update_does_not_change_reviewed_repair(self):
+    def test_grant_explanation_update_does_not_change_reviewed_repair(self):
         run, ca = self.candidate(); self.revised_input(run, ca)
         intent = w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
         authorization = fixture.grant(self.root, run, intent)
         import production_store as store
         authority = self.authority()
-        authority['grants'][0]['limits']['uses'] = 100
+        authority['grants'][0]['expires_at'] = '2099-01-01T00:00:00Z'
         self.write('amended-authority.json', authority)
         prior = store.authority_record(self.root, self.task['task_id'])
         store.import_authority(self.root, 'amended-authority.json', expected=prior['sha256'])
@@ -491,7 +487,7 @@ class LifecycleTests(unittest.TestCase):
         run, ca = self.candidate(); self.revised_input(run, ca)
         self.write('unchanged-task.json', self.task)
         import production_store as store
-        authority = self.authority(); authority['grants'][0]['limits']['uses'] = 100
+        authority = self.authority(); authority['grants'][0]['expires_at'] = '2099-01-01T00:00:00Z'
         self.write('amended-authority.json', authority)
         prior = store.authority_record(self.root, self.task['task_id'])
         store.import_authority(self.root, 'amended-authority.json', expected=prior['sha256'])
@@ -515,7 +511,7 @@ class LifecycleTests(unittest.TestCase):
         store.import_authority(self.root,'fixture-authority.json',expected=prior['sha256'])
         with self.assertRaisesRegex(ValueError, 'grant|GRANT_REVOKED'):
             fixture.grant(self.root, run, intent)
-    def test_revoked_authority_cannot_consume_reserved_edit(self):
+    def test_revoked_authority_cannot_execute_claimed_edit(self):
         run, ca = self.candidate(); self.revised_input(run, ca)
         intent = w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
         auth = fixture.grant(self.root, run, intent)
@@ -537,69 +533,29 @@ class LifecycleTests(unittest.TestCase):
         with self.assertRaises(ValueError): binding.validate(b, 'Keep the sparse field.\n')
 
 
-class MoneyTests(unittest.TestCase):
+class SubmissionCountTests(unittest.TestCase):
     def setUp(self):
-        self.authority={'task_id':'fixture','issuer':'fixture','evidence':{'path':'a','locator':'whole'},
-            'grants':[{'id':'grant','actor':'actor','mode':'delegated','operations':['submit'],'targets':['delivery'],
-                       'limits':{'uses':5,'outputs':5,'cost':{'currency':'USD','amount':'0.3'}},'protected_criteria':[],'expires_at':None,'request_scope':None,'submission_validation_modes':['target-schema']}], 'stop_conditions':[]}
-        self.request={'grant':'grant','actor':'actor','operation':'submit','targets':['delivery'],'payload':{'count':1},
-                      'outputs':1,'cost':{'currency':'USD','amount':'0.2','basis':'Declared fixture cap'},'stop_assessments':[],'reason':'test'}
-    def reserve_sequence(self, earlier):
-        import reservation_lifecycle as life
-        with tempfile.TemporaryDirectory() as temporary:
-            root=Path(temporary);entry=ledger.begin(root,'Synthetic exact accounting',['inspect'])
-            (root/'delivery.txt').write_text('Synthetic local delivery.',encoding='utf-8')
-            task={'task_id':entry['task_id'],'route':'development','features':[],'sources':[],
-                  'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Synthetic exact bytes.'},
-                  'criteria':[{'id':'x','strength':'hard','text':'Inspect the synthetic result.'}],'world_views':[]}
-            fixture.task(root,task)
-            authority=c.load(root/'fixture-authority.json')
-            authority['grants'][0]['limits']=copy.deepcopy(self.authority['grants'][0]['limits'])
-            (root/'fixture-authority.json').write_bytes(c.encoded(authority))
-            (root/'task.json').write_bytes(c.encoded(task))
-            for index,request in enumerate([*earlier,self.request]):
-                run=w.prepare(root,'task.json')['run']
-                intent={'operation':'submit','targets':['delivery'],'payload':{'count':request['outputs'],'test':str(index)}}
-                authorization=fixture.grant(root,run,intent,cost=request['cost'])
-                life.reserve(root,run,authorization)
-            return life.budget(root)
-    def test_decimal_reservations_are_exact(self):
-        earlier=copy.deepcopy(self.request);earlier['cost']['amount']='0.1'
-        self.reserve_sequence([earlier])
-    def test_total_cost_exceeded(self):
-        with self.assertRaises(ValueError):self.reserve_sequence([self.request])
-    def test_unknown_cost_is_not_submission_permission(self):
-        self.request['cost']=None
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
-    def test_count_mismatch(self):
-        self.request['payload']['count']=2
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
-    def test_float_money_is_rejected(self):
-        self.request['cost']['amount']=0.2
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
-    def test_nan_money_is_rejected(self):
-        self.request['cost']['amount']='NaN'
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
-    def test_currency_mismatch(self):
-        self.request['cost']['currency']='JPY'
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
-    def test_boolean_count_rejected(self):
-        self.request['outputs']=True
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
-    def test_no_paid_cap_does_not_mean_unlimited(self):
-        self.authority['grants'][0]['limits']['cost']=None
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
-    def test_no_output_budget(self):
-        self.authority['grants'][0]['limits']['outputs']=0
-        with self.assertRaises(ValueError):permissions.check(self.authority,self.request)
+        self.authority = {'task_id': 'fixture', 'issuer': 'fixture', 'evidence': {'path': 'a', 'locator': 'whole'},
+            'grants': [{'id': 'grant', 'actor': 'actor', 'mode': 'delegated', 'operations': ['submit'],
+                'targets': ['delivery'], 'protected_criteria': [], 'expires_at': None,
+                'request_scope': None, 'submission_validation_modes': ['target-schema']}], 'stop_conditions': []}
+        self.request = {'grant': 'grant', 'actor': 'actor', 'operation': 'submit', 'targets': ['delivery'],
+            'payload': {'count': 1}, 'outputs': 1, 'stop_assessments': [], 'reason': 'Synthetic exact count.'}
 
-    def test_high_precision_spending_does_not_round_under_the_limit(self):
-        exact = '1' + '0' * 60
-        self.authority['grants'][0]['limits']['cost']['amount'] = exact
-        earlier = copy.deepcopy(self.request); earlier['cost']['amount'] = exact
-        self.request['cost']['amount'] = '0.000000000000000000000000000001'
-        with self.assertRaisesRegex(ValueError, 'BUDGET_LIMIT_EXCEEDED'):
-            self.reserve_sequence([earlier])
+    def test_count_mismatch(self):
+        self.request['payload']['count'] = 2
+        with self.assertRaises(ValueError):
+            permissions.check(self.authority, self.request)
+
+    def test_boolean_count_rejected(self):
+        self.request['outputs'] = True
+        with self.assertRaises(ValueError):
+            permissions.check(self.authority, self.request)
+
+    def test_exact_count_is_permission_not_consumption(self):
+        self.assertEqual(permissions.check(self.authority, self.request)['id'], 'grant')
+
+
 
 
 if __name__ == '__main__':

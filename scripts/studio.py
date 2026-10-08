@@ -50,7 +50,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import execution_contract  # noqa: E402
 import work_ledger  # noqa: E402
 # A record is replaced whole: a reader sees the old record or the new one, never a torn one.
-from execution_contract import atomic_write_json as write_json, now, sha256_file  # noqa: E402
+from studio_activity import timestamp as now
+from execution_contract import atomic_write_json as write_json, sha256_file  # noqa: E402
 
 MANIFEST = "studio.json"
 STUDIO_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]+$")
@@ -155,7 +156,8 @@ def init(out: Path, studio_id: str, title: str, *, default_render_profile: str =
             "created_at": now(),
             "characters": [],
         })
-        write_gallery(out)
+        import studio_activity as activity
+        activity.changed(out / MANIFEST, 'studio-created', revision=execution_contract.content_id(manifest(out)))
     return out
 
 
@@ -558,8 +560,13 @@ def _record_iteration(root: Path, character: str, slot: str, result: Path, *, pa
         row["service"] = dict(service)
     rows.append(row)
     write_iterations(home, rows)
-    write_gallery(root)
-    return _find(read_iterations(home), iteration_id)
+    import studio_activity as activity
+    projection = activity.changed(home / 'iterations.jsonl', 'iteration-recorded', subject=character+'/'+iteration_id,
+                     revision=execution_contract.content_id(row),
+                     details={'character':character, 'slot':slot, 'iteration_id':iteration_id,
+                              'received_at':row['at'], 'run':(origin or {}).get('run'), 'result':row['result']['path']})
+    result = _find(read_iterations(home), iteration_id)
+    return result if projection.get('ok') else {**result, 'projection_warning': projection}
 
 
 def _find(rows: list[dict[str, Any]], iteration_id: str) -> dict[str, Any]:
@@ -622,8 +629,12 @@ def _record_accept(root: Path, character: str, iteration_id: str) -> dict[str, A
             stale.unlink()
     row["accepted_path"] = target.relative_to(root).as_posix()
     write_iterations(home, rows)
-    write_gallery(root)
-    return row
+    import studio_activity as activity
+    projection = activity.changed(home / 'iterations.jsonl', 'iteration-'+row['status'], subject=character+'/'+iteration_id,
+                     revision=execution_contract.content_id(row),
+                     details={'character':character, 'slot':row['slot'], 'iteration_id':iteration_id,
+                              'status':row['status']})
+    return row if projection.get('ok') else {**row, 'projection_warning': projection}
 
 
 def reject(root: Path, character: str, iteration_id: str, reason: str, *, actor: str) -> dict[str, Any]:
@@ -660,8 +671,12 @@ def _record_reject(root: Path, character: str, iteration_id: str, reason: str, *
     row["rejected_at"] = now()
     row["reason"] = reason.strip()
     write_iterations(home, rows)
-    write_gallery(root)
-    return row
+    import studio_activity as activity
+    projection = activity.changed(home / 'iterations.jsonl', 'iteration-'+row['status'], subject=character+'/'+iteration_id,
+                     revision=execution_contract.content_id(row),
+                     details={'character':character, 'slot':row['slot'], 'iteration_id':iteration_id,
+                              'status':row['status']})
+    return row if projection.get('ok') else {**row, 'projection_warning': projection}
 
 
 def recipe(root: Path, character: str, slot: str, *, iteration: str | None = None) -> dict[str, Any]:
@@ -789,51 +804,9 @@ def sent_text(sent: Any, layout: Any) -> dict[str, Any]:
 
 
 def gallery_index(root: Path) -> dict[str, Any]:
-    """Every iteration of every character, oldest first, with prompt, model, settings, seed, and result."""
-    document = manifest(root)
-    entries: list[dict[str, Any]] = []
-    for character in [item.get("id") for item in document.get("characters") or [] if isinstance(item, dict)]:
-        home = root / "characters" / str(character)
-        if not home.is_dir():
-            continue
-        for row in read_iterations(home):
-            sent = read_json(root / row["request"]["path"]) if row.get("request") else None
-            package = read_json(root / row["package"]["path"]) if row.get("package") else None
-            payload = (package or {}).get("generation_payload") if isinstance(package, dict) else None
-            service_row = row.get("service") or {}
-            model_record = service_row.get("model")
-            if model_record is None and isinstance(package, dict):
-                model_record = (payload or {}).get("model") or package.get("upscaler_model")
-            entries.append({
-                "character": character,
-                "iteration_id": row.get("iteration_id"),
-                "model_record": model_record,
-                "dialect": service_row.get("dialect"),
-                "at": row.get("at"),
-                "slot": row.get("slot"),
-                "status": row.get("status"),
-                "production": row.get("production"),
-                "evaluation": row.get("evaluation"),
-                "disposition": row.get("disposition"),
-                "unassessed_criteria": row.get("unassessed_criteria"),
-                "production_diagnostic": row.get("production_diagnostic"),
-                "selection_diagnostics": row.get("selection_diagnostics") or [],
-                "acceptances": row.get("acceptances") or [],
-                "superseded_by": row.get("superseded_by"),
-                "service": row.get("service"),
-                "seed": row.get("seed"),
-                **sent_text(sent, row.get("request_layout")),
-                "result": (row.get("result") or {}).get("path"),
-                "result_sha256": (row.get("result") or {}).get("sha256"),
-                "package": (row.get("package") or {}).get("path"),
-                "note": row.get("note"),
-                "reason": row.get("reason"),
-                # Which decision the reason explains: a run's selection or disposition, or an import's rejection.
-                "decision_kind": row.get("decision_kind") if row.get("production") is not None else (
-                    "rejection" if row.get("status") == "rejected" else None),
-            })
-    entries.sort(key=lambda entry: (str(entry.get("at") or ""), str(entry.get("iteration_id") or "")))
-    return {"studio_id": document.get("studio_id"), "title": document.get("title"), "generated_at": now(), "entries": entries}
+    """All recorded artwork, newest first, including local sheet candidates and history."""
+    from studio_gallery import build_index
+    return build_index(root)
 
 
 def _escape(value: Any) -> str:
@@ -863,7 +836,7 @@ def _text_block(entry: dict[str, Any]) -> str:
 
 
 def _history(entry: dict[str, Any]) -> str:
-    parts = [f"generated {_escape(entry.get('at'))}"]
+    parts = [f"received / published {_escape(entry.get('at'))}"]
     for acceptance in entry.get("acceptances") or []:
         replaced = acceptance.get("supersedes") if isinstance(acceptance, dict) else None
         parts.append(f"accepted {_escape((acceptance or {}).get('at'))}" + (f" in place of {_escape(replaced)}" if replaced else ""))
@@ -876,8 +849,9 @@ def _history(entry: dict[str, Any]) -> str:
 DECISION_LABELS = {"selection": "selection reason", "disposition": "disposition reason", "rejection": "rejection reason"}
 
 
-def render_gallery(index: dict[str, Any]) -> str:
-    """One page, no scripts, images by relative path from the studio root."""
+def render_gallery(index: dict[str, Any], *, base_href: str = "./") -> str:
+    """Self-contained paged gallery; ordering and filters survive automatic refresh."""
+    from studio_gallery import CONTROLS, SCRIPT, utc_day
     rows = []
     for entry in index["entries"]:
         settings = "".join(
@@ -889,7 +863,7 @@ def render_gallery(index: dict[str, Any]) -> str:
             for key, value in sorted((entry.get("media") or {}).items())
         )
         service = entry.get("service") or {}
-        image = (f'<a href="{_escape(entry["result"])}"><img src="{_escape(entry["result"])}" alt="{_escape(entry["iteration_id"])}"></a>'
+        image = (f'<a href="{_escape(entry["result"])}"><img loading="lazy" decoding="async" src="{_escape(entry["result"])}" alt="{_escape(entry["iteration_id"])}"></a>'
                  if entry.get("result") else "<div class=\"none\">no result file</div>")
         origin = " ".join(fact for fact in (
             _fact("model", service.get("model_identifier")),
@@ -908,11 +882,11 @@ def render_gallery(index: dict[str, Any]) -> str:
         ) if fact)
         diagnostics = "".join(
             f'<p class="diagnostic">{_escape(item.get("code"))}: {_escape(item.get("message"))}</p>'
-            for item in [entry.get("production_diagnostic"), *(entry.get("selection_diagnostics") or [])] if item)
+            for item in [entry.get("production_diagnostic"), *(entry.get("selection_diagnostics") or []), *(entry.get("diagnostics") or [])] if item)
         reason = (f'<p class="note">{_escape(DECISION_LABELS.get(entry.get("decision_kind"), "reason"))}: '
                   f'{_escape(entry.get("reason"))}</p>') if entry.get("reason") else ""
         rows.append(f"""
-<section class="iteration {_escape(entry.get('status'))}">
+<section class="iteration {_escape(entry.get('status'))}" data-state="{_escape(entry.get('status'))}" data-disposition="{_escape(entry.get('disposition'))}" data-availability="{_escape(entry.get('availability'))}" data-day="{_escape(utc_day(entry.get('at')))}" data-entry="{_escape(entry.get('entry_id'))}">
   <div class="image">{image}</div>
   <div class="facts">
     <h2>{_escape(entry.get('character'))} / {_escape(entry.get('slot'))} / {_escape(entry.get('iteration_id'))} <span class="status">{_escape(entry.get('status'))}</span></h2>
@@ -930,8 +904,11 @@ def render_gallery(index: dict[str, Any]) -> str:
 </section>""")
     count = len(index["entries"])
     return f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>{_escape(index.get('title'))}</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="cpb-gallery-revision" content="{_escape(index.get('revision'))}"><base href="{_escape(base_href)}"><title>{_escape(index.get('title'))}</title>
 <style>
+[hidden] {{ display: none !important; }}
+.gallery-controls {{ display:flex; flex-wrap:wrap; gap:.8rem; align-items:center; position:sticky; top:0; padding:.8rem; background:#fafafa; z-index:2; border-bottom:1px solid #bbb; }}
+.gallery-controls input, .gallery-controls select, .gallery-controls button {{ padding:.4rem; }}
 body {{ font-family: system-ui, sans-serif; margin: 1.5rem; color: #222; background: #fafafa; }}
 h1 {{ font-size: 1.4rem; }} h2 {{ font-size: 1rem; margin: 0 0 .25rem; }}
 .iteration {{ display: grid; grid-template-columns: 320px 1fr; gap: 1rem; padding: 1rem; margin: 0 0 1rem; background: #fff; border: 1px solid #ddd; }}
@@ -943,8 +920,11 @@ pre {{ white-space: pre-wrap; background: #f4f4f4; padding: .5rem; margin: 0 0 .
 table {{ border-collapse: collapse; font-size: .9rem; }} th {{ text-align: left; padding: .1rem .6rem .1rem 0; color: #555; }} td {{ padding: .1rem 0; }}
 .note {{ font-style: italic; }}
 </style></head>
-<body><h1>{_escape(index.get('title'))} ({_escape(index.get('studio_id'))}): {count} {'image' if count == 1 else 'images'}, generated {_escape(index.get('generated_at'))}</h1>
-{''.join(rows)}
+<body data-studio="{_escape(index.get('studio_id'))}"><h1>{_escape(index.get('title'))} ({_escape(index.get('studio_id'))}): {count} {'image' if count == 1 else 'images'}</h1>
+<p>Newest received or published artwork first. Acceptance does not change its creation order. Display rebuilt at {_escape(index.get('generated_at'))}.</p>
+<p><a href="work/activity/timeline.md">Activity log</a> | <a href="work/activity/timeline.jsonl">Machine-readable log</a></p>
+{('<pre class="diagnostic">'+_escape(json.dumps(index.get('diagnostics'),ensure_ascii=False,indent=2))+'</pre>') if index.get('diagnostics') else ''}
+{CONTROLS}<main id="gallery-entries">{''.join(rows)}</main>{SCRIPT}
 </body></html>
 """
 
@@ -959,11 +939,19 @@ def gallery_stale(root: Path) -> str | None:
     except (ValueError, json.JSONDecodeError) as exc:
         return f"gallery.json: {exc}"
     try:
-        expected = gallery_index(root)["entries"]
+        expected = gallery_index(root)
     except (ValueError, OSError) as exc:
         return f"the records cannot be read into a gallery: {exc}"
-    if not isinstance(held, dict) or held.get("entries") != expected:
-        return "gallery.json does not list what the iteration records hold"
+    if (not isinstance(held, dict) or held.get("entries") != expected['entries']
+            or held.get('revision') != expected['revision']):
+        return "gallery.json does not list what the artwork records hold"
+    try:
+        page = (root / 'gallery.html').read_text(encoding='utf-8')
+    except (ValueError, OSError) as exc:
+        return f"gallery.html: {exc}"
+    marker = '<meta name="cpb-gallery-revision" content="' + expected['revision'] + '">'
+    if marker not in page:
+        return 'gallery.html does not match the recorded gallery revision; run studio.py sync'
     return None
 
 
@@ -978,7 +966,9 @@ def write_gallery(root: Path, out: Path | None = None) -> tuple[Path, Path]:
         html_path = (out or (root / "gallery.html")).resolve()
         json_path = html_path.with_suffix(".json")
         write_json(json_path, index)
-        execution_contract.atomic(html_path, render_gallery(index).encode("utf-8"), replace=True)
+        from urllib.parse import quote
+        base_href = quote(os.path.relpath(root, html_path.parent).replace(os.sep, '/').rstrip('/') + '/', safe='/')
+        execution_contract.atomic(html_path, render_gallery(index, base_href=base_href).encode("utf-8"), replace=True)
     return html_path, json_path
 
 
@@ -1005,8 +995,12 @@ def _count(number: int, word: str) -> str:
 
 
 def status(root: Path) -> str:
+    import studio_activity as activity
+    projection = activity.refresh(root)
     document = manifest(root)
     lines = [f"studio {document.get('studio_id')}: {document.get('title')} ({root})", work_ledger.show(root)]
+    if not projection.get('ok'):
+        lines.append("display/log refresh pending; committed work retained: " + projection['message'])
     for entry in document.get("characters") or []:
         character = entry.get("id")
         home = root / "characters" / str(character)
@@ -1113,6 +1107,7 @@ def main(argv: list[str] | None = None) -> int:
     recipe_parser.add_argument("--character", required=True)
     recipe_parser.add_argument("--slot", required=True)
     recipe_parser.add_argument("--iteration", help="read this recorded iteration without accepting it")
+    commands.add_parser("sync", help="rebuild the gallery and chronological activity log from their records", parents=[after])
     gallery_parser = commands.add_parser("gallery", help="write gallery.html and gallery.json: every image in order with prompt, model, settings, and seed", parents=[after])
     gallery_parser.add_argument("--out", type=Path, help="Where to write the HTML (default: <studio>/gallery.html); the JSON goes beside it")
     args = parser.parse_args(argv)
@@ -1141,6 +1136,11 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(reject(root, args.character, args.iteration, args.reason, actor=args.actor), ensure_ascii=False, indent=2))
         elif args.command == "recipe":
             print(json.dumps(recipe(root, args.character, args.slot, iteration=args.iteration), ensure_ascii=False, indent=2))
+        elif args.command == "sync":
+            import studio_activity as activity
+            report = activity.refresh(root)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0 if report['ok'] else 1
         elif args.command == "gallery":
             html_path, json_path = write_gallery(root, args.out)
             print(f"wrote {html_path} and {json_path}")

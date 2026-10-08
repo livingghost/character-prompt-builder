@@ -56,7 +56,7 @@ python scripts/production_workflow.py prepare --root STUDIO --task <task.json>
 python scripts/production_workflow.py draft-execution --root STUDIO --run <run-id> --grant <grant-id> --out <decisions.json>
 python scripts/production_workflow.py execute --root STUDIO --run <run-id> --decisions-file <decisions.json>
 python scripts/production_workflow.py resume --root STUDIO --run <run-id>
-python scripts/production_workflow.py status --root STUDIO --budget
+python scripts/production_workflow.py status --root STUDIO
 ```
 
 `references/runtime/studio.md` defines the studio, its iterations and its
@@ -69,9 +69,9 @@ The task declares the character, slot and model inputs. `check` runs every check
 of `prepare` and creates no run. Preparation publishes the verified Generation
 Package, exact request and execution plan together. The author fills the drafted
 decision file from the actual approval. Execution checks current authority,
-reserves the budget, performs the declared handoff and records every returned
-image. `resume` recovers the same execution, and `status --budget` shows each
-run's next command and each grant's remaining amount. `variant` prepares changed
+claims the execution, performs the declared handoff and records every returned
+image. `resume` recovers the same execution, and `status` shows each
+run's next command and actual submission and image records. `variant` prepares changed
 input, and `repeat` prepares another run of the same input. A request is
 checked against the service's own parameter schema, stored in the pack as
 observed, before anything is sent. The credential is read from the
@@ -160,6 +160,10 @@ the references, the templates, docstrings and commit messages.
   or an actual record, trimmed, and labeled synthetic when it is a fixture.
 - Delete a repeated principle and refer to the place it is stated. Longer is
   not safer.
+- State facts, rules and evidence in records and artifacts. Do not write
+  process notes: no history of how a decision was reached, no session
+  narrative, no quoted instructions. A measurement's evidence (when, what, the
+  result) is a fact; the story of producing it is not.
 - ASCII punctuation, no em or en dashes, English throughout.
 - After changing README.md, run `python scripts/readme_smoke_test.py` and keep
   the executable example blocks byte-identical unless the commands changed.

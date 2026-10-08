@@ -78,7 +78,7 @@ def build(root):
             'authored_fields_preserved': new_spec == expected,
             'original_task_preserved': (root / 'task.json').read_bytes() == original_task,
             'review_questions': questions, 'execution_ready': result['execution_ready'],
-            'external_effect': result['external_effect'], 'budget_effect': result['budget_effect']}
+            'external_effect': result['external_effect']}
 
 
 def main():

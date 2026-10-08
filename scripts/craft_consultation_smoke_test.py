@@ -64,7 +64,7 @@ class ConsultationTests(unittest.TestCase):
         return tool.apply(self.root, 'task.json', 'consult.json', 'decisions.json', 'spec.json', 'applied', settings=self.settings)
 
     def test_scope_reports_only_current_records(self):
-        self.assertEqual(self.report['scope']['searchable']['total_records'], 105)
+        self.assertEqual(self.report['scope']['searchable']['total_records'], 106)
         self.assertEqual(len(self.report['scope']['packs']), 1)
         self.assertFalse(self.report['external_effect'])
         self.assertIn('coverage', self.report['scope'])

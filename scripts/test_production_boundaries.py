@@ -11,7 +11,7 @@ import production_case_fixtures as f
 import production_execution as execution
 import production_store as store
 import production_workflow as workflow
-import reservation_lifecycle as accounting
+import execution_lifecycle as accounting
 import transport_synthetic
 from production_diagnostics import ProductionError
 from test_production_execution import decisions
@@ -50,7 +50,7 @@ class BoundaryTests(unittest.TestCase):
             workflow.handoff(self.root,self.run,hand['recipient'],'dispatcher',token)
         self.assertEqual(caught.exception.diagnostic.code,'HANDOFF_NOT_PERFORMED')
         self.assertIn('execute',caught.exception.diagnostic.required_action)
-        self.assertFalse(any(r['event'] in {'handoff','reservation-created'} for r in store.event_rows(self.root,self.run)))
+        self.assertFalse(any(r['event'] in {'handoff','execution-created'} for r in store.event_rows(self.root,self.run)))
 
     def test_changed_package_cannot_claim_prepared_run(self):
         journal,rendered,tokens=self.authorized_journal()
@@ -80,7 +80,7 @@ class BoundaryTests(unittest.TestCase):
         self.assertEqual(caught.exception.diagnostic.pointer,'$.handoff.recipient')
         self.assertEqual(store.event_rows(self.root,self.run),[])
 
-    def test_no_authorization_or_reservation_from_arbitrary_database_columns(self):
+    def test_no_authorization_or_execution_claim_from_arbitrary_database_columns(self):
         journal,rendered,tokens=self.authorized_journal()
         with store.transaction(self.root) as db:
             db.execute('UPDATE events SET input_sha256=? WHERE scope=? AND sequence=1',('a'*64,self.run))

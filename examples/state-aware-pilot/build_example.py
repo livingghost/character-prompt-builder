@@ -871,7 +871,7 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
         visual_projection=projection,
         asset_render_spec=render_spec,
         prepared_reference_set=prepared_reference_set,
-        parameters={"size": "1024x1024", "quality": "high"},
+        parameters={"width": 1024, "height": 1024, "settings": {"quality": "high"}},
         negative_transport="integrated-critical",
         critical_avoidance_integrated=False,
     )

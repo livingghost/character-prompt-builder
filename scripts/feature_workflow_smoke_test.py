@@ -154,7 +154,10 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertEqual([r['status'] for r in rows],['superseded','accepted'])
         self.assertEqual(self.index()['bindings'][0]['image_sha256'],new['result']['sha256'])
         self.assertTrue((self.root/old['result']['path']).is_file())
-        self.assertTrue((self.home/'sheet'/'bindings'/old['iteration_id']).is_dir())
+        sheet=json.loads((self.home/'sheet/sheet-data.json').read_text(encoding='utf-8'))
+        former=sheet['slots'][old['slot']]['history'][0]['artifact']
+        self.assertEqual(former['image']['sha256'],old['result']['sha256'])
+        self.assertTrue((self.home/'sheet'/former['image']['path']).is_file())
 
     def test_08_candidate_only_acceptance_after_binding_reports_staleness(self):
         old=self.iteration(); self.adopt(old); new=self.iteration('red')
@@ -196,7 +199,7 @@ class FeatureWorkflowTests(unittest.TestCase):
     def test_13_changed_source_and_symlink_binding_are_rejected(self):
         row=self.iteration(); (self.root/row['result']['path']).write_bytes(b'changed')
         with self.assertRaises(ValueError): self.adopt(row)
-        row=self.iteration('red'); (self.home/'sheet'/'bindings').symlink_to(self.work, target_is_directory=True)
+        row=self.iteration('red'); (self.home/'sheet'/'.fills').symlink_to(self.work, target_is_directory=True)
         with self.assertRaises(ValueError): self.adopt(row)
 
     def record(self):
@@ -359,8 +362,8 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertTrue(result['request_validation']['contract'].startswith('@pack/'))
         args=pm.load_json(self.work/'walkthrough output'/'prepare-arguments.json')
         for flag in ('--root','--task','--state-file','--cache-dir','--managed-root'):self.assertIn(flag,args)
-        self.assertEqual(result['readiness']['state'],'configuration_required')
-        self.assertTrue({'AUTHORIZATION_REQUIRED', 'COST_UNCONFIRMED'}.issubset(
+        self.assertEqual(result['readiness']['state'],'authorization_required')
+        self.assertTrue({'AUTHORIZATION_REQUIRED'}.issubset(
             {item['code'] for item in result['readiness']['diagnostics']}))
         self.assertFalse(result['readiness']['executable'])
         # A plain one-off person needs only the drafted specification.

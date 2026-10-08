@@ -112,7 +112,7 @@ class FoundationTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 with store.transaction(root):
                     store.append(root,'run',None,'authorization',{'a':1})
-                    store.append(root,'run',None,'reservation-created',{'a':2})
+                    store.append(root,'run',None,'execution-created',{'a':2})
                     raise RuntimeError('synthetic interruption')
             self.assertEqual(store.event_rows(root,'run'),[])
 
@@ -177,7 +177,7 @@ class FoundationTests(unittest.TestCase):
 
     def test_prepare_does_not_write_through_linked_staging_parent(self):
         import production_workflow as workflow
-        from reservation_lifecycle_smoke_test import setup
+        from execution_lifecycle_smoke_test import setup
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)/'studio';root.mkdir()
             setup(root)
@@ -191,7 +191,7 @@ class FoundationTests(unittest.TestCase):
 
     def test_publication_recovery_rejects_linked_run_parent(self):
         import production_compiler as compiler
-        from reservation_lifecycle_smoke_test import setup
+        from execution_lifecycle_smoke_test import setup
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)/'studio';root.mkdir()
             run,_,_=setup(root)
@@ -274,21 +274,15 @@ class PublicationRecoveryTests(unittest.TestCase):
         self.assertEqual(caught.exception.diagnostic.code, 'PINNED_RESOURCE_MISSING')
         self.assertEqual(store.runs(self.root), [])
 
-    def test_status_reports_cost_configuration_and_authority_independently(self):
-        import production_case_fixtures as fixtures
-        import production_compiler as compiler
+    def test_status_reports_authority_readiness_without_creating_events(self):
         import production_execution as execution
         import production_workflow as workflow
-        task = c.load(self.root/'task.json')
-        task['generation']['cost'] = None
-        fixtures.write(self.root/'task.json', task)
         prepared = workflow.prepare(self.root, 'task.json')
-        self.assertEqual(prepared['execution_plan']['readiness']['state'], 'configuration_required')
+        self.assertEqual(prepared['execution_plan']['readiness']['state'], 'authorization_required')
         state = execution.status(self.root, prepared['run'])['runs'][0]
-        self.assertEqual(state['readiness'], 'configuration_required')
+        self.assertEqual(state['readiness'], 'authorization_required')
         self.assertEqual(state['review'], 'unreviewed')
-        self.assertEqual({row['code'] for row in state['readiness_diagnostics']},
-                         {'COST_UNCONFIRMED', 'AUTHORIZATION_REQUIRED'})
+        self.assertIn('AUTHORIZATION_REQUIRED', {row['code'] for row in state['readiness_diagnostics']})
         self.assertEqual(store.event_rows(self.root, prepared['run']), [])
 
     def test_bad_unreferenced_tree_does_not_hide_a_healthy_run(self):
@@ -714,8 +708,8 @@ class ExitCodeTests(unittest.TestCase):
     def test_each_diagnostic_class_has_its_exit_status(self):
         from production_diagnostics import exit_code, result_exit
         self.assertEqual([exit_code(code) for code in (None, 'INPUT_SCHEMA_INVALID', 'SOURCE_CHANGED', 'AUTHORIZATION_REQUIRED',
-                                                       'COST_UNCONFIRMED', 'REMOTE_OUTCOME_UNKNOWN', 'INTERNAL_ERROR')],
-                         [0, 2, 2, 3, 3, 4, 1])
+                                                       'REMOTE_OUTCOME_UNKNOWN', 'INTERNAL_ERROR')],
+                         [0, 2, 2, 3, 4, 1])
         rows = lambda *codes: [{'code': code, 'severity': 'error'} for code in codes]
         self.assertEqual(result_exit(rows('GRANT_REVOKED', 'INPUT_UNREADABLE')), 2)
         self.assertEqual(result_exit(rows('GRANT_REVOKED', 'DISPATCH_ALREADY_CLAIMED')), 4)
@@ -840,11 +834,11 @@ class RecordingDestinationTests(unittest.TestCase):
         self.decisions=fixtures.fill_decisions(self.root,self.run,'decisions.json')
         self.home=studio.character_dir(self.root,'robot');self.away=base/'moved-character'
 
-    def test_execute_stops_before_reservation_when_the_slot_changed(self):
+    def test_execute_stops_before_execution_claim_when_the_slot_changed(self):
         import production_execution as execution
-        import reservation_lifecycle as accounting
+        import execution_lifecycle as accounting
         sheet=self.home/'sheet/sheet-data.json';original=sheet.read_bytes()
-        document=c.load(sheet);document['slots']['candidate']={'image_path':'accepted/candidate.png','generation_package':'packages/candidate.json'}
+        document=c.load(sheet);document['slots']['candidate']={'current':None,'candidates':[],'history':[]}
         self.fixtures.write(sheet,document)
         with self.assertRaises(ProductionError) as caught:
             execution.execute(self.root,self.run,decisions_file=self.decisions)
@@ -977,7 +971,7 @@ class StudioPathTests(unittest.TestCase):
 
     def test_the_step_before_an_external_effect_checks_root_ancestry_first(self):
         import production_workflow as workflow
-        import reservation_lifecycle as lifecycle
+        import execution_lifecycle as lifecycle
         calls=[]
         class Stop(Exception):pass
         def assert_current(root,run,*,force=False):

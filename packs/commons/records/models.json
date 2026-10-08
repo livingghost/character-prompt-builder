@@ -63,7 +63,356 @@
         }
       ],
       "operation_kind": "generation",
-      "offerings": [],
+      "offerings": [
+        {
+          "service": "runware",
+          "model_identifier": "openai:gpt-image@2.5-flare",
+          "request_keys": {
+            "model": [
+              "model"
+            ],
+            "prompt": [
+              "positivePrompt"
+            ],
+            "reference images": [
+              "inputs.referenceImages"
+            ],
+            "mask image": [
+              "inputs.maskImage"
+            ],
+            "width": [
+              "width"
+            ],
+            "height": [
+              "height"
+            ]
+          },
+          "constraints": {
+            "geometry": "width and height together, each 16 to 3840 and a multiple of 16; combined area 655360 to 8294400 pixels; aspect ratio between 1/3 and 3",
+            "text": "positivePrompt of 2 to 32000 characters, always required; no negative channel",
+            "seed": "not exposed by the service schema; the service draws one",
+            "reference_images": {
+              "max": 16
+            },
+            "mask_image": "white marks the edit area, black preserves; guidance rather than a hard boundary; with several references the mask applies to the first",
+            "settings": "background auto/opaque/transparent; moderation auto/low; quality auto/max/xhigh/high/medium/low",
+            "number_results": {
+              "min": 1,
+              "max": 20
+            },
+            "inputs_envelope": "media keys sit inside an inputs object (inputs.referenceImages, inputs.maskImage)",
+            "output": "outputType URL/base64Data/dataURI; outputFormat JPG/PNG/WEBP; outputQuality 20 to 99; ttl from 60; includeCost boolean"
+          },
+          "observed_at": "2026-10-06",
+          "schema_snapshot": "resources/observed-schemas/gpt-image-2-5-flare.runware.json",
+          "execution_profile": {
+            "id": "runware-gpt-image-2-5-flare-interface",
+            "basis": {
+              "kind": "provider-documentation",
+              "source": "resources/observed-schemas/gpt-image-2-5-flare.runware.json",
+              "limitations": [
+                "The stored schema is dated interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
+                "This profile declares geometry, settings, output, count and media controls. Sampling controls (steps, guidance, scheduler, seed) are backend-managed: the schema exposes none of them."
+              ]
+            },
+            "prompt_recipe": {
+              "order": [
+                "purpose",
+                "subject and permanent identity",
+                "scene-specific character state",
+                "action and relationships",
+                "setting",
+                "composition and camera",
+                "lighting and color",
+                "rendering",
+                "constraints"
+              ],
+              "guidance": [
+                "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
+                "Name each figure's preserved identity separately; prose models conflate unnamed lookalikes."
+              ]
+            },
+            "modes": {
+              "text-to-image": {
+                "media": "none",
+                "controls": {
+                  "width": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Width",
+                      "type": "integer",
+                      "minimum": 16,
+                      "maximum": 3840,
+                      "multipleOf": 16
+                    },
+                    "reason": "Width 16 to 3840 in steps of 16, set together with height; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
+                  },
+                  "height": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Height",
+                      "type": "integer",
+                      "minimum": 16,
+                      "maximum": 3840,
+                      "multipleOf": 16
+                    },
+                    "reason": "Height 16 to 3840 in steps of 16, set together with width; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
+                  },
+                  "settings.quality": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Quality",
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "max",
+                        "xhigh",
+                        "high",
+                        "medium",
+                        "low"
+                      ]
+                    },
+                    "reason": "Optional quality level from the stored schema."
+                  },
+                  "settings.background": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Background",
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "opaque",
+                        "transparent"
+                      ]
+                    },
+                    "reason": "Optional background handling; transparent requires outputFormat PNG or WEBP."
+                  },
+                  "outputFormat": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Output Format",
+                      "type": "string",
+                      "enum": [
+                        "JPG",
+                        "PNG",
+                        "WEBP"
+                      ]
+                    },
+                    "reason": "Optional output encoding from the stored schema."
+                  },
+                  "numberResults": {
+                    "status": "required",
+                    "binding": "dispatch-count",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Number of Results",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "reason": "Result count 1 to 20, set by the dispatch authorization."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The stored schema exposes no seed control; never invent one."
+                  },
+                  "steps": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no step control."
+                  },
+                  "CFGScale": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no guidance control."
+                  },
+                  "scheduler": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no scheduler control."
+                  },
+                  "strength": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "No source-image denoising control exists on this interface; reference influence is not weightable here."
+                  },
+                  "safety.checkContent": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Check Content",
+                      "description": "Enable or disable content safety checking. Increases total generation time.",
+                      "type": "boolean"
+                    },
+                    "recommendation": "safety.checkContent",
+                    "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
+                  }
+                },
+                "parameter_schema": {}
+              },
+              "reference-guided": {
+                "media": "references",
+                "controls": {
+                  "width": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Width",
+                      "type": "integer",
+                      "minimum": 16,
+                      "maximum": 3840,
+                      "multipleOf": 16
+                    },
+                    "reason": "Width 16 to 3840 in steps of 16, set together with height; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
+                  },
+                  "height": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Height",
+                      "type": "integer",
+                      "minimum": 16,
+                      "maximum": 3840,
+                      "multipleOf": 16
+                    },
+                    "reason": "Height 16 to 3840 in steps of 16, set together with width; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
+                  },
+                  "settings.quality": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Quality",
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "max",
+                        "xhigh",
+                        "high",
+                        "medium",
+                        "low"
+                      ]
+                    },
+                    "reason": "Optional quality level from the stored schema."
+                  },
+                  "settings.background": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Background",
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "opaque",
+                        "transparent"
+                      ]
+                    },
+                    "reason": "Optional background handling; transparent requires outputFormat PNG or WEBP."
+                  },
+                  "outputFormat": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Output Format",
+                      "type": "string",
+                      "enum": [
+                        "JPG",
+                        "PNG",
+                        "WEBP"
+                      ]
+                    },
+                    "reason": "Optional output encoding from the stored schema."
+                  },
+                  "numberResults": {
+                    "status": "required",
+                    "binding": "dispatch-count",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Number of Results",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "reason": "Result count 1 to 20, set by the dispatch authorization."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The stored schema exposes no seed control; never invent one."
+                  },
+                  "steps": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no step control."
+                  },
+                  "CFGScale": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no guidance control."
+                  },
+                  "scheduler": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no scheduler control."
+                  },
+                  "strength": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "No source-image denoising control exists on this interface; reference influence is not weightable here."
+                  },
+                  "safety.checkContent": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Check Content",
+                      "description": "Enable or disable content safety checking. Increases total generation time.",
+                      "type": "boolean"
+                    },
+                    "recommendation": "safety.checkContent",
+                    "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
+                  }
+                },
+                "parameter_schema": {}
+              }
+            }
+          }
+        }
+      ],
       "execution_profile": {
         "id": "host-prose-image",
         "basis": {
@@ -271,6 +620,9 @@
             "parameter_schema": {}
           }
         }
+      },
+      "recommended_parameters": {
+        "safety.checkContent": false
       }
     },
     {
@@ -522,25 +874,6 @@
                     "recommendation": null,
                     "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
                   },
-                  "safety": {
-                    "status": "optional",
-                    "binding": "package",
-                    "schema": {
-                      "type": "object",
-                      "title": "Safety Settings",
-                      "description": "Content safety checking configuration for image generation.",
-                      "properties": {
-                        "checkContent": {
-                          "title": "Check Content",
-                          "description": "Enable or disable content safety checking. Increases total generation time.",
-                          "type": "boolean"
-                        }
-                      },
-                      "additionalProperties": false
-                    },
-                    "recommendation": null,
-                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
-                  },
                   "settings.quality": {
                     "status": "required",
                     "binding": "package",
@@ -614,6 +947,17 @@
                     "schema": null,
                     "recommendation": null,
                     "reason": "This interface accepts references, not a denoising-strength field."
+                  },
+                  "safety.checkContent": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Check Content",
+                      "description": "Enable or disable content safety checking. Increases total generation time.",
+                      "type": "boolean"
+                    },
+                    "recommendation": "safety.checkContent",
+                    "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
                   }
                 },
                 "parameter_schema": {}
@@ -726,25 +1070,6 @@
                     "recommendation": null,
                     "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
                   },
-                  "safety": {
-                    "status": "optional",
-                    "binding": "package",
-                    "schema": {
-                      "type": "object",
-                      "title": "Safety Settings",
-                      "description": "Content safety checking configuration for image generation.",
-                      "properties": {
-                        "checkContent": {
-                          "title": "Check Content",
-                          "description": "Enable or disable content safety checking. Increases total generation time.",
-                          "type": "boolean"
-                        }
-                      },
-                      "additionalProperties": false
-                    },
-                    "recommendation": null,
-                    "reason": "Optional field from the stored offering schema; absence is an explicit non-selection."
-                  },
                   "settings.quality": {
                     "status": "required",
                     "binding": "package",
@@ -818,6 +1143,17 @@
                     "schema": null,
                     "recommendation": null,
                     "reason": "This interface accepts references, not a denoising-strength field."
+                  },
+                  "safety.checkContent": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Check Content",
+                      "description": "Enable or disable content safety checking. Increases total generation time.",
+                      "type": "boolean"
+                    },
+                    "recommendation": "safety.checkContent",
+                    "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
                   }
                 },
                 "parameter_schema": {
@@ -860,7 +1196,630 @@
         }
       ],
       "recommended_parameters": {
-        "quality": "medium"
+        "quality": "medium",
+        "safety.checkContent": false
+      }
+    },
+    {
+      "id": "gpt-image-2.5-sunburst",
+      "label": "OpenAI GPT Image 2.5 Sunburst",
+      "aliases": [
+        "gpt image 2.5 sunburst",
+        "openai gpt image 2.5 sunburst"
+      ],
+      "supports_negative_prompt": false,
+      "prompt_style": "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
+      "negative_transport_mode": "integrated-critical",
+      "negative_transport_notes": "Integrate critical exclusions into the reviewed natural-language prompt and retain the portable negative prompt for traceability; this adapter does not declare a separate negative-prompt channel.",
+      "reference_input_media_types": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "size_hints": {
+        "1:1": "1024x1024",
+        "2:3": "1024x1536",
+        "3:2": "1536x1024",
+        "4:5": "1024x1280",
+        "9:16": "1152x2048",
+        "16:9": "2048x1152"
+      },
+      "verified_on": "2026-10-06",
+      "recommended_uses": [
+        "prose-contract generation with role-scoped multi-reference transport, strong reference-subject preservation"
+      ],
+      "ordering": [
+        "purpose",
+        "subject and permanent identity",
+        "scene-specific character state",
+        "action and relationships",
+        "setting",
+        "composition and camera",
+        "lighting and color",
+        "rendering",
+        "constraints"
+      ],
+      "search_terms": [
+        {
+          "phrase": "gpt-image-2.5-sunburst",
+          "facet": "model",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "gpt image 2.5 sunburst",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "openai gpt image 2.5 sunburst",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ],
+      "operation_kind": "generation",
+      "offerings": [
+        {
+          "service": "runware",
+          "model_identifier": "openai:gpt-image@2.5-sunburst",
+          "request_keys": {
+            "model": [
+              "model"
+            ],
+            "prompt": [
+              "positivePrompt"
+            ],
+            "reference images": [
+              "inputs.referenceImages"
+            ],
+            "mask image": [
+              "inputs.maskImage"
+            ],
+            "width": [
+              "width"
+            ],
+            "height": [
+              "height"
+            ]
+          },
+          "constraints": {
+            "geometry": "width and height together, each 16 to 3840 and a multiple of 16; combined area 655360 to 8294400 pixels; aspect ratio between 1/3 and 3",
+            "text": "positivePrompt of 2 to 32000 characters, always required; no negative channel",
+            "seed": "not exposed by the service schema; the service draws one",
+            "reference_images": {
+              "max": 16
+            },
+            "mask_image": "white marks the edit area, black preserves; guidance rather than a hard boundary; with several references the mask applies to the first",
+            "settings": "background auto/opaque/transparent; moderation auto/low; quality auto/max/xhigh/high/medium/low",
+            "number_results": {
+              "min": 1,
+              "max": 20
+            },
+            "inputs_envelope": "media keys sit inside an inputs object (inputs.referenceImages, inputs.maskImage)",
+            "output": "outputType URL/base64Data/dataURI; outputFormat JPG/PNG/WEBP; outputQuality 20 to 99; ttl from 60; includeCost boolean"
+          },
+          "observed_at": "2026-10-06",
+          "schema_snapshot": "resources/observed-schemas/gpt-image-2-5-sunburst.runware.json",
+          "execution_profile": {
+            "id": "runware-gpt-image-2-5-sunburst-interface",
+            "basis": {
+              "kind": "provider-documentation",
+              "source": "resources/observed-schemas/gpt-image-2-5-sunburst.runware.json",
+              "limitations": [
+                "The stored schema is dated interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
+                "This profile declares geometry, settings, output, count and media controls. Sampling controls (steps, guidance, scheduler, seed) are backend-managed: the schema exposes none of them."
+              ]
+            },
+            "prompt_recipe": {
+              "order": [
+                "purpose",
+                "subject and permanent identity",
+                "scene-specific character state",
+                "action and relationships",
+                "setting",
+                "composition and camera",
+                "lighting and color",
+                "rendering",
+                "constraints"
+              ],
+              "guidance": [
+                "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
+                "Name each figure's preserved identity separately; prose models conflate unnamed lookalikes."
+              ]
+            },
+            "modes": {
+              "text-to-image": {
+                "media": "none",
+                "controls": {
+                  "width": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Width",
+                      "type": "integer",
+                      "minimum": 16,
+                      "maximum": 3840,
+                      "multipleOf": 16
+                    },
+                    "reason": "Width 16 to 3840 in steps of 16, set together with height; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
+                  },
+                  "height": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Height",
+                      "type": "integer",
+                      "minimum": 16,
+                      "maximum": 3840,
+                      "multipleOf": 16
+                    },
+                    "reason": "Height 16 to 3840 in steps of 16, set together with width; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
+                  },
+                  "settings.quality": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Quality",
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "max",
+                        "xhigh",
+                        "high",
+                        "medium",
+                        "low"
+                      ]
+                    },
+                    "reason": "Optional quality level from the stored schema."
+                  },
+                  "settings.background": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Background",
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "opaque",
+                        "transparent"
+                      ]
+                    },
+                    "reason": "Optional background handling; transparent requires outputFormat PNG or WEBP."
+                  },
+                  "outputFormat": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Output Format",
+                      "type": "string",
+                      "enum": [
+                        "JPG",
+                        "PNG",
+                        "WEBP"
+                      ]
+                    },
+                    "reason": "Optional output encoding from the stored schema."
+                  },
+                  "numberResults": {
+                    "status": "required",
+                    "binding": "dispatch-count",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Number of Results",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "reason": "Result count 1 to 20, set by the dispatch authorization."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The stored schema exposes no seed control; never invent one."
+                  },
+                  "steps": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no step control."
+                  },
+                  "CFGScale": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no guidance control."
+                  },
+                  "scheduler": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no scheduler control."
+                  },
+                  "strength": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "No source-image denoising control exists on this interface; reference influence is not weightable here."
+                  },
+                  "safety.checkContent": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Check Content",
+                      "description": "Enable or disable content safety checking. Increases total generation time.",
+                      "type": "boolean"
+                    },
+                    "recommendation": "safety.checkContent",
+                    "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
+                  }
+                },
+                "parameter_schema": {}
+              },
+              "reference-guided": {
+                "media": "references",
+                "controls": {
+                  "width": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Width",
+                      "type": "integer",
+                      "minimum": 16,
+                      "maximum": 3840,
+                      "multipleOf": 16
+                    },
+                    "reason": "Width 16 to 3840 in steps of 16, set together with height; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
+                  },
+                  "height": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Height",
+                      "type": "integer",
+                      "minimum": 16,
+                      "maximum": 3840,
+                      "multipleOf": 16
+                    },
+                    "reason": "Height 16 to 3840 in steps of 16, set together with width; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
+                  },
+                  "settings.quality": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Quality",
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "max",
+                        "xhigh",
+                        "high",
+                        "medium",
+                        "low"
+                      ]
+                    },
+                    "reason": "Optional quality level from the stored schema."
+                  },
+                  "settings.background": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Background",
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "opaque",
+                        "transparent"
+                      ]
+                    },
+                    "reason": "Optional background handling; transparent requires outputFormat PNG or WEBP."
+                  },
+                  "outputFormat": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Output Format",
+                      "type": "string",
+                      "enum": [
+                        "JPG",
+                        "PNG",
+                        "WEBP"
+                      ]
+                    },
+                    "reason": "Optional output encoding from the stored schema."
+                  },
+                  "numberResults": {
+                    "status": "required",
+                    "binding": "dispatch-count",
+                    "recommendation": null,
+                    "schema": {
+                      "title": "Number of Results",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "reason": "Result count 1 to 20, set by the dispatch authorization."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The stored schema exposes no seed control; never invent one."
+                  },
+                  "steps": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no step control."
+                  },
+                  "CFGScale": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no guidance control."
+                  },
+                  "scheduler": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The instruction model exposes no scheduler control."
+                  },
+                  "strength": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "No source-image denoising control exists on this interface; reference influence is not weightable here."
+                  },
+                  "safety.checkContent": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Check Content",
+                      "description": "Enable or disable content safety checking. Increases total generation time.",
+                      "type": "boolean"
+                    },
+                    "recommendation": "safety.checkContent",
+                    "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
+                  }
+                },
+                "parameter_schema": {}
+              }
+            }
+          }
+        }
+      ],
+      "execution_profile": {
+        "id": "host-prose-image",
+        "basis": {
+          "kind": "curated-starting-point",
+          "source": "Model record prompt_style, ordering and size_hints",
+          "limitations": [
+            "Host request validation supplies the actual callable interface. No sampling controls or image-quality outcome are asserted."
+          ]
+        },
+        "prompt_recipe": {
+          "order": [
+            "purpose",
+            "subject",
+            "composition",
+            "rendering",
+            "constraints"
+          ],
+          "guidance": [
+            "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
+            "Keep the chosen finish in the authored prompt. Preserve user anchors and reference authority."
+          ]
+        },
+        "modes": {
+          "text-to-image": {
+            "media": "none",
+            "controls": {
+              "size": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Select the requested output geometry explicitly; consult the host size contract."
+              },
+              "quality": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Choose output quality explicitly and validate it against the selected host interface."
+              },
+              "seed": {
+                "status": "backend-managed",
+                "binding": "dispatch-seed",
+                "schema": null,
+                "recommendation": null,
+                "reason": "This host-only record exposes no seed control."
+              },
+              "numberResults": {
+                "status": "backend-managed",
+                "binding": "dispatch-count",
+                "schema": null,
+                "recommendation": null,
+                "reason": "Output count belongs to the selected host invocation."
+              },
+              "steps": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No sampling-step control is declared by this host record."
+              },
+              "CFGScale": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No guidance-scale control is declared by this host record."
+              },
+              "strength": {
+                "status": "not-applicable",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting."
+              }
+            },
+            "parameter_schema": {}
+          },
+          "reference-guided": {
+            "media": "references",
+            "controls": {
+              "size": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Select the requested output geometry explicitly; consult the host size contract."
+              },
+              "quality": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Choose output quality explicitly and validate it against the selected host interface."
+              },
+              "seed": {
+                "status": "backend-managed",
+                "binding": "dispatch-seed",
+                "schema": null,
+                "recommendation": null,
+                "reason": "This host-only record exposes no seed control."
+              },
+              "numberResults": {
+                "status": "backend-managed",
+                "binding": "dispatch-count",
+                "schema": null,
+                "recommendation": null,
+                "reason": "Output count belongs to the selected host invocation."
+              },
+              "steps": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No sampling-step control is declared by this host record."
+              },
+              "CFGScale": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No guidance-scale control is declared by this host record."
+              },
+              "strength": {
+                "status": "not-applicable",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting."
+              }
+            },
+            "parameter_schema": {}
+          },
+          "instruction-edit": {
+            "media": "references",
+            "controls": {
+              "size": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Select the requested output geometry explicitly; consult the host size contract."
+              },
+              "quality": {
+                "status": "required",
+                "binding": "package",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "recommendation": null,
+                "reason": "Choose output quality explicitly and validate it against the selected host interface."
+              },
+              "seed": {
+                "status": "backend-managed",
+                "binding": "dispatch-seed",
+                "schema": null,
+                "recommendation": null,
+                "reason": "This host-only record exposes no seed control."
+              },
+              "numberResults": {
+                "status": "backend-managed",
+                "binding": "dispatch-count",
+                "schema": null,
+                "recommendation": null,
+                "reason": "Output count belongs to the selected host invocation."
+              },
+              "steps": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No sampling-step control is declared by this host record."
+              },
+              "CFGScale": {
+                "status": "backend-managed",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No guidance-scale control is declared by this host record."
+              },
+              "strength": {
+                "status": "not-applicable",
+                "binding": "package",
+                "schema": null,
+                "recommendation": null,
+                "reason": "No denoising control is declared; reference input is not an img2img strength setting."
+              }
+            },
+            "parameter_schema": {}
+          }
+        }
+      },
+      "recommended_parameters": {
+        "safety.checkContent": false
       }
     }
   ]

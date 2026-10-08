@@ -25,136 +25,153 @@
     },
     "model_card": {
       "model": "gpt-image-2.5-flare",
-      "service": null,
-      "model_identifier": "gpt-image-2.5-flare",
+      "service": "runware",
+      "model_identifier": "openai:gpt-image@2.5-flare",
       "ready_for_parameter_resolution": true,
       "execution_profile": {
         "basis": {
-          "kind": "curated-starting-point",
+          "kind": "provider-documentation",
           "limitations": [
-            "Host request validation supplies the actual callable interface. No sampling controls or image-quality outcome are asserted."
+            "The stored schema is dated interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
+            "This profile declares geometry, settings, output, count and media controls. Sampling controls (steps, guidance, scheduler, seed) are backend-managed: the schema exposes none of them."
           ],
-          "source": "Model record prompt_style, ordering and size_hints"
+          "source": "resources/observed-schemas/gpt-image-2-5-flare.runware.json"
         },
-        "id": "host-prose-image",
+        "id": "runware-gpt-image-2-5-flare-interface",
         "modes": {
-          "instruction-edit": {
-            "controls": {
-              "CFGScale": {
-                "binding": "package",
-                "reason": "No guidance-scale control is declared by this host record.",
-                "recommendation": null,
-                "schema": null,
-                "status": "backend-managed"
-              },
-              "numberResults": {
-                "binding": "dispatch-count",
-                "reason": "Output count belongs to the selected host invocation.",
-                "recommendation": null,
-                "schema": null,
-                "status": "backend-managed"
-              },
-              "quality": {
-                "binding": "package",
-                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
-                "recommendation": null,
-                "schema": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "status": "required"
-              },
-              "seed": {
-                "binding": "dispatch-seed",
-                "reason": "This host-only record exposes no seed control.",
-                "recommendation": null,
-                "schema": null,
-                "status": "backend-managed"
-              },
-              "size": {
-                "binding": "package",
-                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
-                "recommendation": null,
-                "schema": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "status": "required"
-              },
-              "steps": {
-                "binding": "package",
-                "reason": "No sampling-step control is declared by this host record.",
-                "recommendation": null,
-                "schema": null,
-                "status": "backend-managed"
-              },
-              "strength": {
-                "binding": "package",
-                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
-                "recommendation": null,
-                "schema": null,
-                "status": "not-applicable"
-              }
-            },
-            "media": "references",
-            "parameter_schema": {}
-          },
           "reference-guided": {
             "controls": {
               "CFGScale": {
                 "binding": "package",
-                "reason": "No guidance-scale control is declared by this host record.",
+                "reason": "The instruction model exposes no guidance control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
+              },
+              "height": {
+                "binding": "package",
+                "reason": "Height 16 to 3840 in steps of 16, set together with width; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 3840,
+                  "minimum": 16,
+                  "multipleOf": 16,
+                  "title": "Height",
+                  "type": "integer"
+                },
+                "status": "optional"
               },
               "numberResults": {
                 "binding": "dispatch-count",
-                "reason": "Output count belongs to the selected host invocation.",
+                "reason": "Result count 1 to 20, set by the dispatch authorization.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 20,
+                  "minimum": 1,
+                  "title": "Number of Results",
+                  "type": "integer"
+                },
+                "status": "required"
+              },
+              "outputFormat": {
+                "binding": "package",
+                "reason": "Optional output encoding from the stored schema.",
+                "recommendation": null,
+                "schema": {
+                  "enum": [
+                    "JPG",
+                    "PNG",
+                    "WEBP"
+                  ],
+                  "title": "Output Format",
+                  "type": "string"
+                },
+                "status": "optional"
+              },
+              "safety.checkContent": {
+                "binding": "package",
+                "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it.",
+                "recommendation": "safety.checkContent",
+                "schema": {
+                  "description": "Enable or disable content safety checking. Increases total generation time.",
+                  "title": "Check Content",
+                  "type": "boolean"
+                },
+                "status": "required"
+              },
+              "scheduler": {
+                "binding": "package",
+                "reason": "The instruction model exposes no scheduler control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
-              },
-              "quality": {
-                "binding": "package",
-                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
-                "recommendation": null,
-                "schema": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "status": "required"
               },
               "seed": {
                 "binding": "dispatch-seed",
-                "reason": "This host-only record exposes no seed control.",
+                "reason": "The stored schema exposes no seed control; never invent one.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
               },
-              "size": {
+              "settings.background": {
                 "binding": "package",
-                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
+                "reason": "Optional background handling; transparent requires outputFormat PNG or WEBP.",
                 "recommendation": null,
                 "schema": {
-                  "minLength": 1,
+                  "enum": [
+                    "auto",
+                    "opaque",
+                    "transparent"
+                  ],
+                  "title": "Background",
                   "type": "string"
                 },
-                "status": "required"
+                "status": "optional"
+              },
+              "settings.quality": {
+                "binding": "package",
+                "reason": "Optional quality level from the stored schema.",
+                "recommendation": null,
+                "schema": {
+                  "enum": [
+                    "auto",
+                    "max",
+                    "xhigh",
+                    "high",
+                    "medium",
+                    "low"
+                  ],
+                  "title": "Quality",
+                  "type": "string"
+                },
+                "status": "optional"
               },
               "steps": {
                 "binding": "package",
-                "reason": "No sampling-step control is declared by this host record.",
+                "reason": "The instruction model exposes no step control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
               },
               "strength": {
                 "binding": "package",
-                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
+                "reason": "No source-image denoising control exists on this interface; reference influence is not weightable here.",
                 "recommendation": null,
                 "schema": null,
                 "status": "not-applicable"
+              },
+              "width": {
+                "binding": "package",
+                "reason": "Width 16 to 3840 in steps of 16, set together with height; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 3840,
+                  "minimum": 16,
+                  "multipleOf": 16,
+                  "title": "Width",
+                  "type": "integer"
+                },
+                "status": "optional"
               }
             },
             "media": "references",
@@ -164,58 +181,135 @@
             "controls": {
               "CFGScale": {
                 "binding": "package",
-                "reason": "No guidance-scale control is declared by this host record.",
+                "reason": "The instruction model exposes no guidance control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
+              },
+              "height": {
+                "binding": "package",
+                "reason": "Height 16 to 3840 in steps of 16, set together with width; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 3840,
+                  "minimum": 16,
+                  "multipleOf": 16,
+                  "title": "Height",
+                  "type": "integer"
+                },
+                "status": "optional"
               },
               "numberResults": {
                 "binding": "dispatch-count",
-                "reason": "Output count belongs to the selected host invocation.",
+                "reason": "Result count 1 to 20, set by the dispatch authorization.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 20,
+                  "minimum": 1,
+                  "title": "Number of Results",
+                  "type": "integer"
+                },
+                "status": "required"
+              },
+              "outputFormat": {
+                "binding": "package",
+                "reason": "Optional output encoding from the stored schema.",
+                "recommendation": null,
+                "schema": {
+                  "enum": [
+                    "JPG",
+                    "PNG",
+                    "WEBP"
+                  ],
+                  "title": "Output Format",
+                  "type": "string"
+                },
+                "status": "optional"
+              },
+              "safety.checkContent": {
+                "binding": "package",
+                "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it.",
+                "recommendation": "safety.checkContent",
+                "schema": {
+                  "description": "Enable or disable content safety checking. Increases total generation time.",
+                  "title": "Check Content",
+                  "type": "boolean"
+                },
+                "status": "required"
+              },
+              "scheduler": {
+                "binding": "package",
+                "reason": "The instruction model exposes no scheduler control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
-              },
-              "quality": {
-                "binding": "package",
-                "reason": "Choose output quality explicitly and validate it against the selected host interface.",
-                "recommendation": null,
-                "schema": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "status": "required"
               },
               "seed": {
                 "binding": "dispatch-seed",
-                "reason": "This host-only record exposes no seed control.",
+                "reason": "The stored schema exposes no seed control; never invent one.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
               },
-              "size": {
+              "settings.background": {
                 "binding": "package",
-                "reason": "Select the requested output geometry explicitly; consult the host size contract.",
+                "reason": "Optional background handling; transparent requires outputFormat PNG or WEBP.",
                 "recommendation": null,
                 "schema": {
-                  "minLength": 1,
+                  "enum": [
+                    "auto",
+                    "opaque",
+                    "transparent"
+                  ],
+                  "title": "Background",
                   "type": "string"
                 },
-                "status": "required"
+                "status": "optional"
+              },
+              "settings.quality": {
+                "binding": "package",
+                "reason": "Optional quality level from the stored schema.",
+                "recommendation": null,
+                "schema": {
+                  "enum": [
+                    "auto",
+                    "max",
+                    "xhigh",
+                    "high",
+                    "medium",
+                    "low"
+                  ],
+                  "title": "Quality",
+                  "type": "string"
+                },
+                "status": "optional"
               },
               "steps": {
                 "binding": "package",
-                "reason": "No sampling-step control is declared by this host record.",
+                "reason": "The instruction model exposes no step control.",
                 "recommendation": null,
                 "schema": null,
                 "status": "backend-managed"
               },
               "strength": {
                 "binding": "package",
-                "reason": "No denoising control is declared; reference input is not an img2img strength setting.",
+                "reason": "No source-image denoising control exists on this interface; reference influence is not weightable here.",
                 "recommendation": null,
                 "schema": null,
                 "status": "not-applicable"
+              },
+              "width": {
+                "binding": "package",
+                "reason": "Width 16 to 3840 in steps of 16, set together with height; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3.",
+                "recommendation": null,
+                "schema": {
+                  "maximum": 3840,
+                  "minimum": 16,
+                  "multipleOf": 16,
+                  "title": "Width",
+                  "type": "integer"
+                },
+                "status": "optional"
               }
             },
             "media": "none",
@@ -225,18 +319,24 @@
         "prompt_recipe": {
           "guidance": [
             "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
-            "Keep the chosen finish in the authored prompt. Preserve user anchors and reference authority."
+            "Name each figure's preserved identity separately; prose models conflate unnamed lookalikes."
           ],
           "order": [
             "purpose",
-            "subject",
-            "composition",
+            "subject and permanent identity",
+            "scene-specific character state",
+            "action and relationships",
+            "setting",
+            "composition and camera",
+            "lighting and color",
             "rendering",
             "constraints"
           ]
         }
       },
-      "recommended_parameters": {},
+      "recommended_parameters": {
+        "safety.checkContent": false
+      },
       "recommended_positive_prompt": "",
       "recommended_negative_prompt": "",
       "recommendation_merge_mode": "advisory-only",
@@ -250,57 +350,96 @@
       },
       "note": "Recommendations are starting points. Interface validity and observed image quality are separate evidence."
     },
-    "profile_sha256": "53005e9a9d2af9574f8f322dae0243e11e28a4c3664e191d0c207e29d39aad02",
+    "profile_sha256": "35f37938fe6a3bec575f982ea893225faeff848253a3688624d1b42ec00ccbbb",
     "authored_parameters": {
-      "size": "1024x1024",
-      "quality": "high"
+      "width": 1024,
+      "height": 1024,
+      "settings": {
+        "quality": "high"
+      }
     },
     "parameters": {
-      "quality": "high",
-      "size": "1024x1024"
+      "height": 1024,
+      "safety": {
+        "checkContent": false
+      },
+      "settings": {
+        "quality": "high"
+      },
+      "width": 1024
     },
     "parameter_decisions": [
       {
         "key": "CFGScale",
         "status": "backend-managed",
         "value": null,
-        "reason": "No guidance-scale control is declared by this host record."
+        "reason": "The instruction model exposes no guidance control."
+      },
+      {
+        "key": "height",
+        "status": "explicit",
+        "value": 1024,
+        "reason": "Height 16 to 3840 in steps of 16, set together with width; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
       },
       {
         "key": "numberResults",
-        "status": "backend-managed",
+        "status": "dispatch-required",
         "value": null,
-        "reason": "Output count belongs to the selected host invocation."
+        "reason": "Result count 1 to 20, set by the dispatch authorization."
       },
       {
-        "key": "quality",
-        "status": "explicit",
-        "value": "high",
-        "reason": "Choose output quality explicitly and validate it against the selected host interface."
+        "key": "outputFormat",
+        "status": "not-selected",
+        "value": null,
+        "reason": "Optional output encoding from the stored schema."
+      },
+      {
+        "key": "safety.checkContent",
+        "status": "model-recommendation",
+        "value": false,
+        "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
+      },
+      {
+        "key": "scheduler",
+        "status": "backend-managed",
+        "value": null,
+        "reason": "The instruction model exposes no scheduler control."
       },
       {
         "key": "seed",
         "status": "backend-managed",
         "value": null,
-        "reason": "This host-only record exposes no seed control."
+        "reason": "The stored schema exposes no seed control; never invent one."
       },
       {
-        "key": "size",
+        "key": "settings.background",
+        "status": "not-selected",
+        "value": null,
+        "reason": "Optional background handling; transparent requires outputFormat PNG or WEBP."
+      },
+      {
+        "key": "settings.quality",
         "status": "explicit",
-        "value": "1024x1024",
-        "reason": "Select the requested output geometry explicitly; consult the host size contract."
+        "value": "high",
+        "reason": "Optional quality level from the stored schema."
       },
       {
         "key": "steps",
         "status": "backend-managed",
         "value": null,
-        "reason": "No sampling-step control is declared by this host record."
+        "reason": "The instruction model exposes no step control."
       },
       {
         "key": "strength",
         "status": "not-applicable",
         "value": null,
-        "reason": "No denoising control is declared; reference input is not an img2img strength setting."
+        "reason": "No source-image denoising control exists on this interface; reference influence is not weightable here."
+      },
+      {
+        "key": "width",
+        "status": "explicit",
+        "value": 1024,
+        "reason": "Width 16 to 3840 in steps of 16, set together with height; combined area 655360 to 8294400 pixels, aspect ratio 1/3 to 3."
       }
     ],
     "reference_count": 0,
@@ -3062,7 +3201,7 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "6272d6d01b04a69893312fda4adcd6d6722019c1b8f9abda9753476911c4b075",
+  "generation_input_sha256": "3cf1d68725e97c965033e121f9e0bc079f34ba7d467c8b8c7280d66c2f621286",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -3180,10 +3319,21 @@
       "resolved_model_id": "gpt-image-2.5-flare"
     },
     "parameters": {
-      "quality": "high",
-      "size": "1024x1024"
+      "height": 1024,
+      "safety": {
+        "checkContent": false
+      },
+      "settings": {
+        "quality": "high"
+      },
+      "width": 1024
     },
-    "service": null,
+    "service": {
+      "id": "runware",
+      "model_identifier": "openai:gpt-image@2.5-flare",
+      "observed_at": "2026-10-06",
+      "schema_snapshot": "resources/observed-schemas/gpt-image-2-5-flare.runware.json"
+    },
     "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
     "negative_prompt_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",
     "native_negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -3204,12 +3354,12 @@
     "retrieval_record_sha256": "5b6d2fb640782c473f4731617628dc53f729fafdc784cb32dce2447a983cbbcb",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-    "generation_input_sha256": "6272d6d01b04a69893312fda4adcd6d6722019c1b8f9abda9753476911c4b075",
+    "generation_input_sha256": "3cf1d68725e97c965033e121f9e0bc079f34ba7d467c8b8c7280d66c2f621286",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "b452f58ba1ea676f6b5d60c91959bc72a35afc9b01cf96c543ead644c229b1fe",
-    "request_validation_sha256": "9cad8ec9af9a311be3225cfb23e0ff5db57d25d86606c83559379511d5543028",
-    "input_snapshots_sha256": "44a92e96a747fe68ddc12af13d162cd796bab4cb8ad5debec8b25662c961108f"
+    "route_reading_sha256": "c60ce649b4450a87bda5ff9bf43830af486f4753943b76fa0dc1a22320b8748c",
+    "request_validation_sha256": "69637c030bf936a96560ece5219cba1fb9cc2d04fd305849b334a936ac360ddc",
+    "input_snapshots_sha256": "b42640ef081136d95eaec0f96a613e9dd8091d411d8da12580b60ab7b128cebf"
   },
   "visual_continuity": {
     "purpose": "image",
@@ -3236,11 +3386,11 @@
       },
       {
         "path": "references/runtime/production-permissions.md",
-        "sha256": "bdd21473746bf5c8a52f860575f218521b53b86f54234f9347aba2f346e1148f"
+        "sha256": "424b228dc96c03394c0f65aa8a805138b9067394771c815c718e2db6b96826cd"
       },
       {
         "path": "references/runtime/production-execution.md",
-        "sha256": "5674d401a35b9ce881bb5d25343b1a3642384c8783319393d2c48cfd6adb6245"
+        "sha256": "81b957bfa1ea88405a85674cc80eb18275eb0fe3a9cf342bc0b66145df678e7a"
       },
       {
         "path": "references/runtime/state-aware-series.md",
@@ -3248,7 +3398,7 @@
       },
       {
         "path": "references/runtime/prompt-writing-guide.md",
-        "sha256": "3cc49743b4c4491e1c85f69293046a2cc641a80d23bd83755bbe08bdd4106459"
+        "sha256": "09b35ee5cc117e824a878fe9ad657be9548bdc8b3d8fa4db88a33cbbc8570216"
       },
       {
         "path": "references/runtime/reference-delivery.md",
@@ -3260,7 +3410,7 @@
       },
       {
         "path": "references/runtime/studio.md",
-        "sha256": "959439d6c45f517744810fa84d706c0846aebea6ed9b257d3a10f4d4d56b2e51"
+        "sha256": "470531e2a43b27692e6ed2c71c5e6de280bf0858ec194a4d4acd951fbc75f2a6"
       },
       {
         "path": "references/runtime/world-realization.md",
@@ -3279,7 +3429,7 @@
         "status": "present",
         "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
         "path": "resources/prompt-writing-guide/guide.json",
-        "sha256": "57d0dba7742e592a3b1bbc0e2424fe169546a7ba68ccc1ce308d387aa3d95e92"
+        "sha256": "12084814859963e57f5cd80aa642ff3353f07faf3fc2da491006994a64abfdd8"
       },
       "prompt-dialects": {
         "status": "present",
@@ -3289,7 +3439,7 @@
       }
     },
     "route": "state-series",
-    "reading_key": "8a59d3ee099efc22801321cca49008ff",
+    "reading_key": "30e91e3f1fa3903ab51a568892fc0765",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
@@ -3306,63 +3456,63 @@
       }
     ]
   },
-  "route_reading_sha256": "b452f58ba1ea676f6b5d60c91959bc72a35afc9b01cf96c543ead644c229b1fe",
+  "route_reading_sha256": "c60ce649b4450a87bda5ff9bf43830af486f4753943b76fa0dc1a22320b8748c",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",
     "target": {
-      "service": "synthetic-host",
-      "model_identifier": "gpt-image-2.5-flare",
-      "operation": "generation"
+      "service": "runware",
+      "model_identifier": "openai:gpt-image@2.5-flare",
+      "operation": "generate"
     },
-    "service_execution_sha256": "e2c94ad4f0fa1f9f6c2e9590a0e0be44a49c1e392533176adff057306a476841",
-    "offering_contract_sha256": "058ab3daa688218e22c4ce3f1776e5941e152406c016a2988f7ed7f493c45211",
-    "transport_sha256": "1abb6d4164bae914c942be47c1e08ffcd2c242c7f9640d77c3da3304aeb9e9a5",
+    "service_execution_sha256": "c468dc49632b76eaaf46631530ecc19ef5a4838b2ba95f9a4d5c04fc8bbaecbb",
+    "offering_contract_sha256": "4eaa61dfbc30ee5df561e7aeb04a6fc146eb4300fe166254ee171d28967ecc1b",
+    "transport_sha256": "487061ef201b0a39f8e3d13cd1a7930dce8f32540da58eb336a1589ee95c5a96",
     "contract": {
-      "path": "synthetic-validation/6869870cd69c35fe/contract.json",
-      "sha256": "8fc608f33f28192b0dc1ffc42e79a48503645c3b623d735c5b9120be58574450"
+      "path": "synthetic-validation/6d7df66dca004613/contract.json",
+      "sha256": "cdd7df03e86e1987057c723ddd339a0cf6e6399f23d1a4e09c0b82f66e07c2b4"
     },
     "evidence": {
-      "path": "synthetic-validation/6869870cd69c35fe/acquisition.json",
-      "sha256": "036408fe95c13ce89411aace5ce972abd7026b92968a9159449123831ef829e1"
+      "path": "synthetic-validation/6d7df66dca004613/acquisition.json",
+      "sha256": "a174f8887d1bb333c9547e645b852ca32911652c2ae87e252d1b04111f86e579"
     },
     "execution_policy": {
-      "path": "synthetic-validation/6869870cd69c35fe/policy.json",
-      "sha256": "a42d3281e7a989fb0d2be0d083f27e4d5364982447d75b043ad100a8fa335a84"
+      "path": "synthetic-validation/6d7df66dca004613/policy.json",
+      "sha256": "a90e988e88f970ba9df081df3e129234358b30a3ceb16836afc433a27a89d8e3"
     },
     "unmeasured": []
   },
-  "request_validation_sha256": "9cad8ec9af9a311be3225cfb23e0ff5db57d25d86606c83559379511d5543028",
+  "request_validation_sha256": "69637c030bf936a96560ece5219cba1fb9cc2d04fd305849b334a936ac360ddc",
   "input_snapshots": {
-    "synthetic-validation/6869870cd69c35fe/contract.json": {
-      "sha256": "8fc608f33f28192b0dc1ffc42e79a48503645c3b623d735c5b9120be58574450",
-      "size": 306,
-      "base64": "eyJhcnRpZmFjdF90eXBlIjoibW9kZWwtc2NoZW1hLWNvbnRyYWN0IiwibG9jYWxfb3ZlcmxheSI6bnVsbCwicmVzcG9uc2VfcG9pbnRlciI6Ii9zY2hlbWEiLCJzY2hlbWEiOnsidHlwZSI6Im9iamVjdCJ9LCJzY2hlbWFfc2hhMjU2IjoiOTA5MWE4MTY0Zjk3ZWFjYTE4MmIzZDA2ZDBlNWE1OWU5MjNjODgwZWJjMDE0ODA1NmM0NTNjNjUxZjViNDZjYiIsInRhcmdldCI6eyJtb2RlbF9pZGVudGlmaWVyIjoiZ3B0LWltYWdlLTIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRpb24iLCJzZXJ2aWNlIjoic3ludGhldGljLWhvc3QifX0K"
+    "synthetic-validation/6d7df66dca004613/contract.json": {
+      "sha256": "cdd7df03e86e1987057c723ddd339a0cf6e6399f23d1a4e09c0b82f66e07c2b4",
+      "size": 304,
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoibW9kZWwtc2NoZW1hLWNvbnRyYWN0IiwibG9jYWxfb3ZlcmxheSI6bnVsbCwicmVzcG9uc2VfcG9pbnRlciI6Ii9zY2hlbWEiLCJzY2hlbWEiOnsidHlwZSI6Im9iamVjdCJ9LCJzY2hlbWFfc2hhMjU2IjoiOTA5MWE4MTY0Zjk3ZWFjYTE4MmIzZDA2ZDBlNWE1OWU5MjNjODgwZWJjMDE0ODA1NmM0NTNjNjUxZjViNDZjYiIsInRhcmdldCI6eyJtb2RlbF9pZGVudGlmaWVyIjoib3BlbmFpOmdwdC1pbWFnZUAyLjUtZmxhcmUiLCJvcGVyYXRpb24iOiJnZW5lcmF0ZSIsInNlcnZpY2UiOiJydW53YXJlIn19Cg=="
     },
-    "synthetic-validation/6869870cd69c35fe/acquisition.json": {
-      "sha256": "036408fe95c13ce89411aace5ce972abd7026b92968a9159449123831ef829e1",
-      "size": 476,
-      "base64": "eyJhY3F1aXJlZF9hdCI6IjIwMDAtMDEtMDFUMDA6MDA6MDBaIiwiYXJ0aWZhY3RfdHlwZSI6InNjaGVtYS1hY3F1aXNpdGlvbiIsInJlc3BvbnNlIjp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi82ODY5ODcwY2Q2OWMzNWZlL2ludGVyZmFjZS5qc29uIiwic2hhMjU2IjoiN2I1MGYzMGMwOTE5MTJhYTU4YjIxYWJiNDE4YjYzNTJhODE2NGZjNWQxMmQyNzUwN2FiN2IyODE3NGJjY2FlOCJ9LCJzb3VyY2UiOnsiaWRlbnRpZmllciI6IlN5bnRoZXRpYyBpbnRlcmZhY2UgZml4dHVyZSIsImtpbmQiOiJkb2N1bWVudCIsImxvY2F0b3IiOiJzY2hlbWEgbWVtYmVyIn0sInN0YXR1cyI6eyJkb2N1bWVudF9zdGF0dXMiOiJzY2hlbWEtcHJvdmlkZWQifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJncHQtaW1hZ2UtMi41LWZsYXJlIiwib3BlcmF0aW9uIjoiZ2VuZXJhdGlvbiIsInNlcnZpY2UiOiJzeW50aGV0aWMtaG9zdCJ9fQo="
+    "synthetic-validation/6d7df66dca004613/acquisition.json": {
+      "sha256": "a174f8887d1bb333c9547e645b852ca32911652c2ae87e252d1b04111f86e579",
+      "size": 474,
+      "base64": "eyJhY3F1aXJlZF9hdCI6IjIwMDAtMDEtMDFUMDA6MDA6MDBaIiwiYXJ0aWZhY3RfdHlwZSI6InNjaGVtYS1hY3F1aXNpdGlvbiIsInJlc3BvbnNlIjp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi82ZDdkZjY2ZGNhMDA0NjEzL2ludGVyZmFjZS5qc29uIiwic2hhMjU2IjoiN2I1MGYzMGMwOTE5MTJhYTU4YjIxYWJiNDE4YjYzNTJhODE2NGZjNWQxMmQyNzUwN2FiN2IyODE3NGJjY2FlOCJ9LCJzb3VyY2UiOnsiaWRlbnRpZmllciI6IlN5bnRoZXRpYyBpbnRlcmZhY2UgZml4dHVyZSIsImtpbmQiOiJkb2N1bWVudCIsImxvY2F0b3IiOiJzY2hlbWEgbWVtYmVyIn0sInN0YXR1cyI6eyJkb2N1bWVudF9zdGF0dXMiOiJzY2hlbWEtcHJvdmlkZWQifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJvcGVuYWk6Z3B0LWltYWdlQDIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRlIiwic2VydmljZSI6InJ1bndhcmUifX0K"
     },
-    "synthetic-validation/6869870cd69c35fe/policy.json": {
-      "sha256": "a42d3281e7a989fb0d2be0d083f27e4d5364982447d75b043ad100a8fa335a84",
-      "size": 584,
-      "base64": "eyJhcnRpZmFjdF90eXBlIjoiZXhlY3V0aW9uLXBvbGljeSIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi82ODY5ODcwY2Q2OWMzNWZlL2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwicHJvZHVjdGlvbl9jb250ZXh0X3RyYW5zcG9ydCI6Im5vbmUiLCJyZWZlcmVuY2VfaW5zdHJ1Y3Rpb25fdHJhbnNwb3J0Ijp7ImNvbnRyYWN0Ijp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi82ODY5ODcwY2Q2OWMzNWZlL3JlZmVyZW5jZXMuanNvbiIsInNoYTI1NiI6ImRkNDc2NTJkNTg5NDg1MjA2NjI5YzI3ZGM3MzI1MGUwNzFiNDk3OTI0NTA2MTE3MWJjZDgzNDQ4OWJhMWE0OWUifSwibW9kZSI6InByb21wdC1wcmVmaXgifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJncHQtaW1hZ2UtMi41LWZsYXJlIiwib3BlcmF0aW9uIjoiZ2VuZXJhdGlvbiIsInNlcnZpY2UiOiJzeW50aGV0aWMtaG9zdCJ9LCJ0ZXh0X2RpYWxlY3QiOiJzeW50aGV0aWMtcHJvc2UifQo="
+    "synthetic-validation/6d7df66dca004613/policy.json": {
+      "sha256": "a90e988e88f970ba9df081df3e129234358b30a3ceb16836afc433a27a89d8e3",
+      "size": 582,
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoiZXhlY3V0aW9uLXBvbGljeSIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi82ZDdkZjY2ZGNhMDA0NjEzL2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwicHJvZHVjdGlvbl9jb250ZXh0X3RyYW5zcG9ydCI6Im5vbmUiLCJyZWZlcmVuY2VfaW5zdHJ1Y3Rpb25fdHJhbnNwb3J0Ijp7ImNvbnRyYWN0Ijp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi82ZDdkZjY2ZGNhMDA0NjEzL3JlZmVyZW5jZXMuanNvbiIsInNoYTI1NiI6IjViZTc4NmYxMDhkMmI2Y2U3ODhmN2M2ODVhM2I2MTI5Mzg1Y2E1NGE4ZWUzNGY3MzAyNmY4OTMxMzgxMGE2N2UifSwibW9kZSI6InByb21wdC1wcmVmaXgifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJvcGVuYWk6Z3B0LWltYWdlQDIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRlIiwic2VydmljZSI6InJ1bndhcmUifSwidGV4dF9kaWFsZWN0Ijoic3ludGhldGljLXByb3NlIn0K"
     },
-    "synthetic-validation/6869870cd69c35fe/interface.json": {
+    "synthetic-validation/6d7df66dca004613/interface.json": {
       "sha256": "7b50f30c091912aa58b21abb418b6352a8164fc5d12d27507ab7b28174bccae8",
       "size": 46,
       "base64": "eyJzY2hlbWEiOnsidHlwZSI6Im9iamVjdCJ9LCJzeW50aGV0aWMiOnRydWV9Cg=="
     },
-    "synthetic-validation/6869870cd69c35fe/basis.txt": {
+    "synthetic-validation/6d7df66dca004613/basis.txt": {
       "sha256": "424db1c13f6c398026a9d9ae39d4e8f294e1274d4e2d1dec1ab501e7d61e06c5",
       "size": 60,
       "base64": "U3ludGhldGljIGludGVyZmFjZSBkZWNsYXJhdGlvbi4gTm8gcHJvdmlkZXIgd2FzIGNvbnRhY3RlZC4K"
     },
-    "synthetic-validation/6869870cd69c35fe/references.json": {
-      "sha256": "dd47652d589485206629c27dc73250e071b4979245061171bcd834489ba1a49e",
-      "size": 409,
-      "base64": "eyJhcnRpZmFjdF90eXBlIjoicmVmZXJlbmNlLXJlbmRlci1jb250cmFjdCIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi82ODY5ODcwY2Q2OWMzNWZlL2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwiZGlhbGVjdHMiOlsic3ludGhldGljLXByb3NlIl0sImZpZWxkcyI6W10sIm1vZGUiOiJwcm9tcHQtcHJlZml4IiwicmVuZGVyZXIiOiJyZWZlcmVuY2UtZGVsaXZlcnkiLCJ0YXJnZXQiOnsibW9kZWxfaWRlbnRpZmllciI6ImdwdC1pbWFnZS0yLjUtZmxhcmUiLCJvcGVyYXRpb24iOiJnZW5lcmF0aW9uIiwic2VydmljZSI6InN5bnRoZXRpYy1ob3N0In19Cg=="
+    "synthetic-validation/6d7df66dca004613/references.json": {
+      "sha256": "5be786f108d2b6ce788f7c685a3b6129385ca54a8ee34f73026f89313810a67e",
+      "size": 407,
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoicmVmZXJlbmNlLXJlbmRlci1jb250cmFjdCIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi82ZDdkZjY2ZGNhMDA0NjEzL2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwiZGlhbGVjdHMiOlsic3ludGhldGljLXByb3NlIl0sImZpZWxkcyI6W10sIm1vZGUiOiJwcm9tcHQtcHJlZml4IiwicmVuZGVyZXIiOiJyZWZlcmVuY2UtZGVsaXZlcnkiLCJ0YXJnZXQiOnsibW9kZWxfaWRlbnRpZmllciI6Im9wZW5haTpncHQtaW1hZ2VAMi41LWZsYXJlIiwib3BlcmF0aW9uIjoiZ2VuZXJhdGUiLCJzZXJ2aWNlIjoicnVud2FyZSJ9fQo="
     },
     "fixture-visual-basis.txt": {
       "sha256": "8214731768861c3035f864cd014f4f7256ab4f8cfdf94d186935321a01e4d683",
@@ -3370,5 +3520,5 @@
       "base64": "U3ludGhldGljIHZpc3VhbCBkZWNpc2lvbnMgZm9yIG9uZSBkZWNsYXJlZCB0ZXN0IGlucHV0LiBOb3QgYW4gYXV0aG9yIGFwcHJvdmFsLgo="
     }
   },
-  "input_snapshots_sha256": "44a92e96a747fe68ddc12af13d162cd796bab4cb8ad5debec8b25662c961108f"
+  "input_snapshots_sha256": "b42640ef081136d95eaec0f96a613e9dd8091d411d8da12580b60ab7b128cebf"
 }

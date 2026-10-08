@@ -46,8 +46,8 @@ _BEARER = re.compile(r'(?i)(Bearer\s+)[^\s"\'<>]+')
 _SIGNED_QUERY = re.compile(r'(?i)([?&](?:signature|sig|token|key|x-amz-signature|x-amz-credential|credential|x-goog-signature)=)[^\s&#"\']+')
 _SAFE_ARGS = {'command','root','studio_root','run','from_run','task','file','out','out_dir','candidate',
               'character','slot','model','service','parameters_file','settings_file','changes_file','state_file','cache_dir',
-              'managed_root','pack_root','pack','directory','grant','reservation','operation','budget','failed',
-              'prepare','seed','count','send','help','profile','route','features','feature','production_run','production_root','studio','before','apply'}
+              'managed_root','pack_root','pack','directory','grant','execution','operation','failed',
+              'prepare','seed','count','send','help','profile','route','features','feature','production_run','production_root','studio','sheet','spec','state','plan','edit','artifact','question_id','task_id','from_step','limit','offset','before','apply'}
 _LOG_FILES = frozenset({'operation.json', 'events.jsonl', 'stdout.log', 'stderr.log', 'artifacts.json'})
 _STREAM_FILES = ('events.jsonl', 'stdout.log', 'stderr.log')
 _CONSOLE_FILES = frozenset({'stdout.log', 'stderr.log'})
@@ -56,7 +56,7 @@ _PARTIAL_FILES = frozenset({'.operation.json.tmp', '.artifacts.json.tmp'})
 # Output written before the Studio is known, kept to rebuild the record there.
 _EARLY_LIMIT = 1 << 20
 # Link kinds that collect every value an operation touches.
-_LIST_LINKS = {'candidate': 'candidates', 'reservation': 'reservations'}
+_LIST_LINKS = {'candidate': 'candidates', 'execution': 'executions'}
 
 
 def timestamp() -> str:
@@ -503,18 +503,18 @@ class Operation:
         self.metadata['arguments'] = {k: safe_value(v, secrets=self.secrets, key=k) if k in _SAFE_ARGS else '[VALUE OMITTED]'
                                       for k, v in values.items()}
         query = values.get('command') in QUERY_COMMANDS
-        for key in ('run','task','candidate','grant','reservation'):
+        for key in ('run','task','candidate','grant','execution'):
             if values.get(key) is not None:
                 self._link('query_run' if query and key == 'run' else key, safe_value(values[key], secrets=self.secrets))
         # Explicit studio roots name a Studio itself; --studio also accepts a
         # directory inside a Studio, as the public Studio/dispatch interfaces do.
         root = None
-        for key in ('production_root', 'root', 'studio_root', 'studio'):
+        for key in ('production_root', 'root', 'studio_root', 'studio', 'sheet', 'spec'):
             selected = values.get(key)
             if not selected:
                 continue
             location = Path(selected).resolve()
-            candidates = (location, *location.parents) if key == 'studio' else (location,)
+            candidates = (location, *location.parents) if key in {'studio', 'sheet', 'spec'} else (location,)
             root = next((p for p in candidates if (p/'studio.json').is_file()), None)
             if root is not None:
                 break
@@ -526,6 +526,17 @@ class Operation:
         self._settle()
         self.json('operation.json', self.metadata)
         self.event('arguments_parsed')
+
+    def bind_studio(self, root: Path) -> None:
+        root = root.resolve()
+        if not (root / 'studio.json').is_file() or self.metadata['context'].get('studio') == str(root):
+            return
+        if self.metadata['context'].get('studio'):
+            self.link(related_studio=str(root))
+            return
+        self._relocate(root / 'logs/operations' / self.path.parent.name / self.id)
+        self.metadata['context']['studio'] = str(root)
+        self.json('operation.json', self.metadata)
 
     def _link(self, kind: str, value: Any) -> bool:
         if value is None:
@@ -545,9 +556,9 @@ class Operation:
         return True
 
     def link(self, **facts: Any) -> None:
-        """Associate the operation with tasks, runs, grants, reservations and candidates.
+        """Associate the operation with tasks, runs, grants, executions and candidates.
 
-        `candidate` and `reservation` accumulate lists; other kinds hold one value.
+        `candidate` and `execution` accumulate lists; other kinds hold one value.
         """
         changed = False
         for kind, value in facts.items():
@@ -957,13 +968,12 @@ def _process_alive(pid: Any) -> bool:
 def _run_has_unresolved_external_effect(root: Path, run: str) -> bool:
     """Conservatively protect diagnostics while an external outcome is unresolved.
 
-    A reservation is resolved once it is settled, or released because every
-    step it started was evidenced as rejected or not executed. A send the
-    author evidenced as not executed resolves the claim it belongs to.
+    An execution is resolved when its output capture is complete, or all its
+    started steps have evidenced no-effect outcomes. Unknown results keep logs.
     """
     try:
         import production_workflow as workflow
-        import reservation_lifecycle as accounting
+        import execution_lifecycle as accounting
         _, prepared, _, rows = workflow.load_run(root, run)
         claims = [row for row in rows if row['event'] in {'dispatch-claim', 'external-claim'}]
         if not claims:
@@ -973,20 +983,23 @@ def _run_has_unresolved_external_effect(root: Path, run: str) -> bool:
                 and outcomes[-1]['data'].get('claim') == claims[-1]['sha256']):
             return False
         states = accounting.derive(rows, prepared, run)
-        resolved = {'settled', 'released'}
-        if any(state.get('steps') and state.get('status') not in resolved for state in states.values()):
+        def resolved(state):
+            return state['status'] == 'complete' or all(
+                (state['effect_results'].get(step['step']) or {}).get('outcome') in accounting.NO_EFFECT_OUTCOMES
+                for step in state['steps'])
+        if any(state.get('steps') and not resolved(state) for state in states.values()):
             return True
         external = [row for row in claims if row['event'] == 'external-claim']
         if external:
             tokens = {token for row in external for token in row['data']['authorizations']}
             owned = [state for state in states.values() if state.get('authorization_sha256') in tokens]
-            if len(owned) != len(tokens) or any(state.get('status') not in resolved for state in owned):
+            if len(owned) != len(tokens) or any(not resolved(state) for state in owned):
                 return True
         # A previous timeout is not the current truth after formal capture and
         # settlement. Keep uncertain claims protected until their real evidence
         # exists; do not infer resolution merely from a closed CLI operation.
         if outcomes and outcomes[-1]['data'].get('submission') == 'outcome_unknown':
-            return not (states and all(state.get('status') in resolved for state in states.values()))
+            return not (states and all(resolved(state) for state in states.values()))
         return False
     except Exception:
         # A damaged formal run is exactly when its diagnostics are most valuable.

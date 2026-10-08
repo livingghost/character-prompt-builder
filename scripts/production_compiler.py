@@ -2,7 +2,7 @@
 
 A check returns diagnostics and an ephemeral preview. Preparation publishes the
 same compiled contents only when all required input checks passed. Permission,
-credentials and unsettled cost are execution readiness, not malformed input.
+and credentials are execution readiness, not malformed input.
 """
 from __future__ import annotations
 import copy
@@ -13,7 +13,6 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
-from decimal import Decimal, localcontext
 from typing import Any
 
 import execution_contract as c
@@ -83,10 +82,6 @@ def input_digest(prepared: dict, consumer: dict) -> str:
     task=copy.deepcopy(prepared['task'])
     task.pop('authority',None)
     task.pop('execution_decisions',None)
-    for selection in ('generation','upscale'):
-        if task.get(selection) is not None:
-            task[selection].pop('cost',None)
-            task[selection].pop('external_costs',None)
     # The task file's content is the task itself. Every other task source is a
     # derived input that the run owns, and its content is part of the input.
     dependencies=[x for x in prepared['dependencies'] if x['space']!='evidence'
@@ -372,7 +367,7 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         def references():
             prepared, _ = builder.materialize_cli_reference_bundle(doc('references'),
                 model=doc('production_spec')['target_model'], source_root=c.local(root,selected['references']).parent,
-                staging_root=directory, companion_name='package.references')
+                staging_root=directory, companion_name='package.' + c.content_id(doc('references'))[:24] + '.references')
             return prepared
         checks.check('reference-preparation',references,
                      requires=['target-contract','dependency-preflight',dependency('$.generation.references')],file=selected['references'])
@@ -396,8 +391,8 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         checks.check('execution-quantity',quantity,requires=['execution-profile','specification']+whole,file=task_path,pointer='$.generation.count')
     if selected.get('request_validation'):
         from request_validation import require
-        from input_evidence import InputEvidence
-        checks.check('request-validation-evidence',lambda:require(doc('request_validation'),InputEvidence(root)),
+        import runtime_evidence
+        checks.check('request-validation-evidence',lambda:require(doc('request_validation'),runtime_evidence.reader(root)),
             requires=[dependency('$.generation.request_validation'),'runtime-resolution'],file=selected['request_validation'])
     if selected.get('negative_provenance'):
         checks.check('negative-provenance',lambda:builder.normalize_negative_provenance(doc('negative_provenance')),
@@ -505,7 +500,8 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
             data=InputEvidence._decode(item)
             if not path.startswith('@') and path!=prepared['task_path']:
                 space=dependency_space(path)
-                known[(space,path)]={'space':space,'path':path,'sha256':item['sha256'],'size':item['size']}
+                from sheet_artifacts import dependency
+                known[(space,path)]=dependency(space,path,data)
                 blobs[item['sha256']]=data
         prepared['dependencies']=sorted(known.values(),key=lambda d:(d['space'],d['path']))
         prepared['input_sha256']=input_digest(prepared,consumer)
@@ -520,68 +516,36 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
         rendered=request_renderer.generation(package,verified,model_record,offering,service,transport,seed=selected['seed'],count=selected['count'])
         request_renderer.check_final(validation,runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots'])),rendered)
     return _execution_plan(root,task,prepared,package,rendered,directory,identity,model_id,model_record,offering,service,transport,
-                           seed=selected['seed'],count=selected['count'],cost=selected.get('cost'),
+                           seed=selected['seed'],count=selected['count'],
                            fields=mutable_fields(package,rendered))
 
 
-def _cost_effects(selected: dict, rendered: dict, count: int) -> tuple[dict | None, list[dict]]:
-    """Resolve every irreversible external effect and one aggregate reservation quote.
-
-    The task's ``cost`` covers the provider send.  Other externally visible
-    steps (currently media upload) have their own explicit cost declarations.
-    An unknown effect cost makes the aggregate quote unknown; it is never
-    treated as zero.  Different currencies are not silently combined.
-    """
-    effects=[]
-    external=selected.get('external_costs') or []
-    if not isinstance(external,list):
-        raise ProductionError('INPUT_SCHEMA_INVALID','external_costs must be an array.',phase='request-compilation',pointer='$.external_costs')
-    by_operation={}
-    for item in external:
-        if not isinstance(item,dict) or item.get('operation') in by_operation:
-            raise ProductionError('INPUT_CONSISTENCY_ERROR','Each external cost operation must be declared exactly once.',phase='request-compilation',pointer='$.external_costs')
-        by_operation[item.get('operation')]=item
-    media_count=len(rendered['media'])
-    allowed={'upload'} if media_count else set()
-    if set(by_operation)-allowed:
-        raise ProductionError('INPUT_CONSISTENCY_ERROR','external_costs declares an operation this request will not perform.',phase='request-compilation',pointer='$.external_costs',actual=sorted(set(by_operation)-allowed))
-    if media_count:
-        quote=copy.deepcopy(by_operation.get('upload'))
-        effects.append({'operation':'upload','count':media_count,'cost':None if quote is None else {k:quote[k] for k in ('currency','amount','basis')}})
-    send_cost=copy.deepcopy(selected.get('cost'))
-    effects.append({'operation':'send','count':1,'outputs':count,'cost':send_cost})
-    quotes=[item['cost'] for item in effects]
-    if any(item is None for item in quotes):
-        return None,effects
-    currencies={item['currency'] for item in quotes}
-    if len(currencies)!=1:
-        return None,effects
-    currency=next(iter(currencies))
-    with localcontext() as context:
-        context.prec=max([len(item['amount']) for item in quotes]+[64])+len(str(len(quotes)))+16
-        total=sum((Decimal(item['amount']) for item in quotes),Decimal('0'))
-    aggregate={'currency':currency,'amount':format(total,'f'),
-               'basis':'Aggregate ceiling for the explicitly listed external effects: '+
-                       '; '.join(f"{item['operation']}: {item['cost']['basis']}" for item in effects)}
-    return aggregate,effects
+def _external_effects(rendered: dict, count: int) -> list[dict]:
+    effects = []
+    if rendered['media']:
+        effects.append({'operation': 'upload', 'count': len(rendered['media'])})
+    effects.append({'operation': 'send', 'count': 1, 'outputs': count})
+    return effects
 
 
 def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict,directory:Path,identity:str,
-                    model_id:str,model_record:dict,offering:dict,service:dict,transport,*,seed:int|None,count:int,cost:dict|None,fields:dict)->tuple:
+                    model_id:str,model_record:dict,offering:dict,service:dict,transport,*,seed:int|None,count:int,fields:dict)->tuple:
     import production_workflow as workflow
-    selected=task['upscale'] if package.get('artifact_type')=='upscale-request' else task['generation']
-    aggregate_cost,effects=_cost_effects(selected,rendered,count)
+    effects = _external_effects(rendered, count)
+    from check_tag_prompt import require_request
+    prompt_check = require_request(rendered, model_record) if package.get('artifact_type') != 'upscale-request' else {
+        'state': 'not-applicable', 'request_sha256': rendered['request_sha256'], 'findings': []}
     intent=workflow.submission_intent(package,rendered=rendered,seed=seed,count=count,offering=offering,service=service)
     direction={'operation':'direction','targets':workflow.plan.direction_targets(task),
                'payload':{'consumer_sha256':prepared['consumer_sha256'],'recipient':service['transport'],'method':'dispatcher'}}
     plan={'run':identity,'execution':task['execution'],'input_sha256':prepared['input_sha256'],'request_sha256':rendered['request_sha256'],
-          'operations':[direction,intent],'recording':task['recording'],'quantities':{'uses':1,'outputs':count},
-          'cost':aggregate_cost,'service':offering['service'],'model':model_id,'transport':service['transport'],
+          'operations':[direction,intent],'recording':task['recording'],'quantities':{'submissions':1,'outputs':count},
+          'service':offering['service'],'model':model_id,'transport':service['transport'],
           'handoff':{'recipient':service['transport'],'method':'dispatcher','consumer_sha256':prepared['consumer_sha256'],
                      'targets':direction['targets']},
-          'external_effects':effects,
+          'external_effects':effects,'prompt_check':prompt_check,
           'request':rendered['request'],'validation':package['request_validation'],'mutable_fields':fields,
-          'readiness':execution_readiness(prepared,operations=[direction,intent],cost=aggregate_cost,effects=effects)}
+          'readiness':execution_readiness(prepared,operations=[direction,intent])}
     validate_document(plan,PLAN_SCHEMA,'execution plan')
     c.atomic(directory/'execution-target.json',c.encoded({'model':model_record,'model_id':model_id,'offering':offering,'service':service,
                                                       'transport_sha256':c.sha256_file(Path(transport.__file__))}))
@@ -607,6 +571,10 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
     from route_reading import copy_issuance,ledger_candidates
     package=c.decode(consumer['instructions'].encode('utf-8'))
     validate_upscale_input(root,package)
+    import sheet_artifacts
+    source_artifact = sheet_artifacts.upscale_source(root, task, package)
+    if source_artifact is not None:
+        c.atomic(directory / 'sheet-derivation.json', c.encoded(source_artifact))
     model_id,model=dispatch.resolve_model_record(package['model'])
     require_upscale_target(model_id,model,package)
     offering=dispatch.select_offering(model,task['upscale']['service'])
@@ -630,13 +598,14 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
     carrier=directory/'upscale.references'/('source'+source.suffix.lower());c.atomic(carrier,raw)
     dependencies={(item['space'],item['path']):item for item in prepared['dependencies']}
     space=dependency_space(path)
-    dependencies[(space,path)]={'space':space,'path':path,'sha256':compare,'size':len(raw)}
+    from sheet_artifacts import dependency
+    dependencies[(space,path)]=dependency(space,path,raw)
     blobs[compare]=raw
     for name,item in package['input_snapshots'].items():
         data=InputEvidence._decode(item)
         if not name.startswith('@'):
             space=dependency_space(name)
-            dependencies[(space,name)]={'space':space,'path':name,'sha256':item['sha256'],'size':item['size']}
+            dependencies[(space,name)]=dependency(space,name,data)
             blobs[item['sha256']]=data
     prepared['dependencies']=sorted(dependencies.values(),key=lambda item:(item['space'],item['path']))
     prepared['input_sha256']=input_digest(prepared,consumer)
@@ -648,7 +617,7 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
         request_renderer.check_final(package['request_validation'],runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots'])),rendered)
     task_schema=c.load(ROOT/'schemas/authoring/production-task.schema.json')
     return _execution_plan(root,task,prepared,package,rendered,directory,identity,model_id,model,offering,service,transport,
-                           seed=None,count=1,cost=task['upscale'].get('cost'),fields={
+                           seed=None,count=1,fields={
             'upscale-input':_field('An explicitly authored upscale input declaration; the target model stays fixed.',PATH_VALUE,
                 required=True,value_form='studio-file',document_type='upscale-request',
                 checks=['upscale-document','upscale-source','target-contract','upscale-model-controls','execution-controls',
@@ -657,7 +626,7 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
                 required=True,checks=['recording-validation'])})
 
 
-def execution_readiness(prepared: dict, *, operations: list[dict], cost: dict | None, effects: list[dict]) -> dict:
+def execution_readiness(prepared: dict, *, operations: list[dict]) -> dict:
     import production_permissions as permissions
     diagnostics=[]
     authority=prepared.get('authority')
@@ -674,14 +643,7 @@ def execution_readiness(prepared: dict, *, operations: list[dict], cost: dict | 
                     required_action=permissions.SCOPE_ACTION).as_dict())
         diagnostics.append(Diagnostic('AUTHORIZATION_REQUIRED','Exact execution receipts require the actual actor assessment of this preview.',phase='readiness',severity='warning',
                                       required_action='Provide execution decisions or existing exact receipts; invoking execute is not approval.').as_dict())
-    if cost is None:
-        missing=[item['operation'] for item in effects if item.get('cost') is None]
-        currencies=sorted({item['cost']['currency'] for item in effects if item.get('cost') is not None})
-        reason = ('Missing cost conditions for: '+', '.join(missing)) if missing else ('External effects use multiple currencies: '+', '.join(currencies))
-        diagnostics.append(Diagnostic('COST_UNCONFIRMED','Every irreversible external effect needs an explicit compatible cost condition. '+reason,phase='readiness',severity='warning',
-                                      required_action='Declare the quoted cost for each external effect; unknown cost is not zero and currencies are not silently combined.').as_dict())
-    return {'state':'configuration_required' if cost is None else 'authorization_required',
-            'executable':False,'diagnostics':diagnostics}
+    return {'state':'authorization_required', 'executable':False, 'diagnostics':diagnostics}
 
 
 # A studio file named as {"path": STUDIO_RELATIVE_FILE}.
@@ -699,8 +661,7 @@ DOCUMENT_DECLARATIONS={
     'state-lineage':('state-lineage',False,True,['source-validation','package-compilation']),
     'state-snapshot':('state-snapshot',False,True,['source-validation','package-compilation']),
     'negative-provenance':('negative-provenance',False,True,['negative-provenance','negative-transport']),
-    'references':('prepared-reference-set',False,True,['dependency-preflight','reference-preparation','recording-validation']+REQUEST),
-}
+    'references':('prepared-reference-set',False,True,['dependency-preflight','reference-preparation','recording-validation']+REQUEST)}
 # Task fields: whether the task needs a value, the checks that run again, and
 # whether a change keeps, rechecks or redefines the protected criteria.
 TASK_DECLARATIONS={
@@ -711,8 +672,7 @@ TASK_DECLARATIONS={
     'world-views':(False,['task-contract','world-views','source-validation'],'recheck'),
     'moment-views':(False,['task-contract','moment-views','source-validation'],'recheck'),
     'route-reading':(True,['route-reading'],'recheck'),
-    'features':(True,['task-contract','route-reading']+REQUEST,'recheck'),
-}
+    'features':(True,['task-contract','route-reading']+REQUEST,'recheck')}
 
 
 def _field(description: str, schema: dict, *, required: bool, nullable: bool = False, value_form: str = 'inline',
@@ -786,7 +746,7 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
     root=c._root(root)
     identity=identity or generate_uuid7()
     report={'ok':False,'publishable':False,'run':None,'diagnostics':[],'checks':[],'external_effect':False,
-            'budget_effect':'none','formal_run_created':False}
+            'formal_run_created':False}
     diagnostics=report['diagnostics']
     active_phase='input-validation'
     directory=None
@@ -991,7 +951,7 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
                 if dependency['space'] in {'evidence','task-source'}:continue
                 try:actual=workflow.current_sha256(root,dependency)
                 except (ValueError,OSError):actual=None
-                if actual!=dependency['sha256']:
+                if actual!=dependency.get('selection_sha256', dependency['sha256']):
                     raise workflow.freshness_error(dependency,actual,run=None,phase='publication')
             if prepared.get('runtime_snapshot') is not None:
                 import runtime_snapshot as fixed_runtime
@@ -1022,7 +982,7 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
             operation.link(run=run,task=prepared['task']['task_id'])
         return {'ok':True,'run':run,'input_sha256':prepared['input_sha256'],'consumer':str(target/'consumer.json'),
                 'package':str(target/'package.json') if compiled.package else None,'request_preview':compiled.report['request_preview'],
-                'execution_plan':compiled.execution_plan,'warnings':warnings,'formal_run_created':True,'budget_effect':'none'}
+                'execution_plan':compiled.execution_plan,'warnings':warnings,'formal_run_created':True}
     except BaseException:
         if directory.exists():
             try:c.atomic(directory/'failure.json',c.encoded({'state':'publication-interrupted','target':str(target)}))

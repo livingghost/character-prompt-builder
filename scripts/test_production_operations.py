@@ -373,15 +373,15 @@ class OperationTests(unittest.TestCase):
         child = next(value for key, value in rows.items() if key != parent['id'])
         self.assertEqual(child['parent_operation'], parent['id'])
 
-    def test_candidate_and_reservation_links_accumulate(self):
+    def test_candidate_and_execution_links_accumulate(self):
         def command():
             operation = ops.current()
-            for candidate, reservation in (('a' * 64, 'r-1'), ('b' * 64, 'r-2'), ('a' * 64, 'r-1')):
-                operation.link(run='synthetic-run', candidate=candidate, reservation=reservation)
+            for candidate, execution in (('a' * 64, 'r-1'), ('b' * 64, 'r-2'), ('a' * 64, 'r-1')):
+                operation.link(run='synthetic-run', candidate=candidate, execution=execution)
         self.assertEqual(self.invoke(command)[0], 0)
         context = self.records()[0]['metadata']['context']
         self.assertEqual(context['candidates'], ['a' * 64, 'b' * 64])
-        self.assertEqual(context['reservations'], ['r-1', 'r-2'])
+        self.assertEqual(context['executions'], ['r-1', 'r-2'])
         self.assertEqual(context['run'], 'synthetic-run')
 
     def test_registered_credential_is_absent_from_logs_and_export(self):
@@ -659,7 +659,7 @@ class ProductionOperationTests(unittest.TestCase):
         import production_execution as execution
         import production_store as store
         import production_workflow as workflow
-        import reservation_lifecycle as accounting
+        import execution_lifecycle as accounting
         import transport_synthetic
         import execution_contract as c
         from test_production_execution import decisions
@@ -678,41 +678,7 @@ class ProductionOperationTests(unittest.TestCase):
         execution.resume(self.root, run, outcome_file='outcome.json')
         self.assertFalse(ops._run_has_unresolved_external_effect(self.root, run))
         self.assertEqual(self.cleanup_candidates(self.root, run, 'stated-not-executed'), ['stated-not-executed'])
-        state = accounting.all_states(self.root, run=run)[0]
-        release = accounting.draft_release(self.root, run, state['reservation_id'])
-        release.update(actor=actor, reason='The provider evidenced that the send was never executed.',
-                       evidence=statement['evidence'])
-        fixtures.write(self.root/'release.json', release)
-        self.assertTrue(accounting.release(self.root, run, 'release.json')['released'])
-        self.assertFalse(ops._run_has_unresolved_external_effect(self.root, run))
 
-    def test_reservation_released_after_a_rejected_upload_releases_log_protection(self):
-        import production_case_fixtures as fixtures
-        import production_execution as execution
-        import production_store as store
-        import production_workflow as workflow
-        import reservation_lifecycle as accounting
-        import transport_contract
-        import transport_synthetic
-        from test_production_execution import decisions
-        base = Path(self.tmp.name)
-        root = fixtures.create(base/'upscale-studio', base/'upscale-runtime', with_upscale=True)['root']
-        run = workflow.prepare(root, fixtures.upscale_task(root))['run']
-        refusal = transport_contract.Refused('Synthetic refusal of the upload', {'errors': [{'code': 'synthetic-upload-refused'}]})
-        with patch.object(transport_synthetic, 'upload_bytes', side_effect=refusal), \
-                patch.object(transport_synthetic, 'send', side_effect=AssertionError('No send after a refused upload')):
-            execution.execute(root, run, decisions_file=decisions(root, run))
-        state = accounting.all_states(root, run=run)[0]
-        release = accounting.draft_release(root, run, state['reservation_id'])
-        evidence = workflow.find(store.event_rows(root, run), 'execution-outcome')['data']['evidence'][0]
-        release.update(actor=store.authority(root, workflow.load_run(root, run)[1]['task']['task_id'])['issuer'],
-                       reason='The service refused the upload, so nothing was executed.',
-                       evidence={'path': evidence['path'], 'sha256': evidence['sha256'], 'locator': 'whole refusal'})
-        fixtures.write(root/'release.json', release)
-        self.assertTrue(accounting.release(root, run, 'release.json')['released'])
-        self.assertEqual(accounting.all_states(root, run=run)[0]['status'], 'released')
-        self.assertFalse(ops._run_has_unresolved_external_effect(root, run))
-        self.assertEqual(self.cleanup_candidates(root, run, 'refused-upload'), ['refused-upload'])
 
 if __name__ == '__main__':
     import stdio_utf8

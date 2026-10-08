@@ -251,7 +251,7 @@ def execute(root: Path, run: str, filename: str, authorization: str) -> dict:
             {'intent':intent,'authorizations':[authorization],'files':files,'evidence':evidence,
              'reason':compiled['plan']['reason'],'limitations':compiled['plan']['limitations']},
             [authorization],effect='local-action')
-    # A failed computation leaves the reservation/claim. It never creates a new permission.
+    # A failed computation leaves the execution claim. It never creates a new permission.
     raw = _render(compiled)
     with c.lock(root):
         directory, prepared, _, rows = w.assert_current(root, run)

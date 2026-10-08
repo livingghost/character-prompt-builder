@@ -34,9 +34,9 @@ class SeriesTests(unittest.TestCase):
         first=self.prepare();self.task['criteria'][0]['text']='Changed protected criterion.'
         second=self.prepare('second.json');p=w.load_run(self.root,second)[1]
         self.assertEqual(p['criteria_predecessor'],first)
-        before=w.reservations(self.root,self.task['task_id'])
+        before=__import__('execution_lifecycle').all_states(self.root,task_id=self.task['task_id'])
         with self.assertRaises(ValueError):fixture.handoff(self.root,second,'synthetic operator','manual')
-        self.assertEqual(before,w.reservations(self.root,self.task['task_id']))
+        self.assertEqual(before,__import__('execution_lifecycle').all_states(self.root,task_id=self.task['task_id']))
     def test_interleaved_series_finds_nearest_same_series(self):
         identity=self.task['production_id'];first=self.prepare()
         self.task['production_id']=generate_uuid7();second=self.prepare('second.json')
@@ -53,15 +53,15 @@ class SeriesTests(unittest.TestCase):
     def test_missing_identity_is_not_generated(self):
         del self.task['production_id']
         with self.assertRaises(ValueError):self.prepare()
-    def test_budget_uses_same_task_across_series(self):
+    def test_executions_keep_the_same_task_across_series(self):
         first=self.prepare();fixture.handoff(self.root,first,'synthetic operator','manual')
         self.task['production_id']=generate_uuid7();second=self.prepare('second.json');fixture.handoff(self.root,second,'synthetic operator','manual')
-        self.assertEqual(w.reservations(self.root,self.task['task_id']),[])
-        import reservation_lifecycle as life
+        self.assertEqual(__import__('execution_lifecycle').all_states(self.root,task_id=self.task['task_id']),[])
+        import execution_lifecycle as life
         for run in (first,second):
             authorization=fixture.grant(self.root,run,{'operation':'submit','targets':['delivery'],'payload':{'count':1,'synthetic':True}})
-            life.reserve(self.root,run,authorization)
-        self.assertEqual(len(w.reservations(self.root,self.task['task_id'])),2)
+            life.claim_execution(self.root,run,authorization)
+        self.assertEqual(len(__import__('execution_lifecycle').all_states(self.root,task_id=self.task['task_id'])),2)
 
 if __name__=='__main__':
     import stdio_utf8

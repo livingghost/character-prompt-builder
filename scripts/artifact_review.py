@@ -80,7 +80,7 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
     changes: list[dict] = []
     for dep in prepared['dependencies']:
         try:
-            if workflow.current_sha256(root, dep) != dep['sha256']:
+            if workflow.current_sha256(root, dep) != dep.get('selection_sha256', dep['sha256']):
                 changes.append({'space': dep['space'], 'path': dep['path'], 'reason': 'content changed'})
         except (OSError, ValueError):
             changes.append({'space': dep['space'], 'path': dep['path'], 'reason': 'missing or unreadable'})

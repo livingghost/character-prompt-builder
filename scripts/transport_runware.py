@@ -239,7 +239,7 @@ def compile_upscale(model_identifier: str, source_path: str, scale: float, setti
 
 
 def upload_bytes(data: bytes, media_type: str, service: dict[str, Any], key: str) -> dict:
-    """Upload the exact bytes already verified and reserved by the dispatcher."""
+    """Upload the exact bytes already verified and claimed by the dispatcher."""
     if not isinstance(data, bytes) or not isinstance(media_type, str) or not media_type:
         raise ValueError('upload requires verified bytes and their declared media type')
     payload = f"data:{media_type};base64," + base64.b64encode(data).decode("ascii")

@@ -30,7 +30,6 @@ def task(root: Path, spec: dict, *, artifact: str = 'text', execution: str = 'au
                  'grants': [{'id': 'fixture-grant', 'actor': ACTOR, 'mode': 'direct',
                              'operations': ['direction', 'edit', 'submit', 'select', 'adopt'],
                              'targets': ['purpose', 'delivery', 'decision:expression', 'canon:sheet'],
-                             'limits': {'uses': 100, 'outputs': 20, 'cost': {'currency': 'USD', 'amount': '100'}},
                              'protected_criteria': [], 'expires_at': None, 'request_scope': None,
                              'submission_validation_modes': ['target-schema', 'bounded-probe', 'observed-profile']}], 'stop_conditions': []}
     (root / spec['authority']).write_bytes(c.encoded(authority))
@@ -38,13 +37,11 @@ def task(root: Path, spec: dict, *, artifact: str = 'text', execution: str = 'au
     return spec
 
 
-def grant(root: Path, run: str, intent: dict, *, reason: str = 'Synthetic test operation only.',
-          cost: dict | None = None) -> str:
+def grant(root: Path, run: str, intent: dict, *, reason: str = 'Synthetic test operation only.') -> str:
     import production_workflow as w
     request = w.draft_authorization(root, run, 'fixture-grant', intent)
     request['reason'] = reason
     if intent['operation'] == 'submit':
-        request['cost'] = cost or {'currency': 'USD', 'amount': '0', 'basis': 'Synthetic fixture; no service call.'}
         if 'request_decision' in request:
             from production_request import assessment_source
             prepared = w.load_run(root, run)[1]

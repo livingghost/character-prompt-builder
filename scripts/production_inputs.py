@@ -91,7 +91,7 @@ def inspect_inputs(root: Path, task_path: str, *, from_run: str | None = None) -
             'choice_templates': {'visual': adapters.visual_template(task),
                                  'validation': adapters.validation_template(task)},
             'judgments': 'Select the route applications, subjects and evidence. Existing choices require current assessment.',
-            'external_effect': False, 'budget_effect': 'none'}
+            'external_effect': False}
 
 
 def draft_choices(task: dict, *, from_run: str | None = None) -> dict:
@@ -205,7 +205,7 @@ def draft_inputs(root: Path, task_path: str, out_dir: str, *, from_run: str | No
             choices['reading']['resource_applied'] = copy.deepcopy(previous['resource_applied'])
     result = {'state': 'draft', 'choices': choices, 'unresolved': _unresolved(choices, task),
               'derived_from': {'task': task_ref, 'source_run': saved},
-              'external_effect': False, 'budget_effect': 'none'}
+              'external_effect': False}
     _validate_draft(result)
     _publish(root, out_dir, {'choices.json': c.encoded(result)}, reader=reader)
     return {**result, 'choices_file': (Path(out_dir) / 'choices.json').as_posix()}
@@ -223,7 +223,7 @@ def read_choices(value: Any) -> dict:
     if isinstance(value, dict) and value.get('state') == 'draft':
         # Report fields describe a draft. Builders always recompute unresolved
         # choices and evidence rather than trusting the saved report.
-        allowed = {'state', 'choices', 'unresolved', 'derived_from', 'external_effect', 'budget_effect'}
+        allowed = {'state', 'choices', 'unresolved', 'derived_from', 'external_effect'}
         c.exact(value, allowed, 'draft input document')
         _validate_draft(value)
         return value['choices']
@@ -241,7 +241,7 @@ def build_inputs(root: Path, task_path: str, choices_path: str, out_dir: str, *,
         return {'state': 'draft', 'ok': False, 'inputs': {}, 'unresolved': missing,
                 'derived_from': {'task': task_ref, 'choices': choices_ref},
                 'next_actions': [{'operation': 'edit-choices', 'args': {'path': choices_path},
-                                  'external_effect': False, 'budget_effect': 'none'}]}
+                                  'external_effect': False}]}
     if choices['source_run'] != from_run:
         raise ValueError('choices.source_run must match the explicitly selected --from-run')
     saved = _source_run(root, from_run, task)
@@ -279,7 +279,7 @@ def build_inputs(root: Path, task_path: str, choices_path: str, out_dir: str, *,
                                'source_run': saved, 'sources': sorted(reader.read_paths)},
               'assessment_required': ['Apply the selected quotations to the current rendition and settings.'],
               'next_actions': adapters.next_actions(inputs, task, root, runtime_arguments=runtime_arguments),
-              'external_effect': False, 'budget_effect': 'none'}
+              'external_effect': False}
     encoded['input-report.json'] = c.encoded(result)
     def recheck():
         _reading(choices['reading'], root=root, task=task)

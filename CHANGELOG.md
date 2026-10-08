@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026.10.08.1
+
+- Execution approval binds the complete sealed request, grant and author evidence. Grants no longer carry use, output or cost limits: `execution_lifecycle.py` records exclusive execution ownership, external effects, submission, capture and recovery, and sends and returned images remain auditable execution results.
+- Tags are checked in their final transmitted positive/negative form after model recommendations. Problems stop preparation; notes and dictionary meanings accompany the exact request for author review.
+- A sheet slot contains current artwork, candidates and accepted history. Immutable artifacts bind image bytes, request/response evidence and generation or local-edit provenance. Adoption switches the entire artifact and retains the former selection. Candidate-only edits do not invalidate accepted-source preparations.
+- `sheet_workflow.py` orchestrates staged panel batches through the ordinary Production approvals and execution path, recovers missing exports without blindly resending unknown requests, and exports portable per-panel evidence.
+- Sheet review produces anchor/candidate full-body and head montages plus reproducible HSV measurements; insufficient pixels are missing evidence and artistic acceptance remains the author's decision.
+- Accepted-source crop, model upscale, shared artwork and declared-height local composition are regular sheet candidate paths with exact source ancestry. The HTML editor preserves artifact history and does not edit image/provenance paths independently.
+- Tests use synthetic fixtures and the bundled default content. Optional browser tests exercise the standalone editor when Playwright and Chromium are available.
+
+- Repeated sheet batches own UTC-dated attempt folders and per-panel inputs, decisions and results, with frozen recovery inputs and an indexed `batch-list`. Output conflicts are detected before sends; old recovery cannot replace the latest result pointer.
+- The editor exports authored differences only. Locked compare-and-apply preserves newer CLI selections/history and reports same-key author conflicts atomically.
+- Paginated sheet inventory isolates unavailable items; comparison verifies each selected artifact once and decodes a page at a time. Exact sources and same-series protected criteria remain verified before use.
+- Unselected sheet candidates can be dismissed with a stated reason; the dismissal is an activity event and the immutable bytes stay in the store, reimportable by the same content.
+- Historical artifacts can be reoffered without a new identity. Explicit question answers, step revisions and task suspension/resumption retain their prior records.
+- Gallery projection includes generated and locally derived artwork, newest recorded time first, with filters, lazy images, paging and optional browser reload. Automatic activity events and chronological views join the existing operation logs; `studio.py sync` repairs auxiliary views without repeating effects.
+
 ## 2026.10.05.1
 
 - The protocol members live under `protocols/` in one shared layout: `protocols/<group>/schemas` and `protocols/<group>/templates`. The set is replicated by copying that directory and `scripts/protocol_contract.py`. `config/protocol-layout.json` is gone.

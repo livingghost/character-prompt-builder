@@ -106,7 +106,7 @@ API acceptance never answers a visual question; a visual purpose needs an `obser
 ## Adopt an observed profile
 
 `observe_model_schema.py attach-probe` reads the selected `--run`: its saved request, authorization, transport outcome and output bytes.
-It reads only the files the run's formal events hold as evidence, and makes no network call or reservation.
+It reads only the files the run's formal events hold as evidence, and makes no network call or execution claim.
 Without `--adoption`, it only records the trial.
 
 An observed profile needs all of these:

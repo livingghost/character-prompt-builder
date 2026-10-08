@@ -17,7 +17,7 @@ from input_evidence import InputEvidence
 
 TARGET={'service':'synthetic','model_identifier':'synthetic:model','operation':'generation'}
 RESULT='a'*64
-DERIVED={'target':TARGET,'outcome':'completed','request':{'sealed':{'execution':{'service_execution_sha256':'1'*64,'offering_contract_sha256':'2'*64,'transport_sha256':'3'*64}},'profile':{'seed':1},'profile_sha256':'4'*64},'claim':'5'*64,'reservation':'reservation','results':[RESULT],'observed_at':'2026-10-01T00:00:00Z'}
+DERIVED={'target':TARGET,'outcome':'completed','request':{'sealed':{'execution':{'service_execution_sha256':'1'*64,'offering_contract_sha256':'2'*64,'transport_sha256':'3'*64}},'profile':{'seed':1},'profile_sha256':'4'*64},'claim':'5'*64,'execution':'execution','results':[RESULT],'observed_at':'2026-10-01T00:00:00Z'}
 PLAN={'purpose':'output_quality','question':'Does the exact completed trial produce the observed synthetic output?'}
 SOURCE={'prepared':{'dependencies':[]}}
 
@@ -109,13 +109,13 @@ class RecordedObservationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'recorded dispatch evidence'):
             observation.validate_observation(value, InputEvidence(self.root))
 
-    def test_settled_formal_run_can_be_captured_without_recreating_a_run(self):
-        import reservation_lifecycle as accounting
+    def test_completed_formal_run_can_be_captured_without_recreating_a_run(self):
+        import execution_lifecycle as accounting
         state = accounting.all_states(self.root)[0]
         derived = observation._derive(self.source)
         self.assertEqual(derived['outcome'], 'completed')
-        self.assertEqual(derived['reservation'], state['reservation_id'])
-        self.assertEqual(state['status'], 'settled')
+        self.assertEqual(derived['execution'], state['execution_id'])
+        self.assertEqual(state['status'], 'complete')
         self.assertEqual(len(derived['results']), 1)
 
     def test_recorded_evidence_survives_removal_of_source_studio(self):
@@ -174,7 +174,7 @@ def create_probe(base,upscale=False):
           'decision_method':'Use the saved transport response and inspect the PNG header; infer no artistic quality.',
           'indeterminate_handling':'Retain inconclusive evidence without an observed profile.',
           'recommendation_deviation':{'deviates':False,'reason':'This synthetic service has no sampling recommendation.'},
-          'quantity':{'uses':1,'outputs':1},'cost_conditions':'Zero-fee synthetic transport; no external service.',
+          'quantity':{'uses':1,'outputs':1},
           'stop_conditions':['Stop after one response or any uncertain outcome.'],'unknowns':[]}
     fixtures.write(root/'trial/plan.json',plan)
     record=rv.build_record({'mode':'bounded-probe','contract':'trial/plan.json','evidence':'trial/acquisition.json',

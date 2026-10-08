@@ -13,6 +13,7 @@ The core release evaluates only the model records owned by `packs/commons`.
 | Pack | Model record | Decision | Rationale |
 |---|---|---|---|
 | `commons` | `gpt-image-2.5-flare` (OpenAI GPT Image 2.5 Flare) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |
+| `commons` | `gpt-image-2.5-sunburst` (OpenAI GPT Image 2.5 Sunburst) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |
 | `commons` | `grok-imagine-image-2.0` (xAI Grok Imagine Image 2.0) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |
 
 ## Nondefault-pack boundary

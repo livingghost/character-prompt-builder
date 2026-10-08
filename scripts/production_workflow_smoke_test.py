@@ -398,20 +398,15 @@ class ProductionTests(unittest.TestCase):
             prepared.pop('input_sha256'); prepared['input_sha256']=c.content_id(prepared)
             (target/'prepared.json').write_bytes(c.encoded(prepared))
         return target
-    def test_reservations_skip_other_entries_and_other_tasks(self):
-        run=self.prepare()
-        (self.root/'production/.DS_Store').write_bytes(b'\x00\x01'); (self.root/'production/README').write_text('Notes.\n', encoding='utf-8')
-        other=self.clone_run(run,task_id=str(uuid.uuid4())); next((other/'objects').iterdir()).write_bytes(b'damaged')
-        self.assertEqual(fixture.handoff(self.root,run,'test','manual')['event'],'handoff')
     def test_damaged_run_is_reported_without_hiding_other_runs(self):
         run=self.prepare(); damaged=self.prepare()
         (w.run_dir(self.root,damaged)/'prepared.json').write_bytes(b'{}')
-        report=w.status(self.root,budget=True)
+        report=w.status(self.root)
         self.assertFalse(report['ok'])
         states={row['run']:row for row in report['runs']}
         self.assertEqual(states[run]['integrity'],'intact')
         self.assertEqual(states[damaged]['integrity'],'blocked')
-        self.assertFalse(report['budget']['complete'])
+        self.assertFalse(report['execution_records']['complete'])
         with self.assertRaises(ValueError): w.assert_current(self.root,damaged)
     @unittest.skipUnless(os.name=='nt','Windows byte-range lock')
     def test_lock_raises_an_error_other_than_contention(self):
@@ -650,7 +645,7 @@ class PackageIntegrationTests(unittest.TestCase):
 
     def test_intent_names_inputs_by_hash_and_the_claim_checks_their_bytes(self):
         import production_execution as execution
-        import reservation_lifecycle as accounting
+        import execution_lifecycle as accounting
         from test_production_execution import decisions
         from production_diagnostics import ProductionError
         plan=self.data[6];intent=plan['operations'][-1];snapshots=self.package['input_snapshots']

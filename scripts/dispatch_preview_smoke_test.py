@@ -112,7 +112,7 @@ class PreviewTests(unittest.TestCase):
         text = self.output.getvalue()
         head, _, body = text.partition('request (sha256 ')
         for line in ('model: ' + self.model, 'service: synthetic at http://localhost/cpb-synthetic-no-network', 'outputs: 1',
-                     'negative prompt: none; an upscale takes no negative prompt', 'cost: 0 USD at most (',
+                     'negative prompt: none; an upscale takes no negative prompt',
                      'production run: ' + self.run, 'saved: trace and validation in preview.json', 'shown, not sent'):
             self.assertIn(line, head)
         view = c.load(self.root / 'preview.json')

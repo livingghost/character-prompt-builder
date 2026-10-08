@@ -50,8 +50,7 @@ def build():
         result_report={'synthetic':True,'target':result['target'],'source_records_unchanged':c.read(pack/'records/models.json')==before,
             'acquired_response_unchanged':same_raw,'schema_content_matches':contract['schema']==schema,
             'new_pack_valid':pm.validate_pack(target_pack,require_lock=True,verify_lock=True).valid,
-            'activation_required':result['activation_required'],'external_effect':result['external_effect'],
-            'budget_effect':result['budget_effect']}
+            'activation_required':result['activation_required'],'external_effect':result['external_effect']}
         if not all(result_report[k] for k in ('source_records_unchanged','acquired_response_unchanged','schema_content_matches','new_pack_valid')):
             raise ValueError('Published evidence differs from the selected synthetic source.')
         return result_report

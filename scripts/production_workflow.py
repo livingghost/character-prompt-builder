@@ -19,7 +19,7 @@ import uuid
 import execution_contract as c
 import production_store as store
 from production_diagnostics import ProductionError, compare_exact
-import reservation_lifecycle as lifecycle
+import execution_lifecycle as lifecycle
 import execution_routes
 from pack_manager import generate_uuid7
 import production_evidence as media
@@ -272,13 +272,13 @@ def freshness_error(dependency: dict, actual: str | None, *, run: str | None, ph
         return ProductionError('IMPLEMENTATION_CHANGED',
             'The installed implementation changed after preparation.' if actual is not None
             else 'A file of the installed implementation is unavailable.',
-            phase='implementation', file=dependency['path'], run=run, expected=dependency['sha256'], actual=actual,
+            phase='implementation', file=dependency['path'], run=run, expected=dependency.get('selection_sha256', dependency['sha256']), actual=actual,
             required_action='Prepare the task again with the current installation; the creative input is unchanged.')
     if actual is None:
         return ProductionError('SOURCE_CHANGED', 'A live creative source is unavailable.', phase=phase,
-                               file=dependency['path'], run=run, expected=dependency['sha256'], actual=None)
+                               file=dependency['path'], run=run, expected=dependency.get('selection_sha256', dependency['sha256']), actual=None)
     return ProductionError('SOURCE_CHANGED', 'A live creative source changed after preparation.', phase=phase,
-                           file=dependency['path'], run=run, expected=dependency['sha256'], actual=actual,
+                           file=dependency['path'], run=run, expected=dependency.get('selection_sha256', dependency['sha256']), actual=actual,
                            required_action='Review the source change and prepare a variant for the current creative scope.')
 
 
@@ -310,7 +310,8 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
         if space == 'studio':
             space = dependency_space(path)
         key = c.digest(raw)
-        dependencies[(space, path)] = {'space': space, 'path': path, 'sha256': key, 'size': len(raw)}
+        from sheet_artifacts import dependency
+        dependencies[(space, path)] = dependency(space, path, raw)
         blobs[key] = raw
     def add(base: Path, path: str, space: str = 'studio') -> bytes:
         raw = read(base, path)
@@ -402,20 +403,20 @@ def production_identifier(value: Any) -> str:
 
 
 def criteria_predecessor(root: Path, predecessor: str | None, task: dict) -> str | None:
-    """Find the nearest immutable run in this work task and production series."""
-    seen = set()
-    current = predecessor
-    while current is not None:
-        if current in seen:
-            raise ValueError('production predecessor chain is cyclic')
-        seen.add(current)
-        _, older, _, _ = load_run(root, current)
-        if older['task']['task_id'] != task['task_id']:
-            raise ValueError('predecessor crosses the work task boundary')
-        if older['task']['production_id'] == task['production_id']:
-            return current
-        current = older['predecessor']
-    return None
+    """Find this series at its immutable registration boundary, not by scanning other runs."""
+    if predecessor is None:
+        return None
+    selected = store.latest_run(root, task['task_id'], production_id=task['production_id'], through=predecessor)
+    if selected is not None:
+        try:
+            _, older, _, _ = load_run(root, selected)
+        except (ValueError, OSError) as exc:
+            raise ProductionError('PREDECESSOR_UNAVAILABLE',
+                'The required prior run in this production series is unavailable.', phase='criteria',
+                run=selected, cause=str(exc), required_action='Repair this required run; do not skip its protected criteria.') from exc
+        if (older['task']['task_id'], older['task']['production_id']) != (task['task_id'], task['production_id']):
+            raise ValueError('criteria predecessor differs from its registered ownership')
+    return selected
 
 
 def validate_protected_criteria(root: Path, prepared: dict, grant: dict, *, revised: dict | None = None) -> None:
@@ -442,8 +443,9 @@ def _prepare(root: Path, task_path: str, *, parent: dict | None = None, identity
     return prepare_task(c._root(root), task_path, parent=parent, identity=identity)
 
 
-def prepare(root: Path, task: str) -> dict:
-    return _prepare(c._root(root), task)
+def prepare(root: Path, task: str, *, identity: str | None = None) -> dict:
+    """Prepare one task; an owning batch may reserve the identity before publication."""
+    return _prepare(c._root(root), task, identity=identity)
 
 
 def validate_run_content(run: str, prepared: dict, consumer: dict, rows: list[dict], read_object, *,
@@ -560,7 +562,14 @@ def current_sha256(root: Path, dependency: dict) -> str:
     """Hash the current bytes behind one pinned dependency."""
     if dependency['space'] == 'skill':
         return c.file_digest(ROOT, dependency['path'])[0]
-    return c.digest(c.read(c.local(root, dependency['path'])))
+    raw = c.read(c.local(root, dependency['path']))
+    if dependency.get('selection_kind'):
+        from sheet_artifacts import selection_bytes
+        projection = selection_bytes(dependency['path'], raw)
+        if projection is None or projection[0] != dependency['selection_kind']:
+            raise ValueError('invalid selection dependency')
+        return c.digest(projection[1])
+    return c.digest(raw)
 
 
 def _freshness_failures(root: Path, run: str, prepared: dict, *, rows: list[dict] | None = None, force: bool = False):
@@ -603,7 +612,7 @@ def _freshness_failures(root: Path, run: str, prepared: dict, *, rows: list[dict
             failed=True
             yield error
             continue
-        if actual!=dependency['sha256']:
+        if actual!=dependency.get('selection_sha256', dependency['sha256']):
             failed=True
             yield freshness_error(dependency,actual,run=run)
     if scope is not None and not failed and envelope is not None:
@@ -639,7 +648,7 @@ def require_mutable(records: list[dict]) -> None:
 def append_record(directory: Path, prepared: dict, records: list[dict], event: str, data: dict) -> dict:
     for row in reversed(records):
         if row['event']==event and row['data']==data:return row
-    if event not in {'reservation-release','reservation-settled'}:require_mutable(records)
+    if event not in {'external-effect-result','execution-result'}:require_mutable(records)
     if event not in EVENTS:raise ValueError('unknown production event')
     root=directory.parents[2]
     previous=records[-1]['sha256'] if records else None
@@ -672,11 +681,6 @@ def run_ids(root: Path) -> list[str]:
     return [row['run_id'] for row in store.runs(root)]
 
 
-def reservations(root: Path, task_id: str, *, exclude: str | None = None) -> list[dict]:
-    """Read actual execution reservations, never count authorization receipts."""
-    return [state for state in lifecycle.all_states(root,task_id=task_id)
-            if state['status']!='released' and state['authorization_sha256']!=exclude]
-
 
 def assert_authority_current(root: Path, prepared: dict) -> None:
     """Use the current committed grant state, without changing creative inputs."""
@@ -700,7 +704,7 @@ def require_open_task(rows: list[dict], run: str) -> None:
     if any(row['event'] == 'abandoned' for row in rows):
         raise ProductionError('TASK_ABANDONED', 'The work task of this run was abandoned; it starts no new operation.',
                               phase='authorization', run=run,
-                              required_action='Open a new work task and prepare a new run; recorded reservations stay until settled or released.')
+                              required_action='Open a new work task and prepare a new run; recorded executions remain available for recovery.')
 
 
 def protected_criteria_record(prepared: dict, grant_id: str) -> dict:
@@ -752,8 +756,6 @@ def authorize_value(root: Path, run: str, request: dict, *, evidence_files: list
                 return row
         require_mutable(rows)
         require_open_task(rows, run)
-        if any(r['event'] == 'reservation-release' for r in rows):
-            raise ProductionError('RESERVATION_REQUIRED', 'Prepare a new run after releasing its execution.', phase='authorization')
         grant = permissions.check(prepared['authority'], request)
         if request['operation'] == 'direction':
             validate_protected_criteria(root, prepared, grant)
@@ -765,9 +767,6 @@ def _permission(root: Path, prepared: dict, rows: list[dict], identifier: str,
     assert_authority_current(root, prepared)
     require_open_task(rows, prepared['run'])
     row = find(rows, 'authorization', identifier)
-    prior_reservation=lifecycle.by_authorization(rows,prepared,prepared['run'],identifier)
-    if prior_reservation is not None and prior_reservation['status']=='released':
-        raise ProductionError('RESERVATION_REQUIRED','Authorization belongs to a released execution; prepare a new run.',phase='authorization')
     request = row['data']['request']
     compare_exact({'operation':operation,'targets':sorted(targets),'payload':payload},
                   {'operation':request['operation'],'targets':sorted(request['targets']),'payload':request['payload']},
@@ -786,9 +785,8 @@ def _permission(root: Path, prepared: dict, rows: list[dict], identifier: str,
 def abandon_task(root: Path, task_id: str, *, actor: str, reason: str) -> list[dict]:
     """Record that a work task stops, as an `abandoned` event on each of its open runs.
 
-    The event data is `{"actor": ..., "reason": ...}`. Abandoning is not
-    releasing: reservations, claims and unknown outcomes stay as recorded, and
-    `release-reservation` or settlement closes each of them on its own evidence.
+    The event data is `{"actor": ..., "reason": ...}`. Claims and unknown
+    outcomes remain recorded; recovery preserves every received result.
     A completed run keeps its completion. Returns the abandoned event of each run.
     """
     c.text(actor, 'abandoning actor')
@@ -867,7 +865,7 @@ def claim_external(root: Path, run: str, count: int, authorization: str) -> dict
         directory, prepared, _, rows = assert_current(root, run)
         intent = external_intent(root, run, count)
         request = _permission(root, prepared, rows, authorization, **intent)
-        data = {**intent['payload'], 'authorizations': [authorization], 'cost': request['cost']}
+        data = {**intent['payload'], 'authorizations': [authorization]}
         previous = [r for r in rows if r['event'] == 'external-claim']
         if previous:
             if previous[0]['data'] != data:
@@ -903,7 +901,7 @@ def capture(root: Path, run: str, artifact: str, note: str) -> dict:
             if same:
                 return same[0]
             states = lifecycle.derive(rows, prepared, run)
-            if any(state['status'] == 'settled' for state in states.values()):
+            if any(state['status'] == 'complete' for state in states.values()):
                 raise ProductionError('SETTLEMENT_CONFLICT', 'The external result was finalized; a new output cannot alter that receipt.', phase='capture', run=run)
             if len(previous) >= claim['data']['count']:
                 raise ValueError('external output count exceeds its authorization')
@@ -915,7 +913,7 @@ def capture(root: Path, run: str, artifact: str, note: str) -> dict:
 def settle_external(root: Path, run: str, receipt_file: str) -> dict:
     """Record a host's evidenced result and actual bill, never a price estimate.
 
-    This is recovery only, with no host invocation. Unknown costs stay reserved.
+    This is recovery only, with no host invocation. Billing evidence is optional.
     The response and signed-by-actor declaration are saved as immutable evidence.
     """
     import production_store as store
@@ -939,14 +937,14 @@ def settle_external(root: Path, run: str, receipt_file: str) -> dict:
             raise ProductionError('EVIDENCE_SNAPSHOT_CORRUPT', 'External response does not match the declared digest.', phase='settlement', run=run,
                                   expected=receipt['response']['sha256'], actual=response['sha256'])
         evidence = [file_record(root, directory, receipt_file), response]
-        if receipt['final'] and receipt['cost'] is not None:
+        if receipt['final']:
             lifecycle.record_effect(root, run, authorization, claim=claim['sha256'], step='external-send',
-                usage={**receipt['cost'], 'final': True}, evidence=evidence)
-        row = lifecycle.settle(root, run, authorization, outputs=receipt['outputs'], cost=receipt['cost'],
+                usage={**receipt['cost'], 'final': True} if receipt['cost'] is not None else None, evidence=evidence)
+        row = lifecycle.record_result(root, run, authorization, outputs=receipt['outputs'], cost=receipt['cost'],
                                final=receipt['final'], evidence=evidence)
-        return {'settled': receipt['final'] and receipt['cost'] is not None,
+        return {'recorded': receipt['final'],
                 'execution_completed': receipt['final'] and receipt['outputs'] == claim['data']['count'],
-                'receipt': row, 'external_effect': False, 'budget': lifecycle.budget(root, run=run)}
+                'receipt': row, 'external_effect': False, 'execution_records': lifecycle.summary(root, run=run)}
 
 
 def draft_review(root: Path, run: str, candidate: str) -> dict:
@@ -1183,20 +1181,16 @@ def _studio_accepted(root: Path, prepared: dict, run: str, candidate: str) -> li
 
 
 def _refresh_studio_projection(root: Path, receipt: dict) -> dict:
-    """Rewrite the Studio gallery after a formal decision when the root is a Studio.
-
-    The decision is already durable. A failed display adds `projection_warning`
-    to the returned receipt; `studio.py gallery` rebuilds it from the records.
-    """
+    """A committed decision stays committed if a rebuildable display is unavailable."""
     import studio
+    import studio_activity as activity
+    from execution_contract import content_id
     if not (root / studio.MANIFEST).is_file():
         return receipt
-    try:
-        studio.write_gallery(root)
-    except (ValueError, OSError) as exc:
-        from production_diagnostics import from_exception
-        return {**receipt, 'projection_warning': from_exception(exc, phase='studio-projection')}
-    return receipt
+    projection = activity.changed(root, 'production-decision',
+                                  subject=str(receipt.get('run') or receipt.get('candidate') or 'production'),
+                                  revision=content_id(receipt), details=receipt)
+    return receipt if projection.get('ok') else {**receipt, 'projection_warning': projection}
 
 
 def draft_selection(root: Path, run: str, candidate: str) -> dict:
@@ -1350,7 +1344,7 @@ def impact(root: Path, run: str) -> dict:
         for item in records:
             try:
                 actual = current_sha256(root, item)
-                if actual == item['sha256']:
+                if actual == item.get('selection_sha256', item['sha256']):
                     continue
                 entry = {**item, 'actual_sha256': actual, 'status': 'changed'}
             except (ValueError, OSError) as exc:
@@ -1382,9 +1376,9 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
     return recover_execution(root, run, outcome_file=outcome_file)
 
 
-def status(root: Path, run: str | None = None, *, budget: bool = False) -> dict:
+def status(root: Path, run: str | None = None) -> dict:
     from production_execution import status as report
-    return report(root, run, budget=budget)
+    return report(root, run)
 
 
 def changed_scopes(before: dict, after: dict) -> list[str]:
@@ -1522,7 +1516,7 @@ def claim_dispatch(root: Path, run: str, package: dict, verified: dict, journal:
         if payload['package_sha256'] != c.content_id(package):
             raise ValueError('submission intent belongs to a different package')
         request = _permission(root, prepared, rows, authorization, **intent)
-        reservation = lifecycle.reserve(root, run, authorization)
+        execution = lifecycle.claim_execution(root, run, authorization)
         directory, prepared, _, rows = load_run(root, run)
         relative = journal.absolute().relative_to(root.absolute()).as_posix()
         c.local(root, relative)
@@ -1532,8 +1526,7 @@ def claim_dispatch(root: Path, run: str, package: dict, verified: dict, journal:
                                  if package.get('artifact_type') == 'upscale-request' else
                                  {'effective_prompt_sha256': verified['host_forwarding']['effective_prompt_sha256']}),
                               'journal': relative, 'intent': intent, 'count': request['outputs'],
-                              'cost': request['cost'], 'authorizations': [authorization],
-                              'reservation_id': reservation['reservation_id']})
+                              'authorizations': [authorization], 'execution_id': execution['execution_id']})
 
 
 def record_dispatch_results(root: Path, run: str, package: dict, journal: Path,
@@ -1662,8 +1655,14 @@ def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str, ro
             if c.digest(c.read(path))!=item['sha256']: raise ValueError('Studio evidence changed')
             paths.append(path)
     if row.get('accepted_path'): paths.append(c.local(root,row['accepted_path']))
-    binding=home/'sheet'/'bindings'/selector['iteration_id']
-    if binding.is_dir(): paths.extend(p for p in binding.rglob('*') if p.is_file() or p.is_symlink())
+    import sheet_artifacts
+    sidecar = c.load(home / 'sheet/sheet-data.json')
+    accepted = sidecar['slots'][row['slot']]['current']
+    sheet_artifacts.verify_acceptance(accepted, home / 'sheet', row['slot'])
+    artifact = accepted['artifact']
+    folder = (home / 'sheet' / artifact['provenance']['path']).parent
+    paths.extend(p for p in folder.rglob('*') if p.is_file() or p.is_symlink())
+    paths.extend(home / 'sheet' / accepted['approval'][key] for key in ('decision_path', 'evidence_path'))
     return sorted(set(paths))
 
 
@@ -1744,7 +1743,7 @@ def draft_authorization(root: Path, run: str, grant_id: str, intent: dict) -> di
     c.exact(intent, {'operation', 'targets', 'payload'}, 'operation intent')
     result = {'grant': grant_id, 'actor': matches[0]['actor'], **intent,
             'outputs': intent['payload'].get('count', 0) if intent['operation'] == 'submit' else 0,
-            'cost': None, 'reason': '',
+            'reason': '',
             'stop_assessments': [{'id': s['id'], 'clear': False, 'evidence': ''}
                                  for s in prepared['authority']['stop_conditions']]}
     if intent['operation'] == 'submit' and prepared['task']['execution'] == 'dispatcher':
@@ -1758,7 +1757,7 @@ COMMAND_HELP = {
     'check': 'Check a task and show its request preview and execution plan without creating a run.',
     'prepare': 'Check a task and publish it as a prepared run with its exact request and execution plan.',
     'draft-execution': 'Write the unanswered execution decision file for every operation of a prepared run.',
-    'execute': 'Authorize, reserve, send and record the one request a prepared run owns.',
+    'execute': 'Authorize, claim, send and record the one request a prepared run owns.',
     'resume': 'Recover the same execution without sending it again where a send has started.',
     'draft-outcome': "Write the statement to fill when the provider's records hold no task for a started send.",
     'status': 'Report each run by preparation, readiness, submission, capture, review and disposition.',
@@ -1790,8 +1789,6 @@ COMMAND_HELP = {
     'adopt': 'Adopt a selected candidate as canon under its own exact authorization.',
     'complete': 'Complete the work task with its current selection.',
     'impact': 'Compare a run with its current sources and list what each change affects.',
-    'release-reservation': 'Release an unused reservation with a completed release request.',
-    'draft-release': 'Write the release request form of one reservation.',
 }
 # One sentence for each option, by destination; a (command, destination) entry is more specific.
 OPTION_HELP = {
@@ -1800,14 +1797,11 @@ OPTION_HELP = {
     'task': 'Studio-relative task JSON file; a file only, not stdin.',
     'out': 'New studio-relative file to write; an existing file is never replaced.',
     'out_dir': 'New studio-relative directory to write.',
-    'budget': 'Add each grant budget with its reservations and remaining amount.',
     'decisions_file': 'Completed execution decision file from draft-execution, or - for stdin.',
     'outcome_file': "Statement from draft-outcome that the provider's records hold no task for the started send, or - for stdin.",
     'grant': 'ID of the grant the drafted decisions use.',
     'expected_event': 'Digest of the current authority event that this import replaces.',
     'failed': 'Only operations that failed or did not finish.',
-    'request': 'Completed release request from draft-release, or - for stdin.',
-    'reservation': 'ID of the reservation to release.',
     'recipient': 'Who receives the consumer.',
     'method': 'How the consumer is handed over.',
     'authorization': 'Digest of the authorization event that covers this operation.',
@@ -1875,13 +1869,11 @@ def build_parser():
             p.add_argument('--run', required=True)
         if name in {'status', 'logs', 'logs-export'}:
             p.add_argument('--run')
-        if name == 'status':
-            p.add_argument('--budget', action='store_true')
         if name == 'execute':
             p.add_argument('--decisions-file')
         if name == 'resume':
             p.add_argument('--outcome-file')
-        if name in {'draft-outcome', 'draft-execution', 'logs-export', 'draft-release', 'draft-review', 'draft-selection',
+        if name in {'draft-outcome', 'draft-execution', 'logs-export', 'draft-review', 'draft-selection',
                     'draft-authorization', 'draft-disposition'}:
             p.add_argument('--out', required=True)
         if name in {'draft-execution', 'draft-authorization'}:
@@ -1902,10 +1894,6 @@ def build_parser():
             group.add_argument('--before', help='Select completed diagnostic operations created before YYYY-MM-DD.')
             group.add_argument('--operation', help='Select one operation ID for cleanup assessment.')
             p.add_argument('--apply', action='store_true', help='Delete eligible diagnostic logs. Omit for a dry-run plan.')
-        if name == 'release-reservation':
-            p.add_argument('--request', required=True)
-        if name == 'draft-release':
-            p.add_argument('--reservation', required=True)
         if name in {'check', 'prepare', 'revision-intent', 'revise'}:
             p.add_argument('--task', required=True)
             if name in {'prepare', 'check'}:
@@ -2029,11 +2017,6 @@ def main() -> int:
             result = production_variation.command(args, parser)
         elif name in production_inputs.COMMANDS:
             result = production_inputs.command(args, parser)
-        elif name=='release-reservation':
-            result=lifecycle.release(root,args.run,args.request)
-        elif name=='draft-release':
-            result=lifecycle.draft_release(root,args.run,args.reservation)
-            _write_new(root, args.out, result)
         elif name == 'draft-disposition':
             result = draft_disposition(root, args.run, args.candidate)
             _write_new(root, args.out, result)
@@ -2122,7 +2105,7 @@ def main() -> int:
         elif name == 'impact':
             result = impact(root, args.run)
         else:
-            result = status(root, args.run, budget=args.budget)
+            result = status(root, args.run)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if result.get('ok', True):
             return 0

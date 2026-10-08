@@ -256,7 +256,7 @@ class VariationTests(unittest.TestCase):
         fixtures.write(self.root / 'variants/references.json', references)
         child = self.change({'references': {'path': 'variants/references.json'}, 'execution-mode': 'reference-guided'})
         self.assertEqual(len(child['request_preview']['inputs']['references']), 1)
-        self.assertTrue((workflow.run_dir(self.root, child['run']) / 'package.references').is_dir())
+        self.assertEqual(len(list(workflow.run_dir(self.root, child['run']).glob('package.*.references'))), 1)
         self.assertNotIn('inputs', self.parent['request_preview'])
 
     def test_changed_unreplaced_source_is_not_silently_reused(self):

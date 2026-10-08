@@ -100,6 +100,23 @@
     },
     "upscale_package_sha256": {
       "$ref": "#/$defs/sha256"
+    },
+    "production_binding": {
+      "type": "object",
+      "required": [
+        "run",
+        "input_sha256"
+      ],
+      "properties": {
+        "run": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,

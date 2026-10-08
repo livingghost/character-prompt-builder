@@ -17,7 +17,10 @@
         "A vocabulary resource legitimately mixes two registers: canonical tags the corpora carry, and descriptive phrasing the text encoder understands as language. Absence from a tag database is not evidence that a descriptive phrase is broken, so do not prune vocabulary on that basis alone.",
         "Where a subject domain has more than one tag dialect, the dialects are interchangeable for correctness but not for style: the count-plus-anthro form, the male-plus-furry form, and the kemono spelling all render a correct anthro subject, and the kemono spelling shifts facial styling rounder and flatter. Choose the dialect for the styling it carries.",
         "Treat a checkpoint version change as a target change. Sibling releases of one merge differ at the same seed in default build mass, negative adherence, and prop and scenery conventions, so re-verify per version rather than assuming family behaviour, and disclose the change.",
-        "A model record's recommended_parameters are the checkpoint author's values and take precedence. This baseline covers a checkpoint in these families whose author gives none."
+        "A model record's recommended_parameters are the checkpoint author's values and take precedence. This baseline covers a checkpoint in these families whose author gives none.",
+        "The preparation checker inspects the exact final positive and negative channels after model recommendations and transport selection. A problem blocks preparation; notes and dictionary meanings remain visible for the author to assess.",
+        "Vocabulary membership does not establish intended meaning. Read definitions for ambiguous anatomy/garment words; an unlisted close-up phrase or speech verb is not evidence of reliable framing or text-free speech.",
+        "Check whether a requested local color or close-up actually remains local in the candidate. Keep target-specific spillover observations in the active model record, rather than turning one campaign into a universal vocabulary prohibition."
       ]
     },
     {

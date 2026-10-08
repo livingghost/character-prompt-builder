@@ -67,50 +67,6 @@
             },
             "minItems": 1
           },
-          "limits": {
-            "type": "object",
-            "properties": {
-              "uses": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "outputs": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "cost": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "currency": {
-                        "type": "string",
-                        "pattern": "^[A-Z]{3}$"
-                      },
-                      "amount": {
-                        "type": "string",
-                        "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
-                      }
-                    },
-                    "required": [
-                      "currency",
-                      "amount"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              }
-            },
-            "required": [
-              "uses",
-              "outputs",
-              "cost"
-            ],
-            "additionalProperties": false
-          },
           "protected_criteria": {
             "type": "array",
             "items": {
@@ -176,7 +132,6 @@
           "mode",
           "operations",
           "targets",
-          "limits",
           "protected_criteria",
           "expires_at",
           "request_scope",

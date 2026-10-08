@@ -13,7 +13,7 @@ import production_case_fixtures as fixtures
 import production_execution as execution
 import production_workflow as workflow
 import production_store as store
-import reservation_lifecycle as accounting
+import execution_lifecycle as accounting
 import transport_synthetic
 from production_diagnostics import ProductionError
 
@@ -45,22 +45,21 @@ class ExecutionTests(unittest.TestCase):
         self.prepared = workflow.prepare(self.root, 'task.json')
         self.run = self.prepared['run']
 
-    def test_execute_registers_candidate_and_settles_once(self):
-        path = decisions(self.root, self.run)
-        result = execution.execute(self.root, self.run, decisions_file=path)
+    def test_execute_registers_candidate_and_records_results_once(self):
+        result = execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
         self.assertEqual(result['runs'][0]['capture'], 'complete')
         self.assertEqual(len(result['runs'][0]['candidates']), 1)
-        budget = accounting.budget(self.root)['grants'][0]
-        self.assertEqual(budget['consumed']['uses'], 1)
-        self.assertEqual(budget['consumed']['outputs'], 1)
-        self.assertEqual(budget['outstanding_reserved']['uses'], 0)
-        self.assertEqual(budget['consumed']['cost'], {'USD': '0'})
+        recorded = accounting.summary(self.root)
+        self.assertEqual((recorded['submissions'], recorded['captured_outputs']), (1, 1))
+        self.assertEqual(recorded['reported_cost'], {'USD': '0'})
+        self.assertEqual(recorded['executions'][0]['status'], 'complete')
         with patch.object(transport_synthetic, 'send', side_effect=AssertionError('Resume must not send')):
             again = execution.resume(self.root, self.run)
         self.assertEqual(len(again['runs'][0]['candidates']), 1)
-        self.assertEqual(accounting.budget(self.root)['grants'][0]['consumed'], budget['consumed'])
+        self.assertEqual(accounting.summary(self.root), recorded)
 
-    def test_missing_authority_has_no_reservation_or_claim(self):
+
+    def test_missing_authority_has_no_execution_claim(self):
         with self.assertRaises(ProductionError) as caught:
             execution.execute(self.root, self.run)
         self.assertEqual(caught.exception.diagnostic.code, 'AUTHORIZATION_REQUIRED')
@@ -69,7 +68,7 @@ class ExecutionTests(unittest.TestCase):
         # The dispatch journal is written at the claim boundary, so a refused execute leaves none.
         self.assertEqual([path for path in (self.root / 'runs').glob('*') if path.is_dir()], [])
 
-    def test_missing_direction_does_not_commit_submit_or_reserve(self):
+    def test_missing_direction_does_not_commit_submission(self):
         path = decisions(self.root, self.run)
         value = c.load(self.root / path)
         value['authorizations'] = value['authorizations'][1:]
@@ -78,26 +77,15 @@ class ExecutionTests(unittest.TestCase):
             execution.execute(self.root, self.run, decisions_file=path)
         self.assertEqual(store.event_rows(self.root, self.run), [])
 
-    def test_insufficient_budget_rolls_back_receipts_and_claim(self):
-        path = decisions(self.root, self.run)
-        document = c.load(self.root / 'fixture-authority.json')
-        document['grants'][0]['limits']['uses'] = 0
-        fixtures.write(self.root / 'authority-update.json', document)
-        prior = store.authority_record(self.root, document['task_id'])
-        store.import_authority(self.root, 'authority-update.json', expected=prior['sha256'])
-        with self.assertRaises(ProductionError) as caught:
-            execution.execute(self.root, self.run, decisions_file=path)
-        self.assertEqual(caught.exception.diagnostic.code, 'BUDGET_LIMIT_EXCEEDED')
-        self.assertEqual(store.event_rows(self.root, self.run), [])
 
-    def test_timeout_retains_reservation_and_resume_never_sends(self):
+    def test_timeout_retains_execution_and_resume_never_sends(self):
         path = decisions(self.root, self.run)
         with patch.object(transport_synthetic, 'send', side_effect=TimeoutError('Synthetic timeout')) as send:
             result = execution.execute(self.root, self.run, decisions_file=path)
             self.assertEqual(send.call_count, 1)
         self.assertEqual(result['runs'][0]['submission'], 'outcome_unknown')
         state = accounting.all_states(self.root)[0]
-        self.assertFalse(accounting.releasable(state))
+        self.assertEqual(state['status'], 'started')
         with patch.object(transport_synthetic, 'send', side_effect=AssertionError('No retransmission')):
             again = execution.resume(self.root, self.run)
         self.assertEqual(again['runs'][0]['submission'], 'outcome_unknown')
@@ -133,9 +121,9 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual([row['reconciled'] for row in receipt], ['provider-lookup'])
         names = {entry['path'].rsplit('/', 1)[1] for entry in receipt[0]['evidence']}
         self.assertTrue({'request.json', 'lookup-001.json', 'answer.json', 'transport-outcome.json'} <= names)
-        self.assertEqual(accounting.budget(self.root)['grants'][0]['consumed']['uses'], 1)
+        self.assertEqual(accounting.summary(self.root)['submissions'], 1)
 
-    def test_evidenced_not_executed_statement_makes_reservation_releasable(self):
+    def test_evidenced_not_executed_statement_allows_a_new_approved_run(self):
         path = decisions(self.root, self.run)
         with patch.object(transport_synthetic, 'send', side_effect=TimeoutError('Synthetic timeout')):
             execution.execute(self.root, self.run, decisions_file=path)
@@ -152,14 +140,9 @@ class ExecutionTests(unittest.TestCase):
         item = result['runs'][0]
         self.assertEqual(item['submission'], 'not_executed')
         self.assertEqual(item['effects'], [{'step': 'send', 'operation': 'send', 'result': 'not_executed'}])
-        self.assertTrue(item['reservation']['release_eligible'])
-        self.assertEqual(item['next_action']['command'], 'draft-release')
-        request = accounting.draft_release(self.root, self.run, item['reservation']['reservation_id'])
-        request.update(actor=authority['issuer'], reason='The provider evidenced that the send was never executed.',
-                       evidence=statement['evidence'])
-        fixtures.write(self.root / 'release.json', request)
-        self.assertTrue(accounting.release(self.root, self.run, 'release.json')['released'])
-        self.assertEqual(accounting.budget(self.root)['grants'][0]['outstanding_reserved']['uses'], 0)
+        self.assertEqual(item['execution']['status'], 'started')
+        self.assertEqual(item['next_action']['command'], 'repeat')
+        self.assertEqual(accounting.summary(self.root)['submissions'], 1)
 
     def test_send_boundary_records_provider_identifiers_before_io(self):
         execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
@@ -171,7 +154,7 @@ class ExecutionTests(unittest.TestCase):
         outcome = next(row['data'] for row in rows if row['event'] == 'execution-outcome')
         self.assertIn('transport-outcome.json', {entry['path'].rsplit('/', 1)[1] for entry in outcome['evidence']})
 
-    def test_interruption_before_send_boundary_is_reserved_not_unknown(self):
+    def test_interruption_before_send_boundary_is_claimed_not_unknown(self):
         begin = accounting.begin_step
         def interrupt(*args, **kwargs):
             if kwargs['step'] == 'send':
@@ -182,8 +165,8 @@ class ExecutionTests(unittest.TestCase):
                 execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
             send.assert_not_called()
         item = execution.status(self.root, self.run)['runs'][0]
-        self.assertEqual((item['submission'], item['send_started']), ('reserved', False))
-        self.assertEqual(workflow.find(store.event_rows(self.root, self.run), 'execution-outcome')['data']['submission'], 'reserved')
+        self.assertEqual((item['submission'], item['send_started']), ('claimed', False))
+        self.assertEqual(workflow.find(store.event_rows(self.root, self.run), 'execution-outcome')['data']['submission'], 'claimed')
         self.assertEqual(item['next_action']['command'], 'resume')
         self.assertTrue(execution.resume(self.root, self.run)['execution_completed'])
 
@@ -231,37 +214,7 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(result['runs'][0]['capture'], 'complete')
         self.assertEqual(len(result['runs'][0]['candidates']), 1)
 
-    def test_upscale_upload_cost_is_part_of_the_exact_execution_ceiling(self):
-        base = Path(self.temp.name)
-        case = fixtures.create(base / 'cost-studio', base / 'cost-runtime', with_upscale=True)
-        root = case['root']
-        task = fixtures.upscale_task(root)
-        prepared = workflow.prepare(root, task)
-        directory, document, _, _ = workflow.load_run(root, prepared['run'])
-        plan = c.load(directory / 'execution-plan.json')
-        self.assertEqual([item['operation'] for item in plan['external_effects']], ['upload', 'send'])
-        self.assertEqual(plan['external_effects'][0]['cost']['amount'], '0')
-        self.assertEqual(plan['external_effects'][1]['cost']['amount'], '0')
-        self.assertEqual(plan['cost']['currency'], 'USD')
-        self.assertEqual(plan['cost']['amount'], '0')
 
-    def test_unknown_upload_cost_blocks_execute_without_reservation(self):
-        base = Path(self.temp.name)
-        case = fixtures.create(base / 'unknown-cost-studio', base / 'unknown-cost-runtime', with_upscale=True)
-        root = case['root']
-        task_path = fixtures.upscale_task(root)
-        task = c.load(root / task_path)
-        task['upscale'].pop('external_costs')
-        fixtures.write(root / 'upscale/unknown-cost-task.json', task)
-        prepared = workflow.prepare(root, 'upscale/unknown-cost-task.json')
-        directory, _, _, _ = workflow.load_run(root, prepared['run'])
-        plan = c.load(directory / 'execution-plan.json')
-        self.assertIsNone(plan['cost'])
-        self.assertIn('COST_UNCONFIRMED', {item['code'] for item in plan['readiness']['diagnostics']})
-        with self.assertRaises(ProductionError) as caught:
-            execution.execute(root, prepared['run'])
-        self.assertEqual(caught.exception.diagnostic.code, 'COST_UNCONFIRMED')
-        self.assertEqual(accounting.all_states(root), [])
 
     def test_invalid_upscale_dimensions_are_captured_but_not_completed(self):
         import base64
@@ -322,13 +275,6 @@ class ExternalEffectAccountingTests(unittest.TestCase):
         case=fixtures.create(base/'studio',base/'runtime',with_upscale=True)
         self.root=case['root']
         self.task_path=fixtures.upscale_task(self.root)
-        task=c.load(self.root/self.task_path)
-        task['upscale']['cost'].update(amount='0.4',basis='Synthetic send upper bound for fee-accounting tests.')
-        task['upscale']['external_costs'][0].update(amount='0.2',basis='Synthetic upload upper bound, independent of send.')
-        fixtures.write(self.root/self.task_path,task)
-        document=c.load(self.root/'fixture-authority.json')
-        document['grants'][0]['limits']['cost']={'currency':'USD','amount':'10'}
-        fixtures.write(self.root/'fixture-authority.json',document)
         self.run=workflow.prepare(self.root,self.task_path)['run']
         self.decision=decisions(self.root,self.run)
         self.original_upload=transport_synthetic.upload_bytes
@@ -349,50 +295,41 @@ class ExternalEffectAccountingTests(unittest.TestCase):
             return value
         return send
 
-    def budget(self):
-        return accounting.budget(self.root)['grants'][0]
+    def recorded(self):
+        return accounting.summary(self.root)
 
     def test_upload_and_send_actuals_are_added_once(self):
         with patch.object(transport_synthetic,'upload_bytes',side_effect=self.uploader()),patch.object(transport_synthetic,'send',side_effect=self.sender()):
             execution.execute(self.root,self.run,decisions_file=self.decision)
-        group=self.budget()
-        self.assertEqual(group['consumed']['cost'],{'USD':'0.4'})
-        self.assertEqual(group['outstanding_reserved']['cost'],{})
-        self.assertEqual(group['consumed']['uses'],1)
-        self.assertEqual(len(group['reservations'][0]['effect_results']),2)
+        group=self.recorded()
+        self.assertEqual(group['reported_cost'],{'USD':'0.4'})
+        self.assertTrue(group['usage_complete'])
+        self.assertEqual(group['submissions'],1)
+        self.assertEqual(len(group['executions'][0]['effect_results']),2)
         with patch.object(transport_synthetic,'send',side_effect=AssertionError('No repeat send')),patch.object(transport_synthetic,'upload_bytes',side_effect=AssertionError('No repeat upload')):
             execution.resume(self.root,self.run)
-        self.assertEqual(self.budget()['consumed'],group['consumed'])
+        self.assertEqual(self.recorded()['reported_cost'],group['reported_cost'])
 
     def test_unknown_upload_charge_is_not_zero_when_send_cost_is_known(self):
         with patch.object(transport_synthetic,'upload_bytes',side_effect=self.uploader(None)),patch.object(transport_synthetic,'send',side_effect=self.sender()):
             execution.execute(self.root,self.run,decisions_file=self.decision)
-        group=self.budget()
-        self.assertEqual(group['consumed']['cost'],{'USD':'0.3'})
-        self.assertEqual(group['outstanding_reserved']['cost'],{'USD':'0.3'})
-        self.assertEqual(len(group['unknown_cost_reservations']),1)
-        self.assertEqual(group['reservations'][0]['status'],'partially_settled')
-        self.assertFalse(group['reservations'][0]['release_eligible'])
+        group=self.recorded()
+        self.assertEqual(group['reported_cost'],{'USD':'0.3'})
+        self.assertFalse(group['usage_complete'])
+        self.assertEqual(group['executions'][0]['status'],'complete')
+        self.assertEqual(group['captured_outputs'],1)
 
     def test_known_upload_fee_survives_send_timeout(self):
         with patch.object(transport_synthetic,'upload_bytes',side_effect=self.uploader()),patch.object(transport_synthetic,'send',side_effect=TimeoutError('Synthetic send timeout')):
             result=execution.execute(self.root,self.run,decisions_file=self.decision)
         self.assertEqual(result['runs'][0]['submission'],'outcome_unknown')
-        group=self.budget()
-        self.assertEqual(group['consumed']['cost'],{'USD':'0.1'})
-        self.assertEqual(group['outstanding_reserved']['cost'],{'USD':'0.5'})
-        self.assertEqual(group['consumed']['uses'],0)
+        group=self.recorded()
+        self.assertEqual(group['reported_cost'],{'USD':'0.1'})
+        self.assertFalse(group['usage_complete'])
+        self.assertEqual(group['submissions'],1)
         with patch.object(transport_synthetic,'send',side_effect=AssertionError('No repeat send')),patch.object(transport_synthetic,'upload_bytes',side_effect=AssertionError('No repeat upload')):
             execution.resume(self.root,self.run)
 
-    def test_upload_overrun_is_not_truncated_and_blocks_first_send(self):
-        with patch.object(transport_synthetic,'upload_bytes',side_effect=self.uploader('0.25')),patch.object(transport_synthetic,'send') as send:
-            with self.assertRaises(ProductionError) as caught:
-                execution.execute(self.root,self.run,decisions_file=self.decision)
-            send.assert_not_called()
-        self.assertEqual(caught.exception.diagnostic.code,'EXTERNAL_COST_LIMIT_EXCEEDED')
-        self.assertEqual(self.budget()['consumed']['cost'],{'USD':'0.25'})
-        self.assertFalse(self.budget()['reservations'][0]['release_eligible'])
 
     def test_completed_upload_is_reused_when_send_never_started(self):
         begin=accounting.begin_step
@@ -405,15 +342,15 @@ class ExternalEffectAccountingTests(unittest.TestCase):
                 execution.execute(self.root,self.run,decisions_file=self.decision)
         self.assertEqual(upload.call_count,1)
         item=execution.status(self.root,self.run)['runs'][0]
-        self.assertEqual(item['submission'],'reserved')
+        self.assertEqual(item['submission'],'claimed')
         self.assertEqual(item['effects'],[{'step':'upload:0','operation':'upload','result':'executed'}])
         with patch.object(transport_synthetic,'upload_bytes',side_effect=AssertionError('Do not upload twice')),patch.object(transport_synthetic,'send',side_effect=self.sender()) as send:
             result=execution.resume(self.root,self.run)
         self.assertEqual(send.call_count,1)
         self.assertTrue(result['execution_completed'])
-        self.assertEqual(self.budget()['consumed']['cost'],{'USD':'0.4'})
+        self.assertEqual(self.recorded()['reported_cost'],{'USD':'0.4'})
 
-    def test_refused_upload_is_recorded_as_rejected_and_releasable(self):
+    def test_refused_upload_is_recorded_and_requires_new_approval(self):
         import transport_contract
         refusal=transport_contract.Refused('Synthetic refusal of the upload',{'errors':[{'code':'synthetic-upload-refused'}]})
         with patch.object(transport_synthetic,'upload_bytes',side_effect=refusal),patch.object(transport_synthetic,'send') as send:
@@ -421,14 +358,14 @@ class ExternalEffectAccountingTests(unittest.TestCase):
             send.assert_not_called()
         self.assertFalse(result['execution_completed'])
         item=result['runs'][0]
-        self.assertEqual(item['submission'],'reserved')
+        self.assertEqual(item['submission'],'claimed')
         self.assertEqual(item['effects'],[{'step':'upload:0','operation':'upload','result':'rejected'}])
-        self.assertTrue(item['reservation']['release_eligible'])
-        self.assertEqual(item['next_action']['command'],'draft-release')
+        self.assertEqual(item['execution']['status'],'started')
+        self.assertEqual(item['next_action']['command'],'repeat')
         outcome=workflow.find(store.event_rows(self.root,self.run),'execution-outcome')['data']
-        self.assertEqual((outcome['submission'],outcome['code']),('reserved','PROVIDER_REJECTION'))
+        self.assertEqual((outcome['submission'],outcome['code']),('claimed','PROVIDER_REJECTION'))
         self.assertTrue(outcome['evidence'][0]['path'].endswith('/upload-001-refused.json'))
-        self.assertEqual(self.budget()['consumed']['cost'],{})
+        self.assertEqual(self.recorded()['reported_cost'],{})
 
     def test_unanswered_upload_is_not_reissued_by_resume(self):
         with patch.object(transport_synthetic,'upload_bytes',side_effect=TimeoutError('Synthetic upload timeout')):
@@ -437,7 +374,8 @@ class ExternalEffectAccountingTests(unittest.TestCase):
         with patch.object(transport_synthetic,'upload_bytes',side_effect=AssertionError('No repeated upload')),patch.object(transport_synthetic,'send',side_effect=AssertionError('No send after unknown upload')):
             result=execution.resume(self.root,self.run)
         self.assertFalse(result['execution_completed'])
-        self.assertFalse(self.budget()['reservations'][0]['release_eligible'])
+        self.assertEqual(self.recorded()['executions'][0]['status'],'started')
+        self.assertEqual(self.recorded()['submissions'],0)
 
 
 if __name__ == '__main__':

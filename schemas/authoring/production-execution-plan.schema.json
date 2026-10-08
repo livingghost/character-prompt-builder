@@ -1,6 +1,6 @@
 {
   "title": "Production execution plan",
-  "description": "What a prepared run will do when it executes: its operations, quantities, costs, readiness and the fields a variant may change.",
+  "description": "A prepared run: exact operations, requested quantities, external effects, readiness and mutable inputs.",
   "type": "object",
   "properties": {
     "run": {
@@ -46,30 +46,20 @@
     "quantities": {
       "type": "object",
       "properties": {
-        "uses": {
+        "outputs": {
           "type": "integer",
           "minimum": 1
         },
-        "outputs": {
+        "submissions": {
           "type": "integer",
           "minimum": 1
         }
       },
       "required": [
-        "uses",
+        "submissions",
         "outputs"
       ],
       "additionalProperties": false
-    },
-    "cost": {
-      "anyOf": [
-        {
-          "type": "null"
-        },
-        {
-          "$ref": "#/$defs/cost"
-        }
-      ]
     },
     "service": {
       "type": "string",
@@ -157,6 +147,9 @@
         "diagnostics"
       ],
       "additionalProperties": false
+    },
+    "prompt_check": {
+      "type": "object"
     }
   },
   "required": [
@@ -172,7 +165,6 @@
     "request": [
       "recording",
       "quantities",
-      "cost",
       "service",
       "model",
       "transport",
@@ -212,29 +204,6 @@
       ],
       "additionalProperties": false
     },
-    "cost": {
-      "type": "object",
-      "properties": {
-        "currency": {
-          "type": "string",
-          "minLength": 1
-        },
-        "amount": {
-          "type": "string",
-          "minLength": 1
-        },
-        "basis": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "currency",
-        "amount",
-        "basis"
-      ],
-      "additionalProperties": false
-    },
     "effect": {
       "type": "object",
       "properties": {
@@ -251,22 +220,11 @@
         "outputs": {
           "type": "integer",
           "minimum": 1
-        },
-        "cost": {
-          "anyOf": [
-            {
-              "type": "null"
-            },
-            {
-              "$ref": "#/$defs/cost"
-            }
-          ]
         }
       },
       "required": [
         "operation",
-        "count",
-        "cost"
+        "count"
       ],
       "additionalProperties": false
     },

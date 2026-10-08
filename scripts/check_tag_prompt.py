@@ -61,6 +61,7 @@ def load_vocabulary(path: Path) -> dict[str, Any]:
     opposes: dict[str, list[str]] = {}
     single_valued: set[str] = set()
     counts: set[str] = set()
+    meanings: dict[str, dict] = {}
     for category in data.get("categories") or []:
         if category.get("single_valued"):
             single_valued.add(category["id"])
@@ -68,10 +69,12 @@ def load_vocabulary(path: Path) -> dict[str, Any]:
         for entry in category.get("entries") or []:
             for name in [entry["term"], *(entry.get("aliases") or [])]:
                 category_of.setdefault(normalize(name), category["id"])
+                meanings.setdefault(normalize(name), {'term': entry['term'], 'category': category['id'],
+                    'description': entry.get('description'), 'usage_notes': entry.get('usage_notes', [])})
             if entry.get("opposes"):
                 opposes[normalize(entry["term"])] = [normalize(row) for row in entry["opposes"]]
     return {"category_of": category_of, "opposes": opposes, "single_valued": single_valued,
-            "multiple_figures": counts, "name": data.get("name")}
+            "multiple_figures": counts, "name": data.get("name"), "meanings": meanings}
 
 
 def normalize(term: str) -> str:
@@ -252,6 +255,59 @@ def check(prompt: str, negative: str, vocabulary: dict[str, Any], record: dict[s
         if negative and record.get("supports_negative_prompt") is False:
             report("problem", "negative transport", "the record declares no negative channel for this model")
     return findings
+
+
+def check_request(rendered: dict, record: dict) -> dict:
+    """Inspect the final wire text using the vocabulary of the active runtime.
+
+    The request has already received model recommendations and negative-channel
+    conversion. The returned evidence is sealed inside the execution plan.
+    """
+    import execution_contract as c
+    import request_contract as rc
+    from catalog_retrieval.runtime import load_pack_catalog
+    from prompt_dialect import find_dialect
+    from production_diagnostics import ProductionError
+    rc.validate_seal(rendered)
+    dialect_id = record.get('prompt_dialect')
+    if not dialect_id:
+        return {'state': 'not-applicable', 'request_sha256': rendered['request_sha256'], 'findings': []}
+    catalog = load_pack_catalog()
+    vocabulary_resource = catalog.resources.get('prompt-vocabulary')
+    dialect_resource = catalog.resources.get('prompt-dialects')
+    if vocabulary_resource is None or dialect_resource is None:
+        raise ProductionError('PROMPT_VOCABULARY_REQUIRED',
+            'A tag target requires an active prompt-vocabulary and prompt-dialects resource.',
+            phase='tag-prompt-check', required_action='Enable the resources for this model and prepare again.')
+    vocabulary_path = Path(vocabulary_resource.path)
+    dialect_path = Path(dialect_resource.path)
+    vocabulary = load_vocabulary(vocabulary_path)
+    dialect = find_dialect(dialect_id, dialect_path)
+    layout = rendered['layout']
+    positive = rc.get(rendered['request'], layout['primary_text']) if layout['primary_text'] is not None else ''
+    negative = rc.get(rendered['request'], layout['negative_text']) if layout['negative_text'] is not None else ''
+    findings = check(positive, negative, vocabulary, record, dialect)
+    meanings = []
+    for channel, text in (('positive', positive), ('negative', negative)):
+        for term in sorted({normalize(bare(tag)) for chunk in chunks(text) for tag in chunk}):
+            meaning = vocabulary['meanings'].get(term)
+            if meaning is not None and (meaning['description'] or meaning['usage_notes']):
+                meanings.append({'channel': channel, 'authored_term': term, **meaning})
+    return {'state': 'checked', 'request_sha256': rendered['request_sha256'],
+            'dictionary': {'resource': 'prompt-vocabulary', 'sha256': c.sha256_file(vocabulary_path)},
+            'dialect': {'id': dialect_id, 'sha256': c.sha256_file(dialect_path)},
+            'findings': findings, 'meanings': meanings}
+
+
+def require_request(rendered: dict, record: dict) -> dict:
+    """Reject mechanical problems and retain notes and meanings for the author."""
+    from production_diagnostics import ProductionError
+    report = check_request(rendered, record)
+    if any(item['severity'] == 'problem' for item in report['findings']):
+        raise ProductionError('TAG_PROMPT_PROBLEM', 'The final tag rendition contains mechanical problems.',
+            phase='tag-prompt-check', prompt_check=report,
+            required_action='Correct the reported problems in the authored text or model recommendations, then prepare again.')
+    return report
 
 
 def main(argv: list[str] | None = None) -> int:

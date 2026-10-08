@@ -23,7 +23,7 @@ python scripts/production_workflow.py execute --root STUDIO --run RUN_ID --decis
 python scripts/production_workflow.py resume --root STUDIO --run RUN_ID
 ```
 
-Fill the decision file from actual approval or an applicable delegation after inspecting the prepared request and its cost. Preparation does not reserve budget. Execution uses the common authority transaction, reservation, claim, upload and send boundary. One upscale requests one output. Partial acquisition remains visible and can be resumed from the retained answer; an unknown remote outcome is not an instruction to resend or release budget.
+Fill the decision file from actual approval or an applicable delegation after inspecting the prepared request. Execution uses the common authority transaction, execution claim, upload and send boundary. One upscale requests one output. Partial acquisition remains visible and can be resumed from the retained answer; an unknown remote outcome is not an instruction to resend.
 
 `repeat` prepares another run for the same input. `variant` accepts the compiler-declared `upscale-input` field as a file reference to an explicitly revised declaration, or a complete `recording` contract. It checks source content, rendering intent, scale, settings, validation evidence and affected dependencies again. It inherits no receipt, claim, review or adoption.
 

@@ -223,7 +223,7 @@ class InputToolsTests(unittest.TestCase):
 
     def test_complete_edited_draft_uses_same_builder(self):
         document = {'state': 'draft', 'choices': self.choices, 'unresolved': [],
-                    'derived_from': {}, 'external_effect': False, 'budget_effect': 'none'}
+                    'derived_from': {}, 'external_effect': False}
         (self.root / 'choices.json').write_bytes(c.encoded(document))
         self.assertTrue(self.build()['ok'])
 

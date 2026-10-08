@@ -16,7 +16,7 @@ import production_execution as execution
 import production_workflow as workflow
 import production_store as store
 import production_variation as variation
-import reservation_lifecycle as accounting
+import execution_lifecycle as accounting
 import studio
 import transport_synthetic
 from test_production_execution import decisions
@@ -81,7 +81,8 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(action['command'],'draft-execution')
         # The suggested command names the checked root, as the command line does.
         self.assertEqual(action['argv'][1:5],['scripts/production_workflow.py','draft-execution','--root',str(self.root.resolve())])
-        self.assertIn('--decisions-file decisions.json',action['reason'])
+        self.assertTrue(action['draft'].startswith(f'production/decisions/{self.run}/execution/'))
+        self.assertEqual(action['argv'][-2:], ['--out', action['draft']])
         self.assertEqual(whole['current_task']['task_id'],report['task_id'])
 
     def test_unreadable_current_task_is_reported_not_raised(self):
@@ -100,19 +101,19 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(report['runs'][0]['readiness'],'blocked')
         self.assertIn('AUTHORITY_STATE_CORRUPT',{item['code'] for item in report['runs'][0]['readiness_diagnostics']})
 
-    def test_status_does_not_create_receipts_reservations_or_claim(self):
+    def test_status_does_not_create_receipts_or_claim(self):
         before=store.event_rows(self.root,self.run)
         with patch.object(transport_synthetic,'send',side_effect=AssertionError('No status send')):
-            execution.status(self.root,self.run,budget=True)
+            execution.status(self.root,self.run)
         self.assertEqual(store.event_rows(self.root,self.run),before)
         self.assertEqual(accounting.all_states(self.root),[])
 
-    def test_reserved_before_effect_resumes_the_same_claim(self):
+    def test_claimed_before_effect_resumes_the_same_claim(self):
         self.paused();claim=workflow.find(store.event_rows(self.root,self.run),'dispatch-claim')
         report=status(self.root,self.run)['runs'][0]
-        self.assertEqual((report['submission'],report['send_started'],report['effects']),('reserved',False,[]))
+        self.assertEqual((report['submission'],report['send_started'],report['effects']),('claimed',False,[]))
         self.assertEqual(report['next_action']['command'],'resume')
-        self.assertTrue(report['reservation']['release_eligible'])
+        self.assertEqual(report['execution']['status'],'claimed')
         actual=transport_synthetic.send
         with patch.object(transport_synthetic,'send',wraps=actual) as send:
             result=execution.resume(self.root,self.run)
@@ -124,21 +125,21 @@ class ResumeTests(unittest.TestCase):
         task_id=workflow.load_run(self.root,self.run)[1]['task']['task_id']
         workflow.abandon_task(self.root,task_id,actor='synthetic author',reason='Synthetic stop of the work task.')
 
-    def test_abandoned_task_shows_release_eligibility_without_releasing(self):
+    def test_abandoned_task_retains_claim_without_starting_effect(self):
         self.paused();self.abandon()
         item=status(self.root,self.run)['runs'][0]
-        self.assertEqual((item['task_disposition'],item['submission']),('abandoned','reserved'))
-        self.assertEqual((item['reservation']['status'],item['reservation']['release_eligible']),('reserved',True))
-        self.assertEqual(item['next_action']['command'],'draft-release')
+        self.assertEqual((item['task_disposition'],item['submission']),('abandoned','claimed'))
+        self.assertEqual(item['execution']['status'],'claimed')
+        self.assertIsNone(item['next_action'])
 
-    def test_abandoned_unknown_outcome_keeps_its_reservation(self):
+    def test_abandoned_unknown_outcome_keeps_its_execution(self):
         with patch.object(transport_synthetic,'send',side_effect=TimeoutError('Synthetic unknown outcome')):
             self.send()
         self.abandon()
-        whole=status(self.root,self.run,budget=True);item=whole['runs'][0]
+        whole=status(self.root,self.run);item=whole['runs'][0]
         self.assertEqual((item['task_disposition'],item['submission']),('abandoned','outcome_unknown'))
-        self.assertFalse(item['reservation']['release_eligible'])
-        self.assertEqual(whole['budget']['grants'][0]['outstanding_reserved']['uses'],1)
+        self.assertEqual(item['execution']['status'],'started')
+        self.assertEqual(whole['execution_records']['submissions'],1)
         self.assertEqual(item['next_action']['command'],'resume')
 
     def test_unknown_outcome_remains_visible_when_source_changes(self):
@@ -173,7 +174,7 @@ class ResumeTests(unittest.TestCase):
         self.assertTrue(second['execution_completed'])
         self.assertEqual(first['runs'][0]['candidates'],second['runs'][0]['candidates'])
         self.assertEqual(len(studio.read_iterations(studio.character_home(self.root,'robot'))),1)
-        self.assertEqual(accounting.budget(self.root)['grants'][0]['consumed']['uses'],1)
+        self.assertEqual(accounting.summary(self.root)['submissions'],1)
 
     def test_partial_outputs_register_without_waiting_for_missing_image(self):
         # The provider returned two outputs, but acquiring one fails once.
@@ -192,23 +193,23 @@ class ResumeTests(unittest.TestCase):
             second=execution.resume(self.root,self.run)
         self.assertEqual(second['runs'][0]['capture'],'complete')
         self.assertEqual(len(second['runs'][0]['candidates']),2)
-        self.assertEqual(accounting.budget(self.root,run=self.run)['grants'][0]['consumed']['uses'],1)
+        self.assertEqual(accounting.summary(self.root,run=self.run)['submissions'],1)
 
     def test_one_corrupt_run_does_not_hide_another(self):
         other=variation.derive(self.root,self.run,prepare=True)['run']
         checked(execution.execute(self.root,other,decisions_file=decisions(self.root,other)))
         (workflow.run_dir(self.root,self.run)/'consumer.json').write_text('{}',encoding='utf-8')
-        result=status(self.root,budget=True)
+        result=status(self.root)
         by_id={row['run']:row for row in result['runs']}
         self.assertEqual(by_id[self.run]['integrity'],'blocked')
         self.assertEqual(by_id[self.run]['next_action']['command'],'status')
         self.assertEqual(by_id[other]['integrity'],'intact')
         self.assertEqual(by_id[other]['capture'],'complete')
-        # The intact run keeps its budget; the corrupt run is named instead of hiding it.
-        self.assertFalse(result['budget']['complete'])
-        self.assertIn(self.run,{item.get('run') for item in result['budget']['diagnostics']})
-        group=result['budget']['grants'][0]
-        self.assertEqual(group['consumed']['uses'],1)
+        # The intact run keeps its execution records; the corrupt run is named instead of hiding it.
+        self.assertFalse(result['execution_records']['complete'])
+        self.assertIn(self.run,{item.get('run') for item in result['execution_records']['diagnostics']})
+        group=result['execution_records']
+        self.assertEqual(group['submissions'],1)
         self.assertIsInstance(result['unregistered_publications'],list)
 
     def test_every_freshness_problem_is_reported(self):
@@ -250,19 +251,21 @@ class OutcomeStatementCliTests(unittest.TestCase):
             with patch.object(transport_synthetic, 'send', side_effect=TimeoutError('Synthetic timeout')):
                 execution.execute(root, run, decisions_file=decisions(root, run))
             action = checked(execution.resume(root, run))['runs'][0]['next_action']
-            self.assertEqual(action['argv'][2:], ['draft-outcome', '--root', str(root), '--run', run, '--out', 'outcome.json'])
-            code, drafted = self.cli(root, 'draft-outcome', '--run', run, '--out', 'outcome.json')
+            self.assertTrue(action['draft'].startswith(f'production/decisions/{run}/outcome/'))
+            self.assertEqual(action['argv'][2:], ['draft-outcome', '--root', str(root), '--run', run, '--out', action['draft']])
+            code, drafted = self.cli(root, 'draft-outcome', '--run', run, '--out', action['draft'])
             self.assertEqual(code, 0)
-            self.assertEqual(c.load(root/'outcome.json'), drafted)
+            self.assertEqual(c.load(root/action['draft']), drafted)
             fixtures.write(root/'provider-export.txt', 'Synthetic provider export without this task.\n')
             issuer = store.authority(root, workflow.load_run(root, run)[1]['task']['task_id'])['issuer']
             drafted.update(actor=issuer, reason='The provider export lists no task for this request.',
                            evidence={'path': 'provider-export.txt', 'sha256': c.sha256_file(root/'provider-export.txt'), 'locator': 'whole export'})
-            fixtures.write(root/'outcome.json', drafted)
-            code, report = self.cli(root, 'resume', '--run', run, '--outcome-file', 'outcome.json')
+            fixtures.write(root/action['draft'], drafted)
+            code, report = self.cli(root, 'resume', '--run', run, '--outcome-file', action['draft'])
             self.assertEqual(code, 0)
             item = checked(report)['runs'][0]
-            self.assertEqual((item['submission'], item['reservation']['release_eligible']), ('not_executed', True))
+            self.assertEqual(item['submission'], 'not_executed')
+            self.assertEqual(item['next_action']['command'], 'repeat')
 
 
 class AuthoredResumeTests(unittest.TestCase):

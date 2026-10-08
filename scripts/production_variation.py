@@ -22,13 +22,11 @@ DOCUMENT_FIELDS = {
     'creative-intent': 'creative_intent', 'request-validation': 'request_validation',
     'visual-continuity': 'visual_continuity', 'references': 'references',
     'state-lineage': 'state_lineage', 'state-snapshot': 'state_snapshot',
-    'negative-provenance': 'negative_provenance',
-}
+    'negative-provenance': 'negative_provenance'}
 TASK_FIELDS = {
     'direction': 'direction', 'criteria': 'criteria', 'source-materials': 'sources',
     'route-reading': 'route_reading', 'scene-materials': 'scene_materials',
-    'world-views': 'world_views', 'moment-views': 'moment_views', 'features': 'features',
-}
+    'world-views': 'world_views', 'moment-views': 'moment_views', 'features': 'features'}
 # A target is chosen by retargeting with a reassessed task, never by a field map.
 TARGET_KEYS = {'model', 'service', 'offering', 'target', 'target-model'}
 RETARGET = 'python scripts/production_workflow.py retarget --root {root} --from {run} --task TASK_FILE --reason REASON --prepare'
@@ -77,9 +75,9 @@ def _unchanged(root: Path, run: str, prepared: dict, replaced: set[str], depende
             actual = workflow.current_sha256(root, source)
         except (ValueError, OSError):
             actual = None
-        if actual != source['sha256'] and source['space'] == 'skill':
+        if actual != source.get('selection_sha256', source['sha256']) and source['space'] == 'skill':
             raise workflow.freshness_error(source, actual, run=run)
-        if actual != source['sha256']:
+        if actual != source.get('selection_sha256', source['sha256']):
             raise ProductionError('SOURCE_CHANGED', 'An unchanged source differs from the prepared input.',
                 phase='variation', file=source['path'], expected=source['sha256'], actual=actual,
                 required_action='Review the source and replace it through its declared field, or restore the pinned contents.')
@@ -320,8 +318,7 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
     result['derivation'] = parent
     result['runtime_warnings'] = runtime_warnings
     result['revalidated_checks' if prepare else 'required_checks']=sorted(checks)
-    result.update(external_effect=False, budget_effect='none',
-                  authorization_inherited=False, candidate_required=False)
+    result.update(external_effect=False, authorization_inherited=False, candidate_required=False)
     return result
 
 
@@ -382,7 +379,7 @@ def retarget(root: Path, run: str, task_file: str, *, reason: str, prepare: bool
     checks=['execution-profile','request-validation','recording','request','source-applicability']
     if task['route']=='generation':checks += ['target-guidance','retrieval','render-intent','reference-transport']
     elif task['route']=='upscale':checks += ['upscale-source','scale-factor','render-intent','transport']
-    result.update(derivation=parent, external_effect=False, budget_effect='none', authorization_inherited=False,
+    result.update(derivation=parent, external_effect=False, authorization_inherited=False,
                   candidate_required=False, required_checks=sorted(set(checks)))
     return result
 
@@ -390,8 +387,7 @@ def retarget(root: Path, run: str, task_file: str, *, reason: str, prepare: bool
 HELP = {
     'variant': 'Prepare a new input from a run with declared field changes; nothing is claimed or sent.',
     'repeat': 'Prepare another run of a run\'s unchanged input, with its own claim and authorization.',
-    'retarget': 'Prepare a run from another one against a reassessed target or the current pack runtime.',
-}
+    'retarget': 'Prepare a run from another one against a reassessed target or the current pack runtime.'}
 
 
 def add_arguments(subparsers) -> None:

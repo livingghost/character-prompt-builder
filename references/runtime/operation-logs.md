@@ -10,19 +10,19 @@ A log never establishes approval, source understanding or image review.
 - Without a Studio: `logs/operations/UTC-DATE/OPERATION-ID/` in the configuration directory, which `CPB_HOME` names and which is `~/.character-prompt-builder` while `CPB_HOME` is unset.
 
 `--root`, `--production-root` and `--studio-root` name an existing Studio.
-`--studio` can also name a directory inside that Studio.
+`--studio` can also name a directory inside that Studio. A sheet command identifies its Studio through the ancestors of `--sheet` or a locally stored `--spec`.
 An unresolved studio and an argument error stay in the configuration directory.
 When the configuration directory cannot be written, the operation rebuilds its early record in the Studio and notes `user_log_unavailable`.
-Logging alone creates no Studio, task, run, authorization or reservation.
+Logging alone creates no Studio, task, run, authorization or execution claim.
 
 A child process started during a call records that call as `parent_operation`.
 The parent passes its ID in the `CPB_PARENT_OPERATION` environment variable.
-An operation lists every candidate and reservation it touched.
+An operation lists every candidate and execution claim it touched.
 `logs`, `logs-export` and `status` record the run they inspect as `query_run`, so they never join that run's operations.
 
 ## What an operation holds
 
-- `operation.json`: the command, its arguments, the linked task, run, candidates and reservations, the parent operation and the process;
+- `operation.json`: the command, its arguments, the linked task, run, candidates and execution claims, the parent operation and the process;
 - `events.jsonl`: each stage with its duration, the formal storage events, and a final `completed` event with the exit code;
 - `stdout.log` and `stderr.log`: the console output;
 - `artifacts.json`: each file the operation wrote, with its SHA-256 when the operation ended.
@@ -135,3 +135,14 @@ A synthetic dry run, trimmed; the protected operation is the cleanup itself:
 
 Cleanup never removes formal requests, responses, candidates, reviews or other Production evidence.
 Confirm an external host's actual result with `settle-external`; unknown billing is never treated as zero.
+
+
+## Automatic operator timeline
+
+Successful work transitions also append immutable redacted records under `STUDIO/work/activity/events/`. Each record carries an event ID, UTC timestamp, subject, revision, operation ID when invoked through a public CLI, and links or identifying fields. Candidate registration, adoption, history reoffer, batch allocation/progress, authored sheet edits, review creation, answers, reopened work and task switches are represented. An explicit revision makes retries idempotent.
+
+`work/activity/timeline.jsonl` and `timeline.md` are automatically generated chronological views; `gallery.html` links to them. They are not a second approval or execution ledger. Actual answers and prior task revisions remain in `work/ledger.jsonl` and `work/tasks/`; exact prompts, requests, responses, approvals and images remain with Production and sheet artifact owners. Redaction in the activity view is not deletion of the formal evidence.
+
+After a committed transition, a failed event write returns `ACTIVITY_RECORD_PENDING`; a small redacted retry receipt is saved when storage allows. A failed display refresh returns `PROJECTION_REFRESH_PENDING`. Both retain committed state and mark `work/activity/projections-pending.json` when writable. `studio.py sync` retries queued events and rebuilds the views. The warning says whether a retry receipt could be saved; total storage failure cannot be represented as a successfully saved log. A repeated generation is never a log-repair operation.
+
+Formal execution claims still have to be durable **before** any external effect. This post-commit projection recovery does not relax that rule. Diagnostic cleanup does not remove activity events, task snapshots, required approval evidence or captured artwork.

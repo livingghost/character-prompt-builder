@@ -67,7 +67,7 @@ th,td{border:1px solid var(--line);padding:6px;text-align:left;vertical-align:to
 <body>
 <div class="sheet">
 <div class="warn" id="banner">DRAFT</div>
-<div class="workflow"><strong>REUSABLE JSON EDITOR - NOT A PER-CHARACTER HTML DOCUMENT</strong><p>Use this page when a recurring character is first defined or when its stable canon is revised. Do not edit the HTML source for each character. Enter data in the page and save it by exporting sheet-data.json.</p><ol><li>For a new character, start blank. For an existing character, import its sheet-data.json before editing.</li><li>Enter stable identity facts only. Do not put the current scene, camera, one-off pose, lighting, damage, dirt, or other transient state here.</li><li>Export sheet-data.json into one folder dedicated to that character. Browser edits are not saved anywhere until export.</li><li>Run the renderer on that folder. The renderer reads JSON plus a layout profile and creates the renderer-owned PNG composition base, edit mask, layout, and exact panel-only requests. It does not screenshot or rasterize this HTML page.</li><li>For a maskless model, send only each declared panel prompt and its accepted identity references, then compose the artwork-only result files into the renderer-owned base. Never send the full sheet as a reference image and call that a masked edit. A full-sheet request is allowed only for an interface that actually applies the pixel edit mask.</li><li>Harvest the returned sheet as candidates, explicitly accept only approved panel crops, and render the accepted panels as a later identity reference board.</li></ol><code class="workflow-command">python scripts/render_character_sheet.py &lt;character-sheet-folder&gt; --mode scaffold --out &lt;character-sheet-folder&gt;/model-fill</code><p class="not-for-scenes">Do not reopen or rewrite this editor for every new image. Reopen it only when the character canon, the requested sheet panels, or an accepted reference artifact changes. Pose and scene instructions belong in the current generation prompt.</p><p class="profile-note"><b>Panel-set scope:</b> the renderer profile named in <code>field.sheet_layout_profile</code> is authoritative; blank uses the domain-neutral <code>general</code> profile. Panel letters are profile-local and are intentionally replaced by stable slot ids in this editor. Imported and profile-resolved slots receive controls automatically. Bundled profile panels are starters, never a closed list or a maximum; undeclared anatomy is never generated.</p></div><div class="editor-actions"><input accept="application/json" hidden="" id="sheetImport" type="file"/><button data-action="import" type="button">Import sheet-data.json</button><button class="primary" data-action="export" type="button">Export sheet-data.json</button><button class="danger" data-action="reset" type="button">Reset editor</button><span class="editor-status" id="editorStatus">No unsaved edits</span><span class="structure-status" id="structureStatus">Checking form structure...</span></div>
+<div class="workflow"><strong>REUSABLE JSON EDITOR - NOT A PER-CHARACTER HTML DOCUMENT</strong><p>Use this page when a recurring character is first defined or when its stable canon is revised. Do not edit the HTML source for each character. Import the current sheet-data.json, edit authored fields, and export an edit for validated application.</p><ol><li>Initialize a new character through the CLI, or use the existing character folder. Import its current sheet-data.json before editing.</li><li>Enter stable identity facts only. Do not put the current scene, camera, one-off pose, lighting, damage, dirt, or other transient state here.</li><li>Export a character-sheet-edit JSON, then run sheet_workflow.py apply-edit --sheet SHEET_JSON --edit EDIT_JSON. A download alone has not updated the sheet. Never overwrite sheet-data.json with this edit or a stale snapshot.</li><li>Run the renderer on that folder. The renderer reads JSON plus a layout profile and creates the renderer-owned PNG composition base, edit mask, layout, and exact panel-only requests. It does not screenshot or rasterize this HTML page.</li><li>For a maskless model, send only each declared panel prompt and its accepted identity references, then compose the artwork-only result files into the renderer-owned base. Never send the full sheet as a reference image and call that a masked edit. A full-sheet request is allowed only for an interface that actually applies the pixel edit mask.</li><li>Harvest the returned sheet as candidates, explicitly accept only approved panel crops, and render the accepted panels as a later identity reference board.</li></ol><code class="workflow-command">python scripts/render_character_sheet.py &lt;character-sheet-folder&gt; --mode scaffold --out &lt;character-sheet-folder&gt;/model-fill</code><p class="not-for-scenes">Do not reopen or rewrite this editor for every new image. Reopen it only when the character canon, the requested sheet panels, or an accepted reference artifact changes. Pose and scene instructions belong in the current generation prompt.</p><p class="profile-note"><b>Panel-set scope:</b> the renderer profile named in <code>field.sheet_layout_profile</code> is authoritative; blank uses the domain-neutral <code>general</code> profile. Panel letters are profile-local and are intentionally replaced by stable slot ids in this editor. Imported and profile-resolved slots receive controls automatically. Bundled profile panels are starters, never a closed list or a maximum; undeclared anatomy is never generated.</p></div><div class="editor-actions"><input accept="application/json" hidden="" id="sheetImport" type="file"/><button data-action="import" type="button">Import sheet-data.json</button><button class="primary" data-action="export" type="button">Export authored edit</button><button class="danger" data-action="reset" type="button">Reset editor</button><span class="editor-status" id="editorStatus">No unsaved edits</span><span class="structure-status" id="structureStatus">Checking form structure...</span></div>
 <div class="hdr">
 <div class="kv">
 <label for="field-identity-name">Name</label><input aria-label="Name" class="field-control field-input" data-field-id="identity.name" data-identity-required="" id="field-identity-name" type="text" value=""/>
@@ -304,7 +304,7 @@ th,td{border:1px solid var(--line);padding:6px;text-align:left;vertical-align:to
 const PLACEHOLDERS=new Set(['','-','unknown','tbd','n/a','not applicable','unspecified']);
 const FILL_POLICIES=new Set(['auto','fill','keep','skip']);
 const BINDING_VALUES=new Set(['','kind-fixed','character-fixed','individual-fixed','variable']);
-const SLOT_EDITOR_KEYS=new Set(['image_path','generation_package','fill_policy']);
+const SLOT_EDITOR_KEYS=new Set(['fill_policy']);
 const SIDECAR_KEYS=new Set(['sheet_status','fields','tables','slots']);
 const SHEET_STATUSES=new Set(['draft','identity-ready','reference-ready']);
 const TABLE_COLUMNS={
@@ -396,8 +396,7 @@ function setSlotImagePath(slot,value,{imported=false}={}){
   image.src=path;
 }
 function setSlotPackagePath(slot,value,{imported=false}={}){const path=String(value||'').trim();const input=pathControl(slot,'package');if(input)input.value=path;slot.dataset.packagePath=path;if(imported)slot.dataset.importedPackagePath=path}
-function syncSlotPathFromInput(input){const slot=input.closest('.slot[data-slot-id]');if(!slot)return;if(input.dataset.slotPath==='image')setSlotImagePath(slot,input.value);else setSlotPackagePath(slot,input.value)}
-function slotState(slot){return {imagePath:controlValue(pathControl(slot,'image')),packagePath:controlValue(pathControl(slot,'package')),fillPolicy:getFillPolicy(slot)}}
+function slotState(slot){const artifact=passthrough.slotValues[slot.dataset.slotId]?.current?.artifact;return {imagePath:artifact?.image?.path||'',packagePath:artifact?.provenance?.path||'',fillPolicy:getFillPolicy(slot)}}
 function normalizeSlotPanelCode(slot){
   slot.dataset.panelCode='';
   const code=slot.querySelector('.panel-code');if(code)code.textContent='PROFILE';
@@ -419,7 +418,7 @@ function ensureSlotEditor(slotId,label='Imported rendered slot',tier='cond',{hos
   const empty=document.createElement('div');empty.className='slot-preview-empty';empty.textContent='No accepted image';slot.appendChild(empty);
   const cap=document.createElement('div');cap.className='cap';const code=document.createElement('span');code.className='panel-code';code.textContent='PROFILE';cap.append(code,document.createTextNode(' '+label+' '));const tag=document.createElement('span');tag.className='tag '+tier;tag.textContent=tier==='rec'?'RECOMMENDED':'IF DECLARED';cap.appendChild(tag);slot.appendChild(cap);
   const prov=document.createElement('div');prov.className='prov';
-  for(const [kind,title] of [['image','Accepted image path'],['package','Generation package path']]){const row=document.createElement('label');row.className='prov-row';const text=document.createElement('span');text.textContent=title;const input=document.createElement('input');input.className='path-input';input.dataset.slotPath=kind;input.autocomplete='off';input.spellcheck=false;input.type='text';input.setAttribute('aria-label',slotId+': '+title);row.append(text,input);prov.appendChild(row)}slot.appendChild(prov);
+  for(const [kind,title] of [['image','Accepted image path'],['package','Accepted provenance path']]){const row=document.createElement('label');row.className='prov-row';const text=document.createElement('span');text.textContent=title;const input=document.createElement('input');input.className='path-input';input.dataset.slotPath=kind;input.readOnly=true;input.autocomplete='off';input.spellcheck=false;input.type='text';input.setAttribute('aria-label',slotId+': '+title);row.append(text,input);prov.appendChild(row)}slot.appendChild(prov);
   const fill=document.createElement('div');fill.className='fill-policy';const fillLabel=document.createElement('label');fillLabel.textContent='Model-fill policy';const select=document.createElement('select');select.dataset.fillPolicy='';select.setAttribute('aria-label',slotId+': model-fill policy');for(const [value,text] of [['auto','Auto - derive from declared data'],['fill','Generate / replace'],['keep','Keep accepted image'],['skip','Skip / leave blank']]){const option=document.createElement('option');option.value=value;option.textContent=text;if(value==='auto')option.selected=true;select.appendChild(option)}fill.append(fillLabel,select);slot.appendChild(fill);
   (host||dynamicSlotHost()).appendChild(slot);return slot;
 }
@@ -525,8 +524,8 @@ function refresh(){
   document.querySelectorAll('.slot[data-slot-id]').forEach(slot=>policies[getFillPolicy(slot)]++);
   const summary='<span class="policy-summary">Panel policies: '+policies.auto+' auto | '+policies.fill+' generate | '+policies.keep+' keep | '+policies.skip+' skip.</span>';
   if(structuralErrors.length){banner.className='bad';banner.innerHTML='EDITOR STRUCTURE ERROR | export is disabled.<small>'+structuralErrors.join(' | ')+'</small>'}
-  else if(result.status==='draft'){banner.className='warn';banner.innerHTML='DRAFT | Name and Species / Domain are not both defined.<small>'+summary+' This page edits JSON; it is not the model-facing sheet.</small>'}
-  else if(result.status==='identity-ready'){banner.className='ok';banner.innerHTML='IDENTITY READY | export JSON and render a scaffold.<small>'+summary+' No accepted canonical image/package pair is registered yet.</small>'}
+  else if(result.status==='draft'){banner.className='warn';banner.innerHTML='DRAFT | Name and Species / Domain are not both defined.<small>'+summary+' Apply exported edits with sheet_workflow.py apply-edit. Never overwrite sheet-data.json with an editor download.</small>'}
+  else if(result.status==='identity-ready'){banner.className='ok';banner.innerHTML='IDENTITY READY | export an edit, apply it with sheet_workflow.py apply-edit, then render a scaffold.<small>'+summary+' No accepted canonical image/package pair is registered yet.</small>'}
   else{banner.className='ok';banner.innerHTML='REFERENCE READY | accepted canonical image provenance is recorded.<small>'+summary+' Use the rendered reference board for later scenes; do not send this HTML.</small>'}
   document.querySelectorAll('.slot[data-slot-id]').forEach(slot=>{const state=slotState(slot);slot.classList.toggle('miss-rec',slot.dataset.tier==='rec'&&!state.imagePath&&state.fillPolicy!=='skip');slot.classList.toggle('miss-core',slot.dataset.slotId==='canon.primary'&&state.fillPolicy!=='skip'&&!state.imagePath);slot.classList.toggle('policy-fill',state.fillPolicy==='fill');slot.classList.toggle('policy-keep',state.fillPolicy==='keep');slot.classList.toggle('policy-skip',state.fillPolicy==='skip');slot.classList.toggle('policy-error',state.fillPolicy==='keep'&&!state.imagePath)});
 }
@@ -545,11 +544,11 @@ function validateEditor(){
   const invalidHex=[...document.querySelectorAll('input.hex')].filter(input=>input.value.trim()&&!hexOk(input.value));if(invalidHex.length)throw new Error('Color codes must use #RRGGBB.');
   const invalidBindings=[...document.querySelectorAll('select.table-select[data-column-id="binding"]')].filter(select=>!BINDING_VALUES.has(select.value));if(invalidBindings.length)throw new Error('Binding must be blank, kind-fixed, character-fixed, individual-fixed, or variable.');
   const rowIds=[...document.querySelectorAll('table[data-export-table] tr[data-row-id]')].map(row=>row.dataset.rowId);const duplicates=rowIds.filter((value,index,array)=>array.indexOf(value)!==index);if(duplicates.length)throw new Error('Duplicate row_id values: '+[...new Set(duplicates)].join(', '));
-  const invalidKeep=[...document.querySelectorAll('.slot[data-slot-id]')].filter(slot=>getFillPolicy(slot)==='keep'&&!slotState(slot).imagePath);if(invalidKeep.length)throw new Error('Keep accepted image requires an accepted image_path: '+invalidKeep.map(slot=>slot.dataset.slotId).join(', '));
-  const invalidPaths=[];for(const slot of document.querySelectorAll('.slot[data-slot-id]')){const state=slotState(slot);for(const [label,path] of [['image_path',state.imagePath],['generation_package',state.packagePath]])if(path&&!safeRelativePath(path))invalidPaths.push(slot.dataset.slotId+'.'+label)}
+  const invalidKeep=[...document.querySelectorAll('.slot[data-slot-id]')].filter(slot=>getFillPolicy(slot)==='keep'&&!slotState(slot).imagePath);if(invalidKeep.length)throw new Error('Keep accepted image requires accepted artwork: '+invalidKeep.map(slot=>slot.dataset.slotId).join(', '));
+  const invalidPaths=[];for(const slot of document.querySelectorAll('.slot[data-slot-id]')){const state=slotState(slot);for(const [label,path] of [['current.artifact.image.path',state.imagePath],['current.artifact.provenance.path',state.packagePath]])if(path&&!safeRelativePath(path))invalidPaths.push(slot.dataset.slotId+'.'+label)}
   if(invalidPaths.length)throw new Error('Accepted artifact paths must be safe relative paths inside the character folder: '+invalidPaths.join(', '));
 }
-function buildExportData(){
+function buildSheetSnapshot(){
   validateEditor();const result=readiness();const fields={...passthrough.fields};
   for(const el of document.querySelectorAll('[data-field-id]')){const key=el.dataset.fieldId,value=controlValue(el);if(value!=='')fields[key]=value;else delete fields[key]}
   const tables={...passthrough.tables};for(const table of document.querySelectorAll('table[data-export-table]'))tables[table.id]=exportTable(table);
@@ -558,15 +557,34 @@ function buildExportData(){
     const slotId=slot.dataset.slotId;
     if(Object.prototype.hasOwnProperty.call(passthrough.slots,slotId))continue;
     const state=slotState(slot);const extras={...(passthrough.slotValues[slotId]||{})};
-    if(!state.imagePath||state.imagePath!==(slot.dataset.importedImagePath||''))delete extras.image_sha256;
-    if(!state.packagePath||state.packagePath!==(slot.dataset.importedPackagePath||''))delete extras.generation_package_sha256;
-    if(!state.imagePath&&!state.packagePath&&state.fillPolicy==='auto'&&!Object.keys(extras).length){delete slots[slotId];continue}
-    slots[slotId]={...extras,image_path:state.imagePath,generation_package:state.packagePath,fill_policy:state.fillPolicy};
+    if(!Object.keys(extras).length&&state.fillPolicy==='auto'){delete slots[slotId];continue}
+    slots[slotId]={current:null,candidates:[],history:[],...extras,fill_policy:state.fillPolicy};
   }
   return {sheet_status:result.status,fields,tables,slots};
 }
+let importedAuthoring = null;
+let normalizedAuthoring = null;
+function authoringProjection(data){
+  const policies={};for(const [key,slot] of Object.entries(data.slots)){if(slot.fill_policy&&slot.fill_policy!=='auto')policies[key]=slot.fill_policy}
+  return {fields:structuredClone(data.fields),tables:structuredClone(data.tables),fill_policies:policies};
+}
+function buildExportData(){
+  if(!importedAuthoring)throw new Error('Import the current sheet-data.json before exporting an edit.');
+  const edited=authoringProjection(buildSheetSnapshot());
+  // The form can normalize empty rows. Only explicit edits, compared to the
+  // initially rendered form, change the imported authored projection.
+  const after=structuredClone(importedAuthoring);
+  for(const section of ['fields','tables','fill_policies']){
+    const keys=new Set([...Object.keys(normalizedAuthoring[section]),...Object.keys(edited[section])]);
+    for(const key of keys){
+      if(JSON.stringify(normalizedAuthoring[section][key])===JSON.stringify(edited[section][key]))continue;
+      if(Object.hasOwn(edited[section],key))after[section][key]=edited[section][key];else delete after[section][key];
+    }
+  }
+  return {artifact_type:'character-sheet-edit',before:structuredClone(importedAuthoring),after};
+}
 async function exportData(){
-  try{const data=buildExportData();const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});const anchor=document.createElement('a');anchor.href=URL.createObjectURL(blob);anchor.download='sheet-data.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(anchor.href),1000);setDirty(false)}catch(error){alert(error.message)}
+  try{const data=buildExportData();const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});const anchor=document.createElement('a');anchor.href=URL.createObjectURL(blob);anchor.download='sheet-edit-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(anchor.href),1000);setDirty(false)}catch(error){alert(error.message)}
 }
 function resetEditor({confirmFirst=true}={}){
   if(confirmFirst&&dirty&&!window.confirm('Discard current edits and restore the blank editor?'))return false;
@@ -574,7 +592,7 @@ function resetEditor({confirmFirst=true}={}){
   for(const tableId of Object.keys(TABLE_COLUMNS))restoreInitialTable(tableId);
   for(const slot of document.querySelectorAll('.slot[data-dynamic-slot-editor="true"]'))slot.remove();
   for(const slot of document.querySelectorAll('.slot[data-slot-id]')){setSlotImagePath(slot,'',{imported:true});setSlotPackagePath(slot,'',{imported:true});setFillPolicy(slot,'auto')}
-  passthrough={fields:{},tables:{},slots:{},rowValues:{},slotValues:{}};auditStructure();refresh();setDirty(false);return true;
+  passthrough={fields:{},tables:{},slots:{},rowValues:{},slotValues:{}};importedAuthoring=null;normalizedAuthoring=null;auditStructure();refresh();setDirty(false);return true;
 }
 function importTable(tableId,rows){
   const table=document.getElementById(tableId);if(!table||!Array.isArray(rows))return;
@@ -598,13 +616,14 @@ function importData(data){
   for(const [key,value] of Object.entries(data.fields)){const el=document.querySelector('[data-field-id="'+CSS.escape(key)+'"]');if(el)setControlValue(el,String(value));else passthrough.fields[key]=String(value)}
   for(const [tableId,rows] of Object.entries(data.tables)){if(document.getElementById(tableId))importTable(tableId,rows);else passthrough.tables[tableId]=rows}
   for(const [slotId,raw] of Object.entries(data.slots)){
-    if(!raw||typeof raw!=='object'||Array.isArray(raw)){passthrough.slots[slotId]=raw;continue}
+    if(!raw||typeof raw!=='object'||Array.isArray(raw)||!Object.hasOwn(raw,'current')||!Array.isArray(raw.candidates)||!Array.isArray(raw.history))throw new Error('Malformed sheet artwork selection: '+slotId);
     const slot=ensureSlotEditor(slotId);
     const extras={};for(const [key,value] of Object.entries(raw)){if(!SLOT_EDITOR_KEYS.has(key))extras[key]=value}
     if(Object.keys(extras).length)passthrough.slotValues[slotId]=extras;
-    setSlotImagePath(slot,typeof raw.image_path==='string'?raw.image_path:'',{imported:true});setSlotPackagePath(slot,typeof raw.generation_package==='string'?raw.generation_package:'',{imported:true});setFillPolicy(slot,typeof raw.fill_policy==='string'?raw.fill_policy:'auto');
+    setSlotImagePath(slot,raw.current?.artifact?.image?.path||'',{imported:true});setSlotPackagePath(slot,raw.current?.artifact?.provenance?.path||'',{imported:true});setFillPolicy(slot,typeof raw.fill_policy==='string'?raw.fill_policy:'auto');
   }
   auditStructure();refresh();setDirty(false);
+  importedAuthoring=authoringProjection(data);normalizedAuthoring=authoringProjection(buildSheetSnapshot());
 }
 
 function initialize(){
@@ -623,7 +642,7 @@ document.addEventListener('click',event=>{
   else if(action.dataset.action==='export')exportData();
   else if(action.dataset.action==='reset')resetEditor();
 });
-document.addEventListener('input',event=>{if(event.target.matches('[data-slot-path]'))syncSlotPathFromInput(event.target);if(event.target.closest('.sheet')){if(event.target.tagName==='TEXTAREA')autoSize(event.target);setDirty();refresh()}});
+document.addEventListener('input',event=>{if(event.target.closest('.sheet')){if(event.target.tagName==='TEXTAREA')autoSize(event.target);setDirty();refresh()}});
 document.addEventListener('change',event=>{if(event.target.closest('.sheet')){setDirty();refresh()}});
 document.getElementById('sheetImport').addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;try{importData(JSON.parse(await file.text()))}catch(error){alert(error.message)}finally{event.target.value=''}});
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}});

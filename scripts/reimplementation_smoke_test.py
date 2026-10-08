@@ -169,9 +169,9 @@ class UpscaleIntegration(unittest.TestCase):
         again=self.execution.resume(self.root,self.run)
         self.assertEqual(again['runs'][0]['candidates'],initial)
         self.assertEqual(self.send.call_count,1);self.assertEqual(self.upload.call_count,1)
-        import reservation_lifecycle as budget
-        used=budget.budget(self.root)['grants'][0]['consumed']
-        self.assertEqual((used['uses'],used['outputs']),(1,1))
+        import execution_lifecycle as accounting
+        used=accounting.summary(self.root)
+        self.assertEqual((used['submissions'],used['captured_outputs']),(1,1))
 
     def test_absent_authorization_blocks_before_upload(self):
         with contextlib.redirect_stdout(io.StringIO()),self.assertRaises(ValueError) as caught:

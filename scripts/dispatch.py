@@ -20,7 +20,7 @@ The preview prints the render contract, then the model, the service and its
 endpoint, the output count, whether the negative prompt is sent and the cost,
 and then the exact request, so the author approves the thing that would be sent
 rather than a description of it. `--preview-out FILE` saves the request with
-its trace and the validation report. Nothing is reserved, uploaded or sent;
+its trace and the validation report. Nothing is claimed, uploaded or sent;
 `production_workflow.py execute` is the one send path.
 
 The service record (endpoint, auth, operations) is the `service-profiles`
@@ -315,11 +315,6 @@ def negative_line(verified: dict[str, Any], rendered: dict[str, Any], offering: 
     return f"not sent under the record's {mode} negative transport; the authored negative stays in the package"
 
 
-def cost_line(cost: dict[str, Any] | None) -> str:
-    """The quoted ceiling the submit authorization covers, or why execute refuses the run without one."""
-    if cost is None:
-        return "unconfirmed; execute refuses this run until the task declares the cost of every external step"
-    return f"{cost['amount']} {cost['currency']} at most ({cost['basis']})"
 
 
 def show_preview(*, sealed: tuple, rendered: dict[str, Any], negative: str, review: list[dict[str, Any]],
@@ -332,7 +327,6 @@ def show_preview(*, sealed: tuple, rendered: dict[str, Any], negative: str, revi
         f"service: {offering['service']} at {(service.get('endpoint') or {}).get('base_url')} (record observed {service.get('observed_at')})",
         f"outputs: {rendered['output_count']}",
         f"negative prompt: {negative}",
-        "cost: " + cost_line(plan["cost"]),
         f"production run: {prepared['run']}",
         *[f"review: {item.get('statement')}" for item in review],
         f"saved: trace and validation in {preview_out}" if preview_out
@@ -508,12 +502,22 @@ def upscale_result_package(run: RunJournal, index: int, output: Path) -> Path:
         return path
     declared = json.loads((run.path / "package.json").read_text(encoding="utf-8"))
     source = run.document["upscale"]["source"]
+    binding = None
+    if run.document.get("production_run"):
+        import production_workflow as workflow
+        _, prepared, _, _ = workflow.load_run(run.path.parent.parent, run.document["production_run"])
+        binding = {"run": run.document["production_run"], "input_sha256": prepared["input_sha256"]}
+    output_carrier = run.path / "upscale.references" / (f"output-{index}" + output.suffix.lower())
+    if not output_carrier.exists():
+        execution_contract.atomic(output_carrier, execution_contract.read(output))
+    elif execution_contract.sha256_file(output_carrier) != execution_contract.sha256_file(output):
+        raise ValueError("upscale output companion differs from captured pixels")
     package = build_upscale_package(
-        model=declared["model"], source_image=run.path / source, output_image=output, package_root=run.path,
-        source_stored_path=source, output_stored_path=output.relative_to(run.path).as_posix(),
+        model=declared["model"], source_image=run.path / source, output_image=output_carrier, package_root=run.path,
+        source_stored_path=source, output_stored_path=output_carrier.relative_to(run.path).as_posix(),
         scale_factor=float(declared["scale_factor"]), settings=declared["settings"],
         guidance_prompt=declared["guidance_prompt"], audit_status=run.document["upscale"]["audit_status"],
-        audit_notes=[],
+        audit_notes=[], production_binding=binding,
     )
     return run.write(path.name, package)
 
@@ -528,15 +532,14 @@ def recorded_iteration(root: Path, character: str, slot: str, paths: tuple[Path,
 
 
 def write_preview_outputs(args: argparse.Namespace, root: Path, rendered: dict, validation: dict) -> None:
-    """Save an explicitly requested preview as a new file; nothing is reserved or executed."""
+    """Save an explicitly requested preview as a new file; nothing is claimed or executed."""
     value = getattr(args, "preview_out", None)
     if value is None:
         return
     from production_binding import new_output, write_new
     path = new_output(root, value, option="--preview-out", root_option="--studio")
     write_new(path, execution_contract.encoded({"request_contract": rendered, "validation": validation,
-                                                "execution_ready": False, "external_effect": False,
-                                                "budget_effect": "none"}),
+                                                "execution_ready": False, "external_effect": False}),
               option="--preview-out", value=str(value))
 
 

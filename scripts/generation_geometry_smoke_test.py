@@ -234,15 +234,21 @@ def main() -> int:
         check("an offering that records no size key leaves the size unchecked",
               refusals == [] and service["size_fields"] is None, (refusals, service))
 
-    # The commons offering on Runware takes the sides on its width and height keys.
+    # A geometry feature check against one shipped offering: the tool reads the
+    # size keys the offering declares, accepts a pair from the record's own
+    # size_hints, and refuses a neighbouring pair no observed schema lists
+    # (off the const table, or off the schema's multipleOf step). Expectations
+    # derive from the record, so this names no model and no fixed size.
     models = json.loads((ROOT / "packs/commons/records/models.json").read_text(encoding="utf-8"))
     offered = next(record for record in models["records"] if record["offerings"])
-    refusals, service = geometry.schema_refusals(offered, None, offered["id"], 832, 1248, ROOT / "packs/commons")
+    hint = sorted(offered["size_hints"].values())[0].split(",")[0].strip()
+    width, height = (int(side) for side in hint.split("x"))
+    refusals, service = geometry.schema_refusals(offered, None, offered["id"], width, height, ROOT / "packs/commons")
     check("the commons offering puts a listed pair on its width and height keys and accepts it",
-          refusals == [] and service["size_fields"] == {"width": 832, "height": 1248}, (refusals, service))
-    refusals, _ = geometry.schema_refusals(offered, None, offered["id"], 832, 1216, ROOT / "packs/commons")
+          refusals == [] and service["size_fields"] == {"width": width, "height": height}, (refusals, service))
+    refusals, _ = geometry.schema_refusals(offered, None, offered["id"], width + 2, height, ROOT / "packs/commons")
     check("the commons offering refuses a pair its observed schema does not list",
-          len(refusals) == 1 and refusals[0].startswith("832x1216: "), refusals)
+          len(refusals) == 1, refusals)
 
     # The runtime selectors go together, as everywhere else, and name the runtime
     # the model record is read from.

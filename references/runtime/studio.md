@@ -30,7 +30,12 @@ python scripts/studio.py init --out <dir> --studio-id <id> --title "<title>"
 <studio>/
   studio.json                 id, title, defaults, when it was created, the characters
   work/current.json           the open task: goal, steps, which are done, what is next, what it is blocked on
-  work/ledger.jsonl           every task opened, every step done, every note, every finish; append only
+  work/ledger.jsonl           task events and actual answers; append only
+  work/tasks/<task-id>/       current task snapshot and immutable prior revisions
+  work/batches/<batch-id>.json small attempt index; points to its owned result tree
+  work/activity/events/      immutable redacted operator events
+  work/activity/timeline.*   rebuildable chronological JSONL and Markdown views
+  logs/operations/<day>/<id>/ automatic CLI diagnostics, console streams and artifact hashes
   characters/<id>/
     sheet/                    the Character Sheet (sheet-data.json and its renders)
     iterations/<it-id>/       one directory per generated image: result, request, response, package
@@ -64,10 +69,27 @@ python scripts/work_ledger.py begin --studio <dir> --goal "C02 base front" \
   --step "accept the chosen one for base.front"
 python scripts/work_ledger.py step --studio <dir> 1 --note "it-0004 to it-0006"
 python scripts/work_ledger.py block --studio <dir> "which of the three, or another round"
-python scripts/work_ledger.py finish --studio <dir>
+python scripts/work_ledger.py show --studio <dir>
 ```
 
-Mark each step as it is done, not at the end. A step that is not written down is a step the next session does again or skips. `finish` refuses while a step is not done. `abandon --reason` closes a task that will not be finished; once the task has a prepared production run, it also requires `--actor`. `block` records the question the task waits on, so a session that resumes asks it instead of guessing. `show` prints where the task stands; `studio.py status` prints the same beside every character's slots and candidates, and the scene materials a persona change reaches.
+Mark each step as it is done, not at the end. A step that is not written down is a step the next session does again or skips. `finish` refuses while a step is not done, an author question is unresolved, or the current Production run lacks verified completion. `abandon --reason` closes a task that will not be finished; once the task has a prepared production run, it also requires `--actor`. `block` records the question the task waits on, so a session that resumes asks it instead of guessing. `show` prints where the task stands; `studio.py status` prints the same beside every character's slots and candidates, and the scene materials a persona change reaches.
+
+### Answers, returning to an earlier step, and temporary task switches
+
+`block` returns a unique `question_id`. Read the actual answer, then record its resolution explicitly; an ordinary `note` is not a resolution. A new question records a revised choice rather than rewriting the first answer.
+
+```bash
+python scripts/work_ledger.py respond --studio STUDIO --question-id QUESTION_ID --answer "Actual answer" --actor "Actual speaker"
+python scripts/work_ledger.py reopen --studio STUDIO --from-step 1 --reason "Actual reason to revisit design" --actor "Actual decision maker"
+python scripts/work_ledger.py suspend --studio STUDIO --reason "Await another choice while independent work proceeds"
+python scripts/work_ledger.py begin --studio STUDIO --goal "Independent work" --step "Plan"
+python scripts/work_ledger.py suspend --studio STUDIO --reason "Return to the earlier character"
+python scripts/work_ledger.py resume-task --studio STUDIO --task-id PREVIOUS_TASK_ID
+```
+
+`respond` may additionally bind `--evidence STUDIO_RELATIVE_FILE` and repeated `--candidate ID` values. It records an answer, not generation or adoption approval. `reopen` snapshots the previous revision, including completed steps and linked run, before resetting the chosen and later steps. It neither deletes results nor changes any accepted artwork. `suspend` preserves questions, notes and the next step; only one task is active, and `resume-task` does not implicitly suspend a different task. `show` includes suspended task IDs and open question IDs so the next session need not reconstruct these from chat. Terminal tasks cannot be resumed as active work.
+
+The prior run in the same explicit production series is still a protected-criteria dependency. Neither reopening a work step nor switching tasks is a means to discard that authority history.
 
 A checkpoint is a `note` or a `step` written at a boundary where loss would cost work: after a relevant instruction or correction arrives, when a draft or decision is ready and before it is presented, before a switch of task or route, and before and after an external operation. It records what was decided, where it was written, and the next safe operation; a candidate awaiting the author's answer is written down here with the question. Written is not saved: read the files back before a cumulative reply claims them. A checkpoint is neither a production result nor an adoption nor permission to publish.
 
@@ -103,13 +125,23 @@ The result identifies its current status, source files and verified hashes.
 See the [candidate recipe example](../../examples/candidate-recipe/README.md) for synthetic output.
 The next request needs current validation and authorization; a retained recipe records evidence rather than permission.
 
-`gallery.html` and `gallery.json` in the studio root list every image of the studio in the order it was generated, each beside the request as it was sent, the model and service, the seed, the status, and each acceptance with what it replaced. The prompt and the negative are read from the fields the transport recorded with the request, and a negative that was not sent shows as none sent; a request recorded without those fields is listed field by field. They exist from `init`, and every command that records something rewrites them, so they stay current:
+`gallery.html` and `gallery.json` are generated projections of recorded Studio iterations **and** the sheet's current, candidate and historical artifacts. Imported artwork, local crops, model upscales, shared panels and local scale diagrams therefore remain visible; a file merely lying in an arbitrary folder is not treated as a recorded result. Matching iteration/slot artifacts are shown once, not duplicated when the sheet registers the same generated image.
 
-- `studio.py character add`, `iterate`, `accept` and `reject`;
-- `production_workflow.py execute` and `resume`, through the iterations they record;
-- `production_workflow.py review`, `disposition`, `select`, `complete` and `adopt`.
+The default order is newest **recorded/received or published time** first, normalized to absolute time with a deterministic tie break. Acceptance time and filesystem modification time never reorder creation history. A service's exact response is retained, but its internal generation timestamp is not invented. The page header's build time describes the view, not when every image was generated.
 
-A Production decision is durable before the rewrite; a failed rewrite adds `projection_warning` to the returned receipt. `python scripts/studio.py gallery` rebuilds both files after such a warning or after a record is edited by hand. The gallery is built from the iteration records and nothing else, so an image that is not in it was not recorded. `validate_studio.py` refuses a gallery that does not match the records.
+The page provides oldest/newest order, character/slot/prompt search, current/candidate/not-selected/history/unavailable filters, UTC-date filtering and 40-entry pages with lazy images. The browser remembers filters in session storage and, while visible with automatic refresh enabled, reloads every 30 seconds. That refresh only reloads a file already written by a command; it is not a hidden generator, watcher, network service or background job. The JSON inventory remains complete.
+
+Views update after iteration recording, formal Production decisions, sheet candidate registration/adoption and local edits. Author questions and revisions also update the activity views. `studio.py status` and `studio.py sync` repair missing or stale generated views from source records:
+
+```bash
+python scripts/studio.py status --studio STUDIO
+python scripts/studio.py sync --studio STUDIO
+python scripts/studio.py gallery --studio STUDIO
+```
+
+A display failure does not roll back a committed image or decision. A warning and `work/activity/projections-pending.json` mark repair work; inspect saved results and run `sync`, never resubmit to fix a gallery. A broken historical image, request or run is visibly unavailable on its entry rather than hiding other images. Actual use of a selected source still requires its exact hashes and approval. `validate_studio.py` remains a whole-studio audit, distinct from a scoped production operation.
+
+The primary gallery in the Studio root is the auto-updated view. `gallery --out PATH` is an explicit additional snapshot with links rebased to the Studio; it is not a second subscribed view. Do not hand-edit the primary gallery, `latest.json`, or activity timeline. Keep author inputs, immutable evidence, per-attempt exports and generated displays in their declared folders; no automatic cleanup deletes formal images, requests, answers, approvals or history.
 
 ## Failed send recovery
 
@@ -117,7 +149,7 @@ A Production decision is durable before the rewrite; a failed rewrite adds `proj
 The references are verified again there and uploaded from those saved copies, never from live author files.
 A package changed during that copy is refused before upload.
 
-Before any reservation, upload or submission, `execute` checks the recording destination:
+Before any execution claim, upload or submission, `execute` checks the recording destination:
 
 - the character registration and the slot;
 - the iteration log;
@@ -151,7 +183,7 @@ The journal does not promise recovery from loss of the storage device.
 
 ## Session entry
 
-`scripts/session_entry_points.py` finds the studio the working directory belongs to and prints the open task first: goal, steps done, the next step, and what it is blocked on. It prints them whether or not a pack runtime exists; text authoring resumes without one. A studio it cannot read is named with the problem in one line, and the report goes on. Read that before doing anything else; if a task is open, continue from `next`; if none is open, read the last finished tasks and ask what to do. Do not reconstruct the state of the work from chat history when the trail is there.
+`scripts/session_entry_points.py` finds the studio the working directory belongs to and prints the open task first: goal, steps done, the next step, and what it is blocked on. It prints them whether or not a pack runtime exists; text authoring resumes without one. A studio it cannot read is named with the problem in one line, and the report goes on. Read that before doing anything else; if a task is open, continue from `next`; if none is open, inspect suspended tasks before the last finished tasks and resolve the intended continuation. Do not reconstruct the state of the work from chat history when the trail is there.
 
 Resume in this order: bind the studio, read the trail and the open task, read the applicable originals for the next operation, compare any new instruction with what is saved, then take the next safe operation. Do not repeat an answered question, revive a rejected idea, resend a completed generation, or treat a pending candidate or a held draft choice as adopted. Report what is saved by its actual guarantee: a local checkpoint read back, an export verified, a remote write with an unknown outcome, or a stale resume record. None of these is "backed up"; when writing is unavailable, say what is unsaved and hand over a recoverable export instead of accumulating decisions as if they were safe.
 
@@ -253,3 +285,8 @@ A Production candidate becomes the slot's adopted image through `select`, `adopt
 ## Artifact evidence and completion
 
 For a saved deliverable, continue through [Production Execution](production-execution.md). Preserve this document's own interpretation, retrieval, approval and adoption boundaries. Prepare the exact inputs, capture the real output, bind review and selection to it, then complete and close the work task. `scripts/production_workflow.py status`, `impact` and `resume` recheck dependencies and artifact bytes. A progress checkbox, a search hit or a newly created image is not production completion or canonical adoption.
+
+
+## Iteration infrastructure
+
+`studio_gallery.py` builds a chronological index and browser controls from existing owners. `studio_activity.py` appends redacted operator transitions and rebuilds the timeline; neither owns image acceptance or external execution. Public commands are `studio.py status`, `sync`, `gallery` and the task commands in `work_ledger.py --help`. Synthetic regression coverage is in `studio_smoke_test.py`, `sheet_attempts_smoke_test.py` and `iterative_workflow_smoke_test.py`, including actual browser checks where Chromium/Playwright is installed.

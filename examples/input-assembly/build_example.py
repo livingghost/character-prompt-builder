@@ -64,8 +64,7 @@ def build():
                 'incomplete_output_published': False, 'built_state': result['state'],
                 'input_names': sorted(result['inputs']), 'file_hashes_match': correct,
                 'original_task_preserved': True, 'execution_ready': result['execution_ready'],
-                'external_effect': result['external_effect'], 'budget_effect': result['budget_effect'],
-                'production_created': (root / 'production').exists()}
+                'external_effect': result['external_effect'], 'production_created': (root / 'production').exists()}
 
 
 def main():

@@ -100,7 +100,7 @@ def publish(args) -> dict:
             if destination.exists():raise FileExistsError('pack destination already exists')
             c.publish_directory(staging,destination);c.fsync_dir(destination.parent)
     return {'ok':True,'pack':str(destination),'release':args.release,'target':target,'evidence':result,
-            'lock_sha256':c.content_id(lock),'activation_required':True,'external_effect':False,'budget_effect':'none'}
+            'lock_sha256':c.content_id(lock),'activation_required':True,'external_effect':False}
 
 
 def main(argv=None) -> int:

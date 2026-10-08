@@ -185,6 +185,7 @@ def build_upscale_package(
     guidance_prompt: str | None,
     audit_status: str,
     audit_notes: list[str],
+    production_binding: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     model_id, record = resolve_model_record(model)
     semantic_errors = validate_model_record(record)
@@ -268,6 +269,8 @@ def build_upscale_package(
         },
         "upscale_package_sha256": "0" * 64,
     }
+    if production_binding is not None:
+        value["production_binding"] = dict(production_binding)
     result = finalize_artifact(value)
     report = validate_artifact(result)
     if not report.get("ok"):

@@ -107,7 +107,7 @@ def ensure_output_inside_sheet(out_dir: Path, *, sheet_root: Path) -> None:
     try:
         resolved.relative_to(root)
     except ValueError as exc:
-        raise ValueError("--out must be inside the Character Sheet folder when --update-sidecar is used") from exc
+        raise ValueError("--out must be inside the Character Sheet folder when --register-sidecar is used") from exc
     cursor = root
     for part in resolved.relative_to(root).parts:
         cursor = cursor / part
@@ -124,59 +124,59 @@ def sidecar_slot_id(sidecar: Mapping[str, Any], box: Mapping[str, Any]) -> str:
     return str(box["slot_id"])
 
 
-def bind_slot_images(
-    sidecar_path: Path,
-    *,
-    images: Sequence[tuple[Mapping[str, Any], Path]],
-    generation_package: Path | None,
+def register_panel_results(
+    sidecar_path: Path, *, images: Sequence[tuple[Mapping[str, Any], Path]],
 ) -> dict[str, Any]:
-    """Point each slot at the image that is its accepted evidence.
+    """Register each full-size result with its own exact provenance, never accept it.
 
-    `images` pairs a layout box with the file to bind. The file is whatever the
-    caller holds at full size: a model result in the panel-images transport, or a
-    crop of the filled sheet in the masked-sheet transport.
+    Batch results carry an artifact marker owned by this sheet. External panel
+    results carry an adjacent <stem>.package.json, one package per panel.
     """
+    import execution_contract as c
+    import sheet_artifacts as fills
+    sidecar = fills._read(sidecar_path)
+    selected = []
+    for box, image in images:
+        marker = image.with_suffix('.artifact.json')
+        if marker.is_file():
+            result = c.load(marker)
+            if result.get('artifact_type') != 'sheet-fill-result':
+                raise ValueError('unknown panel artifact marker')
+            artifact = result['artifact']
+            fills.verify_artifact(artifact, sidecar_path.parent)
+            if c.sha256_file(image) != artifact['image']['sha256']:
+                raise ValueError('panel result differs from its immutable artwork')
+        else:
+            package = image.with_suffix('.package.json')
+            if not package.is_file():
+                raise ValueError('panel candidate needs its own adjacent package or batch artifact marker: ' + str(image))
+            attachments = {}
+            for kind in ('request', 'response', 'answer'):
+                path = image.with_suffix('.' + kind + '.json')
+                if path.is_file(): attachments[kind + '.json'] = c.read(path)
+            artifact = fills.publish(sidecar_path.parent, image, kind='generation', recipe={}, package=package,
+                origin={'kind': 'external-import', 'note': 'Explicitly imported full-size panel result.'}, attachments=attachments)
+        selected.append((sidecar_slot_id(sidecar, box), artifact))
+    return fills.register_candidates(sidecar_path, selected)
 
-    sheet_root = sidecar_path.parent.resolve(strict=True)
-    sidecar = load_json_object(sidecar_path, label="sheet-data.json")
-    normalized = validate_sidecar(sidecar, sheet_root=sheet_root, verify_files=False)
-    package_relative = None
-    if generation_package is not None:
-        package_relative = relative_file(
-            generation_package, root=sheet_root, label="--generation-package"
-        )
-    slots = normalized.setdefault("slots", {})
-    for box, image_path in images:
-        slot_id = sidecar_slot_id(normalized, box)
-        slot = slots.setdefault(slot_id, {"image_path": "", "generation_package": ""})
-        slot["image_path"] = relative_file(image_path, root=sheet_root, label=f"slot {slot_id} image")
-        if package_relative is not None:
-            slot["generation_package"] = package_relative
-        slot.pop("image_sha256", None)
-        slot.pop("generation_package_sha256", None)
-    normalized["sheet_status"] = sheet_status(normalized)
-    validate_sidecar(normalized, sheet_root=sheet_root, verify_files=False)
-    atomic_write_json(sidecar_path, normalized)
-    return {
-        "path": str(sidecar_path),
-        "sha256": sha256_file(sidecar_path),
-        "sheet_status": normalized["sheet_status"],
-        "generation_package": package_relative,
-    }
 
-
-def update_sidecar(
-    sidecar_path: Path,
-    *,
-    out_dir: Path,
-    crops: Sequence[Mapping[str, Any]],
-    generation_package: Path | None,
+def register_harvested(
+    sidecar_path: Path, *, source: Path, out_dir: Path,
+    crops: Sequence[Mapping[str, Any]], generation_package: Path,
 ) -> dict[str, Any]:
-    return bind_slot_images(
-        sidecar_path,
-        images=[(crop["layout_box"], out_dir / crop["file"]) for crop in crops],
-        generation_package=generation_package,
-    )
+    """A masked-sheet request owns the full image; every cropped candidate records that source."""
+    import sheet_artifacts as fills
+    if generation_package is None:
+        raise ValueError('registering harvested candidates requires the full sheet Generation Package')
+    sidecar = fills._read(sidecar_path)
+    whole = fills.publish(sidecar_path.parent, source, kind='generation', recipe={'transport': 'masked-sheet'},
+                          package=generation_package, origin={'kind': 'external-import', 'note': 'Explicitly imported masked-sheet result.'})
+    selected = []
+    for crop in crops:
+        artifact = fills.publish(sidecar_path.parent, out_dir / crop['file'], kind='crop',
+            sources=[whole], recipe={'crop': crop['source_crop'], 'layout_crop': crop['layout_crop'], 'transport': 'masked-sheet'})
+        selected.append((sidecar_slot_id(sidecar, crop['layout_box']), artifact))
+    return fills.register_candidates(sidecar_path, selected)
 
 
 def harvest_sheet(
@@ -188,13 +188,13 @@ def harvest_sheet(
     aspect_tolerance: float = 0.01,
     scaffold_path: Path | None = None,
     edit_mask_path: Path | None = None,
-    update_sidecar_path: Path | None = None,
+    register_sidecar_path: Path | None = None,
     generation_package: Path | None = None,
 ) -> dict[str, Any]:
     if aspect_tolerance < 0 or aspect_tolerance > 0.1:
         raise ValueError("aspect_tolerance must be between 0 and 0.1")
-    if generation_package is not None and update_sidecar_path is None:
-        raise ValueError("--generation-package requires --update-sidecar")
+    if generation_package is not None and register_sidecar_path is None:
+        raise ValueError("--generation-package requires --register-sidecar")
     if not filled_png.is_file():
         raise ValueError(f"filled PNG does not exist: {filled_png}")
     if not layout_path.is_file():
@@ -282,11 +282,11 @@ def harvest_sheet(
         "changed_ratio_tolerance": protected_changed_ratio_tolerance,
     }
 
-    if update_sidecar_path is not None:
-        update_sidecar_path = update_sidecar_path.resolve()
-        if not update_sidecar_path.is_file():
-            raise ValueError(f"--update-sidecar does not exist: {update_sidecar_path}")
-        ensure_output_inside_sheet(out_dir, sheet_root=update_sidecar_path.parent)
+    if register_sidecar_path is not None:
+        register_sidecar_path = register_sidecar_path.resolve()
+        if not register_sidecar_path.is_file():
+            raise ValueError(f"--register-sidecar does not exist: {register_sidecar_path}")
+        ensure_output_inside_sheet(out_dir, sheet_root=register_sidecar_path.parent)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     crops: list[dict[str, Any]] = []
@@ -320,9 +320,10 @@ def harvest_sheet(
         )
 
     sidecar_report = None
-    if update_sidecar_path is not None:
-        sidecar_report = update_sidecar(
-            update_sidecar_path,
+    if register_sidecar_path is not None:
+        sidecar_report = register_harvested(
+            register_sidecar_path,
+            source=filled_png,
             out_dir=out_dir.resolve(),
             crops=crops,
             generation_package=generation_package.resolve() if generation_package else None,
@@ -343,14 +344,14 @@ def harvest_sheet(
         "aspect_tolerance": aspect_tolerance,
         "protected_region_verification": protected_verification,
         "crops": manifest_crops,
-        "sidecar_update": sidecar_report,
+        "candidate_registration": sidecar_report,
     }
     manifest_path = out_dir / "harvest-manifest.json"
     atomic_write_json(manifest_path, manifest)
     return {
         "manifest": manifest_path,
         "crops": manifest_crops,
-        "sidecar_update": sidecar_report,
+        "candidate_registration": sidecar_report,
     }
 
 
@@ -377,14 +378,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="renderer edit mask PNG (default: sheet-edit-mask.png beside the layout)",
     )
     parser.add_argument(
-        "--update-sidecar",
+        "--register-sidecar",
         type=Path,
-        help="accepted sheet-data.json to update after harvesting; omission keeps all crops as candidates",
+        help="sheet-data.json in which to register candidates; author adoption is a separate operation",
     )
     parser.add_argument(
         "--generation-package",
         type=Path,
-        help="Generation Package for the filled sheet; requires --update-sidecar and must be inside the sheet folder",
+        help="Generation Package for the filled sheet; required when registering harvested candidates",
     )
     args = parser.parse_args(argv)
 
@@ -399,7 +400,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         aspect_tolerance=args.aspect_tolerance,
         scaffold_path=args.scaffold.resolve() if args.scaffold else None,
         edit_mask_path=args.edit_mask.resolve() if args.edit_mask else None,
-        update_sidecar_path=args.update_sidecar,
+        register_sidecar_path=args.register_sidecar,
         generation_package=args.generation_package,
     )
     print(
@@ -409,7 +410,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "crops": len(result["crops"]),
                 "out": str(out_dir),
                 "manifest": str(result["manifest"]),
-                "sidecar_update": result["sidecar_update"],
+                "candidate_registration": result["candidate_registration"],
             },
             ensure_ascii=False,
         )

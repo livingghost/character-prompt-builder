@@ -176,7 +176,7 @@ def run(out: Path) -> dict:
                 'direction':{'purpose':'Preview the request for one one-off portrait.','intended_effect':'A quiet readable rainy-day portrait.',
                              'basis':[],'decisions':[],'action_slice':None,'limitations':[SYNTHETIC]},
                 'generation':{'parameters':'parameters.json','production_spec':'production-spec.json','plot':'plot.json','retrieval_record':'retrieval.json',
-                              'creative_intent':'creative-intent.json','service':'runware','count':1,'seed':None,'continuity':{'C01':'one-off'},'cost':None},
+                              'creative_intent':'creative-intent.json','service':'runware','count':1,'seed':None,'continuity':{'C01':'one-off'}},
                 'recording':{'character':'C01','slot':'explore','subject_map':{},'sheet_panel':False,'role':'walkthrough-preview'}}
             write(root/'task.json',task)
             prepared=json.loads(walk.run('production_workflow','prepare','--root',str(root),'--task','task.json',*runtime))
@@ -185,7 +185,7 @@ def run(out: Path) -> dict:
             # Exports are projections, not independently edited requests.
             write(out/'preview.json',{'request':prepared['request_preview'],'execution_plan':prepared['execution_plan']})
             write(out/'prepare-arguments.json',['--root',str(root),'--task','task.json',*runtime])
-            walk.run('production_workflow','status','--root',str(root),'--run',run_id,'--budget')
+            walk.run('production_workflow','status','--root',str(root),'--run',run_id)
     finally:
         write(out/'transcript.txt','\n'.join(walk.lines)+'\n');catalog_cli.configure_pack_runtime(None)
     report={'ok':True,'synthetic_fixture':True,'external_requests':len(attempts),'sent':False,
