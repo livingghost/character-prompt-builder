@@ -259,6 +259,10 @@ def _fields(value: Any, prefix: str = '') -> list[dict]:
 
 
 def build_model(root: Path, output: Path, *, config_path: str = CONFIG, selection: dict | None = None) -> tuple[dict, Inputs]:
+    # Canonicalize spelling first: a Windows 8.3 or junction-spelled root must
+    # match the resolved paths the dependency readers return.
+    root = root.resolve(strict=True)
+    output = output.resolve()
     inputs = Inputs(root, output)
     config = _config(inputs, config_path)
     narrative_sources = story_flow.read_sources(inputs)
@@ -359,7 +363,7 @@ def _publication_target(root: Path, out: Path | None) -> Path:
     if not target.is_absolute():
         target = root / target
     try:
-        relative = target.relative_to(root).as_posix()
+        relative = target.resolve().relative_to(root).as_posix()
     except ValueError as exc:
         raise ValueError('timeline output must be inside the Studio') from exc
     path = _path(root, relative, exists=False)
@@ -455,7 +459,7 @@ def notify_state_write(path: Path) -> None:
     if root is None or not configured(root):
         return
     from studio_activity import changed
-    relative = path.resolve().relative_to(root).as_posix()
+    relative = path.resolve().relative_to(root.resolve()).as_posix()
     watched = {CONFIG, DEFAULT['base_state'], DEFAULT['events'], 'state/processes.json'}
     try:
         config = c.load(root / CONFIG) if (root / CONFIG).is_file() else DEFAULT

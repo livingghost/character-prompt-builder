@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.10.09.2
+
+- Fixed path-spelling canonicalization in the story page projection. On a Windows host whose temporary directory resolves to a different spelling (8.3 short names or junctions), building the projection, refusing a foreign output and notifying a state write compared incompatible spellings and failed.
+
 ## 2026.10.09.1
 
 - Automated graph checks use Python and Node.js without browser-launching test entrypoints. Flow, Axis and Graph output is unchanged.

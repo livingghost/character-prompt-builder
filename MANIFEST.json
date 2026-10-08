@@ -1,6 +1,6 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.10.09.1",
+  "version": "2026.10.09.2",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
   "generated_at": "2026-10-09",
@@ -81,7 +81,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 926,
-  "total_bytes_excluding_manifest": 15105504,
+  "total_bytes_excluding_manifest": 15106051,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -96,12 +96,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "2962347cba8967ddfc19e196f0943d99681a87f9249827c8b094de3285094407"
+      "sha256": "3cbdc0d638a03021f81c60fa0dc4e6756c74aba1bd8c0ce85b3be25965742001"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "4e09c0a587b864ec4c6343c386d600b41196e0d5c89254acdadcaa6d1f161ef7"
+      "sha256": "329c9cfd85006d8b156b0082bc7e90284bb5c37aee281b9858f7eaab59c0d002"
     },
     {
       "path": "AGENTS.md",
@@ -110,8 +110,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 29739,
-      "sha256": "60196fe4b10b6b94bef6194f3e54cc5b7248d750cdd1d17e62a6064cd56ee85b"
+      "bytes": 30058,
+      "sha256": "5a47ff861e9c426c2a437df7f91ccfe36055622034a1cb876e05e36b660ddc9c"
     },
     {
       "path": "CLAUDE.md",
@@ -166,7 +166,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 25998,
-      "sha256": "913a9dc7e0f7873e6b6ee33baf884eed400ca6b72527bb380ee3c69f23e5910c"
+      "sha256": "8624627d437491070e3bee0ae847a4c5d6330e71b88ae599b32ad6d12bae2a2e"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -1326,7 +1326,7 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2184,
-      "sha256": "5b69cc2c8522a33939bb6763f1f2c0971db6dae73ef948f71d3111954284eb0d"
+      "sha256": "d76be74d390fea406354f2e59ea86a8e3a98ee8ae93141781c9e14cd98948e3b"
     },
     {
       "path": "packs/commons/pack.json",
@@ -2131,7 +2131,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 613,
-      "sha256": "9f109826b162557237921831c698541de5a52c3aa8c91a5f7966800b7405d698"
+      "sha256": "6dff02cbec2a9abc98e86dc9bc19fb5ae5979b78f56570a6caa046387dddbde8"
     },
     {
       "path": "references/adapters/flux.md",
@@ -4185,8 +4185,8 @@
     },
     {
       "path": "scripts/story_timeline.py",
-      "bytes": 29670,
-      "sha256": "feb50c58fcb3766baf9c2f49aeb0664af156aa1201b0b0d7f95bd171191ef07d"
+      "bytes": 29898,
+      "sha256": "9fd4b3a9170c53823904379796207f09f47ec82f8c2396ba42cfd78b60d0bee9"
     },
     {
       "path": "scripts/story_timeline_fixtures.py",
