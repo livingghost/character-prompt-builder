@@ -192,7 +192,8 @@
     "narrative-files": {
       "reads": [
         "references/narrative-protocol.md",
-        "references/narrative-authoring.md"
+        "references/narrative-authoring.md",
+        "references/runtime/story-timeline.md"
       ],
       "source_roles": []
     },
@@ -347,7 +348,8 @@
     },
     "state-series": {
       "reads": [
-        "references/runtime/state-aware-series.md"
+        "references/runtime/state-aware-series.md",
+        "references/runtime/story-timeline.md"
       ],
       "source_roles": []
     },
@@ -556,7 +558,8 @@
     },
     "state-series": {
       "reads": [
-        "references/runtime/state-aware-series.md"
+        "references/runtime/state-aware-series.md",
+        "references/runtime/story-timeline.md"
       ],
       "features": [
         "world-view",
@@ -731,7 +734,10 @@
     "scripts/test_production_operations.py",
     "scripts/test_model_observation.py",
     "scripts/test_runtime_snapshot.py",
-    "scripts/pack_selector_smoke_test.py"
+    "scripts/pack_selector_smoke_test.py",
+    "scripts/state_ledger_smoke_test.py",
+    "scripts/story_timeline_smoke_test.py",
+    "scripts/story_flow_smoke_test.py"
   ],
   "operations": {
     "authorize": {
@@ -929,6 +935,16 @@
       "owner": "scripts/sheet_workflow.py:main",
       "command": "python scripts/sheet_workflow.py --help",
       "effect": "prepare approved panel executions; record immutable candidates, derivatives and review evidence; adopt only through explicit decisions"
+    },
+    "story-timeline": {
+      "owner": "scripts/story_timeline.py:main",
+      "command": "python scripts/story_timeline.py --help",
+      "effect": "read authored events and render shared-resolver viewpoints; write only auxiliary projections and operator records"
+    },
+    "validate-state-ledger": {
+      "owner": "scripts/state_protocol.py:main",
+      "command": "python scripts/state_protocol.py validate-ledger --help",
+      "effect": "validate cross-record references and temporal replay without writing canonical state"
     }
   }
 }

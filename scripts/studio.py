@@ -1028,6 +1028,18 @@ def status(root: Path) -> str:
             lines.extend("  reference problem: " + error for error in reference_state["errors"])
         except (ValueError, OSError, RuntimeError) as exc:
             lines.append(f"  reference problem: {exc}")
+    import story_timeline
+    if story_timeline.configured(root):
+        path = root / story_timeline.OUTPUT
+        state = path.with_suffix('.status.json')
+        try:
+            projection = read_json(state) if state.is_file() else {}
+            label = projection.get('status', 'not built')
+            if projection.get('ledger_ok') is False:
+                label += '; ledger diagnostics need review'
+            lines.append('story timeline: ' + story_timeline.OUTPUT + ' (' + label + '); studio.py sync checks current inputs')
+        except (ValueError, OSError, KeyError, TypeError):
+            lines.append('story timeline: status unavailable; run studio.py sync')
     persona_changes = persona_change_line(root)
     if persona_changes:
         lines.append(persona_changes)

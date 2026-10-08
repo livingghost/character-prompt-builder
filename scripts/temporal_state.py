@@ -237,96 +237,129 @@ def validate_temporal_inputs(
     *,
     events: list[dict[str, Any]],
     processes: list[dict[str, Any]],
+    diagnostics: list[dict[str, Any]] | None = None,
 ) -> list[str]:
-    """Validate ledger/process references that cannot be checked in isolation."""
+    """Validate ledger/process references once, with optional located diagnostics."""
     errors: list[str] = []
+    context: dict[str, Any] = {}
+    def add(message: str, *, code: str = 'TEMPORAL_INPUT_INVALID') -> None:
+        errors.append(message)
+        if diagnostics is not None:
+            diagnostics.append({'code': code, 'severity': 'error', 'message': message,
+                                **copy.deepcopy(context)})
+    def extend(messages) -> None:
+        for message in messages:
+            add(message)
+    if not isinstance(events, list) or not isinstance(processes, list):
+        add('events and processes must be arrays')
+        return errors
     event_by_id: dict[str, dict[str, Any]] = {}
     process_by_id: dict[str, dict[str, Any]] = {}
 
     for index, event in enumerate(events):
+        context = {'pointer': f'/events/{index}', 'event_ids': [event.get('event_id')] if isinstance(event, dict) else []}
+        if not isinstance(event, dict) or event.get('artifact_type') != 'state-event':
+            add('ledger row must be a state-event')
+            continue
         report = validate_artifact(event)
         if not report["ok"]:
-            errors.extend(
+            extend(
                 f"events[{index}] {event.get('event_id')!r}: {item}"
                 for item in report["errors"]
             )
         event_id = str(event.get("event_id") or "")
         if event_id in event_by_id:
-            errors.append(f"duplicate event_id: {event_id}")
+            add(f"duplicate event_id: {event_id}")
         else:
             event_by_id[event_id] = event
 
     for index, process in enumerate(processes):
+        context = {'pointer': f'/processes/{index}', 'process_ids': [process.get('process_id')] if isinstance(process, dict) else []}
+        if not isinstance(process, dict) or process.get('artifact_type') != 'state-process':
+            add('process row must be a state-process')
+            continue
         report = validate_artifact(process)
         if not report["ok"]:
-            errors.extend(
+            extend(
                 f"processes[{index}] {process.get('process_id')!r}: {item}"
                 for item in report["errors"]
             )
         process_id = str(process.get("process_id") or "")
         if process_id in process_by_id:
-            errors.append(f"duplicate process_id: {process_id}")
+            add(f"duplicate process_id: {process_id}")
         else:
             process_by_id[process_id] = process
 
+    # Keep independent reference diagnostics even when another row has a schema
+    # or duplicate-ID error. Invalid inputs never reach replay, but traversable
+    # references still give the author the complete mechanical correction list.
+    def array(value):
+        return value if isinstance(value, list) else []
+    def revision_links(event):
+        return [value for value in array(event.get('supersedes_event_ids')) if isinstance(value, str)]
+
     linked_sources: dict[str, list[tuple[dict[str, Any], dict[str, Any], int]]] = {}
-    for event in events:
+    for index, event in enumerate(events):
+        if not isinstance(event, dict) or event.get('artifact_type') != 'state-event':
+            continue
+        context = {'pointer': f'/events/{index}', 'event_ids': [event.get('event_id')], 'timeline_id': event.get('timeline_id')}
         event_id = str(event.get("event_id") or "")
         timeline_id = str(event.get("timeline_id") or "")
         event_order = event.get("effective_order")
-        if not isinstance(event_order, int):
+        if type(event_order) is not int:
             continue
-        for superseded_id in event.get("supersedes_event_ids", []):
+        for superseded_id in revision_links(event):
             superseded = event_by_id.get(str(superseded_id))
             if superseded is None:
-                errors.append(f"event {event_id}: unknown supersedes_event_id {superseded_id!r}")
+                add(f"event {event_id}: unknown supersedes_event_id {superseded_id!r}")
                 continue
             if superseded.get("timeline_id") != timeline_id:
-                errors.append(
+                add(
                     f"event {event_id}: superseded event {superseded_id} is on another timeline"
                 )
             superseded_order = superseded.get("effective_order")
             if isinstance(superseded_order, int) and event_order <= superseded_order:
-                errors.append(
+                add(
                     f"event {event_id}: supersession must be strictly later than {superseded_id}"
                 )
 
-        for change_index, change in enumerate(event.get("changes", [])):
+        for change_index, change in enumerate(array(event.get("changes"))):
+            context["pointer"] = f"/events/{index}/changes/{change_index}"
             if not isinstance(change, dict):
                 continue
             process_id = change.get("process_id")
             if _is_lifecycle_change(change):
                 process = process_by_id.get(str(process_id))
                 if process is None:
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: unknown process_id {process_id!r}"
                     )
                     continue
                 if process.get("timeline_id") != timeline_id:
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: process is on another timeline"
                     )
                 if _state_path_key(change) != _state_path_key(process):
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: lifecycle entity/path does not match process"
                     )
                 policy = process.get("interruption_policy")
                 if policy != "restartable":
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: {policy} process rejects lifecycle actions"
                     )
                 started = process.get("started_order")
                 until = process.get("effective_until_order")
                 if isinstance(started, int) and event_order < started:
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: lifecycle action precedes process start"
                     )
                 if isinstance(until, int) and event_order >= until:
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: lifecycle action is outside process lifetime"
                     )
                 if event.get("canon_status") == "approved" and process.get("canon_status") != "approved":
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: approved lifecycle action requires approved process"
                     )
                 continue
@@ -335,38 +368,38 @@ def validate_temporal_inputs(
             if clear_event_id:
                 clearing = event_by_id.get(str(clear_event_id))
                 if clearing is None:
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: unknown clear_event_id {clear_event_id!r}"
                     )
                 else:
                     if clearing.get("timeline_id") != timeline_id:
-                        errors.append(
+                        add(
                             f"event {event_id} changes[{change_index}]: clear event is on another timeline"
                         )
                     clear_order = clearing.get("effective_order")
                     if isinstance(clear_order, int) and clear_order <= event_order:
-                        errors.append(
+                        add(
                             f"event {event_id} changes[{change_index}]: clear event must be strictly later"
                         )
                     matching_clear = any(
                         isinstance(item, dict)
                         and not _is_lifecycle_change(item)
                         and _state_path_key(item) == _state_path_key(change)
-                        for item in clearing.get("changes", [])
+                        for item in array(clearing.get("changes"))
                     )
                     if not matching_clear:
-                        errors.append(
+                        add(
                             f"event {event_id} changes[{change_index}]: clear event has no matching entity/path change"
                         )
                     if event.get("canon_status") == "approved" and clearing.get("canon_status") != "approved":
-                        errors.append(
+                        add(
                             f"event {event_id} changes[{change_index}]: approved state requires an approved clear event"
                         )
 
             if process_id:
                 process = process_by_id.get(str(process_id))
                 if process is None:
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: unknown process_id {process_id!r}"
                     )
                     continue
@@ -374,35 +407,64 @@ def validate_temporal_inputs(
                     (event, change, change_index)
                 )
                 if process.get("timeline_id") != timeline_id:
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: process is on another timeline"
                     )
                 if _state_path_key(change) != _state_path_key(process):
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: process entity/path does not match change"
                     )
                 if process.get("started_order") != event_order:
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: process must start at the event order"
                     )
-                milestones = process.get("milestones", [])
-                if milestones and canonical_json(milestones[0].get("state")) != canonical_json(change.get("value")):
-                    errors.append(
-                        f"event {event_id} changes[{change_index}]: offset-0 milestone must equal the initiating value"
-                    )
+                milestones = array(process.get("milestones"))
+                if milestones and isinstance(milestones[0], dict):
+                    try:
+                        equal = canonical_json(milestones[0].get("state")) == canonical_json(change.get("value"))
+                    except (ValueError, TypeError):
+                        equal = False
+                    if not equal:
+                        add(
+                            f"event {event_id} changes[{change_index}]: offset-0 milestone must equal the initiating value"
+                        )
                 if event.get("canon_status") == "approved" and process.get("canon_status") != "approved":
-                    errors.append(
+                    add(
                         f"event {event_id} changes[{change_index}]: approved state requires an approved process"
                     )
 
     for process_id, sources in linked_sources.items():
+        context = {'process_ids': [process_id], 'event_ids': [row[0].get('event_id') for row in sources]}
         if len(sources) > 1:
             labels = [
                 f"{event.get('event_id')}[{index}]" for event, _, index in sources
             ]
-            errors.append(
+            add(
                 f"process {process_id} has multiple initiating changes: {labels}"
             )
+    # Iterative graph walk: no Python recursion limit on long revision chains.
+    colors: dict[str, int] = {}
+    for start in event_by_id:
+        if colors.get(start):
+            continue
+        chain: list[str] = [start]
+        positions = {start: 0}
+        stack = [(start, iter(revision_links(event_by_id[start])))]
+        colors[start] = 1
+        while stack:
+            owner, links = stack[-1]
+            target = next(links, None)
+            if target is None:
+                colors[owner] = 2; stack.pop(); positions.pop(owner, None); chain.pop()
+            elif target not in event_by_id:
+                continue
+            elif colors.get(target) == 1:
+                cycle = chain[positions[target]:] + [target]
+                context = {'event_ids': cycle[:-1], 'timeline_id': event_by_id[owner].get('timeline_id')}
+                add('supersession cycle: ' + ' -> '.join(cycle), code='SUPERSESSION_CYCLE')
+            elif not colors.get(target):
+                colors[target] = 1; positions[target] = len(chain); chain.append(target)
+                stack.append((target, iter(revision_links(event_by_id[target]))))
     return errors
 
 
@@ -655,28 +717,60 @@ def _check_batch(world: dict[str, Any], batch: list[tuple]) -> None:
     for index, (left, writes, reads) in enumerate(records):
         for right, other_writes, other_reads in records[index+1:]:
             if any(_overlap(a,b) for a in writes for b in other_writes):
-                conflicts.append({'left':left, 'right':right, 'reason':'overlapping writes or array structure changes'})
+                conflicts.append({'left':left, 'right':right, 'reason':'overlapping writes or array structure changes',
+                    'paths': sorted({encode_pointer(a) for a in writes for b in other_writes if _overlap(a,b)} | {encode_pointer(b) for a in writes for b in other_writes if _overlap(a,b)})})
             elif any(_overlap(a,b) for a in writes for b in other_reads) or any(_overlap(a,b) for a in reads for b in other_writes):
-                conflicts.append({'left':left, 'right':right, 'reason':'write changes another operation precondition'})
+                conflicts.append({'left':left, 'right':right, 'reason':'write changes another operation precondition',
+                    'paths': sorted({encode_pointer(a) for a in [*writes,*reads] for b in [*other_writes,*other_reads] if _overlap(a,b)})})
     if conflicts:
         raise TemporalConflictError(batch[0][0], conflicts)
 
 
-def apply_event(world: dict[str, Any], event: dict[str, Any]) -> None:
+def encode_pointer(parts) -> str:
+    return '/' + '/'.join(str(part).replace('~', '~0').replace('/', '~1') for part in parts)
+
+
+def trace_value(world: dict[str, Any], change: dict[str, Any]) -> dict[str, Any]:
+    marker = object()
+    value = get_pointer(world, encode_pointer(_absolute_path(change)), missing=marker)
+    return {'present': False} if value is marker else {'present': True, 'value': copy.deepcopy(value)}
+
+
+def apply_event(world: dict[str, Any], event: dict[str, Any], *, trace: list[dict] | None = None) -> None:
     for condition in event.get("preconditions", []):
         if not precondition_holds(world, condition):
             raise ValueError(f"event precondition failed: {event['event_id']}")
     staged = copy.deepcopy(world) if event.get("atomic") else world
+    pending = []
     for change in event.get("changes", []):
+        before = trace_value(staged, change) if trace is not None else None
         root = entity_root(staged, str(change["entity_type"]), str(change["entity_id"]), create=True)
         apply_change(root, change)
+        if trace is not None:
+            pending.append({'kind': 'event', 'source_id': event['event_id'], 'order': event['effective_order'],
+                            'path': encode_pointer(_absolute_path(change)), 'change': copy.deepcopy(change),
+                            'before': before, 'after': trace_value(staged, change)})
     if event.get("atomic"):
         world.clear()
         world.update(staged)
+    if trace is not None:
+        trace.extend(pending)
 
 
+def resolve_world(*, base_state: dict[str, Any], events: list[dict[str, Any]],
+                  processes: list[dict[str, Any]], timeline_id: str, story_order: int,
+                  story_time: str, snapshot_id: str, scene_context_id: str | None,
+                  trace: list[dict] | None = None) -> dict[str, Any]:
+    """Validate once, then use the same deterministic replay for snapshots and displays."""
+    errors = validate_temporal_inputs(events=events, processes=processes)
+    if errors:
+        raise ValueError('invalid temporal inputs: ' + '; '.join(errors))
+    return _resolve_world_validated(base_state=base_state, events=events, processes=processes,
+        timeline_id=timeline_id, story_order=story_order, story_time=story_time,
+        snapshot_id=snapshot_id, scene_context_id=scene_context_id, trace=trace)
 
-def resolve_world(
+
+def _resolve_world_validated(
     *,
     base_state: dict[str, Any],
     events: list[dict[str, Any]],
@@ -686,12 +780,10 @@ def resolve_world(
     story_time: str,
     snapshot_id: str,
     scene_context_id: str | None,
+    trace: list[dict] | None = None,
 ) -> dict[str, Any]:
     if scene_context_id is not None and (not isinstance(scene_context_id, str) or not scene_context_id):
         raise ValueError("scene_context_id must be a non-empty explicit target")
-    temporal_errors = validate_temporal_inputs(events=events, processes=processes)
-    if temporal_errors:
-        raise ValueError("invalid temporal inputs: " + "; ".join(temporal_errors))
     world = copy.deepcopy(base_state)
     for bucket in ("characters", "relationships", "environments", "props", "world"):
         world.setdefault(bucket, {})
@@ -776,12 +868,19 @@ def resolve_world(
         _check_batch(world, batch)
         for _, _, operation_id, operation_type, payload in batch:
             if operation_type == "event":
-                apply_event(world, payload)
+                apply_event(world, payload, trace=trace)
                 applied_events.append(operation_id)
                 applied_milestones.extend(sorted(aliases.get(operation_id, [])))
             else:
                 root = entity_root(world, str(payload["entity_type"]), str(payload["entity_id"]), create=True)
-                apply_change(root, {"path": payload["path"], "operation": "set", "value": payload["milestone"]["state"]})
+                change = {"entity_type": payload['entity_type'], "entity_id": payload['entity_id'],
+                          "path": payload["path"], "operation": "set", "value": payload["milestone"]["state"]}
+                before = trace_value(world, change) if trace is not None else None
+                apply_change(root, change)
+                if trace is not None:
+                    trace.append({'kind': 'process', 'source_id': operation_id, 'process_id': payload['process_id'],
+                                  'order': batch[0][0], 'path': encode_pointer(_absolute_path(change)),
+                                  'change': copy.deepcopy(change), 'before': before, 'after': trace_value(world, change)})
                 applied_milestones.append(operation_id)
 
     result = {

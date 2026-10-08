@@ -1,0 +1,9 @@
+{
+  "artifact_type": "story-timeline-view",
+  "base_state": "state/world-state-base.json",
+  "events": "state/events.jsonl",
+  "processes": null,
+  "views": [],
+  "scene_artwork": [],
+  "evidence_sources": []
+}

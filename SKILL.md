@@ -92,9 +92,11 @@ Add a specialist feature only for a load-bearing subject: `geometry` for exact m
 
 ## Mandatory studio gate
 
-Persistent character production, sheets, and recorded generation live in a studio. When `python scripts/session_entry_points.py` reports none, create one (`studio.py init`) before any sheet or generation work, generate through `production_workflow.py execute`, and follow [Studio Runtime](references/runtime/studio.md). Authoring whose decisions a later draft reuses lives there too, with or without images: resolve or create the studio before the first draft that will be revised or reused. A one-off answer needs none.
+Persistent character production, sheets, recorded generation and reusable drafts live in a studio. When `python scripts/session_entry_points.py` reports none, use `studio.py init` before authoring. Generate through `production_workflow.py execute`; follow [Studio Runtime](references/runtime/studio.md). One-off answers need no studio.
 
 For repeated sheet work, use managed attempts and their index in [Sheet fills](references/runtime/sheet-fill-workflow.md), not hand-written round scripts or shared output filenames. Apply HTML author edits with `sheet_workflow.py apply-edit`; never replace the sidecar from a stale screen. Record an actual answer with `work_ledger.py respond`, reopen the indicated step explicitly, and suspend/resume tasks rather than abandoning work just to switch context. `studio.py status` or `sync` reconstructs gallery and activity views without repeating any generation.
+
+After story answers or revisions, update the ordinary Studio sources and run `studio.py sync` for the automatic Flow and Graph (`narrative-files`). Request no separate diagram or synopsis. Compare passages for meaning; structural checks do not judge motivation or story quality.
 
 ## Common runtime sequence
 

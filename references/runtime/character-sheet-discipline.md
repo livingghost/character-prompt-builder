@@ -394,7 +394,7 @@ Canonical record revision history lives at the registry boundary; the sheet also
 
 ## Editor interaction contract
 
-Use the HTML only when a person needs to inspect or correct the JSON. The editor must retain native form controls in every visible data cell, add exactly one row per Add activation, and remove only the selected row. Run [`scripts/character_sheet_editor_dom_smoke_test.py`](../../scripts/character_sheet_editor_dom_smoke_test.py) after changing its structure, then perform browser interaction checks before release.
+Use the HTML only when a person needs to inspect or correct the JSON. The editor must retain native form controls in every visible data cell, add exactly one row per Add activation, and remove only the selected row. Run [`scripts/character_sheet_editor_dom_smoke_test.py`](../../scripts/character_sheet_editor_dom_smoke_test.py) after changing its structure.
 
 ## Non-anatomical reference coverage
 
@@ -416,8 +416,6 @@ Run the sheet workflow in this order; the numbered Process steps under Layout pr
 Fill-policy semantics and the acceptance rule are stated under Layout profiles.
 
 ### Browser interaction check
-
-`python scripts/character_sheet_browser_smoke_test.py` exercises the actual HTML editor in Chromium: imported current artwork, candidates and history round-trip unchanged; image/provenance fields are read-only; changing the fill policy preserves artwork; add/remove controls affect exactly one row. This optional check requires the Python Playwright package and a `chromium` or `google-chrome` executable. It reports a skip when either dependency is absent, not a browser pass. Static editor checks remain available without these optional dependencies.
 
 
 ## Iterative editing and accumulated results

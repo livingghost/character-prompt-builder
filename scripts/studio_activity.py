@@ -91,52 +91,63 @@ def write_timeline(root: Path) -> dict:
 
 
 def refresh(root: Path) -> dict:
-    """Rebuild displays after a commit. Keep a durable retry marker on failure."""
+    """Rebuild independent displays; one unavailable view cannot undo committed work."""
     import studio
     root = root.resolve()
     with c.lock(root):
-        try:
-            # A post-commit logging error may have left a redacted retry receipt.
-            pending_errors = []
-            for queued in sorted((root / 'work/activity/pending-events').glob('*.json')):
-                try:
-                    pending_event = c.load(queued)
-                    c.exact(pending_event, {'kind', 'subject', 'revision', 'details', 'at'}, 'pending activity receipt')
-                    for key in ('kind', 'subject', 'revision', 'at'):
-                        c.text(pending_event[key], 'pending activity ' + key)
-                    if chronological(pending_event['at']) == float('-inf') or not isinstance(pending_event['details'], dict):
-                        raise ValueError('pending activity receipt has invalid time or details')
-                    event(root, pending_event['kind'], pending_event['subject'],
-                          revision=pending_event['revision'], details=pending_event['details'], at=pending_event['at'])
-                    queued.unlink()
-                except (ValueError, OSError, KeyError, TypeError) as exc:
-                    # Keep this receipt and diagnose it; a broken old log must
-                    # not prevent the current gallery from being published.
-                    pending_errors.append({'path': queued.relative_to(root).as_posix(), 'message': str(exc)})
-            timeline = write_timeline(root)
-            if (root / studio.MANIFEST).is_file():
-                studio.write_gallery(root)
-            pending = root / 'work/activity/projections-pending.json'
-            if pending_errors:
-                warning = {'ok': False, 'code': 'ACTIVITY_RECORD_PENDING',
-                           'message': 'Displays were refreshed; some activity receipts still need repair.',
-                           'committed_state_retained': True, 'views_refreshed': True,
-                           'diagnostics': pending_errors, 'timeline': timeline, 'retry': 'studio.py sync'}
-                c.atomic_write_json(pending, warning)
-                _warn_operation(warning)
-                return warning
-            if pending.exists():
-                pending.unlink()
-            return {'ok': True, 'timeline': timeline}
-        except (ValueError, OSError, KeyError, TypeError) as exc:
-            warning = {'ok': False, 'code': 'PROJECTION_REFRESH_PENDING', 'message': str(exc),
-                       'committed_state_retained': True, 'retry': 'studio.py sync'}
+        pending_errors, projection_errors = [], []
+        for queued in sorted((root / 'work/activity/pending-events').glob('*.json')):
             try:
-                c.atomic_write_json(root / 'work/activity/projections-pending.json', warning)
+                pending_event = c.load(queued)
+                c.exact(pending_event, {'kind', 'subject', 'revision', 'details', 'at'}, 'pending activity receipt')
+                for key in ('kind', 'subject', 'revision', 'at'):
+                    c.text(pending_event[key], 'pending activity ' + key)
+                if chronological(pending_event['at']) == float('-inf') or not isinstance(pending_event['details'], dict):
+                    raise ValueError('pending activity receipt has invalid time or details')
+                event(root, pending_event['kind'], pending_event['subject'], revision=pending_event['revision'],
+                      details=pending_event['details'], at=pending_event['at'])
+                queued.unlink()
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                pending_errors.append({'path': queued.relative_to(root).as_posix(), 'message': str(exc)})
+        if (root / studio.MANIFEST).is_file():
+            try:
+                studio.write_gallery(root)
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                projection_errors.append({'projection': 'gallery', 'message': str(exc)})
+        story = None
+        try:
+            import story_timeline
+            if story_timeline.configured(root):
+                story = story_timeline.refresh(root)
+                if not story['ok']:
+                    projection_errors.append({'projection': 'story-timeline', **story})
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            projection_errors.append({'projection': 'story-timeline', 'message': str(exc)})
+        try:
+            # Include the story projection's operation event in this same refresh.
+            timeline = write_timeline(root)
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            timeline = None
+            projection_errors.append({'projection': 'activity-timeline', 'message': str(exc)})
+        pending = root / 'work/activity/projections-pending.json'
+        result = {'ok': not pending_errors and not projection_errors, 'timeline': timeline}
+        if story is not None:
+            result['story_timeline'] = story
+        if pending_errors or projection_errors:
+            warning = {**result,
+                'code': 'PROJECTION_REFRESH_PENDING' if projection_errors else 'ACTIVITY_RECORD_PENDING',
+                'message': 'Committed state retained. Some displays or activity receipts need repair.',
+                'committed_state_retained': True, 'views_refreshed': not projection_errors,
+                'diagnostics': pending_errors + projection_errors, 'retry': 'studio.py sync'}
+            try:
+                c.atomic_write_json(pending, warning)
             except OSError:
                 pass
             _warn_operation(warning)
             return warning
+        if pending.exists():
+            pending.unlink()
+        return result
 
 
 def _warn_operation(warning: dict) -> None:

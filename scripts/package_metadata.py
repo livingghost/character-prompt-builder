@@ -35,7 +35,7 @@ CORE_EVALUATION_INCLUDES: frozenset[str] = frozenset()
 CORE_RELEASE_REGRESSION_CONTRACT = "config/default-release.json"
 CORE_EXAMPLE_INCLUDES = frozenset(
     {"examples/render-contract", "examples/pack-authoring", "examples/feature-walkthrough", "examples/generation", "examples/state-aware-pilot", "examples/declared-structures",
-     "examples/authorial-intent", "examples/world-realization", "examples/production-execution", "examples/protocol-exchange", "examples/story-context", "examples/reusable-authoring",
+     "examples/authorial-intent", "examples/world-realization", "examples/production-execution", "examples/protocol-exchange", "examples/story-context", "examples/story-timeline", "examples/story-flow", "examples/reusable-authoring",
      "examples/cast-admission", "examples/resume-recording", "examples/input-assembly", "examples/craft-consultation", "examples/model-evidence", "examples/candidate-recipe"}
 )
 CORE_PACK_INCLUDES = frozenset({"packs/commons"})

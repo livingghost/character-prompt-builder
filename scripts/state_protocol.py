@@ -262,6 +262,8 @@ def write_json(path: Path, value: Any) -> None:
         newline="\n",
     )
 
+    from story_timeline import notify_state_write
+    notify_state_write(path)
 
 def artifact_type(data: dict[str, Any]) -> str:
     value = str(data.get("artifact_type") or "")
@@ -2750,6 +2752,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     validate_cmd = sub.add_parser("validate")
     validate_cmd.add_argument("artifacts", nargs="+")
 
+    ledger_cmd = sub.add_parser("validate-ledger", help="inspect event/process cross-references and replay conflicts")
+    ledger_cmd.add_argument("--base-state", required=True)
+    ledger_cmd.add_argument("--events", required=True)
+    ledger_cmd.add_argument("--processes")
+
     finalize_cmd = sub.add_parser("finalize")
     finalize_cmd.add_argument("artifact")
     finalize_cmd.add_argument("--out", required=True)
@@ -2855,6 +2862,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = {"ok": all(item["ok"] for item in reports), "artifacts": reports}
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0 if result["ok"] else 1
+
+        if args.command == "validate-ledger":
+            from state_ledger import inspect_ledger
+            result = inspect_ledger(load_json(Path(args.base_state)), load_jsonl(Path(args.events)), parse_processes(args.processes))
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0 if result['ok'] else 1
 
         if args.command == "finalize":
             data = finalize_artifact(load_json(Path(args.artifact)))

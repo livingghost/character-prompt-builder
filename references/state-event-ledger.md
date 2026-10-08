@@ -36,7 +36,7 @@ World snapshots contain character, relationship, environment, prop, and world bu
 
 A `clear_event_id` is also per change. It must identify an approved event on the same timeline, at a strictly later story order, containing a state mutation for the same entity and path. At and after that clearing event, the original change is inactive.
 
-An approved event may supersede earlier events with `supersedes_event_ids`. Supersession is future-filtered. A snapshot before the superseding event still contains the earlier event; a snapshot at or after the superseding event does not. References to unknown events, another timeline, the same event, or an event at the same or a later order are invalid.
+An approved event may supersede earlier events with `supersedes_event_ids`. Supersession is future-filtered. A snapshot before the superseding event still contains the earlier event; a snapshot at or after the superseding event does not. The entire earlier event is excluded from later replay, not just a matching field. A revision that must retain other changes declares those changes explicitly. References to unknown events, another timeline, the same event, or an event at the same or a later order are invalid. Ordinary later state changes need no supersedes link; that link records editorial replacement, not routine evolution.
 
 ## Persistence semantics
 
@@ -61,7 +61,7 @@ Restarted milestone IDs are epoch-qualified, so an initial milestone and the sam
 
 ## Same-order precedence
 
-At one story order, lifecycle effects are resolved first, process milestones second, and state mutations last. IDs and authored change indexes break remaining ties. Consequently, an interrupt suppresses a milestone at the same order, a restart may emit its offset-zero milestone at that order, and an authored state mutation wins over a milestone at that same order.
+At one story order, lifecycle effects are resolved first, process milestones second, and state mutations last. Independent operations have a stable ID display order, while authored changes inside one event keep their explicit order. Unordered events with overlapping writes or read/write interference are rejected instead of selecting a winner by ID. Consequently, an interrupt suppresses a milestone at the same order, a restart may emit its offset-zero milestone at that order, and an authored state mutation wins over a milestone at that same order.
 
 ## Validation boundary
 
@@ -121,3 +121,10 @@ The helper compares only named boundary fields and exports only selected recipie
 snapshots use this resolver's persistence, process and scene semantics, including the aggregate
 `world` bucket. It does not infer continuous values, auto-approve a source or silently mutate a
 canonical base. Source edits require rebuilding and reviewing dependent outputs.
+
+## Read-only timeline and cross-record inspection
+
+[Story Timeline](runtime/story-timeline.md) exposes `story_timeline.py` and
+`state_protocol.py validate-ledger`. Both use this resolver and its diagnostics.
+The view keeps numeric story order separate from recording and disclosure labels,
+shows explicit scene artwork, and exposes before/after provenance at named points.

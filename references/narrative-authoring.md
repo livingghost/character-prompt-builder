@@ -324,3 +324,18 @@ definition.
 The material is authoring input rather than canon or a performer's knowledge; required text is
 kept whole rather than silently truncated, a size measure says nothing about semantic
 completeness, and full reading and its scope review remain attributed judgments.
+
+## Read the developing story
+
+The normal `studio.py sync` automatically projects `narrative/narrative.json`,
+scene-plot files under `narrative/scenes/`, and the state ledger into `timeline.html` at the
+Studio root.
+The page opens on the Graph overview of branches and revisions. The Flow view reads scene purposes, actions, participants and consequences.
+Pin passages for comparison; inspect promises, questions and knowledge across chapters.
+
+After recording an actual user answer or revising the ordinary story sources, the
+agent runs sync as the final step of that update. There is no separate Flow synopsis
+or manual diagram to complete. External file edits still need sync; opening an old
+HTML file does not watch the sources. Flow never invents the missing motivation or
+accepts the scene. See [Story Flow](runtime/story-timeline.md) for inputs, automatic
+refresh, failures, state inspection and synthetic tests.

@@ -38,6 +38,9 @@ The Identity Contract owns stable anatomy, proportions, markings, distinctive de
 
 The authority order remains user intent and approved canon, approved identity and event history, resolved snapshots and context, Visual State Projection and Production Specification, then selected catalog knowledge and the studio defaults. A scene record cannot overwrite identity or history. Do not paste the whole history into the prompt; project only current visible or performance-relevant truth while preserving hashes and source references.
 
+Inspect recorded events and exact resolver viewpoints with [Story Timeline](story-timeline.md).
+Its read-only page is an aid to choosing inputs, not a new source of canon.
+
 ## State domains and visibility
 
 Track state as open domains:

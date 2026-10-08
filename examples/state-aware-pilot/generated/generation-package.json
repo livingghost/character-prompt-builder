@@ -3201,7 +3201,7 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "3cf1d68725e97c965033e121f9e0bc079f34ba7d467c8b8c7280d66c2f621286",
+  "generation_input_sha256": "698af896ab94d9c5880ace7339fc035eed236428d1014ae9cd5e7f800166e835",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -3354,10 +3354,10 @@
     "retrieval_record_sha256": "5b6d2fb640782c473f4731617628dc53f729fafdc784cb32dce2447a983cbbcb",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-    "generation_input_sha256": "3cf1d68725e97c965033e121f9e0bc079f34ba7d467c8b8c7280d66c2f621286",
+    "generation_input_sha256": "698af896ab94d9c5880ace7339fc035eed236428d1014ae9cd5e7f800166e835",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "c60ce649b4450a87bda5ff9bf43830af486f4753943b76fa0dc1a22320b8748c",
+    "route_reading_sha256": "048cb467e241de59176ab5721f4ef45e1be2255df2f9ebbf542ba50c1452b7ac",
     "request_validation_sha256": "69637c030bf936a96560ece5219cba1fb9cc2d04fd305849b334a936ac360ddc",
     "input_snapshots_sha256": "b42640ef081136d95eaec0f96a613e9dd8091d411d8da12580b60ab7b128cebf"
   },
@@ -3394,7 +3394,11 @@
       },
       {
         "path": "references/runtime/state-aware-series.md",
-        "sha256": "6fe39048408424f3ea6b51c928052c1a3d8bc9a61df170bcfb4cff2fbdd0729c"
+        "sha256": "596a942415f89d015b3ef6e9f96748a77c29c9c76f9966940f02c5dd8236c444"
+      },
+      {
+        "path": "references/runtime/story-timeline.md",
+        "sha256": "a53fdb7cab5dd2760fe38319338d0566d4cfb42f4be1d4a1650f00a849e9ef0d"
       },
       {
         "path": "references/runtime/prompt-writing-guide.md",
@@ -3410,7 +3414,7 @@
       },
       {
         "path": "references/runtime/studio.md",
-        "sha256": "470531e2a43b27692e6ed2c71c5e6de280bf0858ec194a4d4acd951fbc75f2a6"
+        "sha256": "82c06d9f56b8eeb6811e6a8b49001bc8f9e62fe077702e9a57a788da64ac0155"
       },
       {
         "path": "references/runtime/world-realization.md",
@@ -3439,11 +3443,16 @@
       }
     },
     "route": "state-series",
-    "reading_key": "30e91e3f1fa3903ab51a568892fc0765",
+    "reading_key": "c35a4bb0097a521da33b4e7712a7836b",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
         "quote": "Use this document for recurring characters, temporal continuity, visible consequences of off-screen events, rendered identity references from other scenes, or an arriving shot-request. For a one-off image with no continuity state, use a stateless Production Specification and skip this document.",
+        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+      },
+      {
+        "path": "references/runtime/story-timeline.md",
+        "quote": "Read the development of a story, compare passages and inspect their recorded consequences. Graph is the opening view and shows branches and revisions as connected cards. Flow reads the story as ordered passages. Axis retains the event lanes and exact state inspection. The author judges motivation, continuity, information gaps and the effect of a scene. A structural check does not decide whether the story is convincing.",
         "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
       }
     ],
@@ -3456,7 +3465,7 @@
       }
     ]
   },
-  "route_reading_sha256": "c60ce649b4450a87bda5ff9bf43830af486f4753943b76fa0dc1a22320b8748c",
+  "route_reading_sha256": "048cb467e241de59176ab5721f4ef45e1be2255df2f9ebbf542ba50c1452b7ac",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",

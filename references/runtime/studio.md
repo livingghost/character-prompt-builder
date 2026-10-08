@@ -289,4 +289,11 @@ For a saved deliverable, continue through [Production Execution](production-exec
 
 ## Iteration infrastructure
 
-`studio_gallery.py` builds a chronological index and browser controls from existing owners. `studio_activity.py` appends redacted operator transitions and rebuilds the timeline; neither owns image acceptance or external execution. Public commands are `studio.py status`, `sync`, `gallery` and the task commands in `work_ledger.py --help`. Synthetic regression coverage is in `studio_smoke_test.py`, `sheet_attempts_smoke_test.py` and `iterative_workflow_smoke_test.py`, including actual browser checks where Chromium/Playwright is installed.
+`studio_gallery.py` builds a chronological index and browser controls from existing owners. `studio_activity.py` appends redacted operator transitions and rebuilds the timeline; neither owns image acceptance or external execution. Public commands are `studio.py status`, `sync`, `gallery` and the task commands in `work_ledger.py --help`. Synthetic regression coverage is in `studio_smoke_test.py`, `sheet_attempts_smoke_test.py` and `iterative_workflow_smoke_test.py`.
+
+## Story timeline projection
+
+When `state/events.jsonl` or `state/timeline-view.json` is present, `studio.py sync`
+also updates [Story Timeline](story-timeline.md). Explicit accepted scene artwork
+uses the same adoption refresh. This story-order view is separate from the
+recorded-time gallery and operator activity history.

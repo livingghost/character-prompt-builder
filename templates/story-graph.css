@@ -1,0 +1,41 @@
+.graph-panel{margin:12px 0 22px;background:#fff;border:1px solid #bbccd3;border-radius:12px;padding:18px;min-width:0}
+.graph-heading{display:flex;gap:18px;align-items:start;justify-content:space-between;flex-wrap:wrap}
+.graph-heading h2{margin:2px 0 5px;font-size:24px}.graph-heading p{margin:3px 0;font-size:13px;color:var(--muted);max-width:83ch}
+.graph-kicker-html{font-size:11px;letter-spacing:1.5px;color:#287277;font-weight:700;text-transform:uppercase}
+.graph-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:12px 0;font-size:12px}
+.graph-swatch{display:inline-block;width:34px;border-top:2px solid #1e797b;vertical-align:middle;margin-right:6px;position:relative}
+.graph-swatch:after{content:'';position:absolute;right:-1px;top:-5px;border-left:7px solid #1e797b;border-top:4px solid transparent;border-bottom:4px solid transparent}
+.graph-swatch.revision{border-color:#8053a1;border-top-style:dashed}.graph-swatch.revision:after{border-left-color:#8053a1}
+.graph-swatch.hidden{border-color:#97a4af;border-top-style:dotted}.graph-swatch.hidden:after{display:none}
+.graph-tools{display:flex;gap:9px;align-items:end;flex-wrap:wrap;border-top:1px solid #dae3e7;padding-top:12px;margin-bottom:9px}
+.graph-tools button{padding:7px 10px;font-size:12px}.graph-tools label{flex:1;min-width:210px;max-width:560px}.graph-tools select{width:100%;min-width:0;font-size:12px}
+.graph-zoom{display:flex;gap:5px;align-items:center;font-size:12px}.graph-zoom span{min-width:38px;text-align:center}
+.graph-navigation{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:12px;margin:10px 0}
+#graph-count{flex:1;min-width:240px}#graph-path-note{font-size:12px;margin:6px 0;color:var(--muted)}
+.graph-scroll{width:100%;max-height:650px;overflow:auto;border:1px solid #d4e0e5;border-radius:8px;background:#f4f7f8;overscroll-behavior:contain}
+.graph-scroll:focus-visible{outline:3px solid #b37600;outline-offset:2px}
+#graph-canvas{display:block;width:100%;height:auto;min-width:0;font-family:system-ui,sans-serif}
+.graph-lane{fill:#fff;stroke:#e0e8eb}.graph-lane-title{fill:#335969;font-size:15px;font-weight:700;letter-spacing:.4px}
+.graph-column{stroke:#e2e9ed;stroke-width:1;stroke-dasharray:3 5}.graph-order{fill:#566d7b;font-size:11px;font-weight:700}
+.graph-node{cursor:pointer;outline:none}.graph-card{fill:#fff;stroke:#bacbd3;stroke-width:1.2;filter:drop-shadow(0 2px 2px #1b374612)}
+.graph-node:hover .graph-card{stroke:#378085;stroke-width:2}.graph-node:focus-visible .graph-card{stroke:#ab730a;stroke-width:3}
+.graph-node.selected .graph-card{stroke:#09767b;stroke-width:3;fill:#f2fcfb}.graph-node.pinned .graph-card{stroke:#b07b36;stroke-width:3}
+.graph-node.path-match .graph-card{filter:drop-shadow(0 0 4px #376fde);stroke-width:3}.graph-node.collapsed-group .graph-card{fill:#edf4f8}
+.graph-node.hidden-records .graph-card{stroke-dasharray:5 4;fill:#f2f3f5;stroke:#8b9ba6}.graph-node.hidden-records .graph-title{fill:#647683;font-size:14px}
+.graph-kicker{fill:#436a78;font-size:10px;font-weight:700;letter-spacing:.8px}.graph-title{fill:#173a49;font-size:15px;font-weight:650}
+.graph-caption{fill:#4f6d79;font-size:10px}.graph-hint{fill:#627b88;font-size:9px}.graph-issue{fill:#a4510d;font-size:10px;font-weight:700}
+.graph-edge{cursor:pointer;outline:none}.graph-edge-line{fill:none;stroke:#1e797b;stroke-width:2;stroke-linejoin:round}
+.graph-edge.revision .graph-edge-line{stroke:#8053a1;stroke-dasharray:7 5;stroke-width:2.2}.graph-edge:focus-visible .graph-edge-line,.graph-edge:hover .graph-edge-line{stroke-width:4}
+.graph-edge-hit{fill:none;stroke:transparent;stroke-width:14}.graph-marker-cause{fill:#1e797b}.graph-marker-revision{fill:#8053a1}
+.graph-edge-count{fill:#42566a;stroke:#fff;stroke-width:3;paint-order:stroke;font-size:11px;font-weight:700}
+.graph-cut-bg{fill:#fff7e8;stroke:#c18c41;stroke-width:.8}.graph-cut-text{font-size:10px;fill:#7c4b12;font-weight:700}
+.graph-notice{font-size:12px;border-left:3px solid #a47837;background:#fff9ee;padding:8px 12px;margin:8px 0}
+.graph-members,.graph-unplaced{border:1px solid #d5e0e5;border-radius:8px;padding:14px;margin:14px 0;background:#fbfcfd}
+.graph-unplaced h3,.graph-members h3{font-size:16px}.graph-record-list{display:grid;gap:7px}.graph-record-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #e1e7ea;padding:9px 0;overflow-wrap:anywhere}
+.graph-record-row button{white-space:normal;text-align:left;max-width:100%;font-size:12px}.graph-record-row>button:first-child{flex:1;min-width:180px}
+.graph-pager{display:flex;gap:10px;align-items:center;font-size:12px;margin-top:12px}.graph-pager button{font-size:12px}
+.graph-cause-label{color:#126b70;font-size:12px;font-weight:700}.graph-revision-label{color:#79509d;font-size:12px;font-weight:700}.graph-cut-label{color:#8b5b15;font-size:12px}
+.graph-active .flow-layout{grid-template-columns:1fr}.graph-active .flow-inspector{position:static;max-height:none}
+.graph-active #flow-detail{max-width:1100px;margin:auto}.graph-active .flow-comparison{margin-bottom:16px}
+@media(max-width:850px){.graph-panel{padding:12px}.graph-heading h2{font-size:21px}.graph-tools label{max-width:100%;width:100%}.graph-scroll{max-height:510px}.graph-navigation{gap:6px}.graph-record-row{align-items:start}.graph-legend{gap:9px}.modebar{gap:9px}.mode-buttons{flex-wrap:wrap}.mode-buttons button{font-size:12px;padding:8px}}
+@media print{.graph-scroll{overflow:visible;max-height:none}.graph-tools,.graph-navigation button{display:none}.graph-node{break-inside:avoid}}

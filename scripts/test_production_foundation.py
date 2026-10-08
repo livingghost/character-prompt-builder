@@ -586,13 +586,17 @@ class CompilerContractTests(unittest.TestCase):
             found={str(path):c.sha256_file(path) for path in self.root.rglob('*') if path.is_file()}
             found['state']=c.sha256_file(self.case['settings'].state_file)
             return found
-        temporary=lambda:set(glob.glob(str(Path(tempfile.gettempdir())/'cpb-check-*')))
-        before,staged=files(),temporary()
-        report=self.check()
-        self.assertTrue(report['publishable'],report['diagnostics'])
-        self.assertEqual(files(),before)
-        self.assertEqual(temporary(),staged)
-        self.assertEqual(store.runs(self.root),[])
+        # The shared system temp directory contains other concurrently running
+        # compiler checks. Observe this operation's private scratch area only.
+        with tempfile.TemporaryDirectory(dir=self.base) as scratch:
+            temporary=lambda:set(glob.glob(str(Path(scratch)/'cpb-check-*')))
+            before,staged=files(),temporary()
+            with patch.object(tempfile,'tempdir',scratch):
+                report=self.check()
+            self.assertTrue(report['publishable'],report['diagnostics'])
+            self.assertEqual(files(),before)
+            self.assertEqual(temporary(),staged)
+            self.assertEqual(store.runs(self.root),[])
 
     def test_check_and_prepare_outputs_follow_their_schemas(self):
         import production_compiler as compiler

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026.10.09.1
+
+- Automated graph checks use Python and Node.js without browser-launching test entrypoints. Flow, Axis and Graph output is unchanged.
+
+- Graph opens the generated story page at the Studio root as an inline SVG view, with Flow and Axis one click away. Explicit cause arrows, reverse-directed revision arrows, hidden-record placeholders and bounded position groups expose branches without inventing causal links.
+- Graph selections reuse the passage inspector, comparison pins and exact state evidence. Unplaced records, cut layout cycles and relationships outside a window remain inspectable.
+
+- Automatic Flow reads the ordinary narrative, scene plots and ledger as human story passages. It exposes participants, actions, consequences, unresolved questions and knowledge without a second authored diagram.
+- Readers can pin and compare passages, step through filtered records, and switch between presentation and story order while retaining exact Axis state inspection.
+- Scene discovery, explicit context joins, source revisions and collection changes participate in normal Studio synchronization. A broken or ambiguous draft is visible rather than silently repaired or promoted to canon.
+
+- Story timeline projects authored events, shared-resolver viewpoints and explicit adopted scene artwork into a read-only, paginated HTML page. The page, its publication receipt and its retained last-good copy publish as `timeline.html` at the Studio root; the ledger, view configuration and other inputs stay under `state/`.
+- Full-ledger inspection reuses temporal validation, detects revision cycles, locates unresolved same-order operations, and preserves normal state transitions and sparse orders.
+- Studio sync refreshes story views independently of gallery/activity views, retains failed projections as explicitly stale, and rechecks source identities before publication.
+- `sheet_workflow.py reject` dismisses a recorded sheet candidate with a stated reason and records the dismissal in the studio activity timeline; the immutable artifact stays in the sheet's store.
+
 ## 2026.10.08.1
 
 - Execution approval binds the complete sealed request, grant and author evidence. Grants no longer carry use, output or cost limits: `execution_lifecycle.py` records exclusive execution ownership, external effects, submission, capture and recovery, and sends and returned images remain auditable execution results.
@@ -8,7 +24,7 @@
 - `sheet_workflow.py` orchestrates staged panel batches through the ordinary Production approvals and execution path, recovers missing exports without blindly resending unknown requests, and exports portable per-panel evidence.
 - Sheet review produces anchor/candidate full-body and head montages plus reproducible HSV measurements; insufficient pixels are missing evidence and artistic acceptance remains the author's decision.
 - Accepted-source crop, model upscale, shared artwork and declared-height local composition are regular sheet candidate paths with exact source ancestry. The HTML editor preserves artifact history and does not edit image/provenance paths independently.
-- Tests use synthetic fixtures and the bundled default content. Optional browser tests exercise the standalone editor when Playwright and Chromium are available.
+- Tests use synthetic fixtures and the bundled default content.
 
 - Repeated sheet batches own UTC-dated attempt folders and per-panel inputs, decisions and results, with frozen recovery inputs and an indexed `batch-list`. Output conflicts are detected before sends; old recovery cannot replace the latest result pointer.
 - The editor exports authored differences only. Locked compare-and-apply preserves newer CLI selections/history and reports same-key author conflicts atomically.
