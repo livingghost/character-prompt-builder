@@ -615,6 +615,18 @@ def _freshness_failures(root: Path, run: str, prepared: dict, *, rows: list[dict
         if actual!=dependency.get('selection_sha256', dependency['sha256']):
             failed=True
             yield freshness_error(dependency,actual,run=run)
+    for source in prepared.get('studio_reference_sources', []):
+        try:
+            from studio_reference import validate_source
+            validate_source(source)
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            failed = True
+            yield ProductionError('STUDIO_REFERENCE_CHANGED',
+                'The exact accepted Studio reference is no longer current or verifiable.',
+                phase='source-freshness', run=run, file=source['sheet'], expected=source['proof_sha256'],
+                character=source['character'], slot=source['slot'], artifact_id=source['artifact_id'],
+                required_action='Select the current accepted artwork and prepare a new approved request; resume a sent run to recover its recorded result.',
+                cause=str(exc))
     if scope is not None and not failed and envelope is not None:
         scope[key]=True
 

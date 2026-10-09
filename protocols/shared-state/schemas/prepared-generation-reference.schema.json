@@ -31,6 +31,9 @@
             },
             {
               "$ref": "#/$defs/supplied-file-source"
+            },
+            {
+              "$ref": "#/$defs/studio-artifact-source"
             }
           ]
         },
@@ -73,6 +76,9 @@
             },
             {
               "$ref": "#/$defs/supplied-file-source"
+            },
+            {
+              "$ref": "#/$defs/studio-artifact-source"
             }
           ]
         },
@@ -324,6 +330,72 @@
         }
       },
       "additionalProperties": false
+    },
+    "studio-artifact-source": {
+      "type": "object",
+      "required": [
+        "kind",
+        "studio_root",
+        "studio_id",
+        "character",
+        "sheet",
+        "slot",
+        "artifact_id",
+        "acceptance_sha256",
+        "proof_sha256",
+        "resolved_path",
+        "media_type",
+        "sha256"
+      ],
+      "properties": {
+        "kind": {
+          "const": "studio-artifact"
+        },
+        "studio_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "studio_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "character": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$"
+        },
+        "sheet": {
+          "type": "string",
+          "minLength": 1
+        },
+        "slot": {
+          "$ref": "#/$defs/identifier"
+        },
+        "artifact_id": {
+          "$ref": "#/$defs/sha256"
+        },
+        "acceptance_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "proof_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "resolved_path": {
+          "$ref": "#/$defs/resolved-path"
+        },
+        "media_type": {
+          "enum": [
+            "image/png",
+            "image/jpeg",
+            "image/webp"
+          ]
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false,
+      "description": "One exact current Studio acceptance. The package preserves its approval and transitive artwork evidence separately from current-selection verification."
     }
   }
 }

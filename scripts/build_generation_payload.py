@@ -944,6 +944,9 @@ def materialize_cli_reference_bundle(
     if validated['reference_use_plan'] is not None:
         sources.extend(item['source'] for item in validated['reference_use_plan']['reference_items'])
     for source in sources:
+        if source.get('kind') == 'studio-artifact':
+            from studio_reference import archive_source
+            archive_source(source, staging_root / companion_name)
         import execution_contract as execution
         raw = execution.read(Path(source['resolved_path']))
         if execution.digest(raw) != source['sha256']:

@@ -3201,7 +3201,7 @@
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
   },
   "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "698af896ab94d9c5880ace7339fc035eed236428d1014ae9cd5e7f800166e835",
+  "generation_input_sha256": "9b5786828a35a2529de0ec54640e795dd607b6f694a7d3c51f6af68b30f4db4f",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -3354,10 +3354,10 @@
     "retrieval_record_sha256": "5b6d2fb640782c473f4731617628dc53f729fafdc784cb32dce2447a983cbbcb",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-    "generation_input_sha256": "698af896ab94d9c5880ace7339fc035eed236428d1014ae9cd5e7f800166e835",
+    "generation_input_sha256": "9b5786828a35a2529de0ec54640e795dd607b6f694a7d3c51f6af68b30f4db4f",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "048cb467e241de59176ab5721f4ef45e1be2255df2f9ebbf542ba50c1452b7ac",
+    "route_reading_sha256": "21304ad0380b04ece2717f7b12b2269540a76745edfd37a1066b8e21cc91f1bd",
     "request_validation_sha256": "69637c030bf936a96560ece5219cba1fb9cc2d04fd305849b334a936ac360ddc",
     "input_snapshots_sha256": "b42640ef081136d95eaec0f96a613e9dd8091d411d8da12580b60ab7b128cebf"
   },
@@ -3394,11 +3394,15 @@
       },
       {
         "path": "references/runtime/state-aware-series.md",
-        "sha256": "596a942415f89d015b3ef6e9f96748a77c29c9c76f9966940f02c5dd8236c444"
+        "sha256": "c61c6b5d793efe7e88248c1b1cd76ff7d1ee3ec093a9d72d2f18436f56d9cb12"
       },
       {
         "path": "references/runtime/story-timeline.md",
         "sha256": "a53fdb7cab5dd2760fe38319338d0566d4cfb42f4be1d4a1650f00a849e9ef0d"
+      },
+      {
+        "path": "references/runtime/studio-canon-references.md",
+        "sha256": "3d8c2cd819395cb6a95c3e9b8fe5f808c0fe5dba0648377d26a90681845112ee"
       },
       {
         "path": "references/runtime/prompt-writing-guide.md",
@@ -3443,7 +3447,7 @@
       }
     },
     "route": "state-series",
-    "reading_key": "c35a4bb0097a521da33b4e7712a7836b",
+    "reading_key": "ba497aa7ad9ed221992513b256303861",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
@@ -3453,6 +3457,11 @@
       {
         "path": "references/runtime/story-timeline.md",
         "quote": "Read the development of a story, compare passages and inspect their recorded consequences. Graph is the opening view and shows branches and revisions as connected cards. Flow reads the story as ordered passages. Axis retains the event lanes and exact state inspection. The author judges motivation, continuity, information gaps and the effect of a scene. A structural check does not decide whether the story is convincing.",
+        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
+      },
+      {
+        "path": "references/runtime/studio-canon-references.md",
+        "quote": "A `studio-artifact` source selects a character, sheet slot, immutable artwork and its exact current adoption. The preparer reads the image hash and approval from the Studio. Working artwork needs no pack record. Packs remain a choice for reusable, distributed reference material.",
         "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
       }
     ],
@@ -3465,7 +3474,7 @@
       }
     ]
   },
-  "route_reading_sha256": "048cb467e241de59176ab5721f4ef45e1be2255df2f9ebbf542ba50c1452b7ac",
+  "route_reading_sha256": "21304ad0380b04ece2717f7b12b2269540a76745edfd37a1066b8e21cc91f1bd",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",

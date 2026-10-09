@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Prepare ordered image references for one exact generation target.
 
-Catalog-owned artifacts and caller-supplied files enter through distinct source
-variants. The prepared result commits both the selected source bytes and the
+Catalog artifacts, caller-supplied files and accepted Studio artwork enter
+through distinct source variants. The prepared result commits both the selected source bytes and the
 actual model-facing transport bytes. SVG sources are safely rasterized from the
 same selected artifact; the preparer never substitutes another guide artifact
 and never falls back to text-only generation.
@@ -540,7 +540,14 @@ def _validate_source(source: Any, field: str, *, context: _ReferenceContext = _L
         return _validate_pack_source(source, field, context=context)
     if kind == "supplied-file":
         return _validate_supplied_source(source, field, context=context)
-    raise ValueError(f"{field}.kind must be pack-artifact or supplied-file")
+    if kind == "studio-artifact":
+        from studio_reference import validate_source
+        validate_source(source, active=context.active, source_archive=context.source_archive)
+        path = context.path(source, field)
+        if sha256_file(path) != source['sha256'] or detect_image_media_type(path) != source['media_type']:
+            raise ValueError(field + ' Studio source image bytes differ')
+        return copy.deepcopy(dict(source))
+    raise ValueError(f"{field}.kind must name an explicit pack, supplied-file or Studio artifact")
 
 
 def validate_committed_source(source: Any, field: str = "source") -> dict[str, Any]:
@@ -1577,8 +1584,10 @@ def _preflight_selection_item(raw: Any, index: int) -> tuple[str, dict[str, Any]
         normalized = _validate_pack_source(source, f"{field}.source")
     elif source.get("kind") == "supplied-file":
         normalized = _prepare_supplied_source(source, f"{field}.source")
+    elif source.get("kind") == "studio-artifact":
+        normalized = _validate_source(source, f"{field}.source")
     else:
-        raise ValueError(f"{field}.source.kind must be pack-artifact or supplied-file")
+        raise ValueError(f"{field}.source.kind must name a supported reference source")
     _validate_source_prepareability(normalized, field)
     return role, normalized
 
@@ -1736,14 +1745,17 @@ def prepare_references(
     model: str,
     output_dir: Path,
     max_side: int = 1536,
+    transport_mode: str = 'multi-image',
 ) -> dict[str, Any]:
+    if transport_mode not in {'multi-image', 'single-board'}:
+        raise ValueError('reference transport must be multi-image or single-board')
     if not isinstance(selections, list):
         raise ValueError("selection input must be a JSON array")
     for index, raw in enumerate(selections):
         source = raw.get("source") if isinstance(raw, Mapping) else None
-        if not isinstance(source, Mapping) or source.get("kind") != "supplied-file":
+        if not isinstance(source, Mapping) or source.get("kind") not in {"supplied-file", "studio-artifact"}:
             raise ValueError(
-                f"selection[{index}] must be a supplied-file; active pack artifacts require "
+                f"selection[{index}] must be a supplied-file or committed Studio source; active pack artifacts require "
                 "an explicit Reference Use Plan executed by reference_runtime.py"
             )
     preflight = [_preflight_selection_item(raw, index) for index, raw in enumerate(selections)]
@@ -1755,10 +1767,20 @@ def prepare_references(
     )
     if not references:
         return empty_stateless_reference_set()
+    board = None
+    if transport_mode == 'single-board':
+        from reference_runtime import _build_board
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / 'reference-board.png'
+        if path.exists() or path.is_symlink():
+            raise ValueError('reference board output already exists')
+        board = _build_board(references, path, max_side=max_side)
+        board['resolved_path'] = str(path.resolve())
     return build_prepared_reference_set(
-        transport_mode="multi-image",
+        transport_mode=transport_mode,
         target_model=model,
         selected_references=references,
+        single_board=board,
     )
 def _reference_preamble_for_prepared_rows(
     references: Sequence[Mapping[str, Any]],
@@ -1876,8 +1898,11 @@ def prepare_state_reference_selection(
     output_dir: Path,
     max_side: int = 1536,
     zero_reference_reason: Mapping[str, Any] | None = None,
+    transport_mode: str = 'multi-image',
 ) -> dict[str, Any]:
     """Validate a state selection and prepare its ordered committed sources."""
+    if transport_mode not in {'multi-image', 'single-board'}:
+        raise ValueError('state reference transport must be multi-image or single-board')
 
     selection = _validated_reference_selection(selection)
     pack_backed = [
@@ -1943,11 +1968,21 @@ def prepare_state_reference_selection(
                 )
             ),
         )
+    board = None
+    if transport_mode == 'single-board':
+        from reference_runtime import _build_board
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / 'reference-board.png'
+        if path.exists() or path.is_symlink():
+            raise ValueError('reference board output already exists')
+        board = _build_board(references, path, max_side=max_side)
+        board['resolved_path'] = str(path.resolve())
     return build_prepared_reference_set(
-        transport_mode="multi-image",
+        transport_mode=transport_mode,
         target_model=model,
         reference_selection=selection,
         selected_references=references,
+        single_board=board,
     )
 
 
@@ -1988,6 +2023,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="Finalized reference-selection artifact with committed source provenance",
     )
+    selection_group.add_argument('--studio-selection-file', type=Path,
+        help='Ordered {character, slot, role} choices; resolve each exact current Studio acceptance')
+    parser.add_argument('--studio', type=Path, help='Required for --studio-selection-file')
+    parser.add_argument('--transport-mode', choices=['multi-image', 'single-board'], default='multi-image')
     parser.add_argument("--model", default="gpt-image-2.5-flare")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--max-side", type=int, default=1536)
@@ -2002,14 +2041,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 read_json_object(args.state_selection_file),
                 model=args.model,
                 output_dir=args.output_dir,
-                max_side=args.max_side,
+                max_side=args.max_side, transport_mode=args.transport_mode,
             )
+        elif args.studio_selection_file is not None:
+            if args.studio is None:
+                raise ValueError('--studio is required for a Studio selection')
+            import execution_contract as execution
+            from studio_reference import current_source
+            choices = read_json_array(args.studio_selection_file)
+            selected = []
+            for item in choices:
+                execution.exact(item, {'character', 'slot', 'role'}, 'Studio reference choice')
+                selected.append({'role': item['role'], 'source': current_source(args.studio, item['character'], item['slot'])})
+            prepared = prepare_references(selected, model=args.model, output_dir=args.output_dir,
+                max_side=args.max_side, transport_mode=args.transport_mode)
         else:
             prepared = prepare_references(
                 read_json_array(args.supplied_selection_file),
                 model=args.model,
                 output_dir=args.output_dir,
-                max_side=args.max_side,
+                max_side=args.max_side, transport_mode=args.transport_mode,
             )
         write_json_atomic(args.out, prepared)
         print(json.dumps(prepared, ensure_ascii=False, indent=2, allow_nan=False))

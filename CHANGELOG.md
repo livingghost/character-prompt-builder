@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.10.09.3
+
+- Select a current Studio slot directly, with its artwork, image hash and adoption proof, for state-aware references.
+- Prepare supplied or Studio references as separate images or one board, retaining each panel's exact owner and authority.
+- Recheck the adopted source before new external operations; archive the proof with the package so recorded recovery needs no live adoption.
+- Read finalized binding files directly with `select_state_references.py --binding`; preserve explicit state influence and exclusions.
+- Studio character IDs follow the Studio rule and allow uppercase letters (C01) in reference sources and the public schema.
+
 ## 2026.10.09.2
 
 - Fixed path-spelling canonicalization in the story page projection. On a Windows host whose temporary directory resolves to a different spelling (8.3 short names or junctions), building the projection, refusing a foreign output and notifying a state write compared incompatible spellings and failed.

@@ -67,32 +67,73 @@
           "identity_refs": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "slot": {
-                  "type": "string",
-                  "minLength": 1
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "slot": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "iteration_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "source_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "reference_number": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "slot",
+                    "iteration_id",
+                    "source_sha256",
+                    "reference_number"
+                  ],
+                  "additionalProperties": false
                 },
-                "iteration_id": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "source_sha256": {
-                  "type": "string",
-                  "pattern": "^[a-f0-9]{64}$"
-                },
-                "reference_number": {
-                  "type": "integer",
-                  "minimum": 1
+                {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "slot",
+                    "artifact_id",
+                    "proof_sha256",
+                    "source_sha256",
+                    "reference_number"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "studio-artifact"
+                    },
+                    "slot": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "artifact_id": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "proof_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "source_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "reference_number": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "additionalProperties": false
                 }
-              },
-              "required": [
-                "slot",
-                "iteration_id",
-                "source_sha256",
-                "reference_number"
-              ],
-              "additionalProperties": false
+              ]
             },
             "uniqueItems": true
           }

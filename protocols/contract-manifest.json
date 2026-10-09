@@ -119,7 +119,7 @@
     },
     {
       "schema": "shared-state/prepared-generation-reference.schema.json",
-      "sha256": "1f025166096398db2d64c9ad949e9611440db215f6c10506191c1647c382e931"
+      "sha256": "a9b793e3bf9e41cc0cf32d5581109a21c79fef4ecc031c0462009bab3b4214a6"
     },
     {
       "schema": "shared-state/prepared-reference-set.schema.json",
@@ -135,7 +135,7 @@
     },
     {
       "schema": "shared-state/reference-selection.schema.json",
-      "sha256": "4627a1e58f69744132b8d2cdebb7925f242fe716646cdd3b6502956ce9e903b2"
+      "sha256": "eb412b41052efe8fafa3c6c94f8dce608d635aa05806d486185c8214dffa9139"
     },
     {
       "schema": "shared-state/reference-use-plan.schema.json",
@@ -175,7 +175,7 @@
     },
     {
       "schema": "shared-state/state-aware-reference-binding.schema.json",
-      "sha256": "ab8071d242f921ac79c58f7582248eb1d60a523525919bdc4f500dec3426bbb8"
+      "sha256": "d06b5a7a808d5abb7e2e6832b634fc5d338eec5a91a0b5f260f960fb03cc8416"
     },
     {
       "schema": "shared-state/state-event.schema.json",
@@ -684,5 +684,5 @@
     "path": "scripts/protocol_contract.py",
     "sha256": "23ddb11ecb60c27c11f965bda72862774877a7288ece4530047b8f10c524bdef"
   },
-  "contract_set_sha256": "768d6bd38dec30f15dd163e414e3dbf6b6899c147521827af8b637915cd9a00c"
+  "contract_set_sha256": "fd1aa5c0fa726efc6b9575b62e4c736f98c8aea2f6f7c50061d1110d5050ab11"
 }

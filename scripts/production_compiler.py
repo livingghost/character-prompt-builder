@@ -86,8 +86,11 @@ def input_digest(prepared: dict, consumer: dict) -> str:
     # derived input that the run owns, and its content is part of the input.
     dependencies=[x for x in prepared['dependencies'] if x['space']!='evidence'
                   and not (x['space']=='task-source' and x['path']==prepared['task_path'])]
-    return c.content_id({'task':task,'consumer':consumer,'dependencies':dependencies,
-                         'runtime':(prepared.get('runtime_snapshot') or {}).get('sha256')})
+    value = {'task':task,'consumer':consumer,'dependencies':dependencies,
+             'runtime':(prepared.get('runtime_snapshot') or {}).get('sha256')}
+    if prepared.get('studio_reference_sources'):
+        value['studio_reference_sources'] = prepared['studio_reference_sources']
+    return c.content_id(value)
 
 
 def _file_inputs(task: dict) -> list[tuple[str,str]]:
@@ -504,6 +507,10 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
                 known[(space,path)]=dependency(space,path,data)
                 blobs[item['sha256']]=data
         prepared['dependencies']=sorted(known.values(),key=lambda d:(d['space'],d['path']))
+        studio_sources = [copy.deepcopy(row['source']) for row in package['prepared_reference_set']['selected_references']
+                          if row['source']['kind'] == 'studio-artifact']
+        if studio_sources:
+            prepared['studio_reference_sources'] = studio_sources
         prepared['input_sha256']=input_digest(prepared,consumer)
         from production_binding import bind_consumer
         package['production_binding']=bind_consumer({'run':identity,'input_sha256':prepared['input_sha256'],'consumer':consumer},consumer['instructions'])
@@ -958,6 +965,9 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
                 if (directory/'runtime').exists():
                     fixed_runtime.publish(root,directory/'runtime',prepared['runtime_snapshot'])
                 fixed_runtime.require_current(root,prepared['runtime_snapshot'],run=run)
+            for source in prepared.get('studio_reference_sources', []):
+                from studio_reference import validate_source
+                validate_source(source)
             write_compiled(compiled,media_root=target)
             prepared['envelope_sha256']=c.content_id(prepared)
             c.atomic(directory/'prepared.json',c.encoded(prepared));c.atomic(directory/'consumer.json',c.encoded(compiled.consumer))

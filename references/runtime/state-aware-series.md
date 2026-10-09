@@ -116,7 +116,7 @@ Use this model-facing boundary, replacing placeholders with reviewed target valu
 Image 1 supplies permanent character identity only. Do not transfer its scene-specific character state or source-render context. Scene-specific character state means every visible or performance-relevant property that can change while the subject remains the same character, across attention and performance; articulation, pose, action, contact, and support; physical, physiological, emotional, and surface condition; appearance and presentation; possessions and equipment; relationships and viewer awareness; environmental response; and resolved current form or appearance. Reconstruct all of those domains from the target scene and the following target-state requirements: <affirmative target state>. Preserve only these permanent identity traits from Image 1: <identity traits>.
 ```
 
-Scope every source through the canonical Reference Use Plan. Identity evidence supplies only named permanent identity. Scene and structural evidence supplies only its declared composition, support, contact, prop, camera, environment, light, or other influence. Reject source character identity and source-specific text or insignia from nonidentity references. Review identity drift and source-state leakage as separate failure classes.
+Scope pack sources through the canonical Reference Use Plan and direct sources through their reviewed state bindings. Identity evidence supplies only named permanent identity. Scene and structural evidence supplies only its declared composition, support, contact, prop, camera, environment, light, or other influence. Reject source character identity and source-specific text or insignia from nonidentity references. Review identity drift and source-state leakage as separate failure classes.
 
 A short `use this character in this scene` instruction may produce a plausible composite; it is not a continuity-safe substitute for the complete boundary.
 
@@ -127,7 +127,9 @@ A finalized Reference Selection is the state-eligibility boundary; the Reference
 State-aware preparation has two exclusive paths:
 
 - If the finalized selection contains any `pack-artifact`, build and review one Reference Use Plan, then execute it with `reference_runtime.py execute --reference-selection`.
-- If the selection contains only request-supplied files, use `prepare_generation_references.py --state-selection-file`. That path emits a plan-null prepared set and rejects every `pack-artifact` row.
+- If the selection contains only request-supplied files or adopted `studio-artifact` sources, use `prepare_generation_references.py --state-selection-file`. That path emits a plan-null prepared set and rejects every `pack-artifact` row.
+
+For current Studio canon, use [Studio Canon References](studio-canon-references.md) to populate the exact source and proof from an adopted slot. No image pack registration is required.
 
 Do not combine pack-backed and plan-null preparation or fabricate pack coordinates for a supplied file. Preserve each binding's `binding_id`, `covers`, `intended_influence`, `review_dimensions`, `unsupported_or_occluded_state`, and `unsupported_assumptions` in the prepared row.
 

@@ -37,6 +37,9 @@
         },
         {
           "$ref": "prepared-generation-reference.schema.json#/$defs/supplied-file-source"
+        },
+        {
+          "$ref": "prepared-generation-reference.schema.json#/$defs/studio-artifact-source"
         }
       ]
     },

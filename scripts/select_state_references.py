@@ -35,7 +35,9 @@ def _checked_artifact(path_value: str | None, expected_type: str) -> dict[str, A
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _operation_context.ArgumentParser(description="Select state-aware reference assets.")
-    parser.add_argument("--bindings", required=True)
+    sources = parser.add_mutually_exclusive_group(required=True)
+    sources.add_argument("--bindings", help="Array or object containing a bindings array")
+    sources.add_argument("--binding", action="append", help="One finalized binding file; repeat to select several")
     parser.add_argument("--selection-id", required=True)
     parser.add_argument("--identity-contract", required=True)
     parser.add_argument("--era-contract")
@@ -50,10 +52,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
     try:
-        raw = json.loads(Path(args.bindings).read_text(encoding="utf-8"))
-        bindings = raw.get("bindings", []) if isinstance(raw, dict) else raw
-        if not isinstance(bindings, list) or not all(isinstance(item, dict) for item in bindings):
-            raise ValueError("bindings file must be an array or an object containing a bindings array")
+        if args.binding:
+            bindings = [_checked_artifact(path, "state-aware-reference-binding") for path in args.binding]
+        else:
+            raw = json.loads(Path(args.bindings).read_text(encoding="utf-8"))
+            bindings = raw.get("bindings", []) if isinstance(raw, dict) else raw
+            if not isinstance(bindings, list) or not all(isinstance(item, dict) for item in bindings):
+                raise ValueError("bindings file must be an array or an object containing a bindings array")
 
         identity = _checked_artifact(args.identity_contract, "character-identity-contract")
         assert identity is not None

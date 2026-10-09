@@ -2627,6 +2627,10 @@ def select_state_references(
     if not isinstance(story_order, int) or isinstance(story_order, bool):
         raise ValueError("story_order must be an integer")
 
+    binding_ids = [row.get('binding_id') for row in bindings if isinstance(row, dict)]
+    if len(binding_ids) != len(set(binding_ids)):
+        raise ValueError('state reference binding IDs must be unique')
+
     eligible: list[dict[str, Any]] = []
     for binding in bindings:
         report = validate_artifact(binding)
@@ -2636,6 +2640,9 @@ def select_state_references(
             binding.get("source"),
             f"reference binding {binding.get('binding_id')}.source",
         )
+        if canonical_source.get('kind') == 'studio-artifact' and 'identity' in binding['intended_influence']:
+            from studio_reference import identity_source
+            identity_source(canonical_source, root=Path(canonical_source['studio_root']), character_id=binding['character_id'])
         if canonical_source != binding.get("source"):
             raise ValueError(
                 f"reference binding {binding.get('binding_id')}.source is not canonical"
@@ -2662,7 +2669,7 @@ def select_state_references(
 
     def source_order_key(item: dict[str, Any]) -> str:
         source = item["source"]
-        return source.get("asset_id") or source.get("reference_id")
+        return source.get("asset_id") or source.get("reference_id") or source.get("artifact_id")
 
     def selected_reference(item: dict[str, Any], covers: list[str]) -> dict[str, Any]:
         return {

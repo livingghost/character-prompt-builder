@@ -349,7 +349,8 @@
     "state-series": {
       "reads": [
         "references/runtime/state-aware-series.md",
-        "references/runtime/story-timeline.md"
+        "references/runtime/story-timeline.md",
+        "references/runtime/studio-canon-references.md"
       ],
       "source_roles": []
     },
@@ -559,7 +560,8 @@
     "state-series": {
       "reads": [
         "references/runtime/state-aware-series.md",
-        "references/runtime/story-timeline.md"
+        "references/runtime/story-timeline.md",
+        "references/runtime/studio-canon-references.md"
       ],
       "features": [
         "world-view",

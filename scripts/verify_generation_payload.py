@@ -584,6 +584,9 @@ def _verify(
     validate_generation_package_carrier_paths(reference_set, package_root=package_root)
     from visual_continuity import validate_content as validate_visual_content, require as require_visual
     validate_visual_content(data['visual_continuity'], production_spec)
+    if not live:
+        from visual_continuity import verify_studio_bindings
+        verify_studio_bindings(data['visual_continuity'], reference_set, package_root=package_root)
     visual_hash = sha256_json(data['visual_continuity'])
     if data['visual_continuity_sha256'] != visual_hash or contract['visual_continuity_sha256'] != visual_hash:
         raise ValueError('visual continuity hash mismatch')

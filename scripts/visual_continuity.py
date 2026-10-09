@@ -63,12 +63,17 @@ def validate_content(value: Any, production_spec: dict) -> None:
             raise ValueError(ident + ': identity_refs must be an array')
         seen = set()
         for ref in item['identity_refs']:
-            c.exact(ref, {'slot', 'iteration_id', 'source_sha256', 'reference_number'}, 'identity selector')
-            c.text(ref['slot'], 'identity slot'); c.text(ref['iteration_id'], 'identity iteration')
+            if ref.get('kind') == 'studio-artifact':
+                c.exact(ref, {'kind', 'slot', 'artifact_id', 'proof_sha256', 'source_sha256', 'reference_number'}, 'Studio identity selector')
+                c.sha(ref['artifact_id']); c.sha(ref['proof_sha256'])
+            else:
+                c.exact(ref, {'slot', 'iteration_id', 'source_sha256', 'reference_number'}, 'identity selector')
+                c.text(ref['iteration_id'], 'identity iteration')
+            c.text(ref['slot'], 'identity slot')
             c.sha(ref['source_sha256'])
             if type(ref['reference_number']) is not int or ref['reference_number'] < 1:
                 raise ValueError('identity reference_number must identify an ordered prepared reference')
-            key = (ref['slot'], ref['iteration_id'], ref['reference_number'])
+            key = (ref['slot'], ref.get('iteration_id') or ref.get('proof_sha256'), ref['reference_number'])
             if key in seen:
                 raise ValueError(ident + ': duplicate identity selection')
             seen.add(key)
@@ -195,6 +200,39 @@ def _identity_scope(prepared: dict, number: int, ident: str) -> dict:
     return row
 
 
+def studio_identity_binding(ref: dict, source: dict, *, root: Path | None,
+                            character: str, character_id: str | None,
+                            source_archive: Path | None = None, live: bool = True) -> dict:
+    from studio_reference import validate_source
+    if source.get('kind') != 'studio-artifact' or source['character'] != character:
+        raise ValueError('identity selector is not the prepared Studio character')
+    for key in ('slot', 'artifact_id', 'proof_sha256'):
+        if ref[key] != source[key]:
+            raise ValueError('identity selector differs from its exact Studio acceptance: ' + key)
+    if ref['source_sha256'] != source['sha256']:
+        raise ValueError('Studio identity source hash mismatch')
+    if live and (root is None or str(root.absolute()) != source['studio_root']):
+        raise ValueError('Studio reference belongs to another Studio')
+    proof = validate_source(source, active=live, source_archive=source_archive)
+    if not isinstance(proof['identity'], dict) or proof['identity']['character_id'] != character_id:
+        raise ValueError('Studio identity approval does not identify this work character')
+    return proof
+
+
+def verify_studio_bindings(value: dict, prepared: dict, *, package_root: Path) -> None:
+    """Recorded proof verification for audit and recovery, independent of current choices."""
+    from build_generation_payload import validate_generation_package_carrier_paths
+    companion = validate_generation_package_carrier_paths(prepared, package_root=package_root)
+    archive = package_root / companion / 'sources' if companion else None
+    for ident, subject in value['subjects'].items():
+        for ref in subject['identity_refs']:
+            if ref.get('kind') != 'studio-artifact':
+                continue
+            row = _identity_scope(prepared, ref['reference_number'], ident)
+            studio_identity_binding(ref, row['source'], root=None, character=subject['studio_character'],
+                                    character_id=subject['character_id'], source_archive=archive, live=False)
+
+
 def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | None,
             recording_character: str | None = None, recording_slot: str | None = None, basis_reader=None) -> dict:
     validate_content(value, production_spec)
@@ -223,18 +261,27 @@ def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | N
         if subject['continuity'] == 'recurring' or value['purpose'] == 'sheet-panel':
             if character is None:
                 raise ValueError(ident + ': select the studio record for this subject')
+        direct = [row for row in prepared['selected_references'] if (row.get('source') or {}).get('kind') == 'studio-artifact' and row['source']['character'] == character]
         if character is not None:
             import studio
             studio.validate_recording_target(root, character, recording_slot or 'candidate', writable=False)
             import adoption_workflow as adoption
-            index = adoption.reference_index(root, character)
+            index = ({'ok': True, 'bindings': []} if any(ref.get('kind') == 'studio-artifact' for ref in subject['identity_refs'])
+                     else adoption.reference_index(root, character))
             if not index['ok']:
                 raise ValueError(ident + ': reference workflow is incomplete: ' + '; '.join(index['errors']))
             current = [x for x in index['bindings'] if x['influence'] == 'identity' and x['image_path']]
             if current and not subject['identity_refs']:
                 raise ValueError(ident + ': generation must include the current accepted identity')
         for ref in subject['identity_refs']:
-            accepted = accepted_identity(root, character, ref, character_id=subject['character_id'])
+            if ref.get('kind') == 'studio-artifact':
+                selected = _identity_scope(prepared, ref['reference_number'], ident)
+                proof = studio_identity_binding(ref, selected['source'], root=root,
+                    character=character, character_id=subject['character_id'])
+                accepted = {'image_sha256': selected['source']['sha256'],
+                    'adopted_subject': proof['identity'], 'approval_sha256': selected['source']['acceptance_sha256']}
+            else:
+                accepted = accepted_identity(root, character, ref, character_id=subject['character_id'])
             if accepted['image_sha256'] != ref['source_sha256']:
                 raise ValueError(ident + ': selected identity source hash mismatch')
             row = _identity_scope(prepared, ref['reference_number'], ident)
@@ -261,13 +308,24 @@ def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: 
         c.exact(subject, {'continuity', 'character_id', 'studio_character', 'identity_refs'}, 'visual subject choice')
         refs = []
         for selected in subject['identity_refs']:
-            c.exact(selected, {'slot', 'iteration_id'}, 'identity choice')
-            image = accepted_identity(root, subject['studio_character'], selected, character_id=subject['character_id'])
-            matches = [i for i, row in enumerate(prepared['selected_references'], 1)
-                       if row['source']['sha256'] == image['image_sha256']]
-            if len(matches) != 1:
-                raise ValueError(ident + ': identity choice must identify one ordered prepared source')
-            refs.append({**selected, 'source_sha256': image['image_sha256'], 'reference_number': matches[0]})
+            if selected.get('kind') == 'studio-artifact':
+                c.exact(selected, {'kind', 'slot', 'artifact_id', 'proof_sha256'}, 'Studio identity choice')
+                matches = [i for i, row in enumerate(prepared['selected_references'], 1)
+                           if row['source'].get('kind') == 'studio-artifact'
+                           and row['source']['character'] == subject['studio_character']
+                           and all(row['source'][key] == selected[key] for key in ('slot', 'artifact_id', 'proof_sha256'))]
+                if len(matches) != 1:
+                    raise ValueError(ident + ': Studio identity choice must identify one exact prepared source')
+                sha = prepared['selected_references'][matches[0] - 1]['source']['sha256']
+            else:
+                c.exact(selected, {'slot', 'iteration_id'}, 'identity choice')
+                image = accepted_identity(root, subject['studio_character'], selected, character_id=subject['character_id'])
+                matches = [i for i, row in enumerate(prepared['selected_references'], 1)
+                           if row['source']['sha256'] == image['image_sha256']]
+                if len(matches) != 1:
+                    raise ValueError(ident + ': identity choice must identify one ordered prepared source')
+                sha = image['image_sha256']
+            refs.append({**selected, 'source_sha256': sha, 'reference_number': matches[0]})
         subject['identity_refs'] = refs
     require(result, production_spec=production_spec, prepared=prepared, root=root)
     return result
@@ -297,7 +355,12 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
         if continuity == 'recurring' and character is None:
             raise ValueError(ident + ': name the studio character of a recurring subject')
         refs = []
-        if character is not None:
+        direct = [row for row in prepared['selected_references'] if row['source'].get('kind') == 'studio-artifact'
+                  and row['source']['character'] == character and
+                  ('identity' in row.get('intended_influence', []) or row['role'] == 'identity')]
+        if direct:
+            refs = [{key: row['source'][key] for key in ('kind', 'slot', 'artifact_id', 'proof_sha256')} for row in direct]
+        elif character is not None:
             index = adoption.reference_index(root, character)
             if not index['ok']:
                 raise ValueError(ident + ': reference workflow is incomplete: ' + '; '.join(index['errors']))
@@ -307,7 +370,10 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
         character_id = None
         if continuity == 'recurring':
             character_id = work_ids.get(ident)
-            if character_id is None and refs:
+            if character_id is None and direct:
+                from studio_reference import identity_source
+                character_id = identity_source(direct[0]['source'], root=root, character_id=None)['identity']['character_id']
+            elif character_id is None and refs:
                 character_id = accepted_identity(root, character, refs[0], character_id=None)['adopted_subject']['character_id']
             character_id = character_id or character
         subjects[ident] = {'continuity': continuity, 'character_id': character_id,
