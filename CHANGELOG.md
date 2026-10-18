@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.10.18.7
+
+- Record canonical temporary-directory spellings in the multi-subject reference and model suitability fixtures. On a Windows host whose temporary directory arrives as an 8.3 short name or a junction spelling, both suites failed their path comparisons against the canonical spellings the runtime records.
+
 ## 2026.10.18.6
 
 - Require references or an exact external request in image-input plans. Identify each subject and the complete conflicting request fields in reference diagnostics.

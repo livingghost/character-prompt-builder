@@ -86,7 +86,9 @@ class SuitabilityTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.home = Path(temporary.name)
+        # Resolve once: install records canonical spellings, so an 8.3 or
+        # junction temporary directory would otherwise fail the comparisons.
+        self.home = Path(temporary.name).resolve()
         self.environment = patch.dict(os.environ, {'CPB_HOME': str(self.home)})
         self.environment.start()
         self.addCleanup(self.environment.stop)
@@ -353,7 +355,7 @@ class PackPreferenceTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()  # canonical spelling, as in SuitabilityTests
         environment = patch.dict(os.environ, {'CPB_HOME': str(self.root / 'home')})
         environment.start()
         self.addCleanup(environment.stop)

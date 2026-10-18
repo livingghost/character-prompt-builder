@@ -171,7 +171,9 @@ class IndependentReferenceStateTests(unittest.TestCase):
         from reference_runtime_smoke_test import _fixture_png
         directory = tempfile.TemporaryDirectory(prefix='cpb-subject-bindings-')
         self.addCleanup(directory.cleanup)
-        path = Path(directory.name) / 'source.png'
+        # Resolve once: recorded paths are canonical, so an 8.3 or junction
+        # temporary directory would otherwise fail the path checks.
+        path = Path(directory.name).resolve() / 'source.png'
         path.write_bytes(_fixture_png())
         bindings = []
         for graph in self.graphs:
@@ -257,7 +259,7 @@ class IndependentReferenceStateTests(unittest.TestCase):
         from reference_runtime_smoke_test import _fixture_png
         directory = tempfile.TemporaryDirectory(prefix='cpb-mixed-direct-')
         self.addCleanup(directory.cleanup)
-        root = Path(directory.name)
+        root = Path(directory.name).resolve()  # canonical spelling, as in binding_pool
         path = root / 'source.png'; path.write_bytes(_fixture_png())
         source = {'kind': 'supplied-file', 'reference_id': 'source-a', 'resolved_path': str(path)}
         committed = prepare_references([{'role': 'identity', 'source': source}],
