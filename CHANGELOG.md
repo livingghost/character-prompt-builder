@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.10.18.2
+
+- Canonicalize the check staging directory at creation. On a Windows host whose temporary directory arrives as an 8.3 short name or a junction spelling, a dispatcher check with prepared references compared incompatible path spellings and failed package compilation.
+
 ## 2026.10.18.1
 
 - Remove single-model promotion from the general README and collapse duplicate provider narration into the active model record and observed schema.

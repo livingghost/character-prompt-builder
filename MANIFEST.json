@@ -1,6 +1,6 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.10.18.1",
+  "version": "2026.10.18.2",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
   "generated_at": "2026-10-18",
@@ -81,7 +81,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 967,
-  "total_bytes_excluding_manifest": 15853091,
+  "total_bytes_excluding_manifest": 15854337,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -96,12 +96,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "1be7da20a6e8fa1272a45db2549b28f1ab289898cc89ae69c7ece521ba85c313"
+      "sha256": "124003af8edb3e8b89fa8b1ec0c840c768735f755f34bc3b7dfa8a90758b8330"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "ca789aaee4a84885ae4ecc6861f0321abe7752da45211411de182576dfd776e8"
+      "sha256": "9126deff9987a1bf40c85ae66622b30e2fe6bbaf666e0a8486cb38bccb6b942c"
     },
     {
       "path": "AGENTS.md",
@@ -110,8 +110,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 34923,
-      "sha256": "09e2a252262c2aa69fb8e540b81e34de69ac76f62762c518bd4316273d2e456d"
+      "bytes": 35207,
+      "sha256": "c41bcfa3783b1ec9e1dda31393343cca3821d48d2770ebefb3fda678eea03be7"
     },
     {
       "path": "CLAUDE.md",
@@ -166,7 +166,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 26908,
-      "sha256": "b2f6a7004171b5bc6e8af34458156c33ac265c6f4d476fef631f0c88d90b485d"
+      "sha256": "e1e25377257d2e17c13d5fc9cca177ac30951b7e4e6fdecd612c0e312e915c01"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -1361,7 +1361,7 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2240,
-      "sha256": "6e37cd85f84bcdeb62bd6b61fcbb95861583e8f81956f567ad14241a1e02540d"
+      "sha256": "ca08ab12a02515f4d622dbe2ff2f83a10143c35315053276f179fc1733cb5012"
     },
     {
       "path": "packs/commons/pack.json",
@@ -2181,7 +2181,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 614,
-      "sha256": "1e731c6ce519c8203cc13b0303051d132ffdee71cdc3f471f7d5174ba0e52e90"
+      "sha256": "030eb7f07f8d069e4c7c3c54fda3569a4633d4f0515aaa088dba738844d05301"
     },
     {
       "path": "references/adapters/flux.md",
@@ -3695,8 +3695,8 @@
     },
     {
       "path": "scripts/production_compiler.py",
-      "bytes": 81605,
-      "sha256": "82d6bfddb613e77cff303a929ed8d41fbba9c38dea0baffa449544b856cefb19"
+      "bytes": 81756,
+      "sha256": "2e06e72fa520a42a633ceb8c82aafcbfa0eb0e368095ea291676e475faf3bb81"
     },
     {
       "path": "scripts/production_diagnostics.py",
@@ -4080,8 +4080,8 @@
     },
     {
       "path": "scripts/scene_mask_execution_smoke_test.py",
-      "bytes": 10180,
-      "sha256": "8a2460fb7ae14fbb4f2c34789ed781800f4c0863c300a306ef14ecb166f4b34c"
+      "bytes": 10991,
+      "sha256": "daed31bd7b489fd9b8642c98eac448a7d65e961dda83675231d646cebf843a12"
     },
     {
       "path": "scripts/scene_mask_fixtures.py",

@@ -2,7 +2,9 @@
 """Mask-to-provider-wire and immutable recovery tests. Synthetic only."""
 from __future__ import annotations
 import copy
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -117,6 +119,19 @@ class ProductionMaskTests(unittest.TestCase):
     def test_source_remains_unchanged_through_execution(self):
         before=c.read(self.root/'source.png');run=self.prepare();self.execute(run)
         self.assertEqual(c.read(self.root/'source.png'),before)
+    def test_check_accepts_a_noncanonical_temporary_spelling(self):
+        # The GitHub Windows runner exposes the system temporary directory as an
+        # 8.3 short name; a junction or symlink spelling exercises the same class.
+        target=Path(self.temp.name)/'temp-target';target.mkdir()
+        link=Path(self.temp.name)/'temp-link'
+        if os.name=='nt':
+            completed=subprocess.run(['cmd','/c','mklink','/J',str(link),str(target)],capture_output=True)
+            if completed.returncode!=0 or not link.exists():self.skipTest('junction unavailable')
+        else:
+            link.symlink_to(target,target_is_directory=True)
+        with patch.object(tempfile,'tempdir',str(link)):
+            result=self.check()
+        self.assertTrue(result['ok'],result)
 
 
 class NativeRequestTests(unittest.TestCase):

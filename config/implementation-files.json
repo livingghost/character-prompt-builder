@@ -333,7 +333,7 @@
     "scripts/persona_units.py": "c97b7ddb8f0e813280bd0ce08ba59d23faf6f167a312bc618a9b4e03355f03d3",
     "scripts/prepare_generation_references.py": "b3e2ed569ec9a01e1f85e2155a4faab591cf5f1d587039087e5e8192985480d3",
     "scripts/production_binding.py": "5f84244b5be8b63b1af90bad4a80590876d09298cb78fc9845db83d9e99c606f",
-    "scripts/production_compiler.py": "82d6bfddb613e77cff303a929ed8d41fbba9c38dea0baffa449544b856cefb19",
+    "scripts/production_compiler.py": "2e06e72fa520a42a633ceb8c82aafcbfa0eb0e368095ea291676e475faf3bb81",
     "scripts/production_diagnostics.py": "f4382208babead098d2ba9ca0d14b57105cc38dd2ce1481c96af1da8682cf338",
     "scripts/production_evidence.py": "f15e284e8fb1c94009d396cf45eb20be9a544d158cccec0eb4b5a2d8886edee2",
     "scripts/production_execution.py": "321da1081e138ae506c3c5f13594be6cb812125f38ce0fec76c1e920fec3f9a0",

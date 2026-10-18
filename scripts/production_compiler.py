@@ -761,7 +761,9 @@ def _staging(root: Path, persist: bool) -> Path:
         parent=c.local(root,'production/staging',exists=False);parent.mkdir(parents=True,exist_ok=True)
         directory=Path(tempfile.mkdtemp(prefix='compile-',dir=parent))
     else:
-        directory=Path(tempfile.mkdtemp(prefix='cpb-check-'))
+        # Resolve the system temporary spelling: an 8.3 or junction-spelled
+        # temporary directory must match resolved carrier paths.
+        directory=Path(tempfile.mkdtemp(prefix='cpb-check-')).resolve()
     operation=current()
     owner={'operation_id':operation.id if operation else str(__import__('uuid').uuid4()),'pid':os.getpid(),'created_at':c.now(),'phase':'compiling'}
     c.atomic(directory/'owner.json',c.encoded(owner))
