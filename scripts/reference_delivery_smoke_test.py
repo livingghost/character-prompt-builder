@@ -40,6 +40,53 @@ class ReferenceDeliveryTests(unittest.TestCase):
         self.assertIn('Do not inherit: current orientation; expression.', text)
         self.assertIn('Do not inherit: current light.', text)
 
+    def test_state_subject_survives_without_optional_use_priorities(self):
+        from model_rendition import _reference_prefix, validate_bindings
+        self.rows[0]['subject_id'] = 'A'
+        rows = d.bindings('multi-image', self.rows)
+        self.assertEqual(rows[0]['subject_id'], 'A')
+        validate_bindings(rows)
+        text = _reference_prefix(rows, 'reference-delivery')
+        self.assertIn('Apply this reference only to subject A.', text)
+        self.assertNotIn('priority', text)
+
+    def test_identity_review_uses_the_appended_subject_scope(self):
+        from visual_continuity import _identity_scope
+        pack = {'kind': 'pack-artifact', 'sha256': 'a' * 64}
+        studio = {'kind': 'studio-artifact', 'sha256': 'b' * 64}
+        prepared = {'reference_use_plan': {'reference_items': [{'source': pack, 'intended_influence': 'identity'}]},
+            'selected_references': [
+                {'source': pack, 'role': 'identity', 'subject_id': 'A', 'intended_influence': ['identity']},
+                {'source': studio, 'role': 'accepted-face',
+                 'subject_uses': [{'subject_id': 'B', 'use': 'identity', 'priority': 0}]}]}
+        self.assertEqual(_identity_scope(prepared, 2, 'B')['source'], studio)
+        with self.assertRaisesRegex(ValueError, 'does not carry identity influence'):
+            _identity_scope(prepared, 2, 'A')
+        prepared['selected_references'][1]['role'] = 'identity'
+        prepared['selected_references'][1]['subject_uses'][0]['use'] = 'outfit'
+        with self.assertRaisesRegex(ValueError, 'does not carry identity influence'):
+            _identity_scope(prepared, 2, 'B')
+
+    def test_external_named_field_keeps_the_same_scope_without_image_numbers(self):
+        rows = d.bindings('multi-image', self.rows)
+        rows[0]['request_field'] = ['source_image']
+        rows[1]['request_field'] = ['references', 0, 'url']
+        rows[0]['subject_uses'] = [{'subject_id': 'A', 'use': 'identity', 'priority': 0}]
+        text = d.binding_instructions(rows)
+        self.assertIn('Reference 1 means request field ["source_image"].', text)
+        self.assertIn('Reference 2 means request field ["references",0,"url"].', text)
+        self.assertIn('subject A, identity, priority 0', text)
+        self.assertIn('Do not inherit: current orientation; expression.', text)
+        self.assertNotIn('Image 1', text)
+        self.assertNotIn('Image 2', text)
+
+    def test_external_location_rejects_unresolved_paths(self):
+        rows = d.bindings('multi-image', self.rows)
+        for path in ([], [''], [True], [-1], ['image', {}]):
+            rows[0]['request_field'] = path
+            with self.assertRaisesRegex(ValueError, 'JSON field path'):
+                d.binding_instructions(rows)
+
     def test_board_hash_reordering_is_refused(self):
         board = copy.deepcopy(self.board)
         board['panels'].reverse()
@@ -79,6 +126,68 @@ class ReferenceDeliveryTests(unittest.TestCase):
                                             reference_use_plan=None, single_board=self.board)
         self.assertIn('Reference 2 means Image 1', text)
         self.assertIn('x=100, y=0, width=100, height=100', text)
+
+    def test_one_attachment_retains_two_logical_sources_and_uses(self):
+        self.rows[1]['transport'] = copy.deepcopy(self.rows[0]['transport'])
+        self.rows[0]['subject_uses'] = [{'subject_id': 'A', 'use': 'identity', 'priority': 0}]
+        self.rows[1]['subject_uses'] = [{'subject_id': 'B', 'use': 'outfit', 'priority': 1}]
+        original = copy.deepcopy(self.rows)
+        bindings = d.bindings('multi-image', self.rows)
+        self.assertEqual([row['attachment_number'] for row in bindings], [1, 1])
+        self.assertEqual([row['reference_number'] for row in bindings], [1, 2])
+        self.assertEqual(d.delivered_reference_count({'transport_mode': 'multi-image', 'selected_references': self.rows}), 1)
+        self.assertNotEqual(self.rows[0]['source'], self.rows[1]['source'])
+        self.assertEqual(self.rows, original)
+        text = d.instructions('multi-image', self.rows)
+        self.assertIn('subject A, identity, priority 0', text)
+        self.assertIn('subject B, outfit, priority 1', text)
+        self.assertNotIn('Image 2', text)
+
+    def test_priority_compares_only_the_same_subject_and_use(self):
+        self.rows[0]['subject_uses'] = [
+            {'subject_id': 'A', 'use': 'identity', 'priority': 3},
+            {'subject_id': 'B', 'use': 'outfit', 'priority': 0}]
+        self.rows[1]['subject_uses'] = [{'subject_id': 'A', 'use': 'identity', 'priority': 1}]
+        text = d.instructions('multi-image', self.rows)
+        self.assertIn('For subject A, identity sources in priority order: Reference 2 (priority 1); Reference 1 (priority 3).', text)
+        self.assertNotIn('For subject B, outfit sources in priority order:', text)
+        self.assertIn('only within the same subject and use', text)
+
+    def test_subject_assignment_checks_actual_cast_without_state_graph(self):
+        spec = {'subjects': [{'id': 'A'}, {'id': 'B'}], 'state_context': {'mode': 'stateless'}}
+        self.rows[0]['subject_uses'] = [{'subject_id': 'B', 'use': 'identity', 'priority': 0}]
+        d.validate_reference_subjects(self.rows, spec)
+        d.validate_reference_selection_subjects(None, spec)
+        self.rows[0]['subject_uses'][0]['subject_id'] = 'C'
+        with self.assertRaisesRegex(ValueError, 'unknown subject'):
+            d.validate_reference_subjects(self.rows, spec)
+
+    def test_assignments_reject_scope_expansion_and_ambiguous_priority(self):
+        valid = {'subject_id': 'A', 'use': 'identity', 'priority': 0}
+        for priority in (True, -1, 1.5):
+            with self.assertRaises(ValueError):
+                d.validate_subject_uses([{**valid, 'priority': priority}])
+        with self.assertRaisesRegex(ValueError, 'repeats'):
+            d.validate_subject_uses([valid, {**valid, 'priority': 1}])
+        with self.assertRaisesRegex(ValueError, 'exceeds'):
+            d.validate_subject_uses([valid], allowed_uses=['outfit'])
+
+    def test_state_context_matches_every_subject_independently(self):
+        spec = {'state_context': {'mode': 'state-aware'}, 'subjects': [
+            {'id': 'A', 'identity_contract_ref': {'sha256': 'a' * 64}, 'state_snapshot_ref': {'sha256': 'b' * 64}},
+            {'id': 'B', 'identity_contract_ref': {'sha256': 'c' * 64}, 'state_snapshot_ref': {'sha256': 'd' * 64}}]}
+        selection = {'subjects': [{'subject_id': row['id'],
+            'identity_contract_sha256': row['identity_contract_ref']['sha256'],
+            'state_snapshot_sha256': row['state_snapshot_ref']['sha256']} for row in spec['subjects']],
+            'selected_references': []}
+        d.validate_reference_selection_subjects(selection, spec)
+        swapped = copy.deepcopy(selection)
+        swapped['subjects'][1]['state_snapshot_sha256'] = 'b' * 64
+        with self.assertRaisesRegex(ValueError, 'subject B'):
+            d.validate_reference_selection_subjects(swapped, spec)
+        selection['subjects'].pop()
+        with self.assertRaisesRegex(ValueError, 'exactly match'):
+            d.validate_reference_selection_subjects(selection, spec)
 
 
 if __name__ == '__main__':

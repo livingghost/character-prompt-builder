@@ -62,7 +62,11 @@ One or two sentences describing what must be visually true, what makes the image
 
 ## Reference activation decision
 
+- asset coverage: <adequate adopted sources | exact missing information to produce>
+- stage-specific model choice: <selected target, applicable use-case guidance, source and reason>
+- accepted variation: <approval source, author, task or content-bound source scope, allowance, limits and criteria | none>
 - reference mode: <prompt-only | prompt+1 | prompt+N>
+- subject and use assignments: <subject IDs, reference roles and priority within each subject/use | none>
 - finalized state Reference Selection: <selection ID and hash | none>
 - activated pack record uses: <complete ordered `record_id=intended_influence` list | none>
 - explicit supplied files: <complete supplied-file list | none>

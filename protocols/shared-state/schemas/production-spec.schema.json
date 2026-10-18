@@ -453,11 +453,23 @@
     "properties": {
       "subjects": {
         "items": {
+          "if": {
+            "required": [
+              "state_snapshot_ref"
+            ]
+          },
+          "then": {
+            "required": [
+              "identity_contract_ref",
+              "state_snapshot_ref",
+              "visual_projection_ref",
+              "growth_geometry"
+            ]
+          }
+        },
+        "contains": {
           "required": [
-            "identity_contract_ref",
-            "state_snapshot_ref",
-            "visual_projection_ref",
-            "growth_geometry"
+            "state_snapshot_ref"
           ]
         }
       }
@@ -484,6 +496,22 @@
         }
       },
       "additionalProperties": false
+    }
+  },
+  "else": {
+    "properties": {
+      "subjects": {
+        "items": {
+          "properties": {
+            "state_snapshot_ref": {
+              "not": {}
+            },
+            "visual_projection_ref": {
+              "not": {}
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -219,7 +219,7 @@ Each run reports these state axes:
 
 `submission` comes only from the claim, the send step and `execution-outcome` events.
 `readiness` reports current authority, credentials, input and recording diagnostics before any send.
-External semantic edits require a recorded handoff and a current exact submission authorization before reporting `ready`.
+External tasks with a declared image input require a recorded handoff and a current exact submission authorization before reporting `ready`.
 A complete review is not necessarily a passing one.
 `registration` is `unregistered` with candidates when the recording destination is gone; the run keeps the captured bytes.
 `projection-missing` means the destination exists and only its Studio rows are missing.
@@ -461,12 +461,170 @@ A drift diagnostic adds `affected_runs` and `actions`.
 | `LOG_PATH_UNSAFE` | The diagnostic tree is not an owned regular directory. |
 | `LOG_EXPORT_PATH_INVALID` | The export directory is not new, or overlaps the diagnostic tree. |
 
+## Image input and exact external requests
+
+The common `image_input` task property names a Studio-relative
+`image-input-plan`, using `templates/image-input-plan.template.json` and
+`schemas/authoring/image-input-plan.schema.json`. It serves both ordinary
+reference generation and existing-image editing. A new scene may use several
+identity, outfit or environment references without declaring a scene source.
+Only an actual edit adds `semantic_edit`, whose owner is source, change,
+preserve and review meaning.
+
+The image input declares one model target, ordered references and an
+`external_request`. Dispatcher work supplies at least one reference, sets
+`external_request: null`, and uses its ordinary prepared set and compiled request.
+External work pins one exact saved request. External work without declared image
+input does not need an empty plan.
+
+An exact text-only image request uses `references: []` and a complete, non-null
+`external_request` with `reference_fields: []`. Preparation pins the model
+evidence, saved request and any acquired schema through the same binding.
+The recorded host call is compared with that exact request during settlement.
+A reference-free plan without an external request is invalid. Semantic editing
+still requires its selected source image.
+
+Each reference names `id`, `role`, `file`, optional `sha256`, `use_for` and
+`do_not_transfer`. Optional `subject_uses` names Production Specification
+subjects and intended uses, with priority `0` highest within the same subject
+and use. Empty assignments are valid for environment or other inputs without
+a named subject. Role names do not grant additional authority, and assignments
+cannot enlarge the source's allowed influence.
+
+For existing canonical references, `prepared_references` names their canonical
+prepared-reference-set file. Preparation validates its live source provenance,
+adoption and selection, pins that file and keeps the complete set. Logical
+rows must match its original bytes, role, authority and subject assignments
+exactly. The binding consumes the existing set; it cannot reclassify canon as
+supplied pixels to replace a state selection or pack Reference Use Plan. Input
+files remain the original images used for the exact external media mapping.
+A dispatcher additionally checks its declared set against `generation.references`.
+External preparation also archives accepted Studio proofs and every transitive
+artwork, provenance and approval file through the existing Studio reference
+owner. The run stores these under `image-input.references/studio/` and in its
+ordinary snapshot object store. Recorded proof verification needs no live
+adoption after a call; a new send still checks the current accepted source.
+
+For original supplied files, the common input directly states task-specific
+scope. `prepare_generation_references.py --image-input-plan-file` projects it
+into the existing prepared set. Matching source bytes or delivery media can
+share one attachment while retaining every logical role, original source and
+subject use. A verified board retains its panel lineage. External mappings do
+not replace several originals with an untracked board.
+
+### Exact target and provider schema
+
+`model` records the requested name, catalog status, canonical record when
+present, selected target and saved lookup evidence. A missing catalog record
+is recorded explicitly and can proceed as an external trial. It is not a
+catalog capability or a proven rendering result. `target.operation` comes
+from the selected interface's wire contract, not the render execution mode.
+
+Save one exact request JSON. `external_request` names its relative file and
+field paths as arrays of keys and array indices. It declares `prompt_field`,
+`model_field`, optional `operation_field`, optional `count_field`, expected
+`count` and ordered `reference_fields`. Each reference field includes the
+reference ID, exact uploaded value and pinned upload evidence. Every selected
+reference is covered. Each declared media field shape is checked across all
+array positions. For example, `images[*].uri` covers every such URI, including
+inside nested arrays. A mixed content array may retain text-only entries.
+Identical source bytes can bind the same media field when its value also
+matches; their distinct logical scopes remain recorded.
+
+Generate the shared reference instructions before saving the final request:
+
+```sh
+python scripts/reference_delivery.py --image-input-plan STUDIO/inputs/image-input.json --studio STUDIO
+```
+
+This reads the authored plan and returns `bindings` and `reference_preamble`.
+`--studio` resolves a declared canonical prepared set and its source subject
+assignment. Original supplied inputs need only the plan's structure at this
+step. Include the complete preamble in the final prompt and production
+delivery. It carries source scope, exclusions, subject uses and priority,
+mapped to each actual request field. A trimmed synthetic example
+shows two logical uses of one physical image:
+
+```text
+Reference 1 means request field ["images",0]. Use it for: stable face construction. Apply these uses: subject a, identity, priority 0. Do not inherit: source pose.
+Reference 2 means request field ["images",0]. Use it for: accepted outfit construction. Apply these uses: subject a, outfit, priority 0. Do not inherit: source pose.
+```
+
+`check` and `prepare` require that exact generated block in the saved request's
+prompt. Saving scope only in input metadata fails. Changing scope, subject
+assignments, priority or media field positions requires an updated prompt.
+Dispatcher requests use the same instruction owner with their compiled image
+order or board regions.
+
+For model identity carried in a parameter, `model_field` selects that exact
+parameter. If the interface selects a model through an endpoint or tool, use
+`model_field: null` with `model_identity` containing `kind` (`endpoint` or
+`tool`), exact `value` and saved `evidence` (`path`, `sha256`, `locator`). Do not
+add a model parameter the provider does not support. Evidence ties the selected
+endpoint/tool to `model.target`; the later host-call record separately shows
+which endpoint/tool was used. `operation_field` and `count_field` are null when
+those parameters are absent. Record the expected output count explicitly.
+
+An optional `schema: {"path": "inputs/schema.json", "sha256": "...", "pointer": []}`
+selects an acquired request schema. An empty pointer selects the whole document;
+a nested pointer may select an encoded schema string inside a tool response.
+Validation checks supported structural and numeric constraints, including
+per-image byte size and dimensions from original image bytes. Unsupported
+keywords remain in `schema_validation.unmeasured`. An unavailable schema yields
+`bounded-probe` with `schema-unavailable`; an acquired schema yields
+`target-schema`. Neither state establishes effective reference use or image
+quality. Authority must cover the actual mode and exact-operation request.
+
+Prompt text equals production delivery exactly, including whitespace. A task
+with applied `production-spec` or `render-intent` sources runs the common
+Production Specification and render validators. The render expression must
+appear in delivery, the declared model must agree, and subject assignments
+must resolve against the specification's cast. Subject-assigned references
+require that specification. State-aware specifications also require their
+canonical prepared selection and existing state artifact graphs. External tasks
+may name shared files as `generation: {"production_spec": "inputs/spec.json",
+"state_graphs": "inputs/graphs.json"}` without dispatcher parameters, plot or
+recording fields. `state_graphs` is a JSON array of the existing subject artifact
+graphs; each is validated by the existing graph owner. Stateless scenes do not
+require it. External preparation does not require a catalog
+rendering capability that has not been acquired; such limits remain explicit.
+
+### Prepared JSON and recorded host-call evidence
+
+`request-preview.json` and `execution-plan.prepared_request_sha256` identify
+exact prepared arguments. They do not prove that a host invoked its tool.
+The external claim pins those arguments and grants one call under the ordinary
+handoff and authorization lifecycle. Keep the actual response and saved call
+record when the host exposes it.
+
+An external receipt can include this synthetic selector:
+
+```json
+{"submission": {"path": "evidence/host-call.json", "sha256": "...",
+ "locator": "recorded call arguments and tool name",
+ "request_pointer": ["arguments"], "model_identity_pointer": ["tool"]}}
+```
+
+`request_pointer` selects the actual recorded argument object. For endpoint or
+tool identity, `model_identity_pointer` selects its exact recorded value; use
+null when identity lives in the request's model field. The saved call must
+match the prepared request and declared endpoint/tool. Using the prepared JSON
+itself, or another file with the same bytes, fails as call evidence.
+
+Settlement returns `request_evidence.status: matched-recorded-call` when the
+actor's recorded call matches. Without `submission`, it returns `not-provided`;
+result capture and accounting still work. The receipt and supplied call record
+remain immutable evidence. A mismatch fails comparison without deleting already
+captured results. A matching actor-attested record does not establish provider
+execution, visual reference influence, artistic success or acceptance. Those
+claims need their own response and image review evidence.
+
 ## Authored and manually executed work
 
 Authored text uses the same immutable sources and formal event store, without a model package.
 `handoff-intent`, `draft-authorization`, `authorize` and `handoff` describe an actual conversation or manual handoff.
 For an external tool, authorize its `external-intent`, then `claim-external` before the host runs it.
-For semantic image changes, activate `semantic-instruction-edit` and set the task's `semantic_edit` plan. Preparation checks its exact model, prompt, reference order, original bytes and acquired schema, then exposes `request-preview.json`. The external claim rechecks those pinned inputs before submission. Use that request unchanged in the named host tool.
+For image input and exact request binding, set the task's `image_input` as described below. Existing-scene edits also activate `semantic-instruction-edit` and declare `semantic_edit`. Preparation exposes `request-preview.json`; the external claim rechecks pinned inputs before submission. Use that request unchanged in the named host tool.
 The submit grant must allow the binding's validation mode and have `request_scope: null`.
 These external requests use exact-operation authorization; dispatcher scope cases require a different request contract.
 Existing explicit authority may supply that grant without a repeated confirmation.
@@ -486,6 +644,7 @@ The receipt follows `schemas/authoring/production-external-receipt.schema.json`:
 - `claim` identifies the external claim, and `actor` is the authorized executor.
 - `outputs` equals the saved candidate count.
 - `response` holds the real response's studio-relative `path`, exact `sha256` and `locator`.
+- Optional `submission` selects the actual recorded host call for comparison with a prepared exact request. It is separate from the response and from the prepared JSON file.
 - `cost` is the actual `{"currency": "USD", "amount": "0.01"}`, or `null` when unknown; an estimate is never copied as an actual.
 - `final` states whether the host response is final, and `reason` records the executor's conclusion from evidence.
 

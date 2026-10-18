@@ -333,14 +333,9 @@ def _payload_inputs(graph: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "production_spec": graph["production_spec"],
         "plot": copy.deepcopy(APPROVED_PLOT),
         "retrieval_record": fixture_retrieval((GENERATED / "prompt.txt").read_text(encoding="utf-8"), APPROVED_PLOT),
-        "state_lineage": graph["lineage"],
-        "species_profile": graph["species_profile"],
-        "individual_morphology": graph["individual_morphology"],
-        "identity_contract": graph["identity_contract"],
-        "state_snapshot": graph["state_snapshot"],
-        "scene_context": graph["scene_context"],
-        "visual_projection": graph["visual_projection"],
-        "asset_render_spec": graph["asset_render_spec"],
+        "state_graphs": [{key: copy.deepcopy(graph[key]) for key in (
+            "lineage", "species_profile", "individual_morphology", "identity_contract",
+            "state_snapshot", "scene_context", "visual_projection", "asset_render_spec")}],
         "parameters": {"size": "1024x1024", "quality": "high"},
         "negative_transport": "integrated-critical",
         "critical_avoidance_integrated": False,
@@ -1928,6 +1923,7 @@ def run() -> dict[str, Any]:
     ]
     current_selection = select_state_references(
         reference_bindings,
+        subject_id="C01",
         selection_id="SEL-CURRENT",
         identity_hash=identity_hash,
         era_hash=None,
@@ -1939,6 +1935,7 @@ def run() -> dict[str, Any]:
     )
     flashback_selection = select_state_references(
         reference_bindings,
+        subject_id="C01",
         selection_id="SEL-FLASHBACK",
         identity_hash=identity_hash,
         era_hash=None,
@@ -1950,6 +1947,7 @@ def run() -> dict[str, Any]:
     )
     state_mismatch_selection = select_state_references(
         [wrong_state_binding],
+        subject_id="C01",
         selection_id="SEL-WRONG-STATE",
         identity_hash=identity_hash,
         era_hash=None,
@@ -1961,6 +1959,7 @@ def run() -> dict[str, Any]:
     )
     identity_mismatch_selection = select_state_references(
         [wrong_identity_binding],
+        subject_id="C01",
         selection_id="SEL-WRONG-IDENTITY",
         identity_hash=identity_hash,
         era_hash=None,
@@ -1989,18 +1988,18 @@ def run() -> dict[str, Any]:
         and sha256_file(pack_svg_path) == pack_source["sha256"]
         and pack_source["pack_id"] == STATE_REFERENCE_PACK_ID
         and pack_source["artifact_id"] == STATE_REFERENCE_ARTIFACT_ID
-        and current_selection["identity_contract_sha256"] == identity_hash
-        and current_selection["state_snapshot_sha256"] == current_state_hash
+        and current_selection["subjects"][0]["identity_contract_sha256"] == identity_hash
+        and current_selection["subjects"][0]["state_snapshot_sha256"] == current_state_hash
         and current_selection["unresolved_requirements"] == []
         and [row["source"].get("reference_id") for row in flashback_selection["selected_references"]]
         == ["past-reference"]
         and flashback_selection["selected_references"][0]["source"] == past_source
-        and flashback_selection["state_snapshot_sha256"] is None
+        and flashback_selection["subjects"][0]["state_snapshot_sha256"] is None
         and flashback_selection["unresolved_requirements"] == []
         and state_mismatch_selection["selected_references"] == []
-        and state_mismatch_selection["unresolved_requirements"] == ["left-ear-notched"]
+        and state_mismatch_selection["unresolved_requirements"] == [{"subject_id": "C01", "feature": "left-ear-notched"}]
         and identity_mismatch_selection["selected_references"] == []
-        and identity_mismatch_selection["unresolved_requirements"] == ["left-ear-notched"],
+        and identity_mismatch_selection["unresolved_requirements"] == [{"subject_id": "C01", "feature": "left-ear-notched"}],
         {
             "current": current_selection,
             "flashback": flashback_selection,
@@ -2031,10 +2030,10 @@ def run() -> dict[str, Any]:
     )
 
     unresolved_selection = copy.deepcopy(current_selection)
-    unresolved_selection["required_state_features"].append(
+    unresolved_selection["subjects"][0]["required_state_features"].append(
         "unresolved-visible-state"
     )
-    unresolved_selection["unresolved_requirements"] = ["unresolved-visible-state"]
+    unresolved_selection["unresolved_requirements"] = [{"subject_id": "C01", "feature": "unresolved-visible-state"}]
     unresolved_selection = finalize_artifact(unresolved_selection)
     unresolved_prepare_dir = reference_runtime_root / "unresolved-selection-output"
     unresolved_prepare_error = ""
@@ -2082,6 +2081,7 @@ def run() -> dict[str, Any]:
         try:
             select_state_references(
                 [binding],
+                subject_id="C01",
                 selection_id=f"SEL-INVALID-BINDING-{index}",
                 identity_hash=identity_hash,
                 era_hash=None,
@@ -2117,6 +2117,7 @@ def run() -> dict[str, Any]:
         try:
             select_state_references(
                 [past_binding],
+                subject_id="C01",
                 selection_id="SEL-CHANGED-SUPPLIED",
                 identity_hash=identity_hash,
                 era_hash=None,
@@ -2158,6 +2159,7 @@ def run() -> dict[str, Any]:
         try:
             select_state_references(
                 [past_binding],
+                subject_id="C01",
                 selection_id="SEL-MISSING-SUPPLIED",
                 identity_hash=identity_hash,
                 era_hash=None,
@@ -2207,6 +2209,7 @@ def run() -> dict[str, Any]:
         try:
             select_state_references(
                 [binding],
+                subject_id="C01",
                 selection_id=selection_id,
                 identity_hash=identity_hash,
                 era_hash=None,
@@ -2273,6 +2276,7 @@ def run() -> dict[str, Any]:
     package_story_order = int(graph["state_snapshot"]["story_order"])
     zero_selection = select_state_references(
         [],
+        subject_id="C01",
         selection_id="SEL-CURRENT-ZERO",
         identity_hash=identity_hash,
         era_hash=None,
@@ -2302,6 +2306,7 @@ def run() -> dict[str, Any]:
     package_current_binding = finalize_artifact(package_current_binding)
     package_current_selection = select_state_references(
         [package_current_binding],
+        subject_id="C01",
         selection_id="SEL-PACKAGE-CURRENT",
         identity_hash=identity_hash,
         era_hash=None,
@@ -2343,6 +2348,7 @@ def run() -> dict[str, Any]:
     current_detail_binding = finalize_artifact(current_detail_binding)
     multi_selection = select_state_references(
         [current_primary_binding, current_detail_binding],
+        subject_id="C01",
         selection_id="SEL-CURRENT-MULTI",
         identity_hash=identity_hash,
         era_hash=None,
@@ -2490,6 +2496,7 @@ def run() -> dict[str, Any]:
     )
     superseded_open_selection = select_state_references(
         [superseded_open_binding],
+        subject_id="C01",
         selection_id="SEL-SUPERSEDED-OPEN",
         identity_hash=identity_hash,
         era_hash=None,
@@ -2503,7 +2510,7 @@ def run() -> dict[str, Any]:
         "open-ended superseded bindings are excluded while closed historical bindings remain usable",
         validate_artifact(superseded_open_selection).get("ok") is True
         and superseded_open_selection["selected_references"] == []
-        and superseded_open_selection["unresolved_requirements"] == ["left-ear-notched"]
+        and superseded_open_selection["unresolved_requirements"] == [{"subject_id": "C01", "feature": "left-ear-notched"}]
         and [
             row["source"].get("reference_id")
             for row in flashback_selection["selected_references"]
@@ -2684,7 +2691,7 @@ def run() -> dict[str, Any]:
             *,
             prompt_path: Path,
             output_path: Path | str,
-            scene_context_path: Path = GENERATED / "scene-context-snapshot.json",
+            state_graphs_path: Path = GENERATED / "state-graphs.json",
         ) -> list[str]:
             return [
                 "--model",
@@ -2707,22 +2714,8 @@ def run() -> dict[str, Any]:
                 str(GENERATED / "prompt-plot.json"),
                 "--production-spec-file",
                 str(GENERATED / "production-specification.json"),
-                "--state-lineage-file",
-                str(GENERATED / "state-lineage.json"),
-                "--species-profile-file",
-                str(EXAMPLE / "species-morphology-profile.json"),
-                "--individual-morphology-file",
-                str(EXAMPLE / "individual-morphology-contract.json"),
-                "--identity-contract-file",
-                str(EXAMPLE / "character-identity-contract.json"),
-                "--state-snapshot-file",
-                str(GENERATED / "state-snapshot-C01.json"),
-                "--scene-context-file",
-                str(scene_context_path),
-                "--visual-projection-file",
-                str(GENERATED / "visual-state-projection.json"),
-                "--asset-render-spec-file",
-                str(GENERATED / "asset-render-specification.json"),
+                "--state-graphs-file",
+                str(state_graphs_path),
                 "--references-file",
                 str(state_cli_references),
                 "--parameters-file",
@@ -2746,7 +2739,7 @@ def run() -> dict[str, Any]:
         os.chmod(readonly_state_carrier, readonly_state_mode)
         observed_state_carrier_mode = stat.S_IMODE(readonly_state_carrier.stat().st_mode)
         try:
-            missing_scene_context = temp / "missing-scene-context.json"
+            missing_state_graphs = temp / "missing-state-graphs.json"
             state_precommit_output = temp / "state-readonly-precommit.json"
             state_precommit_companion = state_precommit_output.with_name(
                 state_precommit_output.stem + ".references"
@@ -2762,7 +2755,7 @@ def run() -> dict[str, Any]:
                     state_cli_arguments(
                         prompt_path=GENERATED / "prompt.txt",
                         output_path=state_precommit_output,
-                        scene_context_path=missing_scene_context,
+                        state_graphs_path=missing_state_graphs,
                     )
                 )
             state_precommit_report = json.loads(state_precommit_stdout.getvalue())
@@ -2776,7 +2769,7 @@ def run() -> dict[str, Any]:
                 "error": (
                     state_precommit_report.get("ok") is False
                     and [row["code"] for row in state_precommit_report["diagnostics"]] == ["INPUT_UNREADABLE"]
-                    and missing_scene_context.name
+                    and missing_state_graphs.name
                     in state_precommit_report["diagnostics"][0]["message"]
                 ),
                 "no_output": not state_precommit_output.exists(),
@@ -2809,7 +2802,7 @@ def run() -> dict[str, Any]:
                         state_cli_arguments(
                             prompt_path=GENERATED / "prompt.txt",
                             output_path=state_cleanup_output,
-                            scene_context_path=missing_scene_context,
+                            state_graphs_path=missing_state_graphs,
                         )
                     )
             state_cleanup_report = json.loads(state_cleanup_stdout.getvalue())
@@ -2822,7 +2815,7 @@ def run() -> dict[str, Any]:
                 "error_shape": state_cleanup_report.get("ok") is False
                 and [row["code"] for row in state_cleanup_report["diagnostics"]]
                 == ["INPUT_UNREADABLE", "ARTIFACT_PUBLISH_FAILED"],
-                "primary_error": missing_scene_context.name
+                "primary_error": missing_state_graphs.name
                 in state_cleanup_report["diagnostics"][0]["message"],
                 "cleanup_error": state_cleanup_message
                 in state_cleanup_report["diagnostics"][1]["message"],
@@ -3031,7 +3024,7 @@ def run() -> dict[str, Any]:
         stale_outer_hash = copy.deepcopy(prepared_package_current)
         stale_outer_hash["reference_selection_sha256"] = "f" * 64
         stale_embedded_selection = copy.deepcopy(prepared_package_current)
-        stale_embedded_selection["reference_selection"]["story_order"] += 1
+        stale_embedded_selection["reference_selection"]["subjects"][0]["story_order"] += 1
         stale_selection_errors: dict[str, str] = {}
         for name, reference_set in (
             ("outer_hash", stale_outer_hash),
@@ -3069,7 +3062,7 @@ def run() -> dict[str, Any]:
         }
         for field, bad_value in graph_mutations.items():
             reference_set = copy.deepcopy(prepared_package_current)
-            reference_set["reference_selection"][field] = bad_value
+            reference_set["reference_selection"]["subjects"][0][field] = bad_value
             reference_set["reference_selection"] = finalize_artifact(
                 reference_set["reference_selection"]
             )
@@ -3131,14 +3124,21 @@ def run() -> dict[str, Any]:
             )
 
         mismatched_render_inputs = _payload_inputs(graph)
-        mismatched_render_inputs["asset_render_spec"] = copy.deepcopy(
-            graph["asset_render_spec"]
+        mismatched_render_graph = mismatched_render_inputs["state_graphs"][0]
+        mismatched_render_graph["asset_render_spec"]["target_model"] = "different-image-model"
+        mismatched_render_graph["asset_render_spec"] = finalize_artifact(
+            mismatched_render_graph["asset_render_spec"]
         )
-        mismatched_render_inputs["asset_render_spec"]["target_model"] = (
-            "different-image-model"
+        mismatched_render_graph["lineage"]["asset_render_spec_sha256"] = artifact_hash(
+            mismatched_render_graph["asset_render_spec"]
+        )
+        mismatched_render_graph["lineage"] = finalize_artifact(mismatched_render_graph["lineage"])
+        mismatched_render_inputs["production_spec"] = copy.deepcopy(graph["production_spec"])
+        mismatched_render_inputs["production_spec"]["state_context"]["state_lineage_sha256"] = (
+            artifact_hash(mismatched_render_graph["lineage"])
         )
         try:
-            build_package(visual_continuity=fixture_visual(graph["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'), 
+            build_package(visual_continuity=fixture_visual(mismatched_render_inputs["production_spec"]), visual_root=fixture_root(), route_reading=fixture_reading(route='state-series'),
                 **mismatched_render_inputs,
                 prepared_reference_set=prepared_zero,
                 prepared_reference_root=prepared_zero_root,
@@ -3146,7 +3146,8 @@ def run() -> dict[str, Any]:
         except ValueError as exc:
             check(
                 "state-aware wrapper binds the package model to the Asset Render Specification",
-                "asset render specification target_model" in str(exc),
+                str(exc) == "invalid state artifact graph for C01: "
+                "production specification target_model differs from the asset render specification",
                 str(exc),
             )
         else:

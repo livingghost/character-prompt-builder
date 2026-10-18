@@ -835,7 +835,7 @@ def run_cli(function: Callable[[], int | None]) -> int:
 def _configuration_home() -> Path:
     """The configuration directory pack_manager defines, which holds the logs of an operation outside a Studio."""
     import pack_manager
-    return pack_manager._user_data_home()
+    return pack_manager.user_data_home()
 
 
 def _log_base(root: Path | None) -> Path:

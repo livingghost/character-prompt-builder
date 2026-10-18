@@ -114,22 +114,27 @@ visual state projection
 asset render specification
 ```
 
-The Reference Selection seals its identity, era, appearance, and State Snapshot hashes, story order, required state features, ordered eligible binding rows, unresolved requirements, and `selection_sha256`. It is an eligibility hash, not an activation hash.
+The Reference Selection seals `subjects[]`, each with `subject_id`, identity, era, appearance and State Snapshot hashes, story order and required features. Ordered eligible rows name their subject; unresolved requirements are `{subject_id, feature}` pairs. `selection_sha256` commits the complete selection. It is an eligibility hash, not an activation hash.
 
-The Reference Use Plan seals the non-empty ordered `selected_records` decisions, exact active pack-linked `reference_items`, canonical per-item authority and preamble, the embedded Surface and Lighting Plan, `surface_lighting_plan_sha256`, any structured `zero_reference_reason`, and `reference_use_plan_sha256`. Each selected record row contains exactly `record_id` and one intended influence from `identity`, `pose-camera`, `outfit`, `surface-finish`, `lighting`, `environment`, `prop-accessory`, or `local-color`.
+The Reference Use Plan seals the non-empty ordered `selected_records` decisions, exact active pack-linked `reference_items`, canonical per-item authority and preamble, the embedded Surface and Lighting Plan, `surface_lighting_plan_sha256`, any structured `zero_reference_reason`, and `reference_use_plan_sha256`. Each selected record row contains `record_id`, optional `subject_uses`, and one intended influence from `identity`, `pose-camera`, `outfit`, `surface-finish`, `lighting`, `environment`, `prop-accessory`, or `local-color`.
 
-State-aware execution requires exact source equality between each activated plan item and one eligible Reference Selection row, and it requires the plan item's intended influence to occur in that row's `intended_influence` array. The selection may narrow eligibility; it cannot broaden the plan's canonical authority. Each plan item's `controls` are the intersection of intended influence and technical evidence role. Its `must_not_control` excludes scene-conditioned presentation outside the declared intended influence and all influence- and technical-role-specific prohibited dimensions. Stable hair, mane, fur-tuft, body-fur distribution, and grooming topology can be identity; gaze, expression, mouth state, perspiration, outfit, transient state, and wind-, wetness-, motion-, or scene-driven displacement are not identity authority.
+Each plan item used for a state-aware subject must match an eligible Reference Selection row's source, subject and intended influence. The selection may narrow eligibility; it cannot broaden the plan's canonical authority. Ordinary references for other subjects or the scene remain in the same prepared set. Each plan item's `controls` are the intersection of intended influence and technical evidence role. Its `must_not_control` excludes scene-conditioned presentation outside the declared intended influence and all influence- and technical-role-specific prohibited dimensions. Stable hair, mane, fur-tuft, body-fur distribution, and grooming topology can be identity; gaze, expression, mouth state, perspiration, outfit, transient state, and wind-, wetness-, motion-, or scene-driven displacement are not identity authority.
 
 The Prepared Reference Set embeds the finalized selection and hash when state-aware, the Reference Use Plan and both plan hashes when record evidence is active, canonical reference preamble, exact prompt-artifact copies, ordered model-facing reference rows, optional single-board metadata, an explicit zero-reference reason when applicable, and `prepared_reference_set_sha256`. State-scoped rows preserve binding scope and unsupported-state declarations as well as source, exact transport, derivation, and plan-derived authority. Its portable carrier paths are relative to the package containing it. Active-pack source paths remain committed provenance and must still resolve to the same active pack, release, asset, artifact, media type, and bytes.
 
-Supplied instruction-edit references may instead embed `semantic_edit_binding`,
-the validated immutable projection of their authored semantic edit plan.
-This exclusive supplied-file path carries each original hash, reference ID,
-role and exact influence scope; it cannot replace state or pack authority.
-Legacy supplied sets omit this optional field and keep conservative authority.
-See [Semantic instruction editing](runtime/semantic-instruction-edit.md#prepare-supplied-references-for-dispatch).
+The optional `image_input_binding` pins the common image input plan, original
+hashes, roles and exact scopes. It can preserve an existing prepared set's
+state, pack or Studio origin. Scope comparison retains every source and adoption
+field while permitting relocation of committed transport paths.
+Subject/use priorities survive selection, preparation and actual delivery.
+They compare sources only within the same subject and use.
+State-scoped rows preserve the selected subsequence. Generic rows cannot address
+state-managed subjects or discard their selected source's state scope.
+Pack rows retain plan order; direct state and ordinary additional rows retain
+their source order, IDs and adoption evidence in the same set.
+See [Exact reference delivery](runtime/reference-delivery.md).
 
-The Generation Package hashes the Prepared Reference Set together with the State Lineage, reviewed prompt transports, negative text, Production Specification, model parameters, and target model. Its `prepared_reference_set_sha256` appears at package and generation-contract level and is incorporated into `generation_input_sha256`. The package builder copies portable carriers into `<out-stem>.references/` beside the output JSON, rebases only their paths, reseals the Prepared Reference Set, seals the generation input, and publishes the JSON and companion directory transactionally. `generation_input_sha256` changes when text, parameters, lineage, selection, plan, authority, reference order, scope, source or transport metadata, derivation, carrier path, hash, or bytes change. Any later mutation fails verification.
+The Generation Package hashes the Prepared Reference Set together with the State Lineage, each independently validated `state_graphs` entry and its array hash, reviewed prompt transports, negative text, Production Specification, model parameters, and target model. Its `prepared_reference_set_sha256` appears at package and generation-contract level and is incorporated into `generation_input_sha256`. The package builder copies portable carriers into `<out-stem>.references/` beside the output JSON, rebases only their paths, reseals the Prepared Reference Set, seals the generation input, and publishes the JSON and companion directory transactionally. `generation_input_sha256` changes when text, parameters, lineage, selection, plan, authority, reference order, scope, source or transport metadata, derivation, carrier path, hash, or bytes change. Any later mutation fails verification.
 
 ### Approval hashes, and the three conventions
 

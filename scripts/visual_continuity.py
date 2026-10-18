@@ -181,20 +181,35 @@ def accepted_identity(root: Path, character: str, selector: dict, *, character_i
             'approval_sha256': c.content_id(approval)}
 
 
-def _identity_scope(prepared: dict, number: int, ident: str) -> dict:
+def _reference_scope(prepared: dict, number: int, ident: str) -> tuple[dict, set[str]]:
     rows = prepared['selected_references']
     if number > len(rows):
         raise ValueError(ident + ': selected prepared reference does not exist')
     row = rows[number - 1]
-    scopes = set(row.get('intended_influence', []))
-    if row['role'] == 'identity':
+    if row.get('subject_id') not in {None, ident}:
+        return row, set()
+    uses = row.get('subject_uses', [])
+    scopes = ({use['use'] for use in uses if use['subject_id'] == ident}
+              if uses else set(row.get('intended_influence', [])))
+    if not uses and row['role'] == 'identity':
         scopes.add('identity')
     plan = prepared.get('reference_use_plan')
-    if plan is not None:
-        item = plan['reference_items'][number - 1]
+    if row['source'].get('kind') == 'pack-artifact':
+        positions = [i for i, reference in enumerate(rows, 1) if reference['source'].get('kind') == 'pack-artifact']
+        if plan is None or len(positions) != len(plan['reference_items']):
+            raise ValueError(ident + ': pack reference needs its complete scoped use plan')
+        item = plan['reference_items'][positions.index(number)]
         if item['source'] != row['source']:
             raise ValueError(ident + ': reference source differs from its scoped use plan')
-        scopes.add(item['intended_influence'])
+        if uses:
+            scopes.intersection_update({item['intended_influence']})
+        else:
+            scopes = {item['intended_influence']}
+    return row, scopes
+
+
+def _identity_scope(prepared: dict, number: int, ident: str) -> dict:
+    row, scopes = _reference_scope(prepared, number, ident)
     if 'identity' not in scopes:
         raise ValueError(ident + ': prepared reference does not carry identity influence')
     return row
@@ -313,7 +328,8 @@ def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: 
                 matches = [i for i, row in enumerate(prepared['selected_references'], 1)
                            if row['source'].get('kind') == 'studio-artifact'
                            and row['source']['character'] == subject['studio_character']
-                           and all(row['source'][key] == selected[key] for key in ('slot', 'artifact_id', 'proof_sha256'))]
+                           and all(row['source'][key] == selected[key] for key in ('slot', 'artifact_id', 'proof_sha256'))
+                           and 'identity' in _reference_scope(prepared, i, ident)[1]]
                 if len(matches) != 1:
                     raise ValueError(ident + ': Studio identity choice must identify one exact prepared source')
                 sha = prepared['selected_references'][matches[0] - 1]['source']['sha256']
@@ -321,7 +337,8 @@ def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: 
                 c.exact(selected, {'slot', 'iteration_id'}, 'identity choice')
                 image = accepted_identity(root, subject['studio_character'], selected, character_id=subject['character_id'])
                 matches = [i for i, row in enumerate(prepared['selected_references'], 1)
-                           if row['source']['sha256'] == image['image_sha256']]
+                           if row['source']['sha256'] == image['image_sha256']
+                           and 'identity' in _reference_scope(prepared, i, ident)[1]]
                 if len(matches) != 1:
                     raise ValueError(ident + ': identity choice must identify one ordered prepared source')
                 sha = image['image_sha256']
@@ -355,9 +372,9 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
         if continuity == 'recurring' and character is None:
             raise ValueError(ident + ': name the studio character of a recurring subject')
         refs = []
-        direct = [row for row in prepared['selected_references'] if row['source'].get('kind') == 'studio-artifact'
+        direct = [row for number, row in enumerate(prepared['selected_references'], 1) if row['source'].get('kind') == 'studio-artifact'
                   and row['source']['character'] == character and
-                  ('identity' in row.get('intended_influence', []) or row['role'] == 'identity')]
+                  'identity' in _reference_scope(prepared, number, ident)[1]]
         if direct:
             refs = [{key: row['source'][key] for key in ('kind', 'slot', 'artifact_id', 'proof_sha256')} for row in direct]
         elif character is not None:

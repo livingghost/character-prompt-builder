@@ -14,7 +14,7 @@ The tools keep what was acquired, sent and returned, and refuse evidence recorde
 A grant lists the modes it allows in `submission_validation_modes`.
 A bounded probe does not bypass malformed input, unavailable controls or missing authority.
 Dispatcher compilation checks every declared control whatever the mode.
-External semantic preparation checks the exact authored fields against acquired schema rules and records unmeasured rules explicitly.
+External image-input preparation checks the exact authored fields against acquired schema rules and records unmeasured rules explicitly.
 
 ## The request validation record
 
@@ -44,7 +44,9 @@ The [typed input-choice example](../../examples/input-assembly/README.md#validat
 shows how to derive that selector from catalog inspection. A Studio copy of an
 observed envelope retains its content but does not become active pack evidence.
 
-External semantic runs retain `external_request.schema_validation` in their pinned semantic binding.
+The [image-input plan](../../schemas/authoring/image-input-plan.schema.json) owns the model, ordered reference uses and exact external request for both reference generation and semantic editing. An edit additionally binds its intended changes and preserved properties through [Semantic instruction editing](semantic-instruction-edit.md). A saved request and a matching schema establish preparation; only independent recorded submission evidence can establish that those bytes reached the host call.
+
+External image runs retain `external_request.schema_validation` in their pinned shared image-input binding.
 It records `target-schema` when an acquired schema is selected, or `bounded-probe` with `schema-unavailable` otherwise.
 Their exact submit authorization must use an allowed validation mode and `request_scope: null`.
 Dispatcher scope cases require a sealed dispatcher request and cannot authorize this external path.
@@ -177,6 +179,75 @@ An adoption decision names each observation by kind:
 - `hypothesis`: an explanation not yet tested.
 
 API acceptance never answers a visual question; a visual purpose needs an `observed_output` or a `measurement`.
+
+## Record use-case suitability on its owner
+
+An offering may carry `use_case_guidance`, validated by [the guidance schema](../../schemas/model-use-case-guidance.schema.json).
+Its parent offering fixes the model version and service. Each entry adds an operation, a declared use case and a recommendation:
+
+- `discourage`: choose another suitable candidate for this use by default;
+- `consider`: retain this candidate within the evidence's stated conditions;
+- `unknown`: the source leaves this use unresolved.
+
+Every entry keeps an ID, reason and `basis` containing kind, source, observation date and limitations.
+`provider-statement`, `user-report`, `observed-outcome` and `author-preference` remain distinct evidence kinds.
+An observed refusal describes its saved request and conditions; it never establishes every version's behavior.
+Missing guidance remains unknown without generating a warning for every unmeasured scope.
+
+A synthetic offering entry:
+
+```json
+{"id":"reported-portrait-refusals","operation":"generation","use_case":"benign-minor-depiction",
+ "recommendation":"discourage","reason":"The author reports frequent refusals in this bounded use.",
+ "basis":{"kind":"user-report","source":"Synthetic author report.","observed_at":"2026-10-18",
+ "limitations":["A reported experience, not a measured rate or provider prohibition."]}}
+```
+
+Personal family preferences belong to their author's pack policy or complete home override, as [Render contract](render-contract.md#apply-the-authors-model-selection-preferences) defines.
+The active runtime selects one whole policy resource. Model identifiers and schema observations retain their catalog owners.
+Keep personal reports and choices in that pack or the user's Studio. Public examples use synthetic sources.
+An author's `no-discouragement` leaves a model eligible for assessment; it does not erase an applicable offering limitation.
+
+## Diagnose a failed generation before changing models
+
+Keep the failed request, provider answer and captured outputs under their existing Production and Studio owners.
+Author a [generation failure assessment](../../schemas/authoring/generation-failure-assessment.schema.json) as ordinary task evidence.
+The category states what the saved evidence supports:
+
+| Category | Evidence and next decision |
+| --- | --- |
+| `provider-moderation` | The provider explicitly identifies a moderation block. Review its reason and applicable scope. |
+| `provider-refusal` | The provider refuses the request, with the cause still requiring review. |
+| `authentication`, `quota`, `rate-limit` | Resolve access or service conditions using the recorded operational evidence. |
+| `timeout`, `transport` | Recover the existing request state before deciding whether another request is needed. |
+| `request-schema`, `reference-input` | Correct the exact request or media contract. |
+| `output-artifact` | Review an observed identity, anatomy, wardrobe, composition or output defect. |
+| `unknown` | Retain uncertainty while inspecting the saved response and execution evidence. |
+
+Run the local evidence check:
+
+```bash
+python scripts/render_contract.py diagnose --root STUDIO --failure inputs/failure-assessment.json
+```
+
+Paths in the assessment resolve from the Studio root. Its evidence file is bound by SHA-256.
+When the failed request used a catalog record, add `--model MODEL_ID` and the same active pack runtime. The tool verifies that record's service and exact interface identifier against the saved target before applying catalog-ID preferences. For a target outside the catalog, omit `--model`; exact-interface preferences still apply. A different catalog model cannot supply the failure's identity.
+Provider-response evidence names an exact JSON Pointer and value in the saved response.
+The tool checks those bytes and that signal. The responsible agent interprets the provider's documented meaning.
+A hypothesis remains `unknown`; a generic error message or a missing image alone never proves a moderation cause.
+The [synthetic failure fixture](../../examples/model-evidence/failure-assessment.json) and [response](../../examples/model-evidence/failure-response.json) show the complete pair.
+
+For `unknown`, matching entries with explicit `reported_failure` and `user-report` provenance can identify restrictions as one possible explanation.
+An aesthetic preference or quality report retains `reported_failure: null` and establishes no restriction-related cause.
+Known timeouts, access failures, request defects and visual artifacts retain their own diagnosis even on a discouraged model.
+For a permitted request whose model suitability caused a refusal, use `render_contract.py assess` to identify compatible alternatives.
+Record the reason and comparison in `direction.decisions`; prepare each chosen alternative through the ordinary execution path.
+This diagnostic command performs no retry, model switch or moderation-setting change.
+
+Provider interfaces expose different signals. OpenAI documents `error.code = moderation_blocked` in its [image-generation guide](https://developers.openai.com/api/docs/guides/image-generation).
+Google's [Interactions safety guide](https://ai.google.dev/gemini-api/docs/safety-settings) documents structured error codes for blocked requests.
+xAI's [image guide](https://docs.x.ai/developers/model-capabilities/images/generation) documents the `respect_moderation` response field.
+These are facts about the named interfaces. Acquire a service's own response contract before interpreting another service's fields or codes.
 
 ## Adopt an observed profile
 

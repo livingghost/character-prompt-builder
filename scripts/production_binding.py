@@ -155,9 +155,14 @@ def validate(binding: Any, prompt: str) -> None:
         raise ValueError('production binding integrity mismatch')
     consumer=binding['consumer']
     fields = {'route','transport','instructions','criteria','direction','world_views','moment_views','authoring_materials'}
+    if 'image_input' in consumer:
+        import image_input
+        image_input.validate_binding(consumer['image_input'])
+        fields.add('image_input')
     if 'semantic_edit' in consumer:
-        from semantic_edit_plan import validate_binding
+        from semantic_edit_plan import validate_binding, require_input
         validate_binding(consumer['semantic_edit'])
+        require_input(consumer['semantic_edit'], consumer.get('image_input'))
         fields.add('semantic_edit')
     c.exact(consumer, fields, 'bounded consumer')
     if not isinstance(consumer['authoring_materials'], list):

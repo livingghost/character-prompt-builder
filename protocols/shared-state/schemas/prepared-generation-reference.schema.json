@@ -42,6 +42,9 @@
         },
         "authority": {
           "$ref": "#/$defs/authority"
+        },
+        "subject_uses": {
+          "$ref": "#/$defs/subject-uses"
         }
       },
       "additionalProperties": false
@@ -58,7 +61,8 @@
         "intended_influence",
         "review_dimensions",
         "unsupported_or_occluded_state",
-        "unsupported_assumptions"
+        "unsupported_assumptions",
+        "subject_id"
       ],
       "properties": {
         "binding_id": {
@@ -107,6 +111,13 @@
         },
         "unsupported_assumptions": {
           "$ref": "#/$defs/non-empty-string-set"
+        },
+        "subject_uses": {
+          "$ref": "#/$defs/subject-uses"
+        },
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": false
@@ -396,6 +407,33 @@
       },
       "additionalProperties": false,
       "description": "One exact current Studio acceptance. The package preserves its approval and transitive artwork evidence separately from current-selection verification."
+    },
+    "subject-uses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "subject_id",
+          "use",
+          "priority"
+        ],
+        "properties": {
+          "subject_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "use": {
+            "$ref": "reference-use-plan.schema.json#/$defs/intended-influence"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "uniqueItems": true,
+      "description": "Explicit subject and use assignment. Lower numbers take priority only for the same subject and use. Source authority remains controlling."
     }
   }
 }

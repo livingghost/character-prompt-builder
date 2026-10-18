@@ -39,7 +39,7 @@ MODEL_RECORD_KEYS = frozenset(
 # that was observed. schema_snapshot points at the service's own parameter
 # schema for the model, stored in the pack as observed.
 OFFERING_KEYS = frozenset(
-    {"service", "model_identifier", "request_keys", "constraints", "observed_at", "schema_snapshot", "setting_keys", "parameter_keys", "schema_contract", "schema_acquisition", "parameter_observations", "reference_schemas", "production_context_transport", "reference_instruction_transport", "size_format", "execution_profile"}
+    {"service", "model_identifier", "request_keys", "constraints", "observed_at", "schema_snapshot", "setting_keys", "parameter_keys", "schema_contract", "schema_acquisition", "parameter_observations", "reference_schemas", "production_context_transport", "reference_instruction_transport", "size_format", "execution_profile", "use_case_guidance"}
 )
 OFFERING_REQUIRED = ("service", "model_identifier", "request_keys", "constraints", "observed_at")
 OBSERVED_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -210,6 +210,12 @@ def _validate_offerings(record: Mapping[str, Any], errors: list[str]) -> None:
             try:
                 validate_profile(offering["execution_profile"])
             except ValueError as exc:
+                errors.append(f"{where}: {exc}")
+        if "use_case_guidance" in offering:
+            from model_suitability import validate_guidance
+            try:
+                validate_guidance(offering["use_case_guidance"])
+            except (ValueError, TypeError) as exc:
                 errors.append(f"{where}: {exc}")
         service = offering.get("service")
         if service in services:

@@ -15,6 +15,7 @@ import studio_reference_fixtures as fixture
 import prepare_generation_references as refs
 import visual_continuity as vc
 from build_generation_payload import materialize_cli_reference_bundle
+from reference_delivery import delivered_reference_count
 
 
 class StudioBoardTests(unittest.TestCase):
@@ -52,15 +53,33 @@ class StudioBoardTests(unittest.TestCase):
         self.assertNotEqual(report['identity_bindings'][0]['region_pixels'],report['identity_bindings'][1]['region_pixels'])
 
     def test_one_attachment_limit_counts_board_not_sources(self):
+        from transport_synthetic import _png
+        pixels=_png(32,32,b'\x20\x40\x60')
+        if c.digest(pixels)==self.first['sha256']:
+            pixels=_png(32,32,b'\x60\x40\x20')
+        distinct=fixture.adopt_second(self.case,'distinct-companion',work_id='C03',pixels=pixels)
+        self.assertEqual(c.read(Path(self.first['resolved_path'])),c.read(Path(self.second['resolved_path'])))
+        self.assertEqual(c.read(Path(distinct['resolved_path'])),pixels)
+        self.assertEqual(distinct['sha256'],c.digest(pixels))
+        self.assertNotEqual(self.first['sha256'],distinct['sha256'])
+        selected=[{'role':'identity','source':self.first},{'role':'identity','source':distinct}]
+        multiple=refs.prepare_references(selected,model='cpb-synthetic-image',output_dir=self.out/'distinct')
+        self.assertEqual(delivered_reference_count(multiple),2)
         original=refs.resolve_model_record('cpb-synthetic-image')
         model=copy.deepcopy(original[1]);model['max_reference_images']=1
         with patch('prepare_generation_references.resolve_model_record',return_value=(original[0],model)):
-            prepared=self.prepared()
+            prepared=refs.prepare_references(selected,model='cpb-synthetic-image',output_dir=self.out/'board',
+                transport_mode='single-board',max_side=512)
             self.assertEqual(len(prepared['selected_references']),2)
             self.assertIsNotNone(prepared['single_board'])
+            self.assertEqual(delivered_reference_count(prepared),1)
+            same_pixels=refs.prepare_references(
+                [{'role':'identity','source':self.first},{'role':'identity','source':self.second}],
+                model='cpb-synthetic-image',output_dir=self.out/'same-pixels')
+            self.assertEqual(len(same_pixels['selected_references']),2)
+            self.assertEqual(delivered_reference_count(same_pixels),1)
             with self.assertRaisesRegex(ValueError,'max_reference_images'):
-                refs.prepare_references([{'role':'identity','source':self.first},{'role':'identity','source':self.second}],
-                    model='cpb-synthetic-image',output_dir=self.out/'multiple')
+                refs.prepare_references(selected,model='cpb-synthetic-image',output_dir=self.out/'multiple')
 
     def test_wrong_subject_for_an_identical_image_is_rejected(self):
         prepared=self.prepared();visual=self.visual(prepared)

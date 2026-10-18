@@ -36,6 +36,7 @@ SCHEMA_DIR = ROOT / "schemas"
 ARTIFACT_SCHEMA_FILES = {
     "render-intent": "render-intent.schema.json",
     "render-contract": "render-contract.schema.json",
+    "model-selection-preferences": "model-selection-preferences.schema.json",
     "audit-extraction-set": "audit-extraction-set.schema.json",
     "observed-parameter-schema": "observed-parameter-schema.schema.json",
     "prompt-plot": "prompt-plot.schema.json",
@@ -1076,41 +1077,6 @@ def validate_cross_invariants(
                 "asset coverage_requirement_ids projection"
             )
 
-    if kind == "reference-selection":
-        required_features = data.get("required_state_features", [])
-        selected = data.get("selected_references", [])
-        unresolved = data.get("unresolved_requirements", [])
-        binding_ids: list[str] = []
-        covered_in_order: list[str] = []
-        for index, item in enumerate(selected):
-            if not isinstance(item, dict):
-                continue
-            binding_ids.append(str(item.get("binding_id") or ""))
-            covers = [str(value) for value in item.get("covers", [])]
-            unsupported = {
-                str(value) for value in item.get("unsupported_or_occluded_state", [])
-            }
-            overlap = sorted(set(covers) & unsupported)
-            if overlap:
-                errors.append(
-                    f"selected_references[{index}] cannot both cover and mark state "
-                    f"unsupported or occluded: {overlap}"
-                )
-            covered_in_order.extend(covers)
-        if len(binding_ids) != len(set(binding_ids)):
-            errors.append("reference-selection binding IDs must be unique")
-        if len(covered_in_order) != len(set(covered_in_order)):
-            errors.append("reference-selection state features may be covered only once")
-        if set(covered_in_order) & set(unresolved):
-            errors.append(
-                "reference-selection covered and unresolved state features must not overlap"
-            )
-        if set(covered_in_order) | set(unresolved) != set(required_features):
-            errors.append(
-                "reference-selection covered and unresolved state features must exactly "
-                "partition required_state_features"
-            )
-
     if kind == "state-lineage":
         mode = data.get("mode")
         if mode == "state-aware":
@@ -1366,6 +1332,7 @@ def validate_state_artifact_graph(
     visual_authority: dict[str, Any] | None = None,
     visual_evidence_bundle: dict[str, Any] | None = None,
     production_spec: dict[str, Any] | None = None,
+    subject_lineages: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Validate one state-aware CPB artifact graph and every declared edge.
 
@@ -1635,7 +1602,9 @@ def validate_state_artifact_graph(
     state_context = production_spec.get("state_context", {})
     if state_context.get("mode") != "state-aware":
         errors.append("state-aware production specification must declare mode=state-aware")
-    if state_context.get("state_lineage_sha256") != lineage.get("lineage_sha256"):
+    expected_lineage = (subject_lineages.get(character_id) if subject_lineages is not None
+                        else state_context.get("state_lineage_sha256"))
+    if expected_lineage != lineage.get("lineage_sha256"):
         errors.append("production specification state-lineage hash mismatch")
     expected_scene_ref = {
         "id": scene_context.get("scene_context_id"),
@@ -1707,6 +1676,62 @@ def validate_state_artifact_graph(
         "render_spec_sha256": render_hash,
         "errors": errors,
     }
+
+
+def validate_subject_state_graphs(
+    graphs: Any, *, production_spec: dict[str, Any],
+    reference_selection: dict[str, Any] | None,
+    state_lineage: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Validate each scene subject's graph without merging identity or state owners."""
+    from reference_delivery import validate_reference_selection_subjects
+    validate_reference_selection_subjects(reference_selection, production_spec)
+    if graphs is None:
+        graphs = []
+    if not isinstance(graphs, list):
+        raise ValueError('state_graphs must be an array of concrete character graphs')
+    if production_spec['state_context']['mode'] == 'stateless':
+        if graphs:
+            raise ValueError('stateless generation must not supply state_graphs')
+        return []
+    if not graphs:
+        raise ValueError('state-aware generation requires every concrete subject graph; use build_state_generation_package.py')
+    required = {'lineage', 'species_profile', 'individual_morphology', 'identity_contract',
+                'state_snapshot', 'scene_context', 'visual_projection', 'asset_render_spec'}
+    optional = {'era_contract', 'form_contract', 'appearance_variant', 'visual_authority', 'visual_evidence_bundle'}
+    ids = []
+    for index, graph in enumerate(graphs):
+        if not isinstance(graph, dict) or not required <= set(graph) or set(graph) - required - optional:
+            raise ValueError(f'state_graphs[{index}] must contain the declared concrete graph nodes')
+        if any(not isinstance(graph[key], dict) for key in required):
+            raise ValueError(f'state_graphs[{index}] requires object graph nodes')
+        ids.append(graph['identity_contract'].get('character_id'))
+    if any(not isinstance(subject, str) or not subject for subject in ids) or len(ids) != len(set(ids)):
+        raise ValueError('state_graphs must name distinct concrete character IDs')
+    contexts = {row['subject_id']: row for row in reference_selection['subjects']}
+    if set(ids) != set(contexts):
+        raise ValueError('state_graphs must cover every selected state-aware subject exactly once')
+    primary_hash = production_spec['state_context']['state_lineage_sha256']
+    primaries = [graph['lineage'] for graph in graphs if graph['lineage'].get('lineage_sha256') == primary_hash]
+    if len(primaries) != 1 or (state_lineage is not None and primaries[0] != state_lineage):
+        raise ValueError('state_graphs must contain the exact primary state lineage')
+    lineages = {subject: graph['lineage'].get('lineage_sha256') for subject, graph in zip(ids, graphs, strict=True)}
+    for subject, graph in zip(ids, graphs, strict=True):
+        report = validate_state_artifact_graph(**graph, production_spec=production_spec, subject_lineages=lineages)
+        if not report['ok']:
+            raise ValueError(f'invalid state artifact graph for {subject}: ' + '; '.join(report['errors']))
+        context = contexts[subject]
+        expected = {
+            'identity_contract_sha256': artifact_hash(graph['identity_contract']),
+            'era_contract_sha256': artifact_hash(graph['era_contract']) if graph.get('era_contract') is not None else None,
+            'appearance_variant_sha256': artifact_hash(graph['appearance_variant']) if graph.get('appearance_variant') is not None else None,
+            'state_snapshot_sha256': artifact_hash(graph['state_snapshot']),
+            'story_order': graph['state_snapshot']['story_order'],
+        }
+        for field, value in expected.items():
+            if context[field] != value:
+                raise ValueError(f'reference-selection {field} differs from the supplied state graph for {subject}')
+    return copy.deepcopy(graphs)
 
 
 _ARRAY_INDEX = re.compile(r"^(?:0|[1-9][0-9]*)$")
@@ -2606,13 +2631,14 @@ def select_state_references(
     bindings: list[dict[str, Any]],
     *,
     selection_id: str,
+    subject_id: str,
     identity_hash: str,
     era_hash: str | None,
     appearance_hash: str | None,
     state_hash: str | None,
     story_order: int,
     required_features: list[str],
-    limit: int,
+    limit: int | None,
 ) -> dict[str, Any]:
     from prepare_generation_references import validate_committed_source
 
@@ -2622,20 +2648,23 @@ def select_state_references(
         or len(set(required_features)) != len(required_features)
     ):
         raise ValueError("required_features must contain unique non-empty strings")
-    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 0:
+    if limit is not None and (not isinstance(limit, int) or isinstance(limit, bool) or limit < 0):
         raise ValueError("reference selection limit must be a non-negative integer")
     if not isinstance(story_order, int) or isinstance(story_order, bool):
         raise ValueError("story_order must be an integer")
 
-    binding_ids = [row.get('binding_id') for row in bindings if isinstance(row, dict)]
-    if len(binding_ids) != len(set(binding_ids)):
-        raise ValueError('state reference binding IDs must be unique')
-
+    if not isinstance(subject_id, str) or not subject_id.strip():
+        raise ValueError("reference selection requires a subject_id")
+    binding_ids: set[tuple[str, str]] = set()
     eligible: list[dict[str, Any]] = []
     for binding in bindings:
         report = validate_artifact(binding)
         if not report["ok"]:
             raise ValueError(f"invalid reference binding {binding.get('binding_id')}: {'; '.join(report['errors'])}")
+        binding_key = (binding.get('character_id'), binding.get('binding_id'))
+        if binding_key in binding_ids:
+            raise ValueError('state reference binding IDs must be unique within each character')
+        binding_ids.add(binding_key)
         canonical_source = validate_committed_source(
             binding.get("source"),
             f"reference binding {binding.get('binding_id')}.source",
@@ -2647,6 +2676,8 @@ def select_state_references(
             raise ValueError(
                 f"reference binding {binding.get('binding_id')}.source is not canonical"
             )
+        if binding.get("character_id") != subject_id:
+            continue
         if binding.get("identity_contract_sha256") != identity_hash:
             continue
         if binding.get("era_contract_sha256") not in {None, era_hash}:
@@ -2667,12 +2698,12 @@ def select_state_references(
             continue
         eligible.append(binding)
 
-    def source_order_key(item: dict[str, Any]) -> str:
-        source = item["source"]
-        return source.get("asset_id") or source.get("reference_id") or source.get("artifact_id")
-
     def selected_reference(item: dict[str, Any], covers: list[str]) -> dict[str, Any]:
         return {
+            "subject_id": subject_id,
+            "subject_uses": copy.deepcopy(item.get("subject_uses", [
+                {"subject_id": subject_id, "use": use, "priority": 0}
+                for use in item.get("intended_influence", [])])),
             "binding_id": item["binding_id"],
             "role": item["role"],
             "source": copy.deepcopy(item["source"]),
@@ -2690,13 +2721,12 @@ def select_state_references(
     remaining = set(required_features)
     selected: list[dict[str, Any]] = []
     candidates = list(eligible)
-    while remaining and candidates and len(selected) < limit:
+    while remaining and candidates and (limit is None or len(selected) < limit):
         best = min(
             candidates,
             key=lambda item: (
                 -len(remaining & set(item.get("visibly_supported_state", []))),
-                source_order_key(item),
-                item["binding_id"],
+                bindings.index(item),
             ),
         )
         coverage = remaining & set(best.get("visibly_supported_state", []))
@@ -2707,13 +2737,13 @@ def select_state_references(
         candidates.remove(best)
 
     # When there are no explicit feature obligations, choose the strongest generic identity binding.
-    if not required_features and eligible and limit > 0:
+    if not required_features and eligible and (limit is None or limit > 0):
         ranked = sorted(
             eligible,
             key=lambda item: (
                 "identity" not in item.get("intended_influence", []),
                 -len(item.get("visibly_supported_state", [])),
-                source_order_key(item),
+                bindings.index(item),
             ),
         )
         selected = [selected_reference(item, []) for item in ranked[:limit]]
@@ -2721,17 +2751,57 @@ def select_state_references(
     result = {
         "artifact_type": "reference-selection",
         "selection_id": selection_id,
-        "identity_contract_sha256": identity_hash,
-        "era_contract_sha256": era_hash,
-        "appearance_variant_sha256": appearance_hash,
-        "state_snapshot_sha256": state_hash,
-        "story_order": story_order,
-        "required_state_features": list(required_features),
+        "subjects": [{"subject_id": subject_id,
+            "identity_contract_sha256": identity_hash,
+            "era_contract_sha256": era_hash,
+            "appearance_variant_sha256": appearance_hash,
+            "state_snapshot_sha256": state_hash,
+            "story_order": story_order,
+            "required_state_features": list(required_features)}],
         "selected_references": selected,
-        "unresolved_requirements": sorted(remaining),
+        "unresolved_requirements": [{"subject_id": subject_id, "feature": feature} for feature in sorted(remaining)],
         "selection_sha256": "0" * 64,
     }
     return finalize_artifact(result)
+
+def reference_selection_subject(selection: dict[str, Any], subject_id: str) -> dict[str, Any]:
+    """Read one character's independent state commitment from a scene selection."""
+    rows = [row for row in selection.get("subjects", []) if row.get("subject_id") == subject_id]
+    if len(rows) != 1:
+        raise ValueError("reference selection must name exactly one state context for subject " + subject_id)
+    return rows[0]
+
+
+def combine_reference_selections(selections: list[dict[str, Any]], *, selection_id: str,
+                                 reference_order: list[dict[str, str]] | None = None) -> dict[str, Any]:
+    """Combine sealed character selections without merging their identity graphs."""
+    if not isinstance(selections, list) or not selections:
+        raise ValueError("combining references requires at least one finalized selection")
+    subjects, rows, unresolved = [], [], []
+    for selection in selections:
+        report = validate_artifact(selection)
+        if selection.get("artifact_type") != "reference-selection" or not report["ok"]:
+            raise ValueError("invalid source reference selection: " + "; ".join(report["errors"]))
+        subjects.extend(copy.deepcopy(selection["subjects"]))
+        rows.extend(copy.deepcopy(selection["selected_references"]))
+        unresolved.extend(copy.deepcopy(selection["unresolved_requirements"]))
+    if len({row["subject_id"] for row in subjects}) != len(subjects):
+        raise ValueError("a combined selection repeats a subject state context")
+    if reference_order is not None:
+        lookup = {(row["subject_id"], row["binding_id"]): row for row in rows}
+        if not isinstance(reference_order, list) or any(not isinstance(row, dict) or set(row) != {"subject_id", "binding_id"} for row in reference_order):
+            raise ValueError("reference order requires subject_id and binding_id for every row")
+        keys = [(row["subject_id"], row["binding_id"]) for row in reference_order]
+        if len(keys) != len(set(keys)) or set(keys) != set(lookup):
+            raise ValueError("reference order must name every selected binding exactly once")
+        rows = [lookup[key] for key in keys]
+    result = finalize_artifact({"artifact_type": "reference-selection", "selection_id": selection_id,
+        "subjects": subjects, "selected_references": rows, "unresolved_requirements": unresolved})
+    report = validate_artifact(result)
+    if not report["ok"]:
+        raise ValueError("invalid combined reference selection: " + "; ".join(report["errors"]))
+    return result
+
 
 def parse_processes(path: str | None) -> list[dict[str, Any]]:
     if not path:
@@ -2853,7 +2923,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     select_cmd.add_argument("--state-snapshot")
     select_cmd.add_argument("--story-order", type=int, required=True)
     select_cmd.add_argument("--required-feature", action="append", default=[])
-    select_cmd.add_argument("--limit", type=int, default=3)
+    select_cmd.add_argument("--limit", type=int)
     select_cmd.add_argument("--out", required=True)
     add_pack_runtime_arguments(select_cmd)
 
@@ -3004,6 +3074,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise ValueError("bindings file must be an array or an object containing a bindings array")
                 result = select_state_references(
                     bindings, selection_id=args.selection_id,
+                    subject_id=load_json(Path(args.identity_contract))["character_id"],
                     identity_hash=artifact_hash(load_json(Path(args.identity_contract))),
                     era_hash=artifact_hash(load_json(Path(args.era_contract))) if args.era_contract else None,
                     appearance_hash=artifact_hash(load_json(Path(args.appearance_variant))) if args.appearance_variant else None,

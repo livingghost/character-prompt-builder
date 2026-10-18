@@ -1329,7 +1329,7 @@ def require_valid(report: PackValidation) -> PackValidation:
     raise PackError("Pack validation failed: " + "; ".join(messages))
 
 
-def _user_data_home() -> Path:
+def user_data_home() -> Path:
     """Return the configuration directory: CPB_HOME when it is set, ~/.character-prompt-builder otherwise.
 
     The pack state, the catalog cache, the managed packs, the home reading
@@ -1347,7 +1347,7 @@ def default_settings(
     managed_root: Path | None = None,
     default_enabled_packs: Sequence[str] | None = None,
 ) -> PackSettings:
-    state_home = _user_data_home()
+    state_home = user_data_home()
     if state_file is not None:
         resolved_state_file = state_file.resolve()
     elif cache_dir is not None:
@@ -1417,7 +1417,7 @@ def _under_state_lock(operation):
 
 def pack_cli_command(settings: PackSettings) -> str:
     """The `pack_cli.py` invocation that acts on this runtime, for a printed fix."""
-    home = _user_data_home()
+    home = user_data_home()
     selected = (settings.state_file, settings.cache_dir, settings.managed_root)
     if selected == (home / "pack-state.json", home / "cache", home / "packs"):
         return "python scripts/pack_cli.py"

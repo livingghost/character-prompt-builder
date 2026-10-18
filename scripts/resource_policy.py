@@ -207,12 +207,23 @@ def validate_prompt_writing_resource(value: Any) -> list[str]:
     return []
 
 
+def validate_model_selection_preferences(value: Any) -> list[str]:
+    """Apply the same preference contract to pack resources and home overrides."""
+    from model_suitability import validate_preferences
+    try:
+        validate_preferences(value)
+    except (ValueError, TypeError) as exc:
+        return [str(exc)]
+    return []
+
+
 KNOWN_RESOURCE_VALIDATORS: dict[str, Callable[[Any], list[str]]] = {
     "discovery-lanes": validate_discovery_lanes,
     "negative-policy": validate_negative_policy,
     "pack-defaults": validate_pack_defaults,
     "prompt-vocabulary": validate_prompt_vocabulary,
     "prompt-writing-guide": validate_prompt_writing_resource,
+    "model-selection-preferences": validate_model_selection_preferences,
 }
 
 

@@ -547,7 +547,7 @@ def _left_out_pack_sections(base: Path) -> tuple[int, list[str]]:
         load_runtime_catalog(settings)
     if printed.getvalue().splitlines() != [f"warning: {expected}"]:
         errors.append(f"an invalid pack was not reported in one line, once: {printed.getvalue()!r}")
-    elif "fixture-note" in catalog.resources or resource_warning(catalog, "fixture-note") is not None:
+    elif "fixture-note" in catalog.resources or resource_warning(catalog, "fixture-note") != expected:
         errors.append("a resource of an invalid pack was used or reported apart from the pack's own line")
     elif catalog.active_pack_count != 1:
         errors.append("an invalid pack was not left out of the catalog")
@@ -915,10 +915,10 @@ def run() -> dict[str, Any]:
 
             configured_home = (root / "configured-home").resolve()
             with patch.dict(os.environ, {"CPB_HOME": str(configured_home)}):
-                named_home = pack_manager_module._user_data_home()
+                named_home = pack_manager_module.user_data_home()
             with patch.dict(os.environ):
                 os.environ.pop("CPB_HOME", None)
-                plain_home = pack_manager_module._user_data_home()
+                plain_home = pack_manager_module.user_data_home()
             if named_home != configured_home or plain_home != (Path.home() / ".character-prompt-builder").resolve():
                 errors.append(
                     "the configuration home is not CPB_HOME, or ~/.character-prompt-builder without it: "
@@ -927,7 +927,7 @@ def run() -> dict[str, Any]:
             else:
                 checks += 1
 
-            data_home = pack_manager_module._user_data_home()
+            data_home = pack_manager_module.user_data_home()
             flag_free = default_settings(default_enabled_packs=())
             if flag_free.state_file != (data_home / "pack-state.json").resolve():
                 errors.append("flag-free settings do not resolve the data-home state file")
@@ -3584,7 +3584,7 @@ def run() -> dict[str, Any]:
             else:
                 checks += 1
             named_default_runtime = default_settings(
-                state_file=pack_manager_module._user_data_home() / "pack-state.json"
+                state_file=pack_manager_module.user_data_home() / "pack-state.json"
             )
             if named_default_runtime.protected_pack_ids != shipped_defaults:
                 errors.append(

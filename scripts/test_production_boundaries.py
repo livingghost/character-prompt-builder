@@ -219,7 +219,10 @@ class BoundaryTests(unittest.TestCase):
     def refused_external_claim(self, change) -> tuple[str, object]:
         """Claim an external run while `change(run)` runs right after the claim row; return the run and refusal."""
         import production_fixtures as fixture
-        task = c.load(self.root / 'task.json'); task['execution'] = 'external'; f.write(self.root / 'task.json', task)
+        task = c.load(self.root / 'task.json')
+        task['execution'] = 'external'
+        task['generation'] = {'production_spec': task['generation']['production_spec']}
+        f.write(self.root / 'task.json', task)
         run = workflow.prepare(self.root, 'task.json')['run']
         fixture.handoff(self.root, run, 'synthetic external host', 'manual')
         token = fixture.grant(self.root, run, workflow.external_intent(self.root, run, 1))

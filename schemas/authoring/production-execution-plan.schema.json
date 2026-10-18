@@ -150,6 +150,20 @@
     },
     "prompt_check": {
       "type": "object"
+    },
+    "prepared_request_sha256": {
+      "$ref": "#/$defs/sha256",
+      "description": "Exact saved external request bytes; does not prove a host call occurred."
+    },
+    "model_identity": {
+      "anyOf": [
+        {
+          "$ref": "authoring/image-input-plan.schema.json#/$defs/model-identity"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -173,7 +187,10 @@
       "request": [
         "quantities",
         "service",
-        "model"
+        "model",
+        "prepared_request_sha256",
+        "model_identity",
+        "validation"
       ]
     }
   },

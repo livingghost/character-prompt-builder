@@ -1,0 +1,96 @@
+{
+  "artifact_type": "image-input-plan",
+  "model": {
+    "requested": "Example Editor 1",
+    "catalog_status": "missing",
+    "catalog_model": null,
+    "target": {
+      "service": "example-host",
+      "model_identifier": "vendor:example-editor@1",
+      "operation": "edit"
+    },
+    "evidence": {
+      "path": "inputs/model-lookup.json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "locator": "requested model lookup and exact provider schema"
+    }
+  },
+  "references": [
+    {
+      "id": "scene",
+      "role": "scene",
+      "file": "inputs/scene.png",
+      "use_for": [
+        "subject placement",
+        "camera framing"
+      ],
+      "do_not_transfer": [
+        "plain backdrop"
+      ],
+      "subject_uses": []
+    },
+    {
+      "id": "object-design",
+      "role": "geometry",
+      "file": "inputs/object-design.png",
+      "use_for": [
+        "vase shape",
+        "handle placement"
+      ],
+      "do_not_transfer": [
+        "reference background",
+        "reference viewpoint"
+      ],
+      "subject_uses": []
+    }
+  ],
+  "external_request": {
+    "file": "inputs/request.json",
+    "model_field": [
+      "model"
+    ],
+    "prompt_field": [
+      "prompt"
+    ],
+    "count_field": [
+      "count"
+    ],
+    "operation_field": [
+      "operation"
+    ],
+    "count": 1,
+    "reference_fields": [
+      {
+        "reference": "scene",
+        "field": [
+          "images",
+          0
+        ],
+        "value": "REPLACE_WITH_SCENE_UPLOAD_ID",
+        "evidence": {
+          "path": "inputs/upload-receipts.json",
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "locator": "scene upload"
+        }
+      },
+      {
+        "reference": "object-design",
+        "field": [
+          "images",
+          1
+        ],
+        "value": "REPLACE_WITH_DESIGN_UPLOAD_ID",
+        "evidence": {
+          "path": "inputs/upload-receipts.json",
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "locator": "object-design upload"
+        }
+      }
+    ],
+    "schema": {
+      "path": "inputs/provider-schema.json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "pointer": []
+    }
+  }
+}

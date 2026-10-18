@@ -357,6 +357,107 @@
                   "additionalProperties": false
                 },
                 "minItems": 0
+              },
+              "accepted_variations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "source": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "locator": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "author": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "scope": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "task"
+                            },
+                            "task_id": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "task_id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "source"
+                            },
+                            "source": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "sha256": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "source",
+                            "sha256"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "allowance": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "limits": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 0
+                    },
+                    "criteria": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 1,
+                      "uniqueItems": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "source",
+                    "locator",
+                    "author",
+                    "scope",
+                    "allowance",
+                    "limits",
+                    "criteria"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 0,
+                "description": "Author-approved variation with explicit evidence, task or content-bound source scope, and review criteria."
               }
             },
             "required": [
@@ -657,19 +758,13 @@
         "mask_binding": {
           "type": "string",
           "minLength": 1
+        },
+        "state_graphs": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Studio-relative JSON array of independently owned existing state artifact graphs for the subjects in this image. Optional for stateless scenes."
         }
       },
-      "required": [
-        "parameters",
-        "production_spec",
-        "plot",
-        "retrieval_record",
-        "creative_intent",
-        "service",
-        "count",
-        "seed",
-        "continuity"
-      ],
       "additionalProperties": false
     },
     "recording": {
@@ -746,7 +841,12 @@
     "semantic_edit": {
       "type": "string",
       "minLength": 1,
-      "description": "Studio-relative semantic-edit-plan input bound to the generation or external request."
+      "description": "Studio-relative semantic-edit-plan containing existing source, change, preserve and review criteria; requires image_input."
+    },
+    "image_input": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Studio-relative image-input-plan. Shared exact model, scoped references and optional external request for reference generation and editing."
     }
   },
   "required": [
@@ -824,7 +924,74 @@
               ]
             }
           }
+        ],
+        "properties": {
+          "generation": {
+            "required": [
+              "parameters",
+              "production_spec",
+              "plot",
+              "retrieval_record",
+              "creative_intent",
+              "service",
+              "count",
+              "seed",
+              "continuity"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "semantic_edit"
         ]
+      },
+      "then": {
+        "required": [
+          "image_input"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "image_input"
+        ]
+      },
+      "then": {
+        "properties": {
+          "artifact": {
+            "const": "image"
+          },
+          "execution": {
+            "enum": [
+              "external",
+              "dispatcher"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution": {
+            "const": "external"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "generation": {
+            "properties": {
+              "production_spec": {},
+              "state_graphs": {}
+            },
+            "additionalProperties": false
+          }
+        }
       }
     }
   ]

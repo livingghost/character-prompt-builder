@@ -698,15 +698,16 @@ def require_record_semantic_support(
     return report
 
 
-def normalize_selected_records(value: Any) -> list[dict[str, str]]:
+def normalize_selected_records(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list) or not value:
         raise ValueError("selected_records must be a non-empty JSON array")
-    normalized: list[dict[str, str]] = []
-    seen: set[tuple[str, str]] = set()
+    from reference_delivery import validate_subject_uses
+    normalized: list[dict[str, Any]] = []
+    seen = set()
     for index, raw in enumerate(value):
-        if not isinstance(raw, Mapping) or set(raw) != {"record_id", "intended_influence"}:
+        if not isinstance(raw, Mapping) or not {'record_id', 'intended_influence'} <= set(raw) or set(raw) - {'record_id', 'intended_influence', 'subject_uses'}:
             raise ValueError(
-                f"selected_records[{index}] must contain exactly record_id and intended_influence"
+                f"selected_records[{index}] requires record_id, intended_influence and optional subject_uses"
             )
         record_id = raw.get("record_id")
         influence = raw.get("intended_influence")
@@ -716,11 +717,15 @@ def normalize_selected_records(value: Any) -> list[dict[str, str]]:
             raise ValueError(
                 f"selected_records[{index}].intended_influence must be one of {list(INTENDED_INFLUENCES)}"
             )
-        pair = (record_id, str(influence))
+        uses = validate_subject_uses(raw.get('subject_uses', []), allowed_uses=[influence])
+        pair = (record_id, str(influence), json.dumps(uses, sort_keys=True))
         if pair in seen:
             raise ValueError(f"selected_records[{index}] duplicates an earlier record use")
         seen.add(pair)
-        normalized.append({"record_id": record_id, "intended_influence": str(influence)})
+        row = {"record_id": record_id, "intended_influence": str(influence)}
+        if 'subject_uses' in raw:
+            row['subject_uses'] = uses
+        normalized.append(row)
     return normalized
 
 
@@ -818,6 +823,7 @@ def build_reference_item(
     artifact_id: str,
     technical_role: str,
     source: Mapping[str, Any],
+    subject_uses: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(canonical_record_id, str) or not canonical_record_id:
         raise ValueError("canonical_record_id must be a non-empty string")
@@ -826,7 +832,7 @@ def build_reference_item(
     if not isinstance(artifact_id, str) or not artifact_id:
         raise ValueError("artifact_id must be a non-empty string")
     rule = rule_for(technical_role, intended_influence)
-    return {
+    result = {
         "precedence": precedence,
         "semantic_role": semantic_role_for(technical_role, intended_influence, precedence),
         "layer": rule["layer"],
@@ -839,6 +845,10 @@ def build_reference_item(
         "authority": copy.deepcopy(rule["authority"]),
         "preamble": rule["preamble"],
     }
+    if subject_uses is not None:
+        from reference_delivery import validate_subject_uses
+        result['subject_uses'] = validate_subject_uses(subject_uses, allowed_uses=[intended_influence])
+    return result
 
 
 def build_surface_lighting_plan(
@@ -976,7 +986,7 @@ def validate_reference_use_plan_contract(value: Any) -> dict[str, Any]:
         selected = []
         errors.append(str(exc))
     selected_pairs = {
-        (row["record_id"], row["intended_influence"])
+        (row["record_id"], row["intended_influence"], json.dumps(row.get('subject_uses', []), sort_keys=True))
         for row in selected
     }
     items = value.get("reference_items")
@@ -995,7 +1005,7 @@ def validate_reference_use_plan_contract(value: Any) -> dict[str, Any]:
     ]
     if len(roles) != len(set(roles)):
         errors.append("semantic roles must be unique; unnamed reference averaging is forbidden")
-    represented: set[tuple[str, str]] = set()
+    represented: set[tuple[str, str, str]] = set()
     for index, item in enumerate(items):
         if not isinstance(item, Mapping):
             errors.append(f"reference_items[{index}] must be an object")
@@ -1003,6 +1013,7 @@ def validate_reference_use_plan_contract(value: Any) -> dict[str, Any]:
         pair = (
             str(item.get("canonical_record_id") or ""),
             str(item.get("intended_influence") or ""),
+            json.dumps(item.get('subject_uses', []), sort_keys=True),
         )
         if pair not in selected_pairs:
             errors.append(f"reference_items[{index}] is not authorized by selected_records")

@@ -1,0 +1,25 @@
+{
+  "artifact_type": "generation-failure-assessment",
+  "target": {
+    "service": "synthetic-service",
+    "model_identifier": "synthetic:portrait@1",
+    "operation": "generation"
+  },
+  "use_cases": [
+    "benign-minor-depiction"
+  ],
+  "category": "provider-moderation",
+  "basis": "provider-response",
+  "evidence": {
+    "path": "failure-response.json",
+    "sha256": "94439a07945d0263628ab181e3645f082014df8dbe33c2f36ae7b3d9a2d5c9be"
+  },
+  "signal": {
+    "pointer": "/error/code",
+    "value": "synthetic_moderation_block"
+  },
+  "reason": "The synthetic provider response explicitly identifies a moderation block.",
+  "unmeasured": [
+    "This fixture establishes no behavior or content policy for a real provider."
+  ]
+}

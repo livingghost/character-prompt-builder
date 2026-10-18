@@ -21,7 +21,9 @@ Gemini or Imagen, Firefly, Ideogram, Recraft, Leonardo, and future design-orient
 ## Choose execution
 
 For `execution: dispatcher`, follow the package, prepared-reference and verifier procedures below.
-For a host tool, use Production Execution's external branch for the approved generation task. An existing-image replacement additionally follows [Semantic instruction editing](semantic-instruction-edit.md), which binds the exact source and any auxiliary references. A text-to-image request does not acquire a scene-source or edit plan just because its model is absent from the catalog. The host request must still name the exact requested model, parameters, evidence and available media; a bounded trial requires its declared authority. External binding does not claim a compiled Generation Package or verified model profile.
+For a host tool, use Production Execution's external branch for the approved generation task. `task.image_input` binds the exact model, supplied media and external request through the [shared image-input plan](../../schemas/authoring/image-input-plan.schema.json). An existing-image replacement additionally follows [Semantic instruction editing](semantic-instruction-edit.md) for its source, intended changes and preserved properties. A text-to-image request does not acquire a scene-source or edit plan just because its model is absent from the catalog. The host request must still name the exact requested model, parameters, evidence and available media; a bounded trial requires its declared authority. External binding does not claim a compiled Generation Package or verified model profile.
+
+When accepted characters must share a scene, use [Character Assets and Multi-Character Scenes](character-repose-workflow.md) to decide whether any character asset is missing before preparing the scene request. Assess the exact stage's model against the requested use case and actual reference count through [Render contract](render-contract.md). An explicit model choice remains scoped to the stage the author selected.
 
 ## Activation and dependency preflight
 
@@ -142,9 +144,9 @@ python scripts/reference_runtime.py execute \
   --pack-root ADDITIONAL_PACK_ROOT
 ```
 
-For state-aware pack evidence, add the finalized `--reference-selection`. Follow [State-Aware Series Runtime](state-aware-series.md); the plan cannot bypass state eligibility. Supplied-file-only selection prepares on the plan-null path; a semantic edit binding also produces a plan-null set scoped by its binding.
+For state-aware pack evidence, add the finalized `--reference-selection`. Follow [State-Aware Series Runtime](state-aware-series.md); the plan cannot bypass state eligibility. Supplied-file-only selection prepares on the plan-null path; a shared image-input binding also produces a plan-null set scoped by its binding.
 
-The canonical prepared-reference-set commits target and transport mode, optional finalized state selection, non-null plan for activated pack evidence, nested Surface and Lighting hash, structured zero-reference reason, canonical preamble, authoritative source identities, exact source and model carriers, derivations, precedence, optional board manifest, and `prepared_reference_set_sha256`. It is the only reference object passed into Generation Package construction.
+The canonical prepared-reference-set commits target and transport mode, optional finalized state selection, non-null plan for activated pack evidence, nested Surface and Lighting hash, structured zero-reference reason, canonical preamble, authoritative source identities, exact source and model carriers, derivations, precedence, optional board manifest, and `prepared_reference_set_sha256`. Each character reference retains `subject_uses` with its subject, use and priority. Priority orders references only within that subject and use; it does not expand source authority. Logical uses survive deduplication of the same physical attachment. The set is the only reference object passed into Generation Package construction.
 
 `prompt-artifacts` and `svg-bundle` are prompt-delivery transports, never Generation Package reference transports. A Generation Package may contain only a verified `multi-image` prepared set, a verified `single-board` prepared set, or a reference-free `none` set for the exact target model. Do not embed or carry prompt-delivery files as model inputs, and do not relabel a prompt-facing package as a model-facing transport.
 
@@ -204,7 +206,7 @@ A refused build prints the common diagnostics and exits 2 for an input defect; [
   "required_action": "Drop --plot-file; the builder reads the run's plot.", "blocked_checks": [], "option": "--plot-file"}]}
 ```
 
-For state-aware work, use `scripts/build_state_generation_package.py` with the same production arguments. It reads the prompt from the run's delivery and reports a refusal in the same common diagnostics. It validates the supplied graph, story order, and selection identity, era, appearance, state hash, and references. A recurring subject that names the identity contract takes its character ID from that contract. `build_generation_payload.py` rejects state-aware lineage. Production Specification is mandatory for both paths.
+For state-aware work, use `scripts/build_state_generation_package.py` with the same production arguments. It reads the prompt from the run's delivery and reports a refusal in the same common diagnostics. It validates each managed subject's supplied graph, story order, selection identity, era, appearance, state hash and references against the shared Production Specification. A multi-subject state-aware task supplies `generation.state_graphs`; a stateless participant needs no invented history. Each graph's Identity Contract character ID must exactly match the corresponding reference-selection subject and Production Specification subject IDs. `build_generation_payload.py` rejects state-aware lineage. Production Specification is mandatory for both paths.
 
 State-aware example:
 
@@ -219,14 +221,7 @@ python scripts/build_state_generation_package.py \
   --brief-file source-brief.txt \
   --intent-file creative-intent.json \
   --production-spec-file production-specification.json \
-  --state-lineage-file state-lineage.json \
-  --species-profile-file species-profile.json \
-  --individual-morphology-file individual-morphology.json \
-  --identity-contract-file identity-contract.json \
-  --state-snapshot-file state-snapshot.json \
-  --scene-context-file scene-context.json \
-  --visual-projection-file visual-projection.json \
-  --asset-render-spec-file asset-render-specification.json \
+  --state-graphs-file state-graphs.json \
   --references-file prepared-reference-package/prepared-reference-set.json \
   --request-validation-file request-validation.json \
   --continuity C01=recurring --character C01=C01 \
@@ -275,7 +270,7 @@ The verifier output retains the complete positive prompt, portable negative, nat
   "required_action": "Choose a new --prompt-out.", "option": "--prompt-out"}]}
 ```
 
-For every ordered prepared-reference row, preserve the complete source identity and source hash, bounded authority, intended influence, exact model-facing transport path, media type and transport hash, deterministic derivation, precedence, and, when state-aware, `binding_id`, `covers`, `review_dimensions`, `unsupported_or_occluded_state`, and `unsupported_assumptions`. Verification reopens current active-pack source bytes and every committed package-relative carrier byte; it also validates the optional board and its panel/source/transport hashes separately from the board hash. A pack-backed activated reference still requires its non-null embedded plan, while a supplied-file-only selection without a semantic edit binding remains on the plan-null path.
+For every ordered prepared-reference row, preserve the complete source identity and source hash, bounded authority, intended influence, `subject_uses`, exact model-facing transport path, media type and transport hash, deterministic derivation, precedence, and, when state-aware, `binding_id`, `covers`, `review_dimensions`, `unsupported_or_occluded_state`, and `unsupported_assumptions`. Verification reopens current active-pack source bytes and every committed package-relative carrier byte; it also validates the optional board and its panel/source/transport hashes separately from the board hash. A pack-backed activated reference still requires its non-null embedded plan, while a supplied-file-only selection remains on the plan-null path.
 
 The output also retains `negative_transport_mode`, the exact mode-specific `negative_transport_instruction`, negative provenance, Production Specification plus hash, State Lineage plus hash, verified parameters, and `generation_input_sha256`. That generation-input hash commits the prompts and selected rendition, parameters, Production Specification, State Lineage and selection lineage, and the complete prepared-reference-set commitment as one immutable generation input. Mutating authority, selection scope, source bytes, prepared transport, board, parameter, or lineage requires rebuilding and reverifying the package.
 

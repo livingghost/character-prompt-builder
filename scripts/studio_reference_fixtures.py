@@ -30,8 +30,8 @@ def adopted_case(test, *, work_id: str = 'C01'):
     return case
 
 
-def adopt_second(case, character: str, *, work_id: str) -> dict:
-    """Complete an independent single-subject Studio adoption in the same Studio."""
+def adopt_second(case, character: str, *, work_id: str, pixels: bytes | None = None) -> dict:
+    """Adopt a second synthetic PNG, using the first image's bytes by default."""
     root = case.root
     studio.add_character(root, character, 'general')
     task = copy.deepcopy(case.task)
@@ -40,12 +40,13 @@ def adopt_second(case, character: str, *, work_id: str) -> dict:
     run = workflow.prepare(root, character + '-task.json')['run']
     import transport_synthetic
     original_send = transport_synthetic.send
-    def identical_pixels(*args, **kwargs):
+    selected_pixels = c.read(root / case.row['result']['path']) if pixels is None else pixels
+    def selected_response(*args, **kwargs):
         answer = original_send(*args, **kwargs)
-        # Identical returned pixels, separately approved owners: hashes alone must not merge them.
-        answer['data'][0]['data'] = base64.b64encode(c.read(root / case.row['result']['path'])).decode('ascii')
+        # The selected fixture bytes are captured before review and adoption.
+        answer['data'][0]['data'] = base64.b64encode(selected_pixels).decode('ascii')
         return answer
-    with patch.object(transport_synthetic, 'send', side_effect=identical_pixels):
+    with patch.object(transport_synthetic, 'send', side_effect=selected_response):
         out = execution.execute(root, run, decisions_file=decisions(root, run))
     candidate = out['runs'][0]['candidates'][0]
     row = studio.read_iterations(studio.character_home(root, character))[0]

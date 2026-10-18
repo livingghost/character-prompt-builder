@@ -5,7 +5,9 @@ import operation_context as _operation_context
 import argparse
 import json
 from pathlib import Path
+import model_suitability as suitability
 import render_contract_lib as r
+from pack_manager import PackError
 
 
 def load(path: str):
@@ -76,10 +78,30 @@ def main(argv=None) -> int:
     check = sub.add_parser('validate-intent');check.add_argument('file')
     check.add_argument('--draft', action='store_true')
     check = sub.add_parser('validate-profile');check.add_argument('file')
+    preferences = sub.add_parser('preferences', help='Inspect or install the author\'s complete model selection preferences')
+    preferences.add_argument('--file', help='Validated preferences to install in the configuration home')
+    diagnose = sub.add_parser('diagnose', help='Check saved failure evidence without retrying generation')
+    diagnose.add_argument('--root', required=True)
+    diagnose.add_argument('--failure', required=True, help='Failure assessment path relative to the Studio root')
+    diagnose.add_argument('--model', help='Known catalog model; its offering must match the saved failure target')
     from pack_runtime_cli import add_pack_runtime_arguments
-    for command in ('model', 'compile'):
+    add_pack_runtime_arguments(diagnose)
+    add_pack_runtime_arguments(preferences)
+    for command in ('model', 'compile', 'assess'):
         p = sub.add_parser(command)
-        p.add_argument('--model', required=True);p.add_argument('--service')
+        if command == 'assess':
+            target = p.add_mutually_exclusive_group(required=True)
+            target.add_argument('--model')
+            target.add_argument('--model-identifier', help='Exact external interface identifier when no catalog record is used')
+            p.add_argument('--operation', choices=sorted(suitability.OPERATIONS))
+            p.add_argument('--use-case', action='append', required=True)
+            p.add_argument('--mode', required=True, choices=sorted(r.MODES))
+            p.add_argument('--reference-count', required=True, type=int)
+            p.add_argument('--alternative-model', action='append', default=[], metavar='MODEL[=SERVICE]',
+                           help='Compare a catalog model on its sole offering, or on an explicitly named service')
+        else:
+            p.add_argument('--model', required=True)
+        p.add_argument('--service')
         add_pack_runtime_arguments(p)
         if command == 'compile':
             p.add_argument('--intent', required=True);p.add_argument('--parameters', required=True)
@@ -98,18 +120,70 @@ def main(argv=None) -> int:
             r.validate_intent(load(args.file), for_generation=not args.draft);result={'ok':True}
         elif args.command == 'validate-profile':
             r.validate_profile(load(args.file));result={'ok':True}
+        elif args.command == 'preferences':
+            from pack_runtime_cli import resolve_pack_runtime
+            from catalog_cli import configure_pack_runtime
+            runtime = resolve_pack_runtime(parser, args)
+            configure_pack_runtime(runtime.settings);configured=True
+            if args.file:
+                result = {'ok': True, **suitability.install_preferences(load(args.file))}
+            else:
+                value, witness = suitability.load_preferences()
+                result = {'preferences': value, 'source': witness, 'path': str(suitability.preferences_path())}
+        elif args.command == 'diagnose':
+            from input_evidence import InputEvidence
+            from pack_runtime_cli import resolve_pack_runtime
+            from catalog_cli import configure_pack_runtime
+            runtime = resolve_pack_runtime(parser, args)
+            configure_pack_runtime(runtime.settings);configured=True
+            root = Path(args.root).resolve()
+            reader = InputEvidence(root)
+            record = None
+            if args.model:
+                from prepare_generation_references import resolve_model_record
+                _, record = resolve_model_record(args.model)
+            result = suitability.diagnose(reader.json(reader.select(args.failure)), root, record=record)
         else:
             from pack_runtime_cli import resolve_pack_runtime
             from catalog_cli import configure_pack_runtime
             from prepare_generation_references import resolve_model_record
             from model_contract import select_offering
+            external = args.command == 'assess' and args.model_identifier is not None
             runtime = resolve_pack_runtime(parser, args)
             configure_pack_runtime(runtime.settings);configured=True
-            model_id, record = resolve_model_record(args.model)
-            offering = select_offering(record, args.service)
+            if external:
+                if not args.service or not args.operation:
+                    raise ValueError('external assessment requires --service and --operation')
+                model_id, record = None, {'operation_kind': args.operation}
+                offering = {'service': args.service, 'model_identifier': args.model_identifier}
+            else:
+                model_id, record = resolve_model_record(args.model)
+                offering = select_offering(record, args.service)
             if args.command == 'model':
                 result = r.model_card(record, offering)
                 measured_basis(model_id, record, offering)
+            elif args.command == 'assess':
+                preferences, witness = suitability.load_preferences()
+                options = {'use_cases': args.use_case, 'mode': args.mode, 'reference_count': args.reference_count,
+                           'operation': args.operation, 'preferences': preferences, 'witness': witness}
+                result = {'selected': suitability.assess(record, offering, **options),
+                          'alternatives': [], 'alternative_resolution_errors': []}
+                for name in dict.fromkeys(args.alternative_model):
+                    alternative_name, separator, alternative_service = name.partition('=')
+                    try:
+                        if not alternative_name or (separator and not alternative_service):
+                            raise ValueError('an alternative names MODEL or MODEL=SERVICE')
+                        alternative_id, alternative = resolve_model_record(alternative_name)
+                        alternative_offering = select_offering(alternative, alternative_service if separator else None)
+                        result['alternatives'].append(suitability.assess(alternative, alternative_offering, **options))
+                    except (ValueError, KeyError) as exc:
+                        result['alternative_resolution_errors'].append({
+                            'model': alternative_name, 'service': alternative_service if separator else None,
+                            'reason': str(exc)})
+                result['suggested_models'] = [
+                    {key: row[key] for key in ('model', 'service', 'model_identifier')}
+                    for row in result['alternatives']
+                                              if row['selection_status'] == 'candidate']
             else:
                 if args.reference_count < 0:
                     raise ValueError('reference count must be nonnegative')
@@ -121,7 +195,7 @@ def main(argv=None) -> int:
             with path.open('x',encoding='utf-8',newline='\n') as f:f.write(raw)
         print(r.summary(result) if getattr(args,'text',False) else raw, end='\n' if getattr(args,'text',False) else '')
         return 0
-    except (ValueError,OSError,KeyError,TypeError) as exc:
+    except (ValueError,OSError,KeyError,TypeError,PackError) as exc:
         print(json.dumps({'ok':False,'errors':[str(exc)]},ensure_ascii=False));return 1
     finally:
         if configured:

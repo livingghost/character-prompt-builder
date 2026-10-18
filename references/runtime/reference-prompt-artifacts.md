@@ -3,7 +3,7 @@
 Use this document to prepare selected canonical evidence or deliver a prompt with reusable reference files.
 It materializes source SVG or raster artifacts without calling an image-generation service.
 For direct editing of supplied images through a host tool, use [Semantic instruction editing](semantic-instruction-edit.md).
-That path binds originals and authority without inventing pack records or a canonical prepared set.
+The common image input plan binds originals and authority. Canonical sources retain their existing prepared-set provenance.
 
 ## Contents
 
@@ -35,7 +35,7 @@ Before final prompt delivery:
 2. Run full `asset-lookup` for every selected record. Review complete active-pack ownership, resource metadata and source bytes, artifact paths and hashes, linked-record context, and technical roles before deciding whether evidence is adopted.
 3. For an adopted visual contribution, declare `RECORD_ID=INTENDED_INFLUENCE`. The influence is exactly one of `identity`, `pose-camera`, `outfit`, `surface-finish`, `lighting`, `environment`, `prop-accessory`, or `local-color`.
 4. Build one Reference Use Plan from the declarations.
-5. Review every selected item's semantic role, technical role, authority, exclusions, and precedence.
+5. Review every selected item's subject uses, semantic and technical roles, authority, exclusions, and precedence.
 6. Resolve or explicitly retain prompt-facing Surface and Lighting decisions.
 7. Execute the plan transactionally as `prompt-artifacts` or, for an explicitly SVG-consuming downstream tool, `svg-bundle`.
 8. Validate the prepared-reference-set against its package root, the current active pack declarations, and current source bytes.
@@ -79,7 +79,7 @@ Do not present an audit projection as the final image. Its grayscale, white mask
 
 Layer C is the Reference Use Plan and prepared transport. It records ordered uses, semantic and technical roles, bounded authority and exclusions, precedence, pack and source provenance, source hashes, exact package paths and delivered hashes, the Surface and Lighting Plan and hash, the canonical preamble, optional state-selection origin, and optional board or transport data for a later generation branch.
 
-Use one reference when one record/artifact pair has clear bounded authority, or several when separate record uses carry identity, pose-camera, outfit, surface-finish, lighting, environment, prop-accessory, or local-color evidence. Preserve plan order as explicit precedence. Never assume one SVG is the only available reference or merge several source roles into an unnamed average. The same canonical record may be declared repeatedly for distinct intended influences. Duplicate technical roles remain separate because `record_id` plus `intended_influence` defines their authority; multi-reference use does not require different canonical records.
+Use one reference when one record/artifact pair has clear bounded authority, or several when separate record uses carry identity, pose-camera, outfit, surface-finish, lighting, environment, prop-accessory, or local-color evidence. Preserve plan order as explicit precedence. Never assume one SVG is the only available reference or merge several source roles into an unnamed average. The same canonical record may be declared repeatedly for distinct intended influences or subject assignments. `subject_uses` states the actual subject ID, use and local priority; [Exact reference delivery](reference-delivery.md) defines its JSON declaration and projection. Duplicate technical roles remain separate because `record_id`, `intended_influence` and `subject_uses` define their bounded assignment; multi-reference use does not require different canonical records.
 
 When an already validated Visual Evidence Bundle is active, verify its native-dimension source-derived perceptual Layer A vector projection, whole-frame settings and fidelity metrics, hashes, SVG safety, Layer B audit set, Layer C runtime recipes, and portable source identity before using it as visual authority. An automated audit mask is not human review. Never feed the entire corpus to a model; select the small number of relevant bundle items and compile only disposable, role-scoped attachments through the canonical Reference Use Plan.
 

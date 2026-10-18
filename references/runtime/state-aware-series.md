@@ -122,18 +122,29 @@ A short `use this character in this scene` instruction may produce a plausible c
 
 ## Reference Selection and materialization
 
-A finalized Reference Selection is the state-eligibility boundary; the Reference Use Plan is semantic and technical authority. A planned item is eligible only when the selection contains the same committed source and includes its intended influence. The plan cannot bypass story range, graph hashes, required-visible-feature rules, unsupported or occluded state, unsupported assumptions, or state eligibility.
+A finalized Reference Selection governs the scene's state-aware subjects. A Reference Use Plan owns each pack source's semantic and technical authority. A plan item assigned to a state-aware subject must match its selected source, subject and intended influence. Other subjects and scene references retain their ordinary scopes. The plan preserves story range, graph hashes, visible-feature requirements and excluded state.
 
-State-aware preparation has two exclusive paths:
+Use the existing source owner to prepare one set:
 
-- If the finalized selection contains any `pack-artifact`, build and review one Reference Use Plan, then execute it with `reference_runtime.py execute --reference-selection`.
-- If the selection contains only request-supplied files or adopted `studio-artifact` sources, use `prepare_generation_references.py --state-selection-file`. That path emits a plan-null prepared set and rejects every `pack-artifact` row.
+- For pack sources, execute the reviewed Reference Use Plan with `reference_runtime.py execute --reference-selection`. The executor retains direct state references beside its pack rows.
+- For a selection containing only supplied files or adopted Studio sources, use `prepare_generation_references.py --state-selection-file`.
+- Append ordinary references for stateless subjects or the scene with `--studio-selection-file` and `--studio`, or `--supplied-selection-file`, on either executor.
 
 For current Studio canon, use [Studio Canon References](studio-canon-references.md) to populate the exact source and proof from an adopted slot. No image pack registration is required.
 
-Do not combine pack-backed and plan-null preparation or fabricate pack coordinates for a supplied file. Preserve each binding's `binding_id`, `covers`, `intended_influence`, `review_dimensions`, `unsupported_or_occluded_state`, and `unsupported_assumptions` in the prepared row.
+Pack rows keep plan order. Direct state rows follow in selection order, then additional ordinary rows in their authored order. State-scoped rows match that selected subsequence exactly. A generic row cannot name a state-managed subject or discard the state scope of its selected source. Each state row preserves `subject_id`, optional `subject_uses`, `binding_id`, `covers`, `intended_influence`, `review_dimensions`, `unsupported_or_occluded_state`, and `unsupported_assumptions`.
 
-Build a finalized selection only after reviewing the plan and confirming that every exact planned source and influence exists in the bindings:
+For state-aware A and stateless B, add B's accepted face and outfit choices without a B state context:
+
+```sh
+python scripts/reference_runtime.py execute --plan reference-use-plan.json \
+  --reference-selection selection-a.json --studio STUDIO \
+  --studio-selection-file choices-b.json --output-dir reference-package
+```
+
+[Studio canon references](studio-canon-references.md) defines the ordered choices. Both source owners retain their original IDs, hashes and adoption evidence.
+
+Build a finalized selection after confirming the exact sources and influences used by its state-aware subjects:
 
 ```bash
 python scripts/select_state_references.py \
@@ -149,6 +160,47 @@ python scripts/select_state_references.py \
   --managed-root MANAGED_PACKS \
   --pack-root ADDITIONAL_PACK_ROOT
 ```
+
+For several state-aware characters, retain their independently finalized selections:
+
+```bash
+python scripts/select_state_references.py \
+  --selection selection-a.json --selection selection-b.json \
+  --selection-id SEL-SHARED-SCENE --out reference-selection.json
+```
+
+`subjects[]` contains each `subject_id`, identity, era, appearance and snapshot
+hashes, story order and required state features. Every selected row names its
+subject. Coverage and unresolved requirements are evaluated per subject.
+`--reference-order-file` optionally supplies the complete ordered list of
+`{"subject_id":"A","binding_id":"BIND-A"}` pairs. Input order remains stable
+when no order is authored. `--limit` is an explicit logical selection limit;
+there is no fixed aesthetic quota.
+
+The Production Specification's subjects with `state_snapshot_ref` are its
+state-aware cast. Other subjects can remain stateless. Supply `state_graphs` as
+one JSON array through `generation.state_graphs` or `--state-graphs-file`:
+
+```json
+[{"lineage": {"artifact_type": "state-lineage", "...": "complete finalized artifact"},
+  "species_profile": {}, "individual_morphology": {}, "identity_contract": {},
+  "state_snapshot": {}, "scene_context": {}, "visual_projection": {},
+  "asset_render_spec": {}}]
+```
+
+This shape illustration abbreviates artifact contents; every node must contain
+its complete validated artifact. Add `era_contract`, `form_contract`,
+`appearance_variant`, `visual_authority` or `visual_evidence_bundle` when the
+graph declares them. The executable state-aware pilot writes a complete
+`generated/state-graphs.json` example.
+
+The builder checks every graph's schema, hash, ownership, chronology, morphology
+and projection edges. Graphs cover the state-aware subjects exactly once and
+agree with the common scene context and render decisions. The existing primary
+lineage must occur exactly once. Both builders derive its lineage and snapshot
+from that graph; supplied scalar values must match. The package commits the complete array and
+`state_graphs_sha256`; verification repeats the graph checks. A second character's
+invalid graph cannot borrow the first character's valid hash or feature coverage.
 
 Pass the same state selection and pack runtime into reference materialization and the state-aware Generation Package builder. A change to authority, source, influence, state graph, or visible requirement requires a newly reviewed plan and selection.
 

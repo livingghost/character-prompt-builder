@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a verified generation package from one concrete state artifact graph."""
+"""Build a verified generation package from concrete character state graphs in one scene."""
 from __future__ import annotations
 import operation_context as _operation_context
 
@@ -28,7 +28,8 @@ from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 from prepare_generation_references import validate_prepared_reference_set
 from state_protocol import (
     artifact_hash,
-    validate_state_artifact_graph,
+    validate_subject_state_graphs,
+    parse_json,
     write_json,
 )
 
@@ -41,14 +42,7 @@ def build_package(
     brief: str,
     creative_intent: dict[str, Any],
     production_spec: dict[str, Any],
-    state_lineage: dict[str, Any],
-    species_profile: dict[str, Any],
-    individual_morphology: dict[str, Any],
-    identity_contract: dict[str, Any],
-    state_snapshot: dict[str, Any],
-    scene_context: dict[str, Any],
-    visual_projection: dict[str, Any],
-    asset_render_spec: dict[str, Any],
+    state_graphs: list[dict[str, Any]],
     plot: dict[str, Any],
     parameters: dict[str, Any],
     retrieval_record: dict[str, Any] | None = None,
@@ -61,11 +55,6 @@ def build_package(
     integrated_prompt: str = "",
     native_negative: str = "",
     negative_provenance: dict[str, Any] | None = None,
-    era_contract: dict[str, Any] | None = None,
-    form_contract: dict[str, Any] | None = None,
-    appearance_variant: dict[str, Any] | None = None,
-    visual_authority: dict[str, Any] | None = None,
-    visual_evidence_bundle: dict[str, Any] | None = None,
     prepared_reference_set: dict[str, Any] | None = None,
     prepared_reference_root: Path | None = None,
     negative_transport: str = "auto",
@@ -75,12 +64,8 @@ def build_package(
 ) -> dict[str, Any]:
     from prompt_retrieval import require_generation_retrieval
     require_generation_retrieval(retrieval_record, prompt=prompt, plot=plot)
-    if state_lineage.get("mode") != "state-aware":
-        raise ValueError("state-aware package requires state-lineage mode=state-aware")
     if production_spec.get("target_model") != model:
         raise ValueError("package model differs from production specification target_model")
-    if asset_render_spec.get("target_model") != model:
-        raise ValueError("package model differs from asset render specification target_model")
     if prepared_reference_set is None:
         raise ValueError(
             "state-aware package requires a prepared reference set, including when "
@@ -94,38 +79,10 @@ def build_package(
     selection = reference_set["reference_selection"]
     if not isinstance(selection, dict):
         raise ValueError("state-aware package requires a finalized reference-selection")
-    expected_selection_graph = {
-        "identity_contract_sha256": artifact_hash(identity_contract),
-        "era_contract_sha256": artifact_hash(era_contract) if era_contract is not None else None,
-        "appearance_variant_sha256": (
-            artifact_hash(appearance_variant) if appearance_variant is not None else None
-        ),
-        "state_snapshot_sha256": artifact_hash(state_snapshot),
-        "story_order": state_snapshot.get("story_order"),
-    }
-    for field, expected in expected_selection_graph.items():
-        if selection.get(field) != expected:
-            raise ValueError(
-                f"reference-selection {field} differs from the supplied state graph"
-            )
-    graph_report = validate_state_artifact_graph(
-        lineage=state_lineage,
-        species_profile=species_profile,
-        individual_morphology=individual_morphology,
-        identity_contract=identity_contract,
-        era_contract=era_contract,
-        form_contract=form_contract,
-        appearance_variant=appearance_variant,
-        state_snapshot=state_snapshot,
-        scene_context=scene_context,
-        visual_projection=visual_projection,
-        asset_render_spec=asset_render_spec,
-        visual_authority=visual_authority,
-        visual_evidence_bundle=visual_evidence_bundle,
-        production_spec=production_spec,
-    )
-    if not graph_report.get("ok"):
-        raise ValueError("invalid state artifact graph: " + "; ".join(graph_report["errors"]))
+    state_graphs = validate_subject_state_graphs(state_graphs, production_spec=production_spec,
+        reference_selection=selection)
+    primary_hash = production_spec['state_context']['state_lineage_sha256']
+    primary = next(graph for graph in state_graphs if graph['lineage']['lineage_sha256'] == primary_hash)
 
     payload = build_payload(
         plot=plot,
@@ -143,8 +100,9 @@ def build_package(
         brief=brief,
         creative_intent=creative_intent,
         production_spec=production_spec,
-        state_lineage=state_lineage,
-        state_snapshot=state_snapshot,
+        state_lineage=primary["lineage"],
+        state_snapshot=primary["state_snapshot"],
+        state_graphs=state_graphs,
         prepared_reference_set=reference_set,
         prepared_reference_root=prepared_reference_root,
         parameters=parameters,
@@ -198,19 +156,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--plot-file", help="The approved plot this picture was drawn from, when the run declares none")
     parser.add_argument("--retrieval-record-file",
                         help="Settled retrieval record bound to the run's prompt and the plot, when the run declares none")
-    parser.add_argument("--state-lineage-file", required=True, help="State lineage JSON with mode state-aware")
-    parser.add_argument("--species-profile-file", required=True, help="Species morphology profile JSON")
-    parser.add_argument("--individual-morphology-file", required=True, help="Individual morphology contract JSON")
-    parser.add_argument("--identity-contract-file", required=True, help="Character identity contract JSON")
-    parser.add_argument("--era-contract-file", help="Era contract JSON, when the character has one")
-    parser.add_argument("--form-contract-file", help="Form contract JSON, when the character has one")
-    parser.add_argument("--appearance-variant-file", help="Appearance variant JSON, when the scene uses one")
-    parser.add_argument("--state-snapshot-file", required=True, help="Character state snapshot JSON for this story order")
-    parser.add_argument("--scene-context-file", required=True, help="Scene context snapshot JSON")
-    parser.add_argument("--visual-projection-file", required=True, help="Visual state projection JSON")
-    parser.add_argument("--asset-render-spec-file", required=True, help="Asset render specification JSON")
-    parser.add_argument("--visual-authority-file", help="Visual authority JSON, when the graph names one")
-    parser.add_argument("--visual-evidence-bundle-file", help="Visual evidence bundle JSON, when the graph names one")
+    parser.add_argument("--state-graphs-file", required=True,
+                        help="JSON array of each state-aware subject's concrete graph nodes")
     parser.add_argument(
         "--references-file",
         required=True,
@@ -258,13 +205,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             staging_root=staging_root,
             companion_name=final_companion.name,
         )
-        identity_contract = graph("--identity-contract-file")
-        # A recurring subject that names this identity contract is that work character.
-        identity_hash = artifact_hash(identity_contract)
-        work_ids = {subject["id"]: identity_contract.get("character_id")
-                    for subject in production_spec.get("subjects") or []
-                    if isinstance(subject, dict) and isinstance(identity_contract.get("character_id"), str)
-                    and (subject.get("identity_contract_ref") or {}).get("sha256") == identity_hash}
+        state_graphs = parse_json(studio_text(root, args.state_graphs_file, "--state-graphs-file"))
+        state_graphs = validate_subject_state_graphs(state_graphs, production_spec=production_spec,
+            reference_selection=staged_reference_set['reference_selection'])
+        work_ids = {graph['identity_contract']['character_id']: graph['identity_contract']['character_id']
+                    for graph in state_graphs}
         derived = production_inputs(args, model=model, production_spec=production_spec,
                                     prepared_reference_set=staged_reference_set, staging_root=staging_root,
                                     work_ids=work_ids, loaded=loaded)
@@ -285,19 +230,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             visual_continuity=derived["visual_continuity"],
             visual_root=derived["root"],
             reading_ledgers=[staging_root / "reads.jsonl"],
-            state_lineage=graph("--state-lineage-file"),
-            species_profile=graph("--species-profile-file"),
-            individual_morphology=graph("--individual-morphology-file"),
-            identity_contract=identity_contract,
-            era_contract=graph("--era-contract-file"),
-            form_contract=graph("--form-contract-file"),
-            appearance_variant=graph("--appearance-variant-file"),
-            state_snapshot=graph("--state-snapshot-file"),
-            scene_context=graph("--scene-context-file"),
-            visual_projection=graph("--visual-projection-file"),
-            asset_render_spec=graph("--asset-render-spec-file"),
-            visual_authority=graph("--visual-authority-file"),
-            visual_evidence_bundle=graph("--visual-evidence-bundle-file"),
+            state_graphs=state_graphs,
             prepared_reference_set=staged_reference_set,
             prepared_reference_root=staging_root,
             parameters=chosen["parameters"],

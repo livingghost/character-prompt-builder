@@ -860,14 +860,17 @@ def run() -> dict[str, Any]:
                 {
                     "artifact_type": "reference-selection",
                     "selection_id": "SEL-ineligible",
+                    "subjects": [{"subject_id": "C01",
                     "identity_contract_sha256": "1" * 64,
                     "era_contract_sha256": None,
                     "appearance_variant_sha256": None,
                     "state_snapshot_sha256": None,
                     "story_order": 0,
                     "required_state_features": [],
+                    }],
                     "selected_references": [
                         {
+                            "subject_id": "C01",
                             "binding_id": "BIND-ineligible",
                             "role": "identity-reference",
                             "source": copy.deepcopy(outfit_plan["reference_items"][0]["source"]),

@@ -667,6 +667,13 @@
             }
           },
           "additionalProperties": false
+        },
+        "use_case_guidance": {
+          "type": "array",
+          "description": "Scoped recommendations with separate provider statements, user reports or observed outcomes for this exact offering. Missing entries remain unknown.",
+          "items": {
+            "$ref": "#/$defs/model-use-case-guidance"
+          }
         }
       }
     },
@@ -1992,6 +1999,84 @@
         "sha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "model-use-case-guidance": {
+      "type": "object",
+      "required": [
+        "id",
+        "operation",
+        "use_case",
+        "recommendation",
+        "reason",
+        "basis"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "enum": [
+            "generation",
+            "instruction-edit",
+            "upscale"
+          ]
+        },
+        "use_case": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recommendation": {
+          "enum": [
+            "discourage",
+            "consider",
+            "unknown"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "basis": {
+          "type": "object",
+          "required": [
+            "kind",
+            "source",
+            "observed_at",
+            "limitations"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "provider-statement",
+                "user-report",
+                "observed-outcome",
+                "author-preference",
+                "synthetic"
+              ]
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "observed_at": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            },
+            "limitations": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

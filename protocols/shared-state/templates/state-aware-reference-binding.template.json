@@ -31,5 +31,17 @@
   "review_dimensions": [],
   "fallback_if_unstable": "build a composite start frame or regenerate a state-correct derivative",
   "superseded_for_future_scenes": false,
-  "binding_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  "binding_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "subject_uses": [
+    {
+      "subject_id": "C01",
+      "use": "identity",
+      "priority": 0
+    },
+    {
+      "subject_id": "C01",
+      "use": "surface-finish",
+      "priority": 1
+    }
+  ]
 }

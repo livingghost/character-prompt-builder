@@ -44,6 +44,8 @@ Run `python scripts/render_contract.py presets` to inspect finish choices, then 
 Run `python scripts/render_contract.py model --model MODEL_ID` for a catalog target's complete guidance card.
 An external target absent from the catalog uses acquired provider evidence and the ordinary external execution branch.
 Existing-image edits also require an exact semantic edit binding.
+Shared image inputs bind each subject's reference uses and the exact external request.
+Apply scoped model use-case guidance and current author selection preferences.
 The Production Specification owns dispatcher `render_intent`; external tasks retain it as an applied source.
 Preparation shows the complete request. Dispatcher packages seal resolved controls; external bindings pin the authored request and evidence.
 
@@ -82,8 +84,9 @@ It is sent only to the host the transport pins.
 
 External host tools use the same `check`, `prepare`, review and capture owners.
 Follow Production Execution's handoff, exact authorization, `claim-external`,
-host call and `settle-external` branch. Semantic edits bind the original images,
-their roles and the exact provider request through `task.semantic_edit`.
+host call and `settle-external` branch. `task.image_input` binds original images,
+their uses and the exact provider request. `task.semantic_edit` owns requested
+changes, preservation and review of an existing image.
 Each further external trial gets its own task, request and preparation.
 Use `status` or `resume` after interruption and recover the existing host result.
 

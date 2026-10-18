@@ -46,13 +46,24 @@ An `asset` is a searchable record, not a loose file. Its `primary_resource` iden
 
 ## Core-interpreted resource contracts
 
-Most named resources are opaque to core pack validation. Three logical names are interpreted directly by core workflows and therefore have semantic contracts that hold in every pack that binds them:
+Most named resources are opaque to core pack validation. Core workflows apply semantic contracts to named resources, including:
 
 - `pack-defaults` enables one medium family by default and permits a hybrid only after an explicit request: `medium_policy.single_medium_family_by_default` and `medium_policy.hybrid_requires_explicit_request` are both `true`.
 - `negative-policy` makes semantic exclusions user-request-only. Its `scene_failure_modes` and `atomic_misreadings` sources remain diagnostic-only with `automatic_emission: false`.
 - `discovery-lanes` keeps every `preferred_scene_ids` target resolvable in the active canonical record set. Missing targets exclude the resource and produce a diagnostic instead of being silently skipped.
+- `model-selection-preferences` holds scoped author choices under the [preference schema](../../schemas/model-selection-preferences.schema.json). Entries retain their selectors, reasons and provenance.
 
 These contracts apply to the bundled commons pack and to any other pack that binds one of the logical names. `pack_cli.py validate` and lock construction reject a bound known resource that violates its contract. `audit_preset_quality.py` also validates the resources of the enabled packs.
+
+A synthetic manifest fragment binds a model selection policy; its target must also match `resource_globs`:
+
+```json
+{"content":{"resource_bindings":{"model-selection-preferences":"resources/policies/model-selection-preferences.json"}}}
+```
+
+The policy, its provenance and its lock entry belong to the declaring pack's release unit.
+The active runtime selects one complete resource using the ordinary rank and conflict rules.
+[Render contract](../runtime/render-contract.md#apply-the-authors-model-selection-preferences) defines the home override and empty fallback.
 
 ## Development and locking
 
@@ -175,6 +186,7 @@ Core documentation, runtime defaults and regression expectations never depend on
 
 - its record IDs and aliases;
 - its model inventory and counts;
+- its author preferences and personal observations;
 - its search results and evaluation history.
 
 The product's tests and release checks create commons-only states with `ready --only`. A test that needs other content creates a synthetic pack in a temporary directory. This boundary protects ownership without deleting, moving, renaming, or excluding a personal pack.

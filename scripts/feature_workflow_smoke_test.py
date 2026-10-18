@@ -471,11 +471,13 @@ class FeatureWorkflowTests(unittest.TestCase):
         import build_state_generation_package as state_builder
         required = {name: {} for name, param in inspect.signature(state_builder.build_package).parameters.items()
                     if param.default is inspect.Parameter.empty}
-        required.update(model=MODEL_ID, prompt=PROMPT, negative_prompt='', brief='', plot=APPROVED_PLOT)
+        required.update(model=MODEL_ID, prompt=PROMPT, negative_prompt='', brief='', plot=APPROVED_PLOT,
+                        production_spec=copy.deepcopy(self.package['production_spec']), state_graphs=[],
+                        prepared_reference_set=empty_stateless_reference_set())
         for record in (None, {'settled': False}, fixture_retrieval(PROMPT+' other', APPROVED_PLOT)):
             with self.subTest(record=record), self.assertRaisesRegex(ValueError, 'retrieval'):
                 state_builder.build_package(**required, retrieval_record=record)
-        with self.assertRaisesRegex(ValueError, 'state-lineage mode'):
+        with self.assertRaisesRegex(ValueError, '^state-aware package requires a finalized reference-selection$'):
             state_builder.build_package(**required, retrieval_record=fixture_retrieval(PROMPT, APPROVED_PLOT))
 
     def test_38_documented_state_package_commands_include_required_gates(self):

@@ -83,6 +83,7 @@ def _builder_fingerprint() -> str:
         Path(__file__).resolve(),
         Path(__file__).with_name("pack_manager.py").resolve(),
         Path(__file__).with_name("resource_policy.py").resolve(),
+        Path(__file__).with_name("model_suitability.py").resolve(),
         Path(__file__).with_name("search_discovery.py").resolve(),
         Path(__file__).with_name("state_protocol.py").resolve(),
         ROOT / "schemas" / "pack.schema.json",
@@ -575,6 +576,8 @@ def _resolve_runtime_pack_inputs(
         if report.valid:
             valid_packs.append((pack, report.records))
         else:
+            content = (report.manifest or {}).get("content")
+            bindings = content.get("resource_bindings") if isinstance(content, Mapping) else None
             diagnostics.append(
                 {
                     "severity": "error",
@@ -583,6 +586,7 @@ def _resolve_runtime_pack_inputs(
                     "root": str(pack.root),
                     "message": f"Pack {pack.pack_id} was excluded because validation failed.",
                     "details": report.to_dict()["errors"],
+                    "resource_bindings": dict(bindings) if isinstance(bindings, Mapping) else {},
                 }
             )
     valid_packs = _remove_broken_dependencies(valid_packs, diagnostics)
@@ -705,7 +709,15 @@ def _print_warnings(lines: Sequence[str]) -> None:
 def resource_warning(catalog: RuntimePackCatalog, name: str) -> str | None:
     """Why the named resource is not in the catalog, or None when nothing failed."""
 
+    if name in catalog.resources:
+        return None
     for row in catalog.diagnostics:
+        if row.get("code") == "invalid-enabled-pack" and name in (row.get("resource_bindings") or {}):
+            pack_id = str(row.get("pack_id") or "")
+            return next(
+                (line for line in catalog.warnings if pack_id and pack_id in line),
+                str(row.get("message")),
+            )
         if row.get("resource") == name and row.get("code") in {"resource-conflict", "known-resource-contract"}:
             members = [str(value) for value in row.get("pack_ids") or []]
             return next(

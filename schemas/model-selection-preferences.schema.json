@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "model-selection-preferences.schema.json",
+  "title": "Author-owned model selection preferences",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "entries"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "model-selection-preferences"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "selector",
+          "preference",
+          "reported_failure",
+          "reason",
+          "basis"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selector": {
+            "type": "object",
+            "required": [
+              "family",
+              "model_patterns",
+              "service",
+              "operations",
+              "use_cases"
+            ],
+            "properties": {
+              "family": {
+                "type": "string",
+                "minLength": 1
+              },
+              "model_patterns": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "field",
+                    "pattern"
+                  ],
+                  "properties": {
+                    "field": {
+                      "enum": [
+                        "model-id",
+                        "model-identifier"
+                      ]
+                    },
+                    "pattern": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "service": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1
+              },
+              "operations": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "enum": [
+                    "generation",
+                    "instruction-edit",
+                    "upscale"
+                  ]
+                }
+              },
+              "use_cases": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "preference": {
+            "enum": [
+              "discourage",
+              "no-discouragement"
+            ]
+          },
+          "reported_failure": {
+            "enum": [
+              null,
+              "provider-moderation",
+              "provider-refusal"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "basis": {
+            "type": "object",
+            "required": [
+              "kind",
+              "source",
+              "observed_at",
+              "limitations"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "user-report",
+                  "author-preference",
+                  "synthetic"
+                ]
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "observed_at": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+              },
+              "limitations": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "reported_failure": {
+                  "enum": [
+                    "provider-moderation",
+                    "provider-refusal"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "basis": {
+                  "properties": {
+                    "kind": {
+                      "const": "user-report"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "additionalProperties": false
+}

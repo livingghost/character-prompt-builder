@@ -6,7 +6,14 @@
   "selected_records": [
     {
       "record_id": "example-outfit-record",
-      "intended_influence": "outfit"
+      "intended_influence": "outfit",
+      "subject_uses": [
+        {
+          "subject_id": "C01",
+          "use": "outfit",
+          "priority": 0
+        }
+      ]
     }
   ],
   "reference_items": [
@@ -42,7 +49,14 @@
           "source pose, camera, crop, environment, lighting, and temporary state unless independently authorized"
         ]
       },
-      "preamble": "Use this faithful-archival-vector only for outfit: garment and wearable construction; garment material class; garment local color; wearable placement and layering. It must not control scene-conditioned presentation outside the declared intended influence; character identity, species, anatomy, permanent markings, hair or fur identity, gaze, expression, and transient body state; source pose, camera, environment, and lighting; source pose, camera, crop, environment, lighting, and temporary state unless independently authorized."
+      "preamble": "Use this faithful-archival-vector only for outfit: garment and wearable construction; garment material class; garment local color; wearable placement and layering. It must not control scene-conditioned presentation outside the declared intended influence; character identity, species, anatomy, permanent markings, hair or fur identity, gaze, expression, and transient body state; source pose, camera, environment, and lighting; source pose, camera, crop, environment, lighting, and temporary state unless independently authorized.",
+      "subject_uses": [
+        {
+          "subject_id": "C01",
+          "use": "outfit",
+          "priority": 0
+        }
+      ]
     }
   ],
   "surface_lighting_plan": {

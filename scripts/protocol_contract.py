@@ -1185,40 +1185,42 @@ def _state_invariants(
                 "asset coverage_requirement_ids projection"
             )
 
+    if kind == "state-aware-reference-binding":
+        errors.extend(reference_subject_scope_errors(data.get("subject_uses", []),
+            subject_ids={str(data.get("character_id"))}, allowed_uses=data.get("intended_influence", [])))
+
     if kind == "reference-selection":
-        required_features = data.get("required_state_features", [])
-        selected = data.get("selected_references", [])
-        unresolved = data.get("unresolved_requirements", [])
-        binding_ids: list[str] = []
-        covered_in_order: list[str] = []
-        for index, item in enumerate(selected):
+        contexts = data.get("subjects", [])
+        subject_ids = [str(row.get("subject_id")) for row in contexts if isinstance(row, dict)]
+        if len(subject_ids) != len(set(subject_ids)):
+            errors.append("reference-selection subjects must be unique")
+        required = {(str(row.get("subject_id")), str(feature)) for row in contexts if isinstance(row, dict)
+                    for feature in row.get("required_state_features", [])}
+        unresolved = {(str(row.get("subject_id")), str(row.get("feature")))
+                      for row in data.get("unresolved_requirements", []) if isinstance(row, dict)}
+        bindings, covered = [], []
+        for index, item in enumerate(data.get("selected_references", [])):
             if not isinstance(item, dict):
                 continue
-            binding_ids.append(str(item.get("binding_id") or ""))
+            subject_id = str(item.get("subject_id"))
+            if subject_id not in subject_ids:
+                errors.append(f"selected_references[{index}] names an unknown state subject")
+            bindings.append((subject_id, str(item.get("binding_id"))))
             covers = [str(value) for value in item.get("covers", [])]
-            unsupported = {
-                str(value) for value in item.get("unsupported_or_occluded_state", [])
-            }
-            overlap = sorted(set(covers) & unsupported)
+            overlap = sorted(set(covers) & {str(value) for value in item.get("unsupported_or_occluded_state", [])})
             if overlap:
-                errors.append(
-                    f"selected_references[{index}] cannot both cover and mark state "
-                    f"unsupported or occluded: {overlap}"
-                )
-            covered_in_order.extend(covers)
-        if len(binding_ids) != len(set(binding_ids)):
-            errors.append("reference-selection binding IDs must be unique")
-        if len(covered_in_order) != len(set(covered_in_order)):
-            errors.append("reference-selection state features may be covered only once")
-        if set(covered_in_order) & set(unresolved):
-            errors.append(
-                "reference-selection covered and unresolved state features must not overlap"
-            )
-        if set(covered_in_order) | set(unresolved) != set(required_features):
-            errors.append(
-                "reference-selection covered and unresolved state features must exactly "
-                "partition required_state_features"
-            )
+                errors.append(f"selected_references[{index}] cannot both cover and mark state unsupported or occluded: {overlap}")
+            covered.extend((subject_id, feature) for feature in covers)
+            errors.extend(f"selected_references[{index}]: " + error for error in reference_subject_scope_errors(
+                item.get("subject_uses", []), subject_ids={subject_id}, allowed_uses=item.get("intended_influence", [])))
+        if len(bindings) != len(set(bindings)):
+            errors.append("reference-selection binding IDs must be unique within each subject")
+        if len(covered) != len(set(covered)):
+            errors.append("reference-selection state features may be covered only once per subject")
+        if set(covered) & unresolved:
+            errors.append("reference-selection covered and unresolved state features must not overlap")
+        if set(covered) | unresolved != required:
+            errors.append("reference-selection covered and unresolved state features must exactly partition required_state_features per subject")
 
     if kind == "state-lineage":
         mode = data.get("mode")
@@ -1579,6 +1581,26 @@ def material_errors(data: dict[str, Any]) -> list[str]:
     if kind in MATERIAL_ARTIFACT_TYPES:
         return _source_material_errors(data)
     return []
+
+
+def reference_subject_scope_errors(value: Any, *, subject_ids: set[str], allowed_uses: Sequence[str]) -> list[str]:
+    """Check the declared subject and influence boundary without interpreting prose."""
+    errors = []
+    seen = set()
+    if not isinstance(value, list):
+        return ["subject_uses must be an array"]
+    for row in value:
+        if not isinstance(row, dict):
+            continue
+        key = (str(row.get('subject_id')), str(row.get('use')))
+        if key in seen:
+            errors.append("a reference repeats a subject and use")
+        seen.add(key)
+        if row.get('subject_id') not in subject_ids:
+            errors.append("subject use names a different character")
+        if row.get('use') not in allowed_uses:
+            errors.append("subject use exceeds the source influence")
+    return errors
 
 
 def validate_cross_invariants(data: dict[str, Any], *, allow_placeholder_hashes: bool = False) -> list[str]:

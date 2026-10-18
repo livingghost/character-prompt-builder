@@ -79,6 +79,76 @@
     "reason": {
       "type": "string",
       "minLength": 1
+    },
+    "submission": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "locator",
+            "request_pointer",
+            "model_identity_pointer"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1
+            },
+            "request_pointer": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                ]
+              }
+            },
+            "model_identity_pointer": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "description": "Saved actual host-call evidence and exact selectors for arguments and optional endpoint/tool identity. A prepared request file alone is not submission evidence."
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   }
 }

@@ -1,0 +1,36 @@
+{
+  "artifact_type": "model-selection-preferences",
+  "entries": [
+    {
+      "id": "reported-refusal-avoidance",
+      "selector": {
+        "family": "Synthetic family",
+        "model_patterns": [
+          {
+            "field": "model-identifier",
+            "pattern": "synthetic:portrait@*"
+          }
+        ],
+        "service": "synthetic-service",
+        "operations": [
+          "generation"
+        ],
+        "use_cases": [
+          "benign-minor-depiction",
+          "policy-sensitive-use"
+        ]
+      },
+      "preference": "discourage",
+      "reported_failure": "provider-refusal",
+      "reason": "The author reports refusals for this use and prefers a different model.",
+      "basis": {
+        "kind": "user-report",
+        "source": "Synthetic author report.",
+        "observed_at": "2026-10-18",
+        "limitations": [
+          "No provider behavior is established by this fixture."
+        ]
+      }
+    }
+  ]
+}

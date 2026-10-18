@@ -3145,23 +3145,28 @@
   "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
   "prepared_reference_set": {
     "artifact_type": "prepared-reference-set",
-    "set_id": "PRS-3527eb0ee61164db13a5",
+    "set_id": "PRS-cbe71681fdd7fb96690a",
     "transport_mode": "none",
     "target_model": null,
     "reference_selection": {
       "artifact_type": "reference-selection",
       "selection_id": "SEL-C01-SC-EP03-01",
-      "identity_contract_sha256": "e370d88f96b68014de7e8ca5ed1f3dd0b74255b9c4e1051ac8d7ebc2d844e655",
-      "era_contract_sha256": null,
-      "appearance_variant_sha256": null,
-      "state_snapshot_sha256": "9c791e0ff39a81f7d6954fbb3caaad6436db7f91ad33c1ae0101c4915e53b672",
-      "story_order": 25,
-      "required_state_features": [],
+      "subjects": [
+        {
+          "subject_id": "C01",
+          "identity_contract_sha256": "e370d88f96b68014de7e8ca5ed1f3dd0b74255b9c4e1051ac8d7ebc2d844e655",
+          "era_contract_sha256": null,
+          "appearance_variant_sha256": null,
+          "state_snapshot_sha256": "9c791e0ff39a81f7d6954fbb3caaad6436db7f91ad33c1ae0101c4915e53b672",
+          "story_order": 25,
+          "required_state_features": []
+        }
+      ],
       "selected_references": [],
       "unresolved_requirements": [],
-      "selection_sha256": "8ae1ba2325932ef246498f469cfc7f1073ae9256ed5dddb9942d00cb6b9df07b"
+      "selection_sha256": "41bd48320b7a5ea5cb1ee28b6cbbe6c317b8068063de8bac95ae30a5e9040f81"
     },
-    "reference_selection_sha256": "8ae1ba2325932ef246498f469cfc7f1073ae9256ed5dddb9942d00cb6b9df07b",
+    "reference_selection_sha256": "41bd48320b7a5ea5cb1ee28b6cbbe6c317b8068063de8bac95ae30a5e9040f81",
     "reference_use_plan": null,
     "reference_use_plan_sha256": null,
     "surface_lighting_plan_sha256": null,
@@ -3174,10 +3179,10 @@
     "prompt_artifacts": [],
     "selected_references": [],
     "single_board": null,
-    "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8"
+    "prepared_reference_set_sha256": "abe6ca3304dc149203f08743d3c648e70a67b4d4d79de31955b7a4bbdad616bf"
   },
-  "prepared_reference_set_sha256": "d33f9876123a3fa824660310b0a0121e1e7493d44b0cbbfe00564212601b5ab8",
-  "generation_input_sha256": "4a20492b5883514c825d1603b840f24e1949383d2835ae2e98ab2d88012dd0a2",
+  "prepared_reference_set_sha256": "abe6ca3304dc149203f08743d3c648e70a67b4d4d79de31955b7a4bbdad616bf",
+  "generation_input_sha256": "83eb520f75aad9afe0a44639e32a2aa7328ee20351fb2360b97e013f428f3591",
   "parameters": {
     "height": 1024,
     "safety": {
@@ -3228,7 +3233,7 @@
     "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
     "effective_prompt_sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1",
     "selected_references": [],
-    "generation_input_sha256": "4a20492b5883514c825d1603b840f24e1949383d2835ae2e98ab2d88012dd0a2",
+    "generation_input_sha256": "83eb520f75aad9afe0a44639e32a2aa7328ee20351fb2360b97e013f428f3591",
     "prompt_trace": [
       {
         "source_kind": "authored",

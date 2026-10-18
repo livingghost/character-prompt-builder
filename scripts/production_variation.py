@@ -21,7 +21,7 @@ DOCUMENT_FIELDS = {
     'production-spec': 'production_spec', 'plot': 'plot', 'retrieval-record': 'retrieval_record',
     'creative-intent': 'creative_intent', 'request-validation': 'request_validation',
     'visual-continuity': 'visual_continuity', 'references': 'references',
-    'state-lineage': 'state_lineage', 'state-snapshot': 'state_snapshot',
+    'state-lineage': 'state_lineage', 'state-snapshot': 'state_snapshot', 'state-graphs': 'state_graphs',
     'negative-provenance': 'negative_provenance'}
 TASK_FIELDS = {
     'direction': 'direction', 'criteria': 'criteria', 'source-materials': 'sources',

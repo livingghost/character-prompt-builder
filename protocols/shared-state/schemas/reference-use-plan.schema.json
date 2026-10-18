@@ -170,6 +170,9 @@
         },
         "intended_influence": {
           "$ref": "#/$defs/intended-influence"
+        },
+        "subject_uses": {
+          "$ref": "prepared-generation-reference.schema.json#/$defs/subject-uses"
         }
       },
       "additionalProperties": false
@@ -263,6 +266,9 @@
         "preamble": {
           "type": "string",
           "minLength": 1
+        },
+        "subject_uses": {
+          "$ref": "prepared-generation-reference.schema.json#/$defs/subject-uses"
         }
       },
       "additionalProperties": false

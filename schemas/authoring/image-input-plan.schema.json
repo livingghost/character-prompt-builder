@@ -1,0 +1,461 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "locator"
+      ],
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_identifier": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The selected service transport's exact wire operation, from its operation contract or acquired schema. This is distinct from the model operation_kind and rendering execution_mode."
+        }
+      },
+      "required": [
+        "service",
+        "model_identifier",
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    "reference": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "use_for": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "do_not_transfer": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "subject_uses": {
+          "$ref": "prepared-generation-reference.schema.json#/$defs/subject-uses"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "file",
+        "use_for",
+        "do_not_transfer"
+      ],
+      "additionalProperties": false
+    },
+    "model-identity": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "endpoint",
+            "tool"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      },
+      "required": [
+        "kind",
+        "value",
+        "evidence"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "artifact_type": {
+      "const": "image-input-plan"
+    },
+    "model": {
+      "type": "object",
+      "properties": {
+        "requested": {
+          "type": "string",
+          "minLength": 1
+        },
+        "catalog_status": {
+          "enum": [
+            "defined",
+            "missing"
+          ]
+        },
+        "catalog_model": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      },
+      "required": [
+        "requested",
+        "catalog_status",
+        "catalog_model",
+        "target",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reference"
+      },
+      "minItems": 0,
+      "description": "Ordered source images. Empty only for an exact external request with no declared image references."
+    },
+    "external_request": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "model_field": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    ]
+                  },
+                  "minItems": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "prompt_field": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                ]
+              },
+              "minItems": 1
+            },
+            "count_field": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    ]
+                  },
+                  "minItems": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "operation_field": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    ]
+                  },
+                  "minItems": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "reference_fields": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "field": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      ]
+                    },
+                    "minItems": 1
+                  },
+                  "value": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence": {
+                    "$ref": "#/$defs/evidence"
+                  }
+                },
+                "required": [
+                  "reference",
+                  "field",
+                  "value",
+                  "evidence"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 0
+            },
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "pointer": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "sha256",
+                    "pointer"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "model_identity": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/model-identity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "file",
+            "model_field",
+            "prompt_field",
+            "count_field",
+            "operation_field",
+            "count",
+            "reference_fields"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "model_field": {
+                    "type": "null"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "model_identity"
+                ],
+                "properties": {
+                  "model_identity": {
+                    "type": "object"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "model_identity": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The exact external request, or null for dispatcher reference preparation. A plan with no references requires this binding and an empty reference_fields array."
+    },
+    "prepared_references": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional existing canonical prepared-reference-set. Its exact source, scope and subject mapping are retained; this is not a new reference registry."
+    }
+  },
+  "required": [
+    "artifact_type",
+    "model",
+    "references",
+    "external_request"
+  ],
+  "title": "Shared image input plan",
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "references"
+        ],
+        "properties": {
+          "references": {
+            "type": "array",
+            "maxItems": 0
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "external_request": {
+            "type": "object",
+            "properties": {
+              "reference_fields": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

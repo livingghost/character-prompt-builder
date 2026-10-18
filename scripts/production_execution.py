@@ -463,7 +463,9 @@ def _finish_captured(root: Path, run: str, journal, transport: Any) -> dict:
     capture_diagnostics=[]
     if acquisition['refused']:
         capture_diagnostics.append({'code':'PROVIDER_REJECTION','severity':'warning','phase':'result-capture',
-            'message':'The saved provider answer includes refusal information.','count':len(acquisition['refused'])})
+            'message':'The saved provider answer includes refusal information. Inspect its exact reason with the generation failure assessment; a provider rejection alone does not identify moderation.',
+            'required_action':'Use render_contract.py diagnose with the saved response before changing models or retrying.',
+            'count':len(acquisition['refused'])})
     if acquisition['entries']!=journal.document['expected']:
         capture_diagnostics.append({'code':'OUTPUT_COUNT_MISMATCH','severity':'warning','phase':'result-capture',
             'message':'Returned output count differs from the authorized request.','expected':journal.document['expected'],'actual':acquisition['entries']})
@@ -986,13 +988,13 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         except INSPECTION_ERRORS as exc:
             readiness = 'authorization_required'
             readiness_diagnostics.append(from_exception(exc, phase='readiness'))
-    if not external_claims and mode == 'external' and consumer.get('semantic_edit') and readiness != 'blocked' and task_disposition == 'open':
+    if not external_claims and mode == 'external' and consumer.get('image_input') and readiness != 'blocked' and task_disposition == 'open':
         try:
             if 'handoff' not in events:
                 raise ProductionError('AUTHORIZATION_REQUIRED', 'The external handoff and exact submission need current authorization.',
                     phase='authorization', run=identifier,
                     required_action='Use handoff-intent and authorize under the actual direction grant, record the handoff, then authorize external-intent.')
-            count = consumer['semantic_edit']['external_request']['count']
+            count = consumer['image_input']['external_request']['count']
             intent = workflow.external_intent(root, identifier, count)
             receipts(root, prepared, rows, {'operations': [intent]},
                 required_action='Authorize the exact external-intent under the actual submission grant, then claim-external.')

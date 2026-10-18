@@ -45,8 +45,9 @@ def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,
 def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,transport,*,seed:int|None,count:int)->dict:
     if not hasattr(transport,'compile_request'):raise ValueError('transport must compile the complete request with a declared field layout')
     import render_contract_lib as rendering
-    if rendering.encoded(rendering.model_card(model, offering)) != rendering.encoded(package['render_contract']['model_card']):
-        raise ValueError('request renderer model/interface differs from the sealed render contract')
+    contract = package['render_contract']
+    rendering.verify_contract(contract, intent=contract['intent'], parameters=contract['parameters'],
+        prompt=package['composition_prompt'], record=model, offering=offering, reference_count=contract['reference_count'])
     rendering.dispatch_values(package['render_contract'], seed=seed, count=count)
     verified=copy.deepcopy(verified)
     intent=package['render_contract']['intent']
@@ -67,11 +68,17 @@ def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,
     expected=package['request_validation']['target']
     execution=rc.execution_hashes(service,offering,Path(transport.__file__),model=model,policy=verified['execution_policy'])
     value=package['visual_continuity'];context={'subjects':value['subjects'],'purpose':value['purpose'],'output_kind':'image'}
-    binding = (package.get('production_binding') or {}).get('consumer', {}).get('semantic_edit')
+    consumer = (package.get('production_binding') or {}).get('consumer', {})
+    inputs = consumer.get('image_input')
+    if inputs is not None:
+        import image_input
+        image_input.require_prepared(inputs, package['prepared_reference_set'], model_id=model['id'], target=expected)
+        context['image_input'] = image_input.request_context(inputs)
+    binding = consumer.get('semantic_edit')
     if binding is not None:
-        from semantic_edit_plan import require_prepared, request_context
-        require_prepared(binding, package['prepared_reference_set'], model_id=model['id'], target=expected)
-        context['semantic_edit'] = request_context(binding)
+        import semantic_edit_plan
+        semantic_edit_plan.require_input(binding, inputs)
+        context['semantic_edit'] = semantic_edit_plan.request_context(binding)
     return rc.seal(compiled['request'],compiled['layout'],media,expected,execution,compiled['request_trace'],rows,context)
 
 

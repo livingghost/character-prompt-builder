@@ -120,6 +120,78 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(affected['decisions'], [])
 
 
+class AcceptedVariationTests(unittest.TestCase):
+    def setUp(self):
+        self.source_raw = b'Synthetic adopted outfit: blue fabric and a single clasp.'
+        self.sources = [{'id': 'approval', 'disposition': 'applied'},
+                        {'id': 'outfit', 'disposition': 'applied'}]
+        self.criteria = [{'id': 'read'}]
+        self.allowance = {'id': 'fabric-folds', 'source': 'approval',
+                          'locator': 'wardrobe variation', 'author': 'request owner',
+                          'scope': {'kind': 'source', 'source': 'outfit', 'sha256': c.digest(self.source_raw)},
+                          'allowance': 'Fabric folds may follow the declared arm pose.',
+                          'limits': ['Keep the blue fabric and single clasp.'], 'criteria': ['read']}
+        self.choice = decision(basis=['approval', 'outfit'])
+        self.choice['accepted_variations'] = [self.allowance]
+        self.direction = {'purpose': 'A new pose with the adopted outfit.',
+                          'intended_effect': 'An identifiable outfit in natural motion.',
+                          'basis': ['approval', 'outfit'], 'decisions': [self.choice],
+                          'action_slice': None, 'limitations': []}
+        self.task = {'task_id': 'outfit-study', 'direction': self.direction,
+                     'sources': self.sources, 'criteria': self.criteria}
+
+    def validate(self):
+        plan.validate(self.direction, self.sources, self.criteria, task_id=self.task['task_id'])
+        plan.validate_variation_bindings(self.task, {'outfit': c.digest(self.source_raw)})
+
+    def test_same_source_allowance_survives_another_work_task(self):
+        self.validate()
+        self.task['task_id'] = 'another-pose'
+        self.validate()
+
+    def test_task_allowance_stays_with_its_work_task(self):
+        self.allowance['scope'] = {'kind': 'task', 'task_id': 'outfit-study'}
+        self.validate()
+        self.task['task_id'] = 'another-scene'
+        with self.assertRaisesRegex(ValueError, 'different task'):
+            self.validate()
+
+    def test_changed_outfit_cannot_inherit_the_old_allowance(self):
+        self.source_raw = b'Synthetic changed outfit: red fabric and two clasps.'
+        with self.assertRaisesRegex(ValueError, 'source changed'):
+            self.validate()
+
+    def test_unused_approval_is_not_an_allowance(self):
+        self.sources[0]['disposition'] = 'considered-not-used'
+        with self.assertRaises(ValueError):
+            self.validate()
+
+    def test_allowance_cannot_relax_an_unrelated_criterion(self):
+        self.allowance['criteria'] = ['identity']
+        self.criteria.append({'id': 'identity'})
+        with self.assertRaisesRegex(ValueError, 'criteria of its decision'):
+            self.validate()
+
+    def test_bare_global_scope_is_rejected(self):
+        self.allowance['scope'] = {'kind': 'all-future-images'}
+        with self.assertRaisesRegex(ValueError, 'task or source'):
+            self.validate()
+
+    def test_allowance_keeps_its_author_and_limits(self):
+        self.allowance['author'] = ''
+        with self.assertRaisesRegex(ValueError, 'nonempty text'):
+            self.validate()
+
+    def test_allowance_is_review_context_not_private_prompt_prose(self):
+        self.validate()
+        result = json.dumps(plan.consumer(self.direction))
+        self.assertNotIn('request owner', result)
+        self.assertNotIn('Fabric folds may follow', result)
+        self.assertIn('Keep the sparse field', result)
+        affected = plan.affected(self.task, {'outfit'})
+        self.assertEqual(affected['criteria'], ['read'])
+
+
 class EvidenceTests(unittest.TestCase):
     def test_actual_image_is_decoded(self):
         self.assertEqual(media.inspect(png(), 'image')['width'], 24)
@@ -213,6 +285,39 @@ class LifecycleTests(unittest.TestCase):
         return data
     def authority(self):
         return c.load(self.root/'fixture-authority.json')
+    def test_changed_variation_source_blocks_check_and_prepare(self):
+        from production_compiler import check_task, prepare_task
+        from production_diagnostics import CompilationError
+        import production_store as store
+        self.task['direction']['decisions'][0]['accepted_variations'] = [{
+            'id': 'spacing', 'source': 'brief', 'locator': 'whole', 'author': fixture.ACTOR,
+            'scope': {'kind': 'source', 'source': 'brief',
+                      'sha256': c.digest((self.root/'brief.md').read_bytes())},
+            'allowance': 'Spacing may vary within the approved sparse field.',
+            'limits': ['Preserve the sparse field.'], 'criteria': ['read']}]
+        self.write('task.json', self.task)
+        valid = check_task(self.root, 'task.json')
+        self.assertTrue(valid['ok'], valid['diagnostics'])
+        self.assertTrue(valid['publishable'])
+        self.assertFalse(valid['formal_run_created'])
+        self.assertEqual(store.runs(self.root), [])
+
+        self.write('brief.md', b'A dense field with uneven spacing.\n')
+        checked = check_task(self.root, 'task.json')
+        self.assertEqual(store.runs(self.root), [])
+        with self.assertRaises(CompilationError) as caught:
+            prepare_task(self.root, 'task.json')
+        for operation, report in [('check', checked), ('prepare', caught.exception.report)]:
+            with self.subTest(operation=operation):
+                self.assertFalse(report['ok'])
+                self.assertFalse(report['publishable'])
+                self.assertFalse(report['formal_run_created'])
+                errors = [(row['code'], row['phase'], row['file'], row['message'])
+                          for row in report['diagnostics'] if row['code'] != 'CHECK_NOT_PERFORMED']
+                self.assertEqual(errors, [('INPUT_CONSISTENCY_ERROR', 'source-validation', 'task.json',
+                    'accepted variation source changed; reassess its scope before reuse')])
+        self.assertEqual(store.runs(self.root), [])
+        self.assertEqual(list((self.root/'production/runs').glob('*/prepared.json')), [])
     def test_complete_image_lifecycle_and_ledger(self):
         run, ca = self.candidate(); self.record_review(run, ca); self.selection(run, ca)
         w.select(self.root, run, 'selection.json'); done = w.complete(self.root, run)

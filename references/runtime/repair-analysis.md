@@ -2,6 +2,43 @@
 
 Use recorded evidence to improve an unsuccessful result, so that each retry builds on the last instead of starting a new guess. Begin with the original request, the protected source definitions and the latest review of each actual candidate. A prompt alone is no evidence of a failed output, and an attempt count is no evidence of its cause.
 
+## Contents
+
+- [Diagnose a failed request before image repair](#diagnose-a-failed-request-before-image-repair)
+- [Select the runs to analyze](#select-the-runs-to-analyze)
+- [Read the evidence before proposing a cause](#read-the-evidence-before-proposing-a-cause)
+- [Author a repair hypothesis](#author-a-repair-hypothesis)
+- [Apply an accepted repair through the production workflow](#apply-an-accepted-repair-through-the-production-workflow)
+- [Limits of repeated-failure analysis](#limits-of-repeated-failure-analysis)
+- [Consult reusable corrections](#consult-reusable-corrections)
+
+## Diagnose a failed request before image repair
+
+Use Production Execution `status` or `resume` to inspect the actual attempt.
+Retain its provider response, runtime error and any returned candidates. When
+the request produced no image, inspect the request failure before preparing
+an image-repair hypothesis.
+
+Read [Model request evidence](model-evidence.md) and record the observed
+failure category, exact evidence hash and response signal where available:
+
+```sh
+python scripts/render_contract.py diagnose --root STUDIO \
+  --failure inputs/failure-assessment.json
+```
+
+Provider refusal and moderation have their own evidence. Authentication,
+quota, rate limits, timeouts, transport, request schema and reference-input
+failures follow their corresponding recovery paths. Visual output defects
+use the candidate review below. An unexplained failure stays unknown; a
+matching author report can make provider restrictions one possible cause.
+
+For a permitted request that needs a different model, use the same document's
+`assess` command with the scene's declared use, operation and reference count.
+Apply current author preferences, offering guidance and input requirements
+together. Prepare the selected alternative through the ordinary workflow
+under current authority. A recommendation performs no submission.
+
 ## Select the runs to analyze
 
 Run the command from the installed skill directory and use a new studio-relative output directory:

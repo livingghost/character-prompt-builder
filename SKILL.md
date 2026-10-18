@@ -28,9 +28,9 @@ Keep judgment and automation separate. The agent owns meaning, ambiguity, intent
 For image work, resolve [Rendering choices and execution controls](references/runtime/render-contract.md), feature `render-contract`.
 Choose medium, dimensionality, linework, shading, surface, and detail explicitly, with the user's selection or the agent's reason.
 Keep presentation and subject identity separate. Use scoped overrides for mixed media; never invent body or age changes from a finish.
-After `pack_cli.py ready`, read the selected model's complete guidance card before target-specific composition. An external target absent from the catalog uses its acquired provider contract.
+After `pack_cli.py ready`, read the complete selected model card and apply scoped use-case guidance and author preferences before model-specific wording. Unlisted targets use their acquired provider contract.
 Retrieve the wording, then bind its rendering span in `render_intent`: inside the Production Specification for dispatch, or as an applied task source for external work.
-A Generation Package requires the exact interface's execution profile and resolved, mode-valid controls. For a requested model absent from the catalog, record that absence and follow [Image Generation](references/runtime/image-generation.md#choose-execution). Existing-image changes also require [Semantic instruction editing](references/runtime/semantic-instruction-edit.md). [Model request evidence](references/runtime/model-evidence.md) distinguishes schemas, trials and observed profiles.
+A Generation Package requires the exact interface's profile and mode-valid controls. For an unlisted target, record the absence and follow [Image Generation](references/runtime/image-generation.md#choose-execution). Shared `image_input` binds references and exact external requests; actual edits add [Semantic instruction editing](references/runtime/semantic-instruction-edit.md). [Model request evidence](references/runtime/model-evidence.md) owns schemas, trials, profiles, suitability and failure diagnosis.
 Required scalar recommendations resolve with provenance; ranges require a choice. Unavailable controls are displayed, not sent.
 Use the verified request and its named provider. Display the rendering choice and complete final request before submission; never substitute a different engine.
 
@@ -77,7 +77,7 @@ Each item names a route or `--feature` whose read prints its documents. A prompt
 - generation or model transport: route `generation` plus the feature for exactly one of `gpt-image`, `midjourney` (and Niji), `flux`, `sdxl` (and ComfyUI), `novelai`, `grok`, `instruction-edit`, or `unlisted-interface` for any other image interface;
 - continuity, temporal state, off-screen events, cross-scene identity, or an arriving shot-request: route or feature `state-series`;
 - several images at once, across models or as concurrent variants of one model: route `batch`;
-- the same character in a new pose or scene: route `repose`;
+- accepted characters in a new pose or shared scene, including staged asset creation: route `repose`;
 - deterministic editing of pinned stills: feature `image-edit`; user-requested semantic replacement of clothing, objects, environment or other depicted content: feature `semantic-instruction-edit`, [Semantic instruction editing](references/runtime/semantic-instruction-edit.md); masks when needed: feature `scene-mask-planning`;
 - enlarging a finished image: route `upscale` with an active upscaler model record;
 - canonical identity, a character sheet, its panels, candidates or reference board: route `character-sheet`, [Sheet fills](references/runtime/sheet-fill-workflow.md); a new pose or scene for an accepted character uses `repose` or `generation` instead;
@@ -105,14 +105,14 @@ After story revisions, update Studio sources and run `studio.py sync` for the au
 For image work:
 
 1. Resolve the artifact and whether it needs saving. For saved work, establish the Studio and read the selected route.
-2. Separate anchors from creative space. Choose the target before final wording.
+2. Separate anchors from creative space. For character reuse, resolve missing reference coverage and stage-specific targets before final wording.
 3. Read interface guidance; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Retrieve every visual element. Inspect every selected canonical record in full. Dispatcher work resolves the execution profile.
 4. Author the prompt, render intent, scoped references and criteria under actual direction authority. Retain required plot approval and settle retrieval against the final wording.
 5. Save the final prompt, settings, evidence and any Studio recording destination in the task's declared inputs.
 6. `production_workflow.py check --task task.json` reports diagnostics without creating a run. `prepare` publishes the request preview and execution plan; dispatcher runs also contain a Generation Package.
 7. Review the complete request and operation targets. Dispatcher work uses `draft-execution --run RUN --grant GRANT --out decisions.json`, actual decisions, then `execute --run RUN --decisions-file decisions.json`.
 8. External work follows Production Execution's handoff, exact authorization, `claim-external`, host call, `capture` and `settle-external` branch. After interruption, `resume --run RUN` recovers the existing execution.
-9. Inspect actual candidates before selection. Dispatcher trials use `variant`, `repeat` or an explicitly reassessed `retarget`. Another external trial uses a separate task with its own exact request, plus a semantic plan for existing-image edits.
+9. Inspect actual candidates before selection. Diagnose failures from saved evidence. Dispatcher trials use `variant`, `repeat` or a reassessed `retarget`. External trials use new tasks with exact input binding; actual edits also need semantic plans.
 10. `status` reports runs, next commands and execution records. [Operation logs](references/runtime/operation-logs.md) defines inspection, export and cleanup; inspect reported staging before applying cleanup to its exact owner operation.
 
 Each of these commands takes `--root STUDIO`; Production Execution defines them. Authored prose and conversation-only prompts do not acquire image-generation requirements.
@@ -131,7 +131,7 @@ Use one resolved runtime across retrieval, planning, preparation and verificatio
 
 ## Visual Reference Activation Gate
 
-With no reference selected, create no empty reference artifacts. Declare selected sources' authority and exclusions under [Visual Reference Activation and Transport](references/visual-reference-activation-and-transport.md). Pack preparation uses one ordinary Reference Use Plan; external edits use the semantic plan. A character sheet supplies its selected identity scope. Treat every selected SVG as bounded evidence, not as the whole requested image. Before rasterization, run `python scripts/check_dependencies.py --profile visual`; a failed check blocks that preparation.
+With no reference selected, create no empty reference artifacts. Declare selected sources' authority, subject uses and exclusions under [Visual Reference Activation and Transport](references/visual-reference-activation-and-transport.md). Pack preparation uses one ordinary Reference Use Plan; shared image inputs retain the canonical prepared set. A character sheet supplies its selected identity scope. Treat every selected SVG as bounded evidence, not as the whole requested image. Before rasterization, run `python scripts/check_dependencies.py --profile visual`; a failed check blocks that preparation.
 
 ## Output contract
 

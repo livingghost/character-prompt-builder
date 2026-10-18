@@ -41,6 +41,8 @@ from prepare_generation_references import (
     validate_prepared_reference_set,
 )
 from prepare_generation_references import model_pack_root
+from reference_delivery import (delivered_reference_count, reference_selection_lineage_subject,
+                                validate_reference_selection_subjects, validate_reference_subjects)
 from state_protocol import find_non_finite_numbers, parse_json
 
 TRANSPORT_MODES = {
@@ -213,6 +215,7 @@ def generation_commitment_projection(data: dict[str, Any]) -> dict[str, Any]:
         "prepared_reference_set_sha256": data.get("prepared_reference_set_sha256"),
         "production_spec_sha256": data.get("production_spec_sha256"),
         "state_lineage_sha256": data.get("state_lineage_sha256"),
+        "state_graphs_sha256": data.get("state_graphs_sha256"),
         "plot_sha256": data.get("plot_sha256"),
         "composition_prompt": data.get("composition_prompt"),
         "retrieval_record_sha256": data.get("retrieval_record_sha256"),
@@ -432,6 +435,7 @@ def build_payload(
     production_spec: dict[str, Any] | None = None,
     state_lineage: dict[str, Any] | None = None,
     state_snapshot: dict[str, Any] | None = None,
+    state_graphs: list[dict[str, Any]] | None = None,
     prepared_reference_set: dict[str, Any] | None = None,
     prepared_reference_root: Path | None = None,
     plot: dict[str, Any] | None = None,
@@ -460,6 +464,7 @@ def build_payload(
         "production_spec": production_spec,
         "state_lineage": state_lineage,
         "state_snapshot": state_snapshot,
+        "state_graphs": state_graphs,
         "prepared_reference_set": prepared_reference_set,
     }
     non_finite = find_non_finite_numbers(input_values)
@@ -582,10 +587,39 @@ def build_payload(
                 + "; without words: " + ", ".join(untranslated)
             )
 
-    from state_protocol import artifact_hash, finalize_artifact, validate_artifact
+    from state_protocol import artifact_hash, finalize_artifact, validate_artifact, validate_subject_state_graphs
     if state_lineage is not None and not isinstance(state_lineage, dict):
         raise ValueError("state lineage must be an object")
-    if state_lineage:
+    reference_set = validate_prepared_reference_set(
+        prepared_reference_set
+        if prepared_reference_set is not None
+        else empty_stateless_reference_set(),
+        model=model,
+        package_root=prepared_reference_root,
+    )
+    validate_generation_package_carrier_paths(
+        reference_set,
+        package_root=prepared_reference_root,
+    )
+    if reference_set["transport_mode"] in {"prompt-artifacts", "svg-bundle"}:
+        raise ValueError(
+            f"{reference_set['transport_mode']} prepared references are prompt-package "
+            "artifacts and cannot be used for model generation"
+        )
+    reference_selection = reference_set["reference_selection"]
+    validate_reference_subjects(reference_set["selected_references"], production_spec)
+    validate_reference_selection_subjects(reference_selection, production_spec)
+    state_graphs = validate_subject_state_graphs(state_graphs, production_spec=production_spec,
+        reference_selection=reference_selection, state_lineage=state_lineage)
+    state_graphs_hash = sha256_json(state_graphs)
+    if state_graphs:
+        primary_hash = production_spec["state_context"]["state_lineage_sha256"]
+        primary = next(graph for graph in state_graphs if artifact_hash(graph["lineage"]) == primary_hash)
+        if state_snapshot is not None and state_snapshot != primary["state_snapshot"]:
+            raise ValueError("supplied state-snapshot differs from the exact primary state graph")
+        state_lineage = copy.deepcopy(primary["lineage"])
+        state_snapshot = copy.deepcopy(primary["state_snapshot"])
+    elif state_lineage is not None:
         state_lineage = dict(state_lineage)
     else:
         state_lineage = finalize_artifact({
@@ -612,23 +646,6 @@ def build_payload(
     )
     require_lineage(production_spec, state_lineage)
 
-    reference_set = validate_prepared_reference_set(
-        prepared_reference_set
-        if prepared_reference_set is not None
-        else empty_stateless_reference_set(),
-        model=model,
-        package_root=prepared_reference_root,
-    )
-    validate_generation_package_carrier_paths(
-        reference_set,
-        package_root=prepared_reference_root,
-    )
-    if reference_set["transport_mode"] in {"prompt-artifacts", "svg-bundle"}:
-        raise ValueError(
-            f"{reference_set['transport_mode']} prepared references are prompt-package "
-            "artifacts and cannot be used for model generation"
-        )
-    reference_selection = reference_set["reference_selection"]
     reference_selection_hash = reference_set["reference_selection_sha256"]
     prepared_reference_set_hash = require_concrete_sha256(
         reference_set["prepared_reference_set_sha256"],
@@ -644,7 +661,7 @@ def build_payload(
     selected_execution_offering = select_offering(model_record, service)
     render_contract = compile_contract(model_record, selected_execution_offering,
         production_spec["render_intent"], parameters, prompt=composition_prompt,
-        reference_count=1 if reference_set.get("single_board") else len(reference_set.get("selected_references") or []))
+        reference_count=delivered_reference_count(reference_set))
     parameters = render_contract["parameters"]
     service_summary: dict[str, Any] | None = None
     offering = None
@@ -655,7 +672,7 @@ def build_payload(
         media_counts: dict[str, int] | None = None
         if offering is not None:
             media_counts = generation_media_counts(
-                offering, 1 if reference_set.get("single_board") else len(references),
+                offering, delivered_reference_count(reference_set),
                 media_role=render_contract["model_card"]["execution_profile"]["modes"][production_spec["render_intent"]["execution_mode"]]["media"]
             )
         offering = validate_generation_parameters(
@@ -683,16 +700,7 @@ def build_payload(
                 "state-aware generation requires a finalized reference-selection, "
                 "including when no references are selected"
             )
-        for field in (
-            "identity_contract_sha256",
-            "era_contract_sha256",
-            "appearance_variant_sha256",
-            "state_snapshot_sha256",
-        ):
-            if reference_selection.get(field) != state_lineage.get(field):
-                raise ValueError(
-                    f"reference-selection {field} differs from state lineage"
-                )
+        selected_state = reference_selection_lineage_subject(reference_selection, state_lineage)
         if not isinstance(state_snapshot, dict) or state_snapshot.get("artifact_type") != "state-snapshot":
             raise ValueError(
                 "state-aware generation requires the supplied state-snapshot; use "
@@ -706,7 +714,7 @@ def build_payload(
             )
         if artifact_hash(state_snapshot) != state_lineage.get("state_snapshot_sha256"):
             raise ValueError("supplied state-snapshot hash differs from state lineage")
-        if reference_selection.get("story_order") != state_snapshot.get("story_order"):
+        if selected_state["story_order"] != state_snapshot.get("story_order"):
             raise ValueError(
                 "reference-selection story_order differs from the supplied state-snapshot"
             )
@@ -772,6 +780,8 @@ def build_payload(
         "plot_sha256": plot_hash,
         "state_lineage": state_lineage,
         "state_lineage_sha256": lineage_hash,
+        "state_graphs": state_graphs,
+        "state_graphs_sha256": state_graphs_hash,
         "prepared_reference_set": reference_set,
         "prepared_reference_set_sha256": prepared_reference_set_hash,
         "generation_input_sha256": "",
@@ -811,6 +821,7 @@ def build_payload(
             "plot_sha256": plot_hash,
             "retrieval_record_sha256": retrieval_hash,
             "state_lineage_sha256": lineage_hash,
+            "state_graphs_sha256": state_graphs_hash,
             "prepared_reference_set_sha256": prepared_reference_set_hash,
             "generation_input_sha256": "",
             "negative_transport_instruction": selected_instruction,
@@ -1015,7 +1026,7 @@ def materialize_cli_reference_bundle(
         selected_references=selected,
         reference_selection=validated["reference_selection"],
         reference_use_plan=validated["reference_use_plan"],
-        semantic_edit_binding=validated.get('semantic_edit_binding'),
+        image_input_binding=validated.get('image_input_binding'),
         zero_reference_reason=validated["zero_reference_reason"],
         prompt_artifacts=prompt_artifacts,
         single_board=board,
@@ -1324,7 +1335,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "is certified with --critical-avoidance-integrated."
         ),
     )
-    parser.add_argument("--native-negative-file", help="Concise native negative subset, for example a Midjourney --no payload")
+    parser.add_argument("--native-negative-file", help="Concise native negative subset for the selected interface")
     parser.add_argument("--negative-provenance-file", help="JSON object listing activated, retained, and translated negative sources")
     parser.add_argument(
         "--negative-transport",
@@ -1373,8 +1384,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         from production_binding import new_output, studio_file
         root = args.production_root.absolute()
         output_path = new_output(root, args.out, option="--out", root_option="--production-root")
-        state_lineage_input = studio_document(root, args.state_lineage_file, "--state-lineage-file") or {}
-        if state_lineage_input.get("mode") == "state-aware":
+        state_lineage_input = studio_document(root, args.state_lineage_file, "--state-lineage-file")
+        if state_lineage_input is not None and state_lineage_input.get("mode") == "state-aware":
             raise ValueError(
                 "build_generation_payload.py is the stateless CLI; use "
                 "build_state_generation_package.py for a state-aware artifact graph"

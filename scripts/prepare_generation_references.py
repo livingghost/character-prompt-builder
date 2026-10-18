@@ -37,6 +37,7 @@ from model_contract import model_reference_limit
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 from reference_active_validation import validate_active_reference_use_plan
 from reference_contract import state_authority_for, validate_reference_use_plan_contract
+from reference_delivery import attachment_numbers, delivered_reference_count, prepared_origin_projection, validate_subject_uses
 from state_protocol import finalize_artifact, parse_json, validate_artifact
 from visual_evidence import inspect_svg, render_svg
 
@@ -113,7 +114,7 @@ STATE_SCOPE_FIELDS = (
     "unsupported_assumptions",
 )
 STATE_PREPARED_REFERENCE_FIELDS = frozenset(
-    {"role", "source", "transport", "authority", *STATE_SCOPE_FIELDS}
+    {"role", "source", "transport", "authority", "subject_id", *STATE_SCOPE_FIELDS}
 )
 AUTHORITY_FIELDS = frozenset({"controls", "must_not_control"})
 PROMPT_ARTIFACT_FIELDS = frozenset(
@@ -747,14 +748,31 @@ def conservative_authority(
     }
 
 
-def _reference_preamble_for_plan(plan: Mapping[str, Any]) -> str:
+def direct_reference_authority(role: str, subject_uses: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """Use authored influence scopes for direct files without widening them by role."""
+    uses = validate_subject_uses(subject_uses)
+    return state_authority_for(list(dict.fromkeys(row['use'] for row in uses))) if uses else conservative_authority(role)
+
+
+def validate_studio_subject_uses(source: Mapping[str, Any], subject_uses: list[dict[str, Any]]) -> None:
+    """Keep identity assignments bound to the Studio's actual identity adoption."""
+    if source.get('kind') != 'studio-artifact':
+        return
+    from studio_reference import identity_source
+    for use in subject_uses:
+        if use['use'] == 'identity':
+            identity_source(dict(source), root=Path(source['studio_root']), character_id=use['subject_id'])
+
+
+def _reference_preamble_for_plan(plan: Mapping[str, Any], reference_numbers: Sequence[int] | None = None) -> str:
     lines = [
         "Use the following references only for their declared roles and precedence.",
         "Do not average identities, scenes, materials, colors, or lighting across unnamed roles.",
     ]
-    for item in plan.get("reference_items", []):
+    for index, item in enumerate(plan.get("reference_items", [])):
+        number = reference_numbers[index] if reference_numbers is not None else int(item['precedence']) + 1
         lines.append(
-            f"Reference {int(item['precedence']) + 1} ({item['semantic_role']}): "
+            f"Reference {number} ({item['semantic_role']}): "
             f"{item['preamble']}"
         )
     surface = plan["surface_lighting_plan"]
@@ -778,7 +796,9 @@ def canonical_reference_preamble(
     if transport_mode == "none":
         return ""
     from reference_delivery import instructions
-    base = (_reference_preamble_for_plan(reference_use_plan) if reference_use_plan is not None
+    plan_numbers = ([index for index, row in enumerate(selected_references, 1) if row['source']['kind'] == 'pack-artifact']
+                    if reference_use_plan is not None and transport_mode in {'multi-image', 'single-board'} else None)
+    base = (_reference_preamble_for_plan(reference_use_plan, plan_numbers) if reference_use_plan is not None
             else _reference_preamble_for_prepared_rows(selected_references))
     return base + instructions(transport_mode, selected_references, single_board)
 
@@ -852,19 +872,80 @@ def _validated_reference_selection(value: Any) -> dict[str, Any]:
     if unresolved:
         raise ValueError(
             "reference-selection has unresolved requirements and cannot be prepared: "
-            + ", ".join(str(item) for item in unresolved)
+            + ", ".join(f"{item['subject_id']}: {item['feature']}" for item in unresolved)
         )
     return copy.deepcopy(value)
+
+
+def _plan_subject_uses(item: Mapping[str, Any], selected: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Intersect character assignments with the plan's one authorized influence."""
+    uses = item.get('subject_uses')
+    if uses is None:
+        uses = [row for row in selected.get('subject_uses', []) if row['use'] == item['intended_influence']]
+    return validate_subject_uses(uses, subject_ids={selected['subject_id']},
+                                 allowed_uses=[item['intended_influence']])
+
+
+def reference_plan_state_rows(plan_items: Sequence[Mapping[str, Any]],
+                              selection: Mapping[str, Any] | None,
+                              ) -> tuple[list[dict[str, Any] | None], list[dict[str, Any]]]:
+    """Apply state eligibility to the plan's managed subjects and retain direct state rows."""
+    if selection is None:
+        return [None for _ in plan_items], []
+    managed = {row['subject_id'] for row in selection['subjects']}
+    selected_rows = list(selection['selected_references'])
+    available = list(selected_rows)
+    matched: list[dict[str, Any] | None] = []
+    for index, item in enumerate(plan_items):
+        uses = validate_subject_uses(item.get('subject_uses', []), allowed_uses=[item['intended_influence']])
+        subjects = {row['subject_id'] for row in uses}
+        if subjects and subjects.isdisjoint(managed):
+            matched.append(None)
+            continue
+        known_source = any(row['source'] == item['source'] for row in selected_rows)
+        needs_state = bool(subjects & managed) or known_source
+        if not needs_state:
+            matched.append(None)
+            continue
+        candidates = [(position, row) for position, row in enumerate(available)
+            if row['source'] == item['source'] and item['intended_influence'] in row['intended_influence']
+            and (not subjects or subjects == {row['subject_id']})
+            and (not row.get('subject_uses') or all(use in row['subject_uses'] for use in uses))]
+        if not candidates:
+            raise ValueError(f'reference_items[{index}] source, subject and intended influence are not eligible in reference_selection')
+        if not subjects and len({row['subject_id'] for _, row in candidates}) > 1:
+            raise ValueError(f'reference_items[{index}] requires subject_uses to distinguish its state subjects')
+        position, row = candidates[0]
+        _plan_subject_uses(item, row)
+        matched.append(copy.deepcopy(row))
+        available.pop(position)
+    if any(row['source']['kind'] == 'pack-artifact' for row in available):
+        raise ValueError('reference_selection contains a pack reference absent from the Reference Use Plan')
+    return matched, copy.deepcopy(available)
+
+
+def _validate_generic_state_boundary(reference: Mapping[str, Any],
+                                     selection: Mapping[str, Any] | None) -> None:
+    if selection is None:
+        return
+    managed = {row['subject_id'] for row in selection['subjects']}
+    uses = reference.get('subject_uses', [])
+    if any(row['subject_id'] in managed for row in uses):
+        raise ValueError('a reference assigned to a state-managed subject requires its exact state scope')
+    source = reference['source']
+    if not uses and (any(row['source'] == source for row in selection['selected_references'])
+                    or (source.get('kind') == 'studio-artifact' and source.get('character') in managed)):
+        raise ValueError('a state-managed source cannot be downgraded to an unassigned generic reference')
 
 
 def validate_prepared_references(value: Any, *, model: str,
                                  reference_selection: dict[str, Any] | None = None,
                                  reference_use_plan: dict[str, Any] | None = None,
-                                 semantic_edit_binding: dict[str, Any] | None = None,
+                                 image_input_binding: dict[str, Any] | None = None,
                                  package_root: Path | None = None) -> list[dict[str, Any]]:
     return _validate_prepared_references(value, model=model,
         reference_selection=reference_selection, reference_use_plan=reference_use_plan,
-        semantic_edit_binding=semantic_edit_binding,
+        image_input_binding=image_input_binding,
         package_root=package_root)
 
 
@@ -874,7 +955,7 @@ def _validate_prepared_references(
     model: str,
     reference_selection: dict[str, Any] | None = None,
     reference_use_plan: dict[str, Any] | None = None,
-    semantic_edit_binding: dict[str, Any] | None = None,
+    image_input_binding: dict[str, Any] | None = None,
     package_root: Path | None = None,
     context: _ReferenceContext = _LIVE_REFERENCES,
 ) -> list[dict[str, Any]]:
@@ -883,58 +964,42 @@ def _validate_prepared_references(
     if not isinstance(value, list):
         raise ValueError("selected_references must be a JSON array")
     edit_rows = None
-    if semantic_edit_binding is not None:
-        if reference_selection is not None or reference_use_plan is not None:
-            raise ValueError('semantic edit supplied references cannot replace state or pack authority')
-        _validate_semantic_edit_binding(semantic_edit_binding, model=model, active=context.active)
-        edit_rows = semantic_edit_binding['references']
+    if image_input_binding is not None:
+        _validate_image_input_binding(image_input_binding, model=model, active=context.active)
+        edit_rows = image_input_binding['references']
         if len(value) != len(edit_rows):
-            raise ValueError('selected_references must exactly match semantic edit reference count and order')
-    selection_rows: list[Any] | None = None
-    plan_items: list[Any] | None = None
-    expected_state_rows: list[dict[str, Any]] | None = None
-    if reference_selection is not None:
-        selection = _validated_reference_selection(reference_selection)
-        selection_rows = selection["selected_references"]
-    if reference_use_plan is not None:
-        plan = _validated_reference_use_plan(reference_use_plan, context=context)
-        plan_items = plan["reference_items"]
-        if len(value) != len(plan_items):
-            raise ValueError(
-                "selected_references length must exactly match reference_use_plan order"
-            )
-        if selection_rows is not None:
-            available: dict[str, list[dict[str, Any]]] = {}
-            for selected in selection_rows:
-                if not isinstance(selected, dict):
-                    raise ValueError("reference_selection selected reference must be an object")
-                available.setdefault(canonical_json(selected.get("source")), []).append(selected)
-            expected_state_rows = []
-            for index, item in enumerate(plan_items):
-                if not isinstance(item, dict):
-                    raise ValueError(f"reference_use_plan.reference_items[{index}] must be an object")
-                matches = available.get(canonical_json(item.get("source"))) or []
-                influence = item.get("intended_influence")
-                match_index = next(
-                    (
-                        candidate_index
-                        for candidate_index, candidate in enumerate(matches)
-                        if influence in candidate.get("intended_influence", [])
-                    ),
-                    None,
-                )
-                if match_index is None:
-                    raise ValueError(
-                        f"reference_use_plan.reference_items[{index}] source and intended "
-                        "influence are not eligible in reference_selection"
-                    )
-                expected_state_rows.append(matches.pop(match_index))
-    elif selection_rows is not None:
-        if len(value) != len(selection_rows):
-            raise ValueError(
-                "selected_references length must exactly match reference_selection order"
-            )
-        expected_state_rows = selection_rows
+            raise ValueError('selected_references must exactly match image input reference count and order')
+        origin = image_input_binding.get('prepared_reference_set')
+        if origin is not None:
+            report = validate_artifact(origin)
+            if not report['ok'] or origin.get('artifact_type') != 'prepared-reference-set':
+                raise ValueError('invalid prepared image input origin: ' + '; '.join(report['errors']))
+            original_rows = copy.deepcopy(origin['selected_references'])
+            for original, actual in zip(original_rows, value, strict=True):
+                original['transport']['resolved_path'] = actual['transport']['resolved_path']
+            _validate_prepared_references(original_rows, model=model,
+                reference_selection=origin['reference_selection'], reference_use_plan=origin['reference_use_plan'],
+                image_input_binding=origin.get('image_input_binding'), package_root=package_root, context=context)
+    selection = (_validated_reference_selection(reference_selection)
+                 if reference_selection is not None else None)
+    plan = (_validated_reference_use_plan(reference_use_plan, context=context)
+            if reference_use_plan is not None else None)
+    plan_items = plan['reference_items'] if plan is not None else []
+    pack_positions = [index for index, row in enumerate(value)
+                      if isinstance(row, Mapping) and isinstance(row.get('source'), Mapping)
+                      and row['source'].get('kind') == 'pack-artifact']
+    if len(pack_positions) != len(plan_items):
+        raise ValueError('pack references must exactly match reference_use_plan count and order')
+    plan_by_position = dict(zip(pack_positions, plan_items, strict=True))
+    plan_states, direct_states = reference_plan_state_rows(plan_items, selection)
+    plan_state_by_position = dict(zip(pack_positions, plan_states, strict=True))
+    expected_state_rows = ([row for row in plan_states if row is not None] + direct_states
+                           if plan is not None else (selection['selected_references'] if selection else []))
+    state_positions = [index for index, row in enumerate(value)
+                       if isinstance(row, Mapping) and ('subject_id' in row or any(key in row for key in STATE_SCOPE_FIELDS))]
+    if len(state_positions) != len(expected_state_rows):
+        raise ValueError('state-scoped selected_references must exactly match reference_selection count and order')
+    state_by_position = dict(zip(state_positions, expected_state_rows, strict=True))
     allowed_media = (
         model_reference_media_types(model, required=True) if value and context.active else frozenset()
     )
@@ -943,11 +1008,13 @@ def _validate_prepared_references(
         field = f"selected_references[{index}]"
         if not isinstance(raw, Mapping):
             raise ValueError(f"{field} must be an object")
-        expected_fields = (
-            STATE_PREPARED_REFERENCE_FIELDS
-            if selection_rows is not None
-            else GENERIC_PREPARED_REFERENCE_FIELDS
-        )
+        expected = state_by_position.get(index)
+        plan_item = plan_by_position.get(index)
+        if plan_item is not None and expected != plan_state_by_position[index]:
+            raise ValueError(f'{field} differs from its plan/state scope')
+        expected_fields = STATE_PREPARED_REFERENCE_FIELDS if expected is not None else GENERIC_PREPARED_REFERENCE_FIELDS
+        if 'subject_uses' in raw:
+            expected_fields = expected_fields | {'subject_uses'}
         _require_exact_fields(raw, expected_fields, field)
         role = _require_string(raw.get("role"), f"{field}.role", ROLE_RE)
         source = _validate_source(raw.get("source"), f"{field}.source", context=context)
@@ -970,13 +1037,10 @@ def _validate_prepared_references(
             "transport": transport,
             "authority": authority,
         }
-        if selection_rows is not None:
-            assert expected_state_rows is not None
-            expected = expected_state_rows[index]
-            if not isinstance(expected, dict):
-                raise ValueError(
-                    f"reference_selection.selected_references[{index}] must be an object"
-                )
+        if 'subject_uses' in raw:
+            normalized['subject_uses'] = validate_subject_uses(raw['subject_uses'])
+        if expected is not None:
+            normalized['subject_id'] = _require_string(raw.get('subject_id'), f'{field}.subject_id')
             normalized["binding_id"] = _require_string(
                 raw.get("binding_id"), f"{field}.binding_id", BINDING_ID_RE
             )
@@ -987,6 +1051,7 @@ def _validate_prepared_references(
                     require_non_empty=(scope_field == "intended_influence"),
                 )
             projected = {
+                "subject_id": expected.get("subject_id"),
                 "binding_id": expected.get("binding_id"),
                 "role": expected.get("role"),
                 "source": expected.get("source"),
@@ -998,8 +1063,16 @@ def _validate_prepared_references(
                 ),
                 "unsupported_assumptions": expected.get("unsupported_assumptions"),
             }
+            expected_uses = (_plan_subject_uses(plan_item, expected)
+                             if plan_item is not None else expected.get('subject_uses', []))
+            if 'subject_uses' in expected or (plan_item is not None and 'subject_uses' in plan_item):
+                projected['subject_uses'] = expected_uses
+            if normalized.get('subject_uses', []) != expected_uses:
+                raise ValueError(f'{field}.subject_uses differs from reference_selection')
+            validate_subject_uses(normalized.get('subject_uses', []), subject_ids={normalized['subject_id']},
+                                  allowed_uses=normalized['intended_influence'])
             actual_projection = {
-                key: normalized[key]
+                key: normalized.get(key)
                 for key in projected
             }
             if actual_projection != projected:
@@ -1007,81 +1080,89 @@ def _validate_prepared_references(
                     f"{field} is not the exact ordered scope projection of "
                     "reference_selection"
                 )
-        if plan_items is not None:
-            plan_item = plan_items[index]
-            expected_role = (
-                str(expected_state_rows[index].get("role"))
-                if expected_state_rows is not None
-                else str(plan_item.get("semantic_role"))
-            )
+        else:
+            _validate_generic_state_boundary(normalized, selection)
+        if plan_item is not None:
+            expected_role = str(expected['role'] if expected is not None else plan_item['semantic_role'])
             if role != expected_role:
                 raise ValueError(f"{field}.role differs from its plan/state authority role")
+            if expected is None and normalized.get('subject_uses', []) != plan_item.get('subject_uses', []):
+                raise ValueError(f'{field}.subject_uses differs from reference_use_plan')
+            validate_subject_uses(normalized.get('subject_uses', []), allowed_uses=[plan_item['intended_influence']])
+            if plan_item.get('subject_uses') and any(use not in normalized.get('subject_uses', []) for use in plan_item['subject_uses']):
+                raise ValueError(f'{field}.subject_uses exceeds its state or plan assignment')
             if source != plan_item.get("source"):
                 raise ValueError(f"{field}.source differs from reference_use_plan")
             if authority != plan_item.get("authority"):
                 raise ValueError(f"{field}.authority differs from reference_use_plan")
-            if expected_state_rows is not None:
+            if expected is not None:
                 intended_influence = plan_item.get("intended_influence")
-                if intended_influence not in expected_state_rows[index]["intended_influence"]:
+                if intended_influence not in expected["intended_influence"]:
                     raise ValueError(
                         f"{field} uses a plan influence that is not eligible in "
                         "reference_selection"
                     )
-        elif edit_rows is not None:
-            expected = edit_rows[index]
-            if source.get('kind') != 'supplied-file':
-                raise ValueError(f'{field} semantic edit authority requires a supplied-file source')
-            if (source['reference_id'] != expected['id'] or source['sha256'] != expected['sha256']
-                    or role != expected['role']):
-                raise ValueError(f'{field} differs from the semantic edit reference identity, bytes, role or order')
-            if authority != {'controls': expected['use_for'], 'must_not_control': expected['do_not_transfer']}:
-                raise ValueError(f'{field}.authority differs from the semantic edit binding')
-        else:
+        elif edit_rows is None or expected is not None:
             if source.get("kind") == "pack-artifact":
-                raise ValueError(
-                    f"{field} uses a pack-artifact without an explicit Reference Use Plan"
-                )
+                raise ValueError(f"{field} uses a pack-artifact without an explicit Reference Use Plan")
             expected_authority = (
                 state_authority_for(normalized["intended_influence"])
-                if selection_rows is not None
-                else conservative_authority(role)
+                if expected is not None
+                else direct_reference_authority(role, normalized.get('subject_uses', []))
             )
             if authority != expected_authority:
                 raise ValueError(f"{field}.authority is not the canonical conservative authority")
+        if edit_rows is not None:
+            expected = edit_rows[index]
+            if source['sha256'] != expected['sha256'] or role != expected['role']:
+                raise ValueError(f'{field} differs from the image input bytes, role or order')
+            if reference_selection is None and reference_use_plan is None:
+                origin = image_input_binding.get('prepared_reference_set')
+                if origin is not None:
+                    if source != origin['selected_references'][index]['source']:
+                        raise ValueError(f'{field}.source differs from the existing prepared source')
+                elif source.get('kind') != 'supplied-file' or source['reference_id'] != expected['id']:
+                    raise ValueError(f'{field} requires the supplied source or its existing state/plan authority')
+            if authority != {'controls': expected['use_for'], 'must_not_control': expected['do_not_transfer']}:
+                raise ValueError(f'{field}.authority differs from the image input binding')
+            if normalized.get('subject_uses', []) != expected.get('subject_uses', []):
+                raise ValueError(f'{field}.subject_uses differs from the image input binding')
+        if context.active:
+            validate_studio_subject_uses(source, normalized.get('subject_uses', []))
         validated.append(normalized)
     if validated != value:
         raise ValueError("selected references are not in canonical prepared form")
     return validated
 
 
-def _validate_semantic_edit_binding(binding: Any, *, model: str, active: bool) -> None:
-    """Use the authored edit as the sole scope owner for supplied references."""
-    from semantic_edit_plan import validate_binding
+def _validate_image_input_binding(binding: Any, *, model: str, active: bool) -> None:
+    """Keep the common input model and exact supplied scopes bound to this set."""
+    from image_input import validate_binding
     validate_binding(binding)
     if binding['external_request'] is not None:
         raise ValueError('dispatcher reference preparation requires external_request null')
     declared = binding['model']
     if declared['catalog_status'] != 'defined' or declared['catalog_model'] != model:
-        raise ValueError('semantic edit references require their exact defined catalog model')
+        raise ValueError('image input references require their exact defined catalog model')
     if active:
         from model_contract import select_offering
         import service_profile
         import transport_contract
         model_id, record = resolve_model_record(model)
         if model_id != model:
-            raise ValueError('semantic edit catalog_model must be the canonical model ID')
+            raise ValueError('image input catalog_model must be the canonical model ID')
         target = declared['target']
         offering = select_offering(record, target['service'])
         if offering is None or offering['model_identifier'] != target['model_identifier']:
-            raise ValueError('semantic edit target differs from the active model offering')
+            raise ValueError('image input target differs from the active model offering')
         resource = load_pack_catalog().resources.get('service-profiles')
         if resource is None:
-            raise ValueError('semantic edit target requires its active service profile')
+            raise ValueError('image input target requires its active service profile')
         service = service_profile.load_service(target['service'], resource.path)
         transport = transport_contract.load(service['transport'])
         expected_operation = transport.OPERATIONS['generation']
         if target['operation'] != expected_operation:
-            raise ValueError('semantic edit operation differs from the selected generation transport: '
+            raise ValueError('image input operation differs from the selected generation transport: '
                              f'expected {expected_operation!r}, received {target["operation"]!r}')
 
 
@@ -1116,8 +1197,8 @@ def _prepared_set_id(value: Mapping[str, Any]) -> str:
         "selected_references": value.get("selected_references"),
         "single_board": value.get("single_board"),
     }
-    if 'semantic_edit_binding' in value:
-        projection['semantic_edit_binding_sha256'] = value['semantic_edit_binding']['binding_sha256']
+    if 'image_input_binding' in value:
+        projection['image_input_binding_sha256'] = value['image_input_binding']['binding_sha256']
     digest = hashlib.sha256(canonical_json(projection).encode("utf-8")).hexdigest()[:20]
     return f"PRS-{digest}"
 
@@ -1273,8 +1354,8 @@ def _validate_prepared_reference_set(
     if not isinstance(value, dict):
         raise ValueError("prepared reference input must be a JSON object")
     expected_fields = PREPARED_REFERENCE_SET_FIELDS
-    if 'semantic_edit_binding' in value:
-        expected_fields = expected_fields | {'semantic_edit_binding'}
+    if 'image_input_binding' in value:
+        expected_fields = expected_fields | {'image_input_binding'}
     _require_exact_fields(value, expected_fields, "prepared reference set")
     if value.get("artifact_type") != "prepared-reference-set":
         raise ValueError("prepared reference input must be a prepared-reference-set artifact")
@@ -1305,10 +1386,13 @@ def _validate_prepared_reference_set(
                 same_model = False
             if not same_model:
                 raise ValueError("prepared reference target_model differs from generation model")
-    edit_binding = value.get('semantic_edit_binding')
-    if 'semantic_edit_binding' in value:
+    edit_binding = value.get('image_input_binding')
+    if 'image_input_binding' in value:
         if edit_binding is None or mode not in {'multi-image', 'single-board'}:
-            raise ValueError('semantic_edit_binding requires a model-facing supplied reference set')
+            raise ValueError('image_input_binding requires a model-facing reference set')
+        origin = edit_binding.get('prepared_reference_set')
+        if origin is not None and prepared_origin_projection(value) != prepared_origin_projection(origin):
+            raise ValueError('image input set differs from its existing prepared source authority')
 
     selection_value = value.get("reference_selection")
     selection_hash_value = value.get("reference_selection_sha256")
@@ -1382,7 +1466,7 @@ def _validate_prepared_reference_set(
         model=effective_model,
         reference_selection=selection, context=context,
         reference_use_plan=(plan if mode in {"multi-image", "single-board"} else None),
-        semantic_edit_binding=edit_binding,
+        image_input_binding=edit_binding,
         package_root=package_root,
     )
     if context.active and mode in {"multi-image", "single-board"}:
@@ -1392,7 +1476,7 @@ def _validate_prepared_reference_set(
                 f"target model {model_id!r} is an upscaler and cannot accept generation references"
             )
         reference_limit = model_reference_limit(model_record)
-        delivered_count = 1 if mode == "single-board" and references else len(references)
+        delivered_count = delivered_reference_count({"transport_mode": mode, "selected_references": references})
         if reference_limit is not None and delivered_count > reference_limit:
             raise ValueError(
                 f"prepared references exceed model {model_id!r} max_reference_images="
@@ -1487,7 +1571,7 @@ def _validate_prepared_reference_set(
         "prepared_reference_set_sha256": concrete_hash,
     }
     if edit_binding is not None:
-        normalized['semantic_edit_binding'] = copy.deepcopy(edit_binding)
+        normalized['image_input_binding'] = copy.deepcopy(edit_binding)
     if normalized != value:
         raise ValueError("prepared reference set is not in canonical form")
     return normalized
@@ -1520,7 +1604,7 @@ def build_prepared_reference_set(
     selected_references: Sequence[Mapping[str, Any]] = (),
     reference_selection: Mapping[str, Any] | None = None,
     reference_use_plan: Mapping[str, Any] | None = None,
-    semantic_edit_binding: Mapping[str, Any] | None = None,
+    image_input_binding: Mapping[str, Any] | None = None,
     zero_reference_reason: Mapping[str, Any] | None = None,
     reference_preamble: str | None = None,
     prompt_artifacts: Sequence[Mapping[str, Any]] = (),
@@ -1570,8 +1654,8 @@ def build_prepared_reference_set(
         "single_board": copy.deepcopy(dict(single_board)) if single_board is not None else None,
         "prepared_reference_set_sha256": "0" * 64,
     }
-    if semantic_edit_binding is not None:
-        raw['semantic_edit_binding'] = copy.deepcopy(dict(semantic_edit_binding))
+    if image_input_binding is not None:
+        raw['image_input_binding'] = copy.deepcopy(dict(image_input_binding))
     if not raw["set_id"]:
         raw["set_id"] = _prepared_set_id(raw)
     return finalize_prepared_reference_set(
@@ -1625,7 +1709,12 @@ def host_reference_transports(
     if mode != "multi-image":
         raise ValueError(f"{mode} transport is not valid for model generation")
     rows: list[dict[str, str]] = []
-    for index, reference in enumerate(reference_set.get("selected_references") or []):
+    references = reference_set.get("selected_references") or []
+    seen = set()
+    for index, (reference, number) in enumerate(zip(references, attachment_numbers(references), strict=True)):
+        if number in seen:
+            continue
+        seen.add(number)
         transport = reference["transport"]
         _stored, path = _resolve_packaged_file(
             transport.get("resolved_path"),
@@ -1647,7 +1736,8 @@ def _preflight_selection_item(raw: Any, index: int) -> tuple[str, dict[str, Any]
     field = f"selections[{index}]"
     if not isinstance(raw, Mapping):
         raise ValueError(f"{field} must be an object")
-    _require_exact_fields(raw, frozenset({"role", "source"}), field)
+    _require_exact_fields(raw, frozenset({"role", "source"} | ({"subject_uses"} if "subject_uses" in raw else set())), field)
+    validate_subject_uses(raw.get('subject_uses', []))
     role = _require_string(raw.get("role"), f"{field}.role", ROLE_RE)
     source = raw.get("source")
     if not isinstance(source, Mapping):
@@ -1686,7 +1776,8 @@ def _preflight_committed_item(raw: Any, index: int) -> tuple[str, dict[str, Any]
     field = f"selections[{index}]"
     if not isinstance(raw, Mapping):
         raise ValueError(f"{field} must be an object")
-    _require_exact_fields(raw, frozenset({"role", "source"}), field)
+    _require_exact_fields(raw, frozenset({"role", "source"} | ({"subject_uses"} if "subject_uses" in raw else set())), field)
+    validate_subject_uses(raw.get('subject_uses', []))
     role = _require_string(raw.get("role"), f"{field}.role", ROLE_RE)
     source = _validate_source(raw.get("source"), f"{field}.source")
     _validate_source_prepareability(source, field)
@@ -1811,6 +1902,51 @@ def _materialize_preflight(
             shutil.rmtree(staging)
 
 
+def _direct_reference_preflight(selections: Any) -> list[tuple[str, dict[str, Any]]]:
+    if not isinstance(selections, list):
+        raise ValueError('selection input must be a JSON array')
+    for index, raw in enumerate(selections):
+        source = raw.get('source') if isinstance(raw, Mapping) else None
+        if not isinstance(source, Mapping) or source.get('kind') not in {'supplied-file', 'studio-artifact'}:
+            raise ValueError(f'selection[{index}] must be a supplied-file or committed Studio source; '
+                             'active pack artifacts require an explicit Reference Use Plan executed by reference_runtime.py')
+    return [_preflight_selection_item(raw, index) for index, raw in enumerate(selections)]
+
+
+def _apply_direct_reference_scope(reference: dict[str, Any], authored: Mapping[str, Any]) -> None:
+    if 'subject_uses' in authored:
+        reference['subject_uses'] = validate_subject_uses(authored['subject_uses'])
+        validate_studio_subject_uses(reference['source'], reference['subject_uses'])
+        reference['authority'] = direct_reference_authority(reference['role'], reference['subject_uses'])
+
+
+def _apply_state_reference_scope(reference: dict[str, Any], selected: Mapping[str, Any],
+                                  plan_item: Mapping[str, Any] | None = None) -> None:
+    reference['subject_id'] = selected['subject_id']
+    for key in STATE_SCOPE_FIELDS:
+        reference[key] = copy.deepcopy(selected[key])
+    reference['authority'] = (copy.deepcopy(plan_item['authority']) if plan_item is not None
+                              else state_authority_for(selected['intended_influence']))
+    if 'subject_uses' in selected or (plan_item is not None and 'subject_uses' in plan_item):
+        reference['subject_uses'] = (_plan_subject_uses(plan_item, selected) if plan_item is not None
+                                     else copy.deepcopy(selected['subject_uses']))
+
+
+def resolve_studio_reference_choices(studio: Path, choices: Any) -> list[dict[str, Any]]:
+    """Resolve authored Studio slots without replacing their current adoption evidence."""
+    import execution_contract as execution
+    from studio_reference import current_source
+    if not isinstance(choices, list):
+        raise ValueError('Studio reference choices must be an ordered array')
+    selected = []
+    for item in choices:
+        execution.exact(item, {'character', 'slot', 'role'} | ({'subject_uses'} if 'subject_uses' in item else set()),
+                        'Studio reference choice')
+        selected.append({'role': item['role'], 'source': current_source(studio, item['character'], item['slot']),
+            **({'subject_uses': validate_subject_uses(item['subject_uses'])} if 'subject_uses' in item else {})})
+    return selected
+
+
 def prepare_references(
     selections: Any,
     *,
@@ -1818,25 +1954,22 @@ def prepare_references(
     output_dir: Path,
     max_side: int = 1536,
     transport_mode: str = 'multi-image',
+    reference_selection: Any | None = None,
 ) -> dict[str, Any]:
+    if reference_selection is not None:
+        return prepare_state_reference_selection(reference_selection, model=model, output_dir=output_dir,
+            max_side=max_side, transport_mode=transport_mode, additional_references=selections)
     if transport_mode not in {'multi-image', 'single-board'}:
         raise ValueError('reference transport must be multi-image or single-board')
-    if not isinstance(selections, list):
-        raise ValueError("selection input must be a JSON array")
-    for index, raw in enumerate(selections):
-        source = raw.get("source") if isinstance(raw, Mapping) else None
-        if not isinstance(source, Mapping) or source.get("kind") not in {"supplied-file", "studio-artifact"}:
-            raise ValueError(
-                f"selection[{index}] must be a supplied-file or committed Studio source; active pack artifacts require "
-                "an explicit Reference Use Plan executed by reference_runtime.py"
-            )
-    preflight = [_preflight_selection_item(raw, index) for index, raw in enumerate(selections)]
+    preflight = _direct_reference_preflight(selections)
     references = _materialize_preflight(
         preflight,
         model=model,
         output_dir=output_dir,
         max_side=max_side,
     )
+    for authored, reference in zip(selections, references, strict=True):
+        _apply_direct_reference_scope(reference, authored)
     if not references:
         return empty_stateless_reference_set()
     board = None
@@ -1856,7 +1989,7 @@ def prepare_references(
     )
 
 
-def prepare_semantic_edit_references(
+def prepare_image_input_references(
     plan: Any,
     *,
     studio: Path,
@@ -1865,30 +1998,41 @@ def prepare_semantic_edit_references(
     max_side: int = 1536,
     transport_mode: str = 'multi-image',
 ) -> dict[str, Any]:
-    """Prepare supplied scene and design files with their authored edit scopes.
+    """Prepare selected images with their authored scopes and existing provenance.
 
     The plan supplies the reference order, source files, roles and exclusions.
     Its immutable binding remains inside the set through portable packaging.
     """
     import execution_contract as execution
-    import semantic_edit_plan
+    import image_input
     if transport_mode not in {'multi-image', 'single-board'}:
         raise ValueError('reference transport must be multi-image or single-board')
-    binding = semantic_edit_plan.validate(plan, studio)
+    binding = image_input.validate(plan, studio)
     selected_model = binding['model']['catalog_model']
     if model is not None and resolve_model_record(model)[0] != selected_model:
-        raise ValueError('--model differs from the semantic edit plan catalog model')
-    _validate_semantic_edit_binding(binding, model=selected_model, active=True)
+        raise ValueError('--model differs from the image input plan catalog model')
+    _validate_image_input_binding(binding, model=selected_model, active=True)
+    origin = binding.get('prepared_reference_set')
+    if origin is not None:
+        if origin['transport_mode'] != transport_mode:
+            raise ValueError('image input transport mode differs from its prepared references')
+        origin = validate_prepared_reference_set(origin, model=selected_model)
+        return build_prepared_reference_set(transport_mode=origin['transport_mode'],
+            target_model=origin['target_model'], selected_references=origin['selected_references'],
+            reference_selection=origin['reference_selection'], reference_use_plan=origin['reference_use_plan'],
+            image_input_binding=binding, single_board=origin['single_board'])
     selections = [{'role': row['role'], 'source': {'kind': 'supplied-file',
         'reference_id': row['id'], 'resolved_path': str(execution.local(studio, row['file']))}}
         for row in binding['references']]
     preflight = [_preflight_selection_item(raw, index) for index, raw in enumerate(selections)]
     for expected, (_role, source) in zip(binding['references'], preflight, strict=True):
         if source['sha256'] != expected['sha256']:
-            raise ValueError('semantic edit file changed during reference preparation: ' + expected['file'])
+            raise ValueError('image input file changed during reference preparation: ' + expected['file'])
     references = _materialize_preflight(preflight, model=selected_model,
         output_dir=output_dir, max_side=max_side)
     for expected, actual in zip(binding['references'], references, strict=True):
+        if 'subject_uses' in expected:
+            actual['subject_uses'] = validate_subject_uses(expected['subject_uses'])
         actual['authority'] = {'controls': copy.deepcopy(expected['use_for']),
                                'must_not_control': copy.deepcopy(expected['do_not_transfer'])}
     board = None
@@ -1902,7 +2046,7 @@ def prepare_semantic_edit_references(
         board['resolved_path'] = str(path.resolve())
     return build_prepared_reference_set(transport_mode=transport_mode,
         target_model=selected_model, selected_references=references,
-        semantic_edit_binding=binding, single_board=board)
+        image_input_binding=binding, single_board=board)
 
 
 def _reference_preamble_for_prepared_rows(
@@ -1926,6 +2070,7 @@ def prepare_reference_use_plan_rows(
     model: str,
     output_dir: Path,
     reference_selection: Any | None = None,
+    additional_references: Any | None = None,
     max_side: int = 1536,
 ) -> list[dict[str, Any]]:
     """Materialize plan-ordered model rows, optionally intersected with state eligibility."""
@@ -1940,42 +2085,22 @@ def prepare_reference_use_plan_rows(
         if reference_selection is not None
         else None
     )
-    matched_state_rows: list[dict[str, Any]] | None = None
-    if selection is not None:
-        available: dict[str, list[dict[str, Any]]] = {}
-        for selected in selection["selected_references"]:
-            available.setdefault(canonical_json(selected["source"]), []).append(selected)
-        matched_state_rows = []
-        for index, item in enumerate(plan["reference_items"]):
-            matches = available.get(canonical_json(item["source"])) or []
-            influence = item.get("intended_influence")
-            match_index = next(
-                (
-                    candidate_index
-                    for candidate_index, candidate in enumerate(matches)
-                    if influence in candidate.get("intended_influence", [])
-                ),
-                None,
-            )
-            if match_index is None:
-                raise ValueError(
-                    f"reference_use_plan.reference_items[{index}] source and intended "
-                    "influence are not eligible in reference_selection"
-                )
-            matched = matches.pop(match_index)
-            matched_state_rows.append(matched)
+    matched_state_rows, direct_state_rows = reference_plan_state_rows(plan['reference_items'], selection)
+    additional = [] if additional_references is None else additional_references
+    direct_preflight = _direct_reference_preflight(additional)
     committed = []
     for index, item in enumerate(plan["reference_items"]):
         role = (
             matched_state_rows[index]["role"]
-            if matched_state_rows is not None
+            if matched_state_rows[index] is not None
             else item["semantic_role"]
         )
         committed.append({"role": role, "source": item["source"]})
+    committed.extend({'role': row['role'], 'source': row['source']} for row in direct_state_rows)
     preflight = [
         _preflight_committed_item(raw, index)
         for index, raw in enumerate(committed)
-    ]
+    ] + direct_preflight
     materialized = _materialize_preflight(
         preflight,
         model=model,
@@ -1983,25 +2108,20 @@ def prepare_reference_use_plan_rows(
         max_side=max_side,
     )
     references: list[dict[str, Any]] = []
-    for index, prepared in enumerate(materialized):
-        row: dict[str, Any] = {
-            "role": prepared["role"],
-            "source": prepared["source"],
-            "transport": prepared["transport"],
-            "authority": copy.deepcopy(plan["reference_items"][index]["authority"]),
-        }
-        if matched_state_rows is not None:
-            selected = matched_state_rows[index]
-            row.update(
-                binding_id=copy.deepcopy(selected["binding_id"]),
-                covers=copy.deepcopy(selected["covers"]),
-                intended_influence=copy.deepcopy(selected["intended_influence"]),
-                review_dimensions=copy.deepcopy(selected["review_dimensions"]),
-                unsupported_or_occluded_state=copy.deepcopy(
-                    selected["unsupported_or_occluded_state"]
-                ),
-                unsupported_assumptions=copy.deepcopy(selected["unsupported_assumptions"]),
-            )
+    plan_count = len(plan['reference_items'])
+    state_count = len(direct_state_rows)
+    for index, row in enumerate(materialized):
+        if index < plan_count:
+            item = plan['reference_items'][index]
+            row['authority'] = copy.deepcopy(item['authority'])
+            if 'subject_uses' in item:
+                row['subject_uses'] = copy.deepcopy(item['subject_uses'])
+            if matched_state_rows[index] is not None:
+                _apply_state_reference_scope(row, matched_state_rows[index], item)
+        elif index < plan_count + state_count:
+            _apply_state_reference_scope(row, direct_state_rows[index - plan_count])
+        else:
+            _apply_direct_reference_scope(row, additional[index - plan_count - state_count])
         references.append(row)
     return validate_prepared_references(
         references,
@@ -2019,6 +2139,7 @@ def prepare_state_reference_selection(
     max_side: int = 1536,
     zero_reference_reason: Mapping[str, Any] | None = None,
     transport_mode: str = 'multi-image',
+    additional_references: Any | None = None,
 ) -> dict[str, Any]:
     """Validate a state selection and prepare its ordered committed sources."""
     if transport_mode not in {'multi-image', 'single-board'}:
@@ -2041,10 +2162,12 @@ def prepare_state_reference_selection(
         {"role": item["role"], "source": item["source"]}
         for item in selection["selected_references"]
     ]
+    additional = [] if additional_references is None else additional_references
+    direct_preflight = _direct_reference_preflight(additional)
     preflight = [
         _preflight_committed_item(raw, index)
         for index, raw in enumerate(committed)
-    ]
+    ] + direct_preflight
     materialized = _materialize_preflight(
         preflight,
         model=model,
@@ -2052,25 +2175,13 @@ def prepare_state_reference_selection(
         max_side=max_side,
     )
     references: list[dict[str, Any]] = []
-    for selected, prepared in zip(selection["selected_references"], materialized):
-        references.append(
-            {
-                "binding_id": copy.deepcopy(selected["binding_id"]),
-                "role": prepared["role"],
-                "source": prepared["source"],
-                "transport": prepared["transport"],
-                "authority": state_authority_for(selected["intended_influence"]),
-                "covers": copy.deepcopy(selected["covers"]),
-                "intended_influence": copy.deepcopy(selected["intended_influence"]),
-                "review_dimensions": copy.deepcopy(selected["review_dimensions"]),
-                "unsupported_or_occluded_state": copy.deepcopy(
-                    selected["unsupported_or_occluded_state"]
-                ),
-                "unsupported_assumptions": copy.deepcopy(
-                    selected["unsupported_assumptions"]
-                ),
-            }
-        )
+    state_count = len(selection['selected_references'])
+    for index, prepared in enumerate(materialized):
+        if index < state_count:
+            _apply_state_reference_scope(prepared, selection['selected_references'][index])
+        else:
+            _apply_direct_reference_scope(prepared, additional[index - state_count])
+        references.append(prepared)
     if not references:
         return build_prepared_reference_set(
             transport_mode="none",
@@ -2132,7 +2243,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _operation_context.ArgumentParser(
         description="Prepare exact ordered caller-supplied image references."
     )
-    selection_group = parser.add_mutually_exclusive_group(required=True)
+    selection_group = parser.add_mutually_exclusive_group()
     selection_group.add_argument(
         "--supplied-selection-file",
         type=Path,
@@ -2140,19 +2251,19 @@ def main(argv: Sequence[str] | None = None) -> int:
              '"reference_id":"scene","resolved_path":"/absolute/image.png"}}; '
              'files are measured here and scopes remain conservative',
     )
-    selection_group.add_argument(
+    parser.add_argument(
         "--state-selection-file",
         type=Path,
-        help="Finalized reference-selection artifact with committed source provenance",
+        help="Finalized state selection; supplied or Studio choices may append stateless and scene references",
     )
     selection_group.add_argument('--studio-selection-file', type=Path,
         help='Ordered {character, slot, role} choices; resolve each exact current Studio acceptance')
-    selection_group.add_argument('--semantic-edit-plan-file', type=Path,
-        help='Authored dispatcher semantic-edit-plan; derive supplied files, order and exact scopes from this plan')
+    selection_group.add_argument('--image-input-plan-file', type=Path,
+        help='Authored dispatcher image-input-plan; derive supplied files, order and exact scopes from this plan')
     parser.add_argument('--studio', type=Path,
-        help='Studio root for --studio-selection-file or --semantic-edit-plan-file; edit plan file paths are relative to it')
+        help='Studio root for --studio-selection-file or --image-input-plan-file; edit plan file paths are relative to it')
     parser.add_argument('--transport-mode', choices=['multi-image', 'single-board'], default='multi-image')
-    parser.add_argument("--model", help="Explicit catalog model; optional only when a semantic edit plan already declares its model")
+    parser.add_argument("--model", help="Explicit catalog model; optional when an image input plan declares its model")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--max-side", type=int, default=1536)
     parser.add_argument("--out", type=Path, required=True)
@@ -2161,16 +2272,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
     try:
-        if args.semantic_edit_plan_file is None and not args.model:
+        if not any((args.state_selection_file, args.supplied_selection_file,
+                    args.studio_selection_file, args.image_input_plan_file)):
+            raise ValueError('provide a state selection, supplied choices, Studio choices or an image input plan')
+        if args.image_input_plan_file is not None and args.state_selection_file is not None:
+            raise ValueError('image input plans preserve their existing prepared state selection')
+        if args.image_input_plan_file is None and not args.model:
             raise ValueError('--model is required for supplied, state or Studio reference preparation; no default model is selected')
-        if args.semantic_edit_plan_file is not None:
+        additional = []
+        if args.studio_selection_file is not None:
             if args.studio is None:
-                raise ValueError('--studio is required for a semantic edit plan')
+                raise ValueError('--studio is required for a Studio selection')
+            additional = resolve_studio_reference_choices(args.studio, read_json_array(args.studio_selection_file))
+        elif args.supplied_selection_file is not None:
+            additional = read_json_array(args.supplied_selection_file)
+        if args.image_input_plan_file is not None:
+            if args.studio is None:
+                raise ValueError('--studio is required for an image input plan')
             import execution_contract as execution
-            plan_file = args.semantic_edit_plan_file
+            plan_file = args.image_input_plan_file
             if not plan_file.is_absolute():
                 plan_file = execution.local(args.studio, str(plan_file))
-            prepared = prepare_semantic_edit_references(read_json_object(plan_file),
+            prepared = prepare_image_input_references(read_json_object(plan_file),
                 studio=args.studio, model=args.model, output_dir=args.output_dir,
                 max_side=args.max_side, transport_mode=args.transport_mode)
         elif args.state_selection_file is not None:
@@ -2179,22 +2302,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 model=args.model,
                 output_dir=args.output_dir,
                 max_side=args.max_side, transport_mode=args.transport_mode,
+                additional_references=additional,
             )
-        elif args.studio_selection_file is not None:
-            if args.studio is None:
-                raise ValueError('--studio is required for a Studio selection')
-            import execution_contract as execution
-            from studio_reference import current_source
-            choices = read_json_array(args.studio_selection_file)
-            selected = []
-            for item in choices:
-                execution.exact(item, {'character', 'slot', 'role'}, 'Studio reference choice')
-                selected.append({'role': item['role'], 'source': current_source(args.studio, item['character'], item['slot'])})
-            prepared = prepare_references(selected, model=args.model, output_dir=args.output_dir,
-                max_side=args.max_side, transport_mode=args.transport_mode)
         else:
             prepared = prepare_references(
-                read_json_array(args.supplied_selection_file),
+                additional,
                 model=args.model,
                 output_dir=args.output_dir,
                 max_side=args.max_side, transport_mode=args.transport_mode,

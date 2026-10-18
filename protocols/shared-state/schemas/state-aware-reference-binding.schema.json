@@ -141,6 +141,9 @@
     "binding_sha256": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "subject_uses": {
+      "$ref": "prepared-generation-reference.schema.json#/$defs/subject-uses"
     }
   },
   "additionalProperties": false

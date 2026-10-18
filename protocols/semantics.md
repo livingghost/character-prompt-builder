@@ -68,6 +68,21 @@ The receiving project must explicitly obtain and verify selected media before
 using them. Source bytes, transformed transports,
 selected references, observed output and approved registry entries remain separate.
 
+A reference assignment states `subject_id`, canonical `use` and nonnegative
+integer `priority`. Smaller priorities win only within the same subject and use;
+equal priorities supply complementary evidence. An assignment cannot widen its
+source's declared influence or transfer another character's identity.
+State selections retain independent `subjects[]` contexts. Selected rows and
+unresolved requirements name their subject. Required-feature coverage is a
+partition within each subject, and binding IDs are unique within that subject.
+The prepared set may also carry ordinary references for stateless subjects or
+the scene. State-scoped rows retain the selected subsequence and binding scope.
+Generic rows cannot name a state-managed subject or discard a selected source's
+state scope. Pack references retain plan authority; additional direct references
+retain their own source and adoption proof.
+Identical image bytes may share one delivered attachment while retaining all
+logical sources, adopted scope and assignments.
+
 Candidate and adoption records identify their exact upstream contents and ranges.
 An adoption receipt records a decision; its validity does not authenticate the
 human who approved it or grant permission to execute a model. Routing hints classify the record requiring attention: visual-contract, projection,

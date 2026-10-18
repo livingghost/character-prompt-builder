@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026.10.18.6
+
+- Require references or an exact external request in image-input plans. Identify each subject and the complete conflicting request fields in reference diagnostics.
+- Describe visible output defects consistently and keep them distinct from transport failures.
+- Reject unscoped provider names in generic code and shared references during model-neutrality checks.
+- Document shared image-input ownership and exact character identity across state graphs, reference selections and production specifications.
+
+## 2026.10.18.5
+
+- Read model selection preferences from a complete home override or the active pack's named policy resource. An absent source leaves selection neutral.
+- Resolve the whole policy through existing pack precedence and conflicts, preserving its ownership and provenance. Validate the policy during pack validation and lock construction.
+- Use the selected pack runtime for catalog and external model guidance. Preference inspection leaves uninitialized pack state unchanged.
+
+## 2026.10.18.4
+
+- Match model preferences to explicit catalog and interface identities while preserving distinctions between broad adapters and specific models.
+- Keep shared image inputs, task-specific reference uses and intent for actual scene edits on their respective contracts.
+- Choose models according to each stage's requirements and the selected interface's input capabilities.
+
+## 2026.10.18.3
+
+- Select image models with use-case guidance, recorded evidence and author preferences at their existing owners. Keep a missing discouragement distinct from verified request acceptance, input compatibility and visual quality.
+- Diagnose generation failures from saved evidence and distinguish provider refusals from authentication, quota, transport, input and output defects. Only explicitly reported provider failures contribute restriction hypotheses; aesthetic and quality preferences retain their own meaning. Suggest compatible alternatives within the current task's authority without automatically resubmitting.
+- Prepare only missing accepted character assets before a shared scene. Choose models per stage and review each subject's identity, wardrobe, performance and scene relationships independently.
+- Preserve per-subject reference uses and priorities across canonical preparation, attachment deduplication, packaging and verification. Keep binding IDs unique within each character, allowing different characters to use the same local ID. Aggregate each state-managed subject's complete graph without requiring state history for stateless scene participants.
+- Share exact image-input and external-request binding between reference generation and semantic editing. Keep edit intent on its own plan, preserve endpoint or tool model identity, and distinguish saved request binding from an independently recorded host submission.
+- Bind accepted variations to their author, source evidence, task or exact source bytes, limits and review criteria. A changed source invalidates a source-scoped allowance.
+
 ## 2026.10.18.2
 
 - Canonicalize the check staging directory at creation. On a Windows host whose temporary directory arrives as an 8.3 short name or a junction spelling, a dispatcher check with prepared references compared incompatible path spellings and failed package compilation.

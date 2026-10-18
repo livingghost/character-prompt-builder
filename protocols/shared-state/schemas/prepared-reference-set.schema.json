@@ -86,9 +86,9 @@
         }
       ]
     },
-    "semantic_edit_binding": {
+    "image_input_binding": {
       "type": "object",
-      "description": "Validated immutable semantic-edit binding for supplied-file references. Its exact scopes, original hashes and model govern this set independently of pack or state authority.",
+      "description": "Validated image inputs preserve their exact scopes and any existing state, pack or Studio source authority.",
       "required": [
         "artifact_type",
         "binding_sha256",
@@ -96,7 +96,7 @@
       ],
       "properties": {
         "artifact_type": {
-          "const": "semantic-edit-binding"
+          "const": "image-input-binding"
         },
         "binding_sha256": {
           "$ref": "#/$defs/sha256"
@@ -156,17 +156,11 @@
     {
       "if": {
         "required": [
-          "semantic_edit_binding"
+          "image_input_binding"
         ]
       },
       "then": {
         "properties": {
-          "reference_selection": {
-            "type": "null"
-          },
-          "reference_use_plan": {
-            "type": "null"
-          },
           "transport_mode": {
             "enum": [
               "multi-image",
@@ -175,7 +169,17 @@
           },
           "selected_references": {
             "items": {
-              "$ref": "#/$defs/semantic-edit-reference"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/image-input-reference"
+                },
+                {
+                  "$ref": "prepared-generation-reference.schema.json#/$defs/generic-prepared-reference"
+                },
+                {
+                  "$ref": "prepared-generation-reference.schema.json#/$defs/state-scoped-prepared-reference"
+                }
+              ]
             }
           }
         }
@@ -569,7 +573,7 @@
       },
       "additionalProperties": false
     },
-    "semantic-edit-reference": {
+    "image-input-reference": {
       "type": "object",
       "required": [
         "role",
@@ -602,6 +606,9 @@
             }
           },
           "additionalProperties": false
+        },
+        "subject_uses": {
+          "$ref": "prepared-generation-reference.schema.json#/$defs/subject-uses"
         }
       },
       "additionalProperties": false

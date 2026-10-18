@@ -798,12 +798,14 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
         {
             "artifact_type": "reference-selection",
             "selection_id": f"SEL-C01-{context['scene_context_id']}",
+            "subjects": [{"subject_id": identity["character_id"],
             "identity_contract_sha256": artifact_hash(identity),
             "era_contract_sha256": None,
             "appearance_variant_sha256": None,
             "state_snapshot_sha256": artifact_hash(state),
             "story_order": state["story_order"],
             "required_state_features": [],
+            }],
             "selected_references": [],
             "unresolved_requirements": [],
             "selection_sha256": "0" * 64,
@@ -847,6 +849,11 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
     from request_validation_fixtures import fixture_validation
     validation = fixture_validation(generated, "gpt-image-2.5-flare", reference_mode="prompt-prefix")
     write_json(generated / 'request-validation.json', validation)
+    state_graphs = [{"lineage": lineage, "species_profile": species_profile,
+        "individual_morphology": individual_morphology, "identity_contract": identity,
+        "state_snapshot": state, "scene_context": context, "visual_projection": projection,
+        "asset_render_spec": render_spec}]
+    write_json(generated / "state-graphs.json", state_graphs)
     payload = build_package(
         request_validation=validation, input_root=generated,
         route_reading=route_reading,
@@ -862,14 +869,7 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
         brief=production_spec["source_brief"],
         creative_intent=creative_intent,
         production_spec=production_spec,
-        state_lineage=lineage,
-        species_profile=species_profile,
-        individual_morphology=individual_morphology,
-        identity_contract=identity,
-        state_snapshot=state,
-        scene_context=context,
-        visual_projection=projection,
-        asset_render_spec=render_spec,
+        state_graphs=state_graphs,
         prepared_reference_set=prepared_reference_set,
         parameters={"width": 1024, "height": 1024, "settings": {"quality": "high"}},
         negative_transport="integrated-critical",

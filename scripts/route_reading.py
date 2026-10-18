@@ -144,7 +144,7 @@ def ledger_candidates(*, studio: Path | None = None, package_root: Path | None =
         if found is not None:
             output.append(found / 'work/reads.jsonl')
     import pack_manager
-    output.append(pack_manager._user_data_home() / 'reads.jsonl')
+    output.append(pack_manager.user_data_home() / 'reads.jsonl')
     return list(dict.fromkeys(output))
 
 

@@ -265,7 +265,7 @@ def selected_profile(record: Mapping, offering: Mapping | None) -> dict:
     return copy.deepcopy(profile)
 
 
-def model_card(record: Mapping, offering: Mapping | None = None) -> dict:
+def _execution_card(record: Mapping, offering: Mapping | None = None) -> dict:
     owner = offering if offering is not None else record
     profile = owner.get('execution_profile')
     if profile is not None:
@@ -280,6 +280,12 @@ def model_card(record: Mapping, offering: Mapping | None = None) -> dict:
             'recommendation_merge_mode': record.get('recommendation_merge_mode', 'advisory-only'),
             'size_choices': copy.deepcopy(record.get('size_hints') or {}),
             'note': 'Recommendations are starting points. Interface validity and observed image quality are separate evidence.'}
+
+
+def model_card(record: Mapping, offering: Mapping | None = None) -> dict:
+    """Show interface controls beside current author preferences for model selection."""
+    from model_suitability import guidance_card
+    return {**_execution_card(record, offering), 'use_case_suitability': guidance_card(record, offering)}
 
 
 def _get(tree: dict, path: str) -> tuple[bool, Any]:
@@ -434,7 +440,7 @@ def compile_contract(record: Mapping, offering: Mapping | None, intent: dict,
     from prompt_weighting import selected
     selected(effective)
     media_check(profile, mode, reference_count=reference_count, offering=offering)
-    card = model_card(record, offering)
+    card = _execution_card(record, offering)
     return {'artifact_type': 'render-contract', 'intent': copy.deepcopy(intent), 'model_card': card,
             'profile_sha256': digest(card), 'authored_parameters': copy.deepcopy(parameters),
             'parameters': effective, 'parameter_decisions': decisions, 'reference_count': reference_count,
@@ -461,7 +467,7 @@ def verify_contract(value: Any, *, intent: dict, parameters: dict, prompt: str,
     for key in ('parameter_decisions', 'parameters', 'reference_count', 'prompt_expression'):
         if encoded(expected[key]) != encoded(value[key]):
             raise ValueError('render contract has inconsistent ' + key)
-    if record is not None and encoded(model_card(record, offering)) != encoded(card):
+    if record is not None and encoded(_execution_card(record, offering)) != encoded(card):
         raise ValueError('active model/interface guidance differs from the selected render contract')
 
 

@@ -35,7 +35,7 @@ class StudioStateTests(unittest.TestCase):
 
     def selection(self):
         graph = self.graph
-        return state.select_state_references([self.binding()],selection_id='SEL-STUDIO',
+        return state.select_state_references(subject_id="C01", bindings=[self.binding()],selection_id='SEL-STUDIO',
             identity_hash=state.artifact_hash(graph['identity_contract']),era_hash=None,appearance_hash=None,
             state_hash=state.artifact_hash(graph['state_snapshot']),story_order=graph['state_snapshot']['story_order'],
             required_features=['identity-anchor'],limit=1)
@@ -90,7 +90,7 @@ class StudioStateTests(unittest.TestCase):
         self.scope['effective_story_range']={'from_order':1000,'to_order':2000}
         selection=self.selection()
         self.assertEqual(selection['selected_references'],[])
-        self.assertEqual(selection['unresolved_requirements'],['identity-anchor'])
+        self.assertEqual(selection['unresolved_requirements'],[{'subject_id':'C01','feature':'identity-anchor'}])
 
     def test_candidate_binding_cannot_be_finalized(self):
         with self.assertRaisesRegex(ValueError,'no current accepted'):
@@ -158,7 +158,7 @@ class StudioStateTests(unittest.TestCase):
     def test_duplicate_binding_ids_are_not_an_ambiguous_order(self):
         binding=self.binding()
         with self.assertRaisesRegex(ValueError,'IDs must be unique'):
-            state.select_state_references([binding,binding],selection_id='DUPLICATE',
+            state.select_state_references(subject_id="C01", bindings=[binding,binding],selection_id='DUPLICATE',
                 identity_hash=state.artifact_hash(self.graph['identity_contract']),era_hash=None,appearance_hash=None,
                 state_hash=state.artifact_hash(self.graph['state_snapshot']),story_order=1,required_features=[],limit=2)
 

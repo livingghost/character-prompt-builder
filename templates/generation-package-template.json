@@ -137,7 +137,8 @@
     "visual_continuity_sha256": "",
     "plot_sha256": "",
     "request_validation_sha256": "",
-    "input_snapshots_sha256": ""
+    "input_snapshots_sha256": "",
+    "state_graphs_sha256": ""
   },
   "state_lineage": {
     "artifact_type": "state-lineage",
@@ -171,5 +172,7 @@
   "request_validation": {},
   "request_validation_sha256": "",
   "input_snapshots": {},
-  "input_snapshots_sha256": ""
+  "input_snapshots_sha256": "",
+  "state_graphs": [],
+  "state_graphs_sha256": ""
 }

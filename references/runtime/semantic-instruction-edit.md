@@ -1,10 +1,14 @@
 # Instruction editing of an existing image
 
-Use this feature when a user asks to replace clothing, an object, a background,
-lighting or another depicted property while retaining a source image's subjects
-or composition. It applies to a supplied image and to an accepted Studio image.
-The agent chooses the edit's meaning and evaluates the result. Production pins
-its selected source, reference roles, model, exact request and output evidence.
+Use this feature when a user asks to change a depicted property while retaining
+an existing image's subjects or composition. It applies to a supplied image and
+to an accepted Studio image. The agent chooses the edit's meaning and evaluates
+the result. Production pins the selected source, reference scopes, model, exact
+request and output evidence through its ordinary execution path.
+
+A new scene assembled from character or design references uses the common
+`image_input` contract in [Production Execution](production-execution.md#image-input-and-exact-external-requests).
+It has no edit source unless an existing scene is actually being edited.
 
 ## Contents
 
@@ -19,27 +23,25 @@ its selected source, reference roles, model, exact request and output evidence.
 ## Resolve the intended change
 
 Read the selected source at its original resolution. For an accepted Studio
-image, retain its adoption evidence. Inspect the current character sheet or
-other accepted design references when identity, anatomy or scale matters.
-Select only references that answer the current edit; a source pose, outfit or
-background remains scene state unless its declared role gives it authority.
+image, retain its adoption evidence through the canonical prepared reference
+set. Inspect accepted design references when identity, anatomy or scale matters.
+Select references that answer the current edit. A source pose, outfit or
+background remains scene state unless its declared scope gives it authority.
 
-Declare the changed target and the properties that must remain fixed. Treat
-these as separate review criteria. A request to change a background gives the
-new background authority over that region. It does not implicitly change a
-subject's anatomy, clothing or rendering. When a garment exposes previously
+Declare the changed target and the properties that must remain fixed. Give them
+separate review criteria. A background change does not implicitly authorize
+changes to anatomy, clothing or rendering. When a garment exposes previously
 covered anatomy, use the relevant design view and review that region explicitly.
 
-Identify the visible region that could prove each requested change. Preserve
-fixed framing; an off-frame or occluded detail remains unverifiable. A wider
-view is a separate composition choice and must fit the authorized edit scope.
+Identify the visible region that could prove each requested change. A detail
+outside the frame or behind an obstruction remains unverifiable. A wider view
+is a separate composition choice and must fit the authorized edit scope.
 
-Assign one role and a precise scope to each reference. Role names are open:
-`scene`, `identity`, `anatomy`, `geometry`, `wardrobe`, `environment` and `style`
-are useful choices. The selected source has the `scene` role. `use_for` names
-its positive influence; `do_not_transfer` names properties it must not control.
-An anatomy reference can supply physique and markings while the source image
-continues to supply pose, framing and the relationship between subjects.
+Assign a role and precise scope to each reference in the shared image input.
+The selected source has the `scene` role. `use_for` names positive influence;
+`do_not_transfer` names properties it must not control. `subject_uses` limits
+an influence to named Production Specification subjects and records priority
+within each subject and use. It does not expand the source's authority.
 
 Choose the source for every trial explicitly. Return to the accepted original
 when a rejected output contains defects outside the next edit's scope. A user
@@ -47,245 +49,181 @@ may instead authorize an edit of an existing candidate.
 
 ## Author and bind the task
 
-Start with `templates/semantic-edit-plan.template.json` and validate against
-`schemas/authoring/semantic-edit-plan.schema.json`. All file paths are relative
-to the Studio root. The plan declares:
+Start with `templates/semantic-edit-plan.template.json` and
+`templates/image-input-plan.template.json`. Their authoring schemas are
+`schemas/authoring/semantic-edit-plan.schema.json` and
+`schemas/authoring/image-input-plan.schema.json`. Paths are relative to Studio.
 
-- `source`: the selected scene reference ID.
-- `edit`: target, requested change, preserved properties and required roles.
-- `model`: exact requested name, catalog status, selected service identifier and
-  the saved evidence used to resolve it.
-- `references`: ordered files, optional input hashes, roles and influence scopes.
-- `review_criteria`: existing task criterion IDs that evaluate this edit.
-- `external_request`: an exact host request binding, or `null` for dispatch.
+The edit plan owns only `source`, `edit` and `review_criteria`. `source` names
+an existing reference ID with role `scene`. `edit` contains the target, change,
+preserved properties and required reference roles. `review_criteria` names
+existing task criteria. The runtime checks these authored requirements without
+guessing body plans, clothing or artistic intent.
 
-The plan's `required_reference_roles` are authored requirements. The runtime
-checks them without guessing a body plan or detecting clothing words.
-`model.target.operation` names the selected service transport's wire operation.
-Read that service's operation contract and acquired schema. A model's
-`operation_kind` and rendering modes classify CPB behavior; neither supplies
-this wire value. For example, a service can name its wire operation `generate`
-while the rendering intent is `instruction-edit`. The service profile resource
-is discoverable with `python scripts/pack_cli.py resource service-profiles`.
+The image input owns `model`, ordered `references` and `external_request`.
+The optional `prepared_references` points to an existing canonical set whose
+source, state eligibility, adoption and authority remain intact. The edit
+binding pins the common input binding's hash; it does not copy the reference
+registry or invent another authority owner.
 
-The ordinary production task names the plan at its top level. A synthetic fragment:
+For external execution, generate the common reference preamble through
+[exact request authoring](production-execution.md#exact-target-and-provider-schema)
+and include it in the final instruction. The saved request binds that text to
+the actual media fields before the edit plan is validated.
+
+A trimmed synthetic task fragment:
 
 ```json
 {"route": "generation", "features": ["semantic-instruction-edit", "instruction-edit"],
- "artifact": "image", "execution": "external", "semantic_edit": "inputs/edit-plan.json",
+ "artifact": "image", "execution": "external",
+ "semantic_edit": "inputs/edit-plan.json", "image_input": "inputs/image-input.json",
  "sources": [{"id": "edit-source", "path": "inputs/scene.png", "role": "accepted-source",
    "disposition": "applied", "locator": "whole", "reason": "The selected product scene."}]}
 ```
 
-This is a trimmed task fragment. Fill the ordinary sources, direction, criteria,
-route reading, authority and delivery fields through Production Execution.
-Use separate task criteria for change completeness, identity, structure, pose,
-other subjects, environment and rendering where those properties matter.
-`accepted-source` names the scene selected for this task; it does not adopt that image as canon.
-Its path must match the plan's selected `scene` file. Additional task sources may use `reference-images`.
-Their semantic roles and influence scopes remain in the plan. A one-source edit requires no auxiliary image.
-Remove unused template references and their required roles together; never remove a reference the edit requires.
+Fill the ordinary direction, criteria, route reading, authority and delivery
+fields through Production Execution. Use separate criteria for requested
+changes, identity, structure, pose, other subjects, environment and rendering
+where those properties matter. `accepted-source` names the scene selected for
+this task; the role does not itself adopt the image as canon. Its path must
+match the common input's selected `scene` file. Additional task sources may use
+`reference-images`. A one-source edit requires no auxiliary image. Remove unused
+template references and required roles together.
 
 For an optional standalone inspection:
 
 ```sh
-python scripts/semantic_edit_plan.py inputs/edit-plan.json --root STUDIO --out checks/edit-binding.json
+python scripts/semantic_edit_plan.py inputs/edit-plan.json \
+  --image-input inputs/image-input.json --root STUDIO --out checks/edit-binding.json
 python scripts/production_workflow.py check --root STUDIO --task task.json
 python scripts/production_workflow.py prepare --root STUDIO --task task.json
 ```
 
-The first command reports `status: prepared-not-generated`. It decodes every
-selected image and pins the plan, source bytes, model evidence and request
-bindings. It creates no remote request. `check` and `prepare` run the same
-validator directly; the optional inspection file is not another runtime input.
-An existing output path, invalid image, missing role, changed hash, undeclared
-review criterion or conflicting reference scope fails with a diagnostic.
+The first command reports `prepared-not-generated`. It checks the common input,
+decodes images, pins evidence and binds edit meaning. It makes no remote call.
+`check` and `prepare` use the same validators; the inspection file is not another
+runtime input. Missing roles, changed hashes, undeclared criteria, conflicting
+scope and an edit without its shared image input fail before submission.
 
 ## Retain rendering and retrieval evidence
 
-Resolve the visible finish through [Rendering choices](render-contract.md).
-Save its complete intent as an applied task source with role `render-intent`.
-When the finish is fixed, include its preservation in the edit and final instruction.
-The author checks the intent's exact `prompt_expression` against that instruction.
+Resolve the finish through [Rendering choices](render-contract.md). Save its
+complete intent as an applied task source with role `render-intent`, or in an
+applied `production-spec` source. External preparation runs the common render
+intent validator and checks its exact prompt expression against delivery.
+When the finish is fixed, include its preservation in the edit and instruction.
+A declared Production Specification is validated through the same owner used
+by dispatch. Subject assignments must resolve against that specification.
 
-Run catalog and vocabulary retrieval before composing the edit. Mark the selected
-outcome for every visual element under the ordinary retrieval gate, then validate:
+Run catalog and vocabulary retrieval before composing the edit. Record each
+selected outcome under the ordinary retrieval gate, then validate:
 
 ```sh
 python scripts/prompt_retrieval.py STUDIO/inputs/lookups.json
 python scripts/render_contract.py validate-intent STUDIO/inputs/render-intent.json
 ```
 
-Keep the lookup record as an applied task source with role `retrieval-evidence`.
-Assess the final wording against its selected outcomes in the task's direction.
-When an approved plot is required, use the normal retrieval settlement command
-with that plot and final prompt. External preparation pins these sources; the
-agent evaluates their meaning. It does not synthesize a Production Specification
-or claim the dispatcher's compiled rendering and retrieval checks.
+Keep lookup evidence as an applied source with role `retrieval-evidence`. Assess
+wording against those outcomes in task direction. When an approved plot is
+required, use normal retrieval settlement with that plot and final prompt.
+External preparation pins this evidence; it does not invent a specification,
+provider capability or visual success from its presence.
 
 ## Select the model and transport
 
-Look up the requested model before final composition. Record its exact requested
-name in `model.requested`. When its catalog record is absent, use
-`catalog_status: missing` and `catalog_model: null`; retain the lookup and the
-provider's exact identifier in the evidence. Resolve aliases from evidence.
-A similarly named model is a new target, requiring an explicit choice.
+Resolve the requested model and current interface from evidence. The common
+input records the exact target, catalog presence and lookup evidence. Missing
+catalog models remain possible as recorded external trials. A similarly named
+model is a new target requiring an explicit choice. Model identity may be a
+request parameter or a pinned endpoint/tool identity, as described in Production
+Execution. Do not fabricate an unsupported `model` request field.
 
-Read the selected interface's current parameter schema and prompt guidance.
-Choose natural language or tag syntax from that model's actual contract.
-Retrieve relevant visual vocabulary before writing the target rendition.
-Each extra image's role must reach the request through supported fields or
-clear instructions. Multiple-image support alone does not establish which
-reference controls each property.
+`model.target.operation` is the service's wire operation. Rendering execution
+modes and model operation kinds do not supply that wire value. A service may
+name its operation `generate` while the rendering intent is `instruction-edit`.
+Read the service operation contract and acquired schema.
 
-Choose a transport that carries every required source and scope. One source is
-enough when it supplies all fixed visible properties. Add identity, construction,
-or other references only when the edit needs their information.
+Choose a transport carrying every required source and scope. Multiple-image
+support establishes input compatibility; reference-role effectiveness requires
+visual evidence. Separate images and verified boards retain panel lineage in
+dispatch. External exact bindings map logical images to explicit request fields;
+identical original bytes may share one field while retaining each logical role.
+Untracked boards cannot replace several selected original images.
 
-Dispatcher preparation supports separate images and verified boards with panel
-lineage. External binding maps each original image to its own exact request field;
-it does not merge several logical originals into an untracked board. A supported
-source/mask/guidance interface may bind those distinct fields explicitly.
-A guidance mask identifies an intended region; only an evidenced hard-mask
-contract can promise a pixel boundary. Record transport limits separately from quality.
-
-For `execution: dispatcher`, leave `external_request: null` and use the ordinary
-Generation Package. The ordered prepared reference set must match every plan
-source hash, role and influence scope. Its canonical model record and exact
-offering must match the declared target. The existing reference delivery flow
-binds the actual transported image bytes or board regions. The final request
-seal also retains the edit contract, so changing a target or scope requires a
-new preparation. Run the usual request review, `execute` and `resume` commands.
-The optional `scene-mask-planning` feature remains a dispatcher workflow.
-Its auxiliary guidance is outside `prepared_reference_set`; it cannot satisfy a
-required semantic reference through that matcher. Use an external binding that
-carries every required input when the interface exposes separate guidance fields.
+The optional `scene-mask-planning` feature remains a dispatcher workflow. Its
+technical guidance is separate from the canonical selected references. A mask
+identifies an intended region; a hard pixel boundary requires an evidenced mask
+contract. Record transport limits separately from visual quality.
 
 ## Prepare supplied references for dispatch
 
-For request-supplied scene and design files, prepare directly from the authored
-semantic edit plan. Leave its `external_request` null and name a defined,
-canonical `catalog_model` with its exact active service offering.
+Leave the common input's `external_request` null. Name a defined canonical model
+and its exact active service offering. Prepare through the existing command:
 
 ```sh
 python scripts/prepare_generation_references.py --studio STUDIO \
-  --semantic-edit-plan-file inputs/edit-plan.json \
+  --image-input-plan-file inputs/image-input.json \
   --output-dir STUDIO/inputs/reference-carriers \
   --out STUDIO/inputs/prepared-reference-set.json
 ```
 
-The plan path and its image paths resolve below `--studio`. Output paths use the
-calling directory. The model comes from the plan; an optional `--model` must
-resolve to that same record. Use `--transport-mode single-board` when the
-selected interface needs one attachment carrying several declared panels.
+The plan and image paths resolve below `--studio`; output paths use the calling
+directory. An optional `--model` must resolve to the same record. Use
+`--transport-mode single-board` when the interface needs one attachment with
+several declared panels. The set embeds `image_input_binding`, retaining original
+hashes, scopes and subject uses. It does not embed edit meaning as source authority.
 
-The command derives every supplied-file source, role, ordered position and
-authority scope from `references`. Its prepared rows retain `use_for` as
-`authority.controls` and `do_not_transfer` as `authority.must_not_control`.
-The set embeds a validated `semantic_edit_binding` that pins the complete edit,
-model evidence and original image hashes. It preserves those scopes through
-ordinary package construction and reference delivery.
-
-Name the same plan and the prepared set in the production task. A trimmed
-synthetic task fragment:
+A trimmed dispatcher fragment:
 
 ```json
 {"execution": "dispatcher", "semantic_edit": "inputs/edit-plan.json",
+ "image_input": "inputs/image-input.json",
  "generation": {"production_spec": "inputs/production-spec.json",
                 "references": "inputs/prepared-reference-set.json"}}
 ```
 
-Production checks the prepared binding against the task's current plan.
-Changed source bytes, scope, reference order, model or plan require preparation
-again. A frozen Generation Package verifies its recorded sources and binding
-from its companion directory after the original Studio files have moved.
+The current common input must match the prepared model, bytes, order, scope and
+subject mapping. Its request seal carries both shared input and edit meaning.
+Changes require preparation again. A frozen Generation Package verifies its
+recorded evidence from its companion directory after original files move.
 
-The ordinary `--supplied-selection-file` path retains role-derived conservative
-authority. Use the semantic plan path for task-specific scopes. A semantic edit
-binding cannot replace state eligibility or a pack Reference Use Plan. Keep
-those sources in their existing provenance workflow. For object-only images,
-use the [Production Specification object-only guidance](../production-specification.md#object-only-scenes).
+The ordinary supplied-selection path retains its conservative authority. Use
+the common image input for explicitly authored supplied-file scopes. Existing
+state selections and pack Reference Use Plans remain the upper authority; an
+image input consumes their prepared result and cannot broaden their scopes.
+For images without subjects, use [object-only Production Specifications](../production-specification.md#object-only-scenes).
 
 ## Execute through an external host
 
-Use `execution: external` when a supported host tool performs the call,
-including a schema-backed trial of a model missing from the catalog. Keep its
-lookup and schema evidence without claiming a completed catalog profile.
+Follow [image input and exact external requests](production-execution.md#image-input-and-exact-external-requests)
+for request schemas, endpoint/tool identity, media field bindings and saved-call
+evidence. Complete the ordinary handoff, exact authorization and external claim
+before one host call. Save the actual response, capture original returned bytes
+and settle the result with reported cost. Preparation and a claim do not prove
+execution. A saved request JSON is not an actual host-call record.
 
-Upload the selected original bytes through the host's supported media API and
-retain its response. Save one exact model request as Studio JSON. The plan's
-`external_request` names that file and its field paths as arrays of object keys
-and array indices. Declare model, prompt, optional operation and output count
-fields. `reference_fields` lists every reference in the selected order, with
-its request path, uploaded value and acquisition evidence. A model without a
-count or operation field uses `null` for that field; record the expected count.
-
-Add `schema: {"path": "inputs/schema.json", "sha256": "...", "pointer": []}`
-to select the acquired request schema. An empty pointer selects the whole JSON
-document; a nested pointer may select an encoded schema string in a tool
-response. Validation checks fields, numeric constraints and declared per-image
-file size or dimension limits using the pinned original bytes. Unsupported
-schema rules remain explicit in `schema_validation.unmeasured`. Without a
-schema, the binding records `bounded-probe` with `schema-unavailable`; scope
-the trial's question and quantity through the existing task and authority.
-Authorization checks that mode against the grant's `submission_validation_modes`.
-External semantic submission uses exact-operation authority with `request_scope: null`;
-dispatcher request-scope cases cannot authorize a request they do not assess.
-Use the principal's existing explicit authorization where it covers this trial.
-
-For example, a synthetic transport may bind `model_field: ["model"]`,
-`prompt_field: ["prompt"]` and two media fields at `["images", 0]` and
-`["images", 1]`. These are declared paths, not provider defaults. The request's
-prompt must exactly equal the task's delivery text, including whitespace.
-
-Preparation stores the complete request preview and the binding in the
-consumer. Model substitution, changed media IDs, omitted reference fields,
-reordered roles or an inconsistent output count fail before a claim. The
-compiler pins all referenced files. `external-intent` checks those live pins
-again and binds the exact model, input count and request digest to the existing
-submission authority.
-
-Follow the external branch in Production Execution:
-
-1. Complete `handoff-intent`, its authorization and `handoff` for the selected host.
-2. Complete `external-intent`, its authorization and `claim-external` before the call.
-3. Invoke the host with the saved request once and keep its actual response.
-4. Save original returned bytes, `capture` each image and `settle-external` with
-   the response, captured count and actual cost when reported.
-5. Inspect and review each captured candidate before selecting a result.
-
-A repeated claim lookup grants no second call. After interruption, use `status`
-or `resume` and recover the existing host result. Capturing a returned result
-uses the prepared evidence even if a live source later changes. A returned
-image ID remains an uncaptured result until its bytes have been saved and
-verified. A provider refusal, transport error and captured quality failure are
-separate observed outcomes.
-
-Each additional external trial uses its own task, request file and semantic plan.
-Keep the earlier run or candidate as a comparison source when relevant, and run
-`check` and `prepare` again. The dispatcher's `variant`, `repeat` and `retarget`
-commands do not operate on an external run.
+After interruption, use `status` or `resume` to recover the existing result.
+Capture uses prepared evidence even if live inputs later change. An image ID is
+uncaptured until its bytes have been saved and verified. A new trial has its own
+task, image input and request; include an edit plan when that trial edits a scene.
+The dispatcher's `variant`, `repeat` and `retarget` commands do not act on an
+external run.
 
 ## Review and transferable findings
 
-Assess every relevant criterion on the actual image. Preserve uncertainty when
-an output cannot be viewed or a reference was not delivered. API acceptance
-establishes request acceptance; it does not establish identity or edit quality.
-Record incomplete edits, anatomy drift, pose drift and changes outside the
-requested scope independently. Keep trials and measurements in their Studio.
+Assess every relevant criterion on the actual image. API acceptance does not
+establish identity or edit quality. Record incomplete changes, anatomy drift,
+pose drift and changes outside the requested scope separately. Assess every
+protected subject or region: one correct subject does not establish preservation
+of its neighbor. Record transferred clothing, shape, color or lighting as scope
+leakage where those properties were fixed.
 
-Assess the edited target and every protected subject or region separately.
-A correct change on one subject does not establish preservation of its neighbor.
-Record transferred clothing, color, shape or lighting as scope leakage where
-those properties were fixed. If a required detail is outside the frame or hidden,
-mark that criterion `indeterminate` with the visibility limit; never infer a pass
-from the prompt or from a different reference view.
+If a detail is hidden or outside the frame, mark its criterion `indeterminate`
+with the visibility limit. Do not infer a pass from the prompt or another view.
+Keep trials, images and measurements in Studio. Model findings belong to model
+and offering records with measured conditions; reusable wording belongs to its
+owning pack. General corrections belong to the existing production contract.
 
-Model capabilities belong in the model and offering records, with measured
-conditions and limits. Effective reusable wording belongs in its owning pack.
-General corrections belong in the owning production contract. Keep private
-images, task histories and experiment narratives outside the reusable skill.
-
-`python scripts/semantic_edit_plan_smoke_test.py` uses neutral synthetic images
-and the ordinary external lifecycle. It checks request pins, role delivery,
-source changes, capture and recovery without invoking a provider.
+`python scripts/semantic_edit_plan_smoke_test.py` checks common and edit bindings,
+source changes, external recovery and dispatcher delivery with synthetic local
+images. It invokes no paid provider and establishes no image-quality success.

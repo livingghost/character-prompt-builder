@@ -119,15 +119,15 @@
     },
     {
       "schema": "shared-state/prepared-generation-reference.schema.json",
-      "sha256": "a9b793e3bf9e41cc0cf32d5581109a21c79fef4ecc031c0462009bab3b4214a6"
+      "sha256": "689f51e9fc10c0d856b3c4f7329a1e9deb7ea127674c5539641379dd94e4efc4"
     },
     {
       "schema": "shared-state/prepared-reference-set.schema.json",
-      "sha256": "1d05065ce605e47aef0a37f42f5d5e0447675208b3d8a834a0f589fdc2421bcd"
+      "sha256": "f7a127b1dab4e6caaa5282189c1ed39b23a17b3f0b7ead0863facb535793013a"
     },
     {
       "schema": "shared-state/production-spec.schema.json",
-      "sha256": "ecdce1d900b343a96f03e75582641b4b7fc3e7ddd8a126c26e5a14e5d88be4e4"
+      "sha256": "f29e5fb38177b0afe58172d30ddc9f6f3e35f2b9d3cdefcd2a37616676b57b56"
     },
     {
       "schema": "shared-state/reference-bundle-plan.schema.json",
@@ -135,11 +135,11 @@
     },
     {
       "schema": "shared-state/reference-selection.schema.json",
-      "sha256": "eb412b41052efe8fafa3c6c94f8dce608d635aa05806d486185c8214dffa9139"
+      "sha256": "6c26eb03903a7ee35dec8218633ce3b75f59c9732770ef1277ecc5a61dc35881"
     },
     {
       "schema": "shared-state/reference-use-plan.schema.json",
-      "sha256": "f283684bff3963279c03920c45b92db2d2389fe8e31c83587fc704059c830ffe"
+      "sha256": "6c1eb607a4c069385173895f2d8c91f1bedb4fb2d28458d27953590e9dc6a4b4"
     },
     {
       "schema": "shared-state/relationship-projection.schema.json",
@@ -175,7 +175,7 @@
     },
     {
       "schema": "shared-state/state-aware-reference-binding.schema.json",
-      "sha256": "d06b5a7a808d5abb7e2e6832b634fc5d338eec5a91a0b5f260f960fb03cc8416"
+      "sha256": "62d58e8a4c57b4a12b97b866bb4297def432f61e97657572cc2f30a42285fbbb"
     },
     {
       "schema": "shared-state/state-event.schema.json",
@@ -329,11 +329,11 @@
     },
     {
       "path": "protocols/shared-state/templates/reference-selection.template.json",
-      "sha256": "50dcea53a616339397855728b5e3484f27f7a3fe6ac14ba2497f9cc0481def51"
+      "sha256": "13220a17d8e8556ccc0c192d7fa455eb66e5b6754b1acbb0704e146623a8c300"
     },
     {
       "path": "protocols/shared-state/templates/reference-use-plan.template.json",
-      "sha256": "564b4adf212cb04ab2915350b6651202ece52b5a5d1e940ec12f1cdc0f574d55"
+      "sha256": "73cc27b9c1868886ec89474826576617b1a23e41a0f00283103dbde5f54e84f1"
     },
     {
       "path": "protocols/shared-state/templates/relationship-projection.template.json",
@@ -361,7 +361,7 @@
     },
     {
       "path": "protocols/shared-state/templates/state-aware-reference-binding.template.json",
-      "sha256": "e80ec4156963face3a5c56ab666a8d624e6f0692b2158706175fdb6a08c22768"
+      "sha256": "87db0f3a18c651cfd9a14fa873aa7a10c23c1569c1b2a7dae46ae311cc6330ad"
     },
     {
       "path": "protocols/shared-state/templates/state-event-temporary-until-cleared.template.json",
@@ -678,11 +678,11 @@
   },
   "semantics": {
     "path": "protocols/semantics.md",
-    "sha256": "bc4c1745650a65dcf19200e380148e346a726d95e4309d6de68ff8939e4767cb"
+    "sha256": "a1fc50710911cbeb7a49b207427a89854e9a092eeaba7a0c0a5ab75096a2800a"
   },
   "validator": {
     "path": "scripts/protocol_contract.py",
-    "sha256": "23ddb11ecb60c27c11f965bda72862774877a7288ece4530047b8f10c524bdef"
+    "sha256": "91052913d1da601f3b9f57f02dbc41ef684f5ada7faad60918c02959018ed439"
   },
-  "contract_set_sha256": "4dd2dd62381b739d76ac8e78c336b3b6b5e6bc6e9bbbad951deb91a8b6eada01"
+  "contract_set_sha256": "df53340c5d7de7edd28b34ca63ce434b5cfb016206b7ef43c663551a7e14c928"
 }

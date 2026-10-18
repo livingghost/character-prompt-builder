@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "synthetic_moderation_block",
+    "message": "Synthetic provider moderation block."
+  }
+}

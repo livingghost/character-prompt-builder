@@ -22,6 +22,8 @@ from prepare_generation_references import (
     host_reference_transports,
     validate_prepared_reference_set,
 )
+from reference_delivery import (delivered_reference_count, reference_selection_lineage_subject,
+                                validate_reference_selection_subjects, validate_reference_subjects)
 from state_protocol import find_non_finite_numbers, parse_json
 
 VALID_MODES = {"separate-field", "integrated-critical", "native-subset", "retained-only"}
@@ -46,6 +48,7 @@ GENERATION_CONTRACT_FIELDS = {
     "plot_sha256",
     "retrieval_record_sha256",
     "state_lineage_sha256",
+    "state_graphs_sha256",
     "prepared_reference_set_sha256",
     "generation_input_sha256",
     "negative_transport_instruction",
@@ -68,7 +71,9 @@ GENERATION_PACKAGE_FIELDS = {
     "plot_sha256",
     "retrieval_record_sha256",
     "state_lineage",
+    "state_graphs",
     "state_lineage_sha256",
+    "state_graphs_sha256",
     "prepared_reference_set",
     "prepared_reference_set_sha256",
     "generation_input_sha256",
@@ -459,7 +464,7 @@ def _verify(
                 prompt=str(payload.get("prompt") or ""),
                 negative_prompt=str(payload.get("negative_prompt") or "") if mode == "separate-field" else None,
                 media_counts=None if selected is None else generation_media_counts(
-                    selected, 1 if reference_set.get("single_board") else len(references),
+                    selected, delivered_reference_count(reference_set),
                     media_role=data["render_contract"]["model_card"]["execution_profile"]["modes"][data["render_contract"]["intent"]["execution_mode"]]["media"]
                 ),
             )
@@ -614,6 +619,13 @@ def _verify(
             "to model generation"
         )
     reference_selection = reference_set["reference_selection"]
+    validate_reference_subjects(reference_set["selected_references"], production_spec)
+    validate_reference_selection_subjects(reference_selection, production_spec)
+    from state_protocol import validate_subject_state_graphs
+    state_graphs = validate_subject_state_graphs(data['state_graphs'], production_spec=production_spec,
+        reference_selection=reference_selection, state_lineage=state_lineage)
+    if data['state_graphs_sha256'] != sha256_json(state_graphs) or contract.get('state_graphs_sha256') != data['state_graphs_sha256']:
+        raise ValueError('state_graphs_sha256 mismatch')
     reference_selection_hash = reference_set["reference_selection_sha256"]
     lineage_mode = state_lineage.get("mode")
     if lineage_mode == "state-aware":
@@ -622,16 +634,7 @@ def _verify(
                 "state-aware generation requires a finalized reference-selection, "
                 "including when no references are selected"
             )
-        for field in (
-            "identity_contract_sha256",
-            "era_contract_sha256",
-            "appearance_variant_sha256",
-            "state_snapshot_sha256",
-        ):
-            if reference_selection.get(field) != state_lineage.get(field):
-                raise ValueError(
-                    f"reference-selection {field} differs from state lineage"
-                )
+        selected_state = reference_selection_lineage_subject(reference_selection, state_lineage)
     elif lineage_mode == "stateless":
         if reference_selection is not None or reference_selection_hash is not None:
             raise ValueError("stateless generation must use a null reference-selection origin")
@@ -698,7 +701,7 @@ def _verify(
     verify_contract(data["render_contract"], intent=production_spec["render_intent"],
                     parameters=parameters, prompt=data["composition_prompt"],
                     record=model_record, offering=offering,
-                    reference_count=1 if reference_set.get("single_board") else len(reference_set.get("selected_references") or []))
+                    reference_count=delivered_reference_count(reference_set))
     generation_input_hash = generation_input_sha256(data)
     require_concrete_sha256(generation_input_hash, "computed generation_input_sha256")
     for location, value in (

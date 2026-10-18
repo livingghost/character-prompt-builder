@@ -127,6 +127,11 @@ ROOT_REQUIRED = (
     'schemas/render-contract.schema.json',
     'schemas/model-execution-profile.schema.json',
     'config/render-presets.json',
+    'schemas/model-selection-preferences.schema.json',
+    'schemas/model-use-case-guidance.schema.json',
+    'schemas/authoring/generation-failure-assessment.schema.json',
+    'schemas/authoring/image-input-plan.schema.json',
+    'templates/image-input-plan.template.json',
     'references/runtime/render-contract.md',
     'scripts/nondefault_pack_isolation_smoke_test.py',
     'scripts/upscale_package.py',
@@ -2004,6 +2009,19 @@ def validate(
             errors.append(f"Python compile failed {path.relative_to(root).as_posix()}: {exc}")
 
     errors.extend(check_english_content(root))
+
+    from model_suitability import validate_preferences
+    preference_schema = parsed_json.get('schemas/model-selection-preferences.schema.json')
+    for rel, value in parsed_json.items():
+        if not isinstance(value, dict) or value.get('artifact_type') != 'model-selection-preferences':
+            continue
+        if isinstance(preference_schema, dict):
+            errors.extend(rel + ': ' + error
+                          for error in validate_against_schema(value, preference_schema))
+        try:
+            validate_preferences(value)
+        except (ValueError, TypeError, KeyError) as exc:
+            errors.append(rel + ': ' + str(exc))
 
     version_observed = check_version_consistency(root, errors)
 

@@ -85,6 +85,78 @@ A `measured` claim the pack cannot prove is refused (synthetic, from the same te
 
 [Model request evidence](model-evidence.md#keep-kinds-of-evidence-apart) keeps the kinds of evidence apart.
 
+## Apply the author's model selection preferences
+
+Guidance cards include `use_case_suitability` beside the interface controls.
+They combine the selected offering's `use_case_guidance` with current author preferences.
+The catalog owns model facts. The author owns the model selection policy.
+Preference reading selects one complete source in this order:
+
+1. `model-selection-preferences.json` under `CPB_HOME`, or `~/.character-prompt-builder` while unset, supplies the user-owned override.
+2. The active pack runtime resolves the named `model-selection-preferences` resource through its existing rank and conflict rules.
+3. An absent override and resource produce an empty preference set with a null source.
+
+The [pack resource contract](../maintenance/packs.md#core-interpreted-resource-contracts) keeps each policy in its declaring pack.
+Resolution reads that resource in place and selects the whole file; it never copies or merges policies into another owner.
+A missing pack state leaves pack preferences inactive. Preference inspection never initializes or activates discovered packs.
+An explicit home override with `entries: []` selects the empty policy. Skill updates preserve the override.
+Invalid selected files and unresolved resource conflicts are reported as errors.
+Inspection records the source path and hash, plus pack UUID and relative path when a pack supplies the file.
+Catalog caches retain resource ownership; each preference read uses the selected source bytes.
+
+Inspect the selected preferences, or validate and install a complete home override:
+
+```bash
+python scripts/render_contract.py preferences
+python scripts/render_contract.py preferences --file author-model-preferences.json
+```
+
+The [preference schema](../../schemas/model-selection-preferences.schema.json) gives each entry an explicit family selector, service, operations and use cases.
+`family` is a descriptive name. `model_patterns` match catalog IDs or exact interface identifiers with case-sensitive shell patterns.
+A selected policy may address models from other active packs or exact external interfaces while remaining in its owner pack.
+A null service applies the author's preference across services. Declare a service when the report covers only that interface.
+`discourage` excludes a default recommendation for the matching use. `no-discouragement` records the author's deliberate choice to leave it eligible.
+Both retain their reason, source, date and limitations; neither becomes provider policy or a measured success rate.
+`reported_failure` names an explicitly reported `provider-refusal` or `provider-moderation`, with `user-report` provenance.
+Use null for preferences without such a report, including aesthetic, speed and cost choices.
+The [synthetic example](../../examples/model-evidence/selection-preferences.json) demonstrates the complete file.
+
+For a relevant use, assess input conditions and alternatives together:
+
+```bash
+python scripts/render_contract.py assess --model MODEL_ID --service SERVICE_ID \
+  --use-case USE_CASE --mode reference-guided --reference-count 4 \
+  --alternative-model OTHER_MODEL_ID
+```
+
+Repeat `--use-case` and `--alternative-model` for additional declared uses and candidates.
+`--service` names only the selected target's interface. Each alternative uses its sole catalog offering, or `--alternative-model MODEL_ID=SERVICE_ID` selects one explicitly. A multi-service alternative needs that explicit choice. Unresolved alternatives retain a reason in `alternative_resolution_errors` without discarding the selected assessment or other candidates. `suggested_models` names each candidate's model, service and exact interface identifier.
+The agent understands the brief and declares applicable use cases using existing author context.
+Do this during ordinary model selection and failure review, without requiring the user to classify every request.
+Prompt keywords alone never determine the use case.
+`benign-minor-depiction` identifies ordinary depictions of minors independently from prohibited content.
+`policy-sensitive-use` is an author-declared selection scope; record the actual permitted purpose in the task's direction.
+Each stage uses its own mode, reference count and applicable preference scope.
+Use the number of physically transmitted images after attachment deduplication or explicit board preparation, not the number of logical subject/use assignments.
+
+The assessment returns scoped recommendations, their evidence, input compatibility and `suggested_models`.
+A candidate must meet the declared mode and recorded reference limit and have no matching discouragement.
+An unknown use-case history produces no automatic warning and no claim that a model is restriction-free.
+The agent checks applicable rules and the actual intended content before preparing a permitted request through the ordinary execution owner.
+Changing model, disabling moderation, disguising the request or automatic resubmission is never a diagnostic action.
+
+A target outside the catalog can still use family preferences:
+
+```bash
+python scripts/render_contract.py assess --model-identifier EXACT_IDENTIFIER --service SERVICE_ID \
+  --operation generation --use-case USE_CASE --mode reference-guided --reference-count 2
+```
+
+This reports author preferences while interface compatibility remains unknown until the target's controls are acquired.
+Preference inspection, assessment and diagnosis honor the same `--state-file`, `--cache-dir` and `--managed-root` runtime arguments for catalog and external targets.
+Preserve the assessment as an applied task source and cite the selection reason in `direction.decisions`.
+Parameter contracts keep their own immutable interface controls; preference changes affect new selection decisions and leave those controls intact.
+
 ## Declare controls by operation
 
 Every mode names its media semantics and its controls using exact request paths.

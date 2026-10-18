@@ -1,47 +1,210 @@
-# Character Persistence and Repose Workflow
+# Character Assets and Multi-Character Scenes
 
-## Interface decision before any run
+Use the `repose` route to place one or more adopted characters in a new pose
+or scene. Separate asset production from scene production when they need
+different capabilities. Each actual generation uses the ordinary Production
+workflow and Studio adoption. The author chooses which output becomes canon.
 
-Select the method from the exact active interface. The tag-family, image-to-image and pose-conditioned recipe below applies only when that interface actually exposes those inputs. An instruction-edit interface instead receives the current adopted identity reference, a local-edit contract naming the pose/scene changes, and supported ordinary reference inputs. A text-only interface cannot promise exact identity preservation. Never invent unavailable denoise, mask, ControlNet, or weighting parameters; stop with a portable prompt and declared limitations when no executable interface is available. Any extra bakeoff or second pass requires authorization for its actual prompt, inputs, target and count. Scene clothing does not regenerate identity references. See [Revision Contract](revision-contract.md) and [Adoption Workflow](adoption-workflow.md).
+## Contents
 
-Producing the same character in a new pose or scene on tag-family checkpoints (Illustrious / NoobAI class) without training.
+- [Choose stages from missing information](#choose-stages-from-missing-information)
+- [Bind each reference to its subject and use](#bind-each-reference-to-its-subject-and-use)
+- [Direct the new scene](#direct-the-new-scene)
+- [Choose an interface for each stage](#choose-an-interface-for-each-stage)
+- [Prepare and execute the exact input](#prepare-and-execute-the-exact-input)
+- [Review identity, performance and finish](#review-identity-performance-and-finish)
+- [Repair a specific observed failure](#repair-a-specific-observed-failure)
+- [Retain evidence at its owner](#retain-evidence-at-its-owner)
 
-## Why a dedicated workflow is needed
+## Choose stages from missing information
 
-- Image-to-image conditioning locks the pose and the individual together. Pose-change tags lose against the seed image; only state details pass through (blush, sweat drops, expression effects). Raising the strength far enough to break the pose also dissolves the identity, so i2i alone cannot repose a character.
-- These checkpoint families often lack structural conditioning channels on hosted platforms - no ControlNet, no IP-Adapter - so line guides and multi-image identity references may simply not be available.
-- A character LoRA remains the durable solution once a character graduates to long-term reuse. This workflow covers everything before that point.
+Read the brief, adopted identity and appearance sources, and the next scene's
+view. Decide which required features those materials actually show. A clear
+portrait may establish a face while leaving a garment's back unobserved.
 
-## The three-stage repose recipe
+Record the coverage decision in `task.direction.decisions`: applied sources,
+missing information, selected method, limitations and relevant criteria.
+Use a fixed or routine decision when the available sources settle the choice.
+Use a material decision for a real comparison of methods and tradeoffs.
 
-Division of labor: the edit model owns geometry through language, the home checkpoint owns style and weight, the graft owns the exact face.
+1. Produce only missing character material when the next scene requires it.
+   Select a model suited to that asset's identity, physique and finish.
+   Inspect the actual output and apply the existing selection and adoption
+   rules before granting it reference authority.
+2. Produce the scene from the selected independent references. Select its
+   model for the required reference inputs, instruction following, performance
+   and finish. Existing adequate assets allow this stage to begin immediately.
 
-1. **Repose with an instruction-edit model.** Send the character render as the reference image with an instruction built from the preserve-clause template below, following the [Instruction-Edit Adapter](../adapters/instruction-edit.md) for transport.
-2. **Restyle with the home checkpoint.** Feed the stage-1 output as the i2i seed at strength near 0.5 with the character's full tag set. The pose lock now works as an ally: pose and layout survive while the house lineart, cel finish, and body-weight tags reassert. Raise toward 0.55 only if the finish stays foreign. This stage cannot fix likeness - the lock preserves stage-1's face as well.
-3. **Optional: graft the exact face.** When the face must match a canonical render, transplant the head (or the nose-mouth-eyes unit) from the identity source - canonically the character sheet - with a uniform-scale paste, then run one full-frame pass at strength near 0.32 to fuse the seams. Surgical rules: uniform scaling only, full alpha over the nose-mouth-chin unit, and erase baked expression marks from the base plate before compositing.
+A skipped asset stage creates no placeholder run. A generated intermediate
+has only its selected use: composition, wardrobe, identity, or another explicit
+scope. Keep its original provenance and adoption status when reusing it.
 
-### Preserve-clause template (stage 1)
+## Bind each reference to its subject and use
 
-> Change only his pose and expression. [state the new pose, state, and gaze]. Keep everything else exactly as in the image: keep his face exactly the same - the same [muzzle, eyes, brows, ruffs, enumerated]. Keep his [build register] physique exactly the same - the same [enumerated masses], the same body size. Do not make him smaller, slimmer, or younger. Keep the same [coat and marking zones], the same [art style], and the same [background]. Full body in frame.
+Use the existing [Studio canon references](studio-canon-references.md) and
+[reference delivery](reference-delivery.md) owners. Resolve who each source
+concerns before preparing its transport. Synthetic assignment:
 
-Both the change-scope opener and the enumerated keep clauses are required. Softer wording ("the same muscular build") lets the engine shrink or youthen the character.
+| Subject | Source | Controls | Chosen in the new scene |
+|---|---|---|---|
+| A | Adopted character A | Stable face, body proportions and markings | Expression, gaze and pose |
+| A | Adopted wardrobe A | Garment shape, color and closures | Face, acting and camera |
+| B | Adopted character B | B's stable face, proportions and markings | Expression, gaze and pose |
+| B | Adopted wardrobe B | B's garment shape, color and closures | Face, acting and camera |
 
-## Selecting an edit engine
+Carry these assignments through each reference's `subject_uses`. A row names
+`subject_id`, `use` and `priority`. Lower priority numbers take precedence
+within the same subject and use. Priority leaves source authority unchanged
+and has no meaning between different subjects or uses.
 
-Engines change generation to generation; select by procedure, not by name.
+Keep logical assignments separate from physical attachments. One source may
+serve identity and wardrobe for the same person. Several views of a person
+still describe one subject. Equal image bytes with different source or
+adoption evidence retain their distinct provenance.
 
-1. **Query by capability class.** From the platform catalog, list models flagged image-to-image with an edit operation that follow natural-language instructions (as opposed to mask-only inpainting or plain i2i).
-2. **Shortlist.** Prefer the newest generation of each provider's line, keep two or three different providers for diversity in failure modes and moderation regimes, and start from the cheaper tiers - a repose probe costs pennies.
-3. **Run a bake-off.** Send the identical instruction and the identical seed image to every candidate.
-4. **Audit on six axes.** Pose compliance; facial likeness; physique preservation; style preservation; scene and background compliance; fine-detail integrity at extremities (fingers, toes, whisker zones). Also record which providers accept the register at all.
-5. **Use complementary strengths.** One engine often wins the face while another wins the physique or the background. Pick per the current priority, or take the pose from one and graft the face from the canonical render.
-6. **Refresh on succession.** When a provider ships a successor line, or the current engine's weak axis starts to bite, re-run the bake-off. Record per-model findings in the model records, which are the versioned layer built to age.
+Keep `controls`, `must_not_control` and the original source authority. A
+wardrobe reference cannot silently acquire identity or pose authority. A
+layout intermediate cannot redefine an adopted face or permanent physique.
+Generate image numbers from the finalized delivery; every number must refer
+to the actual attachment or board panel that will be sent.
 
-Engine quirks to expect: some constrain output to a fixed dimension list (read the validation error and take the nearest slot); some override scene instructions while preserving the subject perfectly, so restate the background downstream or fix it in the restyle pass.
+When continuity needs state graphs, resolve each subject's identity, era,
+appearance, state and selected references independently. Aggregate them into
+the scene's canonical reference selection. Stateless scenes use the ordinary
+reference path without inventing event history.
 
-Moderation differs by provider: some reject bare-torso kemono inputs outright, some reject rendered images of the register in their reference channel while passing line art. Probe acceptance early with one cheap call per provider, and when refused, switch engines rather than iterating against the refusal.
+## Direct the new scene
 
+Apply the [Character Identity Contract](../character-identity-contract.md).
+Preserve adopted stable traits and release source-only expression, gaze,
+body orientation, pose, wardrobe and relationships unless explicitly retained.
+Write the target state affirmatively.
 
-## Artifact evidence and completion
+Use Production Specification `subjects[]` for identity, performance, wardrobe,
+body geometry and contacts. Use its scene and camera fields for placement.
+The production task's `direction.action_slice` owns a selected action phase
+when the image needs one. Read the performance and geometry features when
+those decisions are load-bearing.
 
-For a saved deliverable, continue through [Production Execution](production-execution.md). Preserve this document's own interpretation, retrieval, approval and adoption boundaries. Prepare the exact inputs, capture the real output, bind review and selection to it, then complete and close the work task. `scripts/production_workflow.py status`, `impact` and `resume` recheck dependencies and artifact bytes. A progress checkbox, a search hit or a newly created image is not production completion or canonical adoption.
+For a conversation across a desk, establish each subject's side of the desk,
+the speaker and listener, gaze targets, body orientation and readable moment.
+Similar expressions can suit a scene; the intended interaction decides their
+relationship. A forced expression difference is not a quality criterion.
+
+Resolve `render_intent` for the final image, including medium, dimensionality,
+linework, shading, surface and detail. Preserve required physique and finish
+across model changes. Framing follows the scene's information needs, including
+natural crop when appropriate.
+
+## Choose an interface for each stage
+
+Read the selected model's full guidance card and acquired interface evidence.
+Distinguish input acceptance, meaningful reference influence and observed
+image quality. Record exact model, service, operation, evidence date and the
+conditions a prior observation actually covered.
+
+Check independent image fields, maximum count, supported dimensions, available
+controls, use-case guidance and the author's model restrictions. Four source
+images require four accepted slots unless an explicitly selected source
+already covers multiple needs. A board reduces physical input count; its
+subject correspondence still needs inspection in the generated image.
+
+For a catalog target, assess the relevant declared use and input requirements:
+
+```sh
+python scripts/render_contract.py assess --model MODEL --service SERVICE \
+  --use-case USE_CASE --mode reference-guided --reference-count 4 \
+  --alternative-model OTHER_MODEL
+```
+
+Read [Model request evidence](model-evidence.md) for external targets,
+persistent selection preferences and the assessment's limits. Interpret a
+model instruction at its author-declared scope: one stage or the whole work.
+Select alternatives within that scope and existing submission authority.
+
+Use only controls exposed by the exact interface. A checkpoint's sampler,
+CFG, negative field, denoise strength or seed does not transfer automatically
+to an instruction model. Choose a method from supported capabilities; a text
+description alone does not establish exact identity control.
+
+## Prepare and execute the exact input
+
+Use ordinary `generation` for asset creation and `repose` for reuse in a
+scene. Read the applicable route and interface feature, retrieve the required
+visual concepts, and author the complete target prompt and criteria.
+
+For shared image inputs, `task.image_input` binds the selected model,
+reference uses and any exact external request. Its prepared references retain
+the canonical set's source and delivery commitments. Existing-image changes
+also use `task.semantic_edit` for the source and requested changes and
+preservation, following [Semantic instruction editing](semantic-instruction-edit.md).
+New scenes use their individual character references directly.
+
+Run `production_workflow.py check` and `prepare` with the current task. Inspect
+the complete request and reference correspondence. Execute through the
+existing dispatcher or external handoff, claim, host call, capture and
+settlement path in [Production Execution](production-execution.md). A saved
+request binding establishes the intended bytes; the actual invocation and
+returned response establish what was sent and received.
+
+Each additional external attempt has its own task and exact request. An
+interruption uses `status` or `resume` to recover the same attempt. Preserve
+every actual result and its observed disposition.
+
+## Review identity, performance and finish
+
+Inspect each actual candidate beside its assigned sources. Review the whole
+scene and the relevant face, garment, hand, foot and contact regions.
+
+| Dimension | Observe |
+|---|---|
+| Identity | Each subject's adopted face, stable proportions and markings |
+| Wardrobe | Correct owner, garment structure and absence of unwanted old clothing |
+| Performance | Target expression, gaze, action and partner response |
+| Scene | Count, placement, support, overlap, contact and camera |
+| Finish | Required medium, proportions, linework and rendering quality |
+| Integrity | Unwanted transparency, missing or extra structures and broken edges |
+
+Apply the author's scoped `accepted_variations` from
+[Production direction](production-direction.md#preserve-accepted-variation-at-its-declared-scope).
+Evaluate natural acting changes separately from identity drift. Record the
+observation, criterion, reason and unresolved issue in the existing review.
+
+Before treating a method as reusable, exercise the actual requirements that
+matter: distinct face angles, changed wardrobe, multiple subjects, reference
+role separation and another scene. A successful image establishes its tested
+conditions. The author decides how much evidence the intended reuse needs.
+
+## Repair a specific observed failure
+
+Start from the adopted original or a candidate explicitly selected for the
+repair. Preserve its working features and identify the observed defect.
+Read [Repair analysis](repair-analysis.md) when comparing recorded failures.
+
+Provider refusal, invalid input, missing credentials, transport failure and a
+visually incorrect output require different responses. Use the evidence-based
+diagnosis in [Model request evidence](model-evidence.md) before deciding that
+use-case restrictions contributed. For a permitted request, compare suitable
+alternatives with the required inputs and current provider conditions. The
+normal authorization and exact-request preparation apply to the selected one.
+
+Additional restyling, local editing, compositing or a character model may help
+a specific defect. Assess each method's capability evidence and expected
+effect on identity, acting, finish and other subjects. Keep model-specific
+settings with their exact offering and observed conditions. A face composite
+must preserve the target view and performance if those are requirements.
+
+Finish when the scene meets its criteria. Further full-frame passes require
+a concrete improvement to pursue and an assessment of existing strengths.
+
+## Retain evidence at its owner
+
+Studio owns requests, outputs, reviews, candidate selection and adoption.
+Model and offering evidence owns interface limits and bounded observations.
+The runtime method owns reusable preparation and review rules. Retain both
+successes and failures at their actual scope.
+
+Follow Production Execution through review, selection and completion.
+`status`, `impact` and `resume` recheck dependencies and artifact bytes.
+Structural validation establishes input integrity; image inspection establishes
+the observed result, and the author decides acceptance.

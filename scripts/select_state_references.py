@@ -12,7 +12,9 @@ from catalog_cli import configure_pack_runtime
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 from state_protocol import (
     artifact_hash,
+    combine_reference_selections,
     load_json,
+    parse_json,
     select_state_references,
     validate_artifact,
     write_json,
@@ -38,20 +40,37 @@ def main(argv: Sequence[str] | None = None) -> int:
     sources = parser.add_mutually_exclusive_group(required=True)
     sources.add_argument("--bindings", help="Array or object containing a bindings array")
     sources.add_argument("--binding", action="append", help="One finalized binding file; repeat to select several")
+    sources.add_argument("--selection", action="append", help="One finalized character selection; repeat to combine independent state contexts")
+    parser.add_argument("--reference-order-file", help="Ordered subject_id and binding_id pairs for the combined references")
     parser.add_argument("--selection-id", required=True)
-    parser.add_argument("--identity-contract", required=True)
+    parser.add_argument("--identity-contract")
     parser.add_argument("--era-contract")
     parser.add_argument("--appearance-variant")
     parser.add_argument("--state-snapshot")
-    parser.add_argument("--story-order", required=True, type=int)
+    parser.add_argument("--story-order", type=int)
     parser.add_argument("--required-feature", action="append", default=[])
-    parser.add_argument("--limit", type=int, default=4)
+    parser.add_argument("--limit", type=int, help="Optional authored logical-reference limit; model attachment limits are checked during preparation")
     parser.add_argument("--out", required=True)
     add_pack_runtime_arguments(parser)
     args = parser.parse_args(argv)
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
     try:
+        if args.selection:
+            if any((args.identity_contract, args.era_contract, args.appearance_variant, args.state_snapshot,
+                    args.story_order is not None, args.required_feature, args.limit is not None)):
+                raise ValueError('combined selections retain their own contexts; do not replace their state arguments')
+            value = combine_reference_selections(
+                [_checked_artifact(path, 'reference-selection') for path in args.selection],
+                selection_id=args.selection_id,
+                reference_order=parse_json(Path(args.reference_order_file).read_text(encoding="utf-8")) if args.reference_order_file else None)
+            write_json(Path(args.out), value)
+            print(json.dumps(value, ensure_ascii=False, indent=2))
+            return 0
+        if not args.identity_contract or args.story_order is None:
+            raise ValueError('binding selection requires --identity-contract and --story-order')
+        if args.reference_order_file:
+            raise ValueError('--reference-order-file applies to combining finalized selections')
         if args.binding:
             bindings = [_checked_artifact(path, "state-aware-reference-binding") for path in args.binding]
         else:
@@ -92,6 +111,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         value = select_state_references(
             bindings=bindings,
             selection_id=args.selection_id,
+            subject_id=character_id,
             identity_hash=identity_hash,
             era_hash=artifact_hash(era) if era else None,
             appearance_hash=artifact_hash(appearance) if appearance else None,

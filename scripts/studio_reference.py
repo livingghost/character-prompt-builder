@@ -244,7 +244,8 @@ def build_binding(root: Path, character: str, slot: str, *, scope: dict, identit
     import studio
     root = studio.require_studio(root)
     c.exact(scope, {'binding_id', 'role', 'effective_story_range', 'visibly_supported_state',
-                   'unsupported_or_occluded_state', 'intended_influence', 'unsupported_assumptions', 'review_dimensions'}, 'authored Studio reference scope')
+                   'unsupported_or_occluded_state', 'intended_influence', 'unsupported_assumptions', 'review_dimensions'}
+            | ({'subject_uses'} if 'subject_uses' in scope else set()), 'authored Studio reference scope')
     expected = [(identity, 'character-identity-contract'), (era, 'era-contract'),
                 (appearance, 'appearance-variant-contract'), (snapshot, 'state-snapshot')]
     for value, kind in expected:

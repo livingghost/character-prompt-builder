@@ -24,6 +24,9 @@ from prepare_generation_references import (
     build_prepared_reference_set,
     canonical_reference_preamble,
     prepare_reference_use_plan_rows,
+    read_json_array,
+    reference_plan_state_rows,
+    resolve_studio_reference_choices,
     resolve_model_record,
     sha256_file,
     validate_committed_source,
@@ -276,10 +279,12 @@ def build_reference_use_plan(
                     artifact_id=str(resource["artifact_id"]),
                     technical_role=technical_role,
                     source=_pack_source(asset, resource),
+                    subject_uses=record_use.get('subject_uses'),
                 )
                 items.append(item)
                 selected_for_use += 1
-                if effective_max_references is not None and len(items) > effective_max_references:
+                input_count = len({(row['source']['media_type'], row['source']['sha256']) for row in items})
+                if effective_max_references is not None and input_count > effective_max_references:
                     raise ValueError(
                         "automatic visual-reference activation exceeds the effective model/reference limit; "
                         "narrow the selected records or technical roles"
@@ -381,30 +386,7 @@ def _validate_state_eligibility(
         raise ValueError("invalid reference-selection artifact: " + "; ".join(report["errors"]))
     if reference_selection.get("unresolved_requirements"):
         raise ValueError("reference_selection has unresolved state requirements")
-    available: dict[str, list[Mapping[str, Any]]] = {}
-    for selected in reference_selection.get("selected_references") or []:
-        if isinstance(selected, Mapping):
-            available.setdefault(canonical_json(selected.get("source")), []).append(selected)
-    for index, item in enumerate(plan.get("reference_items") or []):
-        matches = available.get(canonical_json(item.get("source"))) or []
-        if not matches:
-            raise ValueError(
-                f"reference_items[{index}] is not eligible in reference_selection"
-            )
-        influence = item.get("intended_influence")
-        compatible_index = next(
-            (
-                candidate_index
-                for candidate_index, selected in enumerate(matches)
-                if influence in selected.get("intended_influence", [])
-            ),
-            None,
-        )
-        if compatible_index is None:
-            raise ValueError(
-                f"reference_items[{index}] intended influence is state-ineligible"
-            )
-        matches.pop(compatible_index)
+    reference_plan_state_rows(plan.get('reference_items') or [], reference_selection)
     return copy.deepcopy(dict(reference_selection))
 
 
@@ -648,6 +630,7 @@ def execute_reference_use_plan(
     prompt_file: Path | None = None,
     negative_file: Path | None = None,
     reference_selection: Mapping[str, Any] | None = None,
+    additional_references: Any | None = None,
     max_side: int = 1536,
 ) -> dict[str, Any]:
     """Materialize one complete package and publish it only after full validation."""
@@ -662,6 +645,8 @@ def execute_reference_use_plan(
     state_selection = _validate_state_eligibility(plan, reference_selection)
     plan_items = list(plan.get("reference_items") or [])
     requested_mode = str(plan["transport_mode"])
+    if additional_references and (requested_mode not in MODEL_TRANSPORT_MODES or not plan_items):
+        raise ValueError('additional references require a nonempty model-facing Reference Use Plan')
     materialized_mode = requested_mode if plan_items else "none"
     materialized_target = plan.get("target_model") if plan_items else None
     if requested_mode in MODEL_TRANSPORT_MODES and plan_items:
@@ -707,6 +692,7 @@ def execute_reference_use_plan(
                 model=str(plan["target_model"]),
                 output_dir=staging / "model-references",
                 reference_selection=state_selection,
+                additional_references=additional_references,
                 max_side=max_side,
             )
             prepared_absolute = _stage_direct_model_transports(
@@ -776,7 +762,12 @@ def execute_reference_use_plan(
             _remove_tree(staging)
 
 
-def _parse_record_use(value: str) -> dict[str, str]:
+def _parse_record_use(value: str) -> dict[str, Any]:
+    if str(value).lstrip().startswith('{'):
+        try:
+            return normalize_selected_records([json.loads(value)])[0]
+        except (ValueError, TypeError) as exc:
+            raise argparse.ArgumentTypeError(str(exc)) from exc
     record_id, separator, influence = str(value).partition("=")
     if not separator or not record_id or not influence:
         raise argparse.ArgumentTypeError(
@@ -818,7 +809,7 @@ def add_reference_plan_arguments(parser: argparse.ArgumentParser) -> None:
         action="append",
         type=_parse_record_use,
         required=True,
-        help="Canonical record use as RECORD_ID=INTENDED_INFLUENCE.",
+        help="RECORD_ID=INTENDED_INFLUENCE, or a JSON record use with explicit subject_uses.",
     )
     parser.add_argument(
         "--transport-mode",
@@ -877,6 +868,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     execute_parser.add_argument("--prompt-file", type=Path)
     execute_parser.add_argument("--negative-file", type=Path)
     execute_parser.add_argument("--reference-selection", type=Path)
+    additional_group = execute_parser.add_mutually_exclusive_group()
+    additional_group.add_argument('--supplied-selection-file', type=Path,
+        help='Append ordered direct supplied/Studio references after plan and direct state rows')
+    additional_group.add_argument('--studio-selection-file', type=Path,
+        help='Append ordered current Studio slot choices with subject_uses')
+    execute_parser.add_argument('--studio', type=Path)
     execute_parser.add_argument("--max-side", type=int, default=1536)
     add_pack_runtime_arguments(execute_parser)
 
@@ -924,12 +921,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if args.reference_selection is not None
                 else None
             )
+            additional = None
+            if args.studio_selection_file is not None:
+                if args.studio is None:
+                    raise ValueError('--studio is required for a Studio selection')
+                additional = resolve_studio_reference_choices(args.studio, read_json_array(args.studio_selection_file))
+            elif args.supplied_selection_file is not None:
+                additional = read_json_array(args.supplied_selection_file)
             prepared = execute_reference_use_plan(
                 _load_json_object(args.plan),
                 output_dir=args.output_dir,
                 prompt_file=args.prompt_file,
                 negative_file=args.negative_file,
                 reference_selection=selection,
+                additional_references=additional,
                 max_side=args.max_side,
             )
             _write_stdout(prepared)

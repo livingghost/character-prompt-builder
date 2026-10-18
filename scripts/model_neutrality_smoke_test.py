@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Generic model-selection regression; no provider is the fixture default."""
+"""Check explicit model selection and neutral shared sources."""
 from __future__ import annotations
 
 import contextlib
 import io
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -14,6 +15,312 @@ from unittest.mock import patch
 import prepare_generation_references as references
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+# Concrete adapter documents own provider-specific guidance. Shared adapters stay scanned.
+CONCRETE_ADAPTER_DOCUMENTS = frozenset({
+    "references/adapters/flux.md",
+    "references/adapters/gpt-image.md",
+    "references/adapters/grok-imagine.md",
+    "references/adapters/midjourney-niji.md",
+    "references/adapters/novelai.md",
+    "references/adapters/sdxl-comfyui.md",
+})
+TEXT_SUFFIXES = frozenset({
+    ".py", ".json", ".jsonl", ".md", ".txt", ".html", ".css", ".js",
+    ".mjs", ".ts", ".tsx", ".jsx", ".yaml", ".yml", ".toml", ".sh", ".svg",
+})
+SERVICE_ADAPTER_NAMES = {"scripts/transport_runware.py": frozenset({"Runware"})}
+
+# Lexical fixtures are independent of enabled packs and their model records.
+PROVIDER_PATTERNS = tuple(
+    (label, re.compile(r"(?<![a-zA-Z0-9])(?:" + expression + r")(?![a-zA-Z])"))
+    for label, expression in (
+        ("OpenAI", r"(?i:open[\s_-]*ai)"),
+        ("GPT Image", r"(?i:gpt[\s_-]*image)"),
+        ("DALL-E", r"(?i:dall[\s_.-]*e)"),
+        ("Google", r"(?i:google)"),
+        ("Gemini", r"(?i:gemini)"),
+        ("Imagen", r"(?i:imagen)"),
+        ("Nano Banana", r"(?i:nano[\s_-]*banana)"),
+        ("xAI", r"(?i:x[._-]?ai|x\.ai)"),
+        ("Grok", r"(?i:grok)"),
+        ("Alibaba", r"(?i:alibaba)"),
+        ("Qwen", r"(?i:qwen)"),
+        ("Black Forest Labs", r"(?i:black[\s_-]*forest[\s_-]*labs)"),
+        ("BFL", r"(?i:bfl)"),
+        ("FLUX", r'FLUX|Flux|(?i:flux)(?=[\s_./@:-]*(?:[0-9]|image\b|dev\b|schnell\b))|(?<=[\"\'\x60])(?i:flux)(?=[\"\'\x60])'),
+        ("ByteDance", r"(?i:byte[\s_-]*dance)"),
+        ("Seedream", r"(?i:see[\s_-]*dream)"),
+        ("Stability AI", r"(?i:stability[\s_.-]*ai)"),
+        ("Stable Diffusion", r"(?i:stable[\s_-]*diffusion)"),
+        ("SDXL", r"(?i:sdxl)"),
+        ("Midjourney", r"(?i:mid[\s_-]*journey)"),
+        ("Niji", r"(?i:niji)"),
+        ("NovelAI", r"(?i:novel[\s_-]*ai)"),
+        ("ComfyUI", r"(?i:comfy[\s_-]*ui)"),
+        ("Ideogram", r"(?i:ideogram)"),
+        ("Recraft", r"(?i:recraft)"),
+        ("Leonardo", r'(?i:leonardo\.ai)|(?<=[\"\'\x60])(?i:leonardo)(?=[\"\'\x60])'),
+        ("Firefly", r'(?i:adobe[\s_-]*firefly|firefly[\s_.-]*[0-9]+)|(?<=[\"\'\x60])(?i:firefly)(?=[\"\'\x60])'),
+        ("Runware", r"(?i:runware)"),
+        ("Fal", r'(?i:fal\.ai)|(?<=[\"\'\x60])(?i:fal)(?=[\"\'\x60])'),
+        ("Replicate", r'(?i:replicate\.com)|(?i:replicate)(?=\s+(?:API|model|service)\b)|(?<=[\"\'\x60])(?i:replicate)(?=[\"\'\x60])'),
+    )
+)
+
+# Exact excerpts retain citations, declared routes and recorded examples at bounded counts.
+# Masking preserves every surrounding character, including additions on the same line.
+SOURCE_EXCERPTS = {'references/adapters/instruction-edit.md': {'Stable Diffusion attention syntax': 1},
+ 'references/comfyui-integration-notes.md': {'# ComfyUI Character Prompt Builder: Incorporated Ideas': 1,
+                                             'https://github.com/euan-gwd/comfyui-character-prompt-builder': 1,
+                                             '## ComfyUI routing': 1},
+ 'references/maintenance/presets.md': {'### OpenAI Agent Skills': 1,
+                                       '- https://developers.openai.com/codex/build-skills': 1,
+                                       '- https://developers.openai.com/codex/skills-and-plugins': 1,
+                                       '- https://developers.openai.com/blog/eval-skills': 1,
+                                       '- https://developers.openai.com/cookbook/examples/multimodal/image-gen-models-prompting-guide': 1,
+                                       '- https://developers.openai.com/api/docs/guides/image-generation': 1,
+                                       '- https://developers.openai.com/api/docs/models/gpt-image-2.5-flare': 1,
+                                       '### OpenAI image generation': 1,
+                                       '- select the exact GPT Image model and offering explicitly; the package has no implicit target model': 1,
+                                       '### ComfyUI Character Prompt Builder': 1,
+                                       '- https://github.com/euan-gwd/comfyui-character-prompt-builder': 1,
+                                       'Vendor behavior can change. Midjourney, FLUX, SDXL, NovelAI, Firefly, Ideogram, Recraft, Leonardo, and ComfyUI adapters should be rechecked against official documentation when production behavior matters.': 1,
+                                       '### Midjourney': 1,
+                                       '- https://docs.midjourney.com/hc/en-us/articles/32199405667853-Version': 1,
+                                       '- https://docs.midjourney.com/hc/en-us/articles/32173351982093-No': 1,
+                                       '- https://docs.midjourney.com/hc/en-us/articles/36285124473997-Omni-Reference': 1,
+                                       '- https://docs.midjourney.com/hc/en-us/articles/32180011136653-Style-Reference': 1,
+                                       '- V8.2 is the current default Midjourney version as of the verification date': 1,
+                                       '### Black Forest Labs FLUX.2': 1,
+                                       '- https://docs.bfl.ai/guides/prompting_guide_flux2': 1,
+                                       '- https://docs.bfl.ai/guides/prompting_guide_t2i_negative': 1,
+                                       '- FLUX.2 does not support a separate negative prompt': 1,
+                                       '- the full portable negative block remains in the package for traceability and later adaptation, not as a field that was transmitted to FLUX.2': 1},
+ 'references/model-prompt-recommendations.md': {'| `commons` | `gpt-image-2.5-flare` (OpenAI GPT Image 2.5 Flare) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |': 1,
+                                                '| `commons` | `gpt-image-2.5-sunburst` (OpenAI GPT Image 2.5 Sunburst) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |': 1,
+                                                '| `commons` | `grok-imagine-image-2.0` (xAI Grok Imagine Image 2.0) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |': 1,
+                                                '| `commons` | `seedream-5.0-pro` (ByteDance Seedream 5.0 Pro) | No fixed reusable default adopted | The exact Runware interface is observed; natural-language directions remain task-specific. Critical exclusions belong in the positive prompt because no negativePrompt field is exposed. |': 1,
+                                                '| `commons` | `qwen-image-2.1-pro` (Alibaba Qwen-Image-2.1-Pro) | No fixed reusable default adopted | The observed Runware interface accepts task-specific natural-language instructions; no universal prompt string is committed. |': 1,
+                                                '| `commons` | `flux-3-image` (Black Forest Labs FLUX 3 Image) | No fixed reusable default adopted | The observed Runware interface accepts task-specific natural-language instructions; no universal prompt string is committed. |': 1},
+ 'references/production-specification.md': {'python scripts/production_spec.py draft production-spec.json --root STUDIO --model grok-imagine-image-2.0 \\': 1},
+ 'references/runtime/batch-generation.md': {'"target_model": "flux-1-dev",': 1,
+                                            '"transport": "runware-mcp",': 1,
+                                            '"job_id": "scene-sdxl",': 1,
+                                            '"target_model": "sdxl-base",': 1,
+                                            '"transport": "comfyui-local",': 1,
+                                            '"generation_package": "packages/scene-sdxl.json"': 1},
+ 'references/runtime/image-generation.md': {'[GPT Image](../adapters/gpt-image.md)': 1,
+                                            '[Midjourney and Niji](../adapters/midjourney-niji.md)': 1,
+                                            '[FLUX](../adapters/flux.md)': 1,
+                                            '[SDXL and ComfyUI](../adapters/sdxl-comfyui.md)': 1,
+                                            '[NovelAI](../adapters/novelai.md)': 1,
+                                            '[Grok Imagine](../adapters/grok-imagine.md)': 1,
+                                            'Stable Diffusion parentheses': 1,
+                                            "ComfyUI is a workflow host, so use the loaded model's record or an explicit workflow-level decision.": 1,
+                                            '`"transport": "runware"` selects `scripts/transport_runware.py`': 1,
+                                            'Gemini or Imagen, Firefly, Ideogram, Recraft, Leonardo, and future design-oriented generators use that unlisted-interface rule. Inspect the exact active interface and model record; never infer media or negative transport from a brand family.': 1,
+                                            '[Workflow Walkthrough](workflow-walkthrough.md) takes one idea to a prepared run and its exact request for `grok-imagine-image-2.0` on Runware. It sends nothing and uses no credential. State-aware example commands above name `--plot-file` and `--retrieval-record-file` for a run whose task declares neither; `examples/state-aware-pilot/build_example.py` supplies explicit illustrative lookup data for its generated package.': 1},
+ 'references/runtime/model-evidence.md': {'"target": {"service": "synthetic-host", "model_identifier": "gpt-image-2.5-flare", "operation": "generation"},': 1,
+                                          'Provider interfaces expose different signals. OpenAI documents `error.code = moderation_blocked` in its [image-generation guide](https://developers.openai.com/api/docs/guides/image-generation).': 1,
+                                          "Google's [Interactions safety guide](https://ai.google.dev/gemini-api/docs/safety-settings) documents structured error codes for blocked requests.": 1,
+                                          "xAI's [image guide](https://docs.x.ai/developers/model-capabilities/images/generation) documents the `respect_moderation` response field.": 1,
+                                          '"target":{"model_identifier":"vendor:offered@1","operation":"imageInference","service":"runware"}': 1},
+ 'references/runtime/prompt-composition.md': {'On SDXL-family checkpoints': 1},
+ 'references/runtime/prompt-weighting.md': {"For example, Runware's SDXL page lists `compel` and `sdEmbeds`, while its FLUX.1\nSchnell page lists only `sdEmbeds` as the actual allowed value.": 1,
+                                            'a native Runware-shaped request': 1,
+                                            '- [Runware prompts and weighting](https://runware.ai/docs/learn/prompts)': 1,
+                                            '- [Runware SDXL native control](https://runware.ai/docs/models/sdxl)': 1,
+                                            '- [Runware FLUX.1 Schnell allowed control](https://runware.ai/docs/models/flux-1-schnell)': 1},
+ 'references/runtime/scene-mask-planning.md': {"Runware's native inpainting mask convention is documented in\nhttps://runware.ai/docs/learn/image-inpainting.": 1},
+ 'references/runtime/workflow-walkthrough.md': {"2. read the generation route and the model's guidance card for `grok-imagine-image-2.0` on Runware;": 1,
+                                                '"contract": "@pack/01a0043b-2250-720d-87b7-f1e6fd7ed230/resources/observed-schemas/grok-imagine-image-2.0.runware.json"},': 1,
+                                                '"request": {"height": 1248, "model": "xai:grok-imagine@image-2.0", "numberResults": 1, "settings": {"quality": "medium"},': 1},
+ 'scripts/validate.py': {"'agents/openai.yaml'": 1,
+                         'root / "agents" / "openai.yaml"': 1,
+                         '"references/adapters/gpt-image.md"': 1,
+                         '"# GPT Image Adapter"': 1,
+                         '"references/adapters/midjourney-niji.md"': 1,
+                         '"# Midjourney and Niji Adapter"': 1,
+                         '"# FLUX Adapter"': 1,
+                         '"references/adapters/sdxl-comfyui.md"': 1,
+                         '"# SDXL and ComfyUI Adapter"': 1,
+                         '"references/adapters/novelai.md"': 1,
+                         '"# NovelAI Adapter"': 1}}
+
+
+def generic_source_paths(root: Path) -> list[Path]:
+    paths = []
+    for directory in ("scripts", "templates", "references"):
+        for path in (root / directory).rglob("*"):
+            if not path.is_file() or path.suffix not in TEXT_SUFFIXES:
+                continue
+            relative = path.relative_to(root)
+            if "__pycache__" in relative.parts:
+                continue
+            if relative.as_posix() in CONCRETE_ADAPTER_DOCUMENTS:
+                continue
+            if directory == "scripts":
+                if relative.parts[:2] == ("scripts", "fixtures"):
+                    continue
+                name = path.name
+                if path.suffix == ".py" and (name.startswith("test_") or name.endswith(("_test.py", "_fixtures.py"))):
+                    continue
+            paths.append(path)
+    return sorted(paths)
+
+
+def provider_name_findings(root: Path, *, check_excerpts: bool = True) -> list[str]:
+    """Locate provider names outside their declared source excerpts."""
+    findings = []
+    for path in generic_source_paths(root):
+        relative = path.relative_to(root).as_posix()
+        text = path.read_text(encoding="utf-8")
+        for excerpt, count in SOURCE_EXCERPTS.get(relative, {}).items():
+            if check_excerpts and text.count(excerpt) < count:
+                findings.append(f"{relative}: missing declared provider excerpt: {excerpt[:90]!r}")
+            blank = "".join("\n" if character == "\n" else " " for character in excerpt)
+            text = text.replace(excerpt, blank, count)
+        allowed = SERVICE_ADAPTER_NAMES.get(relative, frozenset())
+        matches = sorted(
+            (match.start(), match.group(), label)
+            for label, pattern in PROVIDER_PATTERNS if label not in allowed
+            for match in pattern.finditer(text)
+        )
+        for offset, value, label in matches:
+            line = text.count("\n", 0, offset) + 1
+            column = offset - text.rfind("\n", 0, offset)
+            findings.append(f"{relative}:{line}:{column}: provider/model name {value!r} ({label})")
+    return findings
+
+
+class ProviderNameScanTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="cpb-neutral-source-scan-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def write(self, relative: str, text: str):
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def test_shared_sources_have_no_undeclared_provider_names(self):
+        for directory in ("scripts", "templates", "references"):
+            self.assertTrue((ROOT / directory).is_dir())
+        paths = generic_source_paths(ROOT)
+        self.assertIn(ROOT / "scripts/model_suitability.py", paths)
+        self.assertIn(ROOT / "templates/image-input-plan.template.json", paths)
+        self.assertIn(ROOT / "references/runtime/model-evidence.md", paths)
+        relative_paths = {path.relative_to(ROOT).as_posix() for path in paths}
+        self.assertFalse(set(SOURCE_EXCERPTS) - relative_paths, "source excerpts must name scanned files")
+        for relative, excerpts in SOURCE_EXCERPTS.items():
+            for excerpt in excerpts:
+                self.assertTrue(any(pattern.search(excerpt) for _, pattern in PROVIDER_PATTERNS),
+                                f"{relative}: unnecessary provider excerpt: {excerpt!r}")
+        findings = provider_name_findings(ROOT)
+        self.assertFalse(findings, "\n".join(findings))
+
+    def test_injected_name_fails_in_each_generic_tree(self):
+        for relative in ("scripts/defaults.py", "templates/task.json", "references/runtime/guide.md"):
+            with self.subTest(relative=relative):
+                self.write(relative, "Neutral heading\nUse Seedream for the default model.\n")
+        findings = provider_name_findings(self.root)
+        self.assertEqual(3, len(findings), findings)
+        for relative in ("scripts/defaults.py", "templates/task.json", "references/runtime/guide.md"):
+            self.assertIn(f"{relative}:2:5: provider/model name 'Seedream' (Seedream)", findings)
+
+    def test_aliases_case_and_identifier_separators_are_detected(self):
+        for token, expected in (
+            ("OPEN_AI", "OpenAI"),
+            ("provider_GPT_IMAGE_2", "GPT Image"),
+            ("nanobanana2", "Nano Banana"),
+            ("Nano_Banana_2", "Nano Banana"),
+            ("Byte-Dance:SeeDream@5.0", "Seedream"),
+            ("google:gemini-image", "Gemini"),
+            ("Qwen-Image-3.0", "Qwen"),
+            ("bfl:flux@3-image", "BFL"),
+            ("bfl:flux@3-image", "FLUX"),
+            ("flux@3-image", "FLUX"),
+            ("flux/3-image", "FLUX"),
+            ("flux-3-image", "FLUX"),
+            ('"flux"', "FLUX"),
+            ("FLUX", "FLUX"),
+            ("Flux", "FLUX"),
+            ("Stable_Diffusion", "Stable Diffusion"),
+            ("stability.ai", "Stability AI"),
+            ("replicate.com", "Replicate"),
+            ("fal.ai", "Fal"),
+        ):
+            with self.subTest(token=token):
+                self.write("scripts/selection.py", token)
+                findings = provider_name_findings(self.root)
+                self.assertTrue(any(f"({expected})" in item for item in findings), findings)
+
+    def test_common_words_and_name_substrings_are_unaffected(self):
+        self.write("references/runtime/physics.md",
+                   "Replicate immutable artwork; check lighting stability and magnetic flux.\n"
+                   "Words such as seedreamer, outflux, and googled remain ordinary text.\n")
+        self.assertEqual([], provider_name_findings(self.root))
+
+    def test_fixture_and_concrete_adapter_ownership_is_excluded(self):
+        for relative in (
+            "packs/commons/records/models.json",
+            "packs/author-owned/resources/evidence.md",
+            "examples/model-evidence/observation.json",
+            "scripts/fixtures/models.json",
+            "scripts/model_cases_fixtures.py",
+            "scripts/model_cases_smoke_test.py",
+            "scripts/test_model_cases.py",
+            "references/adapters/gpt-image.md",
+            "references/adapters/sdxl-comfyui.md",
+        ):
+            self.write(relative, "Seedream GPT Image OpenAI")
+        self.assertEqual([], provider_name_findings(self.root))
+        self.assertEqual([], generic_source_paths(self.root))
+
+    def test_generic_adapters_and_similarly_named_paths_stay_guarded(self):
+        relatives = (
+            "references/adapters/instruction-edit.md",
+            "references/adapters/unlisted-interface.md",
+            "references/adapters/upscale.md",
+            "references/runtime/adapter-notes.md",
+            "scripts/fixture_router.py",
+            "scripts/fixtures_extra/router.py",
+            "scripts/test_policy.json",
+        )
+        for relative in relatives:
+            self.write(relative, "Seedream")
+        findings = provider_name_findings(self.root, check_excerpts=False)
+        self.assertEqual(len(relatives), len(findings), findings)
+
+    def test_owned_transport_still_rejects_other_providers(self):
+        self.write("scripts/transport_runware.py", 'SERVICE = "runware"\nMODEL = "Seedream"\n')
+        self.assertEqual(
+            ["scripts/transport_runware.py:2:10: provider/model name 'Seedream' (Seedream)"],
+            provider_name_findings(self.root),
+        )
+
+    def test_host_metadata_reference_does_not_allow_a_model_default(self):
+        self.write("scripts/validate.py", "'agents/openai.yaml' + 'Seedream'\n")
+        self.assertEqual(
+            ["scripts/validate.py:1:25: provider/model name 'Seedream' (Seedream)"],
+            provider_name_findings(self.root, check_excerpts=False),
+        )
+
+    def test_duplicate_owned_excerpt_is_detected(self):
+        self.write("scripts/validate.py", "'agents/openai.yaml'\n'agents/openai.yaml'\n")
+        self.assertEqual(
+            ["scripts/validate.py:2:9: provider/model name 'openai' (OpenAI)"],
+            provider_name_findings(self.root, check_excerpts=False),
+        )
+
+    def test_missing_owned_excerpt_fails(self):
+        self.write("references/runtime/scene-mask-planning.md", "Neutral text.\n")
+        findings = provider_name_findings(self.root)
+        self.assertEqual(1, len(findings), findings)
+        self.assertIn("missing declared provider excerpt", findings[0])
 
 
 class ModelNeutralityTests(unittest.TestCase):
@@ -28,7 +335,7 @@ class ModelNeutralityTests(unittest.TestCase):
 
     def invoke(self, mode: str, file_name: str, *, model: str | None = None):
         argv = [mode, str(self.root / file_name), '--output-dir', str(self.root / 'carriers'), '--out', str(self.root / 'prepared.json')]
-        if mode in ('--studio-selection-file', '--semantic-edit-plan-file'):
+        if mode in ('--studio-selection-file', '--image-input-plan-file'):
             argv.extend(['--studio', str(self.root)])
         if model is not None:
             argv.extend(['--model', model])
@@ -61,8 +368,8 @@ class ModelNeutralityTests(unittest.TestCase):
         self.assertEqual(stub.call_args.kwargs['model'], named)
 
     def test_plan_may_supply_its_own_selected_model(self):
-        with patch.object(references, 'prepare_semantic_edit_references', return_value={'fixture': True}) as stub:
-            code, report = self.invoke('--semantic-edit-plan-file', 'edit.json')
+        with patch.object(references, 'prepare_image_input_references', return_value={'fixture': True}) as stub:
+            code, report = self.invoke('--image-input-plan-file', 'edit.json')
         self.assertEqual(code, 0)
         self.assertTrue(report['fixture'])
         self.assertIsNone(stub.call_args.kwargs['model'])

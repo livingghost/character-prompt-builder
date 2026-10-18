@@ -24,7 +24,7 @@ from pack_manager import generate_uuid7
 ROOT=Path(__file__).resolve().parents[1]
 GENERATION_FILES=('parameters','production_spec','plot','retrieval_record','creative_intent','negative',
                   'integrated_prompt','native_negative','negative_provenance','references','state_lineage',
-                  'state_snapshot','visual_continuity','request_validation','mask_binding')
+                  'state_snapshot','state_graphs','visual_continuity','request_validation','mask_binding')
 JSON_FILES=set(GENERATION_FILES)-{'negative','integrated_prompt','native_negative'}
 # A derived run's own inputs live in its run directory and are never live studio sources.
 RUN_INPUT=re.compile(r'^production/runs/[^/]+/inputs/')
@@ -98,6 +98,7 @@ def _file_inputs(task: dict) -> list[tuple[str,str]]:
     delivery=task.get('delivery')
     if isinstance(delivery,dict) and isinstance(delivery.get('path'),str):items.append(('$.delivery.path',delivery['path']))
     if isinstance(task.get('route_reading'),str):items.append(('$.route_reading',task['route_reading']))
+    if isinstance(task.get('image_input'),str):items.append(('$.image_input',task['image_input']))
     if isinstance(task.get('semantic_edit'),str):items.append(('$.semantic_edit',task['semantic_edit']))
     for index,source in enumerate(task.get('sources',[]) if isinstance(task.get('sources'),list) else []):
         if isinstance(source,dict) and isinstance(source.get('path'),str):items.append((f'$.sources[{index}].path',source['path']))
@@ -274,11 +275,23 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                                     ('moment-views', '$.moment_views', workflow.moment_views),
                                     ('scene-materials', '$.scene_materials', workflow.authoring_materials)):
         checks.check(name, lambda function=function: bounded(function), requires=['task-contract'], file=task_path, pointer=pointer)
+    if task.get('image_input'):
+        import image_input
+        checks.check('image-input', lambda: bounded(image_input.task_binding),
+                     requires=['task-contract', dependency('$.image_input')],
+                     file=task['image_input'], pointer='$.image_input')
     if task.get('semantic_edit'):
         from semantic_edit_plan import task_binding
         checks.check('semantic-edit', lambda: bounded(task_binding),
-                     requires=['task-contract', dependency('$.semantic_edit')],
+                     requires=['task-contract', dependency('$.semantic_edit'), 'image-input'],
                      file=task['semantic_edit'], pointer='$.semantic_edit')
+    if task.get('execution') == 'external':
+        import image_input
+        checks.check('external-image-contract', lambda: bounded(lambda base, value, add:
+            image_input.external_documents(base, value, add,
+                inputs=checks.values.get('image-input', (None, {}))[0])),
+            requires=['task-contract', 'delivery-content'] + (['image-input'] if task.get('image_input') else []),
+            file=task_path)
     if task.get('authority'):
         def authority():
             value=c.decode(cached(task['authority'], '$.authority'))
@@ -479,11 +492,11 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
     transport=transport_contract.load(service['transport'])
     references=inspected.values['reference-preparation'] if selected.get('references') is not None else None
     reference_set=references if references is not None else builder.empty_stateless_reference_set()
-    if reference_set.get('semantic_edit_binding') is not None and not consumer.get('semantic_edit'):
-        raise ValueError('scoped semantic references require the production task semantic_edit plan')
-    if consumer.get('semantic_edit'):
-        from semantic_edit_plan import require_prepared
-        require_prepared(consumer['semantic_edit'], reference_set, model_id=model_id,
+    if reference_set.get('image_input_binding') is not None and not consumer.get('image_input'):
+        raise ValueError('scoped image references require the production task image_input plan')
+    if consumer.get('image_input'):
+        from image_input import require_prepared
+        require_prepared(consumer['image_input'], reference_set, model_id=model_id,
                          target={'service': offering['service'], 'model_identifier': offering['model_identifier'],
                                  'operation': transport.OPERATIONS['generation']})
     if selected.get('visual_continuity'):
@@ -515,7 +528,7 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
             critical_avoidance_integrated=selected.get('critical_avoidance_integrated',False),
             integrated_prompt=raw('integrated_prompt').decode('utf-8'),native_negative=raw('native_negative').decode('utf-8'),
             negative_provenance=document('negative_provenance'),production_spec=specification,
-            state_lineage=document('state_lineage'),state_snapshot=document('state_snapshot'),
+            state_lineage=document('state_lineage'),state_snapshot=document('state_snapshot'),state_graphs=document('state_graphs'),
             prepared_reference_set=references,prepared_reference_root=directory,
             plot=document('plot'),retrieval_record=document('retrieval_record'),visual_continuity=visual,visual_root=root,
             request_validation=validation,input_root=root,route_reading=prepared['route_reading'],reading_ledgers=[directory/'reads.jsonl'],
@@ -562,6 +575,37 @@ def _external_effects(rendered: dict, count: int) -> list[dict]:
         effects.append({'operation': 'upload', 'count': len(rendered['media'])})
     effects.append({'operation': 'send', 'count': 1, 'outputs': count})
     return effects
+
+
+def _external_reference_evidence(prepared: dict, consumer: dict, directory: Path, blobs: dict) -> None:
+    """Archive accepted-source proof through the existing Studio proof owner.
+
+    The same evidence namespace and object store used by production snapshots
+    retains every transitive file. Live source activity still gates a new send;
+    recorded proof and already returned results survive later adoption changes.
+    """
+    inputs = consumer.get('image_input') or {}
+    canonical = inputs.get('prepared_reference_set') or {}
+    sources = {c.content_id(row['source']): copy.deepcopy(row['source'])
+               for row in canonical.get('selected_references', []) if row['source']['kind'] == 'studio-artifact'}
+    if not sources:
+        return
+    from studio_reference import archive_source
+    from sheet_artifacts import dependency
+    companion = directory / 'image-input.references'
+    for source in sources.values():
+        archive_source(source, companion)
+    known = {(row['space'], row['path']): row for row in prepared['dependencies']}
+    for path in sorted(companion.rglob('*')):
+        if not path.is_file():
+            continue
+        raw = c.read(path)
+        relative = path.relative_to(directory).as_posix()
+        known[('evidence', relative)] = dependency('evidence', relative, raw)
+        blobs[c.digest(raw)] = raw
+    prepared['dependencies'] = sorted(known.values(), key=lambda row: (row['space'], row['path']))
+    prepared['studio_reference_sources'] = list(sources.values())
+    prepared['input_sha256'] = input_digest(prepared, consumer)
 
 
 def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict,directory:Path,identity:str,
@@ -699,6 +743,7 @@ DOCUMENT_DECLARATIONS={
     'visual-continuity':('visual-continuity',False,True,['recording-validation','package-compilation']),
     'state-lineage':('state-lineage',False,True,['source-validation','package-compilation']),
     'state-snapshot':('state-snapshot',False,True,['source-validation','package-compilation']),
+    'state-graphs':('state artifact graph array',False,True,['source-validation','package-compilation']),
     'negative-provenance':('negative-provenance',False,True,['negative-provenance','negative-transport']),
     'references':('prepared-reference-set',False,True,['dependency-preflight','reference-preparation','recording-validation']+REQUEST)}
 # Task fields: whether the task needs a value, the checks that run again, and
@@ -854,14 +899,19 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                     package,rendered,execution_plan=_generation(root,task,prepared,consumer,directory,identity,blobs,
                                                                 inspected=checks,captured=captured)
             else:
+                if task['execution'] == 'external':
+                    _external_reference_evidence(prepared, consumer, directory, blobs)
                 execution_plan={'run':identity,'execution':task['execution'],'input_sha256':prepared['input_sha256'],
                     'request_sha256':None,'operations':[],'external_effects':[],
                     'readiness':{'state':'authorization_required','executable':False,'diagnostics':[]}}
-                external = (consumer.get('semantic_edit') or {}).get('external_request')
+                external = (consumer.get('image_input') or {}).get('external_request')
                 if external is not None:
-                    target = consumer['semantic_edit']['model']['target']
+                    target = consumer['image_input']['model']['target']
                     execution_plan.update(request=external['request'], service=target['service'],
                                           model=target['model_identifier'],
+                                          prepared_request_sha256=external['sha256'],
+                                          model_identity=external.get('model_identity'),
+                                          validation=external['schema_validation'],
                                           quantities={'submissions': 1, 'outputs': external['count']})
                 validate_document(execution_plan,PLAN_SCHEMA,'execution plan')
             for name in STAGES[1:]:

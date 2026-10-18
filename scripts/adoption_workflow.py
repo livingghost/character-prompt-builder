@@ -355,12 +355,18 @@ def validate_for_generation(root: Path, character: str, package: dict[str, Any])
     for item in plan_items:
         planned_scopes.setdefault(digest(item.get("source")), set()).add(item.get("intended_influence"))
     selected_by_scope: dict[str, set[str]] = {}
+    visual_subjects = (package.get('visual_continuity') or {}).get('subjects') or {}
+    subject_ids = {ident for ident, row in visual_subjects.items() if row.get('studio_character') == character}
     for item in selected:
-        scopes = set(planned_scopes.get(digest(item.get("source")), set()))
-        declared = item.get("intended_influence") or []
-        scopes.update([declared] if isinstance(declared, str) else declared)
-        if item.get("role") in INFLUENCES:
-            scopes.add(item["role"])
+        uses = item.get('subject_uses', [])
+        if uses:
+            scopes = {use['use'] for use in uses if not visual_subjects or use['subject_id'] in subject_ids}
+        else:
+            scopes = set(planned_scopes.get(digest(item.get("source")), set()))
+            declared = item.get("intended_influence") or []
+            scopes.update([declared] if isinstance(declared, str) else declared)
+            if item.get("role") in INFLUENCES:
+                scopes.add(item["role"])
         sha = (item.get("source") or {}).get("sha256")
         for scope in scopes & set(INFLUENCES):
             selected_by_scope.setdefault(scope, set()).add(sha)

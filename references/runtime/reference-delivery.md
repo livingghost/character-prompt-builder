@@ -1,8 +1,8 @@
 # Exact reference delivery
 
 Read this when preparing or inspecting model-facing reference attachments. Package dispatch uses one committed prepared reference set.
-External instruction edits use the original-file mapping in [Semantic instruction editing](semantic-instruction-edit.md).
-Both paths retain each source's bytes, order and authority; their transport artifacts are not interchangeable.
+Image inputs use the common original-file mapping described in [Semantic instruction editing](semantic-instruction-edit.md).
+Dispatcher and external requests retain the same source bytes, subject assignments, order and authority.
 
 ## Selection and authority
 
@@ -10,31 +10,63 @@ Retrieve applicable production knowledge and inspect each selected source before
 
 Identity, current expression, wardrobe, lighting, pose and camera are different scopes; a transient state propagates only when requested, whatever identity the source shows. Express each source's `controls` and `must_not_control` authority scopes explicitly. Identical positive and excluded scopes are contradictory and rejected. The script leaves synonyms and semantic conflicts to the agent, who resolves them against the actual source and current intent.
 
-For supplied files in an instruction edit, use `prepare_generation_references.py
---semantic-edit-plan-file PLAN --studio STUDIO` with output paths under
-[Semantic instruction editing](semantic-instruction-edit.md#prepare-supplied-references-for-dispatch).
-This path derives exact scopes from the authored plan. Ordinary supplied
-selections retain conservative role authority; state and pack sources retain
-their own scope owners.
+Use `prepare_generation_references.py --image-input-plan-file PLAN --studio STUDIO`
+for authored `use_for` and `do_not_transfer` scopes. The plan can pin an existing
+prepared set through `prepared_references`. Its source, state, adoption and pack
+scope must match exactly. Existing candidates remain candidates until their
+actual owner adopts them.
 
-The ordinary supplied-selection input is an ordered JSON array with exactly
-`role` and `source` per item. A synthetic example:
+The supplied-selection input is an ordered array with `role`, `source` and
+optional `subject_uses`. A synthetic two-character example:
 
 ```json
-[{"role": "scene", "source": {"kind": "supplied-file", "reference_id": "scene",
-  "resolved_path": "/absolute/studio/inputs/product-scene.png"}}]
+[
+  {"role": "identity-a", "source": {"kind": "supplied-file", "reference_id": "a-original",
+   "resolved_path": "/absolute/studio/inputs/a.png"},
+   "subject_uses": [{"subject_id": "A", "use": "identity", "priority": 0}]},
+  {"role": "identity-b", "source": {"kind": "supplied-file", "reference_id": "b-original",
+   "resolved_path": "/absolute/studio/inputs/b.png"},
+   "subject_uses": [{"subject_id": "B", "use": "identity", "priority": 0}]}
+]
 ```
 
-The preparer measures media type and hashes; omit those fields from this input.
-For exact edit scopes, author `use_for` and `do_not_transfer` in the semantic
-plan instead. An empty declared exclusion array remains empty in that path.
+The preparer measures media type and hashes. Each `subject_id` must resolve to
+an actual Production Specification subject. `use` names a canonical intended
+influence. Lower `priority` numbers win within the same subject and use;
+equal priorities supply complementary evidence. Priority grants no additional
+influence and never settles a conflict between different people or purposes.
+Leave the array absent or empty for references without a character assignment,
+such as a room plan. Multiple characters without story state require no state graph.
+
+One image may carry several subject/use entries. A pack record declares them in
+its selected-record decision, for example:
+
+```sh
+python scripts/reference_runtime.py plan \
+  --record-use '{"record_id":"wardrobe-record","intended_influence":"outfit","subject_uses":[{"subject_id":"A","use":"outfit","priority":1}]}' \
+  --transport-mode prompt-artifacts --source-lighting-mode replace --out reference-use-plan.json
+```
+
+A state binding limits assignments to its character and declared influences.
+A plan narrows them to its selected influence. Studio identity use requires the
+matching identity adoption. The Reference Use Plan retains canonical pack
+technical authority. Identity use leaves current expression, action and camera
+to their target-scene owners.
+
+One prepared set may contain state-aware A's pack references and stateless B's
+accepted Studio face and outfit. Execute the pack plan with `--reference-selection`
+and append B's `--studio-selection-file` choices, using `--studio` for their owner.
+Use `--supplied-selection-file` for direct source choices instead.
+Without pack sources, combine `--state-selection-file` with either direct input.
+State eligibility covers the managed rows; other subjects require no invented history.
+The state row's `subject_id` remains in the model instructions even without optional use priorities.
 
 ## Bind the actual transport
 
 The following prepared-set commands apply to reference-runtime and Generation Package delivery.
-An external semantic request uses its declared field paths and upload evidence instead.
+An external request binds the same logical rows to its declared field paths and upload evidence.
 
-After rendering or copying the actual transports, the reference preparation runtime derives the canonical prompt preamble from their actual order. For multi-image input, logical reference 1 corresponds to actual attachment 1. For a single-board input, every logical reference points to attachment 1 and its exact panel rectangle in pixels from the top-left, and a board with several source panels consumes one model image slot in total. Source hashes, transport hashes, roles and panel rectangles must agree with the prepared set.
+After rendering or copying the actual transports, the reference preparation runtime derives the canonical prompt preamble from their actual order. For multi-image input, identical committed transport hashes and media types share one attachment. Logical reference rows retain their distinct sources, adoption, roles and subject uses. For a single-board input, every logical reference points to attachment 1 and its exact panel rectangle in pixels from the top-left, and a board with several source panels consumes one model image slot in total. Source hashes, transport hashes, roles and panel rectangles must agree with the prepared set.
 
 The map and its prompt text are generated only after those transports exist. Do not retain an earlier numbering scheme, hand-rewrite the canonical preamble, or tell a model to use attachment 2 when only a board is attached. The board instruction distinguishes source panels from desired output composition and requests a collage only when the author's target does.
 
@@ -43,6 +75,14 @@ python scripts/reference_delivery.py --prepared-set prepared.json --package-root
 ```
 
 This inspection validates the complete prepared set and shows its attachment mapping and canonical instruction; it submits and mutates nothing. Normal preparation uses the same functions through `prepare_generation_references.py` and `reference_runtime.py`; the map is part of the exact preamble bound into generation packaging rather than an operator report alone.
+
+For an external request, prepare the same instruction text from its declared image field paths:
+
+```sh
+python scripts/reference_delivery.py --image-input-plan image-input.json --studio STUDIO
+```
+
+This reads an existing prepared origin when the plan names one. The rendered location is an exact request field, such as `["images",0,"uri"]`. Include the resulting `reference_preamble` in the authored external prompt. Preparation verifies its presence and the complete image mapping.
 
 For prompt-artifacts, SVG-bundle, or no-reference delivery, never claim that model-visible attachments were sent. An unsupported target or missing selected transport is an explicit failure rather than silent reference omission. Targets and their observed limits are resolved from actual model records rather than fixed service names in this procedure.
 

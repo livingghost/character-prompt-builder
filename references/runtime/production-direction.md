@@ -8,6 +8,13 @@ and abstract asset each need their own information and viewing hierarchy; these
 are examples, not a closed purpose list. Characters and a story clock are
 optional.
 
+## Contents
+
+- [Choose an expression, not a label](#choose-an-expression-not-a-label)
+- [Preserve accepted variation at its declared scope](#preserve-accepted-variation-at-its-declared-scope)
+- [An image of an action is not the action](#an-image-of-an-action-is-not-the-action)
+- [Observe and repair](#observe-and-repair)
+
 ## Choose an expression, not a label
 
 The task's `direction` holds `purpose`, `intended_effect`, applied source IDs
@@ -45,6 +52,48 @@ and method instructions**. Private source prose, rejected options, selection
 rationale and deviation records stay in the author's run. Author the
 model-facing instructions deliberately: whatever you copy into the selected
 instructions reaches the consumer, sensitive content included.
+
+## Preserve accepted variation at its declared scope
+
+An author's allowance belongs in an optional decision `accepted_variations`
+list. Each entry names its `id`, applied approval `source`, source `locator`,
+`author`, `scope`, `allowance`, `limits`, and affected `criteria`. Include the
+approval source in the decision's `basis`. Criteria must belong to that
+decision; their existing hard/advisory status remains in force.
+
+Use task scope for an allowance limited to this work task. Synthetic entry:
+
+```json
+{
+  "id": "natural-fabric-folds",
+  "source": "author-direction",
+  "locator": "wardrobe allowances",
+  "author": "request owner",
+  "scope": {"kind": "task", "task_id": "outfit-study"},
+  "allowance": "Fabric folds may change with the declared arm pose.",
+  "limits": ["Keep the adopted garment color and closure structure."],
+  "criteria": ["wardrobe-fidelity"]
+}
+```
+
+For reuse across tasks, use `scope` with `kind: source`, an applied `source`
+ID, and that source file's exact `sha256`. Include that source in the decision
+basis. Task checking and preparation both verify the captured bytes. A changed source requires
+reassessment before the allowance applies again. The source owner may be an
+appearance contract, an adopted image, or another explicit production source.
+The agent interprets the author's stated range; a hash establishes which
+source the decision concerns.
+
+Carry applicable entries into the next task and its review criteria. Task
+scope cannot cross into another work task. Source scope can cross tasks only
+with the same declared source bytes and an applied approval source. The review
+uses the original allowance and limits, while consumer output retains only
+the selected expressive instructions. A matching hash does not grade an image
+or promote a candidate to canon.
+
+Keep changed expression, pose, natural crop and approved wardrobe variation
+separate from identity drift. Assess unwanted old clothing, source-state
+leakage, broken contacts and anatomy against their own declared criteria.
 
 ## An image of an action is not the action
 

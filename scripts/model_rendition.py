@@ -5,6 +5,7 @@ from typing import Any
 import execution_contract as c
 import request_contract as rc
 from input_evidence import InputEvidence
+from reference_delivery import SUBJECT_USE_RULE, binding_instructions, validate_subject_uses
 
 
 def _binding_id(row:dict)->str:
@@ -15,7 +16,12 @@ def validate_bindings(rows:Any)->list[dict]:
     if not isinstance(rows,list):raise ValueError('reference bindings must be an array')
     identifiers=set()
     for row in rows:
-        c.exact(row,{'reference_number','attachment_number','region_pixels','role','controls','must_not_control'},'reference binding')
+        c.exact(row,{'reference_number','attachment_number','region_pixels','role','controls','must_not_control'}
+                | ({'subject_uses'} if 'subject_uses' in row else set())
+                | ({'subject_id'} if 'subject_id' in row else set()),'reference binding')
+        if 'subject_id' in row:c.text(row['subject_id'],'state reference subject')
+        validate_subject_uses(row.get('subject_uses', []),
+                              subject_ids={row['subject_id']} if 'subject_id' in row else None)
         for key in ('reference_number','attachment_number'):
             if type(row[key]) is not int or row[key]<1:raise ValueError('reference positions must be positive integers')
         if row['reference_number'] in identifiers:raise ValueError('reference number repeats')
@@ -34,17 +40,10 @@ def validate_bindings(rows:Any)->list[dict]:
 
 def _reference_prefix(rows:list[dict],renderer:str)->str:
     if renderer=='reference-delivery':
-        lines=['Reference positions identify the attached inputs, not the requested output layout.']
-        for row in rows:
-            location='Image '+str(row['attachment_number']);region=row['region_pixels']
-            if region is not None:
-                location+=', pixels x={x}, y={y}, width={width}, height={height}'.format(**region)
-            lines.append('Reference '+str(row['reference_number'])+' means '+location+'. Role: '+row['role']+'.')
-            if row['controls']:lines.append('Use this reference for: '+'; '.join(row['controls'])+'.')
-            if row['must_not_control']:lines.append('Retain no authority over: '+'; '.join(row['must_not_control'])+'.')
-        return '\n'.join(lines)+'\n\n'
+        return binding_instructions(rows)+'\n'
     if renderer=='reference-binding-json':
-        return 'Declared reference bindings:\n'+c.encoded(rows).decode('utf-8')+'\n'
+        scope = SUBJECT_USE_RULE+'\n' if any(row.get('subject_uses') for row in rows) else ''
+        return scope+'Declared reference bindings:\n'+c.encoded(rows).decode('utf-8')+'\n'
     raise ValueError('the reference render contract names no installed renderer')
 
 
@@ -71,7 +70,7 @@ def reference_contract(policy:dict|None,reader:InputEvidence,expected_target:dic
     else:
         if document['renderer'] is not None or not isinstance(document['fields'],list) or not document['fields']:
             raise ValueError('native reference mode requires explicit structural mappings')
-        allowed={'reference_number','attachment_number','region_pixels','role','controls','must_not_control'}
+        allowed={'reference_number','attachment_number','region_pixels','role','controls','must_not_control','subject_uses','subject_id'}
         mapped=set();destinations=[]
         for item in document['fields']:
             c.exact(item,{'binding_field','request_field','container'},'native reference mapping')
@@ -82,8 +81,8 @@ def reference_contract(policy:dict|None,reader:InputEvidence,expected_target:dic
             if any(rc.overlaps(path,x) for x in destinations):raise ValueError('native reference fields overlap')
             destinations.append(path)
         required={'attachment_number','role'}
-        for key in ('controls','must_not_control','region_pixels'):
-            if any(row[key] for row in rows):required.add(key)
+        for key in ('controls','must_not_control','region_pixels','subject_uses','subject_id'):
+            if any(row.get(key) for row in rows):required.add(key)
         if not required<=mapped:raise ValueError('native reference controls omit declared authority or region fields: '+', '.join(sorted(required-mapped)))
     return document
 
@@ -119,7 +118,9 @@ def compose(original:str,*,segments:list[dict]|None,authored_source:dict,binding
             append(_reference_prefix(bindings,contract['renderer']),'reference-binding',[reference_policy['contract']],contract['renderer'],ids)
         elif contract['mode']=='native-fields':
             for item in contract['fields']:
-                values=[row[item['binding_field']] for row in bindings]
+                values=[row.get(item['binding_field'], []) if item['binding_field']=='subject_uses'
+                        else row.get('subject_id') if item['binding_field']=='subject_id'
+                        else row[item['binding_field']] for row in bindings]
                 controls.append({'id':'reference-control:'+item['binding_field'],'field':rc.path_parts(item['request_field']),
                     'value':values if item['container']=='ordered-array' else values[0],'binding_ids':ids})
         requirements.append({'id':'reference-rendition','kind':'meaning','binding_ids':ids,

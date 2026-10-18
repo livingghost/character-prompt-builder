@@ -76,8 +76,10 @@ For direct Studio references, save the ordered choices without copying hashes:
 
 ```json
 [
-  {"character": "hero", "slot": "canon.primary", "role": "identity"},
-  {"character": "partner", "slot": "canon.primary", "role": "identity"}
+  {"character": "hero", "slot": "canon.primary", "role": "identity",
+   "subject_uses": [{"subject_id": "A", "use": "identity", "priority": 0}]},
+  {"character": "partner", "slot": "canon.primary", "role": "identity",
+   "subject_uses": [{"subject_id": "B", "use": "identity", "priority": 0}]}
 ]
 ```
 
@@ -88,11 +90,18 @@ python scripts/prepare_generation_references.py --studio STUDIO \
   --out prepared-reference-set.json
 ```
 
-`single-board` is also accepted with `--state-selection-file`. It packages all
-references already selected for that state graph; it does not merge unrelated
-character contracts into one identity graph. Select each character's state under
-its own contracts when a work uses multiple state graphs. The existing state
-builder still binds one explicit state graph per package.
+`single-board` is also accepted with `--state-selection-file`. Select each
+character under its own contracts, then combine finalized selections through
+`select_state_references.py --selection A.json --selection B.json`. The resulting
+`subjects` array retains independent state commitments. Pass all concrete graphs
+through `generation.state_graphs` or the state builder's `--state-graphs-file`.
+Each graph is fully validated against its subject and the shared scene.
+
+When only A has state history, retain A's selection and add B's ordinary Studio
+choices with `--state-selection-file selection-a.json --studio-selection-file choices-b.json`.
+For A's pack sources, pass the same B choices to `reference_runtime.py execute`
+beside `--reference-selection selection-a.json` and the reviewed pack plan.
+B's choices name B's subject uses; they add no state context or graph for B.
 
 The model attachment limit counts the resulting board as one image. Each panel
 retains its source identity, original image hash, prepared transport hash, role
@@ -125,11 +134,10 @@ recover already sent work from the original run.
 ## Keep source responsibilities distinct
 
 `pack-artifact`, `supplied-file` and `studio-artifact` are current source variants.
-A pack-artifact uses an active Reference Use Plan. Supplied and Studio state
-references use the direct prepared-set path and preserve the binding's authority
-and exclusions. The pack-oriented plan is not a container for fictitious Studio
-record IDs. This change neither relaxes pack checks nor changes the state resolver
-or the Studio adoption procedure.
+A pack-artifact uses an active Reference Use Plan. The same executor can retain
+direct state references and additional ordinary Studio or supplied sources.
+Each keeps its own authority, exclusions and adoption proof. Studio choices use
+their actual slots and artifacts; the plan contains only its genuine pack records.
 
 A directory rename or another Studio with the same image does not silently
 retarget a live source. A new live location needs a new explicit source selection;
