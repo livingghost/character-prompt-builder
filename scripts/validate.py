@@ -2424,8 +2424,13 @@ def validate(
 
     generation_payload_template = payload_template.get("generation_payload", {})
     transport = generation_payload_template.get("negative_transport", {})
-    if transport.get("mode") not in {"separate-field", "integrated-critical", "native-subset", "retained-only"}:
-        errors.append("generation package template has invalid negative transport mode")
+    # This is an *unfilled skeleton*, not an executable package. Requiring a
+    # provider transport here would silently select a model interface before
+    # the user chose a target. Ready packages are checked separately.
+    if payload_template.get("model") != "" or transport.get("mode") != "":
+        errors.append("generation package template must leave model and negative transport unselected")
+    if generation_payload_template.get("prompt_recommendations", {}).get("resolved_model_id") != "":
+        errors.append("generation package template must not select a recommendation model")
     contract_template = payload_template.get("generation_contract", {})
     from verify_generation_payload import GENERATION_CONTRACT_FIELDS
     expected_generation_contract_fields = GENERATION_CONTRACT_FIELDS

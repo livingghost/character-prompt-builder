@@ -2,12 +2,16 @@
 
 Load this document only after a canonical record with linked visual evidence has been adopted, when the user supplies a reference, or when a reusable or generation-ready reference package is requested.
 
+Choose the preparation owner from the source and execution path. Pack-backed evidence uses the Reference Use Plan below.
+Supplied-image external edits use [Semantic instruction editing](runtime/semantic-instruction-edit.md) and its original-file bindings.
+The authority and review principles apply to both; external editing does not require converting a raster into vector evidence.
+
 ## Activation gate
 
 1. Inspect every adopted record.
 2. Run asset lookup for that record.
 3. Select only evidence whose authority matches the intended influence.
-4. Assign each selected source one unique semantic role and precedence.
+4. Assign each selected source an explicit role, scope and precedence under its preparation owner's contract.
 5. Reject unnamed averaging between identity, pose, camera, color, material, lighting, and environment sources.
 
 A prompt-only request does not call an image-generation API. It may still include selected SVGs when they materially support reuse. No-reference prompt-only output does not create empty reference manifests.
@@ -36,7 +40,8 @@ One SVG may serve several intended influences only through separate declared use
 
 ## Role map
 
-Use the following semantic boundaries. Technical artifacts narrow these roles further; they never widen them.
+Use the following semantic boundaries for canonical reference uses. External semantic plans may name other explicit roles, such as `scene` or `geometry`.
+Technical artifacts narrow authority; they never widen it.
 
 | Intended influence | May carry | Must exclude unless separately declared |
 | --- | --- | --- |
@@ -57,7 +62,7 @@ A registered Character Sheet does not create a second reference system. Once its
 
 The identity role is not a blanket veto on every visible difference, and non-identity roles are not permission to borrow the source individual. Scope decides the conflict. Stable anatomy, proportions, permanent markings, and other identity-fixed facts stay under identity authority. Body arrangement and viewpoint may come from `pose-camera`; garment construction may come from `outfit`; light behavior may come from `lighting`. Do not classify anatomical construction as a generic non-identity attribute merely because it is visible in another source. If anatomy itself is intentionally changed, that is an identity/form decision and must be represented by the owning identity or form contract.
 
-The canonical runtime currently has two provenance preparation paths: pack-backed Reference Use Plans and supplied-file-only preparation. Do not claim a fully audited mixed package when the Character Sheet board is still only a local supplied file and the other sources are pack artifacts. Register the sheet identity into the pack/catalog path first, or keep all references in the supported supplied-file path. Never splice the two prepared outputs by hand.
+Generation Package preparation has two provenance paths: pack-backed Reference Use Plans and supplied-file-only preparation. Do not claim a fully audited mixed package when a Character Sheet board is only a local file and other sources are pack artifacts. Register the sheet identity into the pack/catalog path first, or keep all references in supplied-file preparation. External edits retain selected local originals and their acquisition evidence in the semantic binding. Never splice prepared outputs by hand.
 
 ## Reference-to-prompt synthesis
 
@@ -96,6 +101,8 @@ Choose the artifact that matches the declared job:
 If one faithful SVG contains useful identity but harmful scene state, keep the identity scope explicit in both the plan and prompt. A technical carrier cannot remove semantic contamination by itself.
 
 ## Conditional artifacts
+
+These artifacts belong to canonical reference preparation. External instruction edits retain their semantic plan and exact original files instead.
 
 - Deliver `reference-use-plan.json` only when one or more references are selected or a reusable reference package is requested.
 - Deliver `surface-lighting-plan.json` only when source lighting or material response must be explicitly preserved, rescoped, or replaced.

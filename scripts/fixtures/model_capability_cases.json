@@ -1,0 +1,196 @@
+{
+  "parameters": {"width": 1248, "height": 832, "safety": {"checkContent": true}},
+  "services": {
+    "runware": {
+      "model": "model", "prompt": "positivePrompt", "references": "inputs.referenceImages",
+      "negative": "negativePrompt", "seed": "seed", "count": "numberResults",
+      "fixed_fields": {"taskType": "imageInference"}, "management_fields": ["taskUUID"]
+    }
+  },
+  "offerings": [
+    {
+      "model": "gpt-image-2.5-flare", "service": "runware", "model_identifier": "openai:gpt-image@2.5-flare",
+      "aliases": ["gpt image 2.5 flare"],
+      "modes": {"text-to-image": 0, "reference-guided": 2},
+      "prompt_length": [2, 32000], "reference_limit": 16, "preparation_limit": null, "output_count": [1, 20],
+      "supports_negative_prompt": false, "negative_transport_mode": "integrated-critical",
+      "dispatch_seed": null, "seed_values": {"accept": [null], "reject": [1]},
+      "wire_parameters": {"settings.quality": "high", "outputFormat": "PNG"},
+      "case_sets": ["provider-size", "stepped-dimensions", "area-schema", "aspect-three", "alpha-background", "quality-settings", "backend-seed", "mask-guidance"]
+    },
+    {
+      "model": "grok-imagine-image-2.0", "service": "runware", "model_identifier": "xai:grok-imagine@image-2.0",
+      "aliases": ["grok imagine 2.0"],
+      "modes": {"text-to-image": 0, "reference-guided": 2, "instruction-edit": 2},
+      "prompt_length": [1, 64000], "reference_limit": 3, "preparation_limit": 3, "output_count": [1, 20],
+      "supports_negative_prompt": false, "negative_transport_mode": "integrated-critical",
+      "dispatch_seed": null, "seed_values": {"accept": [null], "reject": [1]},
+      "wire_parameters": {"settings.quality": "low", "outputFormat": "PNG"},
+      "case_sets": ["paired-profile", "text-size-required", "reference-resolution", "preset-requires-reference", "exclusive-size", "exact-dimensions", "backend-seed", "low-medium-quality", "no-mask"]
+    },
+    {
+      "model": "gpt-image-2.5-sunburst", "service": "runware", "model_identifier": "openai:gpt-image@2.5-sunburst",
+      "aliases": ["gpt image 2.5 sunburst"],
+      "modes": {"text-to-image": 0, "reference-guided": 2},
+      "prompt_length": [2, 32000], "reference_limit": 16, "preparation_limit": null, "output_count": [1, 20],
+      "supports_negative_prompt": false, "negative_transport_mode": "integrated-critical",
+      "dispatch_seed": null, "seed_values": {"accept": [null], "reject": [1]},
+      "wire_parameters": {"settings.quality": "high", "outputFormat": "PNG"},
+      "case_sets": ["provider-size", "stepped-dimensions", "area-schema", "aspect-three", "alpha-background", "quality-settings", "backend-seed", "mask-guidance"]
+    },
+    {
+      "model": "seedream-5.0-pro", "service": "runware", "model_identifier": "bytedance:seedream@5.0-pro",
+      "aliases": ["seedream 5 pro", "bytedance:seedream@5.0-pro"],
+      "modes": {"text-to-image": 0, "reference-guided": 2},
+      "prompt_length": [2, 3000], "reference_limit": 10, "preparation_limit": 10, "output_count": [1, 20],
+      "supports_negative_prompt": false, "negative_transport_mode": "integrated-critical",
+      "dispatch_seed": null, "seed_values": {"accept": [null], "reject": [1]},
+      "wire_parameters": {"width": 2496, "height": 1664, "settings.thinking": true, "settings.background": "opaque", "outputFormat": "PNG"},
+      "case_sets": ["paired-profile", "text-size-required", "reference-resolution", "text-resolution", "exclusive-size", "continuous-dimensions", "area-profile", "aspect-sixteen", "boolean-thinking", "single-input-alpha", "promptless-operation", "backend-seed", "no-mask"]
+    },
+    {
+      "model": "qwen-image-2.1-pro", "service": "runware", "model_identifier": "alibaba:qwen-image@2.1-pro",
+      "aliases": ["qwen image 2.1 pro"],
+      "modes": {"text-to-image": 0, "reference-guided": 2, "instruction-edit": 2},
+      "prompt_length": [2, 3000], "reference_limit": 10, "preparation_limit": 10, "output_count": [1, 20],
+      "supports_negative_prompt": false, "negative_transport_mode": "integrated-critical",
+      "dispatch_seed": 0, "seed_values": {"accept": [0, 2147483647], "reject": [null, -1, 2147483648]},
+      "wire_parameters": {"settings.promptExtend": false, "outputFormat": "PNG"},
+      "case_sets": ["paired-profile", "provider-size", "continuous-dimensions", "area-schema", "aspect-eight", "boolean-thinking", "conditional-rewriting", "optional-seed", "no-mask"]
+    },
+    {
+      "model": "flux-3-image", "service": "runware", "model_identifier": "bfl:flux@3-image",
+      "aliases": ["flux 3 image"],
+      "modes": {"text-to-image": 0, "reference-guided": 2, "instruction-edit": 2},
+      "prompt_length": [2, 32000], "reference_limit": 10, "preparation_limit": 10, "output_count": [1, 20],
+      "supports_negative_prompt": false, "negative_transport_mode": "integrated-critical",
+      "dispatch_seed": null, "seed_values": {"accept": [null], "reject": [1]},
+      "wire_parameters": {"settings.grounding": false, "outputFormat": "PNG"},
+      "case_sets": ["paired-profile", "provider-size", "reference-resolution", "preset-requires-reference", "exclusive-size", "exact-dimensions", "boolean-grounding", "bounded-regions", "backend-seed", "no-mask"]
+    }
+  ],
+  "common_cases": [
+    {"name": "width requires height", "parameters": {"width": 1248}, "schema": false},
+    {"name": "height requires width", "parameters": {"height": 832}, "schema": false},
+    {"name": "reference size may be inherited", "mode": "reference-guided", "references": 1, "parameters": {}, "schema": true, "profile": true},
+    {"name": "steps unavailable", "set": {"steps": 30}, "schema": false, "profile": false},
+    {"name": "guidance unavailable", "set": {"CFGScale": 4}, "schema": false, "profile": false},
+    {"name": "scheduler unavailable", "set": {"scheduler": "Euler a"}, "schema": false, "profile": false},
+    {"name": "denoising strength unavailable", "set": {"strength": 0.5}, "schema": false, "profile": false},
+    {"name": "prompt weighting unavailable", "set": {"promptWeighting": "compel"}, "schema": false, "profile": false},
+    {"name": "seed image unavailable", "set": {"inputs.seedImage": "00000000-0000-4000-8000-000000000000"}, "schema": false, "profile": false},
+    {"name": "undeclared setting refused", "set": {"settings.unknownControl": true}, "schema": false, "profile": false},
+    {"name": "invalid output format refused", "set": {"outputFormat": "INVALID"}, "schema": false, "profile": false}
+  ],
+  "case_sets": {
+    "paired-profile": [
+      {"name": "profile requires paired width", "parameters": {"width": 1248}, "schema": false, "profile": false},
+      {"name": "profile requires paired height", "parameters": {"height": 832}, "schema": false, "profile": false}
+    ],
+    "provider-size": [
+      {"name": "text size may be omitted", "parameters": {}, "schema": true, "profile": true}
+    ],
+    "text-size-required": [
+      {"name": "text size is required", "parameters": {}, "schema": false, "profile": false}
+    ],
+    "reference-resolution": [
+      {"name": "reference resolution preset", "mode": "reference-guided", "references": 1, "parameters": {"resolution": "2K"}, "schema": true, "profile": true}
+    ],
+    "text-resolution": [
+      {"name": "text resolution preset", "parameters": {"resolution": "2K"}, "schema": true, "profile": true},
+      {"name": "text dimensions exclude a resolution preset", "set": {"resolution": "2K"}, "schema": false, "profile": false}
+    ],
+    "preset-requires-reference": [
+      {"name": "preset requires reference media", "parameters": {"resolution": "2K"}, "schema": false, "profile": false}
+    ],
+    "exclusive-size": [
+      {"name": "dimensions exclude a resolution preset", "mode": "reference-guided", "references": 1, "set": {"resolution": "2K"}, "schema": false, "profile": false}
+    ],
+    "stepped-dimensions": [
+      {"name": "dimensions require a fixed step", "parameters": {"width": 1300, "height": 900}, "schema": false, "profile": false}
+    ],
+    "exact-dimensions": [
+      {"name": "dimensions require an accepted pair", "parameters": {"width": 1300, "height": 900}, "schema": false, "profile": false}
+    ],
+    "continuous-dimensions": [
+      {"name": "non-bucket dimensions accepted", "parameters": {"width": 1300, "height": 900}, "schema": true, "profile": true}
+    ],
+    "area-schema": [
+      {"name": "area below the minimum", "parameters": {"width": 256, "height": 256}, "schema": false},
+      {"name": "area above the maximum", "parameters": {"width": 3072, "height": 3072}, "schema": false}
+    ],
+    "area-profile": [
+      {"name": "area below the minimum", "parameters": {"width": 256, "height": 256}, "schema": false, "profile": false},
+      {"name": "area above the maximum", "parameters": {"width": 3000, "height": 2000}, "schema": false, "profile": false}
+    ],
+    "aspect-three": [
+      {"name": "aspect too wide", "parameters": {"width": 2048, "height": 512}, "schema": false},
+      {"name": "aspect too tall", "parameters": {"width": 512, "height": 2048}, "schema": false}
+    ],
+    "aspect-eight": [
+      {"name": "aspect too wide", "parameters": {"width": 2400, "height": 256}, "schema": false},
+      {"name": "aspect too tall", "parameters": {"width": 256, "height": 2400}, "schema": false}
+    ],
+    "aspect-sixteen": [
+      {"name": "aspect too wide", "parameters": {"width": 5000, "height": 256}, "schema": false, "profile": false},
+      {"name": "aspect too tall", "parameters": {"width": 256, "height": 5000}, "schema": false, "profile": false}
+    ],
+    "backend-seed": [
+      {"name": "backend seed cannot be supplied", "set": {"seed": 1}, "schema": false, "profile": false}
+    ],
+    "optional-seed": [
+      {"name": "seed belongs to dispatch", "set": {"seed": 1}, "schema": true, "profile": false, "profile_error": "explicit dispatcher option"}
+    ],
+    "quality-settings": [
+      {"name": "explicit quality", "set": {"settings.quality": "high"}, "schema": true, "profile": true},
+      {"name": "unknown quality", "set": {"settings.quality": "invalid"}, "schema": false, "profile": false}
+    ],
+    "low-medium-quality": [
+      {"name": "explicit quality", "set": {"settings.quality": "low"}, "schema": true, "profile": true},
+      {"name": "unknown quality", "set": {"settings.quality": "high"}, "schema": false, "profile": false}
+    ],
+    "boolean-thinking": [
+      {"name": "thinking enabled", "set": {"settings.thinking": true}, "schema": true, "profile": true},
+      {"name": "thinking disabled", "set": {"settings.thinking": false}, "schema": true, "profile": true},
+      {"name": "thinking requires a boolean", "set": {"settings.thinking": "true"}, "schema": false, "profile": false}
+    ],
+    "alpha-background": [
+      {"name": "alpha output accepted", "set": {"settings.background": "transparent", "outputFormat": "PNG"}, "schema": true, "profile": true},
+      {"name": "alpha requires an alpha format", "set": {"settings.background": "transparent", "outputFormat": "JPG"}, "schema": false}
+    ],
+    "single-input-alpha": [
+      {"name": "alpha output with one input", "mode": "reference-guided", "references": 1, "set": {"settings.background": "transparent", "outputFormat": "PNG"}, "schema": true, "profile": true},
+      {"name": "alpha requires an input", "set": {"settings.background": "transparent", "outputFormat": "PNG"}, "schema": false},
+      {"name": "alpha takes only one input", "mode": "reference-guided", "references": 2, "set": {"settings.background": "transparent", "outputFormat": "PNG"}, "schema": false},
+      {"name": "alpha requires an alpha format", "mode": "reference-guided", "references": 1, "set": {"settings.background": "transparent", "outputFormat": "JPG"}, "schema": false}
+    ],
+    "promptless-operation": [
+      {"name": "separate operation is outside image modes", "mode": "reference-guided", "references": 1, "parameters": {"settings": {"layerDecomposition": true}}, "prompt": null, "schema": true, "profile": false, "profile_error": "settings.layerDecomposition"},
+      {"name": "separate operation refuses an image prompt", "mode": "reference-guided", "references": 1, "set": {"settings.layerDecomposition": true}, "schema": false, "profile": false, "profile_error": "settings.layerDecomposition"}
+    ],
+    "conditional-rewriting": [
+      {"name": "rewriting disabled", "set": {"settings.promptExtend": false}, "schema": true, "profile": true},
+      {"name": "disabled rewriting excludes thinking true", "set": {"settings.promptExtend": false, "settings.thinking": true}, "schema": false, "profile": false},
+      {"name": "disabled rewriting excludes thinking false", "set": {"settings.promptExtend": false, "settings.thinking": false}, "schema": false, "profile": false},
+      {"name": "text permits agent rewriting", "set": {"settings.promptExtendMode": "agent"}, "schema": true, "profile": true},
+      {"name": "reference permits direct rewriting", "mode": "reference-guided", "references": 1, "set": {"settings.promptExtendMode": "direct"}, "schema": true, "profile": true},
+      {"name": "reference excludes agent rewriting", "mode": "reference-guided", "references": 1, "set": {"settings.promptExtendMode": "agent"}, "schema": false, "profile": false}
+    ],
+    "boolean-grounding": [
+      {"name": "grounding enabled", "set": {"settings.grounding": true}, "schema": true, "profile": true},
+      {"name": "grounding disabled", "set": {"settings.grounding": false}, "schema": true, "profile": true},
+      {"name": "grounding requires a boolean", "set": {"settings.grounding": "true"}, "schema": false, "profile": false}
+    ],
+    "bounded-regions": [
+      {"name": "new region has an output box", "set": {"settings.boundingBoxes": [{"id": "region-1", "targetBox": [100, 100, 800, 800]}]}, "schema": true, "profile": true},
+      {"name": "source region requires media", "set": {"settings.boundingBoxes": [{"id": "region-1", "referenceIndex": 0, "sourceBox": [100, 100, 800, 800], "targetBox": [100, 100, 800, 800]}]}, "schema": false, "profile": false}
+    ],
+    "mask-guidance": [
+      {"name": "mask with a reference", "mode": "reference-guided", "references": 1, "set": {"inputs.maskImage": "00000000-0000-4000-8000-000000000000"}, "schema": true},
+      {"name": "mask requires a reference", "set": {"inputs.maskImage": "00000000-0000-4000-8000-000000000000"}, "schema": false}
+    ],
+    "no-mask": [
+      {"name": "mask input unavailable", "mode": "reference-guided", "references": 1, "set": {"inputs.maskImage": "00000000-0000-4000-8000-000000000000"}, "schema": false}
+    ]
+  }
+}

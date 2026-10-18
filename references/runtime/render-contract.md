@@ -35,7 +35,8 @@ This proves inclusion, not semantic correctness or model effectiveness; the agen
 `templates/render-intent.template.json` provides the custom form.
 A template with unresolved axes is not a valid generation input.
 `schemas/render-intent.schema.json` owns the public structure.
-The Production Specification contains the intent, and its current-state contract remains authoritative.
+The Production Specification contains dispatcher intent. External image work retains the same intent as an applied task source.
+The chosen source's identity and current-state authority remain separate from rendering.
 
 ## Read the model's guidance
 
@@ -64,7 +65,7 @@ Its controls point to recommendation names; they do not duplicate the values.
 One interface never inherits another interface's capabilities implicitly.
 
 A card may report `ready_for_parameter_resolution: false` for an unconfigured model.
-Its catalog entry remains readable, but generation requires an authored execution profile.
+Its catalog entry remains readable, but Generation Package dispatch requires an authored execution profile.
 An execution profile's `basis.kind` is `provider-documentation`, `curated-starting-point`, `measured` or `synthetic`.
 A `measured` basis names the adopted observed request profile it rests on, by its path inside the pack and its SHA-256.
 No other kind names one.
@@ -145,6 +146,23 @@ The dispatcher preview prints the rendering choice before the complete request.
 Read the final positive and negative transport and all applied values from that preview.
 A prompt-only answer uses the same deliberate finish choice and model guidance when a target is named,
 but does not need a submission authorization or an invented model when none was requested.
+
+## External image work
+
+An external task uses the exact host's acquired contract when no catalog profile exists.
+Record the missing definition and requested identifier through [Image Generation](image-generation.md#choose-execution).
+Existing-image changes also follow [Semantic instruction editing](semantic-instruction-edit.md) to bind their source and reference scopes.
+Resolve the visible finish and supported request fields before composition. Preserve the source finish when an edit leaves it fixed.
+Keep the final intent in an applied task source with role `render-intent` and validate it with:
+
+```bash
+python scripts/render_contract.py validate-intent STUDIO/inputs/render-intent.json
+```
+
+The author checks that its `prompt_expression` appears in the final instruction with the intended scope.
+Retain that file and the exact request as applied task sources. Semantic edit preparation also checks its acquired request schema when present.
+It does not compile an execution profile or a dispatcher render contract for an absent model.
+Only evidence-backed controls enter the request; unavailable controls remain absent.
 
 ## Preserve an image during enlargement
 

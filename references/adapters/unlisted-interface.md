@@ -6,11 +6,11 @@ Keep the approved image intent, subject identity, art direction, appeal strategy
 
 For a reference-free Generation Package, an unregistered interface may use an explicit non-`auto` `--negative-transport` decision. Record the actual interface evidence and retain the full portable negative for audit. The interface name implies nothing about an automatic negative mode.
 
-Before preparing or forwarding any selected image source, require an enabled evidence-backed `model` record declaring every accepted reference media type. There is no explicit media override. When the record is absent, add and validate it, or stop. Four shortcuts are excluded:
+Generation Package dispatch requires an enabled evidence-backed `model` record declaring every accepted reference media type. There is no explicit media override. When the record is absent, use Production Execution's external host branch with the exact named image-generation operation, or complete and validate the record before dispatch. Only existing-image edits require the source-bound [Semantic instruction edit](../runtime/semantic-instruction-edit.md); reference-free generation is not an edit. The external submission retains the requested identifier, acquired contract, and original media when any were selected. Four shortcuts are excluded:
 
 - sending raw SVG;
 - guessing image-count limits;
 - substituting another artifact;
 - dropping the selected source.
 
-Use the verifier's exact effective prompt, negative instruction, parameters, and ordered host references. If the interface is unable to accept every committed transport, revise the reviewed reference plan and rebuild the package rather than reconstructing an input outside the verified contract.
+For dispatch, use the verifier's exact effective prompt, negative instruction, parameters and ordered references. For existing-image external edits, use the semantic binding's exact saved request and uploaded values. For external new-image generation, keep the approved request and actual provider response in the ordinary external execution record. If the interface cannot accept the complete input, record that limit and reassess the authored task before another trial.

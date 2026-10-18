@@ -1,7 +1,7 @@
 {
   "format": "character-prompt-builder-prompt-writing-guide",
   "name": "Image Prompt Writing Guide",
-  "description": "English prompt construction, attention syntax, model-facing transport, and controlled comparison guidance. A section that names dialects applies only to those model families; a section without them applies to every target. The Skill-using agent applies only the rules supported by the active model record and interface.",
+  "description": "English prompt construction, attention syntax, model-facing transport, and controlled comparison guidance. A section that names dialects applies only to those model families. Rules for tags, parsers, sampling or image-to-image apply only when supported by the active model record and interface.",
   "sections": [
     {
       "id": "model-facing-language",
@@ -10,14 +10,14 @@
         "Render the model-facing prompt in English unless the active model record or interface provides better evidence for another language.",
         "When a term has weak effect, first test a clearer model-legible phrase and its placement. Consider a different model only when the requested concept remains intact and the current model lacks the needed vocabulary or behavior.",
         "Vocabulary lookup supplies options. The agent chooses, combines, rewrites, weights, or ignores them according to the request and active interface.",
-        "The public tag databases behind a model's training corpora are a usable pre-generation check on vocabulary: they show whether a candidate term exists as a real tag, how common it is, and what its canonical spelling is. Treat presence as the useful signal and volume as weak evidence only. Observed behavior does not follow volume monotonically: a distinctive, unambiguous term can bind decisively while barely represented, and a term of moderate volume can fail when the concept it names is a subtle contact or relation the model renders as a nearby generic instead.",
-        "Check a candidate term against every corpus the active model was trained on, not just the most familiar one. Corpora disagree: a term one database has retired or never carried can be a high-volume canonical tag in another, and a spelling that looks authoritative in one is often an alias in the other. Concluding that a term is dead from a single database will strip working vocabulary, particularly for subject domains that one corpus specializes in.",
-        "When a term underperforms, try its canonical counterpart before abandoning it. Databases publish alias mappings from common spellings to the canonical tag, and a model trained across corpora usually understands both, so the alias pair is a cheap A/B rather than a rewrite.",
-        "Role and identity assignment between multiple subjects does not bind through word adjacency. Naming which subject fills which role next to that subject's description can leave the rendition unchanged, so treat per-subject role control as unavailable in plain tag text and use staging, separate generations, or regional conditioning instead.",
+        "For a tag-oriented checkpoint with documented public training corpora, use their tag databases to check membership, canonical spelling and frequency. Frequency is weak evidence of model behavior: a rare distinctive term may work while a common term fails to express a subtle relation. Database membership does not establish behavior for another checkpoint or a prose interface.",
+        "Check candidate tags against the documented public corpora used by the selected checkpoint. Corpora can disagree about aliases and membership, so one database's absence does not settle the others. Do not infer undisclosed training corpora or require tag-database membership for a natural-language rendition.",
+        "When a tag underperforms and its documented corpus publishes a canonical alias, compare the two spellings on the selected checkpoint before abandoning it. Record the observed result rather than assuming both spellings work across models.",
+        "In a tag-oriented rendition, word adjacency alone does not establish per-subject role control. Inspect whether each figure keeps its assigned identity and role. If the active setup fails that check, consider staging, separate generations or regional conditioning supported by the selected interface.",
         "A vocabulary resource legitimately mixes two registers: canonical tags the corpora carry, and descriptive phrasing the text encoder understands as language. Absence from a tag database is not evidence that a descriptive phrase is broken, so do not prune vocabulary on that basis alone.",
-        "Where a subject domain has more than one tag dialect, the dialects are interchangeable for correctness but not for style: the count-plus-anthro form, the male-plus-furry form, and the kemono spelling all render a correct anthro subject, and the kemono spelling shifts facial styling rounder and flatter. Choose the dialect for the styling it carries.",
+        "Use multiple tag dialects only when the active checkpoint has evidence for them. Compare count-plus-anthro, male-plus-furry and kemono forms for subject correctness and styling separately. An observed shift toward rounder, flatter faces is specific to the tested checkpoint and settings; it does not establish interchangeability across models.",
         "Treat a checkpoint version change as a target change. Sibling releases of one merge differ at the same seed in default build mass, negative adherence, and prop and scenery conventions, so re-verify per version rather than assuming family behaviour, and disclose the change.",
-        "A model record's recommended_parameters are the checkpoint author's values and take precedence. This baseline covers a checkpoint in these families whose author gives none.",
+        "Preserve explicit parameter choices and validate them against the selected interface. Use the active record's recommendations as evidence-scoped starting points for unresolved choices, before a matching dialect baseline.",
         "The preparation checker inspects the exact final positive and negative channels after model recommendations and transport selection. A problem blocks preparation; notes and dictionary meanings remain visible for the author to assess.",
         "Vocabulary membership does not establish intended meaning. Read definitions for ambiguous anatomy/garment words; an unlisted close-up phrase or speech verb is not evidence of reliable framing or text-free speech.",
         "Check whether a requested local color or close-up actually remains local in the candidate. Keep target-specific spillover observations in the active model record, rather than turning one campaign into a universal vocabulary prohibition."
@@ -46,10 +46,10 @@
       "rules": [
         "On a checkpoint trained on booru tags, write tags in lowercase unless the tag itself carries capitals. How a tag of more than one word is spelled is the family's own convention, which the prompt-dialects resource states per family: read it rather than assuming one form.",
         "Commas are required. A run of adjectives without commas (sleeveless striped collared shirt) is read as one unknown tag; write sleeveless, striped shirt, collared shirt.",
-        "Escape a literal parenthesis, bracket, or colon inside a tag with a backslash. Unescaped, a bracket is read as attention syntax by Automatic1111-style parsers and a colon is read as a weight separator, and either changes the emphasis of everything around it.",
-        "Adjust emphasis by reordering or by one explicit weight rather than by repeating a tag. Repetition spends budget and does not add control in proportion to the count.",
+        "Escape literal syntax delimiters for the explicitly selected parser. In Compel, parentheses group a phrase and suffixes apply weights; in sdEmbeds, parentheses, square brackets and a trailing colon weight have different meanings. A learned tag family does not select the service parser.",
+        "Within one conditioning clause, prefer one explicit weight to repeated tags. Repetition across independent Compel clauses has a different scope; do not flatten clauses or silently deduplicate the author's combined expression.",
         "Prefixing detailed to a named element (detailed eyes, detailed fluffy fur, detailed background) draws render attention to that element. Spend it on the one or two elements the plot leans on; on every element it means nothing.",
-        "Weighted syntax is a parser feature, not a model feature. Plain ComfyUI, Diffusers, and a web form without a prompt parser read (term:1.2) as literal text, so on those surfaces carry the priority by position instead.",
+        "Weighted syntax is an interface parser feature, not inferred from a model family. Select the native promptWeighting control only when the chosen offering and execution mode expose it; otherwise treat punctuation literally rather than assuming a backend parser.",
         "The blocks a rendition is built from, and the order they go in, belong to the family. Read them from the active record's dialect rather than carrying an order across families. With more than one figure, repeat the figure and pose blocks once per figure, each in its own chunk that restates that figure's count tag, and keep interaction tags in the count block so that the pairing reads before either figure is described.",
         "A rating term and a period term each act on the families that carry them, and the terms differ between families. Take both sets from the active record's dialect, use at most one of each, and never carry a term from one family's set into another's.",
         "A term the family never learned spends budget and acts on nothing. The dialect names those terms for the families where they are known; check a candidate against the corpora the dialect lists before sending it."
@@ -121,8 +121,8 @@
       "id": "subject-count-and-scene-situation",
       "title": "Subject count and scene situation",
       "rules": [
-        "State the subject count explicitly in every rendition with a count tag such as solo, 1boy, 1girl, duo, or group. Treat one character as the default: when the request names no additional people, write solo plus the matching count tag near the front of the prompt, because tag-oriented models otherwise drift toward duplicated subjects or unwanted pairings.",
-        "Give every rendition a concrete situation block: a named place instead of a bare indoors or outdoors, a time-of-day or light cue, and at most a few visible anchor props. A prompt that names no environment lets the model fall back to its default blank studio background.",
+        "For a tag-oriented model, state an evidenced subject count only after reading the actual request. If exactly one depicted subject is requested, use the active dialect's supported single-subject count tag when helpful. If a group, scene without characters, or deliberately unknown count is requested, do not invent solo, 1boy, 1girl or another subject. Count tags are not universal controls for natural-language editing interfaces.",
+        "Name the environment, light and props when the requested image or authorized edit needs them; for an existing-image edit, preserve source environment when outside the change scope. Do not invent a setting or props for an unspecified background, isolated asset, or transparent cut-out. Only tag-oriented dialects use their supported location and time tags.",
         "Keep the situation block inside the visible frame. Name only background and props the chosen crop can actually show, and spend no budget on scenery the framing excludes.",
         "Two characters in one tag prompt cross-contaminate: species, colour, and identity bleed between them. For two characters that must each stay themselves, render them separately and compose, or use regional conditioning; tag text alone will not hold them apart.",
         "Under multi-tag pressure a species drifts toward a neighbouring one, particularly on a side view. Reinforce the species block with its own weight and colour tags and put the rival species in the negative when the drift is known.",
@@ -134,7 +134,7 @@
       "title": "Framing and crop control",
       "rules": [
         "Make framing an explicit decision on every rendition, in both directions. A single character on a tall portrait canvas silently defaults to a full-body render, so a close crop must be forced, and a requested full body should be an affirmative choice, not the model's fallback.",
-        "Force a crop with three supports together: place the framing tag immediately after subject identity with explicit weight where the parser supports it, such as (upper body:1.2) or (face close-up:1.3); add crop-state tags such as cropped torso or head out of frame only when the crop should visibly cut the body at the frame edge; and add full body to the negative prompt.",
+        "To request a tighter crop on a tag-oriented image model, use supported framing and crop tags as the active grammar allows. Add negative exclusions only if the target has a compatible negative channel and they do not conflict with the intended frame. For source-image edits, do not reframe without specific authorization.",
         "On a blank or near-empty background a crop can dissolve the body into the background instead of cutting it at the frame edge. Anchor the bottom of the frame with a visible surface or prop the body meets, such as a chair, bed, floor shadow, or table edge, or use a hard crop-state tag for an intentional cut.",
         "Match the canvas to the framing. Prefer a squarer or landscape canvas for face and upper-body crops and a tall portrait canvas for full body, and omit leg and feet detail from the prompt when the framing excludes them. For an explicit full body, weight it, such as (full body:1.2), keep the head-to-feet span inside the canvas, and drop crop-state tags so they cannot fight the framing.",
         "State the requested framing in the delivered plan or provenance so the choice, and any weight used to enforce it, stays visible and reversible in later edits.",
@@ -150,7 +150,7 @@
       "id": "expression-and-performance",
       "title": "Expression and performance",
       "rules": [
-        "Give every character rendition an explicit performance decision: an expression plus the visible appendage and posture cues that agree with it, such as eyes, mouth, ears, shoulders, tail, and hands. A prompt that leaves expression unstated renders the model's neutral default face, and the omission is easy to miss in review because nothing looks broken.",
+        "Choose expression and visible body-language cues when the brief, character identity or scene state calls for them. For an edit, retain the source expression unless the task changes it; do not insert a new expression or appendage state as a universal default.",
         "A single bare expression tag is weaker than a small coordinated cluster naming one consistent state across eyes, mouth, and posture. Pull the cluster from the activated production knowledge when a matching cue record exists instead of improvising one word.",
         "Expression tags obey the same anchor-position rule as every other instruction: placed at the tail of a long rendition they lose to the established composition, so put the performance block with the front composition-critical tags.",
         "For two or more characters, short affectionate or postural phrases naming who does what to whom bind reliably, including across species. Named positions and support geometry do not: a strongly conventionalized action pulls its own camera and staging, overriding a described arrangement. Use the target vocabulary's own position terms rather than descriptive sentences, and re-check the camera afterward."
@@ -174,10 +174,10 @@
         "Use attention syntax only when the active parser supports the demonstrated grammar. Parentheses and square brackets are not portable across all image interfaces.",
         "Use weighting sparingly to express a genuine priority. Do not use extreme weights to compensate for contradictory anatomy, camera, action, or reference authority.",
         "Nested emphasis compounds when the parser applies the same multiplier at each level. Explicit numeric weights state the requested multiplier directly.",
-        "An explicit numeric weight binds only where the colon and number sit immediately before the closing parenthesis. Inside a longer group, a term written as term:0.9 followed by a comma is not weighted: the number is consumed as literal prompt text, and the leftover colon and digit tokens sit inside the host phrase and can cancel its meaning entirely rather than leaving it at plain group emphasis.",
-        "Malformed weights fail silently and never in the requested direction: a weight that fails to bind leaves the term at full emphasis, or knocks the term out through the leftover junk tokens beside it. After composing, re-check every numeric weight against the binding rule instead of trusting visual inspection of the prompt string.",
-        "Emphasis grammars are dialect-bound. Curly-brace emphasis is NovelAI-native; Automatic1111-style parsers do not read braces as emphasis and may treat them as literal text or wildcard syntax. When moving a prompt between dialects, convert the emphasis instead of carrying the source syntax.",
-        "AND between two prompt fragments is composable conditioning in Automatic1111-style parsers: each side is encoded separately and the results are combined, which lets two competing colors or materials share one region (blue fire AND red fire) instead of one absorbing the other. It is parser syntax, not model vocabulary: plain ComfyUI, Diffusers, and web forms read AND as a literal word.",
+        "In sdEmbeds-style syntax, a colon and numeric weight bind at the end of a parenthesized fragment: (term:1.2). Compel instead uses (term)1.2, term+ or (multiple words)--. Keep the grammar consistent with the selected native control; CPB does not translate the author's expression between them.",
+        "Malformed, misplaced or mixed weighting syntax can be interpreted as unintended literal text by a backend. Inspect the complete final positive and negative rendition using the selected parser and correct mechanical findings before authorizing a request.",
+        "Emphasis grammars are interface-bound. Curly-brace emphasis is not Compel or sdEmbeds weighting. When changing parser, author a new reviewed rendition and request; do not let software silently convert bracket shapes or coefficients.",
+        "Compel .blend() combines conditioning and .and() combines separately encoded chunks. They are not spatial region assignments or a guarantee that characters retain separate roles. An uppercase AND or BREAK is not the same operator; only use syntax documented for the chosen interface.",
         "Down-weighting the only tag that carries an axis does not attenuate the axis smoothly; the axis can collapse to the model default instead, the way a halved sole environment anchor yields the default background rather than a dimmer scene. To soften an axis, name the intermediate state at full weight instead of down-weighting the lone anchor.",
         "Square-bracket de-emphasis is weak against an attribute the model already expects and perturbs unrelated late tags. Triple-nested parentheses do raise an attribute as asked but drag its home slice along, which can strip a late-position garment. Prefer an explicit numeric weight, and re-anchor late garments after boosting a body attribute."
       ],
@@ -210,6 +210,18 @@
         {
           "syntax": "{term}",
           "effect": "About 1.05x emphasis in NovelAI's native parser only. Automatic1111-style parsers do not read braces as emphasis."
+        },
+        {
+          "syntax": "(blue eyes)1.2, long hair+",
+          "effect": "Compel: an explicit group coefficient and a suffix on the final word. Not sdEmbeds colon syntax."
+        },
+        {
+          "syntax": "(\"solo, blue eyes\", \"forest, soft lighting\").and()",
+          "effect": "Compel: independent conditioning chunks; not a regional assignment. Review the combined intent."
+        },
+        {
+          "syntax": "(\"blue eyes\", \"green eyes\").blend(1, 0.8)",
+          "effect": "Compel: weighted conditioning blend. Clause coefficients are retained; the provider computes embeddings."
         }
       ]
     },
@@ -235,7 +247,7 @@
         "Review any reused negative block as four separable strata before adoption: the active family's reviewed quality terms, deliberately weighted content gates, corrections scoped to an observed failure, and residue carried from other model families or abandoned workflows. Keep the first three intentional and drop the residue.",
         "Do not carry family-bound control tokens across checkpoint families. Rating or score-band tags act only on checkpoints trained with that vocabulary, and a Textual Inversion activation token whose embedding is not loaded is consumed as meaningless literal text instead of acting as a negative.",
         "Check the negative against the requested subject before delivery. A negative term that names the requested subject class or a load-bearing positive attribute fights the request itself; remove it or rescope it to the concrete failure it was meant to block.",
-        "Deduplicate the negative. Repeating a term or piling near-synonyms does not add suppression in proportion to the count and spends budget that dilutes every remaining term.",
+        "Inspect duplicate terms inside each negative conditioning clause. Preserve distinct .blend()/.and() clauses and their weights; terms repeated across clauses are not mechanically flattened into a single negative list.",
         "Position in the negative works as it does in the positive. Put the exclusion this scene actually needs ahead of the reusable block, so that it sits in the strongest window rather than behind a wall of generic defect terms.",
         "Keep the negative short. Past about thirty terms it turns unpredictable, and a more exact positive does more than a longer negative.",
         "A weighted negative does not brake anything the positive explicitly asks for: a garment named in the positive survives the same term at high weight in the negative. Weighted negatives work against drift the positive did not ask for, once a result shows it: with a colour stated only once, naming the drift colours in the negative restores it.",
@@ -247,7 +259,7 @@
       "id": "controlled-term-comparison",
       "title": "Controlled term comparison",
       "rules": [
-        "When evaluating one term, hold the checkpoint or model, LoRA set and weights, seed, sampler, scheduler, steps, guidance value, dimensions, base prompt, negative transport, and references constant.",
+        "When evaluating one term, hold the checkpoint or model, LoRA set and weights, seed, sampler, scheduler, steps, guidance value, dimensions, base prompt, negative transport, and references constant. Keep the native promptWeighting parser selection constant too; a grammar switch is a separate experimental change.",
         "Change one term, one weight, or one placement at a time so the observed difference has a clear cause.",
         "When placement sensitivity is under review, compare the same term near the beginning and near the end without changing any other condition.",
         "A controlled comparison measures one active setup. Do not promote a single result into a universal model rule.",
@@ -260,6 +272,17 @@
       "rules": [
         "In editors that implement the Automatic1111-style shortcut, select a term and use Ctrl+Up or Ctrl+Down to change its explicit attention weight by 0.1.",
         "This is an editor convenience, not portable model-facing syntax. Do not describe it as available unless the active interface supports it."
+      ]
+    },
+    {
+      "id": "service-weighting-grammar",
+      "title": "Select service weighting separately from learned vocabulary",
+      "rules": [
+        "Resolve the exact native promptWeighting control for the model, service and execution mode. A service-wide explanation mentioning Compel and sdEmbeds is not evidence every model accepts both.",
+        "Compel + is 1.1 per suffix and - is 0.9 per suffix; an unweighted parenthesized group has no implicit boost. Do not substitute sdEmbeds brackets or multiply their defaults as though the embeddings were equivalent.",
+        "The final prepared request is the source of syntax selection. Review parsed positive and negative clauses, original text, dictionary notes and model recommendations together before approval.",
+        "For compound conditioning expressions, keep automatic recommendations as visible advice until the author places them in the intended clauses. Never prepend a global fragment that breaks expression scope.",
+        "CPB inspects syntax with the standard library; the provider runs conditioning. No local Compel, PyTorch, Transformers or browser installation is part of this feature."
       ]
     }
   ]

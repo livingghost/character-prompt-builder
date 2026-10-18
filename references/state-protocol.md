@@ -122,6 +122,13 @@ State-aware execution requires exact source equality between each activated plan
 
 The Prepared Reference Set embeds the finalized selection and hash when state-aware, the Reference Use Plan and both plan hashes when record evidence is active, canonical reference preamble, exact prompt-artifact copies, ordered model-facing reference rows, optional single-board metadata, an explicit zero-reference reason when applicable, and `prepared_reference_set_sha256`. State-scoped rows preserve binding scope and unsupported-state declarations as well as source, exact transport, derivation, and plan-derived authority. Its portable carrier paths are relative to the package containing it. Active-pack source paths remain committed provenance and must still resolve to the same active pack, release, asset, artifact, media type, and bytes.
 
+Supplied instruction-edit references may instead embed `semantic_edit_binding`,
+the validated immutable projection of their authored semantic edit plan.
+This exclusive supplied-file path carries each original hash, reference ID,
+role and exact influence scope; it cannot replace state or pack authority.
+Legacy supplied sets omit this optional field and keep conservative authority.
+See [Semantic instruction editing](runtime/semantic-instruction-edit.md#prepare-supplied-references-for-dispatch).
+
 The Generation Package hashes the Prepared Reference Set together with the State Lineage, reviewed prompt transports, negative text, Production Specification, model parameters, and target model. Its `prepared_reference_set_sha256` appears at package and generation-contract level and is incorporated into `generation_input_sha256`. The package builder copies portable carriers into `<out-stem>.references/` beside the output JSON, rebases only their paths, reseals the Prepared Reference Set, seals the generation input, and publishes the JSON and companion directory transactionally. `generation_input_sha256` changes when text, parameters, lineage, selection, plan, authority, reference order, scope, source or transport metadata, derivation, carrier path, hash, or bytes change. Any later mutation fails verification.
 
 ### Approval hashes, and the three conventions

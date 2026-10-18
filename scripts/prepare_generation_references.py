@@ -704,7 +704,7 @@ def _validate_non_empty_string_set(
     return list(value)
 
 
-def _validate_authority(value: Any, field: str) -> dict[str, list[str]]:
+def _validate_authority(value: Any, field: str, *, allow_empty_exclusions: bool = False) -> dict[str, list[str]]:
     if not isinstance(value, Mapping):
         raise ValueError(f"{field} must be an object")
     _require_exact_fields(value, AUTHORITY_FIELDS, field)
@@ -715,7 +715,7 @@ def _validate_authority(value: Any, field: str) -> dict[str, list[str]]:
         "must_not_control": _validate_non_empty_string_set(
             value.get("must_not_control"),
             f"{field}.must_not_control",
-            require_non_empty=True,
+            require_non_empty=not allow_empty_exclusions,
         ),
     }
     from reference_delivery import validate_authority_scope
@@ -860,9 +860,11 @@ def _validated_reference_selection(value: Any) -> dict[str, Any]:
 def validate_prepared_references(value: Any, *, model: str,
                                  reference_selection: dict[str, Any] | None = None,
                                  reference_use_plan: dict[str, Any] | None = None,
+                                 semantic_edit_binding: dict[str, Any] | None = None,
                                  package_root: Path | None = None) -> list[dict[str, Any]]:
     return _validate_prepared_references(value, model=model,
         reference_selection=reference_selection, reference_use_plan=reference_use_plan,
+        semantic_edit_binding=semantic_edit_binding,
         package_root=package_root)
 
 
@@ -872,6 +874,7 @@ def _validate_prepared_references(
     model: str,
     reference_selection: dict[str, Any] | None = None,
     reference_use_plan: dict[str, Any] | None = None,
+    semantic_edit_binding: dict[str, Any] | None = None,
     package_root: Path | None = None,
     context: _ReferenceContext = _LIVE_REFERENCES,
 ) -> list[dict[str, Any]]:
@@ -879,6 +882,14 @@ def _validate_prepared_references(
 
     if not isinstance(value, list):
         raise ValueError("selected_references must be a JSON array")
+    edit_rows = None
+    if semantic_edit_binding is not None:
+        if reference_selection is not None or reference_use_plan is not None:
+            raise ValueError('semantic edit supplied references cannot replace state or pack authority')
+        _validate_semantic_edit_binding(semantic_edit_binding, model=model, active=context.active)
+        edit_rows = semantic_edit_binding['references']
+        if len(value) != len(edit_rows):
+            raise ValueError('selected_references must exactly match semantic edit reference count and order')
     selection_rows: list[Any] | None = None
     plan_items: list[Any] | None = None
     expected_state_rows: list[dict[str, Any]] | None = None
@@ -946,7 +957,8 @@ def _validate_prepared_references(
             f"{field}.transport",
             package_root=package_root, context=context,
         )
-        authority = _validate_authority(raw.get("authority"), f"{field}.authority")
+        authority = _validate_authority(raw.get("authority"), f"{field}.authority",
+                                        allow_empty_exclusions=edit_rows is not None)
         if context.active and transport["media_type"] not in allowed_media:
             raise ValueError(
                 f"{field} transport media type {transport['media_type']!r} is not declared "
@@ -1015,6 +1027,15 @@ def _validate_prepared_references(
                         f"{field} uses a plan influence that is not eligible in "
                         "reference_selection"
                     )
+        elif edit_rows is not None:
+            expected = edit_rows[index]
+            if source.get('kind') != 'supplied-file':
+                raise ValueError(f'{field} semantic edit authority requires a supplied-file source')
+            if (source['reference_id'] != expected['id'] or source['sha256'] != expected['sha256']
+                    or role != expected['role']):
+                raise ValueError(f'{field} differs from the semantic edit reference identity, bytes, role or order')
+            if authority != {'controls': expected['use_for'], 'must_not_control': expected['do_not_transfer']}:
+                raise ValueError(f'{field}.authority differs from the semantic edit binding')
         else:
             if source.get("kind") == "pack-artifact":
                 raise ValueError(
@@ -1031,6 +1052,37 @@ def _validate_prepared_references(
     if validated != value:
         raise ValueError("selected references are not in canonical prepared form")
     return validated
+
+
+def _validate_semantic_edit_binding(binding: Any, *, model: str, active: bool) -> None:
+    """Use the authored edit as the sole scope owner for supplied references."""
+    from semantic_edit_plan import validate_binding
+    validate_binding(binding)
+    if binding['external_request'] is not None:
+        raise ValueError('dispatcher reference preparation requires external_request null')
+    declared = binding['model']
+    if declared['catalog_status'] != 'defined' or declared['catalog_model'] != model:
+        raise ValueError('semantic edit references require their exact defined catalog model')
+    if active:
+        from model_contract import select_offering
+        import service_profile
+        import transport_contract
+        model_id, record = resolve_model_record(model)
+        if model_id != model:
+            raise ValueError('semantic edit catalog_model must be the canonical model ID')
+        target = declared['target']
+        offering = select_offering(record, target['service'])
+        if offering is None or offering['model_identifier'] != target['model_identifier']:
+            raise ValueError('semantic edit target differs from the active model offering')
+        resource = load_pack_catalog().resources.get('service-profiles')
+        if resource is None:
+            raise ValueError('semantic edit target requires its active service profile')
+        service = service_profile.load_service(target['service'], resource.path)
+        transport = transport_contract.load(service['transport'])
+        expected_operation = transport.OPERATIONS['generation']
+        if target['operation'] != expected_operation:
+            raise ValueError('semantic edit operation differs from the selected generation transport: '
+                             f'expected {expected_operation!r}, received {target["operation"]!r}')
 
 
 def _default_zero_reference_reason(
@@ -1064,6 +1116,8 @@ def _prepared_set_id(value: Mapping[str, Any]) -> str:
         "selected_references": value.get("selected_references"),
         "single_board": value.get("single_board"),
     }
+    if 'semantic_edit_binding' in value:
+        projection['semantic_edit_binding_sha256'] = value['semantic_edit_binding']['binding_sha256']
     digest = hashlib.sha256(canonical_json(projection).encode("utf-8")).hexdigest()[:20]
     return f"PRS-{digest}"
 
@@ -1218,7 +1272,10 @@ def _validate_prepared_reference_set(
 
     if not isinstance(value, dict):
         raise ValueError("prepared reference input must be a JSON object")
-    _require_exact_fields(value, PREPARED_REFERENCE_SET_FIELDS, "prepared reference set")
+    expected_fields = PREPARED_REFERENCE_SET_FIELDS
+    if 'semantic_edit_binding' in value:
+        expected_fields = expected_fields | {'semantic_edit_binding'}
+    _require_exact_fields(value, expected_fields, "prepared reference set")
     if value.get("artifact_type") != "prepared-reference-set":
         raise ValueError("prepared reference input must be a prepared-reference-set artifact")
     artifact_report = validate_artifact(value)
@@ -1242,7 +1299,16 @@ def _validate_prepared_reference_set(
         if target_model is None:
             raise ValueError(f"{mode} transport requires target_model")
         if model is not None and target_model != model:
-            raise ValueError("prepared reference target_model differs from generation model")
+            try:
+                same_model = resolve_model_record(target_model)[0] == resolve_model_record(model)[0]
+            except ValueError:
+                same_model = False
+            if not same_model:
+                raise ValueError("prepared reference target_model differs from generation model")
+    edit_binding = value.get('semantic_edit_binding')
+    if 'semantic_edit_binding' in value:
+        if edit_binding is None or mode not in {'multi-image', 'single-board'}:
+            raise ValueError('semantic_edit_binding requires a model-facing supplied reference set')
 
     selection_value = value.get("reference_selection")
     selection_hash_value = value.get("reference_selection_sha256")
@@ -1316,6 +1382,7 @@ def _validate_prepared_reference_set(
         model=effective_model,
         reference_selection=selection, context=context,
         reference_use_plan=(plan if mode in {"multi-image", "single-board"} else None),
+        semantic_edit_binding=edit_binding,
         package_root=package_root,
     )
     if context.active and mode in {"multi-image", "single-board"}:
@@ -1419,6 +1486,8 @@ def _validate_prepared_reference_set(
         "single_board": board,
         "prepared_reference_set_sha256": concrete_hash,
     }
+    if edit_binding is not None:
+        normalized['semantic_edit_binding'] = copy.deepcopy(edit_binding)
     if normalized != value:
         raise ValueError("prepared reference set is not in canonical form")
     return normalized
@@ -1451,6 +1520,7 @@ def build_prepared_reference_set(
     selected_references: Sequence[Mapping[str, Any]] = (),
     reference_selection: Mapping[str, Any] | None = None,
     reference_use_plan: Mapping[str, Any] | None = None,
+    semantic_edit_binding: Mapping[str, Any] | None = None,
     zero_reference_reason: Mapping[str, Any] | None = None,
     reference_preamble: str | None = None,
     prompt_artifacts: Sequence[Mapping[str, Any]] = (),
@@ -1500,6 +1570,8 @@ def build_prepared_reference_set(
         "single_board": copy.deepcopy(dict(single_board)) if single_board is not None else None,
         "prepared_reference_set_sha256": "0" * 64,
     }
+    if semantic_edit_binding is not None:
+        raw['semantic_edit_binding'] = copy.deepcopy(dict(semantic_edit_binding))
     if not raw["set_id"]:
         raw["set_id"] = _prepared_set_id(raw)
     return finalize_prepared_reference_set(
@@ -1722,9 +1794,9 @@ def _materialize_preflight(
             os.replace(staging, output_dir)
             staging = None
             committed_output = True
-        # These are deliberately intermediate rows.  The two callers attach
+        # These are deliberately intermediate rows. The callers attach
         # either conservative supplied-file authority or the complete plan/
-        # state scope before invoking the public canonical validator.  Treating
+        # state or semantic edit scope before invoking the canonical validator. Treating
         # this midpoint as a plan-null artifact would incorrectly reject valid
         # pack artifacts whose explicit plan is attached by the caller.
         return prepared
@@ -1782,6 +1854,57 @@ def prepare_references(
         selected_references=references,
         single_board=board,
     )
+
+
+def prepare_semantic_edit_references(
+    plan: Any,
+    *,
+    studio: Path,
+    output_dir: Path,
+    model: str | None = None,
+    max_side: int = 1536,
+    transport_mode: str = 'multi-image',
+) -> dict[str, Any]:
+    """Prepare supplied scene and design files with their authored edit scopes.
+
+    The plan supplies the reference order, source files, roles and exclusions.
+    Its immutable binding remains inside the set through portable packaging.
+    """
+    import execution_contract as execution
+    import semantic_edit_plan
+    if transport_mode not in {'multi-image', 'single-board'}:
+        raise ValueError('reference transport must be multi-image or single-board')
+    binding = semantic_edit_plan.validate(plan, studio)
+    selected_model = binding['model']['catalog_model']
+    if model is not None and resolve_model_record(model)[0] != selected_model:
+        raise ValueError('--model differs from the semantic edit plan catalog model')
+    _validate_semantic_edit_binding(binding, model=selected_model, active=True)
+    selections = [{'role': row['role'], 'source': {'kind': 'supplied-file',
+        'reference_id': row['id'], 'resolved_path': str(execution.local(studio, row['file']))}}
+        for row in binding['references']]
+    preflight = [_preflight_selection_item(raw, index) for index, raw in enumerate(selections)]
+    for expected, (_role, source) in zip(binding['references'], preflight, strict=True):
+        if source['sha256'] != expected['sha256']:
+            raise ValueError('semantic edit file changed during reference preparation: ' + expected['file'])
+    references = _materialize_preflight(preflight, model=selected_model,
+        output_dir=output_dir, max_side=max_side)
+    for expected, actual in zip(binding['references'], references, strict=True):
+        actual['authority'] = {'controls': copy.deepcopy(expected['use_for']),
+                               'must_not_control': copy.deepcopy(expected['do_not_transfer'])}
+    board = None
+    if transport_mode == 'single-board':
+        from reference_runtime import _build_board
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / 'reference-board.png'
+        if path.exists() or path.is_symlink():
+            raise ValueError('reference board output already exists')
+        board = _build_board(references, path, max_side=max_side)
+        board['resolved_path'] = str(path.resolve())
+    return build_prepared_reference_set(transport_mode=transport_mode,
+        target_model=selected_model, selected_references=references,
+        semantic_edit_binding=binding, single_board=board)
+
+
 def _reference_preamble_for_prepared_rows(
     references: Sequence[Mapping[str, Any]],
 ) -> str:
@@ -1790,13 +1913,10 @@ def _reference_preamble_for_prepared_rows(
     ]
     for index, reference in enumerate(references, 1):
         authority = reference["authority"]
-        lines.append(
-            f"Reference {index} ({reference['role']}) controls: "
-            + "; ".join(str(value) for value in authority["controls"])
-            + ". It must not control: "
-            + "; ".join(str(value) for value in authority["must_not_control"])
-            + "."
-        )
+        line = f"Reference {index} ({reference['role']}) controls: " + "; ".join(authority['controls']) + '.'
+        if authority['must_not_control']:
+            line += ' It must not control: ' + '; '.join(authority['must_not_control']) + '.'
+        lines.append(line)
     return "\n".join(lines) + "\n"
 
 
@@ -2016,7 +2136,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     selection_group.add_argument(
         "--supplied-selection-file",
         type=Path,
-        help="Ordered supplied-file selection array; files are measured here",
+        help='Ordered array of {"role":"scene","source":{"kind":"supplied-file",'
+             '"reference_id":"scene","resolved_path":"/absolute/image.png"}}; '
+             'files are measured here and scopes remain conservative',
     )
     selection_group.add_argument(
         "--state-selection-file",
@@ -2025,9 +2147,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     selection_group.add_argument('--studio-selection-file', type=Path,
         help='Ordered {character, slot, role} choices; resolve each exact current Studio acceptance')
-    parser.add_argument('--studio', type=Path, help='Required for --studio-selection-file')
+    selection_group.add_argument('--semantic-edit-plan-file', type=Path,
+        help='Authored dispatcher semantic-edit-plan; derive supplied files, order and exact scopes from this plan')
+    parser.add_argument('--studio', type=Path,
+        help='Studio root for --studio-selection-file or --semantic-edit-plan-file; edit plan file paths are relative to it')
     parser.add_argument('--transport-mode', choices=['multi-image', 'single-board'], default='multi-image')
-    parser.add_argument("--model", default="gpt-image-2.5-flare")
+    parser.add_argument("--model", help="Explicit catalog model; optional only when a semantic edit plan already declares its model")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--max-side", type=int, default=1536)
     parser.add_argument("--out", type=Path, required=True)
@@ -2036,7 +2161,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
     try:
-        if args.state_selection_file is not None:
+        if args.semantic_edit_plan_file is None and not args.model:
+            raise ValueError('--model is required for supplied, state or Studio reference preparation; no default model is selected')
+        if args.semantic_edit_plan_file is not None:
+            if args.studio is None:
+                raise ValueError('--studio is required for a semantic edit plan')
+            import execution_contract as execution
+            plan_file = args.semantic_edit_plan_file
+            if not plan_file.is_absolute():
+                plan_file = execution.local(args.studio, str(plan_file))
+            prepared = prepare_semantic_edit_references(read_json_object(plan_file),
+                studio=args.studio, model=args.model, output_dir=args.output_dir,
+                max_side=args.max_side, transport_mode=args.transport_mode)
+        elif args.state_selection_file is not None:
             prepared = prepare_state_reference_selection(
                 read_json_object(args.state_selection_file),
                 model=args.model,

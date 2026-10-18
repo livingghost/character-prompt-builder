@@ -92,11 +92,16 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
             from request_validation_fixtures import fixture_validation
             # This helper authors only explicit synthetic test data for models
             # whose request check cannot be derived from an active pack.
-            model = args[args.index('--model')+1] if '--model' in args else 'gpt-image-2.5-flare'
-            path=Path(temp)/'request-validation.json'
-            path.write_text(json.dumps(fixture_validation(root, model, reference_mode='prompt-prefix')), encoding='utf-8')
-            fixture_validation(fixture_root(), model, reference_mode='prompt-prefix')
-            args.extend(['--request-validation-file', str(path)])
+            model = args[args.index('--model')+1] if '--model' in args else None
+            if model is None and '--production-spec-file' in args:
+                spec_path = Path(args[args.index('--production-spec-file')+1])
+                if spec_path.is_file():
+                    model = json.loads(spec_path.read_text(encoding='utf-8')).get('target_model')
+            if isinstance(model, str) and model.strip():
+                path=Path(temp)/'request-validation.json'
+                path.write_text(json.dumps(fixture_validation(root, model, reference_mode='prompt-prefix')), encoding='utf-8')
+                fixture_validation(fixture_root(), model, reference_mode='prompt-prefix')
+                args.extend(['--request-validation-file', str(path)])
         if '--retrieval-record-file' not in args:
             path=Path(temp)/'retrieval.json'
             prompt_path=Path(argv[argv.index('--prompt-file')+1])

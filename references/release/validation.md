@@ -112,17 +112,15 @@ Report dependency prerequisites separately from contract assertions; a suite mus
 
 ## Fresh-session integration gate
 
-Run the end-to-end integration script from a clean session, with known IDs and conversation history absent:
+Run the end-to-end regression from a literal brief, without supplied record IDs or conversation history:
 
 ```bash
 python scripts/fresh_session_runtime_smoke_test.py
 ```
 
-The script requires a complete, independently managed content pack in the explicit pack runtime. When that prerequisite is missing, report the integration prerequisite as unmet. None of these stands in for it:
+The script copies the declared core files and commons into an isolated tree. It then creates a neutral synthetic pack, enables that pack through an explicit runtime, and exercises the public commands. The fixture supplies the capabilities and artifacts needed by the regression. The test does not load a personal pack from the working tree or `CPB_HOME`.
 
-- substituting preknown record IDs
-- weakening the assertions
-- treating a smaller bundled fixture as equivalent coverage
+Validate each supplied personal pack through its own [Pack release gate](#pack-release-gate). Also check the intended combined runtime when delivering several packs: activate the actual pack UUIDs, inspect diagnostics and resource provenance, then retrieve and prepare a generic task using that same state. Keep that evidence separate from this synthetic regression. A passing fixture does not establish the supplied pack's retrieval, model definitions or reference bindings.
 
 The retrieval brief is:
 

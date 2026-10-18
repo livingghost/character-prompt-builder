@@ -52,7 +52,7 @@ For identity reuse, stable authority includes species, anatomy, permanent markin
 
 `scripts/reference_runtime.py execute` materializes one complete `prepared-reference-set`. For model-facing modes, each prepared-reference row retains the selected artifact as authoritative `source` and records the disposable file as `transport`, with separate paths, media types, hashes, bounded authority, and a committed derivation. For prompt delivery, each prompt-artifact row commits an exact copy of the selected source with equal source and delivered hashes.
 
-For `gpt-image-2.5-flare`, the declared reference inputs are PNG, JPEG, and WebP. A selected managed SVG is therefore rendered safely and deterministically from that same SVG to a PNG transport. The `svg-rasterization` derivation commits renderer identity and release, source SHA-256, output dimensions, and `max_side`. Preparation never replaces the selected artifact with another structural, palette, saturation, highlight, or mask artifact. Failure blocks packaging; it does not remove the reference or switch transport modes.
+Model-facing preparation validates each transport against the selected model record's declared reference media. It renders a selected safe SVG deterministically from that same artifact to PNG and requires that model to accept PNG. The `svg-rasterization` derivation commits renderer identity and release, source SHA-256, output dimensions, and `max_side`. Preparation never replaces the selected artifact with another structural, palette, saturation, highlight, or mask artifact. Failure blocks packaging; it does not remove the reference or switch transport modes.
 
 ## Perceptual gates
 

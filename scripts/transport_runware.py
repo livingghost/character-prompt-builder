@@ -156,6 +156,8 @@ def compile_request(verified: dict, offering: dict, service: dict, media_ids: di
             location = field + [index] if many else field
             layout['media'].append({'index': index, 'field': location})
             layout['fields'].append({'id': f'media:{index + 1}', 'field': location, 'kind': 'media'})
+    from scene_mask_planner import write_media
+    write_media(verified, writer, layout, offering, media_ids)
     for control in forwarding.get('native_reference_controls', []):
         write(control['field'], control['value'], 'reference-binding', 'native-reference-controls',
               control['binding_ids'])

@@ -1,6 +1,6 @@
 # Model Prompt Recommendation Contract
 
-Verified: 2026-08-25
+Verified: 2026-10-16
 
 ## Admission rule
 
@@ -15,6 +15,9 @@ The core release evaluates only the model records owned by `packs/commons`.
 | `commons` | `gpt-image-2.5-flare` (OpenAI GPT Image 2.5 Flare) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |
 | `commons` | `gpt-image-2.5-sunburst` (OpenAI GPT Image 2.5 Sunburst) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |
 | `commons` | `grok-imagine-image-2.0` (xAI Grok Imagine Image 2.0) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |
+| `commons` | `seedream-5.0-pro` (ByteDance Seedream 5.0 Pro) | No fixed reusable default adopted | The exact Runware interface is observed; natural-language directions remain task-specific. Critical exclusions belong in the positive prompt because no negativePrompt field is exposed. |
+| `commons` | `qwen-image-2.1-pro` (Alibaba Qwen-Image-2.1-Pro) | No fixed reusable default adopted | The observed Runware interface accepts task-specific natural-language instructions; no universal prompt string is committed. |
+| `commons` | `flux-3-image` (Black Forest Labs FLUX 3 Image) | No fixed reusable default adopted | The observed Runware interface accepts task-specific natural-language instructions; no universal prompt string is committed. |
 
 ## Nondefault-pack boundary
 
@@ -24,7 +27,7 @@ When a non-bundled pack is explicitly enabled, runtime behavior comes from that 
 
 Core model-contract tests therefore use:
 
-- the package-owned default model record for integration coverage; and
+- the bundled executable offerings through the shared model capability case matrix; and
 - synthetic in-memory records for transport modes, limits, upscaler classes, recommendation merging, and rejection cases.
 
 A user-owned pack stays unread by them, contributes nothing to an expected model count, and lends none of its model IDs as test fixtures.

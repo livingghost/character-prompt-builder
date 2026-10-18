@@ -150,7 +150,7 @@ For state-aware work, pass the complete finalized Reference Selection to that sa
 
 Request-supplied files enter through `scripts/prepare_generation_references.py --supplied-selection-file`, whose input accepts only explicit `supplied-file` sources with stable request-scoped IDs. It emits the same canonical prepared reference set. Pack-owned sources always enter through the Reference Use Plan and reference runtime; the supplied-file boundary rejects pack-artifact rows and fabricated pack ownership.
 
-Reference-contract changes must keep [`protocols/shared-state/schemas/reference-use-plan.schema.json`](protocols/shared-state/schemas/reference-use-plan.schema.json), [`protocols/shared-state/schemas/surface-lighting-plan.schema.json`](protocols/shared-state/schemas/surface-lighting-plan.schema.json), [`protocols/shared-state/schemas/prepared-generation-reference.schema.json`](protocols/shared-state/schemas/prepared-generation-reference.schema.json), [`protocols/shared-state/schemas/prepared-reference-set.schema.json`](protocols/shared-state/schemas/prepared-reference-set.schema.json), [`protocols/shared-state/schemas/reference-selection.schema.json`](protocols/shared-state/schemas/reference-selection.schema.json), [`protocols/shared-state/templates/reference-use-plan.template.json`](protocols/shared-state/templates/reference-use-plan.template.json), [`protocols/shared-state/templates/surface-lighting-plan.template.json`](protocols/shared-state/templates/surface-lighting-plan.template.json), [`templates/prepared-reference-set.json`](templates/prepared-reference-set.json), [`templates/generation-package-template.json`](templates/generation-package-template.json), reference-runtime planning and execution, package build, verification, user-facing output, and model-adapter documentation synchronized. The Generation Package accepts exactly one canonical prepared-reference-set object and commits its hash. `gpt-image-2.5-flare` accepts declared PNG, JPEG, and WebP inputs. Its SVG path is a deterministic safe rasterization of the same selected artifact to a committed PNG transport; do not replace the source with another structural or palette artifact.
+Reference-contract changes must keep [`protocols/shared-state/schemas/reference-use-plan.schema.json`](protocols/shared-state/schemas/reference-use-plan.schema.json), [`protocols/shared-state/schemas/surface-lighting-plan.schema.json`](protocols/shared-state/schemas/surface-lighting-plan.schema.json), [`protocols/shared-state/schemas/prepared-generation-reference.schema.json`](protocols/shared-state/schemas/prepared-generation-reference.schema.json), [`protocols/shared-state/schemas/prepared-reference-set.schema.json`](protocols/shared-state/schemas/prepared-reference-set.schema.json), [`protocols/shared-state/schemas/reference-selection.schema.json`](protocols/shared-state/schemas/reference-selection.schema.json), [`protocols/shared-state/templates/reference-use-plan.template.json`](protocols/shared-state/templates/reference-use-plan.template.json), [`protocols/shared-state/templates/surface-lighting-plan.template.json`](protocols/shared-state/templates/surface-lighting-plan.template.json), [`templates/prepared-reference-set.json`](templates/prepared-reference-set.json), [`templates/generation-package-template.json`](templates/generation-package-template.json), reference-runtime planning and execution, package build, verification, user-facing output, and model-adapter documentation synchronized. The Generation Package accepts exactly one canonical prepared-reference-set object and commits its hash. The selected offering determines accepted media types. Where it accepts only raster inputs, an authorized SVG source must be deterministically rasterized to a committed supported transport format without substituting a different structure or palette artifact.
 
 Cache construction, indexing, catalog export, packaging, and copying are one-to-one transformations of authored records and search rows. They must not summarize, compress, merge, or drop authored detail, provenance, or search associations. Rename fields only through an explicitly approved schema change. Any intentional semantic merge is separate reviewed catalog-authoring work: prove common semantic authority, form a field-by-field lossless union, and publish an explicit ID and reference remapping. Otherwise retain both records as related variants.
 
@@ -239,6 +239,25 @@ A test that needs a configuration directory of its own takes it from `production
 `python scripts/validate.py .` checks the structure and contracts of the tree.
 
 For any core or pack publication, [Release Validation](references/release/validation.md) is the sole exact authority for environments, commands, pack isolation, acceptance, package verification, and metadata ordering.
+
+### Model contract tests
+
+Organize executable tests by schema, rendering, reference and transport behavior.
+Keep named model targets and their expected outcomes in shared fixture data.
+Extend the data when adding a model instead of creating another model-specific test module.
+
+`scripts/model_contract_smoke_test.py` owns shared model semantics using synthetic records.
+`scripts/model_schema_numeric_test.py` owns numeric and conditional schema behavior.
+`scripts/model_capability_smoke_test.py` applies `scripts/fixtures/model_capability_cases.json` to every bundled executable offering.
+The case matrix supplies independent valid inputs, rejected inputs and expected outcomes; missing offering coverage fails the suite.
+Derive expected limits from the recorded provider evidence when authoring cases, then keep assertions independent of the production definition being tested.
+
+```bash
+python scripts/run_checks.py --only model_capability
+```
+
+Use neutral synthetic prompts and local images. Test request construction without sending provider requests.
+Validate independently authored packs through their own evaluation resources, following [Release Validation](references/release/validation.md#pack-release-gate).
 
 ## Persona and narrative development changes
 

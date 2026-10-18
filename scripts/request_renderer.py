@@ -30,6 +30,8 @@ def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,
         reference_policy=policy.get('reference_instruction_transport'),production_consumer=consumer,
         context_policy=policy.get('production_context_transport'),policy_source=record['execution_policy'],
         reader=local,target=expected,dialect=policy.get('text_dialect') or (model or {}).get('prompt_dialect'))
+    from prompt_weighting import selected as selected_weighting, require_pair
+    require_pair(result['text'], rendition.get('negative') or '', selected_weighting(package['render_contract']['parameters']))
     for limit,field in (((model or {}).get('max_positive_prompt_chars'),result['text']),):
         if type(limit) is int and len(field)>limit:raise ValueError('final prompt exceeds the selected model character limit')
     forwarding=copy.deepcopy(verified['host_forwarding']);forwarding.update(effective_prompt=result['text'],
@@ -52,13 +54,24 @@ def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,
     verified['host_forwarding']['reference_media_role']=profile['modes'][intent['execution_mode']]['media']
     compiled=transport.compile_request(verified,offering,service,{},seed,count)
     rendering.check_wire(package['render_contract'], compiled['request'], compiled['layout'], seed=seed, count=count)
+    from prompt_weighting import wire_selection, require_pair
+    layout = compiled['layout']
+    require_pair(rc.get(compiled['request'], layout['primary_text']),
+        rc.get(compiled['request'], layout['negative_text']) if layout['negative_text'] is not None else '', wire_selection(compiled))
     rows=verified['bindings'];media=[]
     for i,item in enumerate(verified['host_forwarding']['selected_references']):
         item=rc.media_metadata(Path(item['resolved_path']),role=item['role'],
             binding_ids=['reference:'+str(r['reference_number']) for r in rows if r['attachment_number']==i+1]);media.append(item)
+    for item in verified['host_forwarding'].get('technical_media', []):
+        media.append(rc.media_metadata(Path(item['resolved_path']), role=item['role']))
     expected=package['request_validation']['target']
     execution=rc.execution_hashes(service,offering,Path(transport.__file__),model=model,policy=verified['execution_policy'])
     value=package['visual_continuity'];context={'subjects':value['subjects'],'purpose':value['purpose'],'output_kind':'image'}
+    binding = (package.get('production_binding') or {}).get('consumer', {}).get('semantic_edit')
+    if binding is not None:
+        from semantic_edit_plan import require_prepared, request_context
+        require_prepared(binding, package['prepared_reference_set'], model_id=model['id'], target=expected)
+        context['semantic_edit'] = request_context(binding)
     return rc.seal(compiled['request'],compiled['layout'],media,expected,execution,compiled['request_trace'],rows,context)
 
 

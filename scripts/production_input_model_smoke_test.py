@@ -153,6 +153,115 @@ class ModelInputTests(unittest.TestCase):
             self.assertTrue(self.build()['ok'])
 
 
+class ObservedPackInputTests(unittest.TestCase):
+    """The public input command resolves observed schemas through active pack selectors."""
+
+    def setUp(self):
+        import tempfile
+        import production_case_fixtures as cases
+        import production_fixtures
+        import pack_manager
+        from catalog_retrieval import runtime
+        from catalog_retrieval.retrieval import inspect_record
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+        self.enterContext(production_fixtures.scratch_home(self.base / 'home'))
+        self.case = cases.create(self.base / 'studio', self.base / 'runtime')
+        self.root = self.case['root']
+        self.addCleanup(runtime.configure_pack_runtime, None)
+        self.schema_relative = 'resources/model-schemas/example-editor.json'
+        document = c.load(self.case['pack'] / 'records/models.json')
+        offering = document['records'][0]['offerings'][0]
+        offering['schema_snapshot'] = self.schema_relative
+        self.snapshot = {'artifact_type': 'observed-parameter-schema', 'model_id': cases.MODEL_ID,
+            'service': offering['service'], 'model_identifier': offering['model_identifier'],
+            'observed_at': offering['observed_at'], 'source': 'Synthetic observed-schema fixture; no provider contacted.',
+            'schema': {'type': 'object', 'properties': {'model': {'const': offering['model_identifier']},
+                                                      'count': {'type': 'integer', 'minimum': 1, 'maximum': 4}}}}
+        cases.write(self.case['pack'] / 'records/models.json', document)
+        cases.write(self.case['pack'] / self.schema_relative, self.snapshot)
+        cases.write(self.case['pack'] / 'resources/model-schemas/duplicate.json', self.snapshot)
+        pack_manager.write_lock(self.case['pack'])
+        runtime.configure_pack_runtime(self.case['settings'])
+        inspected = inspect_record(runtime.load_entries(), cases.MODEL_ID)
+        selected = inspected['record']['offerings'][0]
+        self.selector = '@pack/' + inspected['source_pack'] + '/' + selected['schema_snapshot']
+        self.target = {'service': selected['service'], 'model_identifier': selected['model_identifier'], 'operation': 'generate'}
+        reading = c.load(self.root / self.case['task']['route_reading'])
+        policy = c.load(self.root / 'validation.json')['execution_policy']['path']
+        self.choices = {'reading': {'snapshot_id': None, 'reading_key': reading['reading_key'],
+                                   'applied': reading['applied'], 'resource_applied': reading['resource_applied']},
+                        'visual': None, 'source_run': None,
+                        'validation': {'mode': 'target-schema', 'model': cases.MODEL_ID, 'target': self.target,
+                            'service_profiles': None, 'contract': self.selector, 'evidence': self.selector,
+                            'execution_policy': policy}}
+        self.original_task = (self.root / 'task.json').read_bytes()
+
+    def cli(self, destination='built'):
+        import json
+        import subprocess
+        import sys
+        from pack_runtime_cli import PackRuntimeContext
+        (self.root / 'choices.json').write_bytes(c.encoded(self.choices))
+        command = [sys.executable, '-B', str(Path(__file__).with_name('production_workflow.py')),
+            'build-inputs', '--root', str(self.root), '--task', 'task.json', '--choices', 'choices.json',
+            '--out-dir', destination]
+        command += PackRuntimeContext(self.case['settings'], (self.case['pack'],)).command_arguments()
+        process = subprocess.run(command, cwd=Path(__file__).resolve().parents[1],
+                                 capture_output=True, text=True, encoding='utf-8', timeout=60)
+        result = json.loads(process.stdout)
+        self.assertEqual((self.root / 'task.json').read_bytes(), self.original_task)
+        return process.returncode, result
+
+    def test_public_build_inputs_selects_and_snapshots_active_pack_observation(self):
+        import shutil
+        code, result = self.cli()
+        self.assertEqual(code, 0, result)
+        self.assertTrue(result['ok'])
+        self.assertFalse(result['execution_ready'])
+        record = c.load(self.root / result['inputs']['request-validation']['path'])
+        self.assertEqual(record['contract'], record['evidence'])
+        self.assertEqual(record['contract'], {'path': self.selector,
+            'sha256': c.sha256_file(self.case['pack'] / self.schema_relative)})
+        snapshots = c.load(self.root / result['inputs']['input-snapshots']['path'])
+        self.assertIn(self.selector, snapshots)
+        shutil.rmtree(self.case['pack'])
+        request_validation.require(record, InputEvidence(None, snapshots=snapshots, live=False),
+                                   expected_target=self.target)
+
+    def test_public_selectors_reject_objects_absolute_paths_escape_and_inactive_roots(self):
+        choices = copy.deepcopy(self.choices)
+        invalid = [({'path': self.selector}, 'object'),
+                   (str(self.case['pack'] / self.schema_relative), 'absolute'),
+                   (self.selector.replace('/resources/', '/../resources/'), 'escape'),
+                   ('@pack/019a0290-1234-789a-8123-0123456789ac/' + self.schema_relative, 'inactive')]
+        for selector, name in invalid:
+            self.choices = copy.deepcopy(choices)
+            self.choices['validation'].update(contract=selector, evidence=selector)
+            with self.subTest(name=name):
+                code, result = self.cli(name)
+                self.assertNotEqual(code, 0, result)
+                self.assertFalse((self.root / name).exists())
+
+    def test_public_observation_keeps_one_pack_owner_and_raw_schema_needs_acquisition(self):
+        (self.root / 'copied-observation.json').write_bytes(c.encoded(self.snapshot))
+        (self.root / 'raw-schema.json').write_bytes(c.encoded(self.snapshot['schema']))
+        original = copy.deepcopy(self.choices)
+        cases = [('copied-observation.json', 'copied-observation.json', 'active pack'),
+                 (self.selector, self.selector.replace('example-editor.json', 'duplicate.json'), 'own evidence'),
+                 ('raw-schema.json', 'raw-schema.json', 'target schema contract')]
+        for index, (contract, evidence, message) in enumerate(cases):
+            self.choices = copy.deepcopy(original)
+            self.choices['validation'].update(contract=contract, evidence=evidence)
+            destination = 'refused-' + str(index)
+            with self.subTest(contract=contract, evidence=evidence):
+                code, result = self.cli(destination)
+                self.assertNotEqual(code, 0, result)
+                self.assertIn(message, str(result))
+                self.assertFalse((self.root / destination).exists())
+
+
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()

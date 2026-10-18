@@ -1,6 +1,8 @@
 # Exact reference delivery
 
-Read this when preparing or inspecting model-facing reference attachments. The prepared reference set remains the single committed input, not a new reference ledger.
+Read this when preparing or inspecting model-facing reference attachments. Package dispatch uses one committed prepared reference set.
+External instruction edits use the original-file mapping in [Semantic instruction editing](semantic-instruction-edit.md).
+Both paths retain each source's bytes, order and authority; their transport artifacts are not interchangeable.
 
 ## Selection and authority
 
@@ -8,7 +10,29 @@ Retrieve applicable production knowledge and inspect each selected source before
 
 Identity, current expression, wardrobe, lighting, pose and camera are different scopes; a transient state propagates only when requested, whatever identity the source shows. Express each source's `controls` and `must_not_control` authority scopes explicitly. Identical positive and excluded scopes are contradictory and rejected. The script leaves synonyms and semantic conflicts to the agent, who resolves them against the actual source and current intent.
 
+For supplied files in an instruction edit, use `prepare_generation_references.py
+--semantic-edit-plan-file PLAN --studio STUDIO` with output paths under
+[Semantic instruction editing](semantic-instruction-edit.md#prepare-supplied-references-for-dispatch).
+This path derives exact scopes from the authored plan. Ordinary supplied
+selections retain conservative role authority; state and pack sources retain
+their own scope owners.
+
+The ordinary supplied-selection input is an ordered JSON array with exactly
+`role` and `source` per item. A synthetic example:
+
+```json
+[{"role": "scene", "source": {"kind": "supplied-file", "reference_id": "scene",
+  "resolved_path": "/absolute/studio/inputs/product-scene.png"}}]
+```
+
+The preparer measures media type and hashes; omit those fields from this input.
+For exact edit scopes, author `use_for` and `do_not_transfer` in the semantic
+plan instead. An empty declared exclusion array remains empty in that path.
+
 ## Bind the actual transport
+
+The following prepared-set commands apply to reference-runtime and Generation Package delivery.
+An external semantic request uses its declared field paths and upload evidence instead.
 
 After rendering or copying the actual transports, the reference preparation runtime derives the canonical prompt preamble from their actual order. For multi-image input, logical reference 1 corresponds to actual attachment 1. For a single-board input, every logical reference points to attachment 1 and its exact panel rectangle in pixels from the top-left, and a board with several source panels consumes one model image slot in total. Source hashes, transport hashes, roles and panel rectangles must agree with the prepared set.
 

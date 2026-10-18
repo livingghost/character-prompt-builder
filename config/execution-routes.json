@@ -231,7 +231,8 @@
     },
     "prompt-dialect": {
       "reads": [
-        "references/runtime/prompt-writing-guide.md"
+        "references/runtime/prompt-writing-guide.md",
+        "references/runtime/prompt-weighting.md"
       ],
       "source_roles": []
     },
@@ -438,6 +439,20 @@
         "references/runtime/render-contract.md"
       ],
       "source_roles": []
+    },
+    "scene-mask-planning": {
+      "reads": [
+        "references/runtime/scene-mask-planning.md"
+      ],
+      "source_roles": []
+    },
+    "semantic-instruction-edit": {
+      "reads": [
+        "references/runtime/semantic-instruction-edit.md"
+      ],
+      "source_roles": [
+        "accepted-source"
+      ]
     }
   },
   "routes": {

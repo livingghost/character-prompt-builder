@@ -161,17 +161,35 @@
     "external_effects",
     "readiness"
   ],
-  "dependentRequired": {
-    "request": [
-      "recording",
-      "quantities",
-      "service",
-      "model",
-      "transport",
-      "handoff",
-      "validation",
-      "mutable_fields"
-    ]
+  "if": {
+    "properties": {
+      "execution": {
+        "const": "external"
+      }
+    }
+  },
+  "then": {
+    "dependentRequired": {
+      "request": [
+        "quantities",
+        "service",
+        "model"
+      ]
+    }
+  },
+  "else": {
+    "dependentRequired": {
+      "request": [
+        "recording",
+        "quantities",
+        "service",
+        "model",
+        "transport",
+        "handoff",
+        "validation",
+        "mutable_fields"
+      ]
+    }
   },
   "additionalProperties": false,
   "$defs": {

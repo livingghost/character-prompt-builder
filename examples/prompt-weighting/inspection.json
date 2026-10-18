@@ -1,0 +1,652 @@
+{
+  "inspection": {
+    "channels": {
+      "negative": {
+        "clauses": [
+          {
+            "index": 0,
+            "range": {
+              "end": 24,
+              "start": 1
+            },
+            "tags": [
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 12,
+                  "start": 2
+                },
+                "text": "lettering",
+                "weights": [
+                  1.1
+                ]
+              },
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 23,
+                  "start": 13
+                },
+                "text": "watermark",
+                "weights": [
+                  1.0
+                ]
+              }
+            ],
+            "text": "lettering, watermark",
+            "weight": 1.0
+          },
+          {
+            "index": 1,
+            "range": {
+              "end": 37,
+              "start": 26
+            },
+            "tags": [
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 36,
+                  "start": 27
+                },
+                "text": "signature",
+                "weights": [
+                  1.0
+                ]
+              }
+            ],
+            "text": "signature",
+            "weight": 0.5
+          }
+        ],
+        "normalize": true,
+        "notes": [],
+        "operator": "blend",
+        "syntax": "compel",
+        "weights": [
+          {
+            "range": {
+              "end": 12,
+              "start": 11
+            },
+            "spelling": "+",
+            "value": 1.1
+          }
+        ]
+      },
+      "positive": {
+        "clauses": [
+          {
+            "index": 0,
+            "range": {
+              "end": 35,
+              "start": 1
+            },
+            "tags": [
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 6,
+                  "start": 2
+                },
+                "text": "solo",
+                "weights": [
+                  1.0
+                ]
+              },
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 18,
+                  "start": 7
+                },
+                "text": "blue eyes",
+                "weights": [
+                  1.2
+                ]
+              },
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 34,
+                  "start": 23
+                },
+                "text": "long hair",
+                "weights": [
+                  1.0,
+                  1.1
+                ]
+              }
+            ],
+            "text": "solo, blue eyes, long hair",
+            "weight": 1.0
+          },
+          {
+            "index": 1,
+            "range": {
+              "end": 60,
+              "start": 37
+            },
+            "tags": [
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 44,
+                  "start": 38
+                },
+                "text": "forest",
+                "weights": [
+                  1.0
+                ]
+              },
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 59,
+                  "start": 45
+                },
+                "text": "soft lighting",
+                "weights": [
+                  1.0
+                ]
+              }
+            ],
+            "text": "forest, soft lighting",
+            "weight": 0.8
+          }
+        ],
+        "normalize": false,
+        "notes": [],
+        "operator": "and",
+        "syntax": "compel",
+        "weights": [
+          {
+            "range": {
+              "end": 22,
+              "start": 19
+            },
+            "spelling": "1.2",
+            "value": 1.2
+          },
+          {
+            "range": {
+              "end": 34,
+              "start": 33
+            },
+            "spelling": "+",
+            "value": 1.1
+          }
+        ]
+      }
+    },
+    "findings": [],
+    "syntax": "compel"
+  },
+  "native_preview": {
+    "layout": {
+      "content": [
+        {
+          "field": [
+            "positivePrompt"
+          ],
+          "id": "prompt"
+        },
+        {
+          "field": [
+            "negativePrompt"
+          ],
+          "id": "negative"
+        }
+      ],
+      "fields": [
+        {
+          "field": [
+            "positivePrompt"
+          ],
+          "id": "prompt",
+          "kind": "content"
+        },
+        {
+          "field": [
+            "model"
+          ],
+          "id": "model",
+          "kind": "fixed"
+        },
+        {
+          "field": [
+            "taskType"
+          ],
+          "id": "operation",
+          "kind": "fixed"
+        },
+        {
+          "field": [
+            "numberResults"
+          ],
+          "id": "count",
+          "kind": "parameter"
+        },
+        {
+          "field": [
+            "negativePrompt"
+          ],
+          "id": "negative",
+          "kind": "content"
+        },
+        {
+          "field": [
+            "height"
+          ],
+          "id": "parameter:height",
+          "kind": "parameter"
+        },
+        {
+          "field": [
+            "promptWeighting"
+          ],
+          "id": "parameter:promptWeighting",
+          "kind": "parameter"
+        },
+        {
+          "field": [
+            "steps"
+          ],
+          "id": "parameter:steps",
+          "kind": "parameter"
+        },
+        {
+          "field": [
+            "width"
+          ],
+          "id": "parameter:width",
+          "kind": "parameter"
+        }
+      ],
+      "fixed_output_count": null,
+      "management": [
+        [
+          "taskUUID"
+        ]
+      ],
+      "media": [],
+      "model": [
+        "model"
+      ],
+      "negative_text": [
+        "negativePrompt"
+      ],
+      "operation": [
+        "taskType"
+      ],
+      "output_count": [
+        "numberResults"
+      ],
+      "primary_text": [
+        "positivePrompt"
+      ],
+      "seed": null
+    },
+    "request": {
+      "height": 1024,
+      "model": "synthetic:not-a-deployable-model",
+      "negativePrompt": "(\"lettering+, watermark\", \"signature\").blend(1, 0.5)",
+      "numberResults": 1,
+      "positivePrompt": "(\"solo, (blue eyes)1.2, long hair+\", \"forest, soft lighting\").and(1, 0.8)",
+      "promptWeighting": "compel",
+      "steps": 30,
+      "taskType": "imageInference",
+      "taskUUID": "00000000-0000-4000-8000-000000000001",
+      "width": 1024
+    },
+    "request_trace": [
+      {
+        "binding_ids": [],
+        "source_kind": "transport-envelope",
+        "source_refs": [
+          {
+            "kind": "offering",
+            "model_identifier": "synthetic:not-a-deployable-model",
+            "service": "runware"
+          }
+        ],
+        "target_field": [
+          "taskType"
+        ],
+        "target_range": {
+          "end": 14,
+          "start": 0
+        },
+        "transform_id": "operation"
+      },
+      {
+        "binding_ids": [],
+        "source_kind": "transport-envelope",
+        "source_refs": [
+          {
+            "kind": "offering",
+            "model_identifier": "synthetic:not-a-deployable-model",
+            "service": "runware"
+          }
+        ],
+        "target_field": [
+          "taskUUID"
+        ],
+        "target_range": {
+          "end": 36,
+          "start": 0
+        },
+        "transform_id": "task-identifier"
+      },
+      {
+        "binding_ids": [],
+        "source_kind": "model-setting",
+        "source_refs": [
+          {
+            "kind": "offering",
+            "model_identifier": "synthetic:not-a-deployable-model",
+            "service": "runware"
+          }
+        ],
+        "target_field": [
+          "model"
+        ],
+        "target_range": {
+          "end": 32,
+          "start": 0
+        },
+        "transform_id": "model-identifier"
+      },
+      {
+        "binding_ids": [],
+        "source_kind": "authored",
+        "source_refs": [
+          {
+            "kind": "offering",
+            "model_identifier": "synthetic:not-a-deployable-model",
+            "service": "runware"
+          }
+        ],
+        "target_field": [
+          "positivePrompt"
+        ],
+        "target_range": {
+          "end": 73,
+          "start": 0
+        },
+        "transform_id": "selected-rendition"
+      },
+      {
+        "binding_ids": [],
+        "source_kind": "authored",
+        "source_refs": [
+          {
+            "kind": "offering",
+            "model_identifier": "synthetic:not-a-deployable-model",
+            "service": "runware"
+          }
+        ],
+        "target_field": [
+          "negativePrompt"
+        ],
+        "target_range": {
+          "end": 52,
+          "start": 0
+        },
+        "transform_id": "selected-negative-channel"
+      },
+      {
+        "binding_ids": [],
+        "source_kind": "model-setting",
+        "source_refs": [
+          {
+            "kind": "offering",
+            "model_identifier": "synthetic:not-a-deployable-model",
+            "service": "runware"
+          }
+        ],
+        "target_field": [
+          "height"
+        ],
+        "target_range": null,
+        "transform_id": "selected-parameter"
+      },
+      {
+        "binding_ids": [],
+        "source_kind": "model-setting",
+        "source_refs": [
+          {
+            "kind": "offering",
+            "model_identifier": "synthetic:not-a-deployable-model",
+            "service": "runware"
+          }
+        ],
+        "target_field": [
+          "promptWeighting"
+        ],
+        "target_range": {
+          "end": 6,
+          "start": 0
+        },
+        "transform_id": "selected-parameter"
+      },
+      {
+        "binding_ids": [],
+        "source_kind": "model-setting",
+        "source_refs": [
+          {
+            "kind": "offering",
+            "model_identifier": "synthetic:not-a-deployable-model",
+            "service": "runware"
+          }
+        ],
+        "target_field": [
+          "steps"
+        ],
+        "target_range": null,
+        "transform_id": "selected-parameter"
+      },
+      {
+        "binding_ids": [],
+        "source_kind": "model-setting",
+        "source_refs": [
+          {
+            "kind": "offering",
+            "model_identifier": "synthetic:not-a-deployable-model",
+            "service": "runware"
+          }
+        ],
+        "target_field": [
+          "width"
+        ],
+        "target_range": null,
+        "transform_id": "selected-parameter"
+      },
+      {
+        "binding_ids": [],
+        "source_kind": "model-setting",
+        "source_refs": [
+          {
+            "kind": "offering",
+            "model_identifier": "synthetic:not-a-deployable-model",
+            "service": "runware"
+          }
+        ],
+        "target_field": [
+          "numberResults"
+        ],
+        "target_range": null,
+        "transform_id": "explicit-output-count"
+      }
+    ]
+  },
+  "purpose": "Synthetic syntax and wire-layout demonstration; not executable provider capability or author approval.",
+  "recommendation_audit": {
+    "integrated": null,
+    "merge_mode": "tag-list",
+    "negative": {
+      "applied": false,
+      "declared": false,
+      "limit": null,
+      "mode": "tag-list",
+      "reason": "not-declared",
+      "recommended_text": "",
+      "segments": [
+        {
+          "end": 52,
+          "source_kind": "authored",
+          "start": 0,
+          "text": "(\"lettering+, watermark\", \"signature\").blend(1, 0.5)"
+        }
+      ],
+      "source_text": "(\"lettering+, watermark\", \"signature\").blend(1, 0.5)",
+      "weighting": "compel"
+    },
+    "negative_preset": "",
+    "positive": {
+      "applied": false,
+      "declared": true,
+      "limit": null,
+      "mode": "tag-list",
+      "reason": "conditioning-clauses-preserved; author places recommendations explicitly",
+      "recommended_text": "masterpiece",
+      "segments": [
+        {
+          "end": 73,
+          "source_kind": "authored",
+          "start": 0,
+          "text": "(\"solo, (blue eyes)1.2, long hair+\", \"forest, soft lighting\").and(1, 0.8)"
+        }
+      ],
+      "source_text": "(\"solo, (blue eyes)1.2, long hair+\", \"forest, soft lighting\").and(1, 0.8)",
+      "weighting": "compel"
+    }
+  },
+  "sdembeds_comparison": {
+    "channels": {
+      "negative": {
+        "clauses": [
+          {
+            "index": 0,
+            "range": {
+              "end": 26,
+              "start": 0
+            },
+            "tags": [
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 10,
+                  "start": 1
+                },
+                "text": "lettering",
+                "weights": [
+                  1.2
+                ]
+              },
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 26,
+                  "start": 16
+                },
+                "text": "watermark",
+                "weights": [
+                  1.0
+                ]
+              }
+            ],
+            "text": "lettering, watermark",
+            "weight": 1.0
+          }
+        ],
+        "normalize": null,
+        "notes": [],
+        "operator": "prompt",
+        "syntax": "sdEmbeds",
+        "weights": [
+          {
+            "range": {
+              "end": 15,
+              "start": 0
+            },
+            "spelling": "(lettering:1.2)",
+            "value": 1.2
+          }
+        ]
+      },
+      "positive": {
+        "clauses": [
+          {
+            "index": 0,
+            "range": {
+              "end": 34,
+              "start": 0
+            },
+            "tags": [
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 4,
+                  "start": 0
+                },
+                "text": "solo",
+                "weights": [
+                  1.0
+                ]
+              },
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 16,
+                  "start": 5
+                },
+                "text": "blue eyes",
+                "weights": [
+                  1.2
+                ]
+              },
+              {
+                "chunk": 0,
+                "range": {
+                  "end": 33,
+                  "start": 22
+                },
+                "text": "long hair",
+                "weights": [
+                  0.9090909090909091
+                ]
+              }
+            ],
+            "text": "solo, blue eyes, long hair",
+            "weight": 1.0
+          }
+        ],
+        "normalize": null,
+        "notes": [],
+        "operator": "prompt",
+        "syntax": "sdEmbeds",
+        "weights": [
+          {
+            "range": {
+              "end": 21,
+              "start": 6
+            },
+            "spelling": "(blue eyes:1.2)",
+            "value": 1.2
+          },
+          {
+            "range": {
+              "end": 34,
+              "start": 23
+            },
+            "spelling": "[long hair]",
+            "value": 0.9090909090909091
+          }
+        ]
+      }
+    },
+    "findings": [],
+    "syntax": "sdEmbeds"
+  }
+}

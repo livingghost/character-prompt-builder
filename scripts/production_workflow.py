@@ -61,6 +61,10 @@ def validate_task(task: Any) -> dict:
     schema_check(task, 'task')
     route = execution_routes.resolve(task['route'], task['features'])
     plan.strings(task['features'], 'features')
+    if bool(task.get('semantic_edit')) != ('semantic-instruction-edit' in route['features']):
+        raise ValueError('semantic-instruction-edit requires an explicit semantic_edit plan and vice versa')
+    if task.get('semantic_edit') and (task['artifact'] != 'image' or task['execution'] not in {'external', 'dispatcher'}):
+        raise ValueError('semantic editing uses an image task with a declared model execution')
     if bool(task.get('scene_materials', [])) != ('scene-persona' in route['features']):
         raise ValueError('scene-persona requires explicit scene_materials selectors and vice versa')
     ids: set[str] = set()
@@ -362,6 +366,15 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
         for field in GENERATION_FILES:
             if generation.get(field) is not None:
                 add(root,generation[field])
+    if generation is not None and generation.get('mask_binding') is not None:
+        if 'scene-mask-binding' in checked:
+            mask_inputs = checked['scene-mask-binding']['inputs']
+        else:
+            import scene_mask_planner
+            binding = c.decode(add(root, generation['mask_binding']))
+            mask_inputs = scene_mask_planner.check_task(root, task, binding, read=lambda path: add(root, path))['inputs']
+        for path, raw in mask_inputs.items():
+            record('studio', path, raw)
     def bounded(name: str, function):
         # The compiler's check already read these files; record exactly what it read.
         if name in checked:
@@ -373,6 +386,8 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
     views = bounded('world-views', world_views)
     moments = bounded('moment-views', moment_views)
     materials = bounded('scene-materials', authoring_materials)
+    from semantic_edit_plan import task_binding
+    semantic_edit = bounded('semantic-edit', task_binding)
     # The installed implementation is pinned by digest; its bytes stay in the installation.
     skill_files = set(implementation_files()) | {r['path'] for r in route['reads']}
     for path in sorted(skill_files):
@@ -382,6 +397,8 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
                 'instructions': delivery, 'criteria': task['criteria'],
                 'direction': plan.consumer(task['direction']),
                 'world_views': views, 'moment_views': moments, 'authoring_materials': materials}
+    if semantic_edit is not None:
+        consumer['semantic_edit'] = semantic_edit
     prepared = {'task_path': task_path, 'task': task, 'route': route, 'authority': authority,
                 'route_reading': reading, 'route_reading_sha256': c.content_id(reading), 'reading_issuance': issuance,
                 'dependencies': sorted(dependencies.values(), key=lambda x: (x['space'], x['path'])),
@@ -736,7 +753,7 @@ def authorize_value(root: Path, run: str, request: dict, *, evidence_files: list
     reading of a growing ledger stays valid after later appends.
     """
     with store.transaction(root):
-        directory, prepared, _, rows = authorization_context(root, run, request.get('operation'))
+        directory, prepared, consumer, rows = authorization_context(root, run, request.get('operation'))
         schema_check(request, 'authorization')
         files = [store.capture_evidence(root, directory, path, locator='whole', purpose='authorization-request', rows=rows)
                  for path in evidence_files]
@@ -761,6 +778,11 @@ def authorize_value(root: Path, run: str, request: dict, *, evidence_files: list
                                                     purpose=item['purpose'], raw=item['raw'], rows=rows))
         elif request.get('request_decision') is not None:
             raise ValueError('only a model dispatcher submission carries a model request decision')
+        if (prepared['task']['execution'] == 'external' and request['operation'] == 'submit'
+                and consumer.get('semantic_edit')):
+            from semantic_edit_plan import require_external_authority
+            grant = permissions.check(prepared['authority'], request)
+            require_external_authority(consumer['semantic_edit'], grant)
         data = {'files': files, 'request': request,
                 'protected_criteria': protected_criteria_record(prepared, request['grant'])}
         for row in rows:
@@ -791,6 +813,10 @@ def _permission(root: Path, prepared: dict, rows: list[dict], identifier: str,
         directory=run_dir(root,prepared['run'])
         recorded=[(item['path'],c.object_read(directory,item['sha256'])) for item in row['data']['files']]
         check_authorization(root, prepared, request, grant, recorded=recorded)
+    elif operation == 'submit' and prepared['task']['execution'] == 'external' and prepared['task'].get('semantic_edit'):
+        from semantic_edit_plan import require_external_authority
+        consumer = load_run(root, prepared['run'])[2]
+        require_external_authority(consumer['semantic_edit'], grant)
     return request
 
 
@@ -862,8 +888,17 @@ def external_intent(root: Path, run: str, count: int) -> dict:
     hand = find(rows, 'handoff')
     if type(count) is not int or count < 1:
         raise ValueError('positive output count required')
-    return {'operation': 'submit', 'targets': ['delivery'],
-            'payload': {'consumer_sha256': c.content_id(consumer), 'recipient': hand['data']['recipient'], 'count': count}}
+    payload = {'consumer_sha256': c.content_id(consumer), 'recipient': hand['data']['recipient'], 'count': count}
+    if consumer.get('semantic_edit'):
+        from semantic_edit_plan import require_live
+        binding = consumer['semantic_edit']
+        require_live(root, prepared['task'], binding)
+        external = binding['external_request']
+        if count != external['count']:
+            raise ValueError('external claim count differs from the semantic edit request')
+        payload.update(semantic_edit_sha256=binding['binding_sha256'], external_request_sha256=external['sha256'],
+                       target=binding['model']['target'])
+    return {'operation': 'submit', 'targets': ['delivery'], 'payload': payload}
 
 
 def claim_external(root: Path, run: str, count: int, authorization: str) -> dict:

@@ -1,0 +1,18 @@
+{
+  "format": "cpb-scene-mask-refinement",
+  "plan": {
+    "path": "mask-plan.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "regions": [
+    {
+      "region": "garment-front",
+      "inside": 5,
+      "outside": 5,
+      "iterations": 5,
+      "seed": 73,
+      "foreground": null,
+      "background": null
+    }
+  ]
+}

@@ -7,7 +7,7 @@ from typing import Any
 import execution_contract as c
 import request_contract as rc
 from input_evidence import InputEvidence
-from state_protocol import validate_against_schema, unsupported_schema_keywords
+from model_schema_numeric import validate_against_schema, unsupported_schema_keywords
 
 MODES=frozenset({'target-schema','bounded-probe','observed-profile'})
 FIELDS={'mode','target','service_execution_sha256','offering_contract_sha256','transport_sha256',
@@ -205,7 +205,7 @@ def check_schema(instance:dict,found:dict,*,envelope_fields:list[list]|None=None
     errors=validate_against_schema(projected,schema)
     if errors:raise ValueError('target schema refuses the built request: '+'; '.join(dict.fromkeys(errors)))
     return [{'id':'schema-keyword:'+x,'scope':x,'statement':'This schema keyword is not enforced by the local checker.'}
-            for x in unsupported_schema_keywords(schema)]
+            for x in unsupported_schema_keywords(schema, value=projected)]
 
 
 def _merge_unknowns(*groups:list[dict])->list[dict]:

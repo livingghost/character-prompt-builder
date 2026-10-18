@@ -1,6 +1,6 @@
 {
   "brief": "",
-  "target_model": "gpt-image-2.5-flare",
+  "target_model": "",
   "interaction_mode": "balanced",
   "creative_latitude": "directed",
   "requested_medium": null,

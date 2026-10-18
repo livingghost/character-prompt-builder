@@ -106,8 +106,9 @@ def cjk_font_lookup_order() -> tuple[bool, dict[str, Any]]:
         textmetrics.fontconfig_cjk_font_files.cache_clear()
         with mock.patch.object(textmetrics.shutil, "which", which), \
                 mock.patch.object(textmetrics.subprocess, "run", side_effect=fake_fc_list):
-            known = textmetrics.usable_cjk_font_files("regular")
-            known_asked_fontconfig = which.called
+            with mock.patch.object(textmetrics, "cjk_font_candidates", return_value=regular):
+                known = textmetrics.usable_cjk_font_files("regular")
+                known_asked_fontconfig = which.called
             with mock.patch.object(textmetrics, "cjk_font_candidates", return_value=absent):
                 listed = textmetrics.usable_cjk_font_files("regular")
                 runs = segment_text_by_font("regular", "見本")

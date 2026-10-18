@@ -452,10 +452,10 @@ def validate(root:Path=ROOT)->dict[str,Any]:
     prepared_set_path=pilot/'prepared-reference-set.json'
     if prepared_set_path.is_file():
         try:
-            prepared_set=validate_prepared_reference_set(
-                load_json(prepared_set_path),model='gpt-image-2.5-flare',package_root=pilot
-            )
             payload=load_json(payload_path) if payload_path.is_file() else {}
+            prepared_set=validate_prepared_reference_set(
+                load_json(prepared_set_path),model=payload.get('model'),package_root=pilot
+            )
             if payload.get('prepared_reference_set')!=prepared_set:
                 errors.append('pilot generation package prepared-reference-set differs from its artifact')
             if payload.get('prepared_reference_set_sha256')!=prepared_set.get('prepared_reference_set_sha256'):

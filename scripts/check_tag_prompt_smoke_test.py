@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 
+import prompt_weighting as weighting
 import check_tag_prompt as checker  # noqa: E402
 from prompt_dialect import load_dialects  # noqa: E402
 
@@ -69,7 +70,7 @@ DICTIONARY = {
 
 
 def findings(prompt: str, negative: str = "", record: dict[str, Any] | None = None, vocabulary=None) -> list[dict[str, Any]]:
-    return checker.check(prompt, negative, vocabulary, record)
+    return checker.check(prompt, negative, vocabulary, record, syntax="sdEmbeds")
 
 
 def has(rows: list[dict[str, Any]], name: str) -> bool:
@@ -92,7 +93,7 @@ def main() -> int:
         try:
             run = subprocess.run(
                 [sys.executable, str(ROOT / "scripts" / "check_tag_prompt.py"), "--dictionary", str(path),
-                 "--prompt", "1girl, (), solo"],
+                 "--weighting", "sdEmbeds", "--prompt", "1girl, (), solo"],
                 capture_output=True, text=True, encoding="utf-8", timeout=30, check=False,
             )
             check("a tag that is only attention syntax does not hang the command", True, run.stdout[-300:])
@@ -101,18 +102,19 @@ def main() -> int:
 
     check("an alias resolves to its category", vocabulary["category_of"]["closeup"] == "shot-types-and-views")
     check("an underscore spelling resolves like the spaced one", checker.normalize("grey_fur") == "grey fur")
-    check("attention syntax is stripped before a term is looked up",
-          checker.bare("(close-up:1.3)") == "close-up" and checker.bare("[grey fur]") == "grey fur")
-    check("attention syntax with nothing inside strips to nothing",
-          checker.bare("()") == "" and checker.bare("[]") == "" and checker.bare("{}") == ""
-          and checker.bare("(())") == "" and checker.bare("( )") == "" and checker.bare("(a:1.2)") == "a")
+    parsed = weighting.parse('(close-up:1.3), [grey fur]', 'sdEmbeds')
+    check("selected attention syntax yields the dictionary terms",
+          [row['text'] for row in parsed['clauses'][0]['tags']] == ['close-up', 'grey fur'])
+    errors = [weighting.inspect_pair(value, '', 'sdEmbeds')['findings'] for value in ['()', '[]', '(())', '( )']]
+    check("empty weighted groups report a bounded syntax error", all(len(rows) == 1 and rows[0]['check'] == 'empty tag' for rows in errors))
     rows = findings("1boy, (), solo", "", None, vocabulary)
     check("a tag that carries no term is reported once and read as no term at all",
           len([row for row in rows if row["check"] == "empty tag"]) == 1
           and all(row["severity"] == "problem" for row in rows if row["check"] == "empty tag")
           and not has(rows, "repeated tag") and not has(rows, "not in the vocabulary"), rows)
-    check("a chunk break divides the rendition",
-          checker.chunks("1boy, solo BREAK sky") == [["1boy", "solo"], ["sky"]], checker.chunks("1boy, solo BREAK sky"))
+    parsed = weighting.parse('1boy, solo BREAK sky', 'sdEmbeds')['clauses'][0]['tags']
+    check("an sdEmbeds chunk break is retained independently from comma delimiters",
+          [(row['text'],row['chunk']) for row in parsed] == [('1boy',0),('solo',0),('sky',1)])
 
     clean = findings("masterpiece, best quality, 1boy, solo, grey fur, close-up", "", None, vocabulary)
     check("a sound rendition reports nothing", clean == [], clean)

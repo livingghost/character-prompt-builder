@@ -154,7 +154,12 @@ def validate(binding: Any, prompt: str) -> None:
     if c.content_id(obj)!=expected or c.content_id(binding['consumer'])!=binding['consumer_sha256']:
         raise ValueError('production binding integrity mismatch')
     consumer=binding['consumer']
-    c.exact(consumer,{'route','transport','instructions','criteria','direction','world_views','moment_views','authoring_materials'},'bounded consumer')
+    fields = {'route','transport','instructions','criteria','direction','world_views','moment_views','authoring_materials'}
+    if 'semantic_edit' in consumer:
+        from semantic_edit_plan import validate_binding
+        validate_binding(consumer['semantic_edit'])
+        fields.add('semantic_edit')
+    c.exact(consumer, fields, 'bounded consumer')
     if not isinstance(consumer['authoring_materials'], list):
         raise ValueError('authoring_materials must be an array')
     for material in consumer['authoring_materials']:

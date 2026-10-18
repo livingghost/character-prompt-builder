@@ -12,7 +12,7 @@ Models do not read a prompt the same way. One family takes a rating term the
 next has never seen, spells a multi-word tag differently, wants a different
 explicit weight, builds the rendition from different blocks in a different
 order, and renders at a different size. A rule proven on one family, handed to
-another, is worse than no rule: it spends the budget and steers nothing.
+another, is worse than no rule: it changes the request without the intended effect.
 
 So the family is a thing with a name. The `prompt-dialects` resource holds one
 entry per family, a model record names the one it belongs to, and a guide section
@@ -121,6 +121,10 @@ def applicable_sections(guide_path: Path | None, dialect_id: str | None) -> dict
 
 def main(argv: list[str] | None = None) -> int:
     parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
+    import prompt_weighting
+    parser.add_argument('--weighting', choices=prompt_weighting.SYNTAXES, help='Inspect the service weighting grammar independently of the learned tag family')
+    parser.add_argument('--service', help='Select one model offering for the weighting capability report')
+    parser.add_argument('--mode', help='Limit the weighting capability report to one execution mode')
     parser.add_argument("--list", action="store_true", help="The families the resource carries")
     parser.add_argument("--dialect", help="A family, by its id")
     parser.add_argument("--model", help="A model record, whose own family is used")
@@ -128,8 +132,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--guide", help="A prompt-writing-guide JSON file, instead of the active pack's")
     add_pack_runtime_arguments(parser)
     args = parser.parse_args(argv)
-    if not (args.list or args.dialect or args.model):
-        parser.error("one of --list, --dialect, or --model")
+    if (args.service or args.mode) and not args.model:
+        parser.error('--service and --mode require --model')
+    if not (args.list or args.dialect or args.model or args.weighting):
+        parser.error("one of --list, --dialect, --model or --weighting")
 
     from catalog_cli import configure_pack_runtime
     runtime = resolve_pack_runtime(parser, args)
@@ -161,7 +167,9 @@ def render_report(args: argparse.Namespace, settings: PackSettings) -> int:
         return 0
     dialect = find_dialect(dialect_id, path) if dialect_id else None
     guide_path = resolve_resource(GUIDE, args.guide, settings=settings, required=False)
+    import prompt_weighting
     report: dict[str, Any] = {
+        "weighting": prompt_weighting.guide(args.weighting or "literal"),
         "model": model_id,
         "dialect": dialect,
         "reads_tags": dialect_id is not None,
@@ -170,7 +178,31 @@ def render_report(args: argparse.Namespace, settings: PackSettings) -> int:
     if record is not None:
         from render_contract_lib import model_card
         offers = record.get("offerings") or []
+        if args.service:
+            from model_contract import select_offering
+            offers = [select_offering(record, args.service)]
         report["execution_guidance"] = [model_card(record, row) for row in offers] if offers else [model_card(record)]
+        capabilities = []
+        for row in report['execution_guidance']:
+            profile = row['execution_profile']
+            if not isinstance(profile, dict) or not profile.get('modes'):
+                if args.mode or (args.weighting and args.weighting != 'literal'):
+                    raise PackError('the selected model has no executable weighting capability profile')
+                capabilities.append({'service': row.get('service'), 'mode': None, 'control': None})
+                continue
+            if args.mode and args.mode not in profile['modes']:
+                raise PackError('the selected offering does not expose execution mode ' + args.mode)
+            for mode, value in profile['modes'].items():
+                if args.mode and args.mode != mode: continue
+                control = value['controls'].get('promptWeighting')
+                capabilities.append({'service': row.get('service'), 'mode': mode, 'control': control})
+                if args.weighting and args.weighting != 'literal':
+                    if control is None or control['status'] not in {'optional','required'}:
+                        raise PackError('the selected offering/mode does not expose promptWeighting: ' + mode)
+                    from state_protocol import validate_against_schema
+                    if validate_against_schema(args.weighting, control['schema']):
+                        raise PackError('the selected offering/mode does not allow ' + args.weighting + ': ' + mode)
+        report['weighting_capabilities'] = capabilities
         report["record"] = {
             "prompt_style": record.get("prompt_style"),
             "ordering": record.get("ordering"),

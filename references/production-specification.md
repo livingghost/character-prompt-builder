@@ -51,6 +51,31 @@ Running the same `draft` again exits 1:
 
 Author the current scene directly rather than patching an older prompt into apparent compliance.
 
+### Object-only scenes
+
+For a still life, product image or environment without character subjects, copy
+`templates/production-spec-template.json` to a new Studio input file. Keep
+`subjects: []`, `state_context.mode: "stateless"` and
+`visual_language.domain_realizations: {}`. Fill the source brief, target model,
+image promise and resolved rendering intent. Describe objects and their
+relationships in `scene`, camera, art direction and construction invariants.
+The `draft` command creates one character subject; an object-only specification
+uses the existing empty-subject template directly.
+
+A dispatcher task uses `generation.continuity: {}` for this specification.
+Register an ordinary Studio storage destination, for example:
+
+```sh
+python scripts/studio.py character add product-scene --studio STUDIO --profile general
+```
+
+Then use a non-sheet slot with `recording.character: "product-scene"`,
+`recording.slot: "candidate"`, `recording.subject_map: {}` and
+`recording.sheet_panel: false`. The storage key organizes candidate files; it
+does not add a depicted character, visual identity or subject domain.
+Validate the complete specification with `production_spec.py validate
+STUDIO/inputs/production-spec.json --require-content` before packaging.
+
 ### State-aware
 
 Use `state_context.mode: "state-aware"` when the image belongs to a managed series. The specification must carry:
@@ -167,9 +192,9 @@ Translate the reviewed specification into fluent English. Preserve hierarchy and
 
 After assembly, read the prompt alone and compare the likely picture with the image intent, Visual State Projection, Asset Render Specification, and current State Snapshot. Declare the reference mode as `prompt-only`, `prompt+1`, or `prompt+N`. For every image source, record its semantic role and decide whether it may govern permanent identity, target scene-conditioned construction, or another narrow visual property. Audit source scene-specific character state and source-render context separately. An identity-only source may not transfer gaze, expression, mouth state, pose, action, contact, support, physiology, surface condition, grooming condition, wardrobe, inventory, relationships, viewer awareness, environment response, current form, camera, crop, light, or finish unless an owning target-state or scene authority explicitly requires that property.
 
-Activate every pack-backed reference through one explicit Reference Use Plan. Each plan decision binds an active canonical record to one intended influence, resolves only artifacts linked to that record, assigns narrow authority and exclusions, and commits the resulting order. If a State Protocol Reference Selection is present, reconcile every activated source and intended influence against that state authority. A plan-null prepared set may contain only explicit `supplied-file` sources; it cannot introduce a pack artifact or fabricated pack identity.
+Activate every pack-backed reference through one explicit Reference Use Plan. Each plan decision binds an active canonical record to one intended influence, resolves only artifacts linked to that record, assigns narrow authority and exclusions, and commits the resulting order. If a State Protocol Reference Selection is present, reconcile every activated source and intended influence against that state authority. A prepared set without a Reference Use Plan cannot introduce a pack artifact or fabricated pack identity. Task-specific scopes for supplied edit images come from the embedded semantic edit binding under [Semantic instruction editing](runtime/semantic-instruction-edit.md#prepare-supplied-references-for-dispatch).
 
-Prepare one canonical Prepared Reference Set for the target model. Each prepared item preserves its authoritative `source` and adds the exact model-facing `transport`, with independent media types, hashes, and derivation. Prompt-artifact transport copies the exact selected source bytes. A direct model transport retains source bytes when supported. When `gpt-image-2.5-flare` receives a selected safe SVG source, prepare a deterministic PNG from that same artifact because its declared input media types are PNG, JPEG, and WebP; commit the rasterization derivation instead of substituting different evidence. Source-lighting `preserve` is authorized only by an item whose intended influence is `lighting` and whose technical role is `faithful-archival-vector`; a `specular-audit` item alone supplies candidate highlight evidence, not complete shadow and material-response authority. `source_evidence_roles` stores the unique semantic roles of exactly those complete lighting-evidence items and is recomputed by validation. Without that evidence, leave preservation explicitly unresolved or declare target lights and material responses with `rescope` or `replace`. Unresolved surface-lighting decisions block model-facing execution.
+Prepare one canonical Prepared Reference Set for the target model. Each prepared item preserves its authoritative `source` and adds the exact model-facing `transport`, with independent media types, hashes, and derivation. Prompt-artifact transport copies the exact selected source bytes. A direct model transport retains source bytes when supported. A selected safe SVG becomes a deterministic PNG transport only when the selected model accepts PNG. Commit the rasterization derivation under [Derived Visual Evidence](derived-visual-evidence.md#layer-c-runtime-attachment-build). Source-lighting `preserve` is authorized only by an item whose intended influence is `lighting` and whose technical role is `faithful-archival-vector`; a `specular-audit` item alone supplies candidate highlight evidence, not complete shadow and material-response authority. `source_evidence_roles` stores the unique semantic roles of exactly those complete lighting-evidence items and is recomputed by validation. Without that evidence, leave preservation explicitly unresolved or declare target lights and material responses with `rescope` or `replace`. Unresolved surface-lighting decisions block model-facing execution.
 
 The reviewed effective prompt, canonical authority preamble, Prepared Reference Set, exact carrier bytes, derivations, and order form one committed generation input. `prompt-only` commits an explicit empty Prepared Reference Set with a structured zero-reference reason. A Generation Package copies every carrier into its package-relative companion, publishes the JSON and companion transactionally, and remains verifiable after both are moved together. The verifier rechecks the complete contract and forwards only the verified prompt and carrier paths. If any selected source cannot be prepared or accepted by the target, stop before packaging; do not omit it or silently continue with text alone.
 

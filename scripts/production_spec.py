@@ -195,7 +195,9 @@ def build_arguments(path: str, subject: str, continuity: str, character: str | N
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = _operation_context.ArgumentParser(description="Draft, validate, show or hash a Production Specification.")
+    parser = _operation_context.ArgumentParser(description="Draft, validate, show or hash a Production Specification.",
+        epilog='For object-only scenes, copy templates/production-spec-template.json with subjects: []; '
+               'see references/production-specification.md#object-only-scenes.')
     sub = parser.add_subparsers(dest="command", required=True)
     make = sub.add_parser("draft", help="Write the smallest valid specification for one subject")
     make.add_argument("out", help="New file to write, a /-separated path relative to --root or an absolute path; "

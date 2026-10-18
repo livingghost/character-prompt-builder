@@ -13,11 +13,11 @@ Use this runtime when a final prompt must be rendered for a named model or inter
 - prompt-length pressure
 - controlled comparison of one term
 
-Art direction comes first: form the image intent, preserve every user anchor, complete semantic planning, and select the active model record and adapter before rendering.
+Art direction comes first: form the image intent, preserve every user anchor and complete semantic planning. Select the exact interface and one adapter before rendering. Catalog targets use their active model records; external generation or editing may use acquired provider evidence while recording a missing catalog definition.
 
 ## Resolve the active guide
 
-Each model family reads a prompt its own way: rating terms, multi-word tag spellings, working weights, and the blocks of a rendition and their order all differ. A rule proven on one family and handed to another spends budget and steers nothing.
+Each model family reads a prompt its own way: rating terms, multi-word tag spellings, working weights, and the blocks of a rendition and their order all differ. A rule proven on one family and handed to another can change the request without the intended effect.
 
 The `prompt-dialects` resource holds one entry per family, a model record names its family in `prompt_dialect`, and a guide section names the families it applies to. Resolve all of it for the active model in one step:
 
@@ -31,7 +31,7 @@ It returns:
 - the guide sections that apply, and the sections withheld because they belong to another family;
 - the record's own recommended text, parameters, and sizes.
 
-A record that lacks a family is reported as a non-tag target, and only the universal sections come back. `--list` names the families the resource carries, and `--dialect <id>` answers for a family that lacks a record.
+A record that lacks a family returns only universal sections. `--list` names available families; `--dialect <id>` answers for an evidenced family without a record. For an unknown external target, omit `--model` from route reading and apply only interface-neutral sections until evidence establishes a parser. Reading a family section does not authorize its syntax.
 
 Add a family by adding a dialect entry with its sources; the scripts stay unchanged. Its regression test is `scripts/prompt_dialect_smoke_test.py`. `schemas/prompt-dialect.schema.json` validates the dialect resource, and `schemas/prompt-writing-guide.schema.json` validates the guide.
 
@@ -41,20 +41,20 @@ Resolve the guide on its own through the same explicit pack state when only its 
 python scripts/pack_cli.py resource prompt-writing-guide
 ```
 
-Read the complete resolved guide before writing the final model-facing rendition, rather than a remembered excerpt. When no enabled pack binds a guide, continue under the active adapter and model record alone.
+Read the complete resolved guide before writing the final model-facing rendition. When no enabled pack binds a guide, continue under the selected adapter and exact model or provider evidence.
 
 ## Application sequence
 
 1. Finish the master prompt free of parser-specific notation.
-2. Select the exact model record, interface, and adapter.
-3. Resolve the active model's family and the rules that apply to it with `scripts/prompt_dialect.py --model <model-id>`. A rule from a section that names a different family stays unapplied.
+2. Select the exact interface, its catalog record or acquired external contract, and one adapter.
+3. For a catalog target, resolve service weighting through [Explicit Prompt Weighting](prompt-weighting.md) and its family through `scripts/prompt_dialect.py --model <model-id>`. An external target uses only parser behavior its evidence supports. Rules for another family stay unapplied.
 4. Apply interface-neutral construction rules that improve hierarchy, concision, visible scope, and controlled testing.
 5. Apply parser-specific separators, attention syntax, LoRA notation, negative transport, embeddings, or editor shortcuts only when the active interface supports that exact behavior.
 6. Take the wording from the pack's vocabulary, not from memory. The prompt-vocabulary dictionary aggregates Danbooru and e621 tag lists and states the effect each term has, so a term found there needs no web lookup. Search it for each planned element through `scripts/catalog_cli.py search` or by reading the dictionary itself, and prefer a carried term with the effect you mean over a remembered spelling. Reserve outside dictionaries for a term the resource does not carry, and treat that term as unverified until an image proves it.
 7. Render selected vocabulary terms into one coherent prompt. Search results and guide examples are candidates and grammar demonstrations rather than automatic prompt expansion or boilerplate.
-8. Review the final rendition against the image intent, anchors, Production Specification, adapter contract, and model-record recommendations.
+8. Review the final rendition against the image intent, anchors, production or semantic edit plan, adapter contract and evidenced recommendations.
 
-The Skill-using agent decides which rules are relevant. The active adapter and model record decide what the interface can receive. The guide's authority ends at the rendition; the requested concept, medium, identity, scene state, visual authority, and negative-transport contract lie outside it.
+The Skill-using agent decides which rules are relevant. The exact model or provider contract decides what the interface can receive. The guide governs rendition; image intent and visual authority remain with their owning plans.
 
 ## Weighting and prompt pressure
 
@@ -82,9 +82,11 @@ A tag rendition can be wrong in ways the returned image leaves unreported:
 - two terms the vocabulary itself calls opposed ask for different pictures.
 
 ```bash
-python scripts/check_tag_prompt.py --dictionary <prompt-vocabulary/dictionary.json> --prompt "<the rendition>" --negative "<the negative>" --model <model-id>
-python scripts/check_tag_prompt.py --dictionary <prompt-vocabulary/dictionary.json> --prompt "<the rendition>" --dialect <dialect-id>
+python scripts/check_tag_prompt.py --weighting sdEmbeds --dictionary <prompt-vocabulary/dictionary.json> --prompt "<the rendition>" --negative "<the negative>" --model <model-id>
+python scripts/check_tag_prompt.py --weighting sdEmbeds --dictionary <prompt-vocabulary/dictionary.json> --prompt "<the rendition>" --dialect <dialect-id>
 ```
+
+The example assumes an explicitly selected sdEmbeds parser; use `--weighting compel` for Compel or `literal` when no weighting control is selected. Independent conditioning clauses are checked separately and the original text is retained.
 
 The checks read the resolved vocabulary resource rather than a list kept in the script. They use:
 
@@ -99,7 +101,7 @@ With `--model` the rendition is also held to the record's declared prompt length
 - an explicit weight outside the range the family works in;
 - a rating, period, or quality term inside a longer tag, such as the period term old in old man.
 
-Output is JSON on stdout with a `findings` list and the family checked under `dialect`. A problem is a statement about the rendition's own grammar or about a pair the vocabulary calls incompatible; a note is a reading worth confirming, such as a term missing from the vocabulary or a chunk after a break that lacks a count tag. The exit status is 1 when a problem is reported, and the command exits with a message when the dictionary path is anything but a file. The standalone command reports evidence; preparation blocks mechanical problems, while the author evaluates notes and intended meaning. Its regression test is `scripts/check_tag_prompt_smoke_test.py`.
+Output is JSON on stdout with `syntax`, parsed `channels`, a `findings` list and the family checked under `dialect`. A problem is a statement about the rendition's own grammar or about a pair the vocabulary calls incompatible; a note is a reading worth confirming, such as a term missing from the vocabulary or a chunk after a break that lacks a count tag. The exit status is 1 when a problem is reported, and the command exits with a message when the dictionary path is anything but a file. The standalone command reports evidence; preparation blocks mechanical problems, while the author evaluates notes and intended meaning. Its regression test is `scripts/check_tag_prompt_smoke_test.py`.
 
 ## Failure policy
 

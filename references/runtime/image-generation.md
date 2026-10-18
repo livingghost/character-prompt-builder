@@ -5,6 +5,7 @@ Use this document only when the user requests an image-generation call or a mode
 ## Contents
 
 - [Activation and dependency preflight](#activation-and-dependency-preflight)
+- [Choose execution](#choose-execution)
 - [Prompt rendition gate](#prompt-rendition-gate)
 - [Model and negative transport](#model-and-negative-transport)
 - [Model-facing reference transport](#model-facing-reference-transport)
@@ -16,6 +17,11 @@ Use this document only when the user requests an image-generation call or a mode
 Select exactly one target adapter: [GPT Image](../adapters/gpt-image.md), [Midjourney and Niji](../adapters/midjourney-niji.md), [FLUX](../adapters/flux.md), [SDXL and ComfyUI](../adapters/sdxl-comfyui.md), [NovelAI](../adapters/novelai.md), [Grok Imagine](../adapters/grok-imagine.md), [Instruction-Edit](../adapters/instruction-edit.md), or the [Unlisted Image Interface](../adapters/unlisted-interface.md). Do not assume capabilities.
 
 Gemini or Imagen, Firefly, Ideogram, Recraft, Leonardo, and future design-oriented generators use that unlisted-interface rule. Inspect the exact active interface and model record; never infer media or negative transport from a brand family.
+
+## Choose execution
+
+For `execution: dispatcher`, follow the package, prepared-reference and verifier procedures below.
+For a host tool, use Production Execution's external branch for the approved generation task. An existing-image replacement additionally follows [Semantic instruction editing](semantic-instruction-edit.md), which binds the exact source and any auxiliary references. A text-to-image request does not acquire a scene-source or edit plan just because its model is absent from the catalog. The host request must still name the exact requested model, parameters, evidence and available media; a bounded trial requires its declared authority. External binding does not claim a compiled Generation Package or verified model profile.
 
 ## Activation and dependency preflight
 
@@ -59,7 +65,9 @@ Generation builders commit the supplied final rendition. They do not choose voca
 
 Enabled `model` records are the authority for automatic negative transport and accepted reference media. Use a canonical model ID, exact label, or declared alias. Unknown interfaces require an evidence-backed model record or explicit `--negative-transport`; there is no undeclared media override. ComfyUI is a workflow host, so use the loaded model's record or an explicit workflow-level decision.
 
-The model-record catalog is the single extensibility boundary. Adding a valid `model` record to an enabled pack must change automatic model resolution, negative-transport selection, accepted reference media, reference preparation, and Generation Package construction immediately; no second hard-coded model-name, alias, capability, media, or transport table may shadow it. A reference-free call may use an explicit `--negative-transport` decision, but an unknown model never receives assumed automatic transport or assumed reference-media support. Preparing or packaging image references for that model requires an enabled, evidence-backed model record.
+For Generation Package dispatch: The model-record catalog is the single extensibility boundary. Adding a valid `model` record to an enabled pack must update model resolution, negative transport, reference media and package construction immediately. Keep these capabilities in that record rather than a second model-name table. A reference-free call may use an explicit `--negative-transport` decision. Preparing a Generation Package with references requires an enabled, evidence-backed model record.
+
+For a requested model missing from that catalog, distinguish the requested operation before choosing an execution path. For a new image, use the [Unlisted Image Interface](../adapters/unlisted-interface.md) with the normal generation task and exact provider evidence; prepare an authorized external host request, or explicitly register and validate a model offering before dispatcher packaging. For an edit of an existing image, use [Semantic instruction editing](semantic-instruction-edit.md) to pin the source and each reference. Neither path substitutes a nearby model or pretends that a missing offering is executable through the dispatcher. A host-tool result establishes only what was actually sent and returned, not a verified model profile.
 
 The supported negative modes are:
 
@@ -91,7 +99,9 @@ Preparation selects the offering the task's `generation.service` names; `scripts
 
 The package commits the offering as `generation_payload.service`, and the verifier makes the same check from the package. A record with no offering is checked against its own limits only.
 
-The checker evaluates the schema keywords `$ref`, `$defs`, `type`, `const`, `enum`, `required`, `properties`, `additionalProperties`, `propertyNames`, `minProperties`, `maxProperties`, `dependentRequired`, `items`, `contains`, `minItems`, `maxItems`, `uniqueItems`, `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `allOf`, `anyOf`, `oneOf`, `not`, and `if`/`then`/`else`. Any other validation keyword appears in the request validation record's `unmeasured` list as `schema-keyword:KEYWORD`, and the service settles it.
+The checker evaluates the schema keywords `$ref`, `$defs`, `type`, `const`, `enum`, `required`, `properties`, `additionalProperties`, `propertyNames`, `minProperties`, `maxProperties`, `dependentRequired`, `items`, `contains`, `minItems`, `maxItems`, `uniqueItems`, `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `allOf`, `anyOf`, `oneOf`, `not`, and `if`/`then`/`else`.
+
+Supported root-level `x-constraints` also evaluate scalar `area` and `ratio`, plus per-image `fileSize`, `width` and `height` from ordered media metadata. Missing evidence, unsupported operations and nested extensions remain explicitly unmeasured. Other validation keywords appear in the request validation record's `unmeasured` list as `schema-keyword:KEYWORD`, and the service settles them.
 
 Adding a service is one record in `service-profiles`, an offering on every model record it exposes, and the module its `transport` names: `"transport": "runware"` selects `scripts/transport_runware.py`. A transport is written against `scripts/transport_contract.py`, which states what it defines and the network rules it keeps. Adding a model on a service that is already recorded is one offering.
 
@@ -112,7 +122,7 @@ python scripts/reference_runtime.py plan \
   --record-use <character-record-id>=identity \
   --record-use <scene-record-id>=pose-camera \
   --transport-mode multi-image \
-  --target-model gpt-image-2.5-flare \
+  --target-model MODEL_ID \
   --source-lighting-mode replace \
   --light-source-json '{"light_id":"target-key","direction":"front-left and above","apparent_size":"large","color":"neutral daylight","relative_intensity":"primary","softness":"soft"}' \
   --material-response-json '{"material":"character surfaces","roughness":"target-defined by material","specular_strength":"moderate by material","highlight_shape":"broad on soft surfaces and tight on hard surfaces","wetness":"dry","anisotropy":"none"}' \
@@ -132,7 +142,7 @@ python scripts/reference_runtime.py execute \
   --pack-root ADDITIONAL_PACK_ROOT
 ```
 
-For state-aware pack evidence, add the finalized `--reference-selection`. Follow [State-Aware Series Runtime](state-aware-series.md); the plan cannot bypass state eligibility. Supplied-file-only selection uses its exclusive plan-null preparation path.
+For state-aware pack evidence, add the finalized `--reference-selection`. Follow [State-Aware Series Runtime](state-aware-series.md); the plan cannot bypass state eligibility. Supplied-file-only selection prepares on the plan-null path; a semantic edit binding also produces a plan-null set scoped by its binding.
 
 The canonical prepared-reference-set commits target and transport mode, optional finalized state selection, non-null plan for activated pack evidence, nested Surface and Lighting hash, structured zero-reference reason, canonical preamble, authoritative source identities, exact source and model carriers, derivations, precedence, optional board manifest, and `prepared_reference_set_sha256`. It is the only reference object passed into Generation Package construction.
 
@@ -140,7 +150,7 @@ The canonical prepared-reference-set commits target and transport mode, optional
 
 ## Generation Package
 
-Normal production compiles and publishes the package, request preview and execution plan together:
+Dispatcher production compiles and publishes the package, request preview and execution plan together:
 
 ```bash
 python scripts/production_workflow.py prepare --root STUDIO --task task.json
@@ -200,7 +210,7 @@ State-aware example:
 
 ```bash
 python scripts/build_state_generation_package.py \
-  --model gpt-image-2.5-flare \
+  --model MODEL_ID \
   --plot-file approved-plot.json \
   --retrieval-record-file retrieval-settled.json \
   --negative-file final-negative.txt \
@@ -245,7 +255,7 @@ python scripts/verify_generation_payload.py \
   --negative-out verified-negative.txt \
   --native-negative-out verified-native-negative.txt \
   --payload-out verified-generation-input.json \
-  --target gpt-image-2.5-flare \
+  --target MODEL_ID \
   --state-file PACK_STATE_JSON \
   --cache-dir CATALOG_CACHE \
   --managed-root MANAGED_PACKS \
@@ -265,7 +275,7 @@ The verifier output retains the complete positive prompt, portable negative, nat
   "required_action": "Choose a new --prompt-out.", "option": "--prompt-out"}]}
 ```
 
-For every ordered prepared-reference row, preserve the complete source identity and source hash, bounded authority, intended influence, exact model-facing transport path, media type and transport hash, deterministic derivation, precedence, and, when state-aware, `binding_id`, `covers`, `review_dimensions`, `unsupported_or_occluded_state`, and `unsupported_assumptions`. Verification reopens current active-pack source bytes and every committed package-relative carrier byte; it also validates the optional board and its panel/source/transport hashes separately from the board hash. A pack-backed activated reference still requires its non-null embedded plan, while a supplied-file-only selection remains on the exclusive plan-null path.
+For every ordered prepared-reference row, preserve the complete source identity and source hash, bounded authority, intended influence, exact model-facing transport path, media type and transport hash, deterministic derivation, precedence, and, when state-aware, `binding_id`, `covers`, `review_dimensions`, `unsupported_or_occluded_state`, and `unsupported_assumptions`. Verification reopens current active-pack source bytes and every committed package-relative carrier byte; it also validates the optional board and its panel/source/transport hashes separately from the board hash. A pack-backed activated reference still requires its non-null embedded plan, while a supplied-file-only selection without a semantic edit binding remains on the plan-null path.
 
 The output also retains `negative_transport_mode`, the exact mode-specific `negative_transport_instruction`, negative provenance, Production Specification plus hash, State Lineage plus hash, verified parameters, and `generation_input_sha256`. That generation-input hash commits the prompts and selected rendition, parameters, Production Specification, State Lineage and selection lineage, and the complete prepared-reference-set commitment as one immutable generation input. Mutating authority, selection scope, source bytes, prepared transport, board, parameter, or lineage requires rebuilding and reverifying the package.
 
@@ -393,7 +403,7 @@ After generation, review the image against the image intent, Visual State Projec
 
 ## Failure policy
 
-Stop when Visual dependencies remain unavailable; the target lacks a declared media type or negative mode; selected evidence is missing, unsafe, changed, or ineligible; the Surface and Lighting Plan is unresolved; the reference count exceeds the endpoint; a carrier escapes its companion; a package or hash check fails; or the host cannot receive every committed transport.
+For package dispatch, stop when required Visual dependencies remain unavailable; the target lacks a declared media type or negative mode; selected evidence is missing, unsafe, changed, or ineligible; the Surface and Lighting Plan is unresolved; the reference count exceeds the endpoint; a carrier escapes its companion; a package or hash check fails; or the host cannot receive every committed transport.
 
 Do not continue by dropping references, changing modes, rebuilding prompt text from chat, scanning an output directory, or forwarding an unverified path. Revise the reviewed plan and regenerate the prepared set and Generation Package.
 

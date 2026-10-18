@@ -653,6 +653,10 @@
         },
         "brief": {
           "type": "string"
+        },
+        "mask_binding": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -738,6 +742,11 @@
         "service"
       ],
       "additionalProperties": false
+    },
+    "semantic_edit": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Studio-relative semantic-edit-plan input bound to the generation or external request."
     }
   },
   "required": [

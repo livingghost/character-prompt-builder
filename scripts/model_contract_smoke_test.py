@@ -216,19 +216,19 @@ def main() -> int:
     tag_list = fixtures["fixture-tag-list-generator"]
     merged_positive, merged_negative, audit = apply_prompt_recommendations(
         tag_list,
-        prompt="best quality, fox character",
+        prompt="best quality, geometric figures",
         negative_prompt="lowres, extra limbs",
     )
     check("tag-list recommendations deduplicate authored positive tags", merged_positive.count("best quality") == 1, merged_positive)
-    check("tag-list recommendations retain authored semantics", "fox character" in merged_positive, merged_positive)
+    check("tag-list recommendations retain authored semantics", "geometric figures" in merged_positive, merged_positive)
     check("tag-list recommendations deduplicate authored negative tags", merged_negative.count("lowres") == 1, merged_negative)
     check("recommendation audit records application", audit["positive"]["applied"] and audit["negative"]["applied"], audit)
 
     advisory = fixtures["fixture-advisory-generator"]
     advisory_prompt, advisory_negative, advisory_audit = apply_prompt_recommendations(
-        advisory, prompt="wolf portrait", negative_prompt=""
+        advisory, prompt="geometric composition", negative_prompt=""
     )
-    check("advisory recommendations do not rewrite authored text", advisory_prompt == "wolf portrait" and advisory_negative == "")
+    check("advisory recommendations do not rewrite authored text", advisory_prompt == "geometric composition" and advisory_negative == "")
     check("provider preset remains explicit audit data", bool(advisory_audit["negative_preset"]), advisory_audit)
 
     limited = copy.deepcopy(tag_list)
@@ -345,12 +345,12 @@ def main() -> int:
     # The request as the service sees it puts each input on the key the offering gives it.
     placed = request_instance({"model_identifier": "vendor:model@1", "request_keys": {
         "prompt": ["input.text"], "negative prompt": ["input.avoid"], "reference images": ["refs"]}},
-        {"size": "square"}, prompt="a wolf", negative_prompt="blurry", media_counts={"reference images": 1})
+        {"size": "square"}, prompt="a geometric figure", negative_prompt="blurry", media_counts={"reference images": 1})
     check("the request as the service sees it carries the text and media on the offering's keys, and no model key it does not name",
-          placed == {"input": {"text": "a wolf", "avoid": "blurry"}, "size": "square", "refs": [PLACEHOLDER_MEDIA]}, placed)
+          placed == {"input": {"text": "a geometric figure", "avoid": "blurry"}, "size": "square", "refs": [PLACEHOLDER_MEDIA]}, placed)
     check("a negative for an offering with no negative key is refused",
           expect_error(lambda: request_instance({"service": "svc", "request_keys": {"prompt": ["text"]}}, {},
-                                                prompt="a wolf", negative_prompt="blurry"), "'negative prompt'"))
+                                                prompt="a geometric figure", negative_prompt="blurry"), "'negative prompt'"))
     exposed = copy.deepcopy(separate_edit)
     exposed["offerings"] = [offering]
     check(
@@ -403,24 +403,24 @@ def main() -> int:
         checked["offerings"][0]["schema_snapshot"] = "resources/observed-schemas/fixture.svc.json"
         check(
             "a request within the observed schema passes and returns the offering",
-            (validate_generation_parameters(checked, {"width": 1024, "height": 1024}, pack_root=pack, prompt="a wolf", media_counts={"reference images": 2}) or {}).get("service") == "svc",
+            (validate_generation_parameters(checked, {"width": 1024, "height": 1024}, pack_root=pack, prompt="a geometric figure", media_counts={"reference images": 2}) or {}).get("service") == "svc",
         )
         check(
             "a parameter the observed schema refuses is refused",
-            expect_error(lambda: validate_generation_parameters(checked, {"width": 1024}, pack_root=pack, prompt="a wolf"), "refuses this request"),
+            expect_error(lambda: validate_generation_parameters(checked, {"width": 1024}, pack_root=pack, prompt="a geometric figure"), "refuses this request"),
         )
         check(
             "more media than the observed schema accepts is refused",
-            expect_error(lambda: validate_generation_parameters(checked, {}, pack_root=pack, prompt="a wolf", media_counts={"reference images": 3}), "refuses this request"),
+            expect_error(lambda: validate_generation_parameters(checked, {}, pack_root=pack, prompt="a geometric figure", media_counts={"reference images": 3}), "refuses this request"),
         )
         check(
             "an offering with a schema needs its pack to be known",
-            expect_error(lambda: validate_generation_parameters(checked, {}, prompt="a wolf"), "pack holding the model record is unknown"),
+            expect_error(lambda: validate_generation_parameters(checked, {}, prompt="a geometric figure"), "pack holding the model record is unknown"),
         )
         # The stored file meets the one observed-schema contract every reader applies.
         def stored_as(**changes):
             snapshot.write_text(json.dumps({**stored, **changes}), encoding="utf-8")
-            return lambda: validate_generation_parameters(checked, {"width": 1024, "height": 1024}, pack_root=pack, prompt="a wolf")
+            return lambda: validate_generation_parameters(checked, {"width": 1024, "height": 1024}, pack_root=pack, prompt="a geometric figure")
         check("an observed schema naming another model record is refused",
               expect_error(stored_as(model_id="fixture-other"), "model_id 'fixture-other'"))
         check("an observed schema with a field the contract does not declare is refused",

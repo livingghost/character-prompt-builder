@@ -13,11 +13,12 @@ The tools keep what was acquired, sent and returned, and refuse evidence recorde
 
 A grant lists the modes it allows in `submission_validation_modes`.
 A bounded probe does not bypass malformed input, unavailable controls or missing authority.
-The compiler checks every control whatever the mode.
+Dispatcher compilation checks every declared control whatever the mode.
+External semantic preparation checks the exact authored fields against acquired schema rules and records unmeasured rules explicitly.
 
 ## The request validation record
 
-Every Generation Package and prepared run carries one request validation record:
+Every Generation Package and dispatcher run carries one request validation record:
 
 - `mode` and `target` (service, model identifier, operation);
 - `service_execution_sha256`, `offering_contract_sha256` and `transport_sha256`: the hashes of the service record, of the offering with its model record and policy, and of the transport module;
@@ -33,8 +34,21 @@ The builder and the compiler derive a `target-schema` record when all of these h
 
 That record names the pack file as both contract and evidence and has no execution policy.
 Every other request takes an authored record.
-`production_inputs.py build-inputs` builds it from a validation choice, and the package builder takes `--request-validation-file`.
+`production_workflow.py build-inputs` builds it from a validation choice, and the package builder takes `--request-validation-file`.
 The tools derive `unmeasured` from the evidence and refuse a record whose list was edited.
+
+Input choices select `contract` and `evidence` with strings; the built record
+adds their byte hashes. An active observed schema uses the same
+`@pack/<source_pack>/<offering.schema_snapshot>` selector in both fields.
+The [typed input-choice example](../../examples/input-assembly/README.md#validation-choices)
+shows how to derive that selector from catalog inspection. A Studio copy of an
+observed envelope retains its content but does not become active pack evidence.
+
+External semantic runs retain `external_request.schema_validation` in their pinned semantic binding.
+It records `target-schema` when an acquired schema is selected, or `bounded-probe` with `schema-unavailable` otherwise.
+Their exact submit authorization must use an allowed validation mode and `request_scope: null`.
+Dispatcher scope cases require a sealed dispatcher request and cannot authorize this external path.
+Record any required exact-operation grant from the principal's existing authority; this rule creates no extra confirmation step.
 
 A synthetic authored record, trimmed, from `examples/state-aware-pilot/generated/request-validation.json`:
 
@@ -46,6 +60,67 @@ A synthetic authored record, trimmed, from `examples/state-aware-pilot/generated
  "execution_policy": {"path": "synthetic-validation/6869870cd69c35fe/policy.json", "sha256": "a42d3281..."},
  "unmeasured": []}
 ```
+
+## Execution policy for reference delivery
+
+Selected reference bindings need an explicit `reference_instruction_transport`
+in the authored execution policy. Set `choices.validation.execution_policy` to
+that policy's string selector, such as `"inputs/execution-policy.json"`.
+The following templates show every required field for a `prompt-prefix` policy
+and its reference render contract. Replace the uppercase values and hash
+placeholders before use.
+
+`inputs/execution-policy.json`:
+
+```json
+{"artifact_type": "execution-policy",
+ "target": {"service": "SERVICE", "model_identifier": "MODEL_IDENTIFIER", "operation": "WIRE_OPERATION"},
+ "text_dialect": "PROMPT_DIALECT",
+ "production_context_transport": "none",
+ "reference_instruction_transport": {
+   "mode": "prompt-prefix",
+   "contract": {"path": "inputs/reference-render-contract.json", "sha256": "<SHA256_OF_SAVED_CONTRACT_BYTES>"}},
+ "basis": {"path": "inputs/transport-basis.txt", "sha256": "<SHA256_OF_SAVED_SOURCE_BYTES>", "locator": "SOURCE_SECTION"}}
+```
+
+`inputs/reference-render-contract.json`:
+
+```json
+{"artifact_type": "reference-render-contract",
+ "target": {"service": "SERVICE", "model_identifier": "MODEL_IDENTIFIER", "operation": "WIRE_OPERATION"},
+ "dialects": ["PROMPT_DIALECT"],
+ "mode": "prompt-prefix",
+ "renderer": "reference-delivery",
+ "fields": [],
+ "basis": {"path": "inputs/transport-basis.txt", "sha256": "<SHA256_OF_SAVED_SOURCE_BYTES>", "locator": "SOURCE_SECTION"}}
+```
+
+Use the validation record's exact target in both files, including the selected
+service's wire operation. `text_dialect` matches the model record's
+`prompt_dialect`, and the contract's `dialects` includes that value. Select the
+transport using the applicable model and service guidance; retain its source
+bytes and identify the relevant section in each `basis`. The two bases may
+share a source when it supports both choices. Studio paths inside these files
+are relative to the Studio root, not to the JSON file's directory; named
+`@pack/...` selectors retain their active pack root. Compute hashes from the
+final saved file bytes and update the references whenever those bytes change.
+
+With `mode: "prompt-prefix"`, the installed `reference-delivery` renderer
+adds each prepared binding's attachment number, optional board pixel region,
+role, allowed scopes and exclusions before the authored rendition. Keep
+`fields: []` for this mode. The [reference delivery contract](reference-delivery.md)
+explains how those bindings follow the actual attachments. Set
+`production_context_transport` to `"prompt-prefix"` when the production consumer
+uses `bounded-context`; `"none"` applies when no production-context prefix is
+requested. Without reference bindings, `reference_instruction_transport` may
+be null.
+
+The existing [synthetic policy](../../examples/state-aware-pilot/generated/synthetic-validation/11666add06a51cce/policy.json)
+and [reference render contract](../../examples/state-aware-pilot/generated/synthetic-validation/11666add06a51cce/references.json)
+provide complete saved examples. Use them as format examples; author the target,
+dialect, policy choice and source witnesses for the selected execution. The
+policy records how instructions are rendered; request acceptance and visual
+reference influence remain separate evidence.
 
 ## Import a schema and publish it
 
@@ -105,9 +180,11 @@ API acceptance never answers a visual question; a visual purpose needs an `obser
 
 ## Adopt an observed profile
 
-`observe_model_schema.py attach-probe` reads the selected `--run`: its saved request, authorization, transport outcome and output bytes.
+`observe_model_schema.py attach-probe` reads a selected dispatcher `--run`: its saved request, authorization, transport outcome and output bytes.
 It reads only the files the run's formal events hold as evidence, and makes no network call or execution claim.
 Without `--adoption`, it only records the trial.
+External host captures retain their request, response, output and review as Studio observations.
+They do not satisfy this dispatch-journal importer or acquire an observed profile automatically.
 
 An observed profile needs all of these:
 
@@ -124,7 +201,7 @@ The observation time is the recorded send or capture time, so an export of uncha
 
 ## Compare inputs and change the target
 
-Use `production_workflow.py variant --root STUDIO --from RUN --changes-file changes.json --prepare`.
+For dispatcher inputs, use `production_workflow.py variant --root STUDIO --from RUN --changes-file changes.json --prepare`.
 The source is a prepared input; a captured image or an observed profile is not required.
 The changes file follows `schemas/authoring/production-changes.schema.json`:
 
@@ -137,8 +214,13 @@ A changed fixed parameter cannot reuse an observed profile outside its measured 
 A new request receives its own assessment and authorization under the current grant.
 An observed image that motivates a revision stays authored source evidence with its candidate and review.
 
-Use `production_workflow.py retarget --from RUN --task TASK --reason TEXT --prepare` for a model or service change.
+For a dispatcher model or service change, use `production_workflow.py retarget --from RUN --task TASK --reason TEXT --prepare`.
 The task supplies the new target's execution profile, guide reading, retrieval assessment and validation evidence.
 See [Production execution](production-execution.md#change-the-target-explicitly) and the [generation example](../../examples/generation/README.md).
+
+For another external trial, author a separate task with its exact request, then run `check` and `prepare`.
+Existing-image edits also retain their source and reference scopes in a semantic plan.
+Keep the source run or reviewed candidate as ordinary comparison evidence when it motivates the new trial.
+External tasks do not use the dispatcher's `variant`, `repeat` or `retarget` commands.
 
 `scripts/test_model_observation.py` and `scripts/request_validation_smoke_test.py` exercise these contracts on synthetic evidence.

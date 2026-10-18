@@ -1,0 +1,57 @@
+{
+  "format": "cpb-scene-mask-plan",
+  "source": {
+    "path": "inputs/source.png",
+    "sha256": "<SHA-256 of source bytes>"
+  },
+  "regions": [
+    {
+      "id": "front",
+      "role": "garment",
+      "image": {
+        "path": "masks/front.png",
+        "sha256": "<SHA-256 of mask bytes>"
+      },
+      "provenance": "<Observed extraction or annotation provenance>"
+    },
+    {
+      "id": "sleeve-a",
+      "role": "garment",
+      "image": {
+        "path": "masks/sleeve-a.png",
+        "sha256": "<SHA-256 of mask bytes>"
+      },
+      "provenance": "<Observed extraction or annotation provenance>"
+    },
+    {
+      "id": "sleeve-b",
+      "role": "garment",
+      "image": {
+        "path": "masks/sleeve-b.png",
+        "sha256": "<SHA-256 of mask bytes>"
+      },
+      "provenance": "<Observed extraction or annotation provenance>"
+    },
+    {
+      "id": "protected",
+      "role": "protect",
+      "image": {
+        "path": "masks/protected.png",
+        "sha256": "<SHA-256 of mask bytes>"
+      },
+      "provenance": "<Observed extraction or annotation provenance>"
+    }
+  ],
+  "selected": [
+    "front",
+    "sleeve-a",
+    "sleeve-b"
+  ],
+  "required": [
+    "front",
+    "sleeve-a",
+    "sleeve-b"
+  ],
+  "feather": 3,
+  "unresolved": []
+}

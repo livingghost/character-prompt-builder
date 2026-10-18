@@ -24,7 +24,7 @@ from pack_manager import generate_uuid7
 ROOT=Path(__file__).resolve().parents[1]
 GENERATION_FILES=('parameters','production_spec','plot','retrieval_record','creative_intent','negative',
                   'integrated_prompt','native_negative','negative_provenance','references','state_lineage',
-                  'state_snapshot','visual_continuity','request_validation')
+                  'state_snapshot','visual_continuity','request_validation','mask_binding')
 JSON_FILES=set(GENERATION_FILES)-{'negative','integrated_prompt','native_negative'}
 # A derived run's own inputs live in its run directory and are never live studio sources.
 RUN_INPUT=re.compile(r'^production/runs/[^/]+/inputs/')
@@ -98,6 +98,7 @@ def _file_inputs(task: dict) -> list[tuple[str,str]]:
     delivery=task.get('delivery')
     if isinstance(delivery,dict) and isinstance(delivery.get('path'),str):items.append(('$.delivery.path',delivery['path']))
     if isinstance(task.get('route_reading'),str):items.append(('$.route_reading',task['route_reading']))
+    if isinstance(task.get('semantic_edit'),str):items.append(('$.semantic_edit',task['semantic_edit']))
     for index,source in enumerate(task.get('sources',[]) if isinstance(task.get('sources'),list) else []):
         if isinstance(source,dict) and isinstance(source.get('path'),str):items.append((f'$.sources[{index}].path',source['path']))
     generation=task.get('generation')
@@ -273,6 +274,11 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                                     ('moment-views', '$.moment_views', workflow.moment_views),
                                     ('scene-materials', '$.scene_materials', workflow.authoring_materials)):
         checks.check(name, lambda function=function: bounded(function), requires=['task-contract'], file=task_path, pointer=pointer)
+    if task.get('semantic_edit'):
+        from semantic_edit_plan import task_binding
+        checks.check('semantic-edit', lambda: bounded(task_binding),
+                     requires=['task-contract', dependency('$.semantic_edit')],
+                     file=task['semantic_edit'], pointer='$.semantic_edit')
     if task.get('authority'):
         def authority():
             value=c.decode(cached(task['authority'], '$.authority'))
@@ -287,6 +293,16 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         if checks.states.get('task-schema') != 'passed' or store.authority_record(root, task['task_id']) is None:
             checks.check('authority-evidence',authority,requires=whole,file=task['authority'] if present(task['authority']) else task_path,
                          pointer='$.authority')
+    if selected and selected.get('mask_binding'):
+        import scene_mask_planner
+        checks.check('scene-mask-binding', lambda: scene_mask_planner.check_task(
+            root, task, doc('mask_binding'), read=cached),
+            requires=['task-contract', dependency('$.generation.mask_binding')],
+            file=selected['mask_binding'], pointer='$.generation.mask_binding')
+    elif 'scene-mask-planning' in task.get('features', []):
+        def require_mask_binding():
+            raise ValueError('The scene-mask-planning feature requires generation.mask_binding.')
+        checks.check('scene-mask-binding', require_mask_binding, requires=['task-contract'], file=task_path)
     if not dispatcher: return
     import build_generation_payload as builder
     import render_contract_lib as render
@@ -404,13 +420,16 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         positive,negative=text('prompt'),text('negative')
         integrated,native=text('integrated_prompt'),text('native_negative')
         if resolved is not None:
-            positive,negative,_=builder.apply_prompt_recommendations(resolved[1],prompt=positive,negative_prompt=negative)
+            effective,_=render.resolve_parameters(resolved[1],profile,doc('production_spec')['render_intent']['execution_mode'],doc('parameters'))
+            from prompt_weighting import selected as selected_weighting
+            positive,negative,_=builder.apply_prompt_recommendations(resolved[1],prompt=positive,negative_prompt=negative,
+                weighting=selected_weighting(effective))
         transports=builder.build_transports(prompt=positive,negative_prompt=negative,integrated_prompt=integrated,
             critical_avoidance_integrated=selected.get('critical_avoidance_integrated',False),native_negative=native)
         if native and not negative:raise ValueError('native_negative requires a portable negative_prompt')
         if negative and not transports['integrated']['available']:
             raise ValueError('negative-bearing payloads require an agent-authored integrated prompt or declared critical avoidance integration')
-    requirements=['delivery-content']+[dependency('$.generation.'+f) for f in ['negative','integrated_prompt','native_negative'] if selected.get(f)]
+    requirements=['delivery-content','execution-controls']+[dependency('$.generation.'+f) for f in ['negative','integrated_prompt','native_negative'] if selected.get(f)]
     checks.check('negative-transport',channels,requires=requirements,file=selected.get('negative') or task_path)
 
 
@@ -460,6 +479,13 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
     transport=transport_contract.load(service['transport'])
     references=inspected.values['reference-preparation'] if selected.get('references') is not None else None
     reference_set=references if references is not None else builder.empty_stateless_reference_set()
+    if reference_set.get('semantic_edit_binding') is not None and not consumer.get('semantic_edit'):
+        raise ValueError('scoped semantic references require the production task semantic_edit plan')
+    if consumer.get('semantic_edit'):
+        from semantic_edit_plan import require_prepared
+        require_prepared(consumer['semantic_edit'], reference_set, model_id=model_id,
+                         target={'service': offering['service'], 'model_identifier': offering['model_identifier'],
+                                 'operation': transport.OPERATIONS['generation']})
     if selected.get('visual_continuity'):
         visual=document('visual_continuity')
     else:
@@ -519,6 +545,9 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
         verified=verify(package,package_root=directory,studio=root,reading_ledgers=[directory/'reads.jsonl'])
     with stage('request-compilation'):
         from dispatch import check_request
+        if selected.get('mask_binding'):
+            import scene_mask_planner
+            scene_mask_planner.stage_media(verified, inspected.values['scene-mask-binding'], offering, directory)
         check_request(verified,model_record,offering,model_id,transport,selected['seed'],selected['count'])
         rendered=request_renderer.generation(package,verified,model_record,offering,service,transport,seed=selected['seed'],count=selected['count'])
         request_renderer.check_final(validation,runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots'])),rendered)
@@ -542,6 +571,9 @@ def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict
     from check_tag_prompt import require_request
     prompt_check = require_request(rendered, model_record) if package.get('artifact_type') != 'upscale-request' else {
         'state': 'not-applicable', 'request_sha256': rendered['request_sha256'], 'findings': []}
+    # This is the verified package's audit, not newly inferred guidance or text.
+    # In particular a compound expression may preserve recommendations as advice.
+    prompt_check['recommendations'] = package.get('generation_payload', {}).get('prompt_recommendations', {})
     intent=workflow.submission_intent(package,rendered=rendered,seed=seed,count=count,offering=offering,service=service)
     direction={'operation':'direction','targets':workflow.plan.direction_targets(task),
                'payload':{'consumer_sha256':prepared['consumer_sha256'],'recipient':service['transport'],'method':'dispatcher'}}
@@ -823,6 +855,12 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                 execution_plan={'run':identity,'execution':task['execution'],'input_sha256':prepared['input_sha256'],
                     'request_sha256':None,'operations':[],'external_effects':[],
                     'readiness':{'state':'authorization_required','executable':False,'diagnostics':[]}}
+                external = (consumer.get('semantic_edit') or {}).get('external_request')
+                if external is not None:
+                    target = consumer['semantic_edit']['model']['target']
+                    execution_plan.update(request=external['request'], service=target['service'],
+                                          model=target['model_identifier'],
+                                          quantities={'submissions': 1, 'outputs': external['count']})
                 validate_document(execution_plan,PLAN_SCHEMA,'execution plan')
             for name in STAGES[1:]:
                 checks.record(name,'passed' if package is not None or name=='execution-plan' else 'not-applicable')
@@ -831,7 +869,7 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
             for raw in blobs.values():c.object_store(directory,raw)
             prepared['run']=identity
             report.update(ok=True,publishable=True,readiness=execution_plan['readiness'],
-                          request_preview=rendered['request'] if rendered else None,execution_plan=execution_plan)
+                          request_preview=rendered['request'] if rendered else execution_plan.get('request'),execution_plan=execution_plan)
             compiled=Compilation(report,directory,prepared,consumer,package,rendered,execution_plan,identity)
             write_compiled(compiled,media_root=directory)
             return compiled
@@ -876,6 +914,8 @@ def write_compiled(compiled:Compilation,*,media_root:Path)->None:
     if compiled.package is not None:
         pairs.update({'package.json':compiled.package,'request-contract.json':compiled.rendered,
                       'request-preview.json':compiled.rendered['request']})
+    elif compiled.execution_plan.get('request') is not None:
+        pairs['request-preview.json'] = compiled.execution_plan['request']
     for name,value in pairs.items():c.atomic(directory/name,c.encoded(value),replace=True)
 
 def check_task(root: Path, task_path: str) -> dict:

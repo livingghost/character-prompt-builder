@@ -71,9 +71,11 @@ Dependency pack IDs are unique within one manifest. Self-dependency is forbidden
 
 ### Replacements
 
-`replaces` contains exact pairs of `record_id` and source pack UUID. It is the only supported way to resolve the same canonical record ID across packs. Resolution evaluates the complete enabled candidate set for an ID without using state or discovery order. One candidate wins only when it explicitly replaces that ID from every other declaring pack and none of those candidates replaces the prospective winner. Otherwise the ID is excluded and reported as a conflict.
+`replaces` contains exact pairs of `record_id` and source pack UUID. Duplicate record IDs first follow the pack precedence defined under [Resources](#resources): required dependencies, then explicit `pack_order` for packs that neither requires. A single highest-ranked candidate supplies the record.
 
-Every pack uses its manifest UUIDv7 identity, and root discovery order does not define precedence.
+When that precedence leaves several highest-ranked candidates, resolution checks explicit replacements across the complete enabled candidate set. One candidate wins only when it replaces that ID from every other declaring pack and none of those packs replaces the candidate. Otherwise the ID is excluded and reported as a conflict.
+
+Every pack uses its manifest UUIDv7 identity. Discovery order and the order of `enabled_packs` do not define precedence.
 
 ### License and provenance
 

@@ -121,7 +121,8 @@ def validate_intent(value: Any, *, for_generation: bool = True, prompt: str | No
 
 
 def _schema(value: Any, schema: dict, where: str) -> None:
-    from state_protocol import validate_against_schema, find_non_finite_numbers
+    from model_schema_numeric import validate_against_schema
+    from state_protocol import find_non_finite_numbers
     if find_non_finite_numbers(value):
         raise ValueError(where + ': non-finite value')
     issues = validate_against_schema(value, schema)
@@ -145,7 +146,7 @@ def _has_default(schema: Any) -> bool:
 
 
 def _supported_schema(schema: dict, where: str) -> None:
-    from state_protocol import unsupported_schema_keywords
+    from model_schema_numeric import unsupported_schema_keywords
     unsupported = unsupported_schema_keywords(schema)
     if unsupported:
         raise ValueError(where + ': unsupported schema constraints: ' + ', '.join(unsupported))
@@ -430,6 +431,8 @@ def compile_contract(record: Mapping, offering: Mapping | None, intent: dict,
     profile = selected_profile(record, offering)
     mode = intent['execution_mode']
     effective, decisions = resolve_parameters(record, profile, mode, parameters)
+    from prompt_weighting import selected
+    selected(effective)
     media_check(profile, mode, reference_count=reference_count, offering=offering)
     card = model_card(record, offering)
     return {'artifact_type': 'render-contract', 'intent': copy.deepcopy(intent), 'model_card': card,

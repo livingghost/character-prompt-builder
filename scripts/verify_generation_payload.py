@@ -374,7 +374,7 @@ def _verify(
         "generation_payload.prompt_recommendations",
     )
     recommendation_entry_fields = {
-        "declared", "applied", "mode", "reason", "recommended_text", "source_text", "limit", "segments"
+        "declared", "applied", "mode", "reason", "recommended_text", "source_text", "limit", "segments", "weighting"
     }
     for name in ("positive", "negative"):
         entry = recommendation_audit.get(name)
@@ -393,10 +393,12 @@ def _verify(
             "generation_payload.prompt_recommendations.integrated",
         )
     from model_contract import validate_recommendation_audit
-    validate_recommendation_audit(recommendation_audit['positive'],payload['prompt'])
-    validate_recommendation_audit(recommendation_audit['negative'],payload['negative_prompt'])
+    from prompt_weighting import selected as selected_weighting, require_pair
+    weighting_syntax = selected_weighting(payload.get('parameters'))
+    validate_recommendation_audit(recommendation_audit['positive'],payload['prompt'],weighting=weighting_syntax)
+    validate_recommendation_audit(recommendation_audit['negative'],payload['negative_prompt'],weighting=weighting_syntax)
     if integrated_audit is not None:
-        validate_recommendation_audit(integrated_audit,payload['transports']['integrated']['text'])
+        validate_recommendation_audit(integrated_audit,payload['transports']['integrated']['text'],weighting=weighting_syntax)
     recommendation_hash = sha256_json(recommendation_audit)
     for location, value in (
         (
@@ -673,6 +675,8 @@ def _verify(
     if mode not in VALID_MODES:
         raise ValueError(f"invalid negative transport mode: {mode}")
     rendition = _selected_rendition(mode, transports)
+    require_pair(rendition['text' if mode in {'integrated-critical','retained-only'} else 'prompt'],
+                 rendition.get('negative') or '', weighting_syntax)
     channel = transport.get("channel")
     if not isinstance(channel, str) or channel != rendition.get("channel"):
         raise ValueError("selected transport channel differs from its committed rendition")

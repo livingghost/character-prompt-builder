@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026.10.18.1
+
+- Remove single-model promotion from the general README and collapse duplicate provider narration into the active model record and observed schema.
+- Move release management narration to the contributor guide; the README keeps only a package manifest pointer.
+- Require an explicit model for normal reference preparation; semantic edits may resolve their model from the authored plan. Remove hidden model selections and transport decisions from generic templates.
+- Keep unknown-model text generation distinct from existing-image editing across generic runtime and adapter instructions.
+- Make shared guidance for subject count, location, expression and crop conditional on the authored request and selected interface, not unconditional defaults.
+- Add model-neutrality regression coverage for common CLI entry points and templates.
+
+## 2026.10.17.1
+
+- Check bundled model capabilities through one shared case matrix and common executable tests. Detect missing offering coverage and preserve independent expected outcomes.
+- Organize model tests by schema, reference and transport behavior. Keep model-specific conditions in fixture data and test instructions in the contributor guide.
+
+## 2026.10.16.2
+
+- Prepare supplied edit references directly from their authored semantic plan. Preserve exact roles, scopes and source hashes through packaging and verification without changing ordinary, state or pack reference authority.
+- Document object-only specifications and their Studio recording destination without inventing a depicted character.
+- Document typed input selectors for active model schemas and preserve their acquisition provenance during input assembly.
+- Document how required dependencies, explicit pack order and replacement declarations resolve duplicate records and named resources.
+- Distinguish the synthetic core integration test from validation of supplied content packs. Verify their actual combined runtime, resource provenance and task preparation for a source handoff.
+
+## 2026.10.16.1
+
+- Route requested clothing, object, background and lighting changes through ordinary production with explicit edit targets, preserved properties and scoped original references.
+- Bind external host requests to exact models, prompts, ordered media, acquired schemas and output counts. Recheck those bindings and the grant's validation mode before submission; retain actual returned bytes and costs through capture and settlement.
+- Support one-source edits and evidenced trials for models absent from the catalog. Keep dispatcher packages, external observations and verified model profiles distinct.
+- Refresh the Qwen-Image-2.1-Pro, FLUX 3 Image and Grok Imagine Image 2.0 interface profiles. Validate original-media constraints and boolean schema prohibitions without inventing unavailable controls.
+- Add the optional Seedream 5.0 Pro profile, schema evidence and usage guidance. Enforce numeric image-area and aspect constraints while exposing unmeasured constraints.
+- Keep learned tag families separate from service parsers, resolve native Compel/sdEmbeds controls and preserve exact authored conditioning text. Bind recommendation audits and final-wire grammar checks to preparation and recovery.
+- Review edit completeness, protected subjects, body structure, pose, rendering and visible crop limits independently. Exercise external preparation, authority, capture and recovery with generic synthetic fixtures.
+
+## 2026.10.15.1
+
+- Refine declared garment boundaries against source pixels from the existing scene-mask command. Preserve protected pixels, separate visible fragments and internal seams; keep future garment extensions explicit.
+- Bind refined mask candidates through the existing build, review and generation workflow. Refinement is not semantic approval or a successful wardrobe-generation recipe.
+
+## 2026.10.14.1
+
+- Assemble reviewed, source-bound region masks and pass the exact mask and optional guidance through ordinary generation check, prepare, execute and resume.
+- Recheck every annotation and review before sending; report missing parts, protected-region collisions, stale inputs and outside-mask output changes separately from image quality.
+
 ## 2026.10.09.3
 
 - Select a current Studio slot directly, with its artwork, image hash and adoption proof, for state-aware references.

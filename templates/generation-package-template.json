@@ -1,6 +1,6 @@
 {
   "status": "template",
-  "model": "gpt-image-2.5-flare",
+  "model": "",
   "source_brief": "",
   "creative_intent": {
     "image_promise": "",
@@ -45,9 +45,9 @@
     "native_negative": "",
     "transports": {
       "separate": {
-        "available": true,
+        "available": false,
         "channel": "prompt_plus_negative_fields",
-        "method": "verbatim-separate-fields",
+        "method": "unselected",
         "prompt": "",
         "negative": "",
         "prompt_sha256": "",
@@ -56,14 +56,14 @@
       "integrated": {
         "available": false,
         "channel": "single_prompt_field",
-        "method": "unavailable",
+        "method": "unselected",
         "text": "",
         "sha256": ""
       },
       "native_subset": {
         "available": false,
         "channel": "prompt_plus_native_negative",
-        "method": "unavailable",
+        "method": "unselected",
         "prompt": "",
         "negative": "",
         "prompt_sha256": "",
@@ -76,10 +76,10 @@
       }
     },
     "negative_transport": {
-      "mode": "integrated-critical",
-      "channel": "single_prompt_field",
+      "mode": "",
+      "channel": "",
       "instruction": "",
-      "critical_avoidance_integrated": true,
+      "critical_avoidance_integrated": false,
       "send_full_negative_verbatim": false,
       "send_native_negative_verbatim": false
     },
@@ -95,7 +95,7 @@
       "affirmative_translations": {}
     },
     "prompt_recommendations": {
-      "resolved_model_id": "gpt-image-2.5-flare",
+      "resolved_model_id": "",
       "merge_mode": "advisory-only",
       "positive": {
         "declared": false,
@@ -122,7 +122,7 @@
     "forward_verified_negative_transport": true,
     "forward_ordered_reference_transports": true,
     "do_not_reconstruct_from_chat": true,
-    "negative_transport_mode": "integrated-critical",
+    "negative_transport_mode": "",
     "prompt_sha256": "",
     "negative_prompt_sha256": "",
     "native_negative_sha256": "",

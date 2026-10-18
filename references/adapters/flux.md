@@ -10,7 +10,7 @@ Front-load subject identity and action, then composition, style, and context. Pr
 
 ## Negative transport
 
-Do not assume negative conditioning exists in the active workflow. When the active record declares no negative conditioning, use `integrated-critical`: author affirmative construction for the activated technical requirements and retain the portable negative for traceability. When the workflow has an evidence-backed separate channel, use the exact transport declared by its model record rather than the family default.
+Do not assume negative conditioning exists in the active workflow. When the active record declares no negative conditioning, use `integrated-critical`: author affirmative construction for the activated technical requirements and retain the portable negative for traceability. When the workflow has an evidence-backed separate channel, use the exact transport declared by its model record.
 
 ## Reference forwarding
 

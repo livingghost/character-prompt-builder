@@ -162,7 +162,7 @@ def run(out: Path) -> dict:
                      '--prompt-expression','Photographic portrait.','--out',str(root/'render-intent.json'))
             walk.run('production_spec','draft',str(root/'production-spec.json'),'--render-intent',str(root/'render-intent.json'),
                      '--model',MODEL,'--brief',BRIEF,'--kind','human','--continuity','one-off')
-            write(root/'parameters.json',{'width':832,'height':1248})
+            write(root/'parameters.json',{'width':832,'height':1248,'settings':{'quality':'medium'}})
             write(root/'creative-intent.json',{'image_promise':'An explicitly synthetic preview of a quiet rainy-day portrait.'})
             # The fixture helper quotes actual route documents and labels every
             # application as synthetic. It cannot supply real execution consent.

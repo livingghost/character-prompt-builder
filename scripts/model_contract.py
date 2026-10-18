@@ -422,11 +422,11 @@ def _merge_tag_lists(recommended: str, authored: str) -> str:
     return ", ".join(result)
 
 
-def _merge_one(authored: str, recommended: str, *, mode: str, limit: int | None, field: str) -> tuple[str, dict[str, Any]]:
+def _merge_one(authored: str, recommended: str, *, mode: str, limit: int | None, field: str, weighting: str = "literal") -> tuple[str, dict[str, Any]]:
     recommended=recommended.strip()
     # Authored whitespace is part of the exact rendition. Only a declared merge
     # operation may transform it; advisory guidance never rewrites the input.
-    audit={'declared':bool(recommended),'applied':False,'mode':mode,
+    audit={'declared':bool(recommended),'applied':False,'mode':mode,'weighting':weighting,
         'reason':'not-declared' if not recommended else 'advisory-only', 'recommended_text':recommended,
         'source_text':authored,'limit':limit,'segments':[]}
     if limit is not None and len(authored)>limit:raise ValueError(f'{field} exceeds the model limit of {limit} characters')
@@ -434,6 +434,20 @@ def _merge_one(authored: str, recommended: str, *, mode: str, limit: int | None,
         audit['segments']=[{'source_kind':'authored','start':0,'end':len(authored),'text':authored}] if authored else []
         return authored,audit
     if not recommended or mode=='advisory-only':return original()
+    from prompt_weighting import parse, split_top_level, SyntaxError as WeightingSyntaxError
+    if weighting != 'literal':
+        authored_form = parse(authored, weighting)
+        try:
+            recommendation_form = parse(recommended, weighting)
+        except WeightingSyntaxError:
+            # An optional record recommendation is not proof of the chosen parser.
+            # Preserve it visibly for review; never convert its syntax or overwrite
+            # the correctly authored rendition. Invalid authored text still fails.
+            audit['reason'] = 'recommendation-syntax-mismatch; author supplies matching grammar'
+            return original()
+        if authored_form['operator'] != 'prompt' or recommendation_form['operator'] != 'prompt':
+            audit['reason'] = 'conditioning-clauses-preserved; author places recommendations explicitly'
+            return original()
     parts=[];segments=[];length=0
     def append(text,kind):
         nonlocal length
@@ -442,6 +456,22 @@ def _merge_one(authored: str, recommended: str, *, mode: str, limit: int | None,
     if mode=='prefix':
         append(recommended,'model-setting')
         if authored:append('\n\n','model-setting');append(authored,'authored')
+    elif mode=='tag-list' and weighting != 'literal':
+        # Only add independent recommendation tags. Keep every authored byte and
+        # every nested group intact; no de-duplication inside weighted clauses.
+        present = {tag['text'].strip().casefold() for tag in authored_form['clauses'][0]['tags']}
+        additions = []
+        for start, end in split_top_level(recommended):
+            item = recommended[start:end].strip()
+            tags = parse(item, weighting)['clauses'][0]['tags']
+            names = {tag['text'].strip().casefold() for tag in tags}
+            if names and names <= present:
+                continue
+            if item:
+                additions.append(item); present.update(names)
+        append(', '.join(additions),'model-setting')
+        if additions and authored: append(', ','model-setting')
+        append(authored,'authored')
     elif mode=='tag-list':
         seen=set()
         for source,kind in ((recommended,'model-setting'),(authored,'authored')):
@@ -459,8 +489,9 @@ def _merge_one(authored: str, recommended: str, *, mode: str, limit: int | None,
     return merged,audit
 
 
-def validate_recommendation_audit(entry: dict, actual: str) -> None:
-    expected,audit=_merge_one(entry['source_text'],entry['recommended_text'],mode=entry['mode'],limit=entry['limit'],field='prompt')
+def validate_recommendation_audit(entry: dict, actual: str, *, weighting: str = "literal") -> None:
+    if entry['weighting'] != weighting: raise ValueError('recommendation weighting differs from the selected render control')
+    expected,audit=_merge_one(entry['source_text'],entry['recommended_text'],mode=entry['mode'],limit=entry['limit'],field='prompt',weighting=weighting)
     if actual!=expected or entry!=audit:raise ValueError('recommendation audit differs from its recorded transformation')
 
 
@@ -468,6 +499,7 @@ def apply_positive_recommendation(
     record: Mapping[str, Any],
     *,
     prompt: str,
+    weighting: str = "literal",
 ) -> tuple[str, dict[str, Any]]:
     """Apply only the reusable positive recommendation to one prompt rendition."""
 
@@ -483,7 +515,7 @@ def apply_positive_recommendation(
             if _is_positive_integer(record.get("max_positive_prompt_chars"))
             else None
         ),
-        field="prompt",
+        field="prompt", weighting=weighting,
     )
 
 
@@ -492,6 +524,7 @@ def apply_prompt_recommendations(
     *,
     prompt: str,
     negative_prompt: str,
+    weighting: str = "literal",
 ) -> tuple[str, str, dict[str, Any]]:
     """Merge only provider-backed reusable recommendations into authored text.
 
@@ -514,7 +547,7 @@ def apply_prompt_recommendations(
             if _is_positive_integer(record.get("max_positive_prompt_chars"))
             else None
         ),
-        field="prompt",
+        field="prompt", weighting=weighting,
     )
     negative, negative_audit = _merge_one(
         negative_prompt,
@@ -525,7 +558,7 @@ def apply_prompt_recommendations(
             if _is_positive_integer(record.get("max_negative_prompt_chars"))
             else None
         ),
-        field="negative_prompt",
+        field="negative_prompt", weighting=weighting,
     )
     audit = {
         "merge_mode": mode,
@@ -876,7 +909,7 @@ def validate_request_instance(
     found = offering_schema(offering, pack_root, model_id)
     if found is None:
         return
-    from state_protocol import validate_against_schema
+    from model_schema_numeric import validate_against_schema
 
     violations = list(dict.fromkeys(validate_against_schema(dict(instance), found["schema"])))
     if violations:

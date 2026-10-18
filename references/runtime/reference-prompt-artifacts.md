@@ -1,6 +1,9 @@
 # Prompt Artifact Reference Runtime
 
-Use this document after selecting canonical records whenever linked visual evidence exists or the requested deliverable includes prompt plus reference files. This path materializes source SVG or raster artifacts without calling an image-generation service.
+Use this document to prepare selected canonical evidence or deliver a prompt with reusable reference files.
+It materializes source SVG or raster artifacts without calling an image-generation service.
+For direct editing of supplied images through a host tool, use [Semantic instruction editing](semantic-instruction-edit.md).
+That path binds originals and authority without inventing pack records or a canonical prepared set.
 
 ## Contents
 
@@ -22,7 +25,7 @@ selected canonical record use
 -> prepared-reference-set
 ```
 
-Do not create an independent reference list beside this chain. The prepared-reference-set is the sole prepared-reference truth.
+Within this preparation path, the prepared-reference-set is the sole prepared-reference truth.
 
 ## Activation gate
 

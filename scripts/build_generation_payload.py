@@ -489,9 +489,24 @@ def build_payload(
     except ValueError:
         if negative_transport == "auto":
             raise
+    from prompt_weighting import selected as selected_weighting
+    weighting_syntax = selected_weighting(parameters)
+    if model_record is not None:
+        if model_record.get('operation_kind') == 'upscale':
+            raise ValueError(f'model record {model_id!r} is an upscaler; use build_upscale_package.py')
+        if not isinstance(production_spec, dict) or not isinstance(production_spec.get('render_intent'), dict):
+            raise ValueError('production specification must include its declared render_intent')
+        mode = production_spec['render_intent'].get('execution_mode')
+        if not isinstance(mode, str) or not mode:
+            raise ValueError('render_intent must name an execution_mode')
+        from render_contract_lib import selected_profile, resolve_parameters
+        current_offering = select_offering(model_record, service)
+        current_profile = selected_profile(model_record, current_offering)
+        effective_parameters, _ = resolve_parameters(model_record, current_profile, mode, parameters)
+        weighting_syntax = selected_weighting(effective_parameters)
     from model_contract import _merge_one
-    _,positive_audit=_merge_one(prompt,'',mode='advisory-only',limit=None,field='prompt')
-    _,negative_audit=_merge_one(negative_prompt,'',mode='advisory-only',limit=None,field='negative_prompt')
+    _,positive_audit=_merge_one(prompt,'',mode='advisory-only',limit=None,field='prompt',weighting=weighting_syntax)
+    _,negative_audit=_merge_one(negative_prompt,'',mode='advisory-only',limit=None,field='negative_prompt',weighting=weighting_syntax)
     recommendation_audit={'resolved_model_id':model_id if model_record is not None else None,
         'merge_mode':'advisory-only','positive':positive_audit,'negative':negative_audit,
         'integrated':None,'negative_preset':''}
@@ -503,12 +518,12 @@ def build_payload(
         prompt, negative_prompt, recommendation_audit = apply_prompt_recommendations(
             model_record,
             prompt=prompt,
-            negative_prompt=negative_prompt,
+            negative_prompt=negative_prompt, weighting=weighting_syntax,
         )
         recommendation_audit["resolved_model_id"] = model_id
         if integrated_prompt:
             integrated_prompt, integrated_audit = apply_positive_recommendation(
-                model_record, prompt=integrated_prompt
+                model_record, prompt=integrated_prompt, weighting=weighting_syntax
             )
             recommendation_audit["integrated"] = integrated_audit
     mode = (
@@ -1000,6 +1015,7 @@ def materialize_cli_reference_bundle(
         selected_references=selected,
         reference_selection=validated["reference_selection"],
         reference_use_plan=validated["reference_use_plan"],
+        semantic_edit_binding=validated.get('semantic_edit_binding'),
         zero_reference_reason=validated["zero_reference_reason"],
         prompt_artifacts=prompt_artifacts,
         single_board=board,

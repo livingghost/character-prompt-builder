@@ -275,6 +275,10 @@ def check_request(verified: dict[str, Any], record: dict[str, Any], offering: di
     parameters = {**(forwarding.get("parameters") or {}), **transport.added_parameters(offering, seed, count)}
     selected = forwarding.get("selected_transport") or {}
     negative = (selected.get("rendition") or {}).get("negative") or ""
+    media_counts = generation_media_counts(offering, len(forwarding.get("selected_references") or []),
+                                           media_role=forwarding["reference_media_role"])
+    for item in forwarding.get('technical_media', []):
+        media_counts[item['role']] = media_counts.get(item['role'], 0) + 1
     validate_generation_parameters(
         record,
         parameters,
@@ -282,8 +286,7 @@ def check_request(verified: dict[str, Any], record: dict[str, Any], offering: di
         pack_root=model_pack_root(model_id),
         prompt=forwarding["effective_prompt"],
         negative_prompt=negative if selected.get("mode") in ("separate-field", "native-subset") else None,
-        media_counts=generation_media_counts(offering, len(forwarding.get("selected_references") or []),
-                                             media_role=forwarding["reference_media_role"]),
+        media_counts=media_counts,
         output_count=count,
     )
 

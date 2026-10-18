@@ -1,0 +1,507 @@
+{
+  "artifact_type": "observed-parameter-schema",
+  "model_id": "seedream-5.0-pro",
+  "service": "runware",
+  "model_identifier": "bytedance:seedream@5.0-pro",
+  "observed_at": "2026-10-12",
+  "source": "Runware.model_schema (MCP), 2026-10-12. Normalized JSON copy: non-validating titles/descriptions omitted; validation keywords and provider defaults retained. Not a raw HTTP response. https://runware.ai/docs/models/bytedance-seedream-5-0-pro",
+  "schema": {
+    "type": "object",
+    "x-constraints": [
+      {
+        "operation": "area",
+        "parameters": [
+          "width",
+          "height"
+        ],
+        "minimum": 921600,
+        "maximum": 4624220
+      },
+      {
+        "operation": "ratio",
+        "parameters": [
+          "width",
+          "height"
+        ],
+        "minimum": 0.0625,
+        "maximum": 16
+      },
+      {
+        "operation": "area",
+        "parameters": [
+          "inputs.referenceImages"
+        ],
+        "when": {
+          "present": [
+            "settings.layerDecomposition"
+          ]
+        },
+        "minimum": 262144,
+        "scope": "each"
+      }
+    ],
+    "properties": {
+      "model": {
+        "type": "string",
+        "const": "bytedance:seedream@5.0-pro"
+      },
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "referenceImages": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "anyOf": [
+                {
+                  "format": "uuid"
+                },
+                {
+                  "format": "uri"
+                },
+                {
+                  "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                },
+                {
+                  "pattern": "^[a-zA-Z0-9+/=]+$"
+                }
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "positivePrompt": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 3000
+      },
+      "width": {
+        "type": "integer",
+        "minimum": 256,
+        "maximum": 16383
+      },
+      "height": {
+        "type": "integer",
+        "minimum": 256,
+        "maximum": 16383
+      },
+      "resolution": {
+        "type": "string",
+        "enum": [
+          "1K",
+          "2K"
+        ]
+      },
+      "settings": {
+        "type": "object",
+        "properties": {
+          "background": {
+            "type": "string",
+            "default": "opaque",
+            "oneOf": [
+              {
+                "const": "opaque"
+              },
+              {
+                "const": "transparent"
+              }
+            ]
+          },
+          "layerDecomposition": {
+            "type": "boolean"
+          },
+          "thinking": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "includeCost": {
+        "type": "boolean"
+      },
+      "numberResults": {
+        "type": "integer",
+        "minimum": 1,
+        "default": 1,
+        "maximum": 20
+      },
+      "uploadEndpoint": {
+        "type": "string",
+        "format": "uri"
+      },
+      "ttl": {
+        "type": "integer",
+        "minimum": 60
+      },
+      "outputType": {
+        "type": "string",
+        "enum": [
+          "URL",
+          "base64Data",
+          "dataURI"
+        ],
+        "default": "URL"
+      },
+      "outputFormat": {
+        "type": "string",
+        "enum": [
+          "JPG",
+          "PNG",
+          "WEBP"
+        ],
+        "default": "JPG"
+      },
+      "outputQuality": {
+        "type": "integer",
+        "minimum": 20,
+        "maximum": 99,
+        "default": 95
+      },
+      "safety": {
+        "type": "object",
+        "properties": {
+          "checkContent": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "advancedFeatures": {
+        "type": "object",
+        "properties": {
+          "watermark": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 32
+              },
+              "image": {
+                "type": "string",
+                "anyOf": [
+                  {
+                    "format": "uuid"
+                  },
+                  {
+                    "format": "uri"
+                  },
+                  {
+                    "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                  },
+                  {
+                    "pattern": "^[a-zA-Z0-9+/=]+$"
+                  }
+                ]
+              },
+              "displayPosition": {
+                "type": "string",
+                "enum": [
+                  "top-left",
+                  "top-center",
+                  "top-right",
+                  "center-left",
+                  "center-center",
+                  "center-right",
+                  "bottom-left",
+                  "bottom-center",
+                  "bottom-right",
+                  "tiled"
+                ]
+              },
+              "opacity": {
+                "type": "number",
+                "multipleOf": 0.01,
+                "minimum": 0.1,
+                "maximum": 1
+              },
+              "fontColor": {
+                "type": "string",
+                "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+              },
+              "bgColor": {
+                "type": "string",
+                "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "text"
+                ]
+              },
+              {
+                "required": [
+                  "image"
+                ]
+              }
+            ],
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "allOf": [
+      {
+        "dependentRequired": {
+          "width": [
+            "height"
+          ],
+          "height": [
+            "width"
+          ]
+        }
+      },
+      {
+        "if": {
+          "not": {
+            "properties": {
+              "inputs": {
+                "required": [
+                  "referenceImages"
+                ]
+              }
+            },
+            "required": [
+              "inputs"
+            ]
+          }
+        },
+        "then": {
+          "anyOf": [
+            {
+              "required": [
+                "width",
+                "height"
+              ]
+            },
+            {
+              "required": [
+                "resolution"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "not": {
+          "allOf": [
+            {
+              "required": [
+                "resolution"
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "required": [
+                    "width"
+                  ]
+                },
+                {
+                  "required": [
+                    "height"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "not": {
+          "allOf": [
+            {
+              "properties": {
+                "settings": {
+                  "properties": {
+                    "background": {
+                      "const": "transparent"
+                    }
+                  },
+                  "required": [
+                    "background"
+                  ]
+                }
+              },
+              "required": [
+                "settings"
+              ]
+            },
+            {
+              "properties": {
+                "settings": {
+                  "properties": {
+                    "layerDecomposition": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "layerDecomposition"
+                  ]
+                }
+              },
+              "required": [
+                "settings"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "settings": {
+              "properties": {
+                "layerDecomposition": {
+                  "const": true
+                }
+              },
+              "required": [
+                "layerDecomposition"
+              ]
+            }
+          },
+          "required": [
+            "settings"
+          ]
+        },
+        "then": {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "width"
+                ]
+              },
+              {
+                "required": [
+                  "height"
+                ]
+              },
+              {
+                "required": [
+                  "positivePrompt"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "if": {
+          "not": {
+            "properties": {
+              "settings": {
+                "properties": {
+                  "layerDecomposition": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "layerDecomposition"
+                ]
+              }
+            },
+            "required": [
+              "settings"
+            ]
+          }
+        },
+        "then": {
+          "required": [
+            "positivePrompt"
+          ]
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "settings": {
+              "properties": {
+                "layerDecomposition": {
+                  "const": true
+                }
+              },
+              "required": [
+                "layerDecomposition"
+              ]
+            }
+          },
+          "required": [
+            "settings"
+          ]
+        },
+        "then": {
+          "properties": {
+            "inputs": {
+              "properties": {
+                "referenceImages": {
+                  "maxItems": 1
+                }
+              },
+              "required": [
+                "referenceImages"
+              ]
+            }
+          },
+          "required": [
+            "inputs"
+          ]
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "settings": {
+              "properties": {
+                "background": {
+                  "const": "transparent"
+                }
+              },
+              "required": [
+                "background"
+              ]
+            }
+          },
+          "required": [
+            "settings"
+          ]
+        },
+        "then": {
+          "properties": {
+            "outputFormat": {
+              "enum": [
+                "PNG",
+                "WEBP"
+              ],
+              "default": "PNG"
+            },
+            "inputs": {
+              "properties": {
+                "referenceImages": {
+                  "maxItems": 1
+                }
+              },
+              "required": [
+                "referenceImages"
+              ]
+            }
+          },
+          "required": [
+            "inputs"
+          ]
+        }
+      }
+    ],
+    "additionalProperties": false,
+    "required": [
+      "model"
+    ]
+  }
+}

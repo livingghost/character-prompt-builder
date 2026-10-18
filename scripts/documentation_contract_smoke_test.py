@@ -685,18 +685,21 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertTrue(checked, "no documented anchor example was checked")
 
 
-class ReadmeReleaseExplanationTests(unittest.TestCase):
-    def test_readme_can_explain_product_release_management(self):
+class ReleaseDocumentationOwnershipTests(unittest.TestCase):
+    def test_contributor_guide_owns_release_explanation_and_readme_links_authorities(self):
         from validate import check_documentation
         errors = []
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("YYYY.MM.DD.N", readme)
-        self.assertIn("CalVer", readme)
-        self.assertIn("UTC", readme)
+        contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+        self.assertIn("YYYY.MM.DD.N", contributing)
+        self.assertIn("UTC CalVer", contributing)
+        for authority in ("CONTRIBUTING.md", "package-manifest.toml"):
+            self.assertIn(f"]({authority})", readme)
+            self.assertTrue((ROOT / authority).is_file())
         check_documentation(ROOT, errors)
         self.assertEqual([], errors)
 
-    def test_readme_release_explanation_keeps_authority_link(self):
+    def test_readme_cannot_drop_manifest_authority_link(self):
         from unittest.mock import patch
         from validate import check_documentation
         read = Path.read_text

@@ -41,12 +41,13 @@ discovery reads every record in every root and that is the runtime's work.
 
 Image work reads `references/runtime/render-contract.md`.
 Run `python scripts/render_contract.py presets` to inspect finish choices, then record who chose the intent and why.
-Run `python scripts/render_contract.py model --model MODEL_ID` to read the exact model's guidance card.
-The Production Specification owns `render_intent`; Generation Packages seal the resolved control decisions.
-Preparation shows the complete request and refuses an unselected or unavailable control.
-Execution verifies the sealed package again, so a changed control is refused before sending.
+Run `python scripts/render_contract.py model --model MODEL_ID` for a catalog target's complete guidance card.
+An external target absent from the catalog uses acquired provider evidence and the ordinary external execution branch.
+Existing-image edits also require an exact semantic edit binding.
+The Production Specification owns dispatcher `render_intent`; external tasks retain it as an applied source.
+Preparation shows the complete request. Dispatcher packages seal resolved controls; external bindings pin the authored request and evidence.
 
-## Where character work lives, and how a result is made
+## Where character work lives, and how a dispatcher result is made
 
 ```
 python scripts/studio.py init --out STUDIO --studio-id <id> --title "<title>"
@@ -78,6 +79,13 @@ observed, before anything is sent. The credential is read from the
 environment variable the service record names, or from that variable in an MCP
 server's `env` block in the host configuration, and is never written anywhere.
 It is sent only to the host the transport pins.
+
+External host tools use the same `check`, `prepare`, review and capture owners.
+Follow Production Execution's handoff, exact authorization, `claim-external`,
+host call and `settle-external` branch. Semantic edits bind the original images,
+their roles and the exact provider request through `task.semantic_edit`.
+Each further external trial gets its own task, request and preparation.
+Use `status` or `resume` after interruption and recover the existing host result.
 
 ## What the Skill conforms to
 

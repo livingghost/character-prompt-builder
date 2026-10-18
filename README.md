@@ -36,6 +36,8 @@ Use Python 3.11 or later. The core needs only the standard library. Image conver
 
 Copy the complete extracted product folder to the host's skill location, or install the package's plugin root on a plugin-capable host. [SKILL.md](SKILL.md) is the agent's entry point, and the scripts, schemas and resources beside it are part of the product. A text-only chat can discuss a design but cannot run the tools.
 
+The [package manifest](package-manifest.toml) identifies the installed release and declares its bundled contents.
+
 Run the following from the extracted product folder with the interpreter the host will use:
 
 <!-- readme-example: core-check -->
@@ -121,7 +123,7 @@ After an interruption, `resume` recovers the same execution from saved evidence 
 
 - Sparse briefs and alternative directions: [Sparse-Brief Discovery](references/runtime/sparse-discovery.md)
 - Prompt wording for a target model: [Prompt Composition](references/runtime/prompt-composition.md) and [Prompt Vocabulary](references/runtime/prompt-vocabulary.md)
-- Finish, model guidance and controls: [Rendering choices and execution controls](references/runtime/render-contract.md) and [Model request evidence](references/runtime/model-evidence.md)
+- Finish, model guidance and controls: [Rendering choices and execution controls](references/runtime/render-contract.md) and [Model request evidence](references/runtime/model-evidence.md). Select an exact model and offering; observed interface constraints live in the active model record and its pinned schema, not in README examples.
 - Worlds, character profiles and the author's aims: [World-Coherent Creative Development](references/runtime/narrative-development.md), [Authorial Intent](references/runtime/authorial-intent.md) and [Narrative Authoring](references/narrative-authoring.md)
 - Identity, anatomy and expression: [Character Identity Contract](references/character-identity-contract.md), [Morphology and species contracts](references/morphology-and-species-contracts.md) and [Performance Language](references/performance-language-specification.md)
 - Clothing, growth and fixed marks: [Garment Geometry](references/garment-geometry-specification.md), [Growth Geometry](references/growth-geometry-specification.md) and [Distinctive Details](references/distinctive-detail-specification.md)
@@ -132,7 +134,8 @@ After an interruption, `resume` recovers the same execution from saved evidence 
 - Reference images and their influence: [Prompt Artifact References](references/runtime/reference-prompt-artifacts.md) and [Derived Visual Evidence](references/derived-visual-evidence.md)
 - Runs, approvals, execution records and command logs: [Production Execution](references/runtime/production-execution.md), [Production Permissions](references/runtime/production-permissions.md) and [Operation Logs](references/runtime/operation-logs.md)
 - Character folders, galleries and resumption: [Studio Runtime](references/runtime/studio.md)
-- Editing and upscaling an approved image: [Image Editing](references/runtime/image-editing.md) and [Upscale Adapter](references/adapters/upscale.md)
+- Changing clothing, objects, backgrounds or other depicted content: [Semantic Instruction Editing](references/runtime/semantic-instruction-edit.md)
+- Local pixel edits, masks and enlargement: [Image Editing](references/runtime/image-editing.md), [Scene masks](references/runtime/scene-mask-planning.md) and [Upscale Adapter](references/adapters/upscale.md)
 - Reviewing results, repeated failures and agent trials: [Evidence Review](references/runtime/evidence-review.md), [Repair Analysis](references/runtime/repair-analysis.md) and [Agent Evaluation](references/runtime/agent-evaluation.md)
 - Failures in the picture itself: [Troubleshooting](references/troubleshooting.md)
 - Exchange with other tools: [Protocol Exchange](references/protocol-exchange.md)
@@ -165,10 +168,6 @@ The checks use synthetic fixtures and never contact a service. [Release Validati
 ## Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md) explains how to prepare a development checkout, run the checks and build a release. A contribution states the intended behavior, updates its documentation and adds a test that fails on the defect it addresses. Checks stay as they are, and studio data and credentials stay out of the product. Pack contributions follow [Pack Maintenance](references/maintenance/packs.md).
-
-## Release management
-
-Releases use the CalVer scheme `YYYY.MM.DD.N` in UTC. [package-manifest.toml](package-manifest.toml) owns the release identity, and the generated host and Python metadata are checked against it. [CHANGELOG.md](CHANGELOG.md) records each release under its version heading. Release commands are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

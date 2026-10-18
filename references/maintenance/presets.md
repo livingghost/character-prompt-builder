@@ -379,9 +379,9 @@ Implementation notes:
 
 Implementation notes:
 
-- `gpt-image-2.5-flare` is the default GPT Image target in this package
-- the model accepts image inputs; CPB's evidence-backed model record declares PNG, JPEG, and WebP reference media and does not declare SVG
-- a selected safe SVG remains the authoritative source and is deterministically rasterized from that same artifact to a committed PNG generation transport
+- select the exact GPT Image model and offering explicitly; the package has no implicit target model
+- read the selected model record's `reference_input_media_types`; only its declared media may be sent
+- [Derived Visual Evidence](../derived-visual-evidence.md#layer-c-runtime-attachment-build) defines SVG transport; its PNG result requires a model that accepts PNG
 - the adapter favors clear natural-language art direction, explicit spatial relationships, and concrete style behavior
 - exact preparation and payload packaging prevent a downstream agent from silently replacing the reviewed prompt, source, transport, or reference order
 

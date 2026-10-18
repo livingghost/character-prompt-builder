@@ -219,6 +219,7 @@ Each run reports these state axes:
 
 `submission` comes only from the claim, the send step and `execution-outcome` events.
 `readiness` reports current authority, credentials, input and recording diagnostics before any send.
+External semantic edits require a recorded handoff and a current exact submission authorization before reporting `ready`.
 A complete review is not necessarily a passing one.
 `registration` is `unregistered` with candidates when the recording destination is gone; the run keeps the captured bytes.
 `projection-missing` means the destination exists and only its Studio rows are missing.
@@ -465,6 +466,10 @@ A drift diagnostic adds `affected_runs` and `actions`.
 Authored text uses the same immutable sources and formal event store, without a model package.
 `handoff-intent`, `draft-authorization`, `authorize` and `handoff` describe an actual conversation or manual handoff.
 For an external tool, authorize its `external-intent`, then `claim-external` before the host runs it.
+For semantic image changes, activate `semantic-instruction-edit` and set the task's `semantic_edit` plan. Preparation checks its exact model, prompt, reference order, original bytes and acquired schema, then exposes `request-preview.json`. The external claim rechecks those pinned inputs before submission. Use that request unchanged in the named host tool.
+The submit grant must allow the binding's validation mode and have `request_scope: null`.
+These external requests use exact-operation authorization; dispatcher scope cases require a different request contract.
+Existing explicit authority may supply that grant without a repeated confirmation.
 The claim commits execution ownership and the external-send boundary together before control returns to the host.
 A repeated lookup of that claim is not permission to call the host tool twice.
 Capture returned files with `capture`; identical bytes are idempotent, and a reused filename cannot exceed the approved count.
@@ -488,6 +493,10 @@ This command records evidence and never invokes the host.
 Reported provider usage is retained exactly. Unknown billing remains unknown without blocking result capture or completion.
 Final billing closes accounting, not artistic review, and an identical receipt does not settle twice.
 `production_direction_smoke_test.py` exercises this workflow with synthetic local files and no provider call.
+
+An additional external trial starts from a separately authored task and exact request, followed by `check` and `prepare`.
+Keep relevant earlier runs and reviews as ordinary comparison sources.
+The dispatcher's `draft-execution`, `execute`, `variant`, `repeat` and `retarget` commands do not apply to external tasks.
 
 ## Capture the actual result
 

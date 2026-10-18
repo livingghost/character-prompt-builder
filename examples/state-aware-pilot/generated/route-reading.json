@@ -10,7 +10,7 @@
     },
     {
       "path": "references/runtime/production-execution.md",
-      "sha256": "81b957bfa1ea88405a85674cc80eb18275eb0fe3a9cf342bc0b66145df678e7a"
+      "sha256": "42f10f05a7cb98d8ffa33e754c64cd9bb7aa1f17dee3898069631e392214840f"
     },
     {
       "path": "references/runtime/state-aware-series.md",
@@ -26,15 +26,19 @@
     },
     {
       "path": "references/runtime/prompt-writing-guide.md",
-      "sha256": "09b35ee5cc117e824a878fe9ad657be9548bdc8b3d8fa4db88a33cbbc8570216"
+      "sha256": "cb03a520f5326d0c473ad012a3759da08a8451652524676d856b88debe8fc87b"
+    },
+    {
+      "path": "references/runtime/prompt-weighting.md",
+      "sha256": "f7a5c22070705910fb28f525c306744f2c2ec1e1b03c43df1ca953520b738b50"
     },
     {
       "path": "references/runtime/reference-delivery.md",
-      "sha256": "aef43a9afa3c551f79694cc898528e1af2669ac242afdf4f494370e47096ea0c"
+      "sha256": "edde7e7765b66c9ed797fd80b2c15aa15082cdd24fc77dea64eff80fb8d8423e"
     },
     {
       "path": "references/runtime/render-contract.md",
-      "sha256": "8f4fbf016a3c3f730618cbdf7b5348c3d5ad459f87382435710511154a1ae3e2"
+      "sha256": "055e318a8f4de41f6ee674689af083f0962ab525fb8b19de5b1275498c57723d"
     },
     {
       "path": "references/runtime/studio.md",
@@ -57,7 +61,7 @@
       "status": "present",
       "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
       "path": "resources/prompt-writing-guide/guide.json",
-      "sha256": "12084814859963e57f5cd80aa642ff3353f07faf3fc2da491006994a64abfdd8"
+      "sha256": "616812fc4e9baba0c0dc3b367890bbd2edf25e19a3cd66e54ece9d85d6ac03c5"
     },
     "prompt-dialects": {
       "status": "present",
@@ -67,7 +71,7 @@
     }
   },
   "route": "state-series",
-  "reading_key": "ba497aa7ad9ed221992513b256303861",
+  "reading_key": "e893a4374099f8fd690a64df44478056",
   "applied": [
     {
       "path": "references/runtime/state-aware-series.md",

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Use this adapter for image models that transform one or more supplied images from a natural-language edit instruction. The adapter governs change scope, preservation clauses, identity consistency, and edit intent. Transport channels remain model-record capabilities and are not inferred from the adapter family.
+Use this adapter for image models that transform supplied images from a natural-language edit instruction. It governs change scope, preservation clauses, identity consistency and edit intent. Resolve transport from the exact model offering, or acquired provider evidence for an external semantic trial. The adapter family implies no media or negative channel.
 
 ## Instruction construction
 
@@ -12,11 +12,11 @@ Read the [Prompt Writing Guide Runtime](../runtime/prompt-writing-guide.md) befo
 2. State what must remain unchanged, especially permanent identity, body construction, markings, clothing continuity, camera, and background elements outside the change scope.
 3. Describe the desired visible result affirmatively.
 4. Keep presentation state such as pose, expression, gaze, wind, wetness, and temporary styling outside permanent identity unless the request explicitly fixes it.
-5. Respect the active model record's `max_reference_images`, prompt-character limits, supported resolutions, output count, and aspect behavior.
+5. Respect the exact interface's reference limit, prompt length, supported resolutions, output count and aspect behavior.
 
 ## Negative transport
 
-Read `negative_transport_mode` from the active model record. Some instruction-edit models expose only one prose field and therefore use `integrated-critical`; others, including records that declare a separate negative field, use `separate-field`. Never discard the portable negative merely because the editing adapter is prose-oriented. Merge only provider-backed recommendations recorded with provenance, and never truncate the user-authored semantic instruction to make room for a recommendation.
+For dispatch, read `negative_transport_mode` from the active model record. For an external trial, inspect the acquired fields and prompt guidance. A single prose channel carries affirmative preservation clauses; a documented negative channel may carry the corresponding exclusions. Retain the portable negative when authored. Merge only provider-backed recommendations with provenance, and keep the complete requested edit.
 
 ## Reference handling
 

@@ -157,7 +157,7 @@ Open `catalog/index.html`. The direct-open page is script-free and links to a st
 
 ## Conflict rules
 
-Canonical record IDs must be unique across the enabled set. Resolution compares the complete candidate set without state or discovery order. One candidate wins only when it explicitly replaces that ID from every other declaring pack and none of those replaces the prospective winner. Otherwise exclude the ID and report a conflict. There is no implicit last-writer-wins rule.
+Canonical record IDs must be unique within each pack. Across enabled packs, required dependencies and explicit `pack_order` choose a highest-ranked record. When several candidates remain unordered, the explicit replacement rules in [Pack Format Specification](../pack-format-specification.md#replacements) decide whether one supplies the record. Otherwise the ID is excluded and reported as a conflict. Discovery order and the order of `enabled_packs` do not decide precedence.
 
 Admit an asset with `canonical_record_ids` only when every referenced record exists after dependencies and replacements resolve. Missing references produce diagnostics and exclude the asset.
 

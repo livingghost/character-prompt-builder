@@ -98,7 +98,8 @@ def authorize_decisions(root: Path, run: str, path: str, prepared: dict, plan: d
         workflow.authorize_value(root, run, request, evidence_files=[path], expected_source=(path, c.digest(raw)))
 
 
-def receipts(root: Path, prepared: dict, rows: list[dict], plan: dict) -> dict[str, str]:
+def receipts(root: Path, prepared: dict, rows: list[dict], plan: dict, *,
+             required_action: str = 'Fill the execution decision file from the actual approval or delegation, then execute with --decisions-file.') -> dict[str, str]:
     """Select only receipts covering each entire operation under current grants."""
     import production_workflow as workflow
     selected = {}
@@ -109,7 +110,7 @@ def receipts(root: Path, prepared: dict, rows: list[dict], plan: dict) -> dict[s
             raise ProductionError('AUTHORIZATION_REQUIRED', 'No exact authorization covers this prepared operation.',
                 phase='authorization', run=prepared['run'], pointer='$.operations.' + intent['operation'],
                 expected=intent['targets'], actual=[],
-                required_action='Fill the execution decision file from the actual approval or delegation, then execute with --decisions-file.')
+                required_action=required_action)
         last_error = None
         for row in matches:
             try:
@@ -939,7 +940,7 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
 def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities: dict) -> dict:
     import production_workflow as workflow
     identifier = item['run_id']
-    directory, prepared, _, rows = workflow.load_run(root, identifier)
+    directory, prepared, consumer, rows = workflow.load_run(root, identifier)
     claims = [row for row in rows if row['event'] == 'dispatch-claim']
     external_claims = [row for row in rows if row['event'] == 'external-claim']
     captures = [row for row in rows if row['event'] == 'capture-status']
@@ -982,6 +983,19 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         plan = c.load(directory / 'execution-plan.json')
         try:
             receipts(root, prepared, rows, plan)
+        except INSPECTION_ERRORS as exc:
+            readiness = 'authorization_required'
+            readiness_diagnostics.append(from_exception(exc, phase='readiness'))
+    if not external_claims and mode == 'external' and consumer.get('semantic_edit') and readiness != 'blocked' and task_disposition == 'open':
+        try:
+            if 'handoff' not in events:
+                raise ProductionError('AUTHORIZATION_REQUIRED', 'The external handoff and exact submission need current authorization.',
+                    phase='authorization', run=identifier,
+                    required_action='Use handoff-intent and authorize under the actual direction grant, record the handoff, then authorize external-intent.')
+            count = consumer['semantic_edit']['external_request']['count']
+            intent = workflow.external_intent(root, identifier, count)
+            receipts(root, prepared, rows, {'operations': [intent]},
+                required_action='Authorize the exact external-intent under the actual submission grant, then claim-external.')
         except INSPECTION_ERRORS as exc:
             readiness = 'authorization_required'
             readiness_diagnostics.append(from_exception(exc, phase='readiness'))

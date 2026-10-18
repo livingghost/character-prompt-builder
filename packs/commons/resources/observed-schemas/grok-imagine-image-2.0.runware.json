@@ -3,8 +3,8 @@
   "model_id": "grok-imagine-image-2.0",
   "service": "runware",
   "model_identifier": "xai:grok-imagine@image-2.0",
-  "observed_at": "2026-09-13",
-  "source": "the service's model schema endpoint",
+  "observed_at": "2026-10-16",
+  "source": "Runware model_schema response for xai:grok-imagine@image-2.0",
   "schema": {
     "type": "object",
     "properties": {
@@ -16,7 +16,7 @@
       },
       "inputs": {
         "title": "Inputs",
-        "description": "The unified payload wrapper for complex media assets dictating image, video or audio inference constraints.",
+        "description": "Input assets for the task.",
         "type": "object",
         "properties": {
           "referenceImages": {
@@ -52,7 +52,8 @@
         "title": "Positive Prompt",
         "description": "Text prompt describing elements to include in the generated output.",
         "type": "string",
-        "minLength": 1
+        "minLength": 1,
+        "maxLength": 64000
       },
       "width": {
         "title": "Width",
@@ -102,6 +103,55 @@
         "title": "Include Cost",
         "description": "Include task cost in the response.",
         "type": "boolean"
+      },
+      "routing": {
+        "title": "Routing",
+        "description": "Model router options. Only read when `model` is `auto`, and never sent to the model.",
+        "type": "object",
+        "properties": {
+          "preferences": {
+            "title": "Preferences",
+            "description": "Relative importance of each dimension when models are compared. Weights, not thresholds.",
+            "type": "object",
+            "properties": {
+              "quality": {
+                "title": "Weight",
+                "description": "Importance of one dimension. `0` leaves it out of the decision.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
+              },
+              "speed": {
+                "title": "Weight",
+                "description": "Importance of one dimension. `0` leaves it out of the decision.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
+              },
+              "cost": {
+                "title": "Weight",
+                "description": "Importance of one dimension. `0` leaves it out of the decision.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
+              }
+            },
+            "additionalProperties": false
+          },
+          "maxPrice": {
+            "title": "Max Price",
+            "description": "Upper bound on what this request may cost, in USD. A model whose cost cannot be bounded is not chosen.",
+            "type": "number",
+            "minimum": 0
+          },
+          "requirements": {
+            "title": "Requirements",
+            "description": "Conditions the result has to meet, in plain words. A model that cannot meet them is not chosen.",
+            "type": "string",
+            "maxLength": 3000
+          }
+        },
+        "additionalProperties": false
       },
       "numberResults": {
         "title": "Number of Results",
@@ -341,10 +391,6 @@
           ]
         },
         "then": {
-          "required": [
-            "width",
-            "height"
-          ],
           "oneOf": [
             {
               "title": "1K (1:1)",

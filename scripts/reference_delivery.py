@@ -72,9 +72,10 @@ def instructions(mode: str, references: Sequence[Mapping[str, Any]],
         if row['region_pixels'] is not None:
             b = row['region_pixels']
             location += f', region x={b["x"]}, y={b["y"]}, width={b["width"]}, height={b["height"]}'
-        lines.append(f'Reference {row["reference_number"]} means {location}. '
-                     'Use it for: ' + '; '.join(row['controls']) + '. '
-                     'Do not inherit: ' + '; '.join(row['must_not_control']) + '.')
+        line = f'Reference {row["reference_number"]} means {location}. Use it for: ' + '; '.join(row['controls']) + '.'
+        if row['must_not_control']:
+            line += ' Do not inherit: ' + '; '.join(row['must_not_control']) + '.'
+        lines.append(line)
     return '\n'.join(lines) + '\n'
 
 

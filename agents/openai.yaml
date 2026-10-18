@@ -1,4 +1,4 @@
 interface:
   display_name: "Character Prompt Builder"
-  short_description: "Build character prompts and scoped reference packages"
-  default_prompt: "Use $character-prompt-builder to turn this character brief into a production-ready prompt and scoped reference package."
+  short_description: "Generate and edit characters with scoped references"
+  default_prompt: "Use $character-prompt-builder to turn this brief or existing image into a coherent generation or edit with scoped references."
