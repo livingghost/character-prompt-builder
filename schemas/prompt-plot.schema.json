@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "prompt-plot.schema.json",
   "title": "Prompt Plot",
-  "description": "The story one image tells, and what that story puts in the frame. Every derived statement names the story beat it comes from, so the picture's content is traceable rather than invented. Carries no target or model: the plot is settled and approved before an interface is chosen.",
+  "description": "The story one image communicates and the selected depiction decisions that serve it. Beat references establish source scope; the author judges necessity and sufficient scene meaning. The approved plot is independent of the target interface.",
   "type": "object",
   "required": [
     "artifact_type",
@@ -112,7 +112,7 @@
     "derived": {
       "type": "array",
       "minItems": 1,
-      "description": "What the story puts in the frame. One entry per statement.",
+      "description": "Selected frame requirements and purposeful decisions. Incidental deductions are omitted. Linking a beat does not make every plausible inference necessary.",
       "items": {
         "type": "object",
         "required": [
@@ -128,7 +128,7 @@
               "must_preserve",
               "free"
             ],
-            "description": "shows: what is in frame. placement: who or what is where. composition: how the frame is arranged. must_preserve: what cannot change. free: what the story does not fix."
+            "description": "shows: necessary depicted content. placement: meaning-bearing spatial relationships. composition: selected framing that serves the intent. must_preserve: fixed requirements. free: open choices for planning, not a permission block for the prompt."
           },
           "statement": {
             "type": "string",

@@ -8,6 +8,12 @@ Dispatcher and external requests retain the same source bytes, subject assignmen
 
 Retrieve applicable production knowledge and inspect each selected source before preparing it. Decide what the source may control, what it must leave alone, and why this request needs it. Choose only task-relevant sources rather than filling an arbitrary count. A model's observed attachment limit is an execution constraint, unlike a fixed aesthetic reference quota.
 
+A character sheet is a document containing views of its assigned subject.
+Use relevant views within the source's declared scope; panel selection need not
+be prescribed when several views carry complementary information. State the
+target outfit, action and expression separately. Add individual detail images
+when needed for legibility rather than enforcing a fixed reference count.
+
 Identity, current expression, wardrobe, lighting, pose and camera are different scopes; a transient state propagates only when requested, whatever identity the source shows. Express each source's `controls` and `must_not_control` authority scopes explicitly. Identical positive and excluded scopes are contradictory and rejected. The script leaves synonyms and semantic conflicts to the agent, who resolves them against the actual source and current intent.
 
 Use `prepare_generation_references.py --image-input-plan-file PLAN --studio STUDIO`
@@ -68,7 +74,7 @@ An external request binds the same logical rows to its declared field paths and 
 
 After rendering or copying the actual transports, the reference preparation runtime derives the canonical prompt preamble from their actual order. For multi-image input, identical committed transport hashes and media types share one attachment. Logical reference rows retain their distinct sources, adoption, roles and subject uses. For a single-board input, every logical reference points to attachment 1 and its exact panel rectangle in pixels from the top-left, and a board with several source panels consumes one model image slot in total. Source hashes, transport hashes, roles and panel rectangles must agree with the prepared set.
 
-The map and its prompt text are generated only after those transports exist. Do not retain an earlier numbering scheme, hand-rewrite the canonical preamble, or tell a model to use attachment 2 when only a board is attached. The board instruction distinguishes source panels from desired output composition and requests a collage only when the author's target does.
+The map and its prompt text are generated only after those transports exist. The text names delivered sources, assigned scopes and any precedence needed between competing sources. Numeric priorities remain in the binding record; prompt text expresses the relevant order and complementary groups. Do not retain an earlier numbering scheme, hand-rewrite the canonical preamble, or tell a model to use attachment 2 when only a board is attached. The board instruction distinguishes source panels from desired output composition and requests a collage only when the author's target does.
 
 ```sh
 python scripts/reference_delivery.py --prepared-set prepared.json --package-root WORK

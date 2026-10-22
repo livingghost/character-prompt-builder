@@ -417,7 +417,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         prompt_artifacts = (
             ROOT / "references/runtime/reference-prompt-artifacts.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("dependency preflight", skill.lower())
+        self.assertIn("dependency checks", skill.lower())
         self.assertIn(
             "python scripts/check_dependencies.py --profile visual", generation
         )
@@ -442,10 +442,10 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             "## Role map",
             "## Reference-to-prompt synthesis",
             "## Review",
-            "preserve authorized evidence",
-            "replace conflicting source content",
-            "add target content",
-            "omit contamination",
+            "Assign the delivered references to their subjects and permitted uses",
+            "Describe target changes as the chosen result",
+            "Add required target properties absent from the references",
+            "without narrating irrelevant source contents",
         ):
             self.assertIn(marker, reference)
         self.assertIn(
@@ -476,8 +476,8 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn("## Prompt rendition gate", generation)
         self.assertIn("resolve and read the complete guide before final rendition", generation)
         self.assertIn("Generation builders commit the supplied final rendition", generation)
-        self.assertIn("Treat this as the master prompt", prompt_only)
-        self.assertIn("This reviewed wording is the master prompt", composition)
+        self.assertIn("This is the master prompt", prompt_only)
+        self.assertIn("Use [Prompt Writing Guide](prompt-writing-guide.md) for the final interface", composition)
         self.assertIn("already rendered for the named target", output_template)
         self.assertIn("The Skill-using agent decides which rules are relevant.", runtime)
 

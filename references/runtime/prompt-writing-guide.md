@@ -13,7 +13,7 @@ Use this runtime when a final prompt must be rendered for a named model or inter
 - prompt-length pressure
 - controlled comparison of one term
 
-Art direction comes first: form the image intent, preserve every user anchor and complete semantic planning. Select the exact interface and one adapter before rendering. Catalog targets use their active model records; external generation or editing may use acquired provider evidence while recording a missing catalog definition.
+Art direction comes first: select the depiction under [Prompt Composition](prompt-composition.md#select-the-depiction), preserve every user anchor, and settle the relationships the purpose needs. Select the exact interface and one adapter before rendering. Catalog targets use their active model records; external generation or editing may use acquired provider evidence while recording a missing catalog definition.
 
 ## Resolve the active guide
 
@@ -45,7 +45,7 @@ Read the complete resolved guide before writing the final model-facing rendition
 
 ## Application sequence
 
-1. Finish the master prompt free of parser-specific notation.
+1. Finish the master prompt from selected requirements and purposeful choices, free of parser notation and planning commentary.
 2. Select the exact interface, its catalog record or acquired external contract, and one adapter.
 3. For a catalog target, resolve service weighting through [Explicit Prompt Weighting](prompt-weighting.md) and its family through `scripts/prompt_dialect.py --model <model-id>`. An external target uses only parser behavior its evidence supports. Rules for another family stay unapplied.
 4. Apply interface-neutral construction rules that improve hierarchy, concision, visible scope, and controlled testing.
@@ -64,13 +64,13 @@ A weight raises attention on the tokens of a term. Binding the term to the thing
 
 Assume nothing about a universal 75-token ceiling: prompt capacity, chunking, and truncation are properties of the active encoder and workflow. Keep high-priority construction early when the interface is tag-oriented, and keep required semantics even when a remembered number argues for cutting them.
 
-A non-load-bearing off-frame detail may be omitted from the model-facing rendition when it consumes scarce prompt capacity or visibly damages the current frame. Preserve it in canonical identity or scene state when continuity still owns it.
+Omit incidental detail because it contributes no requirement or selected effect, regardless of available prompt capacity. Preserve canonical identity and scene state at their owners. Do not turn an omitted detail into a permission, exclusion or instruction to reveal it.
 
 The `negative-policy` resource decides which negative sources are active and how each kind of target writes one; a tag family's own form is the `negative_form` that `scripts/prompt_dialect.py` returns. A negative channel is for qualities that arrive uninvited. Before adding a term to it, check whether a positive term is requesting the quality being suppressed; if so, remove that positive term instead. Negatives that contradict live positives fight inside one representation and usually damage the wanted content along with the unwanted. A negative list that grows across successive revisions is a symptom of an unresolved positive-side cause rather than of a thorough exclusion policy.
 
 ## Controlled comparison
 
-When the task is to test whether a term, placement, weight, LoRA strength, or negative token changes the result, follow the guide's controlled-comparison section. Hold the remaining generation conditions constant and change one variable at a time. Treat the result as evidence for that exact setup rather than as a universal rule.
+When the task is to test whether a term, placement, weight, LoRA strength, or negative token changes the result, follow the guide's controlled-comparison section. Hold the remaining generation conditions constant and change one variable at a time. Record reference content and ordering as well as prompt and settings. If several change, compare the complete setups without attributing improvement to one change. Treat a result as bounded evidence, not a universal model verdict.
 
 ## Read the rendition back before it is sent
 

@@ -26,7 +26,7 @@ Treat an SVG as bounded visual evidence, not as the complete target image and no
 
 User anchors and the resolved target override source presentation. Record knowledge names the reusable meaning; visible evidence shows how that meaning is depicted. Do not infer a semantic claim from a filename, gallery title, color patch, mask, or unexplained shape alone. When the record and image appear inconsistent, stop and review the evidence relation instead of choosing whichever is convenient.
 
-For every source, write a compact semantic reading before prompt composition:
+Assess each source through these questions before composition. Record task-bearing decisions at the existing reference owner:
 
 - `role`: exactly one intended influence for this use;
 - `preserve`: visible properties that the source is authorized to carry;
@@ -36,7 +36,10 @@ For every source, write a compact semantic reading before prompt composition:
 - `prompt_clause`: positive final-state wording that binds the accepted evidence to the target;
 - `precedence`: the source's order among other uses.
 
-One SVG may serve several intended influences only through separate declared uses with separate preserve, replace, add, and omit scopes. Never widen one use merely because the same pixels contain other useful properties.
+One SVG may serve several intended influences through separate declared uses.
+Keep their scopes distinct even when the same pixels carry multiple properties.
+The assessment is not a prose inventory for the final prompt. In particular,
+an omitted incidental detail needs no model-facing permission or denial.
 
 ## Role map
 
@@ -66,24 +69,33 @@ Generation Package preparation has two provenance paths: pack-backed Reference U
 
 ## Reference-to-prompt synthesis
 
-Compose the prompt from the final target outward, not by narrating the source images.
+Select the target depiction under
+[Prompt Composition](runtime/prompt-composition.md#select-the-depiction), then
+bind the relevant source evidence to it.
 
-1. State the complete target subject and scene first. Make the final species, age presentation, body plan, activity, setting, and medium unambiguous.
-2. Add one role-scoped clause per selected source in precedence order. Name both the accepted properties and the scope boundary.
-3. Express changes as final positive construction. State the target identity's required anatomy, proportions, and markings rather than merely saying to remove the source identity.
-4. Bind exact geometry in text whenever it is load-bearing: subject ownership, hand path, support, contact point, overlap, camera side, crop, prop attachment, and depth order.
-5. Translate record knowledge into visible language. Use scene `staging` for geometry, `performance_language` for expression and physiological cues, `defaults` only for open choices, `image_promise` for the whole-image thesis, and `style_reference_guidance` only for the named finish channels.
-6. Add requested properties absent from the references. A reference never cancels prompt requirements such as a darker room, stronger blush, more sweat, a different species, removed clothing, or an added prop.
-7. Omit incidental source presentation affirmatively where possible and place residual contamination risks in the target adapter's supported negative channel.
-8. Read the assembled prompt once without seeing the sources. It must still describe one coherent image. Then read it with the sources and confirm that every reference has one understandable job.
+1. State the intended event or visual purpose and its necessary relationships.
+2. Assign the delivered references to their subjects and permitted uses through
+   the canonical binding. Retain explicit exclusions and required precedence.
+3. Describe target changes as the chosen result. Keep a required exclusion when
+   it has independent meaning; do not manufacture an opposite for every deletion.
+4. Specify geometry where ownership, contact, depth or framing carries the
+   intended action or a reconstruction-critical detail.
+5. Use record knowledge only for the selected depiction. A record's defaults,
+   possible failures and example objects are not automatic additions.
+6. Add required target properties absent from the references. Let a sheet's
+   relevant views supply its declared identity or wardrobe information.
+7. Check the prompt against the actual ordered inputs. Together they must
+   communicate the intent, without narrating irrelevant source contents.
 
-Do not use vague clauses such as `same as the reference`, `copy the SVG`, or `use reference 2 for the vibe`. Use clauses such as:
+Synthetic example with a character sheet and an environment source:
 
 ```text
-Render [target subject] performing [target action] in [target environment]. Preserve reference A only for [authorized identity features]. Adopt reference B only for [pose, support, contact, camera, and crop]; replace B's source subject with the target identity and ignore B's identity, clothing, lighting, and environment. Use reference C only for [authorized environment layout, support surfaces, depth, and background objects]. Add [requested target properties absent from the references]. Omit [incidental source state, masks, placeholder colors, text, and unrelated objects].
+Illustrate a potter shaping the rim of a clay bowl at a wheel. The character sheet defines the potter's appearance and work clothes; Image 2 defines the studio interior. The potter looks at the rim while guiding it with both hands. Make the shaping action readable. Use the sheet's illustrated finish throughout the scene.
 ```
 
-This wording performs four distinct operations: preserve authorized evidence, replace conflicting source content, add target content, and omit contamination. The final prompt remains authoritative even when the endpoint also receives the SVG-derived carriers.
+The scene specifies what happens; the references supply their assigned
+construction and appearance. A sheet's alternative views remain evidence for
+one character rather than additional people or a requested output layout.
 
 ## Layer roles
 

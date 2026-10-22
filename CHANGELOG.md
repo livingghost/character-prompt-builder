@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.10.22.1
+
+- Select prompt instructions from explicit requirements, necessary scene meaning and purposeful art direction. Keep incidental deductions and planning commentary out of model-facing wording.
+- Coordinate scene design, camera coverage, reference use and output review around the artifact's purpose. Preserve necessary action relationships without imposing unrequested framing, visibility or restrained performance.
+- Use character sheets as scoped multi-view evidence. Render source precedence only where sources compete, while retaining exact subject assignments, authority and delivery bindings.
+- Evaluate revisions and model comparisons against the same requirements, separating observable defects, unobservable properties and optional preferences. Keep multi-variable comparisons distinct from isolated causal evidence.
+- Exercise purpose-specific prompt packaging and complementary-reference precedence with neutral synthetic cases.
+
 ## 2026.10.18.7
 
 - Record canonical temporary-directory spellings in the multi-subject reference and model suitability fixtures. On a Windows host whose temporary directory arrives as an 8.3 short name or a junction spelling, both suites failed their path comparisons against the canonical spellings the runtime records.

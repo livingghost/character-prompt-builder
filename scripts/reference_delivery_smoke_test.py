@@ -75,7 +75,7 @@ class ReferenceDeliveryTests(unittest.TestCase):
         text = d.binding_instructions(rows)
         self.assertIn('Reference 1 means request field ["source_image"].', text)
         self.assertIn('Reference 2 means request field ["references",0,"url"].', text)
-        self.assertIn('subject A, identity, priority 0', text)
+        self.assertIn('subject A, identity', text)
         self.assertIn('Do not inherit: current orientation; expression.', text)
         self.assertNotIn('Image 1', text)
         self.assertNotIn('Image 2', text)
@@ -139,8 +139,8 @@ class ReferenceDeliveryTests(unittest.TestCase):
         self.assertNotEqual(self.rows[0]['source'], self.rows[1]['source'])
         self.assertEqual(self.rows, original)
         text = d.instructions('multi-image', self.rows)
-        self.assertIn('subject A, identity, priority 0', text)
-        self.assertIn('subject B, outfit, priority 1', text)
+        self.assertIn('subject A, identity', text)
+        self.assertIn('subject B, outfit', text)
         self.assertNotIn('Image 2', text)
 
     def test_priority_compares_only_the_same_subject_and_use(self):
@@ -149,9 +149,33 @@ class ReferenceDeliveryTests(unittest.TestCase):
             {'subject_id': 'B', 'use': 'outfit', 'priority': 0}]
         self.rows[1]['subject_uses'] = [{'subject_id': 'A', 'use': 'identity', 'priority': 1}]
         text = d.instructions('multi-image', self.rows)
-        self.assertIn('For subject A, identity sources in priority order: Reference 2 (priority 1); Reference 1 (priority 3).', text)
-        self.assertNotIn('For subject B, outfit sources in priority order:', text)
-        self.assertIn('only within the same subject and use', text)
+        self.assertIn('For subject A, identity, resolve source differences in this order: Reference 2; then Reference 1.', text)
+        self.assertNotIn('For subject B, outfit, resolve source differences', text)
+        self.assertIn('within the listed scopes', text)
+
+    def test_complementary_views_retain_scopes_without_inventing_scene_content(self):
+        for row in self.rows:
+            row['subject_uses'] = [{'subject_id': 'A', 'use': 'identity', 'priority': 0}]
+        original = copy.deepcopy(self.rows)
+        text = d.instructions('multi-image', self.rows)
+        self.assertIn('Views assigned to the same subject depict one character.', text)
+        self.assertIn('For subject A, identity, Reference 1 and Reference 2 provide complementary evidence.', text)
+        self.assertNotIn('resolve source differences', text)
+        self.assertNotIn('priority', text)
+        self.assertEqual(self.rows, original)
+        self.assertIn('Use it for: enduring shape.', text)
+        self.assertIn('Do not inherit: current orientation; expression.', text)
+
+    def test_complementary_groups_preserve_order_between_scopes(self):
+        third = copy.deepcopy(self.rows[1])
+        third['transport']['sha256'] = 'e' * 64
+        self.rows.append(third)
+        for row, priority in zip(self.rows, [2, 0, 0]):
+            row['subject_uses'] = [{'subject_id': 'A', 'use': 'outfit', 'priority': priority}]
+        text = d.instructions('multi-image', self.rows)
+        self.assertIn('For subject A, outfit, Reference 2 and Reference 3 provide complementary evidence.', text)
+        self.assertIn('For subject A, outfit, resolve source differences in this order: Reference 2 and Reference 3; then Reference 1.', text)
+        self.assertEqual([r['subject_uses'][0]['priority'] for r in d.bindings('multi-image', self.rows)], [2, 0, 0])
 
     def test_subject_assignment_checks_actual_cast_without_state_graph(self):
         spec = {'subjects': [{'id': 'A'}, {'id': 'B'}], 'state_context': {'mode': 'stateless'}}

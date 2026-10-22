@@ -104,21 +104,29 @@ Audit the source into five groups before prompt writing:
 2. approved scene-specific state to continue because the user or resolved state requires it;
 3. source-only scene-specific state to discard;
 4. source-render context or contamination to discard or rescope, including camera, crop, lighting, environment, finish, readable text, logos, insignia, and watermarks;
-5. affirmative target scene state and render context replacing every discarded load-bearing domain. Do not stop at `do not copy the grin`; specify the intended performance, articulation, physical and surface condition, presentation, bindings, relationships, awareness, environmental response, and current form or appearance.
+5. target scene state and rendering needed to communicate this image. Select
+   those requirements under [Prompt Composition](prompt-composition.md#select-the-depiction),
+   rather than filling every possible state channel.
 
 Source scene state is unlocked by default. A rendered pixel does not promote a feature into the Identity Contract. Stable hair, mane, ruff, facial hair, and regional covering construction already owned by identity remain stable and must not be discarded as temporary grooming.
 
 Audit scene state through attention and awareness; facial, vocal, gestural, postural, action, contact, and support articulation; physical, physiological, emotional, and surface condition; current appearance and presentation; possession, inventory, equipment, and prop bindings; relationship state, social stance, and viewer awareness; environmental response; and current era, form, transformation, or appearance state.
 
-Use this model-facing boundary, replacing placeholders with reviewed target values:
+The audit establishes source scope. The model-facing text communicates the
+selected target and the references' jobs, not the audit's complete taxonomy.
+For example, with a synthetic identity source:
 
 ```text
-Image 1 supplies permanent character identity only. Do not transfer its scene-specific character state or source-render context. Scene-specific character state means every visible or performance-relevant property that can change while the subject remains the same character, across attention and performance; articulation, pose, action, contact, and support; physical, physiological, emotional, and surface condition; appearance and presentation; possessions and equipment; relationships and viewer awareness; environmental response; and resolved current form or appearance. Reconstruct all of those domains from the target scene and the following target-state requirements: <affirmative target state>. Preserve only these permanent identity traits from Image 1: <identity traits>.
+Use Image 1 for the courier's permanent appearance. Depict the courier handing a sealed parcel to the shopkeeper across the counter. The courier holds the parcel out as the shopkeeper reaches to receive it. Both look at the parcel. Follow the selected wardrobe references for their clothing.
 ```
+
+Specify additional state or construction when it carries the requested meaning
+or resolves a real source conflict. Unneeded source details and unselected
+alternatives are omitted rather than converted into visibility permissions.
 
 Scope pack sources through the canonical Reference Use Plan and direct sources through their reviewed state bindings. Identity evidence supplies only named permanent identity. Scene and structural evidence supplies only its declared composition, support, contact, prop, camera, environment, light, or other influence. Reject source character identity and source-specific text or insignia from nonidentity references. Review identity drift and source-state leakage as separate failure classes.
 
-A short `use this character in this scene` instruction may produce a plausible composite; it is not a continuity-safe substitute for the complete boundary.
+Keep complete authority in the reference binding. Prompt brevity does not weaken that binding; the text must communicate the selected target and each source's assigned use.
 
 ## Reference Selection and materialization
 

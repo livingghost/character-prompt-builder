@@ -58,9 +58,15 @@ within the same subject and use. Priority leaves source authority unchanged
 and has no meaning between different subjects or uses.
 
 Keep logical assignments separate from physical attachments. One source may
-serve identity and wardrobe for the same person. Several views of a person
-still describe one subject. Equal image bytes with different source or
-adoption evidence retain their distinct provenance.
+serve identity and wardrobe for the same person. A character sheet supplies
+multiple views of one subject. Let the model use the views relevant to the
+requested depiction within the sheet's assigned scopes. Name a specific panel
+when it resolves a material ambiguity or carries a required detail.
+
+Select the target outfit and performance separately from those source views.
+Supplement a sheet with individual images when readability or input limits
+require it. Equal image bytes with different source or adoption evidence retain
+their distinct provenance.
 
 Keep `controls`, `must_not_control` and the original source authority. A
 wardrobe reference cannot silently acquire identity or pose authority. A
@@ -86,10 +92,11 @@ The production task's `direction.action_slice` owns a selected action phase
 when the image needs one. Read the performance and geometry features when
 those decisions are load-bearing.
 
-For a conversation across a desk, establish each subject's side of the desk,
-the speaker and listener, gaze targets, body orientation and readable moment.
-Similar expressions can suit a scene; the intended interaction decides their
-relationship. A forced expression difference is not a quality criterion.
+Select instructions using [Prompt Composition](prompt-composition.md#select-the-depiction).
+For a conversation, establish the roles and interaction that convey the moment.
+Specify sides, gaze or body orientation when they matter to that exchange.
+Readability need not fix every position, gesture or crop. Similar expressions
+can suit the scene; evaluate their meaning rather than forcing a difference.
 
 Resolve `render_intent` for the final image, including medium, dimensionality,
 linework, shading, surface and detail. Preserve required physique and finish
@@ -167,8 +174,11 @@ scene and the relevant face, garment, hand, foot and contact regions.
 
 Apply the author's scoped `accepted_variations` from
 [Production direction](production-direction.md#preserve-accepted-variation-at-its-declared-scope).
-Evaluate natural acting changes separately from identity drift. Record the
-observation, criterion, reason and unresolved issue in the existing review.
+Evaluate acting and composition against the selected requirements, not the
+agent's imagined exact picture. Distinguish requirement failures, unobservable
+properties and optional preferences. An unseen detail is neither verified nor
+a defect unless its visibility is required. Record actual observations and
+criteria in the existing review.
 
 Before treating a method as reusable, exercise the actual requirements that
 matter: distinct face angles, changed wardrobe, multiple subjects, reference

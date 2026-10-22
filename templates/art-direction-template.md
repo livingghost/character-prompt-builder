@@ -20,9 +20,20 @@ One or two sentences describing what must be visually true, what makes the image
 - medium or style:
 - other explicit requirements:
 
+## Depiction requirements
+
+- information the artifact must communicate:
+- necessary participant roles, action targets and relationships:
+- explicit visibility or framing requirements:
+- purposeful additions and the effect they serve:
+
+Record selected decisions only. For an inferred detail, consider whether a
+successful image could render it differently. Leave incidental deductions out.
+Check that the remaining decisions still communicate the intended event.
+
 ## Creative space
 
-- details the art direction may invent:
+- meaningful choices the author has left open:
 
 ## Consequential ambiguity
 
@@ -75,8 +86,8 @@ One or two sentences describing what must be visually true, what makes the image
 - source-lighting evidence semantic roles: <unique semantic roles recomputed from exactly those complete lighting-evidence items | none>
 - permanent identity authority: <stable traits authorized by identity-scoped uses, or none>
 - scene-conditioned authority: <target-scene properties authorized by their declared influences, or none>
-- source scene-conditioned presentation to discard: <complete domain-based inventory, or none>
-- source-render context to discard or rescope: <camera, crop, light, environment, finish, text, marks, and other residue, or none>
+- target scene state: <chosen action, performance and attire relevant to the depiction>
+- source scope conflicts: <actual ambiguities to resolve, or none>
 - canonical Prepared Reference Set: <set ID and hash after preparation | not built yet>
 - verified Generation Package: <package path and generation_input_sha256 after packaging | not built yet>
 
@@ -97,11 +108,14 @@ Do not maintain a parallel hand-written prepared-reference list. The Reference U
 
 ## Prompt review
 
-- image intent fulfilled:
+- required event or visual purpose communicated:
+- explicit anchors preserved:
+- inferred instructions serve necessary meaning or a selected effect:
+- incidental deductions and planning commentary omitted from the prompt:
 - subject domains realized correctly:
 - gaze and relationship correct:
 - support and contact correct:
-- composition and crop correct:
+- composition communicates required information without imposing incidental coverage:
 - medium coherent:
 - concrete style-family grammar coherent:
 - production-spec relationships preserved:

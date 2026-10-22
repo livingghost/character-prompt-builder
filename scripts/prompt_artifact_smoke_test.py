@@ -82,6 +82,95 @@ def run(script: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def check_authored_depictions(root: Path, script: Path) -> list[str]:
+    """Exercise exact text/plot transport for purpose-specific synthetic briefs.
+
+    These checks verify packaging, not the author's semantic judgment or any
+    image model's ability to follow the wording.
+    """
+    cases = [
+        (
+            "shared-repair",
+            "Show two conservators repairing a wooden frame together.",
+            "Two conservators repair a wooden frame at a workbench. One steadies "
+            "the frame while the other brushes adhesive into its joint. Both "
+            "watch the joint. Frame the work so their distinct roles are readable.",
+            "The two actions share the frame joint as their target.",
+            "One conservator steadies the frame while the other works its joint.",
+            "The framing keeps both roles readable.",
+            "Both participants stay engaged with the same joint.",
+            "The exact camera height remains open.",
+        ),
+        (
+            "outfit-reference",
+            "Show the complete work outfit, including gloves and lace-up boots.",
+            "A full-length outfit reference shows a canvas jacket, trousers, "
+            "gloves and lace-up boots. The garment shapes and fastenings are clear.",
+            "The complete outfit and its footwear are visible.",
+            "Each garment sits in its worn position on the figure.",
+            "The full figure fits inside the frame.",
+            "Gloves and lace-up boots remain visible.",
+            "The backdrop tone remains open.",
+        ),
+        (
+            "label-free-product",
+            "Show a plain carton with no text or logos.",
+            "A plain cardboard carton under soft studio light, with no text or logos.",
+            "The surface is unprinted.",
+            "No spatial relationship is required beyond the carton itself.",
+            "The carton is the only subject in frame.",
+            "No text or logos appear on any face.",
+            "The carton orientation remains open.",
+        ),
+    ]
+    errors = []
+    for name, brief, wording, requirement, placement, composition, preserved, open_choice in cases:
+        folder = root / name
+        folder.mkdir()
+        text = wording + NL
+        prompt = folder / "prompt.txt"
+        prompt.write_text(text, encoding="utf-8")
+        plot_value = {
+            "artifact_type": "prompt-plot",
+            "story": [{"id": "purpose", "beat": brief, "visibility": "visible"}],
+            "derived": [
+                {"kind": "shows", "statement": requirement, "from": ["purpose"]},
+                {"kind": "placement", "statement": placement, "from": ["purpose"]},
+                {"kind": "composition", "statement": composition, "from": ["purpose"]},
+                {"kind": "must_preserve", "statement": preserved, "from": ["purpose"]},
+                {"kind": "free", "statement": open_choice},
+            ],
+        }
+        plot_value["approved"] = {
+            "by": "synthetic fixture author", "at": "2026-10-22T00:00:00Z",
+            "content_sha256": content_sha256(plot_value),
+        }
+        plot_path = folder / "plot.json"
+        plot_path.write_text(json.dumps(plot_value) + NL, encoding="utf-8")
+        retrieval = {
+            "artifact_type": "prompt-retrieval-record",
+            "elements": [{
+                "element": "depiction", "queries": [brief], "inspected_records": [],
+                "outcome": "composed", "composed_wording": wording,
+                "reason": "Synthetic authored wording for a packaging contract test.",
+            }],
+        }
+        record = folder / "retrieval.json"
+        record.write_text(json.dumps(settle_retrieval_record(retrieval, prompt=text, plot=plot_value)) + NL,
+                          encoding="utf-8")
+        out = folder / "package"
+        result = run(script, "--prompt", str(prompt), "--plot", str(plot_path),
+                     "--retrieval-record", str(record), "--prepare-for-generation", "--out-dir", str(out))
+        if result.returncode:
+            errors.append(f"{name}: package failed: {result.stderr}")
+            continue
+        if (out / "final-prompt.txt").read_bytes() != prompt.read_bytes():
+            errors.append(f"{name}: final prompt differs from authored depiction")
+        if json.loads((out / "prompt-plot.json").read_text(encoding="utf-8")) != plot_value:
+            errors.append(f"{name}: plot requirements or open choices were changed")
+    return errors
+
+
 def main() -> int:
     script = Path(__file__).with_name("build_prompt_artifacts.py")
     with tempfile.TemporaryDirectory(prefix="cpb-prompt-artifacts-") as temp:
@@ -245,7 +334,7 @@ def main() -> int:
         )
         references_ok = counted == 2 and carried and unknown_run.returncode != 0
 
-        errors: list[str] = []
+        errors: list[str] = check_authored_depictions(root, script)
         if not minimal_ok:
             errors.append(f"unexpected minimal prompt-only package: return={proc.returncode}, files={files}, stderr={proc.stderr}")
         if blocked.returncode == 0:
@@ -282,6 +371,7 @@ def main() -> int:
             "errors": errors,
             "stats": {
                 "files": files,
+                "authored_depiction_cases": 3,
                 "invalid_semantic_plan_blocked": blocked.returncode != 0,
                 "plot_required": no_plot.returncode != 0,
                 "unapproved_plot_refused": unapproved_package.returncode != 0,

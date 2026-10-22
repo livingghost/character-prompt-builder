@@ -30,6 +30,13 @@ python scripts/revision_contract.py revision.json --out revision-report.json
 
 Use `--help` for the CLI. `requested_paths` and `frozen_paths` are non-root RFC6901 JSON pointers. Each optional `consistency_changes` entry has exactly `path` and a nonempty `reason`. Objects are compared recursively; arrays are atomic so reordering cannot hide a change. Replacing an ancestor does not count as a permitted child edit. Output includes `ok`, `operation`, `scope`, exact `changed_paths`, both hashes, disclosed consistency changes and errors. Invalid input or an out-of-scope change returns nonzero.
 
+Select the revised depiction from its current requirements under
+[Prompt Composition](prompt-composition.md#select-the-depiction). Rebuild affected
+wording instead of accumulating repair clauses. During a local edit, preserve
+the working baseline outside the actual change. An exploratory prompt may
+reconsider incidental choices within its delegated scope. Omitted instructions
+need no replacement permission or contrary statement.
+
 When materializing a revision, pass `--revision-contract revision.json` to `build_prompt_artifacts.py`. For a Generation Package include the same object as `creative_intent.revision_contract`; both builder and verifier validate it. Render the final prompt from the approved candidate semantics and preserve all actual reference commitments. Structured validation does not prove that an independently written prompt faithfully describes the candidate; the executing agent must compare them.
 
 Return the complete current prompt, applicable negative and reference deliverables after a revision. Return a diff only when requested, or retain the deterministic report as production evidence. Do not reinterpret "another target" as "another character" or reuse an approval after its bound content changes.

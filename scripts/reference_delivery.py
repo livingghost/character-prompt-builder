@@ -13,9 +13,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-SUBJECT_USE_RULE = ('Subject IDs identify characters, not extra people per reference. '
-                    'Each use is limited by its declared source authority. Lower priority numbers win only '
-                    'within the same subject and use; equal priorities provide complementary evidence.')
+SUBJECT_USE_RULE = ('Views assigned to the same subject depict one character. '
+                    'Use their relevant evidence within the listed scopes.')
 
 
 def validate_subject_uses(value: Any, *, subject_ids: set[str] | None = None,
@@ -186,7 +185,7 @@ def instructions(mode: str, references: Sequence[Mapping[str, Any]],
 
 
 def binding_instructions(rows: Sequence[Mapping[str, Any]]) -> str:
-    """Render the same committed subject, scope and image map for every request."""
+    """Render delivered sources and scopes, with precedence where sources compete."""
     if not rows:
         return ''
     lines = ['Reference numbers below refer to the actual delivery, not a source-library index.']
@@ -214,7 +213,7 @@ def binding_instructions(rows: Sequence[Mapping[str, Any]]) -> str:
             line += f' Apply this reference only to subject {row["subject_id"]}.'
         if row.get('subject_uses'):
             line += ' Apply these uses: ' + '; '.join(
-                f'subject {use["subject_id"]}, {use["use"]}, priority {use["priority"]}'
+                f'subject {use["subject_id"]}, {use["use"]}'
                 for use in row['subject_uses']) + '.'
         if row['must_not_control']:
             line += ' Do not inherit: ' + '; '.join(row['must_not_control']) + '.'
@@ -224,9 +223,21 @@ def binding_instructions(rows: Sequence[Mapping[str, Any]]) -> str:
         for use in row.get('subject_uses', []):
             groups.setdefault((use['subject_id'], use['use']), []).append((use['priority'], row['reference_number']))
     for (subject, use), members in groups.items():
-        if len(members) > 1:
-            lines.append(f'For subject {subject}, {use} sources in priority order: ' + '; '.join(
-                f'Reference {number} (priority {priority})' for priority, number in sorted(members)) + '.')
+        if len(members) < 2:
+            continue
+        by_priority: dict[int, list[int]] = {}
+        for priority, number in sorted(members):
+            by_priority.setdefault(priority, []).append(number)
+        ordered: list[str] = []
+        for numbers in by_priority.values():
+            names = [f'Reference {number}' for number in numbers]
+            group = ', '.join(names[:-1]) + ' and ' + names[-1] if len(names) > 1 else names[0]
+            if len(names) > 1:
+                lines.append(f'For subject {subject}, {use}, {group} provide complementary evidence.')
+            ordered.append(group)
+        if len(ordered) > 1:
+            lines.append(f'For subject {subject}, {use}, resolve source differences in this order: '
+                         + '; then '.join(ordered) + '.')
     return '\n'.join(lines) + '\n'
 
 

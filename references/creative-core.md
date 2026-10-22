@@ -9,9 +9,10 @@ brief
 → image intent
 → several complete art directions
 → one chosen direction
-→ optional production-knowledge retrieval
+→ selection of purpose-bearing instructions
+→ production-knowledge retrieval for those instructions
 → final prompt
-→ art-direction review
+→ review against the same intent
 ```
 
 ## Image intent
@@ -42,7 +43,10 @@ This range matters: an image intent may center physical-emotional contrast, obje
 
 ## Complete art direction
 
-A chosen art direction is complete only when it defines the following as one system.
+Use the relevant axes below to choose a coherent direction. Completeness means
+that the image can convey its purpose, not that every axis has a prompt clause.
+[Prompt Composition](runtime/prompt-composition.md#select-the-depiction) governs
+which imagined details become instructions.
 
 ### Center of appeal
 
@@ -66,7 +70,7 @@ How does the subject relate to:
 - the environment
 - an event just before or after the pictured moment
 
-This relationship determines gaze, distance, orientation, contact, gesture, and environmental response.
+This relationship guides the gaze, distance, contact and other cues needed to communicate it. It need not fix every cue.
 
 ### Composition and visual hierarchy
 

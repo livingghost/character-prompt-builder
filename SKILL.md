@@ -5,30 +5,30 @@ description: Create image prompts, scoped negatives and canonical references for
 
 # Character Prompt Builder
 
-Keep world, subjects, themes and expression coherent. For images, act as an art director: produce one coherent executable image, not a record list.
+Keep subjects, world and expression coherent. Art-direct each image as one depiction, not a record list.
 
-Use English prompts/retrieval and the user's language. Translate meaning, modifier scope, relationships, negation and ambiguity; never use per-language word lists.
+Use English prompts/retrieval and the user's language. Preserve meaning, modifier scope, relationships, negation and ambiguity without language word lists.
 
 ## Core contract
 
-Identify the artifact, purpose, user anchors, creative space and material ambiguity. Clarify material ambiguity; otherwise choose a direction or requested alternatives, never an incompatible average. Choose the expression and verify it on the actual artifact.
+Identify the artifact, purpose, anchors and creative space. Clarify consequential ambiguity; otherwise choose a coherent direction. Select explicit requirements, necessary meaning and purposeful art direction. An imagined detail is not a requirement: leave it open when another depiction meets the same intent. Do not convert omissions into permissions or exclusions. Verify the chosen instructions and resulting image against the intended event.
 
 Never alter an anchor silently. Disclose each modification and its reason. Assumptions fill open space; modifications change intent. Keep creator portrayal intent separate from facts and psychology; apply it across outputs.
 
-The user owns acceptance and delegation. Bind the exact input, target and count to actual authority; distinguish direction, edits, submission, selection and canonical adoption. Act within explicit delegation without repeated unnecessary approval, and stop outside it. Observe actual outputs, distinguish intended from observed effects, and revise only within the authorized scope.
+The user controls acceptance and delegation. Bind inputs, target and count to authorization; distinguish direction, editing, submission, selection and canonical adoption. Act within that scope without repeated approval, and stop outside it. Compare actual output with intent; revise only within authority.
 
 Preserve supported production knowledge at full specificity across every genre and intensity level, from everyday and wholesome subjects to sensitive material such as violent, medical, grotesque, body-altering, or adult knowledge, without exception. Read [Prompt Knowledge and Execution Boundary](references/prompt-knowledge-boundary.md) when relevant.
 
 Use plain ASCII punctuation in studio documents, prompts, JSON text, and packaged examples. Do not emit the Unicode em dash.
 
-Keep judgment and automation separate. The agent owns meaning, ambiguity, intent, direction, visual authority, composition and review. Scripts own deterministic state, cache, retrieval, resolution, validation, materialization, dependency preflight, verification and dispatch. Never force unresolved meaning through keywords or duplicate script work. A script is usable only when routed documentation exposes activation, input, output, help or example, failures, and a regression test. Resolve paths from the installed `SKILL.md` directory, not the working directory.
+Keep judgment and automation separate. The agent owns meaning, ambiguity, direction, visual authority, composition and review. Scripts own state, retrieval, validation, materialization, dependency checks, verification and dispatch. Do not force unresolved meaning into keywords. Use scripts with documented activation, inputs, outputs, failures and tests. Resolve paths from installed `SKILL.md`.
 
 ## Rendering and model controls
 
 For image work, resolve [Rendering choices and execution controls](references/runtime/render-contract.md), feature `render-contract`.
 Choose medium, dimensionality, linework, shading, surface, and detail explicitly, with the user's selection or the agent's reason.
 Keep presentation and subject identity separate. Use scoped overrides for mixed media; never invent body or age changes from a finish.
-After `pack_cli.py ready`, read the complete selected model card and apply scoped use-case guidance and author preferences before model-specific wording. Unlisted targets use their acquired provider contract.
+After `pack_cli.py ready`, read the selected model card and use-case guidance and author preferences before model-specific wording. Unlisted targets use acquired provider contracts.
 Retrieve the wording, then bind its rendering span in `render_intent`: inside the Production Specification for dispatch, or as an applied task source for external work.
 A Generation Package requires the exact interface's profile and mode-valid controls. For an unlisted target, record the absence and follow [Image Generation](references/runtime/image-generation.md#choose-execution). Shared `image_input` binds references and exact external requests; actual edits add [Semantic instruction editing](references/runtime/semantic-instruction-edit.md). [Model request evidence](references/runtime/model-evidence.md) owns schemas, trials, profiles, suitability and failure diagnosis.
 Required scalar recommendations resolve with provenance; ranges require a choice. Unavailable controls are displayed, not sent.
@@ -105,14 +105,14 @@ After story revisions, update Studio sources and run `studio.py sync` for the au
 For image work:
 
 1. Resolve the artifact and whether it needs saving. For saved work, establish the Studio and read the selected route.
-2. Separate anchors from creative space. For character reuse, resolve missing reference coverage and stage-specific targets before final wording.
+2. Separate requirements, purposeful choices and incidental deductions. Select the relationships and visible information the purpose needs. For character reuse, resolve reference coverage and stage-specific targets.
 3. Read interface guidance; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Retrieve every visual element. Inspect every selected canonical record in full. Dispatcher work resolves the execution profile.
-4. Author the prompt, render intent, scoped references and criteria under actual direction authority. Retain required plot approval and settle retrieval against the final wording.
+4. Write the selected depiction, render intent, reference scopes and matching criteria. Keep planning alternatives and unneeded details out of the prompt. Retain required plot approval and settle retrieval against the final wording.
 5. Save the final prompt, settings, evidence and any Studio recording destination in the task's declared inputs.
 6. `production_workflow.py check --task task.json` reports diagnostics without creating a run. `prepare` publishes the request preview and execution plan; dispatcher runs also contain a Generation Package.
 7. Review the complete request and operation targets. Dispatcher work uses `draft-execution --run RUN --grant GRANT --out decisions.json`, actual decisions, then `execute --run RUN --decisions-file decisions.json`.
 8. External work follows Production Execution's handoff, exact authorization, `claim-external`, host call, `capture` and `settle-external` branch. After interruption, `resume --run RUN` recovers the existing execution.
-9. Inspect actual candidates before selection. Diagnose failures from saved evidence. Dispatcher trials use `variant`, `repeat` or a reassessed `retarget`. External trials use new tasks with exact input binding; actual edits also need semantic plans.
+9. Inspect candidates against the same requirements, not an imagined exact picture. Diagnose failures from saved evidence. Dispatcher trials use `variant`, `repeat` or `retarget`; external trials use new tasks and exact input binding. Actual edits also need semantic plans.
 10. `status` reports runs, next commands and execution records. [Operation logs](references/runtime/operation-logs.md) defines inspection, export and cleanup; inspect reported staging before applying cleanup to its exact owner operation.
 
 Each of these commands takes `--root STUDIO`; Production Execution defines them. Authored prose and conversation-only prompts do not acquire image-generation requirements.

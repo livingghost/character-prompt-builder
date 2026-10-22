@@ -8,11 +8,11 @@ This reference belongs to the normal runtime workflow. It applies whenever the a
 
 ## 1. Prompt economy preserves canonical records
 
-Every sentence in a model-facing prompt is a vote. A prompt that grows by patch accretion weakens each instruction it contains, and late guards begin to fight earlier ones.
+Select instructions for requirements, necessary meaning and purposeful art direction under [Prompt Composition](runtime/prompt-composition.md#select-the-depiction). Incidental deductions can narrow a valid scene without helping its purpose. Prompt economy is relevance, not a word-count target.
 
 Prompt economy applies to the emitted model-facing projection:
 
-- keep one clause for each contract-supported or scope-documented failure mechanism
+- retain the clauses needed for the current depiction; a known failure mechanism alone does not require a guard
 - remove a counterweight after its cause has been removed
 - repeat only instructions observed as fragile within the documented evidence scope, near the clauses they control
 - when a removed axis regresses, restore that one clause instead of the whole previous prompt
@@ -31,23 +31,20 @@ After changing a scaffold:
 3. retain only the smallest affirmative floor still required by the target design (for example, a clear forward projection)
 4. compare the new output before adding further repair language
 
-## 3. Spatial relations use three independent codes
+## 3. Spatial relations carry the event
 
-Side words alone do not reliably hold front-to-back order. State every critical overlap in three independent ways:
+State the relations that distinguish the intended action: who acts on what,
+which subjects share or separate their working space, and where meaningful
+support, contact or overlap occurs. The need to show these relations guides
+the camera rather than imposing the same depth arrangement on every scene.
 
-1. anatomical or image-space side from both directions
-2. a unique visible marker carried by the front element
-3. explicit occlusion verbs
+For a reconstruction-critical overlap, combine side and occlusion wording when
+one alone is ambiguous. An existing visible marker can identify the relevant
+element. Do not invent a bracelet or other feature merely to label a limb.
 
-Example:
-
-- the left forearm crosses in front of the torso
-- the bracelet-bearing forearm is the front arm
-- it covers the upper edge of the right forearm, whose hand remains visible below
-
-The reverse relation must also be recoverable: the right forearm passes behind the bracelet-bearing left forearm. The marker can be a bracelet, sleeve, glove, scar, color patch, prop, or any other stable distinguishing feature.
-
-Use the same method for crossed legs, layered tails, straps, wings, garments, props, and multi-character contact. The reference attribute audit in `references/preset-authoring-standard.md` supplies the sides and markers.
+Synthetic example: the gloved forearm crosses in front of the other forearm
+while both hands hold the same handle. Use this detail when the crossing is
+part of the requested construction, not as a routine pose requirement.
 
 ## 4. Organic variation is a distribution
 
@@ -110,8 +107,8 @@ The final model-facing prompt adopts one resolved magnitude-specific camera reco
 Before returning the final prompt, verify:
 
 - repeated clauses were merged while their canonical source detail remains intact
-- every critical overlap has side, marker, and occlusion evidence
-- organic groups use count, scale, direction, irregularity, and spacing rules
+- meaning-bearing overlaps and contacts are unambiguous without invented identifying features
+- reconstruction-critical organic groups have the distribution detail their design needs
 - camera labels have visible consequences and stable subject geometry
 - user species identity remains unchanged unless a disclosed modification was approved
 - each discovery group contributes one production owner for each non-additive axis

@@ -127,7 +127,6 @@ SOURCE_EXCERPTS = {'references/adapters/instruction-edit.md': {'Stable Diffusion
                                           "Google's [Interactions safety guide](https://ai.google.dev/gemini-api/docs/safety-settings) documents structured error codes for blocked requests.": 1,
                                           "xAI's [image guide](https://docs.x.ai/developers/model-capabilities/images/generation) documents the `respect_moderation` response field.": 1,
                                           '"target":{"model_identifier":"vendor:offered@1","operation":"imageInference","service":"runware"}': 1},
- 'references/runtime/prompt-composition.md': {'On SDXL-family checkpoints': 1},
  'references/runtime/prompt-weighting.md': {"For example, Runware's SDXL page lists `compel` and `sdEmbeds`, while its FLUX.1\nSchnell page lists only `sdEmbeds` as the actual allowed value.": 1,
                                             'a native Runware-shaped request': 1,
                                             '- [Runware prompts and weighting](https://runware.ai/docs/learn/prompts)': 1,

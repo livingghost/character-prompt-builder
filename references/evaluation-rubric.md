@@ -2,7 +2,14 @@
 
 Automated tests can verify package structure, retrieval contracts, data roles, and exact payload transport. They cannot prove that a prompt or image is artistically successful.
 
-Evaluate skill-assisted work against a no-skill baseline and, where useful, alternate retrieval strategies.
+Use the brief, adopted design and selected art direction as the criteria.
+Distinguish a requirement failure from an unobservable property or optional
+preference. A valid composition need not match the evaluator's imagined frame.
+Inspect the purpose-bearing information first: narrative action for a scene,
+construction for a reference sheet, or product features for a product image.
+
+For an evaluation study, compare skill-assisted work with an appropriate
+baseline and, where useful, alternate retrieval strategies.
 
 ## 1. Intent fidelity
 
@@ -10,6 +17,8 @@ Evaluate skill-assisted work against a no-skill baseline and, where useful, alte
 - Does it understand the whole phrase rather than translating fragments literally?
 - Are gaze, action, relationship, and framing the intended concepts?
 - Does it avoid replacing the brief with a nearby record's story?
+- Does each inferred instruction preserve meaning or serve a purposeful choice?
+- Could a detail vary without changing success, and has it been left open where appropriate?
 
 ## 2. Image intent
 
@@ -57,6 +66,8 @@ When a universal aesthetic core is selected:
 - For anthropomorphic and animal subjects, do ears, tail, whiskers, ruff, wings, crest, and other appendages reinforce the selected read through species-valid behavior?
 - For robots, do optics, sensors, manipulators, chassis posture, panels, indicators, actuators, ventilation, and timing express the state through functional mechanical changes?
 - Are interactions supported by visible geometry rather than labels alone?
+- Do participants' roles and action targets communicate the intended event?
+- Is the intensity judged against the requested performance rather than a default preference for restrained acting?
 
 ## 8. Composition and construction
 
@@ -64,6 +75,8 @@ When a universal aesthetic core is selected:
 - Are depth, support, weight, and crop coherent?
 - Are hands, paws, manipulators, mouths, props, furniture, clothing, casing, and effects constructed clearly?
 - Does foreshortening serve the image rather than damage readability?
+- Does framing reveal the required information without unnecessary visibility demands?
+- Are unobservable details kept distinct from verified features and actual omissions?
 
 ## 9. Surface, color, and light
 
@@ -113,9 +126,15 @@ B. broad atomic retrieval plus layered core/realization/render-profile candidate
 C. curated-only atomic retrieval plus the same layered candidates
 ```
 
+Retain the exact prompt, references, settings and inspected output for each
+condition. Compare prompt quality and image quality separately. When several
+inputs change together, evaluate the complete setup without assigning the
+improvement to one change. A single result establishes neither a universal
+model limitation nor reliable future success.
+
 Retrieval counts are diagnostic. Final prompt and image quality determine value.
 
-## 10. Distinctive identity detail
+## 13. Distinctive identity detail
 
 - Are localized features attached to the correct subject-relative side and landmark?
 - Are count, size, shape, orientation, color relationship, depth, edge, age, and visibility consistent?

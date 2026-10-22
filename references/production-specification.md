@@ -49,7 +49,7 @@ Running the same `draft` again exits 1:
 {"ok": false, "errors": ["OUTPUT_ALREADY_EXISTS: output path names an existing file, which is kept: production-spec.json Choose a new output path."]}
 ```
 
-Author the current scene directly rather than patching an older prompt into apparent compliance.
+Author the current depiction using [instruction selection](runtime/prompt-composition.md#select-the-depiction). The specification stores selected requirements and art direction, not every detail imagined while reading the brief.
 
 ### Object-only scenes
 
@@ -135,9 +135,18 @@ The subject-relative measurement is authoritative across humans, animals, creatu
 
 `subjects[].garment_geometry` and `subjects[].growth_geometry` store only declared constructions. Contracts use stable-ID structure maps; detailed construction is recorded in each structure's geometry. `head_and_face`, `hands`, `legs_and_feet` and `gaze_and_head` remain optional convenience summaries, with `structure_notes` available for author-owned IDs. Frame geometry need not invent a face or muscle. Permanent geometry, approved variations and temporary state retain separate authority. See [Declared Structures Runtime](runtime/declared-structures.md).
 
-## Crop completeness
+## Visible coverage and structural coherence
 
-Every body region the pose implies is either visible, stated to continue out of frame at a named edge, or resting on or occluded by a named surface. A region that is none of these tends to render as a termination: an unwritten lower body becomes a torso ending at the ribs. Record the exit edge against the actual structure ID; a specialized summary such as `legs_and_feet.crop` is appropriate only when that structure exists. In a close crop, continuation outranks visibility: demanding that the figure be fully visible makes the camera pull back and changes the composition. For a robot, hands may be manipulators and gaze may be optic direction. For an ordinary animal, performance is expressed through natural posture and sensory orientation.
+Required visibility follows the artifact's purpose and the author's choices.
+A figure study may require the full silhouette; a tool-use image may depend on
+the contact between a hand, tool and workpiece. Keep those requirements distinct
+from how an imagined composition happens to crop a subject.
+
+Check ownership, attachment and support where the depicted action depends on
+them. Record a particular crop or occlusion when it is meaningful, explicitly
+selected, or necessary for an observed construction repair. Other unseen
+structure remains identity or state knowledge. Its existence does not require
+an instruction about where it leaves the frame.
 
 ## State-aware compilation
 
@@ -180,15 +189,18 @@ A free text field the author does not decide holds the string `"unspecified"`. T
 
 ## Prompt assembly
 
-Translate the reviewed specification into fluent English. Preserve hierarchy and relationships rather than dumping field names. The final prompt should express:
+Select the specification's task-bearing content using
+[Prompt Composition](runtime/prompt-composition.md#select-the-depiction), then
+express one depiction in fluent English. `user_anchors` preserves requirements;
+`purposeful_additions` records chosen effects; `construction_invariants` records
+relationships essential to the result. Scene, subject and camera fields hold
+their realization. Keep consequential assumptions at their existing owner.
 
-1. subject identity and current visible state;
-2. action, expression, relationship, and performance;
-3. composition and camera;
-4. aesthetic taste, center of appeal, and appeal strategy;
-5. environment and lighting;
-6. medium, line, shape, color, surface, and finish;
-7. critical construction invariants.
+A complete state record is not a complete prompt inventory. Carry necessary
+identity, visible state, action, relationship, camera and finish at the
+specificity the image needs. Leave incidental deductions and unselected
+alternatives out of the prompt. A desired effect such as a readable interaction
+does not by itself prescribe one camera position.
 
 After assembly, read the prompt alone and compare the likely picture with the image intent, Visual State Projection, Asset Render Specification, and current State Snapshot. Declare the reference mode as `prompt-only`, `prompt+1`, or `prompt+N`. For every image source, record its semantic role and decide whether it may govern permanent identity, target scene-conditioned construction, or another narrow visual property. Audit source scene-specific character state and source-render context separately. An identity-only source may not transfer gaze, expression, mouth state, pose, action, contact, support, physiology, surface condition, grooming condition, wardrobe, inventory, relationships, viewer awareness, environment response, current form, camera, crop, light, or finish unless an owning target-state or scene authority explicitly requires that property.
 
@@ -226,7 +238,7 @@ A subject that names an identity contract carries:
 - `individual_morphology_contract_ref`;
 - `resolved_morphology`.
 
-`resolved_morphology` is the shot-specific anatomy contract, and the subject's `frame_character` and `load_bearing_part_measurements` equal its own. It lists visible feature instances, hidden or out-of-frame features, active form, surface map, feature relationships, expression channels, communication tools, current state deltas, count and attachment checks, crop requirements, and uncertainties. It prevents the prompt from silently dropping a tail, wing, limb, organ, digit, marking, or tool merely because it is outside the crop.
+`resolved_morphology` is the shot-specific anatomy contract, and the subject's `frame_character` and `load_bearing_part_measurements` equal its own. It lists visible feature instances, hidden or out-of-frame features, active form, surface map, feature relationships, expression channels, communication tools, current state deltas, count and attachment checks, crop requirements, and uncertainties. It retains declared anatomy independently of the crop. Prompt wording selects the details needed for this depiction; the resolved record is not emitted as a visibility inventory.
 
 Use [Morphology and species contracts](morphology-and-species-contracts.md) before authoring an unfamiliar, fictional, hybrid, ordinary-animal, or mechanical body plan.
 

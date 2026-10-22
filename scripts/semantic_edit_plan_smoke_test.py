@@ -314,7 +314,10 @@ class SemanticEditPlanTests(unittest.TestCase):
             self.validate()
 
     def test_changed_scope_subject_use_or_priority_requires_updated_prompt_text(self):
+        # Two sources share (subject a, identity), so the priority order reaches
+        # the canonical text and every mutation, including priority, drifts it.
         self.plan['references'][0]['subject_uses'] = [{'subject_id': 'a', 'use': 'identity', 'priority': 0}]
+        self.plan['references'][1]['subject_uses'] = [{'subject_id': 'a', 'use': 'identity', 'priority': 1}]
         sync_external_prompt(self.root, self.plan)
         original = copy.deepcopy(self.plan)
         for change in ('scope', 'exclusion', 'subject', 'use', 'priority'):
@@ -485,8 +488,8 @@ class SemanticEditPlanTests(unittest.TestCase):
         self.assertIn('Reference 2 means request field ["images",0]', prompt)
         self.assertIn('Reference 3 means request field ["images",1]', prompt)
         self.assertIn('Reference 4 means request field ["images",2]', prompt)
-        self.assertIn('subject a, outfit, priority 0', prompt)
-        self.assertIn('subject b, identity, priority 0', prompt)
+        self.assertIn('subject a, outfit', prompt)
+        self.assertIn('subject b, identity', prompt)
         self.assertNotIn('means Image', prompt)
 
     def test_subject_assignments_cannot_drift_after_reference_preparation(self):

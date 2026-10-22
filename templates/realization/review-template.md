@@ -22,10 +22,12 @@ review.
 ## Finding
 
 - **expected_portrayal**:
-  <!-- What this span should retain, vary, reveal, withhold or deliberately break. -->
+  <!-- The requirement and selected effect this span must communicate; cite its source. -->
 - **observed_output**:
   <!-- Concrete observed words, sound, movement, geometry or omission. Do not substitute inference. -->
 - **difference_and_affected_scope**:
+  <!-- Distinguish requirement failure, unobservable property and optional preference.
+       A different valid realization is not a defect. -->
 - **evidence_and_uncertainty**:
 - **owning_layer**:
   <!-- Source interpretation, state, projection, reference, expression, rendering, knowledge,
@@ -42,6 +44,8 @@ review.
 - **retry_budget_and_stop_condition**:
 - **previous_and_new_candidates**:
 - **comparison_under_same_contract**:
+  <!-- Identify changed prompt, references and settings. Several changed variables
+       support a setup comparison, not an isolated causal claim. -->
 - **selected_candidate_and_reason**:
   <!-- The previous candidate can remain selected. A change is not necessarily an improvement. -->
 - **actual_adoption_or_no_adoption**:

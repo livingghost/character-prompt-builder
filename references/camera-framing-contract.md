@@ -2,9 +2,17 @@
 
 A camera label cannot reproduce a record's framing. The Camera Framing Contract records the subject-to-camera relationship, frame occupancy, crop landmarks, and perspective consequences that must remain stable across generations.
 
-## Why it exists
+## When a frame needs a contract
 
-Terms such as close-up, waist-up, low angle, or portrait lens leave too much room for the target model to decide the crop. A scene that depends on complete ears, crossed wrists, a necklace, and a belt line can drift into a chest-up crop, a full-body image, or an over-wide close view unless those obligations are separately recorded.
+Use this contract when the author selects a repeatable frame or the image's
+purpose depends on particular camera geometry. A requirement such as readable
+interaction can admit several frames. Select a camera for its contribution,
+not simply because one was imagined first.
+
+Only requested or meaning-bearing coverage belongs in visibility obligations.
+Follow [instruction selection](runtime/prompt-composition.md#select-the-depiction)
+before committing the shot. The complete camera record supports reproduction;
+its fields are not all instructions to paste into the model-facing text.
 
 ## Required measurements
 
@@ -35,7 +43,7 @@ Convergence direction is also the most reliable way to say where the camera stan
 
 These anchors are positive construction, not exclusions. A negative such as "no vanishing point" cannot correct a perspective the positive text is still requesting; restate the geometry instead.
 
-Perspective compliance is a capability check as much as a wording choice. Subject-specialized checkpoints often ignore explicit horizon and vanishing-point instructions and fall back to the composition cluster of their training subject, while instruction-following general models honour the same sentence directly. When two or three attempts at an explicit perspective produce the same unrequested composition, the wording is not the problem: route the plate to a model that follows spatial instructions, and keep the specialized checkpoint for the subject it was trained on.
+Perspective compliance is a capability check as much as a wording choice. Subject-specialized checkpoints often ignore explicit horizon and vanishing-point instructions and fall back to the composition cluster of their training subject, while instruction-following general models honour the same sentence directly. When repeated attempts miss a specified perspective, inspect competing framing demands, references and controls before attributing the result to the model. A comparison with a suitable alternative tests the observed setup rather than proving a universal limit.
 
 ## Measurement discipline
 
@@ -52,9 +60,9 @@ Separate camera enlargement from stable anatomy. A near forearm enlarged by a mi
 5. Estimate pitch, yaw, and roll from face, torso, floor, wall, or water lines.
 6. Identify the nearest form and compare its scale with the same form farther from the lens.
 7. Estimate a lens range from distortion and compression rather than from mood.
-8. Name every element that must stay visible for the scene to remain the same scene.
-9. Name every element that may safely remain offscreen.
-10. Add at least three stability invariants.
+8. Separate observed crop from elements the target image must visibly communicate.
+9. Record explicit offscreen allowances only when they resolve an actual coverage requirement.
+10. Record the stability invariants needed to reproduce the selected frame.
 
 ## Scene and production ownership
 
