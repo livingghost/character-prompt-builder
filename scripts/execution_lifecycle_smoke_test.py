@@ -21,7 +21,7 @@ def setup(root: Path):
     task = work_ledger.begin(root, 'Synthetic execution test', ['deliver'])
     (root / 'delivery.txt').write_text('Synthetic declared output.', encoding='utf-8')
     spec = {'task_id': task['task_id'], 'route': 'development', 'features': [], 'sources': [],
-            'delivery': {'path': 'delivery.txt', 'transport': 'authored-rendition', 'translation_notes': 'Synthetic rendition.'},
+            'delivery': {'path': 'delivery.txt',  'translation_notes': 'Synthetic rendition.'},
             'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect actual bytes.'}], 'world_views': []}
     fixture.task(root, spec)
     (root / 'task.json').write_bytes(c.encoded(spec))

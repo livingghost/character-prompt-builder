@@ -112,8 +112,9 @@ Source scene state is unlocked by default. A rendered pixel does not promote a f
 
 Audit scene state through attention and awareness; facial, vocal, gestural, postural, action, contact, and support articulation; physical, physiological, emotional, and surface condition; current appearance and presentation; possession, inventory, equipment, and prop bindings; relationship state, social stance, and viewer awareness; environmental response; and current era, form, transformation, or appearance state.
 
-The audit establishes source scope. The model-facing text communicates the
-selected target and the references' jobs, not the audit's complete taxonomy.
+The audit establishes source scope. The agent expresses the selected target
+and each reference's use through the actual delivered images. Subject IDs,
+lineage and source-state audits remain in their owning records.
 For example, with a synthetic identity source:
 
 ```text

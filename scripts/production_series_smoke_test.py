@@ -17,7 +17,7 @@ class SeriesTests(unittest.TestCase):
         task=work_ledger.begin(self.root,'Synthetic independent production series',['prepare','deliver'])
         (self.root/'delivery.txt').write_text('Synthetic fixture delivery.\n', encoding='utf-8')
         self.task={'task_id':task['task_id'],'route':'development','features':[],'sources':[],
-                   'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Synthetic exact text.'},
+                   'delivery':{'path':'delivery.txt','translation_notes':'Synthetic exact text.'},
                    'criteria':[{'id':'identity','strength':'hard','text':'First synthetic criterion.'}],'world_views':[]}
         fixture.task(self.root,self.task)
         a=c.load(self.root/'fixture-authority.json');a['grants'][0]['protected_criteria']=['identity']

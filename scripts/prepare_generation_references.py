@@ -95,7 +95,6 @@ PREPARED_REFERENCE_SET_FIELDS = frozenset(
         "reference_use_plan_sha256",
         "surface_lighting_plan_sha256",
         "zero_reference_reason",
-        "reference_preamble",
         "prompt_artifacts",
         "selected_references",
         "single_board",
@@ -762,45 +761,6 @@ def validate_studio_subject_uses(source: Mapping[str, Any], subject_uses: list[d
     for use in subject_uses:
         if use['use'] == 'identity':
             identity_source(dict(source), root=Path(source['studio_root']), character_id=use['subject_id'])
-
-
-def _reference_preamble_for_plan(plan: Mapping[str, Any], reference_numbers: Sequence[int] | None = None) -> str:
-    lines = [
-        "Use the following references only for their declared roles and precedence.",
-        "Do not average identities, scenes, materials, colors, or lighting across unnamed roles.",
-    ]
-    for index, item in enumerate(plan.get("reference_items", [])):
-        number = reference_numbers[index] if reference_numbers is not None else int(item['precedence']) + 1
-        lines.append(
-            f"Reference {number} ({item['semantic_role']}): "
-            f"{item['preamble']}"
-        )
-    surface = plan["surface_lighting_plan"]
-    lines.append(
-        "Surface and lighting mode: " + surface["source_lighting_mode"] + ". "
-        "The surface-lighting plan, not the specular mask alone, controls "
-        "shadow topology, material response, and highlight behavior."
-    )
-    return "\n".join(lines) + "\n"
-
-
-def canonical_reference_preamble(
-    *,
-    transport_mode: str,
-    selected_references: Sequence[Mapping[str, Any]],
-    reference_use_plan: Mapping[str, Any] | None,
-    single_board: Mapping[str, Any] | None = None,
-) -> str:
-    """Derive instructions from committed authority and actual delivery positions."""
-
-    if transport_mode == "none":
-        return ""
-    from reference_delivery import instructions
-    plan_numbers = ([index for index, row in enumerate(selected_references, 1) if row['source']['kind'] == 'pack-artifact']
-                    if reference_use_plan is not None and transport_mode in {'multi-image', 'single-board'} else None)
-    base = (_reference_preamble_for_plan(reference_use_plan, plan_numbers) if reference_use_plan is not None
-            else _reference_preamble_for_prepared_rows(selected_references))
-    return base + instructions(transport_mode, selected_references, single_board)
 
 
 def _validated_reference_use_plan(value: Any, *, context: _ReferenceContext = _LIVE_REFERENCES) -> dict[str, Any]:
@@ -1487,9 +1447,6 @@ def _validate_prepared_reference_set(
         references=references,
         package_root=package_root,
     )
-    preamble = value.get("reference_preamble")
-    if not isinstance(preamble, str):
-        raise ValueError("reference_preamble must be a string")
 
     plan_items = plan.get("reference_items", []) if plan is not None else []
     if plan is not None:
@@ -1512,15 +1469,6 @@ def _validate_prepared_reference_set(
                 raise ValueError(
                     f"prompt_artifacts[{index}] media type differs from its committed source"
                 )
-
-    expected_preamble = canonical_reference_preamble(
-        transport_mode=mode,
-        selected_references=references,
-        reference_use_plan=plan,
-        single_board=board,
-    )
-    if preamble != expected_preamble:
-        raise ValueError("reference_preamble is not the canonical authority projection")
 
     has_visual_reference = bool(prompt_artifacts or references or board)
     if has_visual_reference and zero_reason is not None:
@@ -1564,7 +1512,6 @@ def _validate_prepared_reference_set(
         "reference_use_plan_sha256": plan_hash,
         "surface_lighting_plan_sha256": surface_hash,
         "zero_reference_reason": zero_reason,
-        "reference_preamble": preamble,
         "prompt_artifacts": prompt_artifacts,
         "selected_references": references,
         "single_board": board,
@@ -1606,7 +1553,6 @@ def build_prepared_reference_set(
     reference_use_plan: Mapping[str, Any] | None = None,
     image_input_binding: Mapping[str, Any] | None = None,
     zero_reference_reason: Mapping[str, Any] | None = None,
-    reference_preamble: str | None = None,
     prompt_artifacts: Sequence[Mapping[str, Any]] = (),
     single_board: Mapping[str, Any] | None = None,
     set_id: str | None = None,
@@ -1617,14 +1563,6 @@ def build_prepared_reference_set(
     selection = copy.deepcopy(dict(reference_selection)) if reference_selection is not None else None
     plan = copy.deepcopy(dict(reference_use_plan)) if reference_use_plan is not None else None
     prepared_rows = [copy.deepcopy(dict(row)) for row in selected_references]
-    canonical_preamble = canonical_reference_preamble(
-        transport_mode=transport_mode,
-        selected_references=prepared_rows,
-        reference_use_plan=plan,
-        single_board=single_board,
-    )
-    if reference_preamble is not None and reference_preamble != canonical_preamble:
-        raise ValueError("reference_preamble differs from the canonical authority projection")
     raw: dict[str, Any] = {
         "artifact_type": "prepared-reference-set",
         "set_id": set_id or "",
@@ -1648,7 +1586,6 @@ def build_prepared_reference_set(
             if zero_reference_reason is not None
             else None
         ),
-        "reference_preamble": canonical_preamble,
         "prompt_artifacts": [copy.deepcopy(dict(row)) for row in prompt_artifacts],
         "selected_references": prepared_rows,
         "single_board": copy.deepcopy(dict(single_board)) if single_board is not None else None,
@@ -2047,21 +1984,6 @@ def prepare_image_input_references(
     return build_prepared_reference_set(transport_mode=transport_mode,
         target_model=selected_model, selected_references=references,
         image_input_binding=binding, single_board=board)
-
-
-def _reference_preamble_for_prepared_rows(
-    references: Sequence[Mapping[str, Any]],
-) -> str:
-    lines = [
-        "Use each reference only for its declared role and authority. Do not average unnamed attributes."
-    ]
-    for index, reference in enumerate(references, 1):
-        authority = reference["authority"]
-        line = f"Reference {index} ({reference['role']}) controls: " + "; ".join(authority['controls']) + '.'
-        if authority['must_not_control']:
-            line += ' It must not control: ' + '; '.join(authority['must_not_control']) + '.'
-        lines.append(line)
-    return "\n".join(lines) + "\n"
 
 
 def prepare_reference_use_plan_rows(

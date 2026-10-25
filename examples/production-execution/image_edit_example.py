@@ -27,7 +27,7 @@ def run(out: Path) -> dict:
     write('source.png',pixels.getvalue());write('candidate.png',pixels.getvalue());write('delivery.txt','A six-by-four synthetic crop of the pinned plate.')
     task={'task_id':opened['task_id'],'route':'development','features':['image-edit'],
           'sources':[{'id':'plate','path':'source.png','role':'world','disposition':'applied','locator':'whole','reason':'Synthetic input.'}],
-          'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'No private dossier.'},
+          'delivery':{'path':'delivery.txt','translation_notes':'No private dossier.'},
           'criteria':[{'id':'dimensions','strength':'hard','text':'A six-by-four actual image.'}],'world_views':[]}
     fixture.task(out,task,artifact='image');task['criteria'][0]['evidence']='image';write('task.json',task)
     rid=w.prepare(out,'task.json')['run'];fixture.handoff(out,rid,'Synthetic image editor','manual')

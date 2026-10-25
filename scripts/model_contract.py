@@ -39,7 +39,7 @@ MODEL_RECORD_KEYS = frozenset(
 # that was observed. schema_snapshot points at the service's own parameter
 # schema for the model, stored in the pack as observed.
 OFFERING_KEYS = frozenset(
-    {"service", "model_identifier", "request_keys", "constraints", "observed_at", "schema_snapshot", "setting_keys", "parameter_keys", "schema_contract", "schema_acquisition", "parameter_observations", "reference_schemas", "production_context_transport", "reference_instruction_transport", "size_format", "execution_profile", "use_case_guidance"}
+    {"service", "model_identifier", "request_keys", "constraints", "observed_at", "schema_snapshot", "setting_keys", "parameter_keys", "schema_contract", "schema_acquisition", "parameter_observations", "reference_schemas", "reference_instruction_transport", "size_format", "execution_profile", "use_case_guidance"}
 )
 OFFERING_REQUIRED = ("service", "model_identifier", "request_keys", "constraints", "observed_at")
 OBSERVED_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -183,11 +183,9 @@ def _validate_offerings(record: Mapping[str, Any], errors: list[str]) -> None:
                 if item['outcome'] not in {'rejected','accepted','completed','indeterminate'}:raise ValueError('invalid observation outcome')
                 if item['target']['service']!=offering['service'] or item['target']['model_identifier']!=offering['model_identifier']:
                     raise ValueError('observation belongs to another offering')
-            if 'production_context_transport' in offering and offering['production_context_transport'] not in {'none','prompt-prefix'}:
-                raise ValueError('unknown production context transport')
             if 'reference_instruction_transport' in offering:
                 value=offering['reference_instruction_transport'];exact(value,{'mode','contract'},'reference instruction policy')
-                if value['mode'] not in {'native-fields','authored-rendition','prompt-prefix','not-supported'}:raise ValueError('unknown reference instruction transport')
+                if value['mode'] not in {'native-fields','authored-rendition','not-supported'}:raise ValueError('unknown reference instruction transport')
                 file_reference(value['contract'])
         except (ValueError,KeyError,TypeError) as exc:
             errors.append(f"{where}: {exc}")

@@ -13,9 +13,8 @@
     "record_ids": [],
     "detail": "Synthetic conformance sample; no reference or user decision is asserted."
   },
-  "reference_preamble": "",
   "prompt_artifacts": [],
   "selected_references": [],
   "single_board": null,
-  "prepared_reference_set_sha256": "194bf429edb0b2372b3917d270a00d33ccb5f86c58135208b1a3c76688c675fb"
+  "prepared_reference_set_sha256": "8df506349d45d7ea74db07d38b92efb6880cb4dcd74960b5867092e327053520"
 }

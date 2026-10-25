@@ -205,10 +205,11 @@ into the production dependencies, and places the text in `consumer.json` under
 `authoring_materials`. A task whose artifact is an image or video refuses a
 material prepared for text; rebuild it with medium `image`. The production
 direction, reviews, authorization and canonical owners still apply. The prepared
-authoring material is **not** a generation prompt. Form the actual rendition
-under the existing viewpoint and delivery rules instead of attaching the
-material wholesale to a media tool, and keep author-only information out of
-what a depicted subject knows.
+authoring material informs the agent's rendition. Apply its relevant meaning
+under [Prompt Composition](prompt-composition.md#prompt-assembly-and-review),
+using only subjects and references resolvable within the model's received
+inputs. Keep the source definitions, internal identifiers and review evidence
+in the authoring record, and respect the depicted subject's knowledge.
 
 ## 5. Public protocol intake
 

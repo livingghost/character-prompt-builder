@@ -107,7 +107,7 @@ The model attachment limit counts the resulting board as one image. Each panel
 retains its source identity, original image hash, prepared transport hash, role
 and pixel bounds. Source identity and adoption stay separate for two characters
 with identical image bytes. Resizing does not claim that a panel's pixels are
-byte-identical to the original source image. Review the board preamble and each
+byte-identical to the original source image. Review the authored prompt against the board's actual panels and each
 subject's `visual_continuity` before approval.
 
 ## Preserve current acceptance and recorded recovery

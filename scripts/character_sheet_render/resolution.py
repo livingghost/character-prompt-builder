@@ -199,7 +199,7 @@ def series_panel_text(kind: str, row: Mapping[str, str]) -> tuple[str, str]:
         part = meaningful(row.get("part", ""))
         state = meaningful(row.get("state", ""))
         title = ": ".join(value.upper() for value in (part, state) if value)
-        return title, compact_join((row.get("configuration", ""), row.get("read", "")))
+        return title, compact_join((row.get("part", ""), row.get("configuration", ""), row.get("read", "")))
     if kind == "range_of_motion":
         region = meaningful(row.get("region", ""))
         return (
@@ -210,13 +210,13 @@ def series_panel_text(kind: str, row: Mapping[str, str]) -> tuple[str, str]:
         action = meaningful(row.get("action", ""))
         return (
             f"ACTION: {action.upper()}" if action else "",
-            compact_join((row.get("phase", ""), row.get("mechanics", ""), row.get("kind_channels", ""))),
+            compact_join((row.get("action", ""), row.get("phase", ""), row.get("mechanics", ""), row.get("kind_channels", ""))),
         )
     if kind == "idle_gesture":
         gesture = meaningful(row.get("gesture", ""))
         return (
             f"GESTURE: {gesture.upper()}" if gesture else "",
-            compact_join((row.get("context", ""), row.get("body", ""), row.get("props", ""))),
+            compact_join((row.get("gesture", ""), row.get("context", ""), row.get("body", ""), row.get("props", ""))),
         )
     return "", ""
 
@@ -363,7 +363,7 @@ def apply_sheet_context(profile: Mapping[str, Any], sheet: Mapping[str, Any]) ->
                         box["binding"] = binding
                     if part and not source_part:
                         box["label"] = part.upper()
-                    details = compact_join((attribute, laterality))
+                    details = compact_join((row.get("part", ""), attribute, laterality))
                     if details:
                         box["hint"] = merge_panel_hint(box.get("hint", ""), details, "declared")
                     box["review"] = compact_join((counterpart_rule, continuity_rule, visibility_rule)) or None
@@ -392,41 +392,14 @@ def apply_sheet_context(profile: Mapping[str, Any], sheet: Mapping[str, Any]) ->
                 box["review"] = "; ".join(text for text in reviews if text) or None
             elif kind == "evidence_view" and bound_entry:
                 row = bound_entry["values"]
-                subject_table = meaningful(row.get("subject_table", ""))
-                subject_row_id = meaningful(row.get("subject_row_id", ""))
                 view_id = meaningful(row.get("view_id", ""))
-                subject = next(
-                    (
-                        entry
-                        for entry in table_entries(sheet, subject_table)
-                        if entry["row_id"] == subject_row_id
-                    ),
-                    None,
-                )
                 if view_id:
                     box["label"] = "EVIDENCE: " + view_id.upper()
-                subject_details = ""
-                if subject:
-                    subject_details = compact_join(
-                        (
-                            f"{key}: {value}"
-                            for key, value in subject["values"].items()
-                            if key != "binding"
-                        )
-                    )
-                details = compact_join(
-                    (
-                        f"subject: {subject_table}/{subject_row_id}",
-                        subject_details,
-                        row.get("orientation_configuration", ""),
-                        row.get("specification", ""),
-                    )
-                )
+                details = compact_join((row.get("orientation_configuration", ""),
+                                        row.get("specification", "")))
                 box["review"] = review_text("evidence", row) or None
                 if details:
-                    box["hint"] = merge_panel_hint(
-                        box.get("hint", ""), details, "declared evidence"
-                    )
+                    box["hint"] = merge_panel_hint(box.get("hint", ""), details, "")
             elif kind == "signature_pose":
                 value = meaningful(
                     fields.get("field.signature_poses_and_mannerisms_described", "")
@@ -452,7 +425,6 @@ def apply_sheet_context(profile: Mapping[str, Any], sheet: Mapping[str, Any]) ->
                             row.get("overall_read", ""),
                             row.get("channel_states", ""),
                             row.get("fixed_identity_cues", ""),
-                            row.get("notes", ""),
                         )
                     )
                     if details:
@@ -472,7 +444,7 @@ def apply_sheet_context(profile: Mapping[str, Any], sheet: Mapping[str, Any]) ->
                 if bound_entry:
                     row = bound_entry["values"]
                     details = compact_join(
-                        (row.get("outfit", ""), row.get("description", ""), row.get("notes", ""))
+                        (row.get("description", ""),)
                     )
                     if details:
                         value = compact_join((value, details))
@@ -487,7 +459,7 @@ def apply_sheet_context(profile: Mapping[str, Any], sheet: Mapping[str, Any]) ->
                     name = meaningful(row.get("outfit", ""))
                     if name:
                         box["label"] = "OUTFIT: " + name.upper()
-                    details = compact_join((row.get("description", ""), row.get("notes", "")))
+                    details = meaningful(row.get("description", ""))
                     if details:
                         box["hint"] = merge_panel_hint(
                             box.get("hint", ""), details, "declared"
@@ -536,7 +508,7 @@ def apply_sheet_context(profile: Mapping[str, Any], sheet: Mapping[str, Any]) ->
                     binding = meaningful(row.get("binding", ""))
                     if binding:
                         box["binding"] = binding
-                    details = compact_join((attribute, laterality))
+                    details = compact_join((row.get("part", ""), attribute, laterality))
                     if details:
                         box["hint"] = merge_panel_hint(
                             box.get("hint", ""), details, "declared"
@@ -661,10 +633,10 @@ KIND_DRAW_GUIDE = {
         "Draw this same individual wearing the declared outfit variant; identity and anatomy unchanged."
     ),
     "items": (
-        "Draw one isolated identity study of this declared item or assembly at a readable scale. Preserve its exact silhouette, proportions, materials, colors, fixed marks, attachment geometry, and declared orientation; include a small in-context scale or attachment inset when the row requires it; no unrelated objects."
+        "Draw one isolated identity study of this declared item or assembly at a readable scale. Preserve its exact silhouette, proportions, materials, colors, fixed marks, attachment geometry, and declared orientation; include a small in-context scale or attachment inset when described here; no unrelated objects."
     ),
     "evidence_view": (
-        "Draw one additional identity-evidence view of the referenced declaration in exactly the declared orientation or configuration. Preserve the same identity and all already declared geometry, materials, colors, marks, counterparts, scale relations, and attachments; reveal only the requested surface, state, or comparison and do not invent missing structure."
+        "Draw one additional identity-evidence view of the described feature in the specified orientation or configuration. Preserve the same identity and all already declared geometry, materials, colors, marks, counterparts, scale relations, and attachments; reveal only the requested surface, state, or comparison and do not invent missing structure."
     ),
     "expressions": (
         "Draw the declared state-expression channels of this same individual; use face, posture, light, topology, appendages, or other channels only when declared, and do not invent facial anatomy."
@@ -680,11 +652,11 @@ KIND_DRAW_GUIDE = {
     ),
     "size_reference": (
         "Draw the complete extent of this same individual or collective beside a plain scale indicator, "
-        "configuration and proportions identical to the canonical view; show only the declared "
+        "configuration and proportions matching the character description; show only the declared "
         "height, length, span, diameter, or other measure."
     ),
     "part_state": (
-        "Draw only the declared part of this same individual in the declared state, at close-up scale on a plain white background; keep the construction, length, markings, and colors of its identity panel and change only the declared configuration."
+        "Draw only the declared part of this same individual in the declared state, at close-up scale on a plain white background; keep the described construction, length, markings, and colors and change only the declared configuration."
     ),
     "range_of_motion": (
         "Draw the declared body region of this same individual at both extremes of its declared range, side by side at matched scale and orientation on a plain white background; show the reach the body actually has and nothing past its declared limit; identity, proportions, and joint construction unchanged."

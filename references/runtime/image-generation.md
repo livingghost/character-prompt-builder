@@ -61,7 +61,7 @@ If the parser is unknown, keep portable semantic text instead of guessing Stable
 
 When the final rendition is shown to the user for a decision, show it twice: the exact text as it would be sent, which is the only copy that travels, and a literal rendering in the user's language beside it, term by term and field by field, the negative field included. A model-facing text is written in the language the checkpoint was trained on, and a person cannot approve a defect they cannot read; the rendering is a reading aid and is never sent, never a summary, and never shortened where the text repeats. A term with no ordinary equivalent is carried across as it stands, with a line on what it draws.
 
-Generation builders commit the supplied final rendition. They do not choose vocabulary, add attention weights, translate prose into tags, or repair unsupported syntax.
+Generation builders commit the supplied final rendition and the verified media. Resolve each subject and reference from those actual inputs during the existing meaning review. Source records, production context and evaluation criteria inform authoring and stay with their owning records. Builders preserve the authored language and apply only the selected interface's declared transport controls.
 
 ## Model and negative transport
 
@@ -146,7 +146,7 @@ python scripts/reference_runtime.py execute \
 
 For state-aware pack evidence, add the finalized `--reference-selection`. Follow [State-Aware Series Runtime](state-aware-series.md); the plan cannot bypass state eligibility. Supplied-file-only selection prepares on the plan-null path; a shared image-input binding also produces a plan-null set scoped by its binding.
 
-The canonical prepared-reference-set commits target and transport mode, optional finalized state selection, non-null plan for activated pack evidence, nested Surface and Lighting hash, structured zero-reference reason, canonical preamble, authoritative source identities, exact source and model carriers, derivations, precedence, optional board manifest, and `prepared_reference_set_sha256`. Each character reference retains `subject_uses` with its subject, use and priority. Priority orders references only within that subject and use; it does not expand source authority. Logical uses survive deduplication of the same physical attachment. The set is the only reference object passed into Generation Package construction.
+The canonical prepared-reference-set commits target and transport mode, optional finalized state selection, non-null plan for activated pack evidence, nested Surface and Lighting hash, structured zero-reference reason, authoritative source identities, exact source and model carriers, derivations, precedence, optional board manifest, and `prepared_reference_set_sha256`. Each character reference retains `subject_uses` with its subject, use and priority. Priority orders references only within that subject and use; it does not expand source authority. Logical uses survive deduplication of the same physical attachment. The set is the only reference object passed into Generation Package construction.
 
 `prompt-artifacts` and `svg-bundle` are prompt-delivery transports, never Generation Package reference transports. A Generation Package may contain only a verified `multi-image` prepared set, a verified `single-board` prepared set, or a reference-free `none` set for the exact target model. Do not embed or carry prompt-delivery files as model inputs, and do not relabel a prompt-facing package as a model-facing transport.
 
@@ -390,7 +390,7 @@ Preparation checks the upscale request:
 
 After the service answers, `execute` builds an Upscale Package from the source and each returned image in the send's journal. It records the package as an iteration with the request and the answer. A generative or creative upscaler leaves the package's identity audit pending until [Upscale Adapter](../adapters/upscale.md) review passes.
 
-`negative_transport_instruction` must equal the verifier-confirmed target instruction exactly. `host_forwarding.reference_preamble` remains separately visible for audit, while `host_forwarding.effective_prompt` is the already assembled transport prompt with that canonical preamble attached exactly once. Forward only `host_forwarding.effective_prompt`, the exact verified negative channel, `host_forwarding.parameters`, and `host_forwarding.selected_references`; never concatenate the separately exposed preamble again.
+`negative_transport_instruction` must equal the verifier-confirmed target instruction exactly. Forward only `host_forwarding.effective_prompt`, the exact verified negative channel, `host_forwarding.parameters`, and `host_forwarding.selected_references`. The effective prompt preserves the authored depiction with the selected target's declared negative handling; internal reference bindings remain verification records.
 
 For `multi-image`, selected references are the committed independent transports in plan order. For `single-board`, the array contains only the committed board. Do not reconstruct from chat. Do not append, paraphrase, reorder, substitute, omit, add, rescope, re-rasterize, scan directories, or resolve carrier paths outside the verifier.
 

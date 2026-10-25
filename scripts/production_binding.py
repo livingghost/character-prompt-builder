@@ -154,7 +154,7 @@ def validate(binding: Any, prompt: str) -> None:
     if c.content_id(obj)!=expected or c.content_id(binding['consumer'])!=binding['consumer_sha256']:
         raise ValueError('production binding integrity mismatch')
     consumer=binding['consumer']
-    fields = {'route','transport','instructions','criteria','direction','world_views','moment_views','authoring_materials'}
+    fields = {'route','instructions','criteria','direction','world_views','moment_views','authoring_materials'}
     if 'image_input' in consumer:
         import image_input
         image_input.validate_binding(consumer['image_input'])
@@ -174,26 +174,8 @@ def validate(binding: Any, prompt: str) -> None:
         c.sha(material.get('content_sha256'))
     from production_plan import validate_consumer
     validate_consumer(consumer['direction'])
-    if consumer['transport'] not in {'authored-rendition','bounded-context'}: raise ValueError('invalid production transport')
     if c.digest(prompt.encode('utf-8'))!=binding['composition_sha256'] or consumer['instructions']!=prompt:
         raise ValueError('production binding composition mismatch')
-
-
-def effective(binding: Any, original: str, *, context_transport: str | None = None) -> str:
-    """Render only the conversion explicitly chosen for this consumer."""
-    if binding is None:
-        return original
-    consumer = binding['consumer']
-    if consumer['transport'] == 'authored-rendition':
-        return original
-    if consumer['transport'] != 'bounded-context':
-        raise ValueError('invalid production transport')
-    if context_transport != 'prompt-prefix':
-        raise ValueError('bounded context requires an explicit prompt-prefix execution policy')
-    context = {'direction': consumer['direction'], 'criteria': consumer['criteria'],
-               'world_views': consumer['world_views'], 'moment_views': consumer['moment_views']}
-    return ('Production context (hard constraints and advisory choices are distinct):\n'
-            + c.encoded(context).decode('utf-8') + '\n' + original)
 
 
 def validate_live(root: Path | None, run: str | None, package: dict[str,Any]) -> None:

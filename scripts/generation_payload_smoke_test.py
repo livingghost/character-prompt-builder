@@ -44,7 +44,7 @@ from prepare_generation_references import (
     validate_prepared_reference_set,
 )
 from reference_contract import build_reference_item
-from reference_runtime import build_reference_use_plan, execute_reference_use_plan
+from reference_runtime import _build_board, build_reference_use_plan, execute_reference_use_plan
 from state_protocol import finalize_artifact, validate_artifact
 from verify_generation_payload import main as _verify_main, verify_transports
 from visual_fixtures import emit_paste_for_target, verify
@@ -571,7 +571,7 @@ def _package(
         selected_mode = ("image-to-image" if model == SEED_MODEL_ID else "reference-guided") if has_refs else "text-to-image"
         production_spec["render_intent"] = intent(PROMPT, selected_mode)
     from request_validation_fixtures import fixture_validation
-    validation = fixture_validation(fixture_root(), model, reference_mode='prompt-prefix')
+    validation = fixture_validation(fixture_root(), model, reference_mode='authored-rendition')
 
     return build_payload(request_validation=validation, input_root=fixture_root(), visual_continuity=fixture_visual(production_spec), visual_root=fixture_root(), route_reading=fixture_reading(route='generation'), 
         retrieval_record=fixture_retrieval(PROMPT, APPROVED_PLOT),
@@ -592,13 +592,12 @@ def _package(
     )
 
 
-def _forwarding_preserves_declared_parts(verified: dict[str, Any], prompt: str, reference_count: int) -> bool:
-    """Check the declared transform's coverage without recognizing prompt words."""
+def _forwarding_preserves_authored_rendition(verified: dict[str, Any], prompt: str) -> bool:
+    """Check exact authored text and contiguous source coverage."""
     forwarded = verified["host_forwarding"]
     text = forwarded["effective_prompt"]
     cursor = 0
     authored = []
-    reference_parts = []
     for item in forwarded["prompt_trace"]:
         start, end = item["target_range"]["start"], item["target_range"]["end"]
         if start != cursor or not start <= end <= len(text):
@@ -606,16 +605,9 @@ def _forwarding_preserves_declared_parts(verified: dict[str, Any], prompt: str, 
         cursor = end
         if item["source_kind"] in {"authored", "model-setting"}:
             authored.append(text[start:end])
-        elif item["source_kind"] == "reference-binding":
-            if item["transform_id"] != "reference-delivery" or not item["source_refs"] or end == start:
-                return False
-            reference_parts.append(item)
         else:
             return False
-    expected = ["reference:" + str(i+1) for i in range(reference_count)]
-    actual = [binding for part in reference_parts for binding in part["binding_ids"]]
-    return (cursor == len(text) and "".join(authored) == prompt and actual == expected
-            and len(reference_parts) == (1 if reference_count else 0))
+    return cursor == len(text) and "".join(authored) == prompt
 
 
 def _verify_rejected(
@@ -845,7 +837,6 @@ def run() -> dict[str, Any]:
                         "reference_use_plan_sha256",
                         "surface_lighting_plan_sha256",
                         "zero_reference_reason",
-                        "reference_preamble",
                         "prompt_artifacts",
                         "selected_references",
                         "single_board",
@@ -997,9 +988,9 @@ def run() -> dict[str, Any]:
                     f"{count}-reference host forwarding exposed source/provenance fields",
                 )
                 checked(
-                    _forwarding_preserves_declared_parts(verified, PROMPT, count)
+                    _forwarding_preserves_authored_rendition(verified, PROMPT)
                     and verified["paste"]["paste_prompt"] == verified["host_forwarding"]["effective_prompt"],
-                    f"{count}-reference declared conversion or authored rendition was not preserved",
+                    f"{count}-reference authored rendition was not preserved",
                 )
                 verified_round_trips.append(verified)
 
@@ -1404,7 +1395,7 @@ def run() -> dict[str, Any]:
             )
             runtime_verified = verify(runtime_package, package_root=runtime_package_root)
             checked(
-                _forwarding_preserves_declared_parts(runtime_verified, PROMPT, len(runtime_set["selected_references"]))
+                _forwarding_preserves_authored_rendition(runtime_verified, PROMPT)
                 and len(runtime_verified["host_forwarding"]["selected_references"]) == 1,
                 "runtime plan did not reach verified Generation Package host forwarding",
             )
@@ -1637,21 +1628,9 @@ def run() -> dict[str, Any]:
             checked(True, "active record semantic-scope forgery rejection was not reached")
 
             configure_pack_runtime(settings)
-            board_path = Path(prepared_mixed[0]["transport"]["resolved_path"])
-            board = {
-                "resolved_path": str(board_path),
-                "media_type": "image/png",
-                "sha256": sha256_file(board_path),
-                "panels": [
-                    {
-                        "semantic_role": row["role"],
-                        "source_sha256": row["source"]["sha256"],
-                        "transport_sha256": row["transport"]["sha256"],
-                        "box": {"x": index, "y": 0, "width": 1, "height": 1},
-                    }
-                    for index, row in enumerate(prepared_mixed)
-                ],
-            }
+            board_path = root / "prepared-reference-board.png"
+            board = _build_board(prepared_mixed, board_path, max_side=512)
+            board["resolved_path"] = str(board_path)
             single_board_set = build_prepared_reference_set(
                 transport_mode="single-board",
                 target_model=MODEL_ID,
@@ -1714,48 +1693,8 @@ def run() -> dict[str, Any]:
             mutation_count += 1
             try:
                 build_prepared_reference_set(
-                    transport_mode="multi-image",
-                    target_model=MODEL_ID,
-                    selected_references=prepared_mixed,
-                    reference_preamble=(
-                        "Use the same prepared bytes under an arbitrary instruction.\n"
-                    ),
-                )
-            except ValueError:
-                pass
-            else:
-                raise SmokeFailure("prepared set accepted a noncanonical reference preamble")
-            checked(True, "noncanonical reference-preamble rejection was not reached")
-            resigned_preamble = copy.deepcopy(packages[2])
-            resigned_preamble["prepared_reference_set"]["reference_preamble"] = (
-                "Arbitrary instruction that is unrelated to committed row authority.\n"
-            )
-            resigned_preamble["prepared_reference_set"] = finalize_artifact(
-                resigned_preamble["prepared_reference_set"]
-            )
-            resigned_preamble_hash = resigned_preamble["prepared_reference_set"][
-                "prepared_reference_set_sha256"
-            ]
-            resigned_preamble["prepared_reference_set_sha256"] = resigned_preamble_hash
-            resigned_preamble["generation_contract"][
-                "prepared_reference_set_sha256"
-            ] = resigned_preamble_hash
-            resigned_preamble_commitment = generation_input_sha256(resigned_preamble)
-            resigned_preamble["generation_input_sha256"] = resigned_preamble_commitment
-            resigned_preamble["generation_contract"][
-                "generation_input_sha256"
-            ] = resigned_preamble_commitment
-            checked(
-                _verify_rejected(resigned_preamble, package_root=root),
-                "verifier accepted a resigned noncanonical reference preamble",
-            )
-            mutation_count += 1
-
-            try:
-                build_prepared_reference_set(
                     transport_mode="prompt-artifacts",
                     target_model=None,
-                    reference_preamble="Use this prompt artifact only as declared.\n",
                     prompt_artifacts=[
                         {
                             "semantic_role": "identity-appearance",
@@ -2577,7 +2516,6 @@ def run() -> dict[str, Any]:
                     "instruction",
                     "parameters",
                     "selected_references",
-                    "reference_preamble",
                     "generation_input_sha256",
                     "paste_prompt",
                     "paste_prompt_sha256",
@@ -2590,8 +2528,7 @@ def run() -> dict[str, Any]:
                 and native_export["paste_prompt_sha256"]
                 == generation_builder.sha256_text(PROMPT)
                 and native_export["native_negative"] == NATIVE_NEGATIVE
-                and native_export["selected_references"] == []
-                and native_export["reference_preamble"] == "",
+                and native_export["selected_references"] == [],
                 "native-subset export reconstructed text or exposed the portable negative field",
             )
 
@@ -2653,7 +2590,6 @@ def run() -> dict[str, Any]:
                     "instruction",
                     "parameters",
                     "selected_references",
-                    "reference_preamble",
                     "generation_input_sha256",
                     "paste_prompt",
                     "paste_prompt_sha256",
@@ -2666,8 +2602,7 @@ def run() -> dict[str, Any]:
                 and integrated_export["paste_prompt_sha256"]
                 == generation_builder.sha256_text(INTEGRATED_PROMPT)
                 and integrated_export["integration_method"] == "authored-affirmative"
-                and integrated_export["selected_references"] == []
-                and integrated_export["reference_preamble"] == "",
+                and integrated_export["selected_references"] == [],
                 "integrated-critical export did not emit only its committed rendition",
             )
 
@@ -2825,7 +2760,6 @@ def run() -> dict[str, Any]:
                     "instruction",
                     "parameters",
                     "selected_references",
-                    "reference_preamble",
                     "generation_input_sha256",
                     "paste_prompt",
                     "paste_prompt_sha256",
@@ -2955,7 +2889,6 @@ def run() -> dict[str, Any]:
                     "instruction",
                     "parameters",
                     "selected_references",
-                    "reference_preamble",
                     "generation_input_sha256",
                     "paste_prompt",
                     "paste_prompt_sha256",
@@ -3082,7 +3015,7 @@ def run() -> dict[str, Any]:
                 "stateless_reference_origin_is_null": True,
                 "runtime_plan_round_trip_exercised": True,
                 "portable_companion_exercised": True,
-                "authority_preamble_forwarded": True,
+                "reference_bindings_preserved": True,
                 "transactional_publication_exercised": True,
                 "manual_pack_bypass_rejected": True,
                 "certified_primary_transport_exercised": True,
@@ -3243,11 +3176,6 @@ def run_derived_inputs() -> dict[str, Any]:
             checked(verify_exit == 2 and diagnostic_messages(verified_out.getvalue()) == errors,
                     "verifier specification errors differ from the builder's")
             refused("each production subject", "--continuity", "C02=one-off")
-            with mock.patch("production_workflow.assert_current", return_value=(
-                    None, {"route_reading": derived["route_reading"], "task": {}, "dependencies": []},
-                    {"transport": "bounded-context"}, [])):
-                refused("bounded production context", "--continuity", "C01=one-off")
-
             # A tampered package or a changed prepared run fails closed.
             verify_live(derived, package_root=base, studio=root)
             tampered = copy.deepcopy(derived)

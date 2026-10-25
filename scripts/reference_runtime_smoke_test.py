@@ -811,7 +811,6 @@ def run() -> dict[str, Any]:
                         "final-negative.txt",
                         "reference-use-plan.json",
                         "surface-lighting-plan.json",
-                        "reference-preamble.txt",
                         "prepared-reference-set.json",
                     )
                 ),

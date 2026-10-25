@@ -31,7 +31,7 @@ def fixture_external_delivery(folder: Path, prompt: str, features: list[str]) ->
     started = work_ledger.begin(root, 'Synthetic package', ['prepare'])
     (root / 'fixture-delivery.txt').write_bytes(prompt.encode('utf-8'))
     spec = {'task_id': started['task_id'], 'route': 'generation', 'features': features, 'sources': [],
-            'delivery': {'path': 'fixture-delivery.txt', 'transport': 'authored-rendition',
+            'delivery': {'path': 'fixture-delivery.txt',
                          'translation_notes': 'Exact synthetic test input.'},
             'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect actual fixture bytes.'}],
             'world_views': []}
@@ -99,8 +99,8 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
                     model = json.loads(spec_path.read_text(encoding='utf-8')).get('target_model')
             if isinstance(model, str) and model.strip():
                 path=Path(temp)/'request-validation.json'
-                path.write_text(json.dumps(fixture_validation(root, model, reference_mode='prompt-prefix')), encoding='utf-8')
-                fixture_validation(fixture_root(), model, reference_mode='prompt-prefix')
+                path.write_text(json.dumps(fixture_validation(root, model, reference_mode='authored-rendition')), encoding='utf-8')
+                fixture_validation(fixture_root(), model, reference_mode='authored-rendition')
                 args.extend(['--request-validation-file', str(path)])
         if '--retrieval-record-file' not in args:
             path=Path(temp)/'retrieval.json'

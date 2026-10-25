@@ -16,7 +16,6 @@
   ],
   "delivery": {
     "path": "delivery.txt",
-    "transport": "authored-rendition",
     "translation_notes": "Author only the intended consumer-facing instructions."
   },
   "criteria": [

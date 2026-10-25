@@ -1951,7 +1951,6 @@ def validate(
             "surface-lighting-plan.json",
             "only when source lighting or material response",
             "prepared-reference-set.json",
-            "reference-preamble.txt",
             "only for a target-specific or generation-ready package",
             "Do not create empty placeholder reference files.",
             "A path or checksum is not delivery.",

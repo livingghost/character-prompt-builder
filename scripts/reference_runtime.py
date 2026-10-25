@@ -22,7 +22,6 @@ from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 from model_contract import model_reference_limit
 from prepare_generation_references import (
     build_prepared_reference_set,
-    canonical_reference_preamble,
     prepare_reference_use_plan_rows,
     read_json_array,
     reference_plan_state_rows,
@@ -709,13 +708,6 @@ def execute_reference_use_plan(
             prepared_absolute,
             package_root=staging,
         )
-        preamble = canonical_reference_preamble(
-            transport_mode=materialized_mode,
-            selected_references=prepared_rows,
-            reference_use_plan=plan,
-            single_board=board,
-        )
-        (staging / "reference-preamble.txt").write_text(preamble, encoding="utf-8", newline="\n")
         prepared_set = build_prepared_reference_set(
             transport_mode=materialized_mode,
             target_model=(str(materialized_target) if materialized_target is not None else None),
@@ -723,7 +715,6 @@ def execute_reference_use_plan(
             reference_selection=state_selection,
             reference_use_plan=plan,
             zero_reference_reason=plan.get("zero_reference_reason"),
-            reference_preamble=preamble,
             prompt_artifacts=prompt_artifacts,
             single_board=board,
             package_root=staging,

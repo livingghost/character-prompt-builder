@@ -104,7 +104,7 @@ class PackImportTests(AcquisitionTests):
         self.assertEqual(model_contract.offering_schema(offering,self.args.out_pack,self.args.model)['schema'],self.schema)
         transport=SimpleNamespace(OPERATIONS={'generation':'imageInference'},__file__=__file__)
         reader=InputEvidence(self.root,named_roots={'@pack/published':self.args.out_pack})
-        offering={k:v for k,v in offering.items() if k not in {'production_context_transport','reference_instruction_transport'}}
+        offering={k:v for k,v in offering.items() if k not in {'reference_instruction_transport'}}
         with patch('runtime_evidence.model_space',return_value='@pack/published'):
             record=rv.from_offering(self.args.model,document['records'][i],offering,{'id':'runware'},transport,reader)
         self.assertEqual(record['contract']['path'],'@pack/published/'+offering['schema_snapshot'])

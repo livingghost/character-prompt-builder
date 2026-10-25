@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026.10.25.1
+
+- Author image instructions from the intended depiction and the actual delivered references. Keep Studio identifiers, source records and production assessments with their internal owners.
+- Bind reference images, subject assignments and scope independently from model-facing prose. Verify the exact request and assess its meaning using the delivered inputs.
+- Build character-sheet requests from explicit visual descriptions and panel content, with fixed design details resolved before rendering.
+- Verify that changes to internal identifiers and source locations preserve the authored model input and reference assignments.
+
 ## 2026.10.22.1
 
 - Select prompt instructions from explicit requirements, necessary scene meaning and purposeful art direction. Keep incidental deductions and planning commentary out of model-facing wording.

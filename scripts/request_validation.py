@@ -138,10 +138,10 @@ def from_offering(model_id:str,model:dict,offering:dict,service:dict,transport,r
     """Build a target-schema record from the observed schema an active pack's offering names.
 
     The record names that pack file and its hash as contract and evidence. It
-    carries no execution policy, so the caller refuses references and bounded
-    production context, which need the operator's policy.
+    carries no execution policy; reference delivery requires an explicitly
+    authored policy from the operator.
     """
-    for key in ('production_context_transport','reference_instruction_transport'):
+    for key in ('reference_instruction_transport',):
         if key in offering:
             raise ValueError(f"the offering on {offering['service']!r} registers {key}; supply a request validation record with its execution policy")
     relative=offering.get('schema_snapshot')

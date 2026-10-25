@@ -123,11 +123,13 @@
                 },
                 "label": {
                   "type": "string",
-                  "minLength": 1
+                  "minLength": 1,
+                  "description": "Visible label printed on the scaffold; used to locate a region only when the scaffold is attached."
                 },
                 "hint": {
                   "type": "string",
-                  "minLength": 1
+                  "minLength": 1,
+                  "description": "Model-facing depiction of this panel. State its subject, view and action directly, using only information in the drawing brief and attached inputs."
                 },
                 "caption": {
                   "type": "string",

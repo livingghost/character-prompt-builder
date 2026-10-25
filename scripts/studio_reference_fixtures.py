@@ -93,6 +93,6 @@ def reference_task(case) -> tuple[str, dict]:
         request_validation='reference-validation.json', continuity={'robot':'recurring'})
     spec = c.load(root/'spec.json'); spec['render_intent']['execution_mode'] = 'reference-guided'
     fixture.write(root/'reference-spec.json', spec)
-    fixture.write(root/'reference-validation.json', fixture_validation(root,fixture.MODEL_ID,reference_mode='prompt-prefix',service='synthetic'))
+    fixture.write(root/'reference-validation.json', fixture_validation(root,fixture.MODEL_ID,reference_mode='authored-rendition',service='synthetic'))
     fixture.write(root/'reference-task.json', task)
     return 'reference-task.json', source

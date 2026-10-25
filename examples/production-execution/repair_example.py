@@ -54,7 +54,7 @@ def run(out: Path) -> dict:
     task = {'task_id': task_id, 'route': 'development', 'features': [],
             'sources': [{'id': 'brief', 'path': 'brief.txt', 'role': 'world', 'disposition': 'applied',
                          'locator': 'whole', 'reason': 'Explicit synthetic processing requirement.'}],
-            'delivery': {'path': 'delivery.txt', 'transport': 'authored-rendition', 'translation_notes': 'Only selected expression instructions.'},
+            'delivery': {'path': 'delivery.txt',  'translation_notes': 'Only selected expression instructions.'},
             'criteria': [{'id': 'region', 'strength': 'hard', 'text': 'Actual central and peripheral pixels differ.'}],
             'world_views': []}
     fixture.task(out, task, artifact='image')

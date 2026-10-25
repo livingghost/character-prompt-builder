@@ -42,7 +42,7 @@ The builder resolves the document hashes from the issued record.
 
 `visual` and `validation` stay null unless this directory must hold their records.
 The Generation Package builder takes continuity as `--continuity SUBJECT=DECISION` and derives request validation from the active pack's observed schema.
-An upscale or a bounded-context dispatcher task needs a validation choice, and so does a package with selected references.
+An upscale or a package with selected references needs a validation choice.
 
 ### Validation choices
 
@@ -87,12 +87,11 @@ for acquisition and contract construction.
 `target` uses the canonical model's exact service, model identifier and wire
 operation. A null `service_profiles` selects the active service resource; a
 string selects a service-profiles file. `execution_policy` is a string selector
-for the authored policy when references or bounded context require one. It may
+for the authored policy when reference delivery requires one. It may
 be null when unused. The policy keeps the same exact target and declares how
 reference instructions reach the model.
 See [Execution policy for reference delivery](../../references/runtime/model-evidence.md#execution-policy-for-reference-delivery)
-for the complete policy and reference render contract shapes, the exact
-`reference-delivery` renderer, and saved public examples.
+for the complete policy and reference render contract shapes and saved public examples.
 
 ### Visual choices
 

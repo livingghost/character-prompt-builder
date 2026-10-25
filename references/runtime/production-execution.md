@@ -34,7 +34,9 @@ Use its task ID in a task that follows `schemas/authoring/production-task.schema
 The task declares its route, direction, full source selectors, criteria and execution kind.
 For dispatcher generation it also declares `generation` and `recording`.
 The prompt file named by `delivery.path` is the single authored prompt.
-The compiler derives its packaged and delivered forms without separate editing.
+The agent interprets the sources and criteria into that depiction under
+[Prompt Composition](prompt-composition.md#prompt-assembly-and-review).
+The compiler packages the rendition with the selected interface's declared controls.
 
 ```text
 python scripts/production_workflow.py check --root STUDIO --task task.json
@@ -114,7 +116,7 @@ The chain therefore runs one way: authored content, input digest, request digest
 
 The other recorded digests each cover one document:
 
-- `consumer_sha256` (`prepared.json`, the plan's `handoff`, the `handoff` event): `consumer.json`, the bounded instructions the recipient receives.
+- `consumer_sha256` (`prepared.json`, the plan's `handoff`, the `handoff` event): `consumer.json`, the prepared authoring context and exact authored delivery.
 - `generation_input_sha256` (`package.json` and its `generation_contract`): the Generation Package projection that the builder and the verifier both hash. It spans prompt texts, transports, parameters, references and the production binding.
 - `package_sha256` (`prepared.compiled`, the submit authorization payload): `package.json`.
 - `plan_sha256` (`prepared.compiled`): `execution-plan.json`.
@@ -531,30 +533,25 @@ inside nested arrays. A mixed content array may retain text-only entries.
 Identical source bytes can bind the same media field when its value also
 matches; their distinct logical scopes remain recorded.
 
-Generate the shared reference instructions before saving the final request:
+Inspect the reference mapping before saving the final request:
 
 ```sh
 python scripts/reference_delivery.py --image-input-plan STUDIO/inputs/image-input.json --studio STUDIO
 ```
 
-This reads the authored plan and returns `bindings` and `reference_preamble`.
-`--studio` resolves a declared canonical prepared set and its source subject
-assignment. Original supplied inputs need only the plan's structure at this
-step. Include the complete preamble in the final prompt and production
-delivery. It carries source scope, exclusions, subject uses and priority,
-mapped to each actual request field. A trimmed synthetic example
-shows two logical uses of one physical image:
+This reads the authored plan and returns `bindings`. `--studio` resolves a
+declared canonical prepared set and its source subject assignment. Original
+supplied inputs need only the plan's structure at this step. Interpret the
+source scopes, subject assignments and precedence into the final prompt using
+the images the target receives. Keep request field paths and internal keys in
+the binding record.
 
-```text
-Reference 1 means request field ["images",0]. Use it for: stable face construction. Apply these uses: subject a, identity, priority 0. Do not inherit: source pose.
-Reference 2 means request field ["images",0]. Use it for: accepted outfit construction. Apply these uses: subject a, outfit, priority 0. Do not inherit: source pose.
-```
-
-`check` and `prepare` require that exact generated block in the saved request's
-prompt. Saving scope only in input metadata fails. Changing scope, subject
-assignments, priority or media field positions requires an updated prompt.
-Dispatcher requests use the same instruction owner with their compiled image
-order or board regions.
+`check` and `prepare` verify the saved request's exact prompt, ordered media
+mapping and source bytes. The agent reviews whether those received inputs
+identify each subject and convey the assigned reference uses. A change in
+scope, subject assignment, priority or image position requires that meaning
+review again. Dispatcher requests use the same boundary with their compiled
+image order or board regions.
 
 For model identity carried in a parameter, `model_field` selects that exact
 parameter. If the interface selects a model through an endpoint or tool, use
@@ -803,8 +800,9 @@ Exported observations never authorize a new action; continue decisions through t
 Use [Scene Persona Material](scene-persona.md) to preserve a full-reading result for one scoped scene.
 Add `scene-persona` to the task features and name local selectors as `scene_materials: [{"plan": "scene-plan.json", "bundle": "scene-material"}]`.
 Preparation checks the complete source files and deterministic documents, stores their dependencies, and includes the document in `consumer.authoring_materials`.
-Do not concatenate this author-only material into a generation prompt.
-Exact public instructions, viewpoint limits and submitted inputs keep their own boundaries.
+The agent applies the material's relevant meaning to the authored depiction.
+Source definitions, internal keys and review evidence remain in the authoring context.
+Viewpoint limits and exact submitted inputs keep their own boundaries.
 Public material requires an explicit content hash and accepted-by or basis instead of a search for its producer.
 
 For intake of existing source text, use [Source Material](source-material.md).

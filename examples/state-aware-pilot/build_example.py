@@ -847,7 +847,7 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
                             character_id=identity['character_id'])
     write_json(generated / 'visual-continuity.json', visual)
     from request_validation_fixtures import fixture_validation
-    validation = fixture_validation(generated, "gpt-image-2.5-flare", reference_mode="prompt-prefix")
+    validation = fixture_validation(generated, "gpt-image-2.5-flare", reference_mode="authored-rendition")
     write_json(generated / 'request-validation.json', validation)
     state_graphs = [{"lineage": lineage, "species_profile": species_profile,
         "individual_morphology": individual_morphology, "identity_contract": identity,

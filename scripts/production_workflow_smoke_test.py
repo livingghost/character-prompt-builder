@@ -37,7 +37,7 @@ class ProductionTests(unittest.TestCase):
         self.write('delivery.txt','Describe one lamp.\n')
         self.spec={'task_id':task['task_id'],'route':'development','features':[],
           'sources':[{'id':'brief','path':'brief.md','role':'world','locator':'whole','disposition':'applied','reason':'Explicit test premise.'}],
-          'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Only public instructions.'},
+          'delivery':{'path':'delivery.txt','translation_notes':'Only public instructions.'},
           'criteria':[{'id':'lamp','strength':'hard','text':'Keep one lamp.'},{'id':'style','strength':'advisory','text':'Optional spare wording.'}],
           'world_views':[]}
         fixture.task(self.root,self.spec)
@@ -111,13 +111,13 @@ class ProductionTests(unittest.TestCase):
     def test_binding_changed_without_digest(self):
         run=self.prepare(); b=binding.create(self.root,run,'Describe one lamp.\n'); b['consumer']['instructions']='changed'
         with self.assertRaises(ValueError): binding.validate(b,'Describe one lamp.\n')
-    def test_authored_rendition_no_prefix(self):
+    def test_authored_instructions_have_their_own_consumer_field(self):
         run=self.prepare(); b=binding.create(self.root,run,'Describe one lamp.\n')
-        self.assertEqual(binding.effective(b,'TAG_1, TAG_2'),'TAG_1, TAG_2')
-    def test_bounded_prefix_only_explicit_fields(self):
-        self.spec['delivery']['transport']='bounded-context'; self.save_spec(); run=self.prepare()
-        b=binding.create(self.root,run,'Describe one lamp.\n'); text=binding.effective(b,'prompt',context_transport='prompt-prefix')
-        self.assertIn('Keep one lamp.',text); self.assertNotIn('PRIVATE_SOURCE',text)
+        self.assertEqual(b['consumer']['instructions'], 'Describe one lamp.\n')
+    def test_production_criteria_keep_their_separate_owner(self):
+        run=self.prepare(); b=binding.create(self.root,run,'Describe one lamp.\n')
+        self.assertEqual(b['consumer']['instructions'], 'Describe one lamp.\n')
+        self.assertEqual(b['consumer']['criteria'], self.spec['criteria'])
     def test_no_handoff_no_capture(self):
         run=self.prepare(); self.write('out.txt','lamp')
         with self.assertRaises(ValueError): w.capture(self.root,run,'out.txt','test')

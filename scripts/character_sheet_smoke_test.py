@@ -200,6 +200,15 @@ def render_sidecar() -> dict[str, Any]:
         "fields": {
             "identity.name": "Aster",
             "identity.species_domain": "anthropomorphic wolf",
+            "field.model_fill_visual_design_brief": (
+                "A lean blue-gray anthropomorphic wolf, 172 cm tall, with amber eyes and compact carried gear. "
+                "Both hands have five fingers with short graphite claws, and both feet have five toes with graphite nails. "
+                "Two pale arcs sit under the right eye without crossing the eyelid; the left under-eye is plain. "
+                "A small triangular notch cuts the outer left ear; the right ear rim is intact. "
+                "Broken charcoal stripes follow the outer forearms. "
+                "The dressed configuration carries a round brass compass with one repaired hinge on the left belt."
+            ),
+            "field.reference_sheet_visual_finish": "Clean 2D reference artwork with even neutral light and plain white interiors.",
             "field.pronouns": "they / them",
             "field.kind_baseline_sheet_or_self": "self-authored wolf kind",
             "field.form_of_spine_sheet_or_self": "single baseline form",
@@ -993,8 +1002,8 @@ def main() -> int:
         prompt = first_panel_prompt(scaffold)
         check(
             "scaffold writes exact panel-only model prompts with no renderer-owned content",
-            "single Character Sheet panel" in prompt
-            and "same identity consistently" in prompt
+            "one Character Sheet panel" in prompt
+            and "Preserve the described identity" in prompt
             and "Return artwork only" in prompt
             and "profile block" in prompt
             and "strict coordinate template" not in prompt,
@@ -1015,47 +1024,36 @@ def main() -> int:
                 if request["generation_stage"] > 1
             ),
         )
-        check(
-            "arbitrary visual identity axes reach the complete fill prompt",
-            "Visual identity axis axes.01" in prompt
-            and "habitual silhouette and deployment" in prompt
-            and "character-fixed" in prompt,
-        )
-        check(
-            "fixed visual continuity is global across parts marks colors and items",
-            "Fixed parts.01" in prompt
-            and "Fixed marks.01" in prompt
-            and "Fixed colors.01" in prompt
-            and "Fixed items.01" in prompt
-            and "Fixed visual continuity is global, not limited to marks or anatomy" in prompt
-            and "A panel-specific line that does not repeat the feature never permits removing it" in prompt,
-        )
         combined_panel_prompts = "\n".join(text for _request, text in panel_prompts(scaffold))
-        missing_prompt_values = [
-            f"fields/{key}"
-            for key, value in sidecar_value["fields"].items()
-            if isinstance(value, str)
-            and value.strip()
-            and value.casefold() not in combined_panel_prompts.casefold()
-        ]
-        rule_columns = {
-            "counterpart_rule", "continuity_rule", "visibility_rule", "role_rule", "must_prove", "limit"
-        }
-        missing_prompt_values.extend(
-            f"tables/{table_id}/{row['row_id']}/{column}"
-            for table_id, rows in sidecar_value["tables"].items()
-            for row in rows
-            for column, value in row["values"].items()
-            if isinstance(value, str)
-            and value.strip()
-            and column not in rule_columns
-            and value.casefold() not in combined_panel_prompts.casefold()
+        check(
+            "the authored visible design reaches every requested panel",
+            all(sidecar_value["fields"]["field.model_fill_visual_design_brief"] in text
+                for _request, text in panel_prompts(scaffold)),
         )
         check(
-            "every nonempty authored drawing value reaches the complete fill prompt",
-            not missing_prompt_values,
-            missing_prompt_values,
+            "the authored design states fixed bilateral and unilateral construction",
+            all(value in prompt for value in (
+                "five fingers with short graphite claws", "the left under-eye is plain",
+                "the right ear rim is intact", "one repaired hinge on the left belt")),
         )
+        altered_authoring = copy.deepcopy(sidecar_value)
+        altered_authoring["fields"].update({
+            "identity.name": "Different record name", "field.notes": "Independent authoring record",
+            "field.form_id_display_name": "FORM-93", "field.kind_baseline_sheet_or_self": "kind-record-47",
+        })
+        altered_authoring["tables"]["axes"][0]["row_id"] = "axes.93"
+        altered_authoring["tables"]["axes"][0]["values"]["axis"] = "Independent design bookkeeping"
+        original_plan = build_panel_plan(apply_sheet_context(profile, sidecar_value), sidecar_value,
+            sheet_dir=render_root, mode="scaffold", reference_scope="identity")
+        altered_plan = build_panel_plan(apply_sheet_context(profile, altered_authoring), altered_authoring,
+            sheet_dir=render_root, mode="scaffold", reference_scope="identity")
+        selected_slot = panel_requests["requests"][0]["resolved_slot_id"]
+        check(
+            "authoring metadata has no effect on the model-facing depiction",
+            build_fill_prompt(profile, sidecar_value, original_plan, target_slot_id=selected_slot)
+            == build_fill_prompt(profile, altered_authoring, altered_plan, target_slot_id=selected_slot),
+        )
+        rule_columns = {"counterpart_rule", "continuity_rule", "visibility_rule", "role_rule", "must_prove", "limit"}
         combined_reviews = "\n".join(
             str(request.get("review") or "") for request in panel_requests["requests"]
         )
@@ -1109,8 +1107,7 @@ def main() -> int:
         check(
             "color targets are arbitrary declared rows rather than a ten-zone category cap",
             many_colors_palette["content_h"] >= 228
-            and "declared target 13"
-                in first_panel_prompt(many_colors_render),
+            and "declared target 13" in many_colors_render["svg"].read_text(encoding="utf-8"),
             )
 
         cjk_value = copy.deepcopy(sidecar_value)
@@ -1258,7 +1255,7 @@ def main() -> int:
             and confirmed_masked["panel_requests"] is None
             and confirmed_masked_package["fill_transport"]["id"] == "masked-sheet"
             and confirmed_masked_package["fill_transport"]["pixel_edit_mask_confirmed"] is True
-            and "valid only in an interface that applies the attached pixel edit mask"
+            and "using the attached pixel edit mask"
             in confirmed_masked["fill_prompt"].read_text(encoding="utf-8"),
         )
         with Image.open(scaffold["edit_mask"]) as mask_image:
@@ -1283,6 +1280,7 @@ def main() -> int:
         sparse_value["fields"] = {
             "identity.name": "Aster",
             "identity.species_domain": "anthropomorphic wolf",
+            "field.model_fill_visual_design_brief": "A lean blue-gray anthropomorphic wolf with amber eyes, long muzzle, upright ears, and a full tail.",
         }
         sparse_dir = render_root / "sparse-scaffold"
         sparse = render_sheet(
@@ -1903,12 +1901,13 @@ def main() -> int:
         base_form_dir.mkdir(parents=True)
         changed_form_dir.mkdir(parents=True)
 
-        def linked_form_sheet(form_id: str, display_name: str, profile_id: str) -> dict[str, Any]:
+        def linked_form_sheet(form_id: str, display_name: str, profile_id: str, visual_brief: str) -> dict[str, Any]:
             return {
                 "sheet_status": "identity-ready",
                 "fields": {
                     "identity.name": display_name,
                     "identity.species_domain": "profile-declared form domain",
+                    "field.model_fill_visual_design_brief": visual_brief,
                     "field.form_id": form_id,
                     "field.form_spine_path": "../../sheet-data.json",
                     "field.sheet_layout_profile": profile_id,
@@ -1919,8 +1918,8 @@ def main() -> int:
 
         base_form_path = base_form_dir / "sheet-data.json"
         changed_form_path = changed_form_dir / "sheet-data.json"
-        base_form_value = linked_form_sheet("base", "Mica", "general")
-        changed_form_value = linked_form_sheet("changed", "Mica / Changed", "anthro")
+        base_form_value = linked_form_sheet("base", "Mica", "general", "A hovering pale metal sphere with a cyan luminous core and one narrow white stripe on its left side.")
+        changed_form_value = linked_form_sheet("changed", "Mica / Changed", "anthro", "A tall pale-furred wolf with a cyan luminous chest core and one narrow white stripe along its left shoulder.")
         base_form_path.write_text(
             json.dumps(base_form_value, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
@@ -1936,6 +1935,7 @@ def main() -> int:
             "fields": {
                 "identity.name": "Mica",
                 "identity.species_domain": "multi-form character spine",
+                "field.model_fill_visual_design_brief": "A hovering pale metal sphere with a cyan luminous core and one narrow white stripe on its left side.",
                 "field.sheet_layout_profile": "general",
             },
             "tables": {
@@ -2056,7 +2056,7 @@ def main() -> int:
                 "identity.name": "Hex",
                 "identity.species_domain": "six-unit photonic swarm",
                 "field.model_fill_visual_design_brief": (
-                    "Exactly six cobalt luminous orbs in a fixed hexagonal formation; "
+                    "Exactly six separate cores, each a cobalt luminous orb, in a fixed hexagonal formation; "
                     "no face, limbs, torso, feet, clothing, or biological anatomy."
                 ),
             },
@@ -2113,9 +2113,9 @@ def main() -> int:
             >= 2,
         )
         check(
-            "complete invariant and override contracts reach the model-fill prompt",
-            "exactly six separate cores" in nonhuman_prompt
-            and "no biological anatomy" in nonhuman_prompt
+            "the authored depiction resolves topology and anatomy into visible instructions",
+            "exactly six separate cores" in nonhuman_prompt.casefold()
+            and "no face, limbs, torso, feet, clothing, or biological anatomy" in nonhuman_prompt
             and "Never add humanoid anatomy" in nonhuman_prompt,
         )
 
@@ -2127,6 +2127,7 @@ def main() -> int:
             "fields": {
                 "identity.name": "Row Stable",
                 "identity.species_domain": "humanoid",
+                "field.model_fill_visual_design_brief": "A pale-skinned humanoid with one triangular notch in the left ear rim and an intact right ear.",
             },
             "tables": {
                 "marks": [
@@ -2257,7 +2258,7 @@ def main() -> int:
         authored_loaded = load_profile(authored_path)
         gap_sheet = {
             "sheet_status": "draft",
-            "fields": {},
+            "fields": {"field.model_fill_visual_design_brief": "A compact matte gray test figure with a single left-side signal mark and a small metal badge with an offset attachment loop."},
             "tables": {
                 "marks": [
                     {
@@ -2350,7 +2351,7 @@ def main() -> int:
             ]
         exception_sheet = copy.deepcopy(gap_sheet)
         exception_text = "The complete primary view is the intentional recognition panel."
-        exception_sheet["fields"] = {"field.sheet_coverage_exceptions": exception_text}
+        exception_sheet["fields"]["field.sheet_coverage_exceptions"] = exception_text
         exception_render = render_sheet(
             headless_profile,
             exception_sheet,
@@ -2593,7 +2594,7 @@ def main() -> int:
         isolated_asymmetry_profile = copy.deepcopy(source_part_profile)
         isolated_asymmetry_sheet = {
             "sheet_status": "draft",
-            "fields": {},
+            "fields": {"field.model_fill_visual_design_brief": "A small metal winged construct with one chipped left vane and an intact right vane."},
             "tables": {
                 "parts": [
                     {
@@ -2640,7 +2641,7 @@ def main() -> int:
         # panel, palette), so only the state deficits are expanded here.
         state_sheet = {
             "sheet_status": "draft",
-            "fields": {},
+            "fields": {"field.model_fill_visual_design_brief": "An upright gray wolf with a left-ear V notch, intact right ear, a white band on its single tail tip, and a thin ring of dark fur around the neck."},
             "tables": {
                 "marks": [
                     gap_sheet["tables"]["marks"][0],
@@ -3065,95 +3066,36 @@ def main() -> int:
             "binding": binding,
         }
 
-    mark_rows = [
-        {"row_id": "marks.01", "values": {"mark_id": "marks.01", "binding": "individual-fixed"}}
-    ]
+    design = "A blue-gray wolf with two pale arcs under the right eye and a plain left under-eye."
     single_mark_sheet = {
         "sheet_status": "draft",
-        "fields": {},
-        "tables": {"marks": mark_rows},
-        "slots": {},
+        "fields": {"field.model_fill_visual_design_brief": design},
+        "tables": {}, "slots": {},
     }
-    single_mark_prompt = build_fill_prompt(
-        kind_rule_profile,
-        single_mark_sheet,
-        [{"boxes": [kind_rule_box("mark_detail", "d1", "marks.01")]}],
-    )
-    check(
-        "a single named panel kind still states the rule it names",
-        KIND_DRAW_GUIDE["mark_detail"] in single_mark_prompt,
-        single_mark_prompt.splitlines()[-4:],
-    )
-    check(
-        "a named panel kind keeps the short plan-line reference",
-        "Use mark_detail rule" in single_mark_prompt,
-        [line for line in single_mark_prompt.splitlines() if line.startswith("- D1")],
-    )
-
-    evidence_sheet = {
-        "sheet_status": "draft",
-        "fields": {},
-        "tables": {
-            "marks": mark_rows,
-            "evidence": [
-                {
-                    "row_id": "evidence.01",
-                    "values": {
-                        "subject_table": "marks",
-                        "subject_row_id": "marks.01",
-                        "view_id": "v1",
-                        "orientation_configuration": "front",
-                        "specification": "close-up",
-                    },
-                }
-            ],
-        },
-        "slots": {},
-    }
-    evidence_prompt = build_fill_prompt(
-        kind_rule_profile,
-        evidence_sheet,
-        [{"boxes": [kind_rule_box("evidence_view", "e1", "evidence.01")]}],
-    )
-    check(
-        "a single evidence_view panel states the rule it names",
-        KIND_DRAW_GUIDE["evidence_view"] in evidence_prompt
-        and "Use evidence_view rule" in evidence_prompt,
-        evidence_prompt.splitlines()[-4:],
-    )
-
-    repeated_mark_sheet = {
-        "sheet_status": "draft",
-        "fields": {},
-        "tables": {
-            "marks": mark_rows
-            + [
-                {
-                    "row_id": "marks.02",
-                    "values": {"mark_id": "marks.02", "binding": "individual-fixed"},
-                }
-            ]
-        },
-        "slots": {},
-    }
-    repeated_mark_prompt = build_fill_prompt(
-        kind_rule_profile,
-        repeated_mark_sheet,
-        [
-            {
-                "boxes": [
-                    kind_rule_box("mark_detail", "d1", "marks.01"),
-                    kind_rule_box("mark_detail", "d2", "marks.02"),
-                ]
-            }
-        ],
-    )
-    check(
-        "a repeated panel kind states its rule exactly once",
-        repeated_mark_prompt.count("- mark_detail: ") == 1
-        and KIND_DRAW_GUIDE["mark_detail"] in repeated_mark_prompt,
-        repeated_mark_prompt.count("- mark_detail: "),
-    )
+    mark_box = kind_rule_box("mark_detail", "d1", "marks.01")
+    mark_box["hint"] = "Show the two pale arcs under the right eye beside the plain left under-eye."
+    single_mark_prompt = build_fill_prompt(kind_rule_profile, single_mark_sheet,
+        [{"boxes": [mark_box]}], target_slot_id="d1")
+    check("a detail prompt contains its drawing geometry and complete identity",
+        design in single_mark_prompt and KIND_DRAW_GUIDE["mark_detail"] in single_mark_prompt
+        and mark_box["hint"] in single_mark_prompt)
+    renamed_box = dict(mark_box, slot_id="independent-slot", resolved_slot_id="independent-slot",
+                       source_row_id="marks.47", panel_code="Q9", label="Independent label")
+    renamed_prompt = build_fill_prompt(kind_rule_profile, single_mark_sheet,
+        [{"boxes": [renamed_box]}], target_slot_id="independent-slot")
+    check("panel record identifiers do not change independently generated artwork instructions",
+          renamed_prompt == single_mark_prompt)
+    evidence_box = kind_rule_box("evidence_view", "e1", "evidence.01")
+    evidence_box["hint"] = "A front close-up of both cheeks showing the right-side pale arcs and the plain left side."
+    evidence_prompt = build_fill_prompt(kind_rule_profile, single_mark_sheet,
+        [{"boxes": [evidence_box]}], target_slot_id="e1")
+    check("an evidence panel gives its subject and view within the delivered text",
+          evidence_box["hint"] in evidence_prompt and design in evidence_prompt)
+    masked_prompt = build_fill_prompt(kind_rule_profile, single_mark_sheet,
+        [{"boxes": [mark_box, evidence_box]}])
+    check("a masked sheet locates panels by the labels printed on its attached scaffold",
+          "- D1 MARK_DETAIL:" in masked_prompt and "- E1 EVIDENCE_VIEW:" in masked_prompt
+          and mark_box["hint"] in masked_prompt and evidence_box["hint"] in masked_prompt)
 
     with tempfile.TemporaryDirectory(prefix="cpb-sheet-containment-") as containment_raw:
         containment_root = Path(containment_raw)

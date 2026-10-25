@@ -68,12 +68,6 @@
           "type": "string",
           "minLength": 1
         },
-        "transport": {
-          "enum": [
-            "authored-rendition",
-            "bounded-context"
-          ]
-        },
         "translation_notes": {
           "type": "string",
           "minLength": 1
@@ -81,7 +75,6 @@
       },
       "required": [
         "path",
-        "transport",
         "translation_notes"
       ],
       "additionalProperties": false

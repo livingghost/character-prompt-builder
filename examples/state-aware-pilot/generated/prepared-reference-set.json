@@ -30,9 +30,8 @@
     "record_ids": [],
     "detail": "This deterministic state-aware pilot selects no canonical record-scoped visual reference; its full identity and scene contracts remain authoritative."
   },
-  "reference_preamble": "",
   "prompt_artifacts": [],
   "selected_references": [],
   "single_board": null,
-  "prepared_reference_set_sha256": "abe6ca3304dc149203f08743d3c648e70a67b4d4d79de31955b7a4bbdad616bf"
+  "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
 }

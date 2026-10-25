@@ -70,7 +70,7 @@
           "kind": "canonical_view",
           "reference_role": "identity",
           "label": "BASE RIGHT SIDE",
-          "hint": "strict right-facing side view of the same unobstructed base form and neutral stance; prove every lateral feature or absence independently from A2 without mirroring"
+          "hint": "strict right-facing side view of the same unobstructed base form and neutral stance; show each described lateral feature or absence without mirroring the opposite side"
         }
       ]
     },
@@ -114,7 +114,7 @@
           "source_row_id": "outfits.01",
           "reference_role": "identity",
           "label": "DRESSED FRONT",
-          "hint": "same front view and body proportions as A1, now wearing the declared primary outfit or equipment; preserve readable hands, feet, ears, tail, and silhouette"
+          "hint": "front view with the described body proportions, now wearing the declared primary outfit or equipment; preserve readable hands, feet, ears, tail, and silhouette"
         },
         {
           "slot_id": "outfit.turn.side",
@@ -126,7 +126,7 @@
           "source_row_id": "outfits.01",
           "reference_role": "identity",
           "label": "DRESSED LEFT SIDE",
-          "hint": "same strict left-facing side view as A2 with the identical declared outfit or equipment; show layer order, openings, fastenings, footwear, and tail accommodation"
+          "hint": "strict left-facing side view with the identical declared outfit or equipment; show layer order, openings, fastenings, footwear, and tail accommodation"
         },
         {
           "slot_id": "outfit.turn.back",
@@ -138,7 +138,7 @@
           "source_row_id": "outfits.01",
           "reference_role": "identity",
           "label": "DRESSED BACK",
-          "hint": "same back view and proportions as A3 with the identical declared outfit or equipment; show rear construction, motifs, seam paths, openings, and tail accommodation"
+          "hint": "back view with the described proportions with the identical declared outfit or equipment; show rear construction, motifs, seam paths, openings, and tail accommodation"
         },
         {
           "slot_id": "outfit.turn.right",
@@ -150,7 +150,7 @@
           "source_row_id": "outfits.01",
           "reference_role": "identity",
           "label": "DRESSED RIGHT SIDE",
-          "hint": "same strict right-facing side view as A4 with the identical declared outfit or equipment; prove lateral garment, item, and opening placement without mirroring B2"
+          "hint": "strict right-facing side view with the identical declared outfit or equipment; prove lateral garment, item, and opening placement without mirroring the opposite side"
         }
       ]
     },
@@ -200,7 +200,7 @@
           "kind": "size_reference",
           "reference_role": "identity",
           "label": "SIZE / EXTENT",
-          "hint": "complete base-form silhouette beside a plain scale indicator for the declared measure; proportions and resting stance identical to A1"
+          "hint": "complete base-form silhouette beside a plain scale indicator for the declared measure; the described proportions and resting stance"
         },
         {
           "slot_id": "head.study",
@@ -237,7 +237,7 @@
           "source_part": "left eye / eyes",
           "reference_role": "identity",
           "label": "LEFT EYE",
-          "hint": "left eye at readable scale: iris, pupil, sclera, eyelid, surrounding fur, adjacent marks, and highlight treatment; compare against the separately rendered right eye"
+          "hint": "left eye at readable scale: iris, pupil, sclera, eyelid, surrounding fur, adjacent marks, and highlight treatment; preserve the described left-side features"
         },
         {
           "slot_id": "eye.right.detail",
@@ -248,7 +248,7 @@
           "source_part": "right eye / eyes",
           "reference_role": "identity",
           "label": "RIGHT EYE",
-          "hint": "right eye at the same scale and orientation as E1: preserve independent iris, pupil, eyelid, adjacent marks, and any declared equality or difference"
+          "hint": "right eye at readable close-up scale: preserve independent iris, pupil, eyelid, adjacent marks, and any declared equality or difference"
         },
         {
           "slot_id": "ear.detail",
@@ -394,7 +394,7 @@
           "source_row_id": "expressions.01",
           "reference_role": "performance",
           "label": "EXPRESSION 01",
-          "hint": "head-and-shoulders view of the first declared expression; face proportions, markings, palette, and ear construction identical to A1"
+          "hint": "head-and-shoulders view of the first declared expression; face proportions, markings, palette, and the described ear construction"
         },
         {
           "slot_id": "expressions.ex.02",

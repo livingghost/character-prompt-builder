@@ -1293,8 +1293,6 @@ def production_inputs(
     else:
         if reference_set.get("selected_references") or reference_set.get("single_board"):
             raise ValueError("a package with references needs --request-validation-file with its execution policy")
-        if consumer["transport"] != "authored-rendition":
-            raise ValueError("bounded production context needs --request-validation-file with its execution policy")
         import runtime_evidence
         import service_profile
         import transport_contract

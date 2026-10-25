@@ -67,15 +67,14 @@ def interface_validation(root: Path, *, target: dict, record: dict, offering: di
         'status': {'document_status': 'schema-provided'}})
     contract = save('contract.json', {'artifact_type': 'model-schema-contract', 'target': target,
         'schema': schema, 'schema_sha256': c.content_id(schema), 'response_pointer': '/schema', 'local_overlay': None})
-    if reference_mode not in {'authored-rendition', 'prompt-prefix'}:
+    if reference_mode not in {'authored-rendition'}:
         raise ValueError('the synthetic fixture needs an explicit supported reference mode')
     dialect = record.get('prompt_dialect') or 'synthetic-prose'
     reference = save('references.json', {'artifact_type': 'reference-render-contract', 'target': target,
         'dialects': [dialect], 'mode': reference_mode,
-        'renderer': 'reference-delivery' if reference_mode == 'prompt-prefix' else None,
         'fields': [], 'basis': basis})
     policy = {'artifact_type': 'execution-policy', 'target': target, 'text_dialect': dialect,
-        'production_context_transport': 'none', 'reference_instruction_transport': {'mode': reference_mode, 'contract': reference},
+        'reference_instruction_transport': {'mode': reference_mode, 'contract': reference},
         'basis': basis}
     policy_ref = save('policy.json', policy)
     execution = rc.execution_hashes(service_record, offering, Path(transport.__file__), model=record, policy=policy)

@@ -514,8 +514,8 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
     if selected.get('request_validation'):
         validation=document('request_validation')
     else:
-        if references is not None or consumer['transport']!='authored-rendition':
-            raise ProductionError('MODEL_PROFILE_MISSING','References or bounded context require an explicitly authored request validation policy.',
+        if references is not None:
+            raise ProductionError('MODEL_PROFILE_MISSING','Reference delivery requires an explicitly authored request validation policy.',
                                   phase='request-compilation',pointer='$.generation.request_validation')
         from request_validation import from_offering
         validation=from_offering(model_id,model_record,offering,service,transport,runtime_evidence.reader(root))

@@ -50,16 +50,13 @@ def authority(root: Path, task: dict, saved: dict | None) -> dict:
 
 
 def validation_required(task: dict) -> bool:
-    """Whether request validation must come from an input choice.
+    """Upscaling takes request validation from an explicit input choice.
 
-    An upscale and bounded production context always take it from here. For an
-    authored rendition, prepare derives it from the observed schema, and a package
-    with selected references takes a validation choice from here. Prepare takes
-    visual continuity from the record the task's generation.visual_continuity
-    names, otherwise from its generation.continuity decisions.
+    Image preparation resolves observed schema evidence and requires a selected
+    reference contract when images accompany the authored instructions.
     """
-    return task.get('execution') == 'dispatcher' and (
-        task.get('route') == 'upscale' or (task.get('delivery') or {}).get('transport') != 'authored-rendition')
+    return task.get('execution') == 'dispatcher' and task.get('route') == 'upscale'
+
 
 
 def build_visual(choices: dict | None, task: dict, reader, root: Path) -> tuple[dict | None, dict]:

@@ -321,7 +321,7 @@ def _payload_inputs(graph: dict[str, dict[str, Any]]) -> dict[str, Any]:
     from request_validation_fixtures import fixture_validation
     return {
         "model": "gpt-image-2.5-flare",
-        "request_validation": fixture_validation(fixture_root(), "gpt-image-2.5-flare", reference_mode="prompt-prefix"),
+        "request_validation": fixture_validation(fixture_root(), "gpt-image-2.5-flare", reference_mode="authored-rendition"),
         "input_root": fixture_root(),
         "prompt": (GENERATED / "prompt.txt").read_text(encoding="utf-8"),
         "negative_prompt": (GENERATED / "negative.txt").read_text(encoding="utf-8"),

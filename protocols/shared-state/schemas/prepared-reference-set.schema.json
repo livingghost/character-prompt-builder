@@ -15,7 +15,6 @@
     "reference_use_plan_sha256",
     "surface_lighting_plan_sha256",
     "zero_reference_reason",
-    "reference_preamble",
     "prompt_artifacts",
     "selected_references",
     "single_board",
@@ -125,9 +124,6 @@
           "$ref": "#/$defs/zero-reference-reason"
         }
       ]
-    },
-    "reference_preamble": {
-      "type": "string"
     },
     "prompt_artifacts": {
       "type": "array",
@@ -289,9 +285,6 @@
             "target_model": {
               "type": "null"
             },
-            "reference_preamble": {
-              "const": ""
-            },
             "prompt_artifacts": {
               "maxItems": 0
             },
@@ -313,10 +306,6 @@
             },
             "target_model": {
               "type": "null"
-            },
-            "reference_preamble": {
-              "type": "string",
-              "minLength": 1
             },
             "reference_use_plan": {
               "$ref": "reference-use-plan.schema.json"
@@ -342,10 +331,6 @@
             },
             "target_model": {
               "type": "null"
-            },
-            "reference_preamble": {
-              "type": "string",
-              "minLength": 1
             },
             "reference_use_plan": {
               "$ref": "reference-use-plan.schema.json"
@@ -387,10 +372,6 @@
               "type": "string",
               "minLength": 1
             },
-            "reference_preamble": {
-              "type": "string",
-              "minLength": 1
-            },
             "selected_references": {
               "minItems": 1
             },
@@ -408,10 +389,6 @@
               "const": "single-board"
             },
             "target_model": {
-              "type": "string",
-              "minLength": 1
-            },
-            "reference_preamble": {
               "type": "string",
               "minLength": 1
             },

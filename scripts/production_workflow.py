@@ -404,7 +404,7 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
     for path in sorted(skill_files):
         key, size = c.file_digest(ROOT, path)
         dependencies[('skill', path)] = {'space': 'skill', 'path': path, 'sha256': key, 'size': size}
-    consumer = {'route': task['route'], 'transport': task['delivery']['transport'],
+    consumer = {'route': task['route'],
                 'instructions': delivery, 'criteria': task['criteria'],
                 'direction': plan.consumer(task['direction']),
                 'world_views': views, 'moment_views': moments, 'authoring_materials': materials}

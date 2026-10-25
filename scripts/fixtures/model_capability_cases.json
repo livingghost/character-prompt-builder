@@ -57,16 +57,6 @@
       "dispatch_seed": 0, "seed_values": {"accept": [0, 2147483647], "reject": [null, -1, 2147483648]},
       "wire_parameters": {"settings.promptExtend": false, "outputFormat": "PNG"},
       "case_sets": ["paired-profile", "provider-size", "continuous-dimensions", "area-schema", "aspect-eight", "boolean-thinking", "conditional-rewriting", "optional-seed", "no-mask"]
-    },
-    {
-      "model": "flux-3-image", "service": "runware", "model_identifier": "bfl:flux@3-image",
-      "aliases": ["flux 3 image"],
-      "modes": {"text-to-image": 0, "reference-guided": 2, "instruction-edit": 2},
-      "prompt_length": [2, 32000], "reference_limit": 10, "preparation_limit": 10, "output_count": [1, 20],
-      "supports_negative_prompt": false, "negative_transport_mode": "integrated-critical",
-      "dispatch_seed": null, "seed_values": {"accept": [null], "reject": [1]},
-      "wire_parameters": {"settings.grounding": false, "outputFormat": "PNG"},
-      "case_sets": ["paired-profile", "provider-size", "reference-resolution", "preset-requires-reference", "exclusive-size", "exact-dimensions", "boolean-grounding", "bounded-regions", "backend-seed", "no-mask"]
     }
   ],
   "common_cases": [
@@ -175,15 +165,6 @@
       {"name": "text permits agent rewriting", "set": {"settings.promptExtendMode": "agent"}, "schema": true, "profile": true},
       {"name": "reference permits direct rewriting", "mode": "reference-guided", "references": 1, "set": {"settings.promptExtendMode": "direct"}, "schema": true, "profile": true},
       {"name": "reference excludes agent rewriting", "mode": "reference-guided", "references": 1, "set": {"settings.promptExtendMode": "agent"}, "schema": false, "profile": false}
-    ],
-    "boolean-grounding": [
-      {"name": "grounding enabled", "set": {"settings.grounding": true}, "schema": true, "profile": true},
-      {"name": "grounding disabled", "set": {"settings.grounding": false}, "schema": true, "profile": true},
-      {"name": "grounding requires a boolean", "set": {"settings.grounding": "true"}, "schema": false, "profile": false}
-    ],
-    "bounded-regions": [
-      {"name": "new region has an output box", "set": {"settings.boundingBoxes": [{"id": "region-1", "targetBox": [100, 100, 800, 800]}]}, "schema": true, "profile": true},
-      {"name": "source region requires media", "set": {"settings.boundingBoxes": [{"id": "region-1", "referenceIndex": 0, "sourceBox": [100, 100, 800, 800], "targetBox": [100, 100, 800, 800]}]}, "schema": false, "profile": false}
     ],
     "mask-guidance": [
       {"name": "mask with a reference", "mode": "reference-guided", "references": 1, "set": {"inputs.maskImage": "00000000-0000-4000-8000-000000000000"}, "schema": true},

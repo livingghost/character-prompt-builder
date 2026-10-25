@@ -49,11 +49,11 @@ only evidenced syntax. Portable semantic language is the default rendition.
 
 If a selected record has relevant Visual Evidence, inspect and use it without waiting for a reminder. Deliver the evidence artifact when it materially supports a reusable prompt result.
 
-Do not create empty reference artifacts. Include `reference-use-plan.json` only when references are selected. Include `surface-lighting-plan.json` only when lighting or material transfer needs an explicit contract. Include `prepared-reference-set.json` and `reference-preamble.txt` only for a target-specific or generation-ready package.
+Do not create empty reference artifacts. Include `reference-use-plan.json` only when references are selected. Include `surface-lighting-plan.json` only when lighting or material transfer needs an explicit contract. Include `prepared-reference-set.json` only for a target-specific or generation-ready package.
 
 ## 5. Preflight and deliver
 
-Check the prompt for necessary instructions and sufficient scene meaning. Remove unsupported constraints and planning commentary. Run the structured preflight for declared body-count and camera contradictions; it does not judge meaning. After target rendition, verify that ordering or weighting preserves the approved depiction. Deliver the prompt, any requested or supported negative, and the justified artifacts. The `negative-policy` resource owns negative sources and target syntax.
+Check the prompt and delivered references for necessary instructions, resolvable subjects and sufficient scene meaning. Remove unsupported constraints and planning commentary. Run the structured preflight for declared body-count and camera contradictions; it does not judge meaning. After target rendition, verify that ordering or weighting preserves the approved depiction. Deliver the prompt, any requested or supported negative, and the justified artifacts. The `negative-policy` resource owns negative sources and target syntax.
 ## 6. Deterministic commands
 
 Use `python scripts/build_prompt_artifacts.py --help` to materialize the conditional prompt artifact set. The builder accepts an optional structured semantic plan and refuses invalid limb or camera assignments before publication. `python scripts/validate_prompt_semantics.py plan.json` checks the plan alone; its `--template` prints a plan to start from, and its `--help` names every field.

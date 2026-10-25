@@ -26,7 +26,7 @@ class ImageEditTests(unittest.TestCase):
         self.put('source.png',png());self.put('overlay.png',png((2,2),(200,0,0,255)));self.put('delivery.txt','Create the specified synthetic plate.')
         self.task={'task_id':task['task_id'],'route':'development','features':[],
           'sources':[{'id':name,'path':name+'.png','role':'world','locator':'whole','disposition':'applied','reason':'Synthetic test source.'} for name in ('source','overlay')],
-          'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Synthetic only.'},
+          'delivery':{'path':'delivery.txt','translation_notes':'Synthetic only.'},
           'criteria':[{'id':'pixels','strength':'hard','text':'Observed pixel structure.'}],'world_views':[]}
         fixture.task(self.root,self.task,artifact='image');self.task['criteria'][0]['evidence']='image'
         self.put('task.json',self.task);self.run=w.prepare(self.root,'task.json')['run'];fixture.handoff(self.root,self.run,'pixel editor','manual')

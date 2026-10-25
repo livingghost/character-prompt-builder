@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import unittest
 import reference_delivery as d
-from prepare_generation_references import canonical_reference_preamble, _validate_authority
+from prepare_generation_references import _validate_authority
 
 
 class ReferenceDeliveryTests(unittest.TestCase):
@@ -28,27 +28,19 @@ class ReferenceDeliveryTests(unittest.TestCase):
     def test_board_regions_are_not_separate_attachments(self):
         rows = d.bindings('single-board', self.rows, self.board)
         self.assertEqual([x['attachment_number'] for x in rows], [1, 1])
-        self.assertEqual(rows[1]['region_pixels']['x'], 100)
-        text = d.instructions('single-board', self.rows, self.board)
-        self.assertIn('There is one attached image', text)
-        self.assertIn('Reference 2 means Image 1', text)
-        self.assertNotIn('Image 2', text)
-        self.assertIn('not the requested output layout', text)
+        self.assertEqual(rows[1]['region_pixels'], {'x': 100, 'y': 0, 'width': 100, 'height': 100})
 
-    def test_current_state_is_explicitly_excluded(self):
-        text = d.instructions('multi-image', self.rows)
-        self.assertIn('Do not inherit: current orientation; expression.', text)
-        self.assertIn('Do not inherit: current light.', text)
+    def test_current_state_exclusions_remain_in_review_bindings(self):
+        rows = d.bindings('multi-image', self.rows)
+        self.assertEqual(rows[0]['must_not_control'], ['current orientation', 'expression'])
+        self.assertEqual(rows[1]['must_not_control'], ['current light'])
 
     def test_state_subject_survives_without_optional_use_priorities(self):
-        from model_rendition import _reference_prefix, validate_bindings
+        from model_rendition import validate_bindings
         self.rows[0]['subject_id'] = 'A'
         rows = d.bindings('multi-image', self.rows)
         self.assertEqual(rows[0]['subject_id'], 'A')
         validate_bindings(rows)
-        text = _reference_prefix(rows, 'reference-delivery')
-        self.assertIn('Apply this reference only to subject A.', text)
-        self.assertNotIn('priority', text)
 
     def test_identity_review_uses_the_appended_subject_scope(self):
         from visual_continuity import _identity_scope
@@ -67,26 +59,6 @@ class ReferenceDeliveryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'does not carry identity influence'):
             _identity_scope(prepared, 2, 'B')
 
-    def test_external_named_field_keeps_the_same_scope_without_image_numbers(self):
-        rows = d.bindings('multi-image', self.rows)
-        rows[0]['request_field'] = ['source_image']
-        rows[1]['request_field'] = ['references', 0, 'url']
-        rows[0]['subject_uses'] = [{'subject_id': 'A', 'use': 'identity', 'priority': 0}]
-        text = d.binding_instructions(rows)
-        self.assertIn('Reference 1 means request field ["source_image"].', text)
-        self.assertIn('Reference 2 means request field ["references",0,"url"].', text)
-        self.assertIn('subject A, identity', text)
-        self.assertIn('Do not inherit: current orientation; expression.', text)
-        self.assertNotIn('Image 1', text)
-        self.assertNotIn('Image 2', text)
-
-    def test_external_location_rejects_unresolved_paths(self):
-        rows = d.bindings('multi-image', self.rows)
-        for path in ([], [''], [True], [-1], ['image', {}]):
-            rows[0]['request_field'] = path
-            with self.assertRaisesRegex(ValueError, 'JSON field path'):
-                d.binding_instructions(rows)
-
     def test_board_hash_reordering_is_refused(self):
         board = copy.deepcopy(self.board)
         board['panels'].reverse()
@@ -99,11 +71,10 @@ class ReferenceDeliveryTests(unittest.TestCase):
             d.bindings('single-board', self.rows, self.board)
 
     def test_no_model_attachment_claim_for_prompt_only(self):
-        self.assertEqual(d.instructions('prompt-artifacts', []), '')
-        self.assertEqual(d.instructions('svg-bundle', []), '')
-        self.assertEqual(canonical_reference_preamble(transport_mode='none', selected_references=[], reference_use_plan=None), '')
+        for mode in ('none', 'prompt-artifacts', 'svg-bundle'):
+            self.assertEqual(d.bindings(mode, []), [])
 
-    def test_missing_board_metadata_cannot_produce_final_instructions(self):
+    def test_missing_board_metadata_cannot_bind_delivery(self):
         with self.assertRaises(ValueError):
             d.bindings('single-board', self.rows)
 
@@ -121,12 +92,6 @@ class ReferenceDeliveryTests(unittest.TestCase):
     def test_semantic_judgment_is_not_replaced_by_keyword_matching(self):
         _validate_authority({'controls': ['left-side arrangement'], 'must_not_control': ['a different camera placement']}, 'authority')
 
-    def test_canonical_prompt_contains_transport_map(self):
-        text = canonical_reference_preamble(transport_mode='single-board', selected_references=self.rows,
-                                            reference_use_plan=None, single_board=self.board)
-        self.assertIn('Reference 2 means Image 1', text)
-        self.assertIn('x=100, y=0, width=100, height=100', text)
-
     def test_one_attachment_retains_two_logical_sources_and_uses(self):
         self.rows[1]['transport'] = copy.deepcopy(self.rows[0]['transport'])
         self.rows[0]['subject_uses'] = [{'subject_id': 'A', 'use': 'identity', 'priority': 0}]
@@ -135,47 +100,42 @@ class ReferenceDeliveryTests(unittest.TestCase):
         bindings = d.bindings('multi-image', self.rows)
         self.assertEqual([row['attachment_number'] for row in bindings], [1, 1])
         self.assertEqual([row['reference_number'] for row in bindings], [1, 2])
+        self.assertEqual([row['subject_uses'] for row in bindings],
+                         [row['subject_uses'] for row in self.rows])
         self.assertEqual(d.delivered_reference_count({'transport_mode': 'multi-image', 'selected_references': self.rows}), 1)
         self.assertNotEqual(self.rows[0]['source'], self.rows[1]['source'])
         self.assertEqual(self.rows, original)
-        text = d.instructions('multi-image', self.rows)
-        self.assertIn('subject A, identity', text)
-        self.assertIn('subject B, outfit', text)
-        self.assertNotIn('Image 2', text)
 
-    def test_priority_compares_only_the_same_subject_and_use(self):
+    def test_subject_use_priorities_remain_separate(self):
         self.rows[0]['subject_uses'] = [
             {'subject_id': 'A', 'use': 'identity', 'priority': 3},
             {'subject_id': 'B', 'use': 'outfit', 'priority': 0}]
         self.rows[1]['subject_uses'] = [{'subject_id': 'A', 'use': 'identity', 'priority': 1}]
-        text = d.instructions('multi-image', self.rows)
-        self.assertIn('For subject A, identity, resolve source differences in this order: Reference 2; then Reference 1.', text)
-        self.assertNotIn('For subject B, outfit, resolve source differences', text)
-        self.assertIn('within the listed scopes', text)
+        rows = d.bindings('multi-image', self.rows)
+        self.assertEqual([row['subject_uses'] for row in rows],
+                         [row['subject_uses'] for row in self.rows])
+        self.assertEqual([row['attachment_number'] for row in rows], [1, 2])
 
-    def test_complementary_views_retain_scopes_without_inventing_scene_content(self):
+    def test_complementary_views_retain_independent_scope(self):
         for row in self.rows:
             row['subject_uses'] = [{'subject_id': 'A', 'use': 'identity', 'priority': 0}]
         original = copy.deepcopy(self.rows)
-        text = d.instructions('multi-image', self.rows)
-        self.assertIn('Views assigned to the same subject depict one character.', text)
-        self.assertIn('For subject A, identity, Reference 1 and Reference 2 provide complementary evidence.', text)
-        self.assertNotIn('resolve source differences', text)
-        self.assertNotIn('priority', text)
+        rows = d.bindings('multi-image', self.rows)
+        self.assertEqual([row['subject_uses'][0]['subject_id'] for row in rows], ['A', 'A'])
+        self.assertEqual([row['controls'] for row in rows], [['enduring shape'], ['spatial arrangement']])
+        self.assertEqual([row['must_not_control'] for row in rows],
+                         [['current orientation', 'expression'], ['current light']])
         self.assertEqual(self.rows, original)
-        self.assertIn('Use it for: enduring shape.', text)
-        self.assertIn('Do not inherit: current orientation; expression.', text)
 
-    def test_complementary_groups_preserve_order_between_scopes(self):
+    def test_complementary_groups_keep_delivery_order_and_priorities(self):
         third = copy.deepcopy(self.rows[1])
         third['transport']['sha256'] = 'e' * 64
         self.rows.append(third)
         for row, priority in zip(self.rows, [2, 0, 0]):
             row['subject_uses'] = [{'subject_id': 'A', 'use': 'outfit', 'priority': priority}]
-        text = d.instructions('multi-image', self.rows)
-        self.assertIn('For subject A, outfit, Reference 2 and Reference 3 provide complementary evidence.', text)
-        self.assertIn('For subject A, outfit, resolve source differences in this order: Reference 2 and Reference 3; then Reference 1.', text)
-        self.assertEqual([r['subject_uses'][0]['priority'] for r in d.bindings('multi-image', self.rows)], [2, 0, 0])
+        rows = d.bindings('multi-image', self.rows)
+        self.assertEqual([row['attachment_number'] for row in rows], [1, 2, 3])
+        self.assertEqual([row['subject_uses'][0]['priority'] for row in rows], [2, 0, 0])
 
     def test_subject_assignment_checks_actual_cast_without_state_graph(self):
         spec = {'subjects': [{'id': 'A'}, {'id': 'B'}], 'state_context': {'mode': 'stateless'}}

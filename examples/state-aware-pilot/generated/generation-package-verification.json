@@ -1,20 +1,32 @@
 {
   "bindings": [],
-  "review_requirements": [],
+  "review_requirements": [
+    {
+      "id": "depiction-inputs",
+      "kind": "meaning",
+      "binding_ids": [],
+      "sources": [
+        {
+          "kind": "generation-rendition",
+          "sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1"
+        }
+      ],
+      "statement": "Assess whether the exact instructions and delivered media identify the intended depiction without access to project records."
+    }
+  ],
   "execution_policy": {
     "artifact_type": "execution-policy",
     "basis": {
       "locator": "whole",
-      "path": "synthetic-validation/11666add06a51cce/basis.txt",
+      "path": "synthetic-validation/999c2597753319e4/basis.txt",
       "sha256": "424db1c13f6c398026a9d9ae39d4e8f294e1274d4e2d1dec1ab501e7d61e06c5"
     },
-    "production_context_transport": "none",
     "reference_instruction_transport": {
       "contract": {
-        "path": "synthetic-validation/11666add06a51cce/references.json",
-        "sha256": "579b0e7803f31b98ec0626e52e6fe35b5490d279511c5e24fe0db8843300a1cb"
+        "path": "synthetic-validation/999c2597753319e4/references.json",
+        "sha256": "aa7192c5ea549e93c0654d76b576e08c717239e6901d4e5140895a6e29dec93a"
       },
-      "mode": "prompt-prefix"
+      "mode": "authored-rendition"
     },
     "target": {
       "model_identifier": "openai:gpt-image@2.5-flare",
@@ -3175,14 +3187,13 @@
       "record_ids": [],
       "detail": "This deterministic state-aware pilot selects no canonical record-scoped visual reference; its full identity and scene contracts remain authoritative."
     },
-    "reference_preamble": "",
     "prompt_artifacts": [],
     "selected_references": [],
     "single_board": null,
-    "prepared_reference_set_sha256": "abe6ca3304dc149203f08743d3c648e70a67b4d4d79de31955b7a4bbdad616bf"
+    "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
-  "prepared_reference_set_sha256": "abe6ca3304dc149203f08743d3c648e70a67b4d4d79de31955b7a4bbdad616bf",
-  "generation_input_sha256": "5831ffafc5365d91761b439bbf46506b338ce84de27c17480979a530a992e8f5",
+  "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
+  "generation_input_sha256": "e4d73975f15a38f8e61785ebba0bb138e9394c4bc6314d11463eafb58b811d6e",
   "parameters": {
     "height": 1024,
     "safety": {
@@ -3229,11 +3240,10 @@
         "sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1"
       }
     },
-    "reference_preamble": "",
     "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
     "effective_prompt_sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1",
     "selected_references": [],
-    "generation_input_sha256": "5831ffafc5365d91761b439bbf46506b338ce84de27c17480979a530a992e8f5",
+    "generation_input_sha256": "e4d73975f15a38f8e61785ebba0bb138e9394c4bc6314d11463eafb58b811d6e",
     "prompt_trace": [
       {
         "source_kind": "authored",

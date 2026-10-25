@@ -25,6 +25,25 @@
       },
       "additionalProperties": {
         "type": "string"
+      },
+      "description": "Authoring data. Model-facing descriptions contain complete visual instructions; identity keys, notes and design records remain authoring context.",
+      "properties": {
+        "field.model_fill_visual_design_brief": {
+          "type": "string",
+          "description": "Complete model-facing visible design and fixed conditions for every generated panel. Resolve relevant identity, form and continuity records into this depiction before filling."
+        },
+        "field.reference_sheet_visual_finish": {
+          "type": "string",
+          "description": "Model-facing rendering direction for the sheet artwork."
+        },
+        "field.base_form_visual_description": {
+          "type": "string",
+          "description": "Complete model-facing appearance of the underlying body or configuration."
+        },
+        "field.dressed_equipped_form_visual_description": {
+          "type": "string",
+          "description": "Complete model-facing appearance of the equipped or covered configuration."
+        }
       }
     },
     "tables": {
@@ -57,7 +76,8 @@
           },
           "additionalProperties": false
         }
-      }
+      },
+      "description": "Structured design and coverage records. Write drawing details as complete visible descriptions; keep identifiers, notes and review criteria in their own fields."
     },
     "slots": {
       "type": "object",

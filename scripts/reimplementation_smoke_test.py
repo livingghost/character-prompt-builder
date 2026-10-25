@@ -35,9 +35,9 @@ class SceneIntegration(unittest.TestCase):
         self.root = Path(self.temp.name)
         create(self.root)
         started = work_ledger.begin(self.root, 'Synthetic authoring integration', ['prepare', 'deliver'])
-        (self.root/'delivery.txt').write_text('Only the public rendition, not private author notes.', encoding='utf-8')
+        (self.root/'delivery.txt').write_text('The traveller rests one hand on the doorframe and waits.', encoding='utf-8')
         self.spec = {'task_id':started['task_id'], 'route':'performance','features':['scene-persona'],
-            'sources':[], 'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'No private source copying.'},
+            'sources':[], 'delivery':{'path':'delivery.txt','translation_notes':'No private source copying.'},
             'criteria':[{'id':'scope','strength':'hard','text':'Use only the prepared scope.'}], 'world_views':[],
             'scene_materials':[{'plan':'scene-plan.json','bundle':'scene-material'}]}
         fixture.task(self.root, self.spec)
@@ -68,9 +68,8 @@ class SceneIntegration(unittest.TestCase):
         run = self.prepare()
         value = binding.create(self.root,run,(self.root/'delivery.txt').read_text(encoding='utf-8'))
         binding.validate(value,(self.root/'delivery.txt').read_text(encoding='utf-8'))
-        actual = binding.effective(value,'PUBLIC_RENDERING_ONLY')
-        self.assertEqual(actual,'PUBLIC_RENDERING_ONLY')
-        self.assertNotIn('Controlling definition',actual)
+        actual = value['consumer']['instructions']
+        self.assertEqual(actual,(self.root/'delivery.txt').read_text(encoding='utf-8'))
 
     def test_unquoted_source_edit_invalidates_reuse(self):
         run=self.prepare()

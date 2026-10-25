@@ -208,7 +208,7 @@ class RenditionTests(unittest.TestCase):
         self.binding={'reference_number':1,'attachment_number':1,'region_pixels':None,'role':'identity',
             'controls':['appearance'],'must_not_control':['pose']}
         self.kw={'segments':None,'authored_source':{'path':'authored.txt','sha256':'a'*64},'bindings':[],
-            'reference_policy':None,'production_consumer':None,'context_policy':None,'policy_source':None,
+            'reference_policy':None,'production_consumer':None,
             'reader':self.reader,'target':self.target,'dialect':'synthetic-dialect'}
     def tearDown(self):self.temp.cleanup()
     def save(self,name,value):
@@ -216,30 +216,48 @@ class RenditionTests(unittest.TestCase):
         return {'path':name,'sha256':c.digest(raw)}
     def policy(self,mode,fields=None):
         contract={'artifact_type':'reference-render-contract','target':self.target,'dialects':['synthetic-dialect'],
-            'mode':mode,'renderer':'reference-delivery' if mode=='prompt-prefix' else None,'fields':fields or [],'basis':self.basis}
+            'mode':mode,'fields':fields or [],'basis':self.basis}
         return {'mode':mode,'contract':self.save('reference.json',contract)}
     def test_01_authored_text_stays_exact(self):
         text='Production context: { "authored": true }';self.assertEqual(mr.compose(text,**self.kw)['text'],text)
     def test_02_authored_consumer_keeps_direction_out_of_prompt(self):
-        self.kw['production_consumer']={'transport':'authored-rendition','direction':{'directives':['explicit']}}
+        self.kw['production_consumer']={'direction':{'directives':['explicit']}}
         self.assertEqual(mr.compose('rendition',**self.kw)['text'],'rendition')
-    def test_03_bounded_without_permission_refused(self):
-        self.kw['production_consumer']={'transport':'bounded-context'}
-        with self.assertRaises(ValueError):mr.compose('rendition',**self.kw)
-    def test_04_bounded_records_origin(self):
-        self.kw.update(production_consumer={'transport':'bounded-context','direction':{},'criteria':[],'world_views':[],'moment_views':[]},context_policy='prompt-prefix',policy_source=self.basis)
-        result=mr.compose('rendition',**self.kw);self.assertEqual(result['trace'][0]['source_kind'],'production-context');self.assertTrue(result['text'].endswith('rendition'))
+    def test_03_subject_keys_do_not_change_model_text(self):
+        prompt = 'Use the first image for the potter and the second for the apprentice.'
+        self.binding['subject_id'] = 'subject-271'
+        self.binding['subject_uses'] = [{'subject_id': 'subject-271', 'use': 'identity', 'priority': 0}]
+        self.kw.update(bindings=[self.binding], reference_policy=self.policy('authored-rendition'))
+        first = mr.compose(prompt, **self.kw)
+        self.binding['subject_id'] = 'subject-993'
+        self.binding['subject_uses'][0]['subject_id'] = 'subject-993'
+        second = mr.compose(prompt, **self.kw)
+        self.assertEqual(first['text'], prompt)
+        self.assertEqual(second['text'], first['text'])
+        self.assertEqual(second['trace'], first['trace'])
+    def test_04_production_records_remain_review_context(self):
+        self.kw['production_consumer'] = {'direction': {'constraints': ['A quiet room.']},
+            'criteria': [{'id': 'composition', 'text': 'Assess the spatial relation.'}],
+            'world_views': [{'source': 'world/private.json'}], 'moment_views': []}
+        first = mr.compose('A potter shapes a bowl in a quiet room.', **self.kw)
+        self.kw['production_consumer']['world_views'].append({'source': 'world/expanded.json'})
+        self.kw['production_consumer']['criteria'].append({'id': 'finish', 'text': 'Assess the finish.'})
+        second = mr.compose('A potter shapes a bowl in a quiet room.', **self.kw)
+        self.assertEqual(first['text'], second['text'])
+        self.assertEqual([row['source_kind'] for row in second['trace']], ['authored'])
+        self.assertEqual([row['id'] for row in second['review_requirements']],
+                         ['depiction-inputs', 'production-direction'])
     def test_05_reference_without_policy_refused(self):
         self.kw['bindings']=[self.binding]
         with self.assertRaises(ValueError):mr.compose('rendition',**self.kw)
     def test_06_authored_reference_policy_adds_no_text(self):
         self.kw.update(bindings=[self.binding],reference_policy=self.policy('authored-rendition'))
         result=mr.compose('rendition',**self.kw);self.assertEqual(result['text'],'rendition');self.assertEqual(result['review_requirements'][0]['binding_ids'],['reference:1'])
-    def test_07_prefix_has_exact_written_range(self):
-        self.kw.update(bindings=[self.binding],reference_policy=self.policy('prompt-prefix'))
+    def test_07_authored_reference_text_has_exact_written_range(self):
+        self.kw.update(bindings=[self.binding],reference_policy=self.policy('authored-rendition'))
         result=mr.compose('rendition',**self.kw);last=result['trace'][-1]['target_range'];self.assertEqual(result['text'][last['start']:last['end']],'rendition')
     def test_08_wrong_declared_dialect_refused(self):
-        self.kw.update(bindings=[self.binding],reference_policy=self.policy('prompt-prefix'),dialect='other')
+        self.kw.update(bindings=[self.binding],reference_policy=self.policy('authored-rendition'),dialect='other')
         with self.assertRaises(ValueError):mr.compose('rendition',**self.kw)
     def test_09_native_controls_preserve_all_authority(self):
         fields=[{'binding_field':key,'request_field':'control.'+key,'container':'ordered-array'} for key in ('attachment_number','role','controls','must_not_control')]
@@ -274,7 +292,7 @@ class RenditionTests(unittest.TestCase):
         text='The document contains 2boys, facing, general, 8k and {JSON}.'
         self.assertEqual(mr.compose(text,**self.kw)['text'],text)
     def test_18_no_automatic_assessment_is_added(self):
-        result=mr.compose('text',**self.kw);self.assertNotIn('assessment',result);self.assertEqual(result['review_requirements'],[])
+        result=mr.compose('text',**self.kw);self.assertNotIn('assessment',result);self.assertEqual([item['id'] for item in result['review_requirements']],['depiction-inputs'])
 
 if __name__=='__main__':
     import stdio_utf8

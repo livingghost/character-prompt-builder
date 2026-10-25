@@ -66,10 +66,11 @@ source, state eligibility, adoption and authority remain intact. The edit
 binding pins the common input binding's hash; it does not copy the reference
 registry or invent another authority owner.
 
-For external execution, generate the common reference preamble through
-[exact request authoring](production-execution.md#exact-target-and-provider-schema)
-and include it in the final instruction. The saved request binds that text to
-the actual media fields before the edit plan is validated.
+For external execution, inspect the reference mapping through
+[exact request authoring](production-execution.md#exact-target-and-provider-schema).
+Express each source's assigned use in the final instruction against the actual
+delivered images. The saved request binds that text and those media fields
+before the edit plan is validated.
 
 A trimmed synthetic task fragment:
 

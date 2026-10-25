@@ -16,7 +16,7 @@ For `gpt-image-2.5-flare`, use only the reference media declared by its active m
 
 Transport a safe selected SVG as a deterministic PNG derived from that same SVG. Retain the SVG as authoritative `source`, commit the PNG as `transport`, and preserve source hash, transport hash, renderer identity and release, dimensions, and `max_side`. Never send raw SVG, substitute a nearby evidence artifact, or remove a failed reference and continue with text alone.
 
-Use `multi-image` when the active endpoint accepts every planned reference independently. Use `single-board` only when that endpoint exposes one image input. Forward only verifier-produced carriers and the effective prompt, which already includes the role-scoped preamble.
+Use `multi-image` when the active endpoint accepts every planned reference independently. Use `single-board` only when that endpoint exposes one image input. Forward only verifier-produced carriers and the reviewed effective prompt.
 
 ## Stop conditions
 

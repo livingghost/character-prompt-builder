@@ -25,7 +25,7 @@ class InputToolsTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.task = {'task_id': 'synthetic-task', 'route': 'development', 'features': [],
-                     'sources': [], 'delivery': {'path': 'delivery.txt', 'transport': 'authored-rendition',
+                     'sources': [], 'delivery': {'path': 'delivery.txt',
                      'translation_notes': 'Retain the synthetic authored delivery.'},
                      'criteria': [{'id': 'output', 'text': 'Inspect the actual local text.', 'strength': 'hard', 'evidence': 'text'}],
                      'route_reading': 'reading.json'}
@@ -231,10 +231,9 @@ class InputToolsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.build('../escaped')
 
-    def dispatcher_task(self, transport='authored-rendition', route='development'):
+    def dispatcher_task(self, route='development'):
         task = copy.deepcopy(self.task)
         task.update(artifact='image', execution='dispatcher', route=route)
-        task['delivery']['transport'] = transport
         (self.root / 'task.json').write_bytes(c.encoded(task))
         return task
 
@@ -247,16 +246,6 @@ class InputToolsTests(unittest.TestCase):
         self.assertEqual(adapters.build_visual(None, task, InputEvidence(self.root), self.root), (None, {}))
         self.assertEqual(adapters.build_validation(None, task, InputEvidence(self.root), self.root), (None, {}))
 
-    def test_bounded_context_dispatcher_needs_its_validation_choice(self):
-        task = self.dispatcher_task('bounded-context')
-        draft = tool.draft_inputs(self.root, 'task.json', 'draft')
-        self.assertIn('validation.mode', [x['field'] for x in draft['unresolved']])
-        self.choices['validation'] = None
-        self.save_choices()
-        self.assertIn({'field': 'validation', 'code': 'selection-required'}, self.build()['unresolved'])
-        with self.assertRaisesRegex(ValueError, 'request validation choice'):
-            adapters.build_validation(None, task, InputEvidence(self.root), self.root)
-        self.assertFalse((self.root / 'built').exists())
 
     def test_prepared_dispatcher_task_continues_with_draft_execution_and_execute(self):
         inputs = {'production-task': {'path': 'built/production-task.json', 'sha256': '0' * 64},

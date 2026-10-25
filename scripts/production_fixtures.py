@@ -153,7 +153,7 @@ def prepare_external_delivery(root: Path, prompt: str, *, route: str = 'generati
     (root / 'fixture-delivery.txt').write_text(prompt, encoding='utf-8')
     spec = {'task_id': started['task_id'], 'route': route, 'features': [],
             'sources': sources or [], 'delivery': {'path': 'fixture-delivery.txt',
-            'transport': 'authored-rendition', 'translation_notes': 'Exact synthetic test input.'},
+             'translation_notes': 'Exact synthetic test input.'},
             'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect actual received fixture bytes.'}],
             'world_views': []}
     task(root, spec, artifact=artifact, execution='external')
@@ -181,7 +181,7 @@ def bind_package(root: Path, run: str, package: dict) -> dict:
     value['production_binding'] = production_binding.create(root, run, value['composition_prompt'])
     from request_validation_fixtures import fixture_validation
     import input_contracts
-    validation = fixture_validation(root, value['model'], reference_mode='prompt-prefix')
+    validation = fixture_validation(root, value['model'], reference_mode='authored-rendition')
     reader, _ = input_contracts.capture_validation(validation, root=root)
     reader.basis(value['visual_continuity']['basis'])
     input_contracts.attach(value, validation, reader)

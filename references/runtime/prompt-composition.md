@@ -206,10 +206,16 @@ event or visual purpose, then give the identity, relationships, presentation
 and rendering details needed to realize it. Adjust the order for the selected
 interface after the meaning is settled. Field order is not a prompt template.
 
-Keep private deliberation separate from the authored text. Do not narrate
-rejected possibilities, internal checks or why an unspecified detail is free.
-A negative or permission sentence is useful only when its content is itself a
-requirement. The grammatical form alone does not decide whether it belongs.
+Interpret approved source records, including metadata, into the selected
+depiction. Write for the prompt and media the model actually receives. Resolve
+internal subject and source references into meaningful descriptions or assigned
+delivered images. Distinguish locations within a reference from placement in
+the resulting picture. Names or codes remain when they are intended content.
+
+Keep internal identifiers, source paths, provenance, production and review
+commentary with their owning records. Omit rejected possibilities and reasons
+why an unspecified detail is free. A negative or permission sentence is useful
+only when its content is itself a requirement; grammar alone does not decide.
 
 Use the active vocabulary for the selected visual concepts. Records provide
 candidate terms and construction knowledge; use only relevant wording.
@@ -235,8 +241,10 @@ Read the complete prompt against its brief and selected direction:
 - Can each inferred instruction justify its contribution to the intended image?
 - Do the remaining instructions convey the intended event and participant roles?
 - Do camera, placement, actions and required visible information fit one picture?
-- Are references assigned to the right subjects and uses, without importing a
-  source-only performance or layout?
+- Can each subject, object and reference be identified from the complete prompt
+  and actual delivered inputs, without access to internal project records?
+- Do reference assignments preserve their subjects and uses, without importing
+  a source-only performance or layout?
 - Does target-specific wording preserve meaning, identity, state and finish?
 
 Use relevant specialist checks for anatomy, contact, clothing or rendering.

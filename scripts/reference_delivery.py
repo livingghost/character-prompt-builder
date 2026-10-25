@@ -13,9 +13,6 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-SUBJECT_USE_RULE = ('Views assigned to the same subject depict one character. '
-                    'Use their relevant evidence within the listed scopes.')
-
 
 def validate_subject_uses(value: Any, *, subject_ids: set[str] | None = None,
                           allowed_uses: Sequence[str] | None = None) -> list[dict[str, Any]]:
@@ -142,12 +139,12 @@ def bindings(mode: str, references: Sequence[Mapping[str, Any]],
             return []
         raise ValueError('unsupported reference transport mode')
     if not references:
-        raise ValueError('model-facing reference instructions need the actual prepared rows')
+        raise ValueError('reference delivery needs the actual prepared rows')
     panels = board.get('panels') if board is not None else None
     if mode == 'single-board' and (not isinstance(panels, list) or len(panels) != len(references)):
-        raise ValueError('single-board instructions need every actual panel in delivered order')
+        raise ValueError('single-board bindings need every actual panel in delivered order')
     if mode == 'multi-image' and board is not None:
-        raise ValueError('multi-image instructions cannot refer to a composite board')
+        raise ValueError('multi-image bindings cannot refer to a composite board')
     output = []
     positions = attachment_numbers(references)
     for index, row in enumerate(references, 1):
@@ -178,69 +175,6 @@ def bindings(mode: str, references: Sequence[Mapping[str, Any]],
     return output
 
 
-def instructions(mode: str, references: Sequence[Mapping[str, Any]],
-                 board: Mapping[str, Any] | None = None) -> str:
-    rows = bindings(mode, references, board)
-    return binding_instructions(rows)
-
-
-def binding_instructions(rows: Sequence[Mapping[str, Any]]) -> str:
-    """Render delivered sources and scopes, with precedence where sources compete."""
-    if not rows:
-        return ''
-    lines = ['Reference numbers below refer to the actual delivery, not a source-library index.']
-    if any(row.get('subject_uses') for row in rows):
-        lines.append(SUBJECT_USE_RULE)
-    if any(row['region_pixels'] is not None for row in rows):
-        lines.append('There is one attached image: Image 1 is a reference board, not the requested output layout. '
-                     'Its regions use pixels from the top-left corner. Do not reproduce the board grid unless the authored output explicitly requests it.')
-    for row in rows:
-        if 'request_field' in row:
-            path = row['request_field']
-            if (not isinstance(path, list) or not path
-                    or any(not isinstance(part, (str, int)) or isinstance(part, bool)
-                           or (isinstance(part, int) and part < 0)
-                           or (isinstance(part, str) and not part) for part in path)):
-                raise ValueError('reference request_field must be a nonempty JSON field path')
-            location = 'request field ' + json.dumps(path, ensure_ascii=False, separators=(',', ':'))
-        else:
-            location = f'Image {row["attachment_number"]}'
-        if row['region_pixels'] is not None:
-            b = row['region_pixels']
-            location += f', region x={b["x"]}, y={b["y"]}, width={b["width"]}, height={b["height"]}'
-        line = f'Reference {row["reference_number"]} means {location}. Use it for: ' + '; '.join(row['controls']) + '.'
-        if row.get('subject_id'):
-            line += f' Apply this reference only to subject {row["subject_id"]}.'
-        if row.get('subject_uses'):
-            line += ' Apply these uses: ' + '; '.join(
-                f'subject {use["subject_id"]}, {use["use"]}'
-                for use in row['subject_uses']) + '.'
-        if row['must_not_control']:
-            line += ' Do not inherit: ' + '; '.join(row['must_not_control']) + '.'
-        lines.append(line)
-    groups: dict[tuple[str, str], list[tuple[int, int]]] = {}
-    for row in rows:
-        for use in row.get('subject_uses', []):
-            groups.setdefault((use['subject_id'], use['use']), []).append((use['priority'], row['reference_number']))
-    for (subject, use), members in groups.items():
-        if len(members) < 2:
-            continue
-        by_priority: dict[int, list[int]] = {}
-        for priority, number in sorted(members):
-            by_priority.setdefault(priority, []).append(number)
-        ordered: list[str] = []
-        for numbers in by_priority.values():
-            names = [f'Reference {number}' for number in numbers]
-            group = ', '.join(names[:-1]) + ' and ' + names[-1] if len(names) > 1 else names[0]
-            if len(names) > 1:
-                lines.append(f'For subject {subject}, {use}, {group} provide complementary evidence.')
-            ordered.append(group)
-        if len(ordered) > 1:
-            lines.append(f'For subject {subject}, {use}, resolve source differences in this order: '
-                         + '; then '.join(ordered) + '.')
-    return '\n'.join(lines) + '\n'
-
-
 def main() -> int:
     parser = _operation_context.ArgumentParser(description=__doc__)
     source = parser.add_mutually_exclusive_group(required=True)
@@ -256,14 +190,12 @@ def main() -> int:
             plan = load(args.image_input_plan)
             rows = image_input.reference_bindings(plan, base=args.studio)
             print(json.dumps({'ok': True, 'bindings': rows,
-                'reference_preamble': binding_instructions(rows),
                 'limit': 'Request field and scope projection does not establish visual suitability.'},
                 ensure_ascii=False, indent=2))
             return 0
         from prepare_generation_references import validate_prepared_reference_set
         value = validate_prepared_reference_set(load(args.prepared_set), package_root=args.package_root)
         result = {'ok': True, 'bindings': bindings(value['transport_mode'], value['selected_references'], value['single_board']),
-                  'reference_preamble': value['reference_preamble'],
                   'limit': 'Byte and order verification does not establish visual suitability.'}
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0

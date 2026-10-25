@@ -439,12 +439,6 @@
             "additionalProperties": false
           }
         },
-        "production_context_transport": {
-          "enum": [
-            "none",
-            "prompt-prefix"
-          ]
-        },
         "reference_instruction_transport": {
           "type": "object",
           "required": [
@@ -456,7 +450,6 @@
               "enum": [
                 "native-fields",
                 "authored-rendition",
-                "prompt-prefix",
                 "not-supported"
               ]
             },

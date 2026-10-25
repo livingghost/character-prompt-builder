@@ -24,7 +24,7 @@ def call(root, operation, *args):
 def build(root):
     task = {'task_id': 'synthetic-craft', 'route': 'development', 'features': [],
             'sources': [], 'route_reading': 'reading.json',
-            'delivery': {'path': 'delivery.txt', 'transport': 'authored-rendition',
+            'delivery': {'path': 'delivery.txt',
                          'translation_notes': 'Use only the authored synthetic scope.'},
             'criteria': [{'id': 'readability', 'text': 'Keep the declared subject information readable.',
                           'strength': 'hard', 'evidence': 'text'}]}

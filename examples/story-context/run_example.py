@@ -106,7 +106,7 @@ def run(out: Path):
     task=work_ledger.begin(out,'Synthetic moment delivery',['prepare','deliver'])
     write(out,'delivery.txt','Write one sentence using the selected moment fields and guidance.\n')
     spec={'task_id':task['task_id'],'route':'story-context','features':[], 'sources':[],
-        'delivery':{'path':'delivery.txt','transport':'bounded-context','translation_notes':'Selected state and explicit portrayal instruction only.'},
+        'delivery':{'path':'delivery.txt','translation_notes':'Selected state and explicit portrayal instruction only.'},
         'criteria':[{'id':'moment','strength':'hard','text':'Respect the selected moment and portrayal direction.'}],
         'world_views':[],'moment_views':[{'query':'query.json','bundle':'moment','view_id':'depiction.main'}]}
     fixture.task(out,spec)

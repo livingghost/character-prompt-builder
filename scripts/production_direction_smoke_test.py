@@ -250,7 +250,7 @@ class LifecycleTests(unittest.TestCase):
         (self.root/'delivery.txt').write_bytes(b'Keep the sparse field.\n')
         self.task = {'task_id':entry['task_id'],'route':'development','features':[],
             'sources':[{'id':'brief','path':'brief.md','role':'design','disposition':'applied','locator':'whole','reason':'Declared fixture purpose.'}],
-            'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Use the selected expression.'},
+            'delivery':{'path':'delivery.txt','translation_notes':'Use the selected expression.'},
             'criteria':[{'id':'read','strength':'hard','text':'The intended field is observable.'}],'world_views':[]}
         fixture.task(self.root, self.task, artifact='image')
         self.task['criteria'][0]['evidence'] = 'image'
@@ -328,7 +328,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertIsNone(ledger.read_current(self.root))
     def test_selected_instructions_reach_generation_binding(self):
         run = self.prepare(); b = binding.create(self.root, run, 'Keep the sparse field.\n')
-        effective = binding.effective(b, 'Keep the sparse field.\n')
+        effective = b['consumer']['instructions']
         self.assertEqual(effective, 'Keep the sparse field.\n')
         self.assertIn('quiet interval', str(b['consumer']['direction']))
         self.assertNotIn('PRIVATE', effective)

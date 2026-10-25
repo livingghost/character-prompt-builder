@@ -100,12 +100,15 @@ class StudioBoardTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'current accepted identity'):
             vc.require(visual,production_spec=self.spec,prepared=prepared,root=self.root)
 
-    def test_board_pixel_or_region_tampering_is_rejected(self):
+    def test_board_bytes_and_panel_bounds_are_checked(self):
         prepared=self.prepared()
-        changed=copy.deepcopy(prepared);changed['single_board']['panels'][0]['box']['x']+=1
+        image=Path(prepared['single_board']['resolved_path'])
+        width,_=refs.image_dimensions(image,'image/png')
+        changed=copy.deepcopy(prepared)
+        changed['single_board']['panels'][0]['box']['x']=width
         changed=__import__('state_protocol').finalize_artifact(changed)
         with self.assertRaises(ValueError):refs.validate_prepared_reference_set(changed)
-        image=Path(prepared['single_board']['resolved_path']);image.write_bytes(b'Synthetic corrupt board')
+        image.write_bytes(b'Synthetic corrupt board')
         with self.assertRaises(ValueError):refs.validate_prepared_reference_set(prepared)
 
     def test_board_replays_with_both_proofs_after_originals_are_removed(self):

@@ -39,7 +39,6 @@ Add the following only for a target-specific or generation-ready package:
 
 ```text
 prepared-reference-set.json
-reference-preamble.txt
 <model-facing raster carriers or single-board output>
 ```
 

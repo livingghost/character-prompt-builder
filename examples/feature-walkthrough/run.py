@@ -171,7 +171,7 @@ def run(out: Path) -> dict:
             write(root/'reading.json',fixture_reading(route='generation',studio=root,ledger=root/'work/reads.jsonl'))
             task={'task_id':task_id,'production_id':pm.generate_uuid7(),'route':'generation','features':[],
                 'sources':[],'world_views':[],'authority':None,'route_reading':'reading.json','artifact':'image','execution':'dispatcher',
-                'delivery':{'path':'prompt.txt','transport':'authored-rendition','translation_notes':'The prompt is sent exactly as authored, including its final newline.'},
+                'delivery':{'path':'prompt.txt','translation_notes':'The prompt is sent exactly as authored, including its final newline.'},
                 'criteria':[{'id':'framing','strength':'hard','evidence':'image','text':'One woman in a green raincoat, waist-up, at a bus stop in light rain.'}],
                 'direction':{'purpose':'Preview the request for one one-off portrait.','intended_effect':'A quiet readable rainy-day portrait.',
                              'basis':[],'decisions':[],'action_slice':None,'limitations':[SYNTHETIC]},

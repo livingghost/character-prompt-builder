@@ -166,7 +166,7 @@ class ObservedSchemaTests(unittest.TestCase):
     def test_10_stale_snapshot_is_refused(self):
         with self.assertRaisesRegex(ValueError,'does not record this offering'):self.derive(observed_at='2026-02-02')
     def test_11_registered_policy_is_not_derived(self):
-        with self.assertRaisesRegex(ValueError,'execution policy'):self.derive(production_context_transport='none')
+        with self.assertRaisesRegex(ValueError,'execution policy'):self.derive(reference_instruction_transport={'mode':'authored-rendition','contract':{'path':'reference.json','sha256':'a'*64}})
     def test_12_transport_names_its_operation(self):
         with self.assertRaisesRegex(ValueError,'OPERATIONS'):self.derive(operations=None)
     def readers(self):

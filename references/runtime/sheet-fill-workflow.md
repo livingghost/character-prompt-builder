@@ -22,7 +22,7 @@ Under the sheet lock, only touched keys are compared and applied. A field or tab
 
 ## Sequential panel execution
 
-Render `panel-fill-requests.json` first. Author a complete Production task per selected panel, including its prompt, model/mode, parameters, seed, interface evidence and recording target. No creative field is synthesized by the runner. The requested width and height must match the renderer's `target.generation_w` and `target.generation_h`; render with supported `--panel-geometries` when a model has fixed geometry choices.
+Render `panel-fill-requests.json` first. Review each prompt with its actual reference images under [Prompt Composition](prompt-composition.md#prompt-assembly-and-review). Author a complete Production task per selected panel, including its prompt, model/mode, parameters, seed, interface evidence and recording target. No creative field is synthesized by the runner. The requested width and height must match the renderer's `target.generation_w` and `target.generation_h`; render with supported `--panel-geometries` when a model has fixed geometry choices.
 
 A [sheet-fill-plan](../../schemas/authoring/sheet-fill-plan.schema.json) is Studio-relative. Each reference explicitly names a slot and role. An artifact ID pins a known acceptance; null elects the current accepted artifact at the preparation boundary. Neither form selects a candidate. The resolved artifact is then frozen in the batch journal, the reference preparation and the exact request shown for approval.
 

@@ -77,7 +77,7 @@ Layer B keeps five audit projections separate: `structural-line-tone.svg`, `colo
 
 Do not present an audit projection as the final image. Its grayscale, white mask, flattened palette, or isolated highlights must not leak into the target medium unless independently requested.
 
-Layer C is the Reference Use Plan and prepared transport. It records ordered uses, semantic and technical roles, bounded authority and exclusions, precedence, pack and source provenance, source hashes, exact package paths and delivered hashes, the Surface and Lighting Plan and hash, the canonical preamble, optional state-selection origin, and optional board or transport data for a later generation branch.
+Layer C is the Reference Use Plan and prepared transport. It records ordered uses, semantic and technical roles, bounded authority and exclusions, precedence, pack and source provenance, source hashes, exact package paths and delivered hashes, the Surface and Lighting Plan and hash, optional state-selection origin, and optional board or transport data for a later generation branch.
 
 Use one reference when one record/artifact pair has clear bounded authority, or several when separate record uses carry identity, pose-camera, outfit, surface-finish, lighting, environment, prop-accessory, or local-color evidence. Preserve plan order as explicit precedence. Never assume one SVG is the only available reference or merge several source roles into an unnamed average. The same canonical record may be declared repeatedly for distinct intended influences or subject assignments. `subject_uses` states the actual subject ID, use and local priority; [Exact reference delivery](reference-delivery.md) defines its JSON declaration and projection. Duplicate technical roles remain separate because `record_id`, `intended_influence` and `subject_uses` define their bounded assignment; multi-reference use does not require different canonical records.
 
@@ -93,11 +93,10 @@ final-negative.txt
 reference-use-plan.json
 surface-lighting-plan.json
 prepared-reference-set.json
-reference-preamble.txt
 reference-artifacts/*
 ```
 
-`prompt-only` is an interaction and user-facing reference result: no image-generation API is called and zero references are selected. It does not mean that visual-reference discovery was skipped. The canonical reference-free prepared set has `transport_mode: none` and a structured `zero_reference_reason`; `none` is prepared transport terminology, not a user-facing reference mode. When prompt delivery includes selected artifacts, materialize `prompt-artifacts` and report `prompt+1` for one or `prompt+N` for two or more, even though no generator is called. Deliver the exact source files with the prompt, negative prompt, Reference Use Plan, Surface and Lighting Plan, preamble, and prepared-reference-set. Never report a prompt package with selected references as `prompt-only` or `none`.
+`prompt-only` is an interaction and user-facing reference result: no image-generation API is called and zero references are selected. It does not mean that visual-reference discovery was skipped. The canonical reference-free prepared set has `transport_mode: none` and a structured `zero_reference_reason`; `none` is prepared transport terminology, not a user-facing reference mode. When prompt delivery includes selected artifacts, materialize `prompt-artifacts` and report `prompt+1` for one or `prompt+N` for two or more, even though no generator is called. Deliver the exact source files with the prompt, negative prompt, Reference Use Plan, Surface and Lighting Plan, and prepared-reference-set. Never report a prompt package with selected references as `prompt-only` or `none`.
 
 The executor copies every selected source artifact byte-for-byte. Each prepared row records source identity and SHA-256, package-relative delivered path, media type, and delivered SHA-256. Source and delivered hashes must match. A path or hash in prose is not file delivery. Do not substitute one faithful, structural, palette, saturation, specular, or mask artifact for another.
 

@@ -45,6 +45,8 @@ Run `python scripts/render_contract.py model --model MODEL_ID` for a catalog tar
 An external target absent from the catalog uses acquired provider evidence and the ordinary external execution branch.
 Existing-image edits also require an exact semantic edit binding.
 Shared image inputs bind each subject's reference uses and the exact external request.
+Interpret source records into a depiction that the model can resolve from its actual prompt and media.
+Keep internal identifiers, source paths and production commentary in their owning records.
 Apply scoped model use-case guidance and current author selection preferences.
 The Production Specification owns dispatcher `render_intent`; external tasks retain it as an applied source.
 Preparation shows the complete request. Dispatcher packages seal resolved controls; external bindings pin the authored request and evidence.

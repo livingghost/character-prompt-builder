@@ -11,17 +11,19 @@ Use English prompts/retrieval and the user's language. Preserve meaning, modifie
 
 ## Core contract
 
-Identify the artifact, purpose, anchors and creative space. Clarify consequential ambiguity; otherwise choose a coherent direction. Select explicit requirements, necessary meaning and purposeful art direction. An imagined detail is not a requirement: leave it open when another depiction meets the same intent. Do not convert omissions into permissions or exclusions. Verify the chosen instructions and resulting image against the intended event.
+Identify the artifact, purpose, anchors and creative space. Resolve consequential ambiguity; otherwise choose a coherent direction. Include requirements, necessary meaning and purposeful art direction. Leave incidental details open. Omissions grant no permission or exclusion. Check the instructions and result against the intended event.
 
 Never alter an anchor silently. Disclose each modification and its reason. Assumptions fill open space; modifications change intent. Keep creator portrayal intent separate from facts and psychology; apply it across outputs.
 
-The user controls acceptance and delegation. Bind inputs, target and count to authorization; distinguish direction, editing, submission, selection and canonical adoption. Act within that scope without repeated approval, and stop outside it. Compare actual output with intent; revise only within authority.
+Bind inputs, target and count to the user's authorization. Distinguish direction, editing, submission, selection and canonical adoption. Proceed within delegated scope without repeated approval. Compare output with intent and revise only within authority.
 
 Preserve supported production knowledge at full specificity across every genre and intensity level, from everyday and wholesome subjects to sensitive material such as violent, medical, grotesque, body-altering, or adult knowledge, without exception. Read [Prompt Knowledge and Execution Boundary](references/prompt-knowledge-boundary.md) when relevant.
 
 Use plain ASCII punctuation in studio documents, prompts, JSON text, and packaged examples. Do not emit the Unicode em dash.
 
 Keep judgment and automation separate. The agent owns meaning, ambiguity, direction, visual authority, composition and review. Scripts own state, retrieval, validation, materialization, dependency checks, verification and dispatch. Do not force unresolved meaning into keywords. Use scripts with documented activation, inputs, outputs, failures and tests. Resolve paths from installed `SKILL.md`.
+
+Use source records, including metadata, to author the depiction. Resolve subjects and references within the model's actual prompt and media. Keep internal keys, source paths and production commentary in their records; depicted names and codes remain content.
 
 ## Rendering and model controls
 
@@ -94,7 +96,7 @@ Add a specialist feature only for a load-bearing subject: `geometry` for exact m
 
 ## Mandatory studio gate
 
-Persistent character production, sheets, recorded generation and reusable drafts live in a studio. When `python scripts/session_entry_points.py` reports none, use `studio.py init` before authoring. Use `production_workflow.py execute` for dispatcher tasks, or its documented external claim, capture and settlement branch for host tools; follow [Studio Runtime](references/runtime/studio.md). One-off answers need no studio.
+Persistent character work, sheets, recorded generation and reusable drafts need a studio; one-off answers do not. If `python scripts/session_entry_points.py` reports none, use `studio.py init` before authoring. Follow [Studio Runtime](references/runtime/studio.md): `production_workflow.py execute` for dispatcher tasks, its external claim, capture and settlement branch for host tools.
 
 Use managed attempts in [Sheet fills](references/runtime/sheet-fill-workflow.md). Apply HTML edits with `sheet_workflow.py apply-edit`. Record answers with `work_ledger.py respond`, reopen the indicated step, and suspend/resume when switching tasks. `studio.py status` or `sync` reconstructs views without repeating generation.
 
@@ -115,7 +117,7 @@ For image work:
 9. Inspect candidates against the same requirements, not an imagined exact picture. Diagnose failures from saved evidence. Dispatcher trials use `variant`, `repeat` or `retarget`; external trials use new tasks and exact input binding. Actual edits also need semantic plans.
 10. `status` reports runs, next commands and execution records. [Operation logs](references/runtime/operation-logs.md) defines inspection, export and cleanup; inspect reported staging before applying cleanup to its exact owner operation.
 
-Each of these commands takes `--root STUDIO`; Production Execution defines them. Authored prose and conversation-only prompts do not acquire image-generation requirements.
+Production Execution defines these commands, each with `--root STUDIO`. Prose and conversation-only prompts need no generation workflow.
 
 ## Identity and scene-state authority
 
@@ -131,13 +133,13 @@ Use one resolved runtime across retrieval, planning, preparation and verificatio
 
 ## Visual Reference Activation Gate
 
-With no reference selected, create no empty reference artifacts. Declare selected sources' authority, subject uses and exclusions under [Visual Reference Activation and Transport](references/visual-reference-activation-and-transport.md). Pack preparation uses one ordinary Reference Use Plan; shared image inputs retain the canonical prepared set. A character sheet supplies its selected identity scope. Treat every selected SVG as bounded evidence, not as the whole requested image. Before rasterization, run `python scripts/check_dependencies.py --profile visual`; a failed check blocks that preparation.
+Create reference artifacts only for selected sources. Declare authority, subject uses and exclusions under [Visual Reference Activation and Transport](references/visual-reference-activation-and-transport.md). Use one ordinary Reference Use Plan for packs and one canonical prepared set for shared image inputs. Sheets supply selected identity scope. Treat every selected SVG as bounded evidence, not as the whole requested image. Before rasterization, run `python scripts/check_dependencies.py --profile visual`; failure blocks preparation.
 
 ## Output contract
 
-For world, persona or narrative work, return requested artifacts with actual design status, not unsolicited prompts. For prompt work, always return the requested prompt. Return a negative prompt only when requested or supported by the target. When no target parser is named, keep the prompt portable, without interface-specific weighting syntax unless the user asks for it. Reference-free prompt drafts include concise provenance and no empty placeholders.
+For world, persona or narrative work, return requested artifacts with their actual design status. Prompt work returns the prompt, with a negative only when requested or supported. Without a named parser, use portable wording and no interface-specific weights unless requested. Reference-free drafts include concise provenance and no empty placeholders.
 
-Add reference artifacts only when references are selected or a reusable reference package is requested; [Prompt-Only Core](references/runtime/prompt-only-core.md) gives each file's condition. When a reference is selected, return the actual file. A file path or hash is not delivery.
+Deliver actual reference files when selected or when a reusable package is requested; [Prompt-Only Core](references/runtime/prompt-only-core.md) defines each condition. A file path or hash is not delivery.
 
 ## Maintenance and release
 

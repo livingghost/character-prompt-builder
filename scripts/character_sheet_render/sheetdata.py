@@ -197,16 +197,7 @@ COVERAGE_MOTION_COLUMNS = ("region", "range", "limit", "must_prove")
 COVERAGE_ACTION_COLUMNS = ("action", "phase", "mechanics", "kind_channels")
 COVERAGE_GESTURE_COLUMNS = ("gesture", "context", "body", "props")
 
-# A row has two kinds of column. The drawing columns say what the picture
-# shows and go into a prompt; the rule columns say how a returned picture is
-# judged and go to the review record and the coverage audit, never to a model.
-DRAW_COLUMNS = {
-    "marks": ("mark_id", "landmark_anchor", "shape_path", "laterality"),
-    "parts": ("part", "attribute", "laterality"),
-    "items": ("item", "visual_identity", "scale_attachment"),
-    "outfits": ("outfit", "description", "notes"),
-    "colors": ("zone", "base", "shadow", "highlight"),
-}
+# Review criteria stay with the request record and coverage audit.
 RULE_COLUMNS = {
     "marks": ("counterpart_rule", "continuity_rule", "visibility_rule"),
     "parts": ("counterpart_rule", "continuity_rule", "visibility_rule"),

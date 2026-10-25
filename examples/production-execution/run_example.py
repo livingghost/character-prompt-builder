@@ -32,7 +32,7 @@ def run(out: Path) -> dict:
     (out/'delivery.txt').write_text('Describe the declared room in one sentence.\n', encoding='utf-8')
     spec={'task_id':task_id,'route':'development','features':[],
           'sources':[{'id':'world','path':'world.md','role':'world','disposition':'applied','locator':'whole','reason':'Synthetic fixture premise.'}],
-          'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Minimal declared-world fixture.'},
+          'delivery':{'path':'delivery.txt','translation_notes':'Minimal declared-world fixture.'},
           'criteria':[{'id':'world','strength':'hard','text':'One lamp, no added characters.'}], 'world_views':[]}
     fixture.task(out,spec)
     write('task.json',spec)

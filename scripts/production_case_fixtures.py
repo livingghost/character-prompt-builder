@@ -135,7 +135,7 @@ def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate
     task={'task_id':begun['task_id'],'production_id':packs.generate_uuid7(),'route':'generation','features':[],
           'sources':[{'id':'brief','path':'brief.md','role':'design','disposition':'applied','locator':'whole',
                       'reason':'The synthetic brief states what the fixture image has to show.'}],
-          'delivery':{'path':'prompt.txt','transport':'authored-rendition','translation_notes':'One canonical authored synthetic prompt.'},
+          'delivery':{'path':'prompt.txt','translation_notes':'One canonical authored synthetic prompt.'},
           'criteria':[{'id':'output','strength':'hard','text':'The received fixture is an identifiable PNG with the declared dimensions.'}], 'world_views':[]}
     production_fixtures.task(root,task,artifact='image',execution='dispatcher')
     task['direction']['decisions']=[{'id':'expression','question':'How should this synthetic protocol fixture be presented?',
@@ -230,7 +230,7 @@ def upscale_task(root:Path,*,source:str='upscale/source.png',scale:int=2)->str:
         c.atomic(root/source,_png(32,32,b'\x50\x80\xa0'))
     task=c.load(root/'task.json')
     task['route']='upscale';task['features']=[];task.pop('generation')
-    task['delivery']={'path':'upscale/input.json','transport':'authored-rendition',
+    task['delivery']={'path':'upscale/input.json',
                       'translation_notes':'An exact upscale input declaration; not a natural-language approximation.'}
     task['sources']=[{'id':'source','path':source,'role':'upscale-source','disposition':'applied','locator':'whole image',
                      'reason':'The explicitly declared synthetic image to enlarge.'}]

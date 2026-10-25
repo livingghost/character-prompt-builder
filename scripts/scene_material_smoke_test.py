@@ -386,7 +386,7 @@ class StudioSceneTests(unittest.TestCase):
         task = work_ledger.begin(self.root, 'Constructed image from a scene material', ['prepare'])
         (self.root / 'delivery.txt').write_text('One figure at the bench.\n', encoding='utf-8', newline='\n')
         spec = {'task_id': task['task_id'], 'route': 'performance', 'features': ['scene-persona'], 'sources': [],
-                'delivery': {'path': 'delivery.txt', 'transport': 'authored-rendition', 'translation_notes': 'None.'},
+                'delivery': {'path': 'delivery.txt',  'translation_notes': 'None.'},
                 'criteria': [{'id': 'scope', 'strength': 'hard', 'text': 'Use only the prepared scope.'}],
                 'world_views': [], 'scene_materials': [{'plan': self.PLAN, 'bundle': self.BUNDLE}]}
         fixture.task(self.root, spec, artifact='image')

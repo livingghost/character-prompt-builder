@@ -65,30 +65,30 @@ and append B's `--studio-selection-file` choices, using `--studio` for their own
 Use `--supplied-selection-file` for direct source choices instead.
 Without pack sources, combine `--state-selection-file` with either direct input.
 State eligibility covers the managed rows; other subjects require no invented history.
-The state row's `subject_id` remains in the model instructions even without optional use priorities.
+The state row retains its subject assignment in the binding. The authored prompt identifies that subject through the delivered inputs.
 
 ## Bind the actual transport
 
 The following prepared-set commands apply to reference-runtime and Generation Package delivery.
 An external request binds the same logical rows to its declared field paths and upload evidence.
 
-After rendering or copying the actual transports, the reference preparation runtime derives the canonical prompt preamble from their actual order. For multi-image input, identical committed transport hashes and media types share one attachment. Logical reference rows retain their distinct sources, adoption, roles and subject uses. For a single-board input, every logical reference points to attachment 1 and its exact panel rectangle in pixels from the top-left, and a board with several source panels consumes one model image slot in total. Source hashes, transport hashes, roles and panel rectangles must agree with the prepared set.
+After rendering or copying the actual transports, the reference preparation runtime derives their actual attachment mapping. For multi-image input, identical committed transport hashes and media types share one attachment. Logical reference rows retain their distinct sources, adoption, roles and subject uses. For a single-board input, every logical reference points to attachment 1 and its exact panel rectangle in pixels from the top-left, and a board with several source panels consumes one model image slot in total. Source hashes, transport hashes, roles and panel rectangles must agree with the prepared set.
 
-The map and its prompt text are generated only after those transports exist. The text names delivered sources, assigned scopes and any precedence needed between competing sources. Numeric priorities remain in the binding record; prompt text expresses the relevant order and complementary groups. Do not retain an earlier numbering scheme, hand-rewrite the canonical preamble, or tell a model to use attachment 2 when only a board is attached. The board instruction distinguishes source panels from desired output composition and requests a collage only when the author's target does.
+The map is authoring input for the agent. Interpret its subject assignments, scopes and precedence into the selected depiction using [Prompt Composition](prompt-composition.md#prompt-assembly-and-review). Internal keys, numeric priorities and request field paths stay in the binding record. Identify delivered images by their actual order and use a panel location when necessary. A source panel identifies evidence; it does not prescribe the output layout.
 
 ```sh
 python scripts/reference_delivery.py --prepared-set prepared.json --package-root WORK
 ```
 
-This inspection validates the complete prepared set and shows its attachment mapping and canonical instruction; it submits and mutates nothing. Normal preparation uses the same functions through `prepare_generation_references.py` and `reference_runtime.py`; the map is part of the exact preamble bound into generation packaging rather than an operator report alone.
+This inspection validates the complete prepared set and returns `bindings` with attachment positions, scopes and subject assignments. It submits and mutates nothing. Normal preparation uses the same functions through `prepare_generation_references.py` and `reference_runtime.py`. Review the authored prompt against those bindings and the actual attachments before packaging.
 
-For an external request, prepare the same instruction text from its declared image field paths:
+For an external request, inspect the same mapping from its declared image field paths:
 
 ```sh
 python scripts/reference_delivery.py --image-input-plan image-input.json --studio STUDIO
 ```
 
-This reads an existing prepared origin when the plan names one. The rendered location is an exact request field, such as `["images",0,"uri"]`. Include the resulting `reference_preamble` in the authored external prompt. Preparation verifies its presence and the complete image mapping.
+This reads an existing prepared origin when the plan names one. Each binding records its exact request field, such as `["images",0,"uri"]`, for transport verification. Author the reference instructions using the image positions and controls the target actually receives. Preparation verifies the exact request, image mapping and source bytes; the agent reviews whether the received prompt and media convey the assigned uses.
 
 For prompt-artifacts, SVG-bundle, or no-reference delivery, never claim that model-visible attachments were sent. An unsupported target or missing selected transport is an explicit failure rather than silent reference omission. Targets and their observed limits are resolved from actual model records rather than fixed service names in this procedure.
 

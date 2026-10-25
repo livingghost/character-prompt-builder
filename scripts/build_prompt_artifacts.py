@@ -52,7 +52,6 @@ def resolved_inputs(args: argparse.Namespace) -> dict[str, Path]:
         "--reference-use-plan": args.reference_use_plan,
         "--surface-lighting-plan": args.surface_lighting_plan,
         "--prepared-reference-set": args.prepared_reference_set,
-        "--reference-preamble": args.reference_preamble,
         "--semantic-plan": args.semantic_plan,
         "--revision-contract": args.revision_contract,
         "--retrieval-record": args.retrieval_record,
@@ -85,7 +84,6 @@ def main() -> int:
     parser.add_argument("--reference-use-plan", type=Path)
     parser.add_argument("--surface-lighting-plan", type=Path)
     parser.add_argument("--prepared-reference-set", type=Path)
-    parser.add_argument("--reference-preamble", type=Path)
     parser.add_argument("--semantic-plan", type=Path, help="Structured anatomy and camera plan to validate before artifact publication")
     parser.add_argument("--revision-contract", type=Path, help="Explicit edit/explore/retarget baseline and candidate semantics")
     parser.add_argument("--require-semantic-plan", action="store_true", help="Fail when no semantic plan is supplied")
@@ -166,8 +164,6 @@ def main() -> int:
     if args.prepare_for_generation and ref_count:
         if not args.prepared_reference_set:
             raise ValueError("generation-ready reference transport requires --prepared-reference-set")
-        if not args.reference_preamble:
-            raise ValueError("generation-ready reference transport requires --reference-preamble")
 
     if out.exists():
         if not out.is_dir():
@@ -216,12 +212,9 @@ def main() -> int:
         if args.prepare_for_generation:
             if args.prepared_reference_set:
                 included.append(copy_artifact(args.prepared_reference_set, staging / "prepared-reference-set.json"))
-            if args.reference_preamble:
-                included.append(copy_artifact(args.reference_preamble, staging / "reference-preamble.txt"))
         else:
             omitted.extend([
                 {"artifact": "prepared-reference-set.json", "reason": "not preparing target-specific generation transport"},
-                {"artifact": "reference-preamble.txt", "reason": "references are not being sent to a model"},
             ])
 
         manifest = {

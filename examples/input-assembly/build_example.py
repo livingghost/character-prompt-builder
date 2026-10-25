@@ -28,7 +28,7 @@ def build():
         root = Path(directory)
         task = {'task_id': 'synthetic-input-example', 'route': 'development', 'features': [],
                 'sources': [], 'route_reading': 'reading.json',
-                'delivery': {'path': 'delivery.txt', 'transport': 'authored-rendition',
+                'delivery': {'path': 'delivery.txt',
                              'translation_notes': 'Retain the authored synthetic local text.'},
                 'criteria': [{'id': 'output', 'text': 'Inspect the local synthetic result.',
                               'strength': 'hard', 'evidence': 'text'}]}

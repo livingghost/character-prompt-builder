@@ -15,7 +15,7 @@ def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,
     if offering is not None:
         if expected['service']!=offering['service'] or expected['model_identifier']!=offering['model_identifier']:
             raise ValueError('validation target differs from the selected offering')
-        for key in ('production_context_transport','reference_instruction_transport'):
+        for key in ('reference_instruction_transport',):
             declared=offering.get(key)
             if declared is not None and declared!=policy.get(key):raise ValueError('execution policy differs from its registered offering: '+key)
     selected=verified['selected_transport'];mode=selected['mode'];rendition=selected['rendition']
@@ -28,7 +28,6 @@ def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,
     result=model_rendition.compose(original,segments=segments,
         authored_source={'kind':'generation-rendition','sha256':c.digest(original.encode('utf-8'))},bindings=rows,
         reference_policy=policy.get('reference_instruction_transport'),production_consumer=consumer,
-        context_policy=policy.get('production_context_transport'),policy_source=record['execution_policy'],
         reader=local,target=expected,dialect=policy.get('text_dialect') or (model or {}).get('prompt_dialect'))
     from prompt_weighting import selected as selected_weighting, require_pair
     require_pair(result['text'], rendition.get('negative') or '', selected_weighting(package['render_contract']['parameters']))

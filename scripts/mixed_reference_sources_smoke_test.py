@@ -201,7 +201,7 @@ class MixedReferenceSourceTests(unittest.TestCase):
         inputs.update(production_spec=spec, state_graphs=[graph], prepared_reference_set=portable,
             prepared_reference_root=package_root, input_root=self.root,
             parameters={'width': 1024, 'height': 1024, 'settings': {'quality': 'high'}},
-            request_validation=fixture_validation(self.root, MODEL, reference_mode='prompt-prefix'),
+            request_validation=fixture_validation(self.root, MODEL, reference_mode='authored-rendition'),
             visual_continuity=visual, visual_root=self.root,
             route_reading=fixture_reading(route='state-series', studio=self.root,
                                          ledger=self.root / 'work/mixed-reference-reads.jsonl'))
@@ -220,9 +220,9 @@ class MixedReferenceSourceTests(unittest.TestCase):
         for source in (self.face, self.wardrobe):
             archive = package_root / 'scene.references/studio' / source['proof_sha256'] / 'proof.json'
             self.assertTrue(archive.is_file())
-        for phrase in ('Reference 2 means Image 1', 'subject C01, identity',
-                       'subject C01, outfit', 'subject C02, identity', 'subject C02, outfit'):
-            self.assertIn(phrase, final['reference_preamble'])
+        from reference_delivery import bindings
+        self.assertEqual(bindings(final['transport_mode'], final['selected_references'], final['single_board']),
+                         bindings(prepared['transport_mode'], prepared['selected_references'], prepared['single_board']))
 
 
 if __name__ == '__main__':

@@ -28,7 +28,7 @@ Every Generation Package and dispatcher run carries one request validation recor
 
 The builder and the compiler derive a `target-schema` record when all of these hold:
 
-- the request uses the authored rendition, with no selected references and no bounded production context;
+- the request uses the authored rendition, with no selected references;
 - the operation is not an upscale;
 - the model's offering names an observed schema in an active pack.
 
@@ -68,9 +68,8 @@ A synthetic authored record, trimmed, from `examples/state-aware-pilot/generated
 Selected reference bindings need an explicit `reference_instruction_transport`
 in the authored execution policy. Set `choices.validation.execution_policy` to
 that policy's string selector, such as `"inputs/execution-policy.json"`.
-The following templates show every required field for a `prompt-prefix` policy
-and its reference render contract. Replace the uppercase values and hash
-placeholders before use.
+The following templates show the required fields for `authored-rendition`.
+Replace the uppercase values and hash placeholders before use.
 
 `inputs/execution-policy.json`:
 
@@ -78,9 +77,8 @@ placeholders before use.
 {"artifact_type": "execution-policy",
  "target": {"service": "SERVICE", "model_identifier": "MODEL_IDENTIFIER", "operation": "WIRE_OPERATION"},
  "text_dialect": "PROMPT_DIALECT",
- "production_context_transport": "none",
  "reference_instruction_transport": {
-   "mode": "prompt-prefix",
+   "mode": "authored-rendition",
    "contract": {"path": "inputs/reference-render-contract.json", "sha256": "<SHA256_OF_SAVED_CONTRACT_BYTES>"}},
  "basis": {"path": "inputs/transport-basis.txt", "sha256": "<SHA256_OF_SAVED_SOURCE_BYTES>", "locator": "SOURCE_SECTION"}}
 ```
@@ -91,8 +89,7 @@ placeholders before use.
 {"artifact_type": "reference-render-contract",
  "target": {"service": "SERVICE", "model_identifier": "MODEL_IDENTIFIER", "operation": "WIRE_OPERATION"},
  "dialects": ["PROMPT_DIALECT"],
- "mode": "prompt-prefix",
- "renderer": "reference-delivery",
+ "mode": "authored-rendition",
  "fields": [],
  "basis": {"path": "inputs/transport-basis.txt", "sha256": "<SHA256_OF_SAVED_SOURCE_BYTES>", "locator": "SOURCE_SECTION"}}
 ```
@@ -107,22 +104,20 @@ are relative to the Studio root, not to the JSON file's directory; named
 `@pack/...` selectors retain their active pack root. Compute hashes from the
 final saved file bytes and update the references whenever those bytes change.
 
-With `mode: "prompt-prefix"`, the installed `reference-delivery` renderer
-adds each prepared binding's attachment number, optional board pixel region,
-role, allowed scopes and exclusions before the authored rendition. Keep
-`fields: []` for this mode. The [reference delivery contract](reference-delivery.md)
-explains how those bindings follow the actual attachments. Set
-`production_context_transport` to `"prompt-prefix"` when the production consumer
-uses `bounded-context`; `"none"` applies when no production-context prefix is
-requested. Without reference bindings, `reference_instruction_transport` may
-be null.
+With `mode: "authored-rendition"`, the agent interprets the checked attachment
+mapping into the final prompt. Keep `fields: []`. The [reference delivery
+contract](reference-delivery.md) supplies actual image positions, panel regions
+and source scopes for that judgment. `native-fields` uses only the provider's
+evidenced reference controls declared in the contract; `not-supported` leaves
+reference instruction delivery unavailable. Without reference bindings,
+`reference_instruction_transport` may be null.
 
-The existing [synthetic policy](../../examples/state-aware-pilot/generated/synthetic-validation/11666add06a51cce/policy.json)
-and [reference render contract](../../examples/state-aware-pilot/generated/synthetic-validation/11666add06a51cce/references.json)
-provide complete saved examples. Use them as format examples; author the target,
-dialect, policy choice and source witnesses for the selected execution. The
-policy records how instructions are rendered; request acceptance and visual
-reference influence remain separate evidence.
+The [synthetic policy](../../examples/state-aware-pilot/generated/synthetic-validation/999c2597753319e4/policy.json)
+and [reference render contract](../../examples/state-aware-pilot/generated/synthetic-validation/999c2597753319e4/references.json)
+provide complete saved examples. Author the target, dialect, policy choice and
+source witnesses for the selected execution. Internal context remains authoring
+input; request acceptance and the image's use of references require their own
+structural and semantic review.
 
 ## Import a schema and publish it
 

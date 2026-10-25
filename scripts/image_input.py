@@ -99,12 +99,6 @@ def reference_bindings(plan: dict, *, base: Path | None = None) -> list[dict]:
     return _reference_bindings(plan, plan['external_request'], prepared=prepared)
 
 
-def reference_instructions(plan: dict, *, base: Path | None = None) -> str:
-    """Use the shared delivery text owner for the external prompt's required block."""
-    from reference_delivery import binding_instructions
-    return binding_instructions(reference_bindings(plan, base=base))
-
-
 def _matching_media_paths(value: Any, pattern: tuple, prefix: tuple = ()):
     """Visit declared media field shapes across every actual array position."""
     if not pattern:
@@ -143,10 +137,6 @@ def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = N
     for pattern in patterns:
         if any(path not in fields for path in _matching_media_paths(request, pattern)):
             raise ValueError('external media array contains an undeclared or missing reference')
-    from reference_delivery import binding_instructions
-    required = binding_instructions(_reference_bindings(plan, external)).rstrip('\n')
-    if required and required not in actual_prompt:
-        raise ValueError('external prompt omits canonical reference delivery instructions')
 
 
 def _reference_rows(binding: dict, prepared: dict, *, require_hash: bool = True) -> None:

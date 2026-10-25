@@ -247,7 +247,7 @@ class ProductionTests(MomentTests):
     def setup_run(self):
         self.build();task=work_ledger.begin(self.root,'Moment fixture',['prepare','deliver']);fixture.write(self.root,'delivery.txt','Follow the selected moment.\n')
         spec={'task_id':task['task_id'],'route':'story-context','features':[], 'sources':[],
-              'delivery':{'path':'delivery.txt','transport':'bounded-context','translation_notes':'Only selected information.'},'criteria':[{'id':'bounded','strength':'hard','text':'Inspect only the declared bounded moment.'}],
+              'delivery':{'path':'delivery.txt','translation_notes':'Only selected information.'},'criteria':[{'id':'bounded','strength':'hard','text':'Inspect only the declared bounded moment.'}],
               'world_views':[],'moment_views':[{'query':'query.json','bundle':'bundle','view_id':'depiction.main'}]}
         production_fixtures.task(self.root,spec)
         fixture.write(self.root,'task.json',spec);return production.prepare(self.root,'task.json')['run']
@@ -266,9 +266,8 @@ class ProductionTests(MomentTests):
         import production_binding
         run=self.setup_run();binding=production_binding.create(self.root,run,'Follow the selected moment.\n')
         production_binding.validate(binding,'Follow the selected moment.\n')
-        text=production_binding.effective(binding,'Follow the selected moment.\n', context_transport='prompt-prefix')
-        self.assertIn('moment_views',text);self.assertIn('tense',text)
-        self.assertIn('Keep the response concise',text);self.assertNotIn('PRIVATE',text)
+        self.assertEqual(binding['consumer']['instructions'], 'Follow the selected moment.\n')
+        self.assertEqual(len(binding['consumer']['moment_views']), 1)
         production_binding.validate_live(self.root,run,{'production_binding':binding,'composition_prompt':'Follow the selected moment.\n'})
 
     def test_failed_view_cannot_prepare(self):
@@ -284,7 +283,7 @@ class ProductionTests(MomentTests):
         with self.assertRaisesRegex(ValueError,'selected moment view'):production.validate_task(spec)
     def test_source_change_between_resolve_and_pin_is_caught(self):
         self.build();task=work_ledger.begin(self.root,'fixture',['step']);fixture.write(self.root,'delivery.txt','Use selected facts')
-        spec={'task_id':task['task_id'],'route':'story-context','features':[],'sources':[], 'delivery':{'path':'delivery.txt','transport':'bounded-context','translation_notes':'test'},'criteria':[{'id':'bounded','strength':'hard','text':'Inspect only the declared bounded moment.'}],'world_views':[],'moment_views':[{'query':'query.json','bundle':'bundle','view_id':'depiction.main'}]}
+        spec={'task_id':task['task_id'],'route':'story-context','features':[],'sources':[], 'delivery':{'path':'delivery.txt','translation_notes':'test'},'criteria':[{'id':'bounded','strength':'hard','text':'Inspect only the declared bounded moment.'}],'world_views':[],'moment_views':[{'query':'query.json','bundle':'bundle','view_id':'depiction.main'}]}
         production_fixtures.task(self.root,spec)
         fixture.write(self.root,'task.json',spec);original=sc.verify_output
         def mutate(*args,**kw):

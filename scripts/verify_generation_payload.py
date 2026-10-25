@@ -728,7 +728,6 @@ def _verify(
         "model": model,
         "parameters": parameters,
         "selected_transport": selected_transport,
-        "reference_preamble": reference_set["reference_preamble"],
         "effective_prompt": effective_prompt,
         "effective_prompt_sha256": sha256_text(effective_prompt),
         "selected_references": host_reference_transports(
@@ -808,7 +807,6 @@ def emit_paste_for_target(
         "instruction": selected["instruction"],
         "parameters": result["parameters"],
         "selected_references": result["host_forwarding"]["selected_references"],
-        "reference_preamble": result["host_forwarding"]["reference_preamble"],
         "generation_input_sha256": result["generation_input_sha256"],
     }
     if selected["mode"] == "separate-field":

@@ -64,7 +64,7 @@ class StudioStateTests(unittest.TestCase):
             root=self.root,characters={'C01':'robot'},work_ids={'C01':'C01'})
         inputs = _payload_inputs(graph)
         inputs.update(input_root=self.root,
-            request_validation=fixture_validation(self.root,'gpt-image-2.5-flare',reference_mode='prompt-prefix'),
+            request_validation=fixture_validation(self.root,'gpt-image-2.5-flare',reference_mode='authored-rendition'),
             parameters={'width':1024,'height':1024,'settings':{'quality':'high'}})
         return build_package(**inputs,visual_continuity=visual,visual_root=self.root,
             route_reading=fixture_reading(route='state-series'),prepared_reference_set=prepared,prepared_reference_root=self.package_root)

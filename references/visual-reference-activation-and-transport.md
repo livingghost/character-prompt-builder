@@ -74,8 +74,8 @@ Select the target depiction under
 bind the relevant source evidence to it.
 
 1. State the intended event or visual purpose and its necessary relationships.
-2. Assign the delivered references to their subjects and permitted uses through
-   the canonical binding. Retain explicit exclusions and required precedence.
+2. Assign the delivered references to their subjects and permitted uses in
+   the authored prompt, guided by the canonical bindings. Express required precedence.
 3. Describe target changes as the chosen result. Keep a required exclusion when
    it has independent meaning; do not manufacture an opposite for every deletion.
 4. Specify geometry where ownership, contact, depth or framing carries the
@@ -118,7 +118,7 @@ These artifacts belong to canonical reference preparation. External instruction 
 
 - Deliver `reference-use-plan.json` only when one or more references are selected or a reusable reference package is requested.
 - Deliver `surface-lighting-plan.json` only when source lighting or material response must be explicitly preserved, rescoped, or replaced.
-- Deliver `prepared-reference-set.json` and `reference-preamble.txt` only for a target-specific or generation-ready transport.
+- Deliver `prepared-reference-set.json` only for a target-specific or generation-ready transport.
 - Deliver the selected SVG files themselves. A path or hash alone is not delivery.
 
 ## Target transport

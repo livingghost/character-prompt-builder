@@ -33,7 +33,7 @@ def build():
         started = work_ledger.begin(root, 'Synthetic recovery example', ['inspect retained evidence'])
         (root / 'delivery.txt').write_text('Synthetic local instructions.\n', encoding='utf-8')
         task = {'task_id': started['task_id'], 'route': 'development', 'features': [], 'sources': [],
-                'delivery': {'path': 'delivery.txt', 'transport': 'authored-rendition',
+                'delivery': {'path': 'delivery.txt',
                              'translation_notes': 'Synthetic authored fixture.'},
                 'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect retained output.'}]}
         run = prepare_fixture(root, task)

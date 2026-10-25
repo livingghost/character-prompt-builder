@@ -275,7 +275,7 @@ class AuthoredResumeTests(unittest.TestCase):
             root=Path(d);task_id=work_ledger.begin(root,'Synthetic prose',['write'])['task_id']
             fixtures.write(root/'delivery.txt','A synthetic sentence.\n')
             task={'task_id':task_id,'route':'development','features':[],'sources':[],
-                  'delivery':{'path':'delivery.txt','transport':'authored-rendition','translation_notes':'Explicit authored text.'},
+                  'delivery':{'path':'delivery.txt','translation_notes':'Explicit authored text.'},
                   'criteria':[{'id':'text','strength':'hard','text':'A sentence exists.'}],'world_views':[]}
             production_fixtures.task(root,task);fixtures.write(root/'task.json',task)
             run=workflow.prepare(root,'task.json')['run']

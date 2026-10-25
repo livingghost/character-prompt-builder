@@ -436,7 +436,7 @@ def main() -> int:
         (root / "delivery.txt").write_text("Deliver the selected test image.\n", encoding="utf-8")
         spec = {"task_id": task["task_id"], "route": "development", "features": [],
                 "sources": [], "world_views": [],
-                "delivery": {"path": "delivery.txt", "transport": "authored-rendition", "translation_notes": "Synthetic fixture."},
+                "delivery": {"path": "delivery.txt",  "translation_notes": "Synthetic fixture."},
                 "criteria": [{"id": "fixture", "strength": "hard", "text": "Deliver the inspected image fixture."}]}
         production_fixtures.task(root,spec,artifact="binary")
         (root / "production-task.json").write_bytes(evidence.encoded(spec))

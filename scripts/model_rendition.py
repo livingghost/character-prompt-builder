@@ -1,11 +1,11 @@
-"""Render explicitly declared conversions and retain their source at write time."""
+"""Bind authored image instructions and explicit interface controls to their sources."""
 from __future__ import annotations
 import copy
 from typing import Any
 import execution_contract as c
 import request_contract as rc
 from input_evidence import InputEvidence
-from reference_delivery import SUBJECT_USE_RULE, binding_instructions, validate_subject_uses
+from reference_delivery import validate_subject_uses
 
 
 def _binding_id(row:dict)->str:
@@ -38,39 +38,27 @@ def validate_bindings(rows:Any)->list[dict]:
     return rows
 
 
-def _reference_prefix(rows:list[dict],renderer:str)->str:
-    if renderer=='reference-delivery':
-        return binding_instructions(rows)+'\n'
-    if renderer=='reference-binding-json':
-        scope = SUBJECT_USE_RULE+'\n' if any(row.get('subject_uses') for row in rows) else ''
-        return scope+'Declared reference bindings:\n'+c.encoded(rows).decode('utf-8')+'\n'
-    raise ValueError('the reference render contract names no installed renderer')
-
-
 def reference_contract(policy:dict|None,reader:InputEvidence,expected_target:dict,dialect:str|None,rows:list[dict])->dict|None:
     validate_bindings(rows)
     if not rows:return None
     if policy is None:raise ValueError('selected reference bindings require an explicit reference_instruction_transport')
     c.exact(policy,{'mode','contract'},'reference instruction transport')
     mode=policy['mode']
-    if mode not in {'native-fields','authored-rendition','prompt-prefix','not-supported'}:raise ValueError('unknown reference instruction transport')
+    if mode not in {'native-fields','authored-rendition','not-supported'}:raise ValueError('unknown reference instruction transport')
     document=reader.json(policy['contract']);local=reader.at(policy['contract'])
-    c.exact(document,{'artifact_type','target','dialects','mode','renderer','fields','basis'},'reference render contract')
+    c.exact(document,{'artifact_type','target','dialects','mode','fields','basis'},'reference render contract')
     if document['artifact_type']!='reference-render-contract' or document['target']!=expected_target or document['mode']!=mode:
         raise ValueError('reference render contract target or mode differs from selected execution')
     if not isinstance(document['dialects'],list) or not document['dialects']:raise ValueError('reference contract requires explicit supported dialects')
     if dialect not in document['dialects']:raise ValueError('reference render contract does not cover the selected dialect')
     local.basis(document['basis'])
     if mode=='not-supported':raise ValueError('the selected execution contract cannot deliver the required reference authority')
-    if mode=='prompt-prefix':
-        if document['renderer'] not in {'reference-delivery','reference-binding-json'} or document['fields']!=[]:
-            raise ValueError('prefix mode requires one installed renderer and no native fields')
-    elif mode=='authored-rendition':
-        if document['renderer'] is not None or document['fields']!=[]:raise ValueError('authored reference instructions have no automatic transform')
+    if mode=='authored-rendition':
+        if document['fields']!=[]:raise ValueError('authored reference instructions have no native fields')
     else:
-        if document['renderer'] is not None or not isinstance(document['fields'],list) or not document['fields']:
+        if not isinstance(document['fields'],list) or not document['fields']:
             raise ValueError('native reference mode requires explicit structural mappings')
-        allowed={'reference_number','attachment_number','region_pixels','role','controls','must_not_control','subject_uses','subject_id'}
+        allowed={'attachment_number','region_pixels','role','controls','must_not_control'}
         mapped=set();destinations=[]
         for item in document['fields']:
             c.exact(item,{'binding_field','request_field','container'},'native reference mapping')
@@ -81,19 +69,22 @@ def reference_contract(policy:dict|None,reader:InputEvidence,expected_target:dic
             if any(rc.overlaps(path,x) for x in destinations):raise ValueError('native reference fields overlap')
             destinations.append(path)
         required={'attachment_number','role'}
-        for key in ('controls','must_not_control','region_pixels','subject_uses','subject_id'):
+        for key in ('controls','must_not_control','region_pixels'):
             if any(row.get(key) for row in rows):required.add(key)
         if not required<=mapped:raise ValueError('native reference controls omit declared authority or region fields: '+', '.join(sorted(required-mapped)))
     return document
 
 
 def compose(original:str,*,segments:list[dict]|None,authored_source:dict,bindings:list[dict],
-            reference_policy:dict|None,production_consumer:dict|None,context_policy:str|None,
-            policy_source:dict|None,reader:InputEvidence,target:dict,dialect:str|None)->dict:
-    """Keep authored text intact and apply only the registered conversion operations."""
+            reference_policy:dict|None,production_consumer:dict|None,
+            reader:InputEvidence,target:dict,dialect:str|None)->dict:
+    """Preserve the selected depiction and keep production records in the review context."""
     if not isinstance(original,str):raise ValueError('rendition must be a string')
     validate_bindings(bindings)
-    parts=[];trace=[];controls=[];requirements=[];offset=0
+    parts=[];trace=[];controls=[];offset=0
+    requirements=[{'id':'depiction-inputs','kind':'meaning',
+        'binding_ids':[_binding_id(row) for row in bindings], 'sources':[authored_source],
+        'statement':'Assess whether the exact instructions and delivered media identify the intended depiction without access to project records.'}]
     def append(text,kind,refs,transform,binding_ids=None):
         nonlocal offset
         if not text:return
@@ -101,26 +92,14 @@ def compose(original:str,*,segments:list[dict]|None,authored_source:dict,binding
             'target_field':None,'target_range':{'start':offset,'end':offset+len(text)},'binding_ids':list(binding_ids or [])})
         offset+=len(text)
     if production_consumer is not None:
-        mode=production_consumer['transport']
-        if mode=='bounded-context':
-            if context_policy!='prompt-prefix' or policy_source is None:
-                raise ValueError('bounded production context requires a sourced prompt-prefix contract')
-            context={key:production_consumer[key] for key in ('direction','criteria','world_views','moment_views')}
-            append('Production context (hard constraints and advisory choices are distinct):\n'+c.encoded(context).decode('utf-8')+'\n',
-                'production-context',[policy_source],'declared-production-context')
-        elif mode!='authored-rendition':raise ValueError('unknown production consumer transport')
         requirements.append({'id':'production-direction','kind':'meaning','binding_ids':[],
             'sources':[authored_source],'statement':'Assess the selected direction against this exact rendition.'})
     contract=reference_contract(reference_policy,reader,target,dialect,bindings)
     if contract is not None:
         ids=[_binding_id(row) for row in bindings]
-        if contract['mode']=='prompt-prefix':
-            append(_reference_prefix(bindings,contract['renderer']),'reference-binding',[reference_policy['contract']],contract['renderer'],ids)
-        elif contract['mode']=='native-fields':
+        if contract['mode']=='native-fields':
             for item in contract['fields']:
-                values=[row.get(item['binding_field'], []) if item['binding_field']=='subject_uses'
-                        else row.get('subject_id') if item['binding_field']=='subject_id'
-                        else row[item['binding_field']] for row in bindings]
+                values=[row[item['binding_field']] for row in bindings]
                 controls.append({'id':'reference-control:'+item['binding_field'],'field':rc.path_parts(item['request_field']),
                     'value':values if item['container']=='ordered-array' else values[0],'binding_ids':ids})
         requirements.append({'id':'reference-rendition','kind':'meaning','binding_ids':ids,
