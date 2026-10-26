@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 988,
-  "total_bytes_excluding_manifest": 16658639,
+  "total_bytes_excluding_manifest": 16660280,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -106,8 +106,8 @@
     },
     {
       "path": "AGENTS.md",
-      "bytes": 10635,
-      "sha256": "3aa71ecb2c1e43495bebcb9d33ccd2a699c986de88f3188148bcf2c2012623b8"
+      "bytes": 11182,
+      "sha256": "f768bbcc644ff4429fe8f3e59b10f38fb4c03068a5a917dd080356f8f4b85a7b"
     },
     {
       "path": "CHANGELOG.md",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CLAUDE.md",
-      "bytes": 10635,
-      "sha256": "3aa71ecb2c1e43495bebcb9d33ccd2a699c986de88f3188148bcf2c2012623b8"
+      "bytes": 11182,
+      "sha256": "f768bbcc644ff4429fe8f3e59b10f38fb4c03068a5a917dd080356f8f4b85a7b"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -1411,8 +1411,8 @@
     },
     {
       "path": "hosts/shared/repository-guide.md.template",
-      "bytes": 10295,
-      "sha256": "425873f768749126935a81f65a0c4cc453fc313e80fedf256701bc5cc499b79b"
+      "bytes": 10842,
+      "sha256": "a074e8382e47fd602a41a00ab935be431c7c1fa06a518bbd09298566ef5172eb"
     },
     {
       "path": "package-manifest.toml",

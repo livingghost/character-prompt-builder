@@ -115,11 +115,14 @@ routed documentation. `scripts/run_checks.py` names every test module.
 
 This repository owns its runtime, documentation, schemas, examples and tests.
 Data exchange follows explicit public artifact contracts.
-Implement the current format directly as the initial product contract.
+Design the owning components from first principles, as if the current design had been present from the beginning.
+Replace superseded implementation paths instead of layering corrective exceptions over them.
+Do not add backward-compatibility implementations or tests whose sole purpose is to verify incompatibility with superseded behavior.
 Update producers, validators, templates and fixtures together when that contract changes.
 
 - Keep implementation details local to their owning product and generate derived files from their declared sources.
 - Use explicit identifiers, evidence and declared constraints for mechanical checks; the responsible author evaluates meaning and acceptance.
+  Do not implement semantic validation with regular expressions, keyword matching, or interpretation dictionaries that require entries for each new feature.
 - Place neutral synthetic examples under `examples/` and preserve the user's material in their own studio.
 - Give each text-encoding test one necessary non-ASCII fixture, distributing script coverage across tests.
 - Report executed checks separately from unverified behavior, including incomplete runs and environmental failures.
@@ -173,10 +176,12 @@ the references, the templates, docstrings and commit messages.
   or an actual record, trimmed, and labeled synthetic when it is a fixture.
 - Delete a repeated principle and refer to the place it is stated. Longer is
   not safer.
-- State facts, rules and evidence in records and artifacts. Do not write
-  process notes: no history of how a decision was reached, no session
-  narrative, no quoted instructions. A measurement's evidence (when, what, the
-  result) is a fact; the story of producing it is not.
+- State durable product facts, rules and evidence in records and artifacts.
+  Keep task-specific work instructions, work reports, process notes, decision
+  histories, session narratives and conversation quotations out of product artifacts.
+  Generalize task-specific lessons into reusable guidance.
+  A measurement's evidence (when, what, the result) is a fact; the story of
+  producing it is not.
 - ASCII punctuation, no em or en dashes, English throughout.
 - After changing README.md, run `python scripts/readme_smoke_test.py` and keep
   the executable example blocks byte-identical unless the commands changed.
