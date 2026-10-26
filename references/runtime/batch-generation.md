@@ -24,27 +24,28 @@ Every job forwards its own verified Generation Package. A batch plan is usable o
 
 ## Authoring the job list
 
-Write one `batch-jobs.json` UTF-8 artifact per batch:
+Write one `batch-jobs.json` UTF-8 artifact per batch.
+This synthetic example illustrates two models using separate endpoints:
 
 ```json
 {
   "label": "portrait closeups",
   "jobs": [
     {
-      "job_id": "closeup-flux",
-      "target_model": "flux-1-dev",
-      "transport": "runware-mcp",
-      "generation_package": "packages/closeup-flux.json",
+      "job_id": "closeup-sample",
+      "target_model": "sample-image-a",
+      "transport": "synthetic-host-b",
+      "generation_package": "packages/closeup-sample.json",
       "count": 3,
       "seeds": [11, 22, 33],
       "parameters": {"width": 1024, "height": 1024},
       "note": "front closeup variants"
     },
     {
-      "job_id": "scene-sdxl",
-      "target_model": "sdxl-base",
-      "transport": "comfyui-local",
-      "generation_package": "packages/scene-sdxl.json"
+      "job_id": "scene-sample",
+      "target_model": "sample-image-b",
+      "transport": "synthetic-host-a",
+      "generation_package": "packages/scene-sample.json"
     }
   ]
 }
@@ -87,9 +88,9 @@ After generation, write one `batch-results.json` mapping every planned variant i
 ```json
 {
   "variants": {
-    "closeup-flux#v01": {"image_path": "characters/C01/iterations/it-0004/result.png", "status": "accepted"},
-    "closeup-flux#v02": {"image_path": "characters/C01/iterations/it-0005/result.png", "status": "rejected", "note": "ear drift"},
-    "closeup-flux#v03": {"status": "failed", "error": "host returned no image"}
+    "closeup-sample#v01": {"image_path": "characters/C01/iterations/it-0004/result.png", "status": "accepted"},
+    "closeup-sample#v02": {"image_path": "characters/C01/iterations/it-0005/result.png", "status": "rejected", "note": "ear drift"},
+    "closeup-sample#v03": {"status": "failed", "error": "host returned no image"}
   }
 }
 ```

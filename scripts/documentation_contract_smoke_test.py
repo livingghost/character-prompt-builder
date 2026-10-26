@@ -240,7 +240,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
     def test_model_adapter_cannot_own_another_adapter_heading(self) -> None:
         relative = "references/adapters/gpt-image.md"
         path = self.root / relative
-        text = path.read_text(encoding="utf-8") + "\n# FLUX Adapter\n"
+        text = path.read_text(encoding="utf-8") + "\n# NovelAI Adapter\n"
         self._write(relative, text)
         self.assertTrue(
             any("contains another adapter heading" in error for error in self._errors())

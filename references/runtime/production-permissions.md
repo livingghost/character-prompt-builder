@@ -49,18 +49,21 @@ binding hash. `reviewer` equals the authorized actor, and `binding_ids` names
 every transported logical reference, including uses sharing one attachment.
 Its `assessments` contains one conclusion and reason for each criterion:
 
-- `finished-image`: read back the complete input and compare the resulting
-  depiction with the author's anchors. Explain how the relevant actions,
-  visibility and exclusions coexist within their actual scopes. Resolve
-  conflicts under the composition's source authority before marking it satisfied.
+- `finished-image`: read back the complete input and compare its qualities,
+  degree, relationships and finish with the author's anchors. Identify how text
+  and supplied media establish that target beyond satisfying exclusions. Explain
+  how actions, visibility and exclusions coexist within their actual scopes.
+  Resolve missing anchors, weakened intent and conflicts under the composition's
+  source authority before marking it satisfied.
 - `supplied-inputs`: subjects and reference uses resolve from the delivered text
   and actual images; a reference-free request invents no supplied source.
 - `ownership`: prompt text carries depiction and necessary image-use directions;
   production IDs, provenance, decisions, grading and native settings keep their
   existing record or request-field owners.
 
-Record `not-satisfied` for a contradiction and `unmeasured` when evidence or
-interpretation remains insufficient. Both prevent submission. Repair the input
+Record `not-satisfied` for a missing anchor, weakened intent or contradiction,
+and `unmeasured` when evidence or interpretation remains insufficient.
+Both prevent submission. Repair the input
 within authority, prepare it again and assess the resulting exact input.
 A request can proceed only when every conclusion is `satisfied` with an explicit
 reason grounded in that input. Repeating a criterion or citing a passing checker

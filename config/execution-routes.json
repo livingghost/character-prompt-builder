@@ -255,13 +255,6 @@
       ],
       "source_roles": []
     },
-    "flux": {
-      "reads": [
-        "references/adapters/flux.md",
-        "references/runtime/model-evidence.md"
-      ],
-      "source_roles": []
-    },
     "sdxl": {
       "reads": [
         "references/adapters/sdxl-comfyui.md",

@@ -145,6 +145,16 @@ the brief. Include these complementary cases:
   action. The source's unassigned state must not displace the target state.
 - A crop, action or exclusion changes the intended event despite valid syntax.
   Assess fidelity to the event, not just the presence of its objects.
+- A prompt satisfies every exclusion while omitting a wanted quality, degree,
+  relationship or finish. Assess whether the revision establishes the target
+  from the brief or supplied evidence rather than adding further prohibitions.
+- A qualified exclusion limits an extreme of a wanted quality. Preserve that
+  quality and its intended strength without inferring its opposite.
+- An explicit exclusion leaves its alternatives open. Preserve the boundary
+  without inventing an unnecessary positive choice or dropping the exclusion.
+- Story knowledge, source provenance, native controls and assessment notes
+  accompany a brief. Judge the resulting visible scene and the ownership of
+  those inputs; a prompt must not become a copy of its preparation records.
 
 Inspect the complete positive and negative text, media and native controls.
 Test the actual transport when it changes scope or emphasis. Record authored

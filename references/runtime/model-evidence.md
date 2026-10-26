@@ -52,16 +52,9 @@ Their exact submit authorization must use an allowed validation mode and `reques
 Dispatcher scope cases require a sealed dispatcher request and cannot authorize this external path.
 Record any required exact-operation grant from the principal's existing authority; this rule creates no extra confirmation step.
 
-A synthetic authored record, trimmed, from `examples/state-aware-pilot/generated/request-validation.json`:
-
-```json
-{"mode": "target-schema",
- "target": {"service": "synthetic-host", "model_identifier": "gpt-image-2.5-flare", "operation": "generation"},
- "contract": {"path": "synthetic-validation/6869870cd69c35fe/contract.json", "sha256": "8fc608f3..."},
- "evidence": {"path": "synthetic-validation/6869870cd69c35fe/acquisition.json", "sha256": "036408fe..."},
- "execution_policy": {"path": "synthetic-validation/6869870cd69c35fe/policy.json", "sha256": "a42d3281..."},
- "unmeasured": []}
-```
+The [synthetic validation record](../../examples/state-aware-pilot/generated/request-validation.json)
+provides a complete saved example. Its `contract`, `evidence` and
+`execution_policy` fields carry the current paths and content hashes.
 
 ## Execution policy for reference delivery
 
@@ -113,9 +106,8 @@ evidenced reference controls declared in the contract; `not-supported` leaves
 reference instruction delivery unavailable. Without reference bindings,
 `reference_instruction_transport` may be null.
 
-The [synthetic policy](../../examples/state-aware-pilot/generated/synthetic-validation/999c2597753319e4/policy.json)
-and [reference render contract](../../examples/state-aware-pilot/generated/synthetic-validation/999c2597753319e4/references.json)
-provide complete saved examples. Author the target, dialect, policy choice and
+Follow that validation record's `execution_policy` to the saved policy and its
+reference render contract. Author the target, dialect, policy choice and
 source witnesses for the selected execution. Keep binding IDs, policy choices
 and source witnesses in those records. Review the complete authored image and
 its reference directions in the existing exact-input rendition review.

@@ -14,7 +14,7 @@ Use this document only when the user requests an image-generation call or a mode
 - [Failure policy](#failure-policy)
 - [Concurrent batch dispatch](#concurrent-batch-dispatch)
 
-Select exactly one target adapter: [GPT Image](../adapters/gpt-image.md), [Midjourney and Niji](../adapters/midjourney-niji.md), [FLUX](../adapters/flux.md), [SDXL and ComfyUI](../adapters/sdxl-comfyui.md), [NovelAI](../adapters/novelai.md), [Grok Imagine](../adapters/grok-imagine.md), [Instruction-Edit](../adapters/instruction-edit.md), or the [Unlisted Image Interface](../adapters/unlisted-interface.md). Do not assume capabilities.
+Select exactly one target adapter: [GPT Image](../adapters/gpt-image.md), [Midjourney and Niji](../adapters/midjourney-niji.md), [SDXL and ComfyUI](../adapters/sdxl-comfyui.md), [NovelAI](../adapters/novelai.md), [Grok Imagine](../adapters/grok-imagine.md), [Instruction-Edit](../adapters/instruction-edit.md), or the [Unlisted Image Interface](../adapters/unlisted-interface.md). Do not assume capabilities.
 
 Gemini or Imagen, Firefly, Ideogram, Recraft, Leonardo, and future design-oriented generators use that unlisted-interface rule. Inspect the exact active interface and model record; never infer media or negative transport from a brand family.
 

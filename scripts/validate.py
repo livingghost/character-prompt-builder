@@ -831,10 +831,6 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "# Midjourney and Niji Adapter",
         "Transmit only the verified native negative subset through `--no`.",
     ),
-    "references/adapters/flux.md": (
-        "# FLUX Adapter",
-        "Do not assume negative conditioning exists in the active workflow.",
-    ),
     "references/adapters/sdxl-comfyui.md": (
         "# SDXL and ComfyUI Adapter",
         "Send the complete verified negative prompt through separate conditioning.",

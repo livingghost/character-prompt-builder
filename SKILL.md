@@ -76,7 +76,7 @@ Each item names a route or `--feature` whose read prints its documents. A prompt
 - final prompt ordering, weighting, LoRA notation, negative syntax or term comparison: feature `prompt-dialect`, [Writing Guide](references/runtime/prompt-writing-guide.md);
 - linked evidence, or a prompt plus references without generation: route `reference-artifacts` or feature `references`;
 - model-facing reference transports: feature `reference-delivery`;
-- generation or model transport: route `generation` plus the feature for exactly one of `gpt-image`, `midjourney` (and Niji), `flux`, `sdxl` (and ComfyUI), `novelai`, `grok`, `instruction-edit`, or `unlisted-interface` for any other image interface;
+- generation or model transport: route `generation` plus the feature for exactly one of `gpt-image`, `midjourney` (and Niji), `sdxl` (and ComfyUI), `novelai`, `grok`, `instruction-edit`, or `unlisted-interface` for any other image interface;
 - continuity, temporal state, off-screen events, cross-scene identity, or an arriving shot-request: route or feature `state-series`;
 - several images at once, across models or as concurrent variants of one model: route `batch`;
 - accepted characters in a new pose or shared scene, including staged asset creation: route `repose`;
@@ -109,8 +109,8 @@ For image work, apply the steps needed by the deliverable:
 1. Resolve the artifact. For saved work, establish the Studio and read its route.
 2. Separate requirements, purposeful choices and incidental deductions. Select necessary relationships and visible information. For character reuse, resolve reference coverage and stage targets.
 3. Read interface guidance; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Retrieve visual elements. Inspect every selected canonical record in full. Resolve the dispatcher execution profile.
-4. Compose one finished image or requested edit: purpose, relationships and view, then identity, visible state, finish and reference directions. Retain necessary exclusions and critical detail; combine sources by meaning.
-5. Read back the exact text, negative channels, controls and media. Reconstruct the scene and compare it with the user's anchors. Can instructions coexist for the same subject, part, moment and condition? Distinct scopes must follow from the brief or actual input. Fix conflicting choices within authority; ask only when requirements remain irreconcilable. Do not deliver or submit unresolved contradictions or invent scope to make them pass. Recheck emphasis, repetition, leakage and fidelity after rewriting. Keep review outside the prompt; retain plot approval and settle retrieval against final wording.
+4. Compose the wanted image or edit: purpose, relationships and view, then identity, state, finish and supplied-reference roles. Establish intended qualities and degree before necessary exclusions; combine sources by meaning.
+5. Read the exact text, negatives, controls and media back as a picture. Could it satisfy every exclusion while losing an anchor or wanted quality? Check compatibility for each subject, part, moment and condition, using only scopes supported by the brief or input. Repair conflicting choices within authority; ask about irreconcilable requirements. Leave unresolved contradictions unfinished. Recheck omissions, emphasis, repetition and leakage after rewriting. Keep review outside the prompt; retain plot approval and settle retrieval against final wording.
 6. Save prompt, settings, evidence and any Studio destination in the task's declared inputs.
 7. `production_workflow.py check --task task.json` reports diagnostics without creating a run. `prepare` publishes request preview, execution plan and any dispatcher Generation Package.
 8. Review the complete prepared request and operation targets, repeating step 5 after transport changes. Dispatcher work follows `draft-execution`, actual decisions and `execute`.

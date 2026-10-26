@@ -68,7 +68,7 @@ Assume nothing about a universal 75-token ceiling: prompt capacity, chunking, an
 
 Remove incidental detail that contributes no requirement or selected effect. Retain all specificity needed for identity, visible construction and the chosen scene, even when that requires a detailed prompt. Preserve the complete canonical identity and scene state at their owners. An omitted detail needs no replacement permission, exclusion or instruction to reveal it.
 
-Use the `negative-policy` resource to assess applicable sources; a tag family's form is the `negative_form` that `scripts/prompt_dialect.py` returns. Keep required exclusions and corrections scoped to their intended subject, region or failure. Resolve a real contradiction by returning to the brief and source authority, then revise the conflicting wording. A repeated word across channels can carry different scopes; the author judges the combined meaning. A growing negative list calls for reassessment, not automatic deletion of necessary constraints.
+Use the `negative-policy` resource to assess applicable sources; a tag family's form is the `negative_form` that `scripts/prompt_dialect.py` returns. Keep required exclusions and corrections scoped to their intended subject, region or failure. Resolve a real contradiction by returning to the brief and source authority, then revise the conflicting wording. A repeated word across channels can carry different scopes; the author judges the combined meaning. When exclusions accumulate, return to the [selected depiction](prompt-composition.md#select-the-depiction): repair a missing target or unclear scope before adding another boundary. Retain necessary exclusions.
 
 ## Controlled comparison
 

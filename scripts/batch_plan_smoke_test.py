@@ -66,8 +66,8 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="cpb-batch-plan-") as temporary:
         workdir = Path(temporary)
-        package_a = workdir / "packages" / "closeup-flux.json"
-        package_b = workdir / "packages" / "scene-sdxl.json"
+        package_a = workdir / "packages" / "closeup-sample.json"
+        package_b = workdir / "packages" / "scene-sample.json"
         write_json(package_a, {"generation_input_sha256": "a" * 64})
         write_json(package_b, {"generation_input_sha256": "b" * 64})
         package_a_sha = hashlib.sha256(package_a.read_bytes()).hexdigest()
@@ -77,20 +77,20 @@ def main() -> int:
             "label": "portrait closeups",
             "jobs": [
                 {
-                    "job_id": "closeup-flux",
-                    "target_model": "flux-1-dev",
-                    "transport": "runware-mcp",
-                    "generation_package": "packages/closeup-flux.json",
+                    "job_id": "closeup-sample",
+                    "target_model": "sample-image-a",
+                    "transport": "synthetic-host-b",
+                    "generation_package": "packages/closeup-sample.json",
                     "count": 3,
                     "seeds": [11, 22, 33],
                     "parameters": {"width": 1024, "height": 1024, "nested": {"steps": 28}},
                     "note": "front closeup variants",
                 },
                 {
-                    "job_id": "scene-sdxl",
-                    "target_model": "sdxl-base",
-                    "transport": "comfyui-local",
-                    "generation_package": "packages/scene-sdxl.json",
+                    "job_id": "scene-sample",
+                    "target_model": "sample-image-b",
+                    "transport": "synthetic-host-a",
+                    "generation_package": "packages/scene-sample.json",
                 },
             ],
         }
@@ -103,7 +103,7 @@ def main() -> int:
         check(summary["job_count"] == 2, "plan reports both jobs")
         check(summary["variant_count"] == 4, "plan expands count into variants")
         check(
-            summary["endpoints"] == ["comfyui-local", "runware-mcp"],
+            summary["endpoints"] == ["synthetic-host-a", "synthetic-host-b"],
             "plan reports one endpoint group per transport",
         )
 
@@ -117,10 +117,10 @@ def main() -> int:
         check(
             variant_ids
             == [
-                "closeup-flux#v01",
-                "closeup-flux#v02",
-                "closeup-flux#v03",
-                "scene-sdxl#v01",
+                "closeup-sample#v01",
+                "closeup-sample#v02",
+                "closeup-sample#v03",
+                "scene-sample#v01",
             ],
             "variant ids are deterministic",
         )
@@ -132,16 +132,16 @@ def main() -> int:
             plan["dispatch"]["endpoint_groups"]
             == [
                 {
-                    "transport": "comfyui-local",
-                    "models": {"sdxl-base": ["scene-sdxl#v01"]},
+                    "transport": "synthetic-host-a",
+                    "models": {"sample-image-b": ["scene-sample#v01"]},
                 },
                 {
-                    "transport": "runware-mcp",
+                    "transport": "synthetic-host-b",
                     "models": {
-                        "flux-1-dev": [
-                            "closeup-flux#v01",
-                            "closeup-flux#v02",
-                            "closeup-flux#v03",
+                        "sample-image-a": [
+                            "closeup-sample#v01",
+                            "closeup-sample#v02",
+                            "closeup-sample#v03",
                         ]
                     },
                 },
@@ -153,7 +153,7 @@ def main() -> int:
                 {
                     "job_id": "plain",
                     "target_model": "m",
-                    "generation_package": "packages/closeup-flux.json",
+                    "generation_package": "packages/closeup-sample.json",
                 }
             ]
         }
@@ -167,7 +167,7 @@ def main() -> int:
 
         rejection_cases: list[tuple[dict[str, Any], str, str]] = [
             (
-                {"jobs": [{"job_id": "a", "target_model": "m", "generation_package": "packages/closeup-flux.json"}, {"job_id": "a", "target_model": "m", "generation_package": "packages/closeup-flux.json"}]},
+                {"jobs": [{"job_id": "a", "target_model": "m", "generation_package": "packages/closeup-sample.json"}, {"job_id": "a", "target_model": "m", "generation_package": "packages/closeup-sample.json"}]},
                 "duplicate",
                 "rejects duplicate job ids",
             ),
@@ -177,17 +177,17 @@ def main() -> int:
                 "rejects a missing generation package",
             ),
             (
-                {"jobs": [{"job_id": "a", "target_model": "m", "generation_package": "packages/closeup-flux.json", "count": 2, "seeds": [1]}]},
+                {"jobs": [{"job_id": "a", "target_model": "m", "generation_package": "packages/closeup-sample.json", "count": 2, "seeds": [1]}]},
                 "one seed per variant",
                 "rejects seed count mismatch",
             ),
             (
-                {"jobs": [{"job_id": "a", "target_model": "m", "generation_package": "packages/closeup-flux.json", "count": 0}]},
+                {"jobs": [{"job_id": "a", "target_model": "m", "generation_package": "packages/closeup-sample.json", "count": 0}]},
                 "positive integer",
                 "rejects a zero variant count",
             ),
             (
-                {"jobs": [{"job_id": "a", "target_model": "m", "generation_package": "packages/closeup-flux.json", "parameters": [1]}]},
+                {"jobs": [{"job_id": "a", "target_model": "m", "generation_package": "packages/closeup-sample.json", "parameters": [1]}]},
                 "parameters must be a JSON object",
                 "rejects non-object parameters",
             ),
@@ -234,7 +234,7 @@ def main() -> int:
         finally:
             shutil.rmtree(outside, ignore_errors=True)
 
-        link_path = workdir / "packages" / "link-flux.json"
+        link_path = workdir / "packages" / "link-sample.json"
         try:
             link_path.symlink_to(package_a)
             link_supported = link_path.is_symlink()
@@ -246,7 +246,7 @@ def main() -> int:
                     {
                         "job_id": "linked",
                         "target_model": "m",
-                        "generation_package": "packages/link-flux.json",
+                        "generation_package": "packages/link-sample.json",
                     }
                 ]
             }
@@ -287,20 +287,20 @@ def main() -> int:
         else:
             check(True, "rejects ancestor-symlinked package directories (symlinks unavailable; skipped)")
 
-        image_one = workdir / "renders" / "closeup-flux-v01.png"
-        image_two = workdir / "renders" / "closeup-flux-v02.png"
-        image_three = workdir / "renders" / "closeup-flux-v03.png"
-        image_scene = workdir / "renders" / "scene-sdxl-v01.png"
+        image_one = workdir / "renders" / "closeup-sample-v01.png"
+        image_two = workdir / "renders" / "closeup-sample-v02.png"
+        image_three = workdir / "renders" / "closeup-sample-v03.png"
+        image_scene = workdir / "renders" / "scene-sample-v01.png"
         make_image(image_one, 64, 1)
         make_image(image_two, 64, 2)
         make_image(image_three, 64, 3)
         make_image(image_scene, 64, 4)
         results = {
             "variants": {
-                "closeup-flux#v01": {"image_path": "renders/closeup-flux-v01.png", "status": "accepted"},
-                "closeup-flux#v02": {"image_path": "renders/closeup-flux-v02.png", "status": "rejected", "note": "ear drift"},
-                "closeup-flux#v03": {"image_path": "renders/closeup-flux-v03.png", "status": "pending"},
-                "scene-sdxl#v01": {"image_path": "renders/scene-sdxl-v01.png", "status": "accepted"},
+                "closeup-sample#v01": {"image_path": "renders/closeup-sample-v01.png", "status": "accepted"},
+                "closeup-sample#v02": {"image_path": "renders/closeup-sample-v02.png", "status": "rejected", "note": "ear drift"},
+                "closeup-sample#v03": {"image_path": "renders/closeup-sample-v03.png", "status": "pending"},
+                "scene-sample#v01": {"image_path": "renders/scene-sample-v01.png", "status": "accepted"},
             }
         }
         results_path = workdir / "batch-results.json"
@@ -328,31 +328,31 @@ def main() -> int:
             "ledger commits image hashes",
         )
 
-        incomplete = {"variants": {"closeup-flux#v01": results["variants"]["closeup-flux#v01"]}}
+        incomplete = {"variants": {"closeup-sample#v01": results["variants"]["closeup-sample#v01"]}}
         incomplete_path = workdir / "incomplete-results.json"
         write_json(incomplete_path, incomplete)
         result = run_cli("record", "--plan", str(plan_path), "--results", str(incomplete_path), "--out", str(workdir / "unused-ledger.json"))
         check(result.returncode == 2 and "missing variants" in result.stderr, "record rejects incomplete results")
 
-        unknown = {"variants": {**results["variants"], "ghost#v01": {"image_path": "renders/closeup-flux-v01.png", "status": "accepted"}}}
+        unknown = {"variants": {**results["variants"], "ghost#v01": {"image_path": "renders/closeup-sample-v01.png", "status": "accepted"}}}
         unknown_path = workdir / "unknown-results.json"
         write_json(unknown_path, unknown)
         result = run_cli("record", "--plan", str(plan_path), "--results", str(unknown_path), "--out", str(workdir / "unused-ledger.json"))
         check(result.returncode == 2 and "unknown variants" in result.stderr, "record rejects unknown variants")
 
-        missing_file = {"variants": {**results["variants"], "scene-sdxl#v01": {"image_path": "renders/nope.png", "status": "accepted"}}}
+        missing_file = {"variants": {**results["variants"], "scene-sample#v01": {"image_path": "renders/nope.png", "status": "accepted"}}}
         missing_path = workdir / "missing-file-results.json"
         write_json(missing_path, missing_file)
         result = run_cli("record", "--plan", str(plan_path), "--results", str(missing_path), "--out", str(workdir / "unused-ledger.json"))
         check(result.returncode == 2 and "existing regular file" in result.stderr, "record rejects missing image files")
 
-        absolute_image = {"variants": {**results["variants"], "scene-sdxl#v01": {"image_path": str(image_scene), "status": "accepted"}}}
+        absolute_image = {"variants": {**results["variants"], "scene-sample#v01": {"image_path": str(image_scene), "status": "accepted"}}}
         absolute_image_path = workdir / "absolute-image-results.json"
         write_json(absolute_image_path, absolute_image)
         result = run_cli("record", "--plan", str(plan_path), "--results", str(absolute_image_path), "--out", str(workdir / "unused-ledger.json"))
         check(result.returncode == 2 and "relative path" in result.stderr, "record rejects absolute image paths")
 
-        parent_image = {"variants": {**results["variants"], "scene-sdxl#v01": {"image_path": "../elsewhere/image.png", "status": "accepted"}}}
+        parent_image = {"variants": {**results["variants"], "scene-sample#v01": {"image_path": "../elsewhere/image.png", "status": "accepted"}}}
         parent_image_path = workdir / "parent-image-results.json"
         write_json(parent_image_path, parent_image)
         result = run_cli("record", "--plan", str(plan_path), "--results", str(parent_image_path), "--out", str(workdir / "unused-ledger.json"))
@@ -365,7 +365,7 @@ def main() -> int:
         except OSError:
             image_link_supported = False
         if image_link_supported:
-            linked_image = {"variants": {**results["variants"], "scene-sdxl#v01": {"image_path": "renders/link-scene.png", "status": "accepted"}}}
+            linked_image = {"variants": {**results["variants"], "scene-sample#v01": {"image_path": "renders/link-scene.png", "status": "accepted"}}}
             linked_image_path = workdir / "linked-image-results.json"
             write_json(linked_image_path, linked_image)
             result = run_cli("record", "--plan", str(plan_path), "--results", str(linked_image_path), "--out", str(workdir / "unused-ledger.json"))
@@ -375,10 +375,10 @@ def main() -> int:
 
         failed = {
             "variants": {
-                "closeup-flux#v01": {"image_path": "renders/closeup-flux-v01.png", "status": "accepted"},
-                "closeup-flux#v02": {"image_path": "renders/closeup-flux-v02.png", "status": "rejected"},
-                "closeup-flux#v03": {"status": "failed", "error": "host returned no image"},
-                "scene-sdxl#v01": {"image_path": "renders/scene-sdxl-v01.png", "status": "accepted"},
+                "closeup-sample#v01": {"image_path": "renders/closeup-sample-v01.png", "status": "accepted"},
+                "closeup-sample#v02": {"image_path": "renders/closeup-sample-v02.png", "status": "rejected"},
+                "closeup-sample#v03": {"status": "failed", "error": "host returned no image"},
+                "scene-sample#v01": {"image_path": "renders/scene-sample-v01.png", "status": "accepted"},
             }
         }
         failed_path = workdir / "failed-results.json"
@@ -389,7 +389,7 @@ def main() -> int:
         failed_ledger = json.loads(failed_ledger_path.read_text(encoding="utf-8"))
         check(failed_ledger["summary"]["failed"] == 1, "ledger counts failed dispatches")
 
-        bad_status = {"variants": {**results["variants"], "closeup-flux#v03": {"image_path": "renders/closeup-flux-v03.png", "status": "maybe"}}}
+        bad_status = {"variants": {**results["variants"], "closeup-sample#v03": {"image_path": "renders/closeup-sample-v03.png", "status": "maybe"}}}
         bad_status_path = workdir / "bad-status-results.json"
         write_json(bad_status_path, bad_status)
         result = run_cli("record", "--plan", str(plan_path), "--results", str(bad_status_path), "--out", str(workdir / "unused-ledger.json"))
@@ -402,7 +402,7 @@ def main() -> int:
                 "job_id": "ghost",
                 "target_model": "m",
                 "transport": "default",
-                "generation_package": "packages/closeup-flux.json",
+                "generation_package": "packages/closeup-sample.json",
                 "generation_package_sha256": package_a_sha,
                 "parameters": {},
                 "seed": None,
@@ -607,7 +607,7 @@ def main() -> int:
         )
 
         def reassign_variant(document: dict[str, Any]) -> None:
-            # Move closeup-flux#v01 under scene-sdxl with scene-sdxl's copied
+            # Move closeup-sample#v01 under scene-sample with scene-sample's copied
             # metadata. Every copied field reconciles, so only the variant
             # ownership rule can catch the reassignment.
             variant = document["variants"][0]
@@ -639,8 +639,8 @@ def main() -> int:
             "label": "studio batch",
             "jobs": [{
                 "job_id": "studio-job",
-                "target_model": "flux-1-dev",
-                "transport": "runware-mcp",
+                "target_model": "sample-image-a",
+                "transport": "synthetic-host-b",
                 "generation_package": "packages/studio-job.json",
             }],
         })

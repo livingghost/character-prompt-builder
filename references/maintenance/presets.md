@@ -403,7 +403,7 @@ The current Skill differs by making art direction precede module selection. It d
 
 ### Other model adapters
 
-Vendor behavior can change. Midjourney, FLUX, SDXL, NovelAI, Firefly, Ideogram, Recraft, Leonardo, and ComfyUI adapters should be rechecked against official documentation when production behavior matters.
+Vendor behavior can change. Recheck the selected adapter against official documentation when production behavior matters.
 
 ### Midjourney
 
@@ -418,17 +418,6 @@ Implementation notes:
 - V7 remains the target when Omni Reference is explicitly required
 - the portable negative block is not copied wholesale into `--no`; only a short model-legible subset is transported there
 - Style Reference and textual scene instructions have separate roles
-
-### Black Forest Labs FLUX.2
-
-- https://docs.bfl.ai/guides/prompting_guide_flux2
-- https://docs.bfl.ai/guides/prompting_guide_t2i_negative
-
-Implementation notes:
-
-- FLUX.2 does not support a separate negative prompt
-- important exclusions must be rewritten as desired positive visual conditions before the exact payload is built
-- the full portable negative block remains in the package for traceability and later adaptation, not as a field that was transmitted to FLUX.2
 
 ## Tier Strategy Evaluation
 

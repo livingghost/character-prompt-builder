@@ -86,7 +86,7 @@
           ]
         },
         "adapter_compatibility": {
-          "value": "Adapter compatibility (IP-Adapter, ControlNet, LoRA) is checked against the architecture string the checkpoint was registered with, not against its weights. An uploaded checkpoint registered under a fine-tune family name can be refused adapters that the same weights accept when registered as the base family. The allowed architecture strings for a checkpoint upload are exactlyai_image, flux1d, flux1s, fluxkontextdev, illustrious, noobai, pony, sd1x, sdxl, sdxllightning, sdxlturbo, z_image, z_image_turbo; the documentation does not say what the string changes at inference. One lineage rendered identically under noobai, sdxl, and illustrious registrations."
+          "value": "Adapter compatibility (IP-Adapter, ControlNet, LoRA) is checked against the architecture string the checkpoint was registered with, not against its weights. An uploaded checkpoint registered under a fine-tune family name can be refused adapters that the same weights accept when registered as the base family. The checkpoint upload schema declares the allowed architecture identifiers, including exactlyai_image, illustrious, noobai, pony, sd1x, sdxl, sdxllightning, sdxlturbo, z_image and z_image_turbo. The documentation does not say what the string changes at inference. One lineage rendered identically under noobai, sdxl, and illustrious registrations."
         }
       }
     }

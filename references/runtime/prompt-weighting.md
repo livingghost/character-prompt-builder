@@ -16,10 +16,9 @@ python scripts/prompt_dialect.py --weighting compel
 
 The first command reports the family and the exact control schema from that
 model/offering/mode, and fails when it does not allow the requested grammar. The
-second describes grammar only; it is not evidence that a provider model accepts
-it. For example, Runware's SDXL page lists `compel` and `sdEmbeds`, while its FLUX.1
-Schnell page lists only `sdEmbeds` as the actual allowed value. Generic explanatory
-text mentioning both is not a substitute for the selected model's control schema.
+second describes grammar only. The selected model's control schema decides which
+parser can be sent. Generic explanatory text mentioning several parsers is not a
+substitute for that schema.
 
 Write the native choice in the existing generation parameter file:
 
@@ -161,11 +160,10 @@ never an owner's private pack. No browser-launching tests are added.
 
 ## Sources
 
-Reviewed 2026-10-09. The first three are provider declarations; the last two are
+Reviewed 2026-10-09. The first two are provider declarations; the last two are
 upstream grammar. A feature in upstream Compel is not proof of hosted model support.
 
 - [Runware prompts and weighting](https://runware.ai/docs/learn/prompts)
 - [Runware SDXL native control](https://runware.ai/docs/models/sdxl)
-- [Runware FLUX.1 Schnell allowed control](https://runware.ai/docs/models/flux-1-schnell)
 - [Compel syntax reference](https://github.com/damian0815/compel/blob/main/doc/syntax.md)
 - [Compel parser implementation](https://github.com/damian0815/compel/blob/main/src/compel/prompt_parser.py)

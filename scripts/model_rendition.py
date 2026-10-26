@@ -10,7 +10,7 @@ from reference_delivery import validate_subject_uses
 
 REVIEW_REQUIREMENTS = (
     {'id': 'finished-image',
-     'statement': 'Reconstruct the intended image from the complete input and compare it with the author anchors. Explain how actions, visibility and exclusions coexist within their actual subject, region and moment scopes. Unresolved conflicts prevent a satisfied assessment.'},
+     'statement': 'Reconstruct the wanted image from the complete input and compare its qualities, degree, relationships and finish with the author anchors. Identify how text and supplied media establish that target beyond satisfying exclusions. Explain how actions, visibility and exclusions coexist within their actual scopes. Missing anchors, weakened intent and unresolved conflicts prevent a satisfied assessment.'},
     {'id': 'supplied-inputs',
      'statement': 'Assess whether instructions use only the supplied media and convey their intended roles, limits and subject assignments.'},
     {'id': 'ownership',

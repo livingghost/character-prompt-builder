@@ -87,10 +87,27 @@ meaning, or serves the chosen direction. Plausibility alone is insufficient.
 Leave other details unspecified. Removing a restriction means deleting it,
 not replacing it with permission to ignore it or a denial of its alternative.
 
+Establish the wanted appearance, action, relationships and finish from the
+brief, applicable references and chosen direction. An exclusion sets a boundary;
+it does not supply a desired alternative or degree. Preserve modifier scope:
+rejecting an excessive form of a quality does not reject the quality itself.
+Describe its intended form and strength when the brief makes those an anchor.
+
+Synthetic example: a richly decorated hall with an orderly composition can use
+carved bands around broad arches and quiet wall areas between them. Excluding
+excessive ornament alone carries neither the requested richness nor its hierarchy.
+
+Resolve missing choices from the author's intent and delegated art direction.
+Do not infer the opposite of a prohibition, dilute a wanted quality, or fill
+intentionally open alternatives. A direct exclusion is sufficient when only
+that boundary matters. Text or an applicable supplied image can establish the
+wanted state; neither requires a redundant inventory of the other.
+
 Check the selected instructions together. Could an image satisfy them all while
-communicating a different event? State the missing relationship or action.
-An object inventory cannot distinguish cooperative work from people posing
-with the same tools. Necessary detail and prompt length are separate decisions.
+losing the intended quality, degree, event, relationship or finish? Repair that
+missing meaning in the specification. An object inventory cannot distinguish
+cooperative work from people posing with the same tools. Necessary detail and
+prompt length are separate decisions.
 
 Synthetic example:
 
@@ -167,7 +184,7 @@ Resolve the image-level grammar independently from the selected medium:
 
 Project that grammar into one medium; do not concatenate overlapping family and rendering prose after a resolved contract exists.
 
-Treat prompt wording as an emphasis budget. A selected family's single instruction, such as smooth grouped torso planes, loses to five surrounding sentences of fine texture description because the model renders the greater verbal weight. When the prompt elaborates a surface, pose, or light beyond the family's guidance, keep that elaboration proportional to the visual priority it deserves and restate the family's controlling term once beside the governed region.
+Give each instruction the visual priority its meaning requires. Inspect whether local surface, pose or lighting detail overwhelms the whole-image direction. Combine overlapping finish instructions at their controlling scope and preserve distinct identity or construction detail. Repetition and word count alone establish neither useful emphasis nor fidelity; assess the complete rendition and the returned image.
 
 On a prose-only interface, process words describe a finish whether or not the author intended them that way. Words such as `hand-drawn`, `hand-painted`, `sketch`, `ink`, `matte`, `flat`, and `paper` can pull the result toward pencil hatching, dry strokes, paper grain, muted chroma, or strand-by-strand treatment of coat and hair even when the selected family forbids microtexture. For a smooth polished field, describe the result instead: noise-free color fields, one unbroken gradient per large volume, placed soft-edged speculars, and designed clump shapes with gradient fills. Species-surface nouns can create the same drift; use `coat` plus an explicit strand-free surface description when `fur` would invite strands. For a hard-specular target specifically, `soft-edged`, `airbrushed`, and `painted` can pull the finish toward diffuse gradients. State hard-edged tone boundaries and bright, deliberately shaped speculars instead. This is target-dependent: soft edges remain valid when the selected material and finish actually require them.
 
@@ -229,9 +246,11 @@ For state-aware work, follow the State-Aware Series Runtime and reference the se
 
 Compose the selected specification as one art brief. Its `image_promise` and
 `art_direction` establish the focus; subject, scene and camera fields resolve
-how that focus is realized. Arrange necessary detail around those relationships.
-Field order does not determine sentence order, and populated fields need no
-individual sentence when their meaning is already carried by the depiction.
+how that focus is realized. Open a prose rendition with the scene or edit and
+its visual focus, then arrange detail around those relationships. A tag interface
+uses its evidenced order while preserving the same depiction. Field order does
+not determine sentence order. Populated fields need no individual sentence when
+their meaning is already carried by the depiction.
 
 An adopted record contributes its selected construction knowledge. Combine or
 rephrase that knowledge while preserving scope. Character and work names borrow
@@ -249,6 +268,9 @@ rendition. Read it back as a picture, using the actual positive and negative
 channels, controls and supplied images. Compare that picture with the brief
 and this specification:
 
+- Check that text and supplied images establish the wanted qualities and their
+  degree. Satisfying exclusions alone must not leave an anchor unspecified or
+  weaken the intended effect.
 - Check that action ownership, contact, support, gaze and depth communicate the
   selected relationships together.
 - Check that the chosen camera preserves required visibility without changing
@@ -270,8 +292,8 @@ still life. Requiring the same intact wall of one vase to hide its contents and
 show them clearly in the same view needs a decision. Do not invent a cutaway,
 reflection or second moment to reconcile it unless the brief supports that.
 
-Apply the authority order above. Repair a conflicting draft choice in its owning
-scene or subject description, then rewrite the affected rendition. If fixed
+Apply the authority order above. Repair missing meaning or a conflicting draft
+choice in its owning scene or subject description, then rewrite the rendition. If fixed
 requirements remain incompatible, ask for the smallest necessary decision and
 leave the prompt unfinished. Do not silently discard an anchor or use stronger
 weights and additional negatives to mask the conflict. A scoped exclusion must
@@ -279,11 +301,12 @@ also be representable by the selected interface; an unscoped negative token
 cannot be treated as a local instruction merely because planning assigned it one.
 
 Read the complete revised input again. Preserve required identity and exclusions
-and check that the intended event still follows, rather than just an object
-inventory. Keep these judgments out of image text. Structural checks verify
-declared assignments; the author judges their meaning and agreement with the
-rendition. Compare returned images with the same requirements. A different valid
-realization is not a defect merely because it was unimagined.
+and check that the intended image still follows. Consolidate repeated requirements
+within their actual scopes. Keep judgments and success criteria in review records,
+instead of appending them to image text. Structural checks verify declared
+assignments; the author judges their meaning and agreement with the rendition.
+Compare returned images with the same requirements. A different valid realization
+is not a defect merely because it was unimagined.
 
 ## Model-specific construction evidence
 

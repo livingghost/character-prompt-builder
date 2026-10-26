@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026.10.26.4
+
+- Compose the wanted appearance, action, relationships and finish from author intent and applicable references. Preserve the intended qualities and degree when interpreting qualified exclusions.
+- Review whether the complete input establishes the intended image as well as whether its instructions coexist. Keep missing anchors, weakened intent and unresolved conflicts from authorizing submission through the existing finished-image assessment.
+- Organize prose around the scene or edit, consolidate repeated requirements within their scopes, and keep success criteria in review records. Preserve necessary direct exclusions and intentionally open choices.
+- Remove the FLUX adapter and route, along with FLUX-specific research and service notes. Keep generic transport and batch examples independent of that model family.
+
 ## 2026.10.26.2
 
 - Read complete model inputs back against author anchors, resolving subject, region, moment and reference scope before prompt delivery or submission.
