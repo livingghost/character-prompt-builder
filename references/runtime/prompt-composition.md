@@ -1,6 +1,8 @@
 # Prompt Composition Runtime
 
-Use for every prompt. Load specialists only when activated.
+Use the `composition` route when interacting requirements need detailed art
+direction and a scene specification. Load construction specialists for the
+subjects and relationships the image depends on.
 
 ## Contents
 
@@ -10,7 +12,9 @@ Use for every prompt. Load specialists only when activated.
 - [Construction order](#construction-order)
 - [Representation grammar](#representation-grammar)
 - [Catalog retrieval and inspection](#catalog-retrieval-and-inspection)
+- [Scene specification](#scene-specification)
 - [Prompt assembly and review](#prompt-assembly-and-review)
+- [Model-specific construction evidence](#model-specific-construction-evidence)
 - [Creative latitude and interaction](#creative-latitude-and-interaction)
 - [Revision contract](#revision-contract)
 - [Negative output](#negative-output)
@@ -167,7 +171,9 @@ Treat prompt wording as an emphasis budget. A selected family's single instructi
 
 On a prose-only interface, process words describe a finish whether or not the author intended them that way. Words such as `hand-drawn`, `hand-painted`, `sketch`, `ink`, `matte`, `flat`, and `paper` can pull the result toward pencil hatching, dry strokes, paper grain, muted chroma, or strand-by-strand treatment of coat and hair even when the selected family forbids microtexture. For a smooth polished field, describe the result instead: noise-free color fields, one unbroken gradient per large volume, placed soft-edged speculars, and designed clump shapes with gradient fills. Species-surface nouns can create the same drift; use `coat` plus an explicit strand-free surface description when `fur` would invite strands. For a hard-specular target specifically, `soft-edged`, `airbrushed`, and `painted` can pull the finish toward diffuse gradients. State hard-edged tone boundaries and bright, deliberately shaped speculars instead. This is target-dependent: soft edges remain valid when the selected material and finish actually require them.
 
-On an `integrated-critical` interface, restate every activated anti-drift construction affirmatively beside the surface it governs. Select the target adapter only after the target is known.
+On an `integrated-critical` interface, place necessary construction and exclusions
+beside the surface or subject they govern. Existing wording can carry several
+sources' requirements. Select the target adapter after the target is known.
 
 ## Catalog retrieval and inspection
 
@@ -175,7 +181,23 @@ Search is discovery, not authority. Interpret the complete brief and choose the 
 
 Use canonical English describing the chosen direction and one coherent unresolved craft question. Preserve every anchor and modifier relationship. Prefer three to six distinctive content words for a focused query when they express the complete craft question; retain longer wording whenever it is needed to preserve a load-bearing relationship, negation, or modifier scope. Never truncate anchors merely to satisfy a word count. Use one `batch` process so the catalog loads once.
 
-Before atomic retrieval, always run one `search --kind archetype` query with the subject's species, build, proportion, and age or presentation, one `search --categories occupation` query for an explicit role, and one semantically focused `search --kind scene` query with the required staging relationships. Express each in three to six distinctive words when that preserves the full requirement; otherwise retain the additional words needed for exact scope. Do not silently downgrade either required query to generic inspiration. When the subject is an anthropomorphic animal, creature, or hybrid, add one `search --categories creature-anatomy` query naming the subject's lineage (for example canine, feline, dragon, avian, marine) so the lineage anatomy grammar and its invariants enter inspection, and when the direction asks the subject to express emotion through an appendage such as a tail, ears, feathers, or flukes, add one `search --categories body-language-cue` query naming the emotion and the appendage so the matching cue record, its invariants, and its misreading list reach the review. When an enabled pack binds `cpb-resource:reference-cluster-mapping`, read it to relate recurring brief patterns to records in the pack that binds it; otherwise rely on catalog search and record inspection. The mapping is an index aid, not an authority or a substitute for search and full-record inspection. An archetype is an identity contract, not a scene choice: adopt its `identity_invariants` and `marking_logic`, including its `automatic_prompt_injection` identity constraints, or diverge deliberately. A matching base scene supplies staging geometry and its `failure_modes` become review knowledge. `inspire` may return a `subject_archetypes` candidate group, but base scenes and finished recipes remain reachable only through `search`.
+Retrieve the production questions the composition actually raises:
+
+- For a character design, use `search --kind archetype` with the declared species,
+  build, proportions and presentation. An explicit occupation also uses
+  `search --categories occupation`.
+- For staging, use `search --kind scene` with the required spatial and action
+  relationships. Objects and environments need no invented character query.
+- For an anthropomorphic animal, creature or hybrid, use
+  `search --categories creature-anatomy` with its lineage. When appendage acting
+  matters, use `search --categories body-language-cue` with the emotion and part.
+
+When an enabled pack binds `cpb-resource:reference-cluster-mapping`, consult it
+for relevant record groups. It supports search and full-record inspection.
+An adopted archetype supplies identity invariants and marking logic; a base scene
+supplies staging geometry. Their constraints support composition, while
+`misreadings_to_avoid` and `failure_modes` support review. `inspire` may return
+archetypes; search reaches base scenes and finished recipes.
 
 Adopt at most one useful core, style family, and render profile, plus the domain realization for each represented subject domain and only compatible atomic modules. A finished recipe is optional. An archetype is an identity contract, not a scene: adopt its identity invariants and automatic identity constraints, or diverge deliberately. A scene supplies staging; keep its failure modes as review knowledge.
 
@@ -191,7 +213,11 @@ After inspection, run the Visual Reference Activation Gate for every selected re
 
 ## Scene specification
 
-Every final image uses a current [Production Specification](../production-specification.md), including an ordinary one-off prompt-only image. Draft it with `python scripts/production_spec.py draft` as [Production Specification](../production-specification.md#stateless) shows; its relative paths are below `--root`. Author the current scene structure directly rather than patching an older prompt. Validate it before final prompt delivery:
+Record this composition in a current [Production Specification](../production-specification.md).
+Draft it with `python scripts/production_spec.py draft` as the
+[stateless workflow](../production-specification.md#stateless) shows; its relative
+paths are below `--root`. Resolve the current scene before writing the prompt.
+Validate the completed specification before delivery:
 
 ```bash
 python scripts/production_spec.py validate production-specification.json --require-content
@@ -201,64 +227,63 @@ For state-aware work, follow the State-Aware Series Runtime and reference the se
 
 ## Prompt assembly and review
 
-Write the selected depiction as instructions to an illustrator. Lead with the
-event or visual purpose, then give the identity, relationships, presentation
-and rendering details needed to realize it. Adjust the order for the selected
-interface after the meaning is settled. Field order is not a prompt template.
+Compose the selected specification as one art brief. Its `image_promise` and
+`art_direction` establish the focus; subject, scene and camera fields resolve
+how that focus is realized. Arrange necessary detail around those relationships.
+Field order does not determine sentence order, and populated fields need no
+individual sentence when their meaning is already carried by the depiction.
 
-Interpret approved source records, including metadata, into the selected
-depiction. Write for the prompt and media the model actually receives. Resolve
-internal subject and source references into meaningful descriptions or assigned
-delivered images. Distinguish locations within a reference from placement in
-the resulting picture. Names or codes remain when they are intended content.
+An adopted record contributes its selected construction knowledge. Combine or
+rephrase that knowledge while preserving scope. Character and work names borrow
+their design only through an intentional choice. An example's incidental pose,
+objects or lighting do not become requirements of the current scene.
 
-Keep internal identifiers, source paths, provenance, production and review
-commentary with their owning records. Omit rejected possibilities and reasons
-why an unspecified detail is free. A negative or permission sentence is useful
-only when its content is itself a requirement; grammar alone does not decide.
-
-Use the active vocabulary for the selected visual concepts. Records provide
-candidate terms and construction knowledge; use only relevant wording.
-Character and work names carry their own design and require an intentional
-choice to borrow it. A retrieved phrase does not authorize the objects,
-actions, camera or state that happen to appear in its example.
-
-References can supply identity, attire or visual construction without a prose
-inventory of their contents. Describe the new event and meaningful changes,
-plus any critical detail the reference alone does not communicate. Keep source
-expression and pose distinct from the current performance. Known facts outside
-the depicted action remain with their source authority rather than becoming
-instructions to expose them.
-
-Concrete action can clarify a property when the action is part of the intended
-scene. Do not introduce a new action merely to force an incidental property.
-Likewise, deleting an unwanted clause does not require adding its opposite.
-Diagnose the cause of a mismatch and state only the construction the image needs.
-
-Read the complete prompt against its brief and selected direction:
-
-- Does it retain every explicit anchor and purposeful choice?
-- Can each inferred instruction justify its contribution to the intended image?
-- Do the remaining instructions convey the intended event and participant roles?
-- Do camera, placement, actions and required visible information fit one picture?
-- Can each subject, object and reference be identified from the complete prompt
-  and actual delivered inputs, without access to internal project records?
-- Do reference assignments preserve their subjects and uses, without importing
-  a source-only performance or layout?
-- Does target-specific wording preserve meaning, identity, state and finish?
-
-Use relevant specialist checks for anatomy, contact, clothing or rendering.
-A possible misreading is a reason to assess the text, not automatically to add
-a guard. Remove conflicting or redundant requirements before adding a repair.
-
-The agent evaluates meaning. Scripts validate declared counts, references,
-field relationships and transport. Neither a keyword checklist nor successful
-packaging proves that the scene communicates its intended meaning.
+Bind references through their actual delivered order and assigned properties.
+A source can carry appearance without a prose inventory of everything visible
+in it. Specify critical identity details when reference evidence alone is
+insufficient. Distinguish source-image locations from positions in the new
+scene, and source expression or pose from the requested performance.
 
 Use [Prompt Writing Guide](prompt-writing-guide.md) for the final interface
-rendition. Match output review to these same requirements. A different valid
-composition or expression is not a defect merely because it differs from the
-agent's imagined picture.
+rendition. Read it back as a picture, using the actual positive and negative
+channels, controls and supplied images. Compare that picture with the brief
+and this specification:
+
+- Check that action ownership, contact, support, gaze and depth communicate the
+  selected relationships together.
+- Check that the chosen camera preserves required visibility without changing
+  subject proportions or replacing the requested composition.
+- Check that identity, current state and reference scope agree, including
+  properties carried by images rather than repeated in text.
+- Check that local surface, lighting and detail instructions support the chosen
+  whole-image grammar and emphasis.
+
+Resolve apparent conflicts by identifying their subject, region, moment,
+condition and source authority. Opposing words can describe different scopes;
+different words can impose incompatible demands on the same scope. A distant
+object can be physically larger while appearing smaller. Source-image pose and
+target pose can differ when the source carries identity only. Distinguish an
+unusual or difficult depiction from an impossible conjunction of requirements.
+
+Synthetic example: one vase is opaque and another is transparent. Both fit one
+still life. Requiring the same intact wall of one vase to hide its contents and
+show them clearly in the same view needs a decision. Do not invent a cutaway,
+reflection or second moment to reconcile it unless the brief supports that.
+
+Apply the authority order above. Repair a conflicting draft choice in its owning
+scene or subject description, then rewrite the affected rendition. If fixed
+requirements remain incompatible, ask for the smallest necessary decision and
+leave the prompt unfinished. Do not silently discard an anchor or use stronger
+weights and additional negatives to mask the conflict. A scoped exclusion must
+also be representable by the selected interface; an unscoped negative token
+cannot be treated as a local instruction merely because planning assigned it one.
+
+Read the complete revised input again. Preserve required identity and exclusions
+and check that the intended event still follows, rather than just an object
+inventory. Keep these judgments out of image text. Structural checks verify
+declared assignments; the author judges their meaning and agreement with the
+rendition. Compare returned images with the same requirements. A different valid
+realization is not a defect merely because it was unimagined.
 
 ## Model-specific construction evidence
 
@@ -347,14 +372,14 @@ When a new reference arrives during revision, inventory its differences from the
 
 ## Negative output
 
-Read `cpb-resource:negative-policy`. Always retain a portable negative or equivalent diagnostic block. Activate only:
+Read `cpb-resource:negative-policy` and record the exclusions selected for this composition. Consider:
 
 1. central hygiene and integrity bundles for structures actually implied by the subject, pose, and framing;
 2. drift terms from the selected render profile;
 3. terms from corrections activated by a concrete risk;
 4. explicit user exclusions.
 
-Do not sweep record diagnostics, scene failure modes, domain boundaries, or semantic alternatives into the negative automatically. Romance, hostility, dominance, age, gender, genre, and similar alternatives enter only when the user explicitly excludes them. Apply structure-specific terms to the intended depiction and relevant construction risks. Known anatomy alone does not require describing every part's visibility. For an interface without an independent negative field, translate only the activated technical requirements into affirmative construction language and keep the portable negative for traceability.
+Do not sweep record diagnostics, scene failure modes, domain boundaries, or semantic alternatives into the negative automatically. Romance, hostility, dominance, age, gender, genre, and similar alternatives enter only when the user explicitly excludes them. Apply structure-specific terms to the intended depiction and relevant construction risks. Known anatomy alone does not require describing every part's visibility. For an interface without an independent negative field, integrate necessary exclusions through affirmative construction or explicit negation according to their meaning. Keep the selected source evidence with the composition; a source does not require its own clause when another instruction already carries the constraint.
 
 ## Conditional specialists
 

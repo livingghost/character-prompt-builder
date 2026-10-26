@@ -53,7 +53,8 @@ class TagPreparationTests(unittest.TestCase):
         from request_validation_fixtures import fixture_validation
         fixture.write(self.root / 'validation.json', fixture_validation(self.root, fixture.MODEL_ID, reference_mode='authored-rendition', service='synthetic'))
         from reading_fixtures import fixture_reading
-        fixture.write(self.root / 'reading.json', fixture_reading(route='generation', studio=self.root, ledger=self.root / 'work/reads.jsonl'))
+        fixture.write(self.root / 'reading.json', fixture_reading(route='generation', studio=self.root,
+                      ledger=self.root / 'work/reads.jsonl', dialect='synthetic-tags'))
 
     def test_final_request_has_dictionary_meaning_and_resource_hashes(self):
         result = workflow.prepare(self.root, 'task.json')
@@ -70,21 +71,23 @@ class TagPreparationTests(unittest.TestCase):
         data['categories'][0]['entries'].pop()
         fixture.write(self.pack / 'resources/dictionary.json', data); self.refresh()
         result = workflow.prepare(self.root, 'task.json')
-        findings = result['execution_plan']['prompt_check']['findings']
-        self.assertTrue(any(row['severity'] == 'note' and 'collar' in row.get('terms', []) for row in findings))
+        report = result['execution_plan']['prompt_check']
+        self.assertIn({'channel': 'positive', 'clause': 0, 'term': 'collar'}, report['unmatched_terms'])
+        self.assertEqual(report['findings'], [])
 
-    def test_model_recommended_negative_is_checked_after_application(self):
+    def test_model_recommended_negative_reaches_the_exact_channel_check(self):
         models = c.load(self.pack / 'records/models.json')
         models['records'][0].update(recommended_negative_prompt='plain backdrop', recommendation_merge_mode='tag-list')
         fixture.write(self.pack / 'records/models.json', models); self.refresh()
         task = c.load(self.root / 'task.json')
         task['generation']['critical_avoidance_integrated'] = True
         fixture.write(self.root / 'task.json', task)
-        from production_compiler import CompilationError
-        with self.assertRaises(CompilationError) as caught:
-            workflow.prepare(self.root, 'task.json')
-        self.assertIn('TAG_PROMPT_PROBLEM', str(caught.exception.report))
-        self.assertEqual(workflow.run_ids(self.root), [])
+        result = workflow.prepare(self.root, 'task.json')
+        report = result['execution_plan']['prompt_check']
+        self.assertEqual(report['findings'], [])
+        self.assertEqual(report['channels']['negative']['clauses'][0]['tags'][0]['text'], 'plain backdrop')
+        self.assertTrue(any(row['channel'] == 'negative' and row['authored_term'] == 'plain backdrop'
+                            for row in report['meanings']))
 
     def test_changed_dictionary_invalidates_prepared_request(self):
         run = workflow.prepare(self.root, 'task.json')['run']

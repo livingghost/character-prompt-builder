@@ -14,9 +14,12 @@ A label such as `relaxed couch pose` is discovery text. A curated record also pr
 
 Atomic means one reusable visual decision. It does not mean a few keywords.
 
-### Positive fields are affirmative
+### Positive fields describe construction
 
-Prompt-facing fields describe what the image contains and how it is constructed. Nearby mistakes belong in diagnostic fields. Negative output follows `cpb-resource:negative-policy`.
+Prompt-facing fields describe what the image contains and how it is constructed.
+Use the wording needed to preserve that construction, including a necessary
+exclusion. Nearby mistakes belong in diagnostic fields. The author selects
+negative output using `cpb-resource:negative-policy`.
 
 ### Negative-source roles
 
@@ -32,7 +35,10 @@ Scene failure modes, atomic misreadings, and archetype presentation-freedom meta
 
 ### Audit boundary
 
-The audit verifies the authoring contract. It does not prove artistic quality or guarantee model compliance. Actual prompt and image quality still require creative review and comparison against a no-skill baseline.
+The audit verifies declared structure, field population, references and source
+preservation. The author evaluates meaning, completeness and applicability from
+the complete records. Prompt and image quality require creative review and
+comparison against a no-skill baseline.
 
 ### Scope determines content
 
@@ -535,7 +541,7 @@ Before accepting a curated record, ask:
 - Was physical light geometry separated from the style's value, shadow-edge, highlight, and gradient grammar?
 - Were material identity and stable surface construction separated from wetness, sweat, blush, dirt, injury, and other temporary state?
 - Are support, contact, and root-to-endpoint action chains reconstructible?
-- Are positive fields affirmative?
+- Do prompt-facing fields communicate the intended construction at sufficient specificity?
 - Was any relevant sensitive knowledge of any genre silently removed, euphemized, or hidden from retrieval before the execution boundary?
 - Are diagnostics scoped and non-automatic?
 - Does it duplicate an existing record that should instead be promoted or enriched?
@@ -585,7 +591,11 @@ Preserve supported adult content and other sensitive content at its actual inten
 
 ## Subject scope on render profiles
 
-A render profile is a shared medium grammar by default (`domains: ["shared"]`) and must then describe subject matter conditionally: fur, hair, scales, or plating are treated as materials when present, never assumed. A grammar that genuinely depends on one subject family declares it (for example `domains: ["anthropomorphic-animal"]`); the audit rejects subject-assumption words (anthro, kemono, furry) inside shared-scope profiles.
+A render profile is a shared medium grammar by default (`domains: ["shared"]`).
+Describe materials conditionally when subject matter is open. A grammar that
+depends on one subject family declares that scope, such as
+`domains: ["anthropomorphic-animal"]`. The author compares the complete grammar
+with its declared scope; material or species words alone do not establish it.
 
 ## Distinctive-detail module
 

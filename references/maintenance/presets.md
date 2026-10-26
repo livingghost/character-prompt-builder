@@ -97,7 +97,9 @@ Store search metadata in canonical pack records and derive the English many-to-m
 
 Follow [Search Discovery Maintenance](search-discovery.md) for modifier scope, alias derivation, facet keys, lane compatibility, grouping, and regression ownership. Add short canonical-English cases that omit IDs and labels. Test caller-side multilingual interpretation separately by comparing the resulting English anchors and unresolved terms.
 
-Keep positive fields affirmative. Resolve negative and diagnostic scope through `cpb-resource:negative-policy`. Record misreadings and failure knowledge without seeding an affirmative prompt with failure vocabulary.
+Describe the intended construction in prompt-facing fields. Resolve necessary
+exclusions through `cpb-resource:negative-policy` and retain misreadings as
+diagnostic knowledge. Review their meaning before composing model-facing text.
 
 ## Evidence and visual resources
 

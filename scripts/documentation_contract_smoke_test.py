@@ -457,11 +457,20 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         paths = skill.partition("## Choose a runtime path")[2].partition("\n- ")[0]
         self.assertIn("with nothing saved, reads no route", paths)
-        self.assertIn("[Prompt-Only Core](references/runtime/prompt-only-core.md)", paths)
-        sequence = skill.partition("## Common runtime sequence")[2]
+        core = "references/runtime/prompt-only-core.md"
+        self.assertIn(f"]({core})", paths)
+        routes = json.loads((ROOT / "config/execution-routes.json").read_text(encoding="utf-8"))
+        self.assertIn(core, routes["routes"]["prompt-only"]["reads"])
+
+        gate = skill.partition("## Artifact-bearing production gate")[2].partition("\n## ")[0]
+        route_command = "`python scripts/execution_routes.py read ROUTE --root STUDIO`"
+        self.assertIn("For saved deliverables", gate)
+        self.assertIn(route_command, gate)
+        self.assertEqual(1, skill.count(route_command))
+
+        sequence = skill.partition("## Common runtime sequence")[2].partition("\n## ")[0]
         first = next(line for line in sequence.splitlines() if line.startswith("1. "))
-        self.assertTrue(first.startswith("1. Resolve the artifact and whether it needs saving."), first)
-        self.assertIn("For saved work, establish the Studio and read the selected route.", first)
+        self.assertIn("For saved work", first)
 
     def test_prompt_writing_guide_is_an_executed_rendition_stage(self) -> None:
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")

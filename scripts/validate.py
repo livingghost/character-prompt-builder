@@ -727,7 +727,7 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "When the user specifies anime, produce anime. When the user specifies photorealism, produce photorealism.",
         "nose thickness and placement, ear construction",
         "load both [Morphology and Species Contracts]",
-        "Before atomic retrieval, always run one `search --kind archetype`",
+        "For a character design, use `search --kind archetype`",
         "Run full `asset-lookup` for each record",
         "A new studio takes `profile-clear-2d-illustration`",
         "Read `query_token_count`, `axis_coverage`, and any `retrieval_note`",
@@ -775,8 +775,8 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "## Verification and host forwarding",
         "## Failure policy",
         "Do not reconstruct from chat.",
-        "The model-record catalog is the single extensibility boundary.",
-        "commits all three renditions independently",
+        "Generation Package dispatch requires an enabled, evidence-backed model offering",
+        "Only the selected transport must be available.",
         "are the complete forwarding contract",
     ),
     "references/runtime/state-aware-series.md": (
@@ -1918,6 +1918,7 @@ def validate(
             "## Creative direction",
             "## Prompt",
             "## Negative prompt",
+            "## Execution settings",
             "## Reference mode",
             "## Conditional delivered artifacts",
             "## Reference review",
@@ -2492,8 +2493,6 @@ def validate(
         for key in ("activated_sources", "diagnostic_sources_retained", "semantic_exclusions_user_supplied"):
             if not isinstance(provenance.get(key), list):
                 errors.append(f"generation package template negative_provenance.{key} must be a list")
-        if not isinstance(provenance.get("affirmative_translations"), dict):
-            errors.append("generation package template negative_provenance.affirmative_translations must be an object")
 
     state_protocol = validate_state_protocol(root)
     if not state_protocol.get("ok"):

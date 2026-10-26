@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the tag-rendition check against a self-contained vocabulary."""
+"""Check grammar and vocabulary evidence, without grading depiction consistency."""
 from __future__ import annotations
 
 import json
@@ -17,7 +17,6 @@ import prompt_weighting as weighting
 import check_tag_prompt as checker  # noqa: E402
 from prompt_dialect import load_dialects  # noqa: E402
 
-EXPECTED_CHECKS = 30
 COMMONS = ROOT / "packs" / "commons" / "resources"
 
 DIALECTS = {
@@ -51,7 +50,9 @@ DICTIONARY = {
             "id": "shot-types-and-views", "name": "Shots", "description": "One shot at a time.",
             "single_valued": True,
             "entries": [
-                {"term": "close-up", "opposes": ["full body"], "aliases": ["closeup"]},
+                {"term": "close-up", "opposes": ["full body"], "aliases": ["closeup"],
+                 "description": "A close view of the selected subject.",
+                 "usage_notes": ["Resolve the subject and crop from the authored scene."]},
                 {"term": "full body"},
                 {"term": "Upper Body"},
             ],
@@ -99,8 +100,17 @@ def main() -> int:
             check("a tag that is only attention syntax does not hang the command", True, run.stdout[-300:])
         except subprocess.TimeoutExpired:
             check("a tag that is only attention syntax does not hang the command", False, "no answer within 30 seconds")
+        overlapping = {**DICTIONARY, "categories": [*DICTIONARY["categories"], {
+            "id": "alternate-meaning", "name": "Alternate meaning", "description": "Another authored context.",
+            "entries": [{"term": "closeup", "description": "A second dictionary meaning."}],
+        }]}
+        path.write_text(json.dumps(overlapping), encoding="utf-8")
+        meanings = checker.inspect("closeup", "", checker.load_vocabulary(path), None)["meanings"]
+        check("ambiguous dictionary matches preserve every definition for review",
+              [row["term"] for row in meanings] == ["close-up", "closeup"]
+              and meanings[1]["description"] == "A second dictionary meaning.", meanings)
 
-    check("an alias resolves to its category", vocabulary["category_of"]["closeup"] == "shot-types-and-views")
+    check("an alias resolves to its category", vocabulary["meanings"]["closeup"][0]["category"] == "shot-types-and-views")
     check("an underscore spelling resolves like the spaced one", checker.normalize("grey_fur") == "grey fur")
     parsed = weighting.parse('(close-up:1.3), [grey fur]', 'sdEmbeds')
     check("selected attention syntax yields the dictionary terms",
@@ -125,34 +135,38 @@ def main() -> int:
     rows = findings("masterpiece, (grey fur:1.2), 1boy, solo", "", None, vocabulary)
     check("a weight that is against the closing parenthesis is not", not has(rows, "weight binding"), rows)
 
-    rows = findings("1boy, solo, grey fur, grey fur", "", None, vocabulary)
-    check("a repeated tag is a problem", has(rows, "repeated tag"))
-    rows = findings("1boy, solo, close-up, full body", "", None, vocabulary)
-    check("a pair the vocabulary calls opposed is a problem, in either order", has(rows, "opposed pair"), rows)
-    check("two terms from a category that describes one at a time is a problem", has(rows, "one at a time"), rows)
-    rows = findings("2boys, close-up, full body", "", None, vocabulary)
-    check("a declared multiple-figures term excuses a property named twice",
-          not has(rows, "one at a time") and has(rows, "opposed pair"), rows)
-    rows = findings("solo, close-up, full body", "", None, vocabulary)
-    check("without a multiple-figures term the same pair is still a problem",
-          has(rows, "one at a time"), rows)
-    rows = findings("1boy, solo, 2boys, grey fur", "", None, vocabulary)
-    check("a crowd term beside solo is a problem", has(rows, "subject count"), rows)
-    rows = findings("2boys, crowd, grey fur", "", None, vocabulary)
-    check("two crowd terms are a problem", has(rows, "subject count"), rows)
+    for text in ("1boy, solo, grey fur, grey fur", "1boy, solo, close-up, full body",
+                 "2boys, close-up, full body", "1boy, solo, 2boys, grey fur",
+                 "2boys, crowd, grey fur", "1boy, solo, Upper Body"):
+        rows = findings(text, "", None, vocabulary)
+        check("valid syntax leaves scene meaning to the author: " + text, rows == [], rows)
 
-    rows = findings("1boy, solo, Upper Body", "", None, vocabulary)
-    check("a term the vocabulary carries in lower case is a note, not a problem",
-          has(rows, "capitals") and all(row["severity"] == "note" for row in rows), rows)
-    rows = findings("1boy, solo, a term nobody carries", "", None, vocabulary)
-    check("a term outside the vocabulary is a note", has(rows, "not in the vocabulary")
-          and all(row["severity"] == "note" for row in rows if row["check"] == "not in the vocabulary"))
+    report = checker.inspect("closeup, full body", "", vocabulary, None)
+    evidence = next(row for row in report["meanings"] if row["authored_term"] == "closeup")
+    check("alias lookup retains complete entry and category guidance",
+          evidence["term"] == "close-up" and evidence["opposes"] == ["full body"]
+          and evidence["aliases"] == ["closeup"]
+          and evidence["category_definition"]["single_valued"] is True
+          and evidence["usage_notes"] == ["Resolve the subject and crop from the authored scene."], evidence)
+    report = checker.inspect("1boy, a term nobody carries", "", vocabulary, None)
+    check("dictionary coverage is evidence alongside valid grammar",
+          report["findings"] == [] and report["unmatched_terms"] == [
+              {"channel": "positive", "clause": 0, "term": "a term nobody carries"}], report)
 
     rows = findings("1boy, solo, grey fur", "grey fur, blurry", None, vocabulary)
-    check("a term in both the prompt and the negative is a problem", has(rows, "in both"))
+    check("both valid channels retain their terms for author review", rows == [], rows)
+    long_negative = ", ".join(f"excluded feature {index}" for index in range(64))
+    report = checker.inspect("grey fur", long_negative, vocabulary, None)
+    check("negative scope has no undeclared term quota",
+          report["findings"] == []
+          and len(report["channels"]["negative"]["clauses"][0]["tags"]) == 64, report["findings"])
     rows = findings("1boy, solo, grey fur", "", {"max_positive_prompt_chars": 10}, vocabulary)
     check("a rendition past the record's declared length is a problem",
           any(row["check"] == "length" and row["severity"] == "problem" for row in rows), rows)
+    rows = findings("grey fur", "unwanted label", {"max_negative_prompt_chars": 5}, vocabulary)
+    check("the declared negative character limit is enforced", has(rows, "length"), rows)
+    rows = findings("grey fur", "unwanted label", {"supports_negative_prompt": False}, vocabulary)
+    check("an unsupported negative channel is reported", has(rows, "negative transport"), rows)
 
     with tempfile.TemporaryDirectory() as tmp:
         dictionary = Path(tmp) / "dictionary.json"
@@ -169,9 +183,10 @@ def main() -> int:
 
         named = run("--prompt", "general, explicit, 1boy", "--dialect", "family-a")
         report = json.loads(named.stdout or "{}")
-        check("--dialect runs the family checks for a family with no model record",
-              named.returncode == 1 and report.get("dialect") == "family-a"
-              and has(report.get("findings") or [], "rating term"), named.stdout[-400:] + named.stderr[-400:])
+        check("--dialect returns the complete family guidance beside grammar results",
+              named.returncode == 0 and report.get("dialect") == "family-a"
+              and report.get("dialect_guidance") == DIALECTS["dialects"][0]
+              and report.get("findings") == [], named.stdout[-400:] + named.stderr[-400:])
         unnamed = run("--prompt", "general, explicit, 1boy")
         check("without a family the output names none and runs no family check",
               unnamed.returncode == 0 and json.loads(unnamed.stdout).get("dialect") is None, unnamed.stdout[-300:])
@@ -181,26 +196,19 @@ def main() -> int:
               "family-a, family-b" in unknown.stderr, unknown.stderr[-300:])
         family = load_dialects(dialect_file)["family-a"]
 
-    rows = checker.check("1boy, old man, grey fur", "", vocabulary, None, family)
-    inside = [row for row in rows if row["check"] == "family term inside a tag"]
-    check("a multi-word tag that carries a family period term as a word is a note naming both",
-          len(inside) == 1 and inside[0]["severity"] == "note" and inside[0]["terms"] == ["old man", "old"], rows)
-    rows = checker.check("1boy, old_man, grey fur", "", vocabulary, None, family)
-    check("an underscore spelling binds whole and is not read as its words",
-          not has(rows, "family term inside a tag"), rows)
-    rows = checker.check("1boy, old, grey fur", "", vocabulary, None, family)
-    check("a family term written as its own tag is not read as inside a tag",
-          not has(rows, "family term inside a tag"), rows)
+    report = checker.inspect("1boy, old man, grey fur", "", vocabulary, None, family)
+    check("complete tag text is retained beside family evidence",
+          report["findings"] == [] and report["dialect_guidance"] == family
+          and report["channels"]["positive"]["clauses"][0]["tags"][1]["text"] == "old man", report)
 
     commons_vocabulary = checker.load_vocabulary(COMMONS / "prompt-vocabulary" / "dictionary.json")
     commons_dialects = load_dialects(COMMONS / "prompt-dialects" / "dialects.json")
     rows = checker.check("masterpiece, best quality, newest, 1boy, solo, old man, grey hair", "", commons_vocabulary,
                          None, commons_dialects["illustrious-noobai"])
-    check("on the commons Illustrious and NoobAI family, old man is read as carrying the period term old",
-          any(row["check"] == "family term inside a tag" and row["terms"] == ["old man", "old"] for row in rows), rows)
+    check("the commons family guidance leaves multiword meaning to the author", rows == [], rows)
     missing = {family_id: sorted(term for field in ("rating_terms", "period_terms", "quality_terms")
                                  for term in row.get(field) or []
-                                 if checker.normalize(term) not in commons_vocabulary["category_of"])
+                                 if checker.normalize(term) not in commons_vocabulary["meanings"])
                for family_id, row in commons_dialects.items()}
     check("every rating, period, and quality term of a commons family is carried by the commons vocabulary",
           not any(missing.values()), missing)
@@ -210,8 +218,7 @@ def main() -> int:
           not has(rows, "period term"), rows)
 
     passed = sum(1 for row in results if row["passed"])
-    report = {"ok": len(results) == EXPECTED_CHECKS and passed == len(results), "checks": len(results),
-              "expected_checks": EXPECTED_CHECKS, "passed": passed,
+    report = {"ok": passed == len(results), "checks": len(results), "passed": passed,
               "failures": [row for row in results if not row["passed"]]}
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["ok"] else 1

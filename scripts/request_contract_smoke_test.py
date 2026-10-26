@@ -200,6 +200,56 @@ class RequestContractTests(unittest.TestCase):
             writer.write(['flag'], 1, source_kind='model-setting',
                          source_refs=[], transform_id='other', same=True)
 
+    def test_whole_input_review_is_bound_to_native_text_controls_and_media(self):
+        from production_request import draft_decision
+        from production_fixtures import assess_rendition
+        review = draft_decision(self.seal(), actor='synthetic author')['rendition_review']
+        assess_rendition(review)
+        for name, change in (
+                ('negative field', lambda: self.request.update(negative='A different exclusion')),
+                ('native control', lambda: self.request.update(seed=19)),
+                ('supplied pixels', lambda: self.media[0].update(sha256='d' * 64)),
+                ('additional text', lambda: self.request.update(instruction='A newly authored direction'))):
+            with self.subTest(change=name):
+                original_request, original_media = copy.deepcopy((self.request, self.media))
+                change()
+                with self.assertRaisesRegex(ValueError, 'another complete model input'):
+                    mr.validate_review(review, input_sha256=self.seal()['request_sha256'],
+                                       actor='synthetic author', binding_ids=[])
+                self.request, self.media = original_request, original_media
+
+    def test_review_drafts_leave_all_semantic_judgments_unanswered(self):
+        from production_request import draft_decision
+        review = draft_decision(self.seal(), actor='synthetic author')['rendition_review']
+        self.assertEqual({item['criterion'] for item in review['assessments']},
+                         {'finished-image', 'supplied-inputs', 'ownership'})
+        self.assertTrue(all(item['conclusion'] is None and item['reason'] == '' for item in review['assessments']))
+        with self.assertRaises(ValueError):
+            mr.validate_review(review, input_sha256=self.seal()['request_sha256'],
+                               actor='synthetic author', binding_ids=[])
+
+    def test_review_requires_the_author_and_each_explicit_satisfied_judgment(self):
+        from production_fixtures import assess_rendition
+        key = self.seal()['request_sha256']
+        review = mr.draft_review(key, actor='synthetic author', binding_ids=['reference:1', 'reference:2'])
+        assess_rendition(review)
+        mr.validate_review(review, input_sha256=key, actor='synthetic author', binding_ids=['reference:1', 'reference:2'])
+        for name, change in (
+                ('different actor', lambda value: value.update(reviewer='another actor')),
+                ('missing criterion', lambda value: value['assessments'].pop()),
+                ('repeated criterion', lambda value: value['assessments'].__setitem__(1, copy.deepcopy(value['assessments'][0]))),
+                ('unfinished criterion', lambda value: value['assessments'][0].update(conclusion='unmeasured')),
+                ('failed criterion', lambda value: value['assessments'][1].update(conclusion='not-satisfied')),
+                ('empty reasoning', lambda value: value['assessments'][2].update(reason=' ')),
+                ('missing binding', lambda value: value['binding_ids'].pop()),
+                ('reordered bindings', lambda value: value['binding_ids'].reverse())):
+            with self.subTest(change=name):
+                altered = copy.deepcopy(review)
+                change(altered)
+                with self.assertRaises(ValueError):
+                    mr.validate_review(altered, input_sha256=key, actor='synthetic author',
+                                       binding_ids=['reference:1', 'reference:2'])
+
 class RenditionTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name);self.reader=InputEvidence(self.root)
@@ -208,7 +258,7 @@ class RenditionTests(unittest.TestCase):
         self.binding={'reference_number':1,'attachment_number':1,'region_pixels':None,'role':'identity',
             'controls':['appearance'],'must_not_control':['pose']}
         self.kw={'segments':None,'authored_source':{'path':'authored.txt','sha256':'a'*64},'bindings':[],
-            'reference_policy':None,'production_consumer':None,
+            'reference_policy':None,
             'reader':self.reader,'target':self.target,'dialect':'synthetic-dialect'}
     def tearDown(self):self.temp.cleanup()
     def save(self,name,value):
@@ -220,8 +270,8 @@ class RenditionTests(unittest.TestCase):
         return {'mode':mode,'contract':self.save('reference.json',contract)}
     def test_01_authored_text_stays_exact(self):
         text='Production context: { "authored": true }';self.assertEqual(mr.compose(text,**self.kw)['text'],text)
-    def test_02_authored_consumer_keeps_direction_out_of_prompt(self):
-        self.kw['production_consumer']={'direction':{'directives':['explicit']}}
+    def test_02_source_paths_remain_out_of_prompt(self):
+        self.kw['authored_source']['path']='production/private/direction.txt'
         self.assertEqual(mr.compose('rendition',**self.kw)['text'],'rendition')
     def test_03_subject_keys_do_not_change_model_text(self):
         prompt = 'Use the first image for the potter and the second for the apprentice.'
@@ -235,24 +285,23 @@ class RenditionTests(unittest.TestCase):
         self.assertEqual(first['text'], prompt)
         self.assertEqual(second['text'], first['text'])
         self.assertEqual(second['trace'], first['trace'])
-    def test_04_production_records_remain_review_context(self):
-        self.kw['production_consumer'] = {'direction': {'constraints': ['A quiet room.']},
-            'criteria': [{'id': 'composition', 'text': 'Assess the spatial relation.'}],
-            'world_views': [{'source': 'world/private.json'}], 'moment_views': []}
+    def test_04_source_records_remain_trace_context(self):
+        self.kw['authored_source'] = {'path': 'production/private/first.txt', 'sha256': 'b' * 64}
         first = mr.compose('A potter shapes a bowl in a quiet room.', **self.kw)
-        self.kw['production_consumer']['world_views'].append({'source': 'world/expanded.json'})
-        self.kw['production_consumer']['criteria'].append({'id': 'finish', 'text': 'Assess the finish.'})
+        self.kw['authored_source'] = {'path': 'production/private/second.txt', 'sha256': 'c' * 64}
         second = mr.compose('A potter shapes a bowl in a quiet room.', **self.kw)
         self.assertEqual(first['text'], second['text'])
+        self.assertNotEqual(first['trace'][0]['source_refs'], second['trace'][0]['source_refs'])
         self.assertEqual([row['source_kind'] for row in second['trace']], ['authored'])
         self.assertEqual([row['id'] for row in second['review_requirements']],
-                         ['depiction-inputs', 'production-direction'])
+                         ['finished-image', 'supplied-inputs', 'ownership'])
     def test_05_reference_without_policy_refused(self):
         self.kw['bindings']=[self.binding]
         with self.assertRaises(ValueError):mr.compose('rendition',**self.kw)
     def test_06_authored_reference_policy_adds_no_text(self):
         self.kw.update(bindings=[self.binding],reference_policy=self.policy('authored-rendition'))
-        result=mr.compose('rendition',**self.kw);self.assertEqual(result['text'],'rendition');self.assertEqual(result['review_requirements'][0]['binding_ids'],['reference:1'])
+        result=mr.compose('rendition',**self.kw);self.assertEqual(result['text'],'rendition')
+        self.assertEqual([item['id'] for item in result['review_requirements']],['finished-image','supplied-inputs','ownership'])
     def test_07_authored_reference_text_has_exact_written_range(self):
         self.kw.update(bindings=[self.binding],reference_policy=self.policy('authored-rendition'))
         result=mr.compose('rendition',**self.kw);last=result['trace'][-1]['target_range'];self.assertEqual(result['text'][last['start']:last['end']],'rendition')
@@ -292,7 +341,8 @@ class RenditionTests(unittest.TestCase):
         text='The document contains 2boys, facing, general, 8k and {JSON}.'
         self.assertEqual(mr.compose(text,**self.kw)['text'],text)
     def test_18_no_automatic_assessment_is_added(self):
-        result=mr.compose('text',**self.kw);self.assertNotIn('assessment',result);self.assertEqual([item['id'] for item in result['review_requirements']],['depiction-inputs'])
+        result=mr.compose('text',**self.kw);self.assertNotIn('assessment',result)
+        self.assertEqual([item['id'] for item in result['review_requirements']],['finished-image','supplied-inputs','ownership'])
 
 if __name__=='__main__':
     import stdio_utf8

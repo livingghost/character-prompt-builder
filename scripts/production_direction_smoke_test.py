@@ -362,7 +362,9 @@ class LifecycleTests(unittest.TestCase):
         run=self.prepare()
         with self.assertRaises(ValueError):fixture.grant(self.root,run,w.handoff_intent(self.root,run,'author','manual'))
     def external_case(self):
-        self.task['execution'] = 'external'; self.write('task.json', self.task)
+        self.task['execution'] = 'external'
+        fixture.external_image_input(self.root, self.task)
+        self.write('task.json', self.task)
         run = self.prepare(); fixture.handoff(self.root, run, 'synthetic external host', 'manual')
         token = fixture.grant(self.root, run, w.external_intent(self.root, run, 1))
         claim = w.claim_external(self.root, run, 1, token)
@@ -400,7 +402,9 @@ class LifecycleTests(unittest.TestCase):
 
     def test_external_boundary_failure_rolls_back_execution_claim(self):
         import execution_lifecycle as life
-        self.task['execution'] = 'external'; self.write('task.json', self.task)
+        self.task['execution'] = 'external'
+        fixture.external_image_input(self.root, self.task)
+        self.write('task.json', self.task)
         run = self.prepare(); fixture.handoff(self.root, run, 'synthetic host', 'manual')
         token = fixture.grant(self.root, run, w.external_intent(self.root, run, 1))
         with patch.object(life, 'begin_step', side_effect=OSError('Synthetic durable boundary failure')):
@@ -466,7 +470,9 @@ class LifecycleTests(unittest.TestCase):
         self.assertFalse(any(row['event'] == 'execution-result' for row in w.load_run(self.root, run)[3]))
 
     def test_external_outputs_are_capped(self):
-        self.task['execution']='external';self.write('task.json',self.task)
+        self.task['execution']='external'
+        fixture.external_image_input(self.root,self.task)
+        self.write('task.json',self.task)
         run=self.prepare();fixture.handoff(self.root,run,'test host','manual')
         intent=w.external_intent(self.root,run,1);authorization=fixture.grant(self.root,run,intent)
         w.claim_external(self.root,run,1,authorization)
@@ -474,7 +480,9 @@ class LifecycleTests(unittest.TestCase):
         self.write('second.png',png(128))
         with self.assertRaises(ValueError):w.capture(self.root,run,'second.png','Unapproved extra result')
     def test_external_capture_requires_prior_claim(self):
-        self.task['execution']='external';self.write('task.json',self.task)
+        self.task['execution']='external'
+        fixture.external_image_input(self.root,self.task)
+        self.write('task.json',self.task)
         run=self.prepare();fixture.handoff(self.root,run,'test host','manual');self.write('first.png',png())
         with self.assertRaises(ValueError):w.capture(self.root,run,'first.png','Unclaimed result')
     def test_static_candidate_cannot_pass_motion(self):

@@ -8,7 +8,7 @@ Thank you for improving Character Prompt Builder. It is an art-direction and pro
 - User anchors outrank presets. A preset may support a selected direction but may not silently redefine the brief.
 - Art direction exists before catalog adoption. Retrieval fills production gaps after the intended image is understood.
 - A concrete style family is one coherent finish grammar, not a bag of interchangeable tags.
-- Curated positive fields describe desired construction affirmatively. Failure modes and nearby misreadings remain scoped diagnostic knowledge.
+- Curated positive fields describe desired construction. Failure modes and nearby misreadings remain scoped diagnostic knowledge.
 - Generated media remains evidence until explicitly accepted.
 - Visual contracts, event chronology, asset lineage, scene state, target binding, run evidence and adoption each have a responsible project record. Preserve those responsibilities rather than assigning them to an external application.
 - Runtime text uses ASCII punctuation. Unicode em dash and en dash characters are not permitted.
@@ -56,7 +56,10 @@ Do not create a style family merely because a reference introduces a new subject
 
 A curated record must satisfy the [Preset Authoring Standard](references/preset-authoring-standard.md). It needs executable visual knowledge, adaptation invariants, nearby misreadings, valid domains, and enough detail to guide production instead of repeating its label.
 
-Positive-facing fields must be affirmative. Put applicable exclusions in `cpb-resource:negative-policy`, the selected medium boundary, an activated correction, or an explicit user exclusion. Scene failure modes and module misreadings remain diagnostic-only.
+Prompt-facing fields must communicate the desired construction. Select necessary
+exclusions from `cpb-resource:negative-policy`, the selected medium boundary, an
+activated correction or an explicit user exclusion. Scene failure modes and
+module misreadings remain diagnostic knowledge.
 
 ### Vocabulary records
 

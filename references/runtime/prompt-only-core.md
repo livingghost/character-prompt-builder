@@ -1,6 +1,6 @@
 # Prompt-only core
 
-The shortest ordinary path from a user brief to prompt text. Record maintenance, release operations, full morphology doctrine and model-facing visual transport apply only when a trigger requires them.
+Write prompt text or reusable prompt artifacts without calling a generation service. Read specialized construction or transport instructions when the requested deliverable needs them.
 
 ## 1. Resolve the request
 
@@ -21,25 +21,13 @@ Do not let role similarity replace an explicit species. Do not choose a specific
 
 ## 3. Compose
 
-Select what the image needs before wording it. Preserve explicit requirements,
-add relationships needed to communicate the event, and choose art direction
-for a stated visual purpose. Keep incidental deductions out of the prompt.
+Write a complete depiction from the brief and selected knowledge. A reference-free
+prompt must identify its subjects and their necessary relationships in text.
+With references, identify each supplied image and the properties it should carry.
+For an edit, describe the requested change and the properties to preserve.
 
-For an inferred detail, consider an image where that detail differs. If the
-image still meets the brief and the selected direction, leave that detail open.
-Omit it rather than writing permission to omit, hide or change it. Then check
-sufficiency: could all remaining instructions describe a different event? Add
-the missing action or relationship, not a complete inventory of the imagined scene.
-[Prompt Composition](prompt-composition.md#select-the-depiction) owns this judgment.
-
-Write the intended event and its participants as one depiction. Specify roles,
-action targets, gaze, placement or contact where they establish its meaning.
-Choose framing to communicate the necessary information. Readable interaction
-does not by itself require a close-up or complete views of every participant.
-
-Keep any selected camera distance, scale, height, pitch and occupancy consistent.
-Assign task-bearing limb actions to their owners. Use garment, body or accessory
-geometry at the specificity needed by the brief and the reference evidence.
+Use the `composition` route when interacting requirements need a detailed scene
+specification. An ordinary text draft needs no invented scene-state artifacts.
 
 This is the master prompt. For a named interface, follow its adapter and
 [Prompt Writing Guide](prompt-writing-guide.md) after meaning is settled. Use
@@ -53,14 +41,23 @@ Do not create empty reference artifacts. Include `reference-use-plan.json` only 
 
 ## 5. Preflight and deliver
 
-Check the prompt and delivered references for necessary instructions, resolvable subjects and sufficient scene meaning. Remove unsupported constraints and planning commentary. Run the structured preflight for declared body-count and camera contradictions; it does not judge meaning. After target rendition, verify that ordering or weighting preserves the approved depiction. Deliver the prompt, any requested or supported negative, and the justified artifacts. The `negative-policy` resource owns negative sources and target syntax.
+Apply the Skill's common readback to the completed rendition before delivery.
+When a structured plan is present, run its preflight for declared structure
+assignments and numeric camera bounds. Compare those declarations with the
+actual prompt; plan validation cannot establish that their meanings agree.
+Deliver the prompt, applicable negative, separate execution settings and selected
+reference artifacts. The `negative-policy` resource owns negative sources and
+target syntax.
+
 ## 6. Deterministic commands
 
-Use `python scripts/build_prompt_artifacts.py --help` to materialize the conditional prompt artifact set. The builder accepts an optional structured semantic plan and refuses invalid limb or camera assignments before publication. `python scripts/validate_prompt_semantics.py plan.json` checks the plan alone; its `--template` prints a plan to start from, and its `--help` names every field.
+Use `python scripts/build_prompt_artifacts.py --help` to materialize the conditional prompt artifact set. The builder accepts an optional structured semantic plan and refuses violations of its explicit counts, connections, action assignments and numeric camera bounds before publication. `python scripts/validate_prompt_semantics.py plan.json` checks the plan alone; its `--template` prints a plan to start from, and its `--help` names every field.
 
 A text draft may omit `--plot`, or include a valid unapproved plot for review. `--prepare-for-generation` requires an approved `--plot`, never invented from an "autonomous" request. A plot separates story beats (`visible` or `context`) from selected frame statements (`shows`, `placement`, `composition`, `must_preserve`, `free`). Beat linkage records the source of a decision, not proof that every inference needs an instruction. `free` identifies open choices for planning; it is not a permission block to paste into a prompt. Validate it with `python scripts/prompt_plot.py plot.json`. An actual approval records `by`, an RFC3339 UTC `at`, and `content_sha256` of the plot without its approval; print that hash using `--content-sha256`. A changed plot requires renewed approval. Optional upstream `source` remains part of the approved content. Choose a target when useful for the draft; target limitations that change approved meaning require renewed approval.
 
-Draft output has no execution or canonical-update authorization. A saved text file alone does not require Studio initialization. Generation preparation, an explicitly authorized run, and canonical adoption are separate operations.
+Saved text uses the `prompt-only` production route; a prompt with selected
+references uses `reference-artifacts`. Draft delivery grants no generation or
+canonical-update authority. A conversation-only answer needs no Studio.
 
 The builder takes the retrieval record with `--retrieval-record lookups.json`. Catalog and vocabulary searches given `--record lookups.json --element NAME` write that record, and a vocabulary search given `--queries` records each query under its own element. Mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID`, repeating `--adopted` for each record the wording uses, or with `--composed TEXT --reason TEXT` when no inspected record fits. Where retrieval cannot run at all, pass `--retrieval-unavailable` with the reason; the package records `retrieval.settled: false` and `--prepare-for-generation` is refused. For generation, bind the marked record to the authored prompt and approved plot with `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file prompt.txt --plot-file plot.json --out retrieval-settled.json`. Missing, unavailable, unsettled, or mismatched records block preparation.
 
@@ -68,7 +65,10 @@ Regression checks: `python scripts/prompt_artifact_smoke_test.py` and `python sc
 
 ## Retrieved wording checks
 
-Only when retrieval returns no suitable term may the agent compose new wording. Prefer a short proven phrase over a pile of single-word tags, and check the chosen phrase against sibling tags in the same prompt for competition over the same region or attribute (for example a weighted pose tag cancelling a weighted action tag over the same body region). Also re-read each compact tag for a second model-legible sense: a region word can name gear (muzzle as a restraint versus the snout) and a directional body word can name a camera view (back as the rear view versus the body region), and the wrong sense can hijack content or camera.
+Check the intended sense of compact terms before adapting them to a tag interface.
+For example, `muzzle` may name restraint gear or a snout, and `back` may name a
+body region or a camera view. Read them with their subjects and modifiers.
+Vocabulary membership supplies wording evidence; it does not choose the meaning.
 
 ## Optional structural detail
 

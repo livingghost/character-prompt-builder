@@ -11,14 +11,15 @@ _WORK = tempfile.TemporaryDirectory(prefix='synthetic-reading-')
 
 
 def fixture_reading(*, route: str = 'generation', features: list[str] | None = None,
-                    studio: Path | None = None, ledger: Path | None = None) -> dict:
+                    studio: Path | None = None, ledger: Path | None = None,
+                    dialect: str | None = None) -> dict:
     """Read full fixture documents, then author a labeled synthetic application of the route's own documents."""
     ledger = ledger or Path(os.environ.get('CPB_READS_LEDGER', str(Path(_WORK.name)/'reads.jsonl')))
     os.environ['CPB_READS_LEDGER'] = str(ledger.absolute())
-    manifest, bodies = r.capture(route, features)
+    manifest, bodies = r.capture(route, features, dialect=dialect)
     key = c.content_id({'fixture': 'synthetic reading', 'manifest': manifest})[:32]
     issued = r.issue(route, features, ledger=ledger, stream=io.StringIO(), key=key,
-                     at='2000-01-01T00:00:00Z', cwd='synthetic-fixture')
+                     at='2000-01-01T00:00:00Z', cwd='synthetic-fixture', dialect=dialect)
     applied = set(c.load(r.ROOT/r.execution_routes.MANIFEST)['routes'][route]['reads'])
     applications = {'applied': [], 'resource_applied': []}
     for meta, raw in bodies:
@@ -37,7 +38,7 @@ def fixture_reading(*, route: str = 'generation', features: list[str] | None = N
             i,j,rule=candidates[0]
             applications['resource_applied'].append({'resource':'prompt-writing-guide','pointer':f'/sections/{i}/rules/{j}',
                 'quote':rule,'why':'Synthetic fixture exercises the complete decoded rule and its source pointer.'})
-    return r.build_record(issued, applications, ledgers=[ledger])
+    return r.build_record(issued, applications, ledgers=[ledger], dialect=dialect)
 
 
 def task_reading(root: Path, task: dict) -> dict:

@@ -6,9 +6,9 @@ Use this adapter only for an active GPT Image model record. Complete [Image Gene
 
 Read the [Prompt Writing Guide Runtime](../runtime/prompt-writing-guide.md) before final rendition. Use its interface-neutral hierarchy, visible-scope, and controlled-comparison rules, but keep the delivered prompt natural-language and do not add Stable Diffusion attention syntax.
 
-Use natural-language art direction with explicit relationships, spatial construction, camera consequences, and material behavior. Keep the hierarchy content-first: identity, performance, composition, environment and light, medium and finish, then critical construction.
+Use natural-language art direction to establish the complete wanted scene before refining identity, spatial construction and material behavior. Make relationships, performance, camera and finish work together. Preserve the full detail needed for the intended character.
 
-GPT Image uses `integrated-critical` negative transport. Translate the few activated technical requirements into affirmative visible construction in the positive rendition. Retain the complete portable negative in the Generation Package and supply an agent-authored integrated prompt, or certify that the reviewed primary prompt already contains every required translation. Do not paste failure vocabulary or negative terms into the positive prompt.
+GPT Image uses `integrated-critical` negative transport. Author the needed exclusions within the coherent single-field rendition, using direct negation or positive construction according to their meaning. Retain an authored portable negative in the Generation Package when present. Supply the reviewed integrated prompt, or certify the primary prompt with `--critical-avoidance-integrated` after reviewing the complete input.
 
 ## Reference transport
 

@@ -42,6 +42,26 @@
           "minimum": 0,
           "maximum": 1
         },
+        "subject_frame_occupancy_bounds": {
+          "type": "object",
+          "required": [
+            "minimum",
+            "maximum"
+          ],
+          "properties": {
+            "minimum": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "maximum": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        },
         "establishing_context": {
           "type": "boolean"
         }

@@ -430,18 +430,14 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         checks.check('negative-provenance',lambda:builder.normalize_negative_provenance(doc('negative_provenance')),
                      requires=[dependency('$.generation.negative_provenance')],file=selected['negative_provenance'])
     def channels():
-        positive,negative=text('prompt'),text('negative')
-        integrated,native=text('integrated_prompt'),text('native_negative')
-        if resolved is not None:
-            effective,_=render.resolve_parameters(resolved[1],profile,doc('production_spec')['render_intent']['execution_mode'],doc('parameters'))
-            from prompt_weighting import selected as selected_weighting
-            positive,negative,_=builder.apply_prompt_recommendations(resolved[1],prompt=positive,negative_prompt=negative,
-                weighting=selected_weighting(effective))
-        transports=builder.build_transports(prompt=positive,negative_prompt=negative,integrated_prompt=integrated,
-            critical_avoidance_integrated=selected.get('critical_avoidance_integrated',False),native_negative=native)
-        if native and not negative:raise ValueError('native_negative requires a portable negative_prompt')
-        if negative and not transports['integrated']['available']:
-            raise ValueError('negative-bearing payloads require an agent-authored integrated prompt or declared critical avoidance integration')
+        from prompt_weighting import selected as selected_weighting
+        effective,_=checks.values['execution-controls']
+        builder.prepare_text_transports(
+            model_id=resolved[0],model_record=resolved[1],prompt=text('prompt'),negative_prompt=text('negative'),
+            integrated_prompt=text('integrated_prompt'),native_negative=text('native_negative'),
+            negative_transport=selected.get('negative_transport','auto'),
+            critical_avoidance_integrated=selected.get('critical_avoidance_integrated',False),
+            weighting_syntax=selected_weighting(effective))
     requirements=['delivery-content','execution-controls']+[dependency('$.generation.'+f) for f in ['negative','integrated_prompt','native_negative'] if selected.get(f)]
     checks.check('negative-transport',channels,requires=requirements,file=selected.get('negative') or task_path)
 
@@ -611,6 +607,7 @@ def _external_reference_evidence(prepared: dict, consumer: dict, directory: Path
 def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict,directory:Path,identity:str,
                     model_id:str,model_record:dict,offering:dict,service:dict,transport,*,seed:int|None,count:int,fields:dict)->tuple:
     import production_workflow as workflow
+    from model_rendition import review_requirements
     effects = _external_effects(rendered, count)
     from check_tag_prompt import require_request
     prompt_check = require_request(rendered, model_record) if package.get('artifact_type') != 'upscale-request' else {
@@ -626,7 +623,7 @@ def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict
           'service':offering['service'],'model':model_id,'transport':service['transport'],
           'handoff':{'recipient':service['transport'],'method':'dispatcher','consumer_sha256':prepared['consumer_sha256'],
                      'targets':direction['targets']},
-          'external_effects':effects,'prompt_check':prompt_check,
+          'external_effects':effects,'prompt_check':prompt_check,'review_requirements':review_requirements(),
           'request':rendered['request'],'validation':package['request_validation'],'mutable_fields':fields,
           'readiness':execution_readiness(prepared,operations=[direction,intent])}
     validate_document(plan,PLAN_SCHEMA,'execution plan')
@@ -906,12 +903,14 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                     'readiness':{'state':'authorization_required','executable':False,'diagnostics':[]}}
                 external = (consumer.get('image_input') or {}).get('external_request')
                 if external is not None:
+                    from model_rendition import review_requirements
                     target = consumer['image_input']['model']['target']
                     execution_plan.update(request=external['request'], service=target['service'],
                                           model=target['model_identifier'],
                                           prepared_request_sha256=external['sha256'],
                                           model_identity=external.get('model_identity'),
                                           validation=external['schema_validation'],
+                                          review_requirements=review_requirements(),
                                           quantities={'submissions': 1, 'outputs': external['count']})
                 validate_document(execution_plan,PLAN_SCHEMA,'execution plan')
             for name in STAGES[1:]:

@@ -8,6 +8,7 @@ from __future__ import annotations
 import operation_context as _operation_context
 
 import argparse
+import copy
 import json
 import re
 import sys
@@ -323,164 +324,51 @@ def list_categories(vocabularies: Iterable[Mapping[str, Any]]) -> list[dict[str,
     return [rows[k] for k in sorted(rows, key=lambda k: (k[1], k[0]))]
 
 
-def _term_index(vocabularies: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
-    index: dict[str, dict[str, Any]] = {}
+def _term_index(vocabularies: Sequence[Mapping[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    index: dict[str, list[dict[str, Any]]] = {}
     for vocabulary in vocabularies:
         for category in vocabulary.get("categories") or []:
             for entry in category.get("entries") or []:
                 record = {
+                    "vocabulary": vocabulary.get("name"),
                     "category": category.get("id"),
-                    "term": entry.get("term"),
-                    "description": entry.get("description"),
-                    "single_valued": bool(category.get("single_valued")),
-                    "fragile_at_close_scale": bool(entry.get("fragile_at_close_scale")),
-                    "opposes": [normalize_identity(str(x)) for x in entry.get("opposes") or []],
+                    "category_definition": copy.deepcopy({key: value for key, value in category.items()
+                                                          if key != "entries"}),
+                    "entry": copy.deepcopy(entry),
                 }
-                index.setdefault(normalize_identity(str(entry.get("term") or "")), record)
-                for alias in entry.get("aliases") or []:
-                    index.setdefault(normalize_identity(str(alias)), record)
+                for name in [entry["term"], *(entry.get("aliases") or [])]:
+                    matches = index.setdefault(normalize_identity(str(name).replace("_", " ")), [])
+                    if record not in matches:
+                        matches.append(record)
     return index
 
 
-def _split_terms(text: str) -> list[tuple[str, int | None]]:
-    """Split a written prompt into terms in reading order, brackets included.
-
-    A word inside square brackets still reaches the model, so it is returned
-    rather than discarded. One bracketed run is one choice group and carries a
-    group number; every term outside brackets carries ``None``. Numeric
-    fragments of the scheduling syntax (``[from:to:0.4]``) are dropped, because
-    they are timing rather than wording.
-    """
-
-    results: list[tuple[str, int | None]] = []
-    group = 0
-    for piece in re.split(r"(\[[^\]]*\])", text.replace("\n", ",")):
-        if not piece:
-            continue
-        if piece.startswith("[") and piece.endswith("]"):
-            group += 1
-            for fragment in re.split(r"[|:]", piece[1:-1]):
-                written = fragment.strip()
-                if not written or re.fullmatch(r"[0-9.]+", written):
-                    continue
-                results.append((written, group))
-            continue
-        for fragment in piece.split(","):
-            written = fragment.strip()
-            if written:
-                results.append((written, None))
-    return results
-
-
-def _bare_term(written: str) -> tuple[str, str | None]:
-    """A written tag reduced to the term, with its weight if one was applied."""
-    weight = None
-    match = re.search(r":\s*([0-9.]+)\s*\)?$", written)
-    if match and written.lstrip().startswith("("):
-        weight = match.group(1)
-    term = written.strip()
-    term = re.sub(r"^\(+|\)+$", "", term)
-    term = re.sub(r":\s*[0-9.]+$", "", term)
-    return normalize_identity(term.replace("_", " ")), weight
-
-
 def read_prompt(vocabularies: Sequence[Mapping[str, Any]], text: str, negative: str = "") -> dict[str, Any]:
-    """Walk a finished prompt term by term and say what each term draws.
+    """Retrieve every matching dictionary definition for the author's review.
 
-    The dictionary is what a prompt is checked against before it is sent: a term it
-    knows comes back with the category and the description of what it draws, so the
-    writer confirms the picture they meant against the picture the word makes; a term
-    it does not know comes back marked, since that is where the writer is on their own.
-    The notices are the statements the text makes against itself: a weight on a term
-    the dictionary does not know, which is force without binding; a term written in the
-    primary field and the negative field at once; one single-valued property named
-    twice; a pair recorded as opposing; and a part these models draw badly asked for at
-    close scale.
+    Read comma-separated phrases literally. Weighting and conditioning syntax
+    belong to check_tag_prompt and its explicitly selected parser. Each entry
+    retains its category guidance, aliases and usage notes for author review.
     """
 
     index = _term_index(vocabularies)
-    close_terms: set[str] = set()
-    multiple_figures: set[str] = set()
-    for vocabulary in vocabularies:
-        for category in vocabulary.get("categories") or []:
-            for term in category.get("close_scale_terms") or []:
-                close_terms.add(normalize_identity(str(term)))
-            for term in category.get("multiple_figures_terms") or []:
-                multiple_figures.add(normalize_identity(str(term)))
-
     def rows_for(source: str) -> list[dict[str, Any]]:
         rows = []
-        for written, group in _split_terms(source):
-            term, weight = _bare_term(written)
-            hit = index.get(term)
+        for fragment in source.split(','):
+            written = fragment.strip()
+            if not written:
+                continue
+            term = normalize_identity(written.replace('_', ' '))
+            matches = index.get(term, [])
             rows.append({
                 "written": written,
                 "term": term,
-                "group": group,
-                "weight": weight,
-                "known": hit is not None,
-                "category": (hit or {}).get("category"),
-                "description": (hit or {}).get("description"),
+                "known": bool(matches),
+                "definitions": copy.deepcopy(matches),
             })
         return rows
 
-    text_rows = rows_for(text)
-    negative_rows = rows_for(negative) if negative else []
-    notices: list[str] = []
-
-    weighted_unknown = [row["term"] for row in text_rows if row["weight"] and not row["known"]]
-    if weighted_unknown:
-        notices.append(
-            "weight on a term the dictionary does not know: " + ", ".join(weighted_unknown)
-            + "; a weight raises the term's tokens without binding them to the thing meant")
-
-    negative_terms = {row["term"] for row in negative_rows}
-    both = [row["term"] for row in text_rows if row["term"] in negative_terms]
-    for term in dict.fromkeys(both):
-        notices.append("asked for and asked against: " + term)
-
-    by_category: dict[str, list[str]] = {}
-    counted_groups: set[tuple[str, int]] = set()
-    for row in text_rows:
-        hit = index.get(row["term"])
-        if hit and hit["single_valued"]:
-            category_id = str(hit["category"])
-            group = row["group"]
-            # One bracketed run is one choice, so its alternatives are one
-            # value of the property rather than the property named twice.
-            if group is not None:
-                if (category_id, group) in counted_groups:
-                    continue
-                counted_groups.add((category_id, group))
-            by_category.setdefault(category_id, [])
-            if row["term"] not in by_category[category_id]:
-                by_category[category_id].append(row["term"])
-    # The dictionary declares which terms put more than one figure in the
-    # picture. Two figures carry two eye colours, so a property named twice is
-    # what was asked for rather than a defect to report.
-    crowded = [row["term"] for row in text_rows if row["term"] in multiple_figures]
-    if not crowded:
-        for category_id, terms in by_category.items():
-            if len(terms) > 1:
-                notices.append("one property named twice (" + category_id + "): " + ", ".join(terms))
-
-    present = [row["term"] for row in text_rows]
-    seen_pairs: set[tuple[str, str]] = set()
-    for row in text_rows:
-        hit = index.get(row["term"])
-        for other in (hit or {}).get("opposes") or []:
-            pair = tuple(sorted((row["term"], other)))
-            if other in present and pair not in seen_pairs:
-                seen_pairs.add(pair)
-                notices.append("terms that cannot both hold: " + pair[0] + " and " + pair[1])
-
-    fragile = [row["term"] for row in text_rows if (index.get(row["term"]) or {}).get("fragile_at_close_scale")]
-    close = [term for term in present if term in close_terms]
-    if fragile and close:
-        notices.append("parts drawn badly at this scale: " + ", ".join(dict.fromkeys(fragile))
-                       + " at " + ", ".join(dict.fromkeys(close)))
-
-    return {"text": text_rows, "negative": negative_rows, "notices": notices}
+    return {"text": rows_for(text), "negative": rows_for(negative) if negative else []}
 
 
 def _unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -529,7 +417,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--category", action="append", default=[], help="Category fragment filter")
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--list-categories", action="store_true")
-    parser.add_argument("--read", type=Path, help="A file holding a finished prompt: report every term with what it draws")
+    parser.add_argument("--read", type=Path, help="A finished prompt file: retrieve complete dictionary definitions for its terms")
     parser.add_argument("--negative", type=Path, help="A file holding the negative text, read beside --read")
     parser.add_argument("--record", type=Path, metavar="PATH",
                         help="Append this search and the terms it returned to a prompt retrieval record")

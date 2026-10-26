@@ -65,8 +65,8 @@
       "minLength": 1
     },
     "request_decision": {
-      "description": "Present on a model dispatcher submission. draft-execution derives the identifiers and leaves principal_approval null; the actual principal fills it, or a delegated case with its assessments stands in for it.",
-      "anyOf": [
+      "description": "An exact model image submission carries the authorized actor's complete rendition review. Dispatcher authority uses principal approval or a delegated case; external image authority uses the exact operation.",
+      "oneOf": [
         {
           "type": "null"
         },
@@ -168,50 +168,25 @@
               ]
             },
             "rendition_review": {
-              "type": "object",
-              "properties": {
-                "request_sha256": {
-                  "type": "string",
-                  "pattern": "^[a-f0-9]{64}$"
-                },
-                "reviewer": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "conclusion": {
-                  "enum": [
-                    "satisfied",
-                    "not-satisfied",
-                    "unmeasured"
-                  ]
-                },
-                "reason": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "binding_ids": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "uniqueItems": true
-                }
-              },
-              "required": [
-                "request_sha256",
-                "reviewer",
-                "conclusion",
-                "reason",
-                "binding_ids"
-              ],
-              "additionalProperties": false
+              "$ref": "#/$defs/rendition-review"
             }
           },
           "required": [
             "case",
             "assessments",
             "principal_approval",
+            "rendition_review"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "rendition_review": {
+              "$ref": "#/$defs/rendition-review"
+            }
+          },
+          "required": [
             "rendition_review"
           ],
           "additionalProperties": false
@@ -229,5 +204,70 @@
     "stop_assessments",
     "reason"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "rendition-review": {
+      "type": "object",
+      "properties": {
+        "input_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "reviewer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "binding_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "assessments": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "properties": {
+              "criterion": {
+                "enum": [
+                  "finished-image",
+                  "supplied-inputs",
+                  "ownership"
+                ]
+              },
+              "conclusion": {
+                "enum": [
+                  "satisfied",
+                  "not-satisfied",
+                  "unmeasured"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "criterion",
+              "conclusion",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "input_sha256",
+        "reviewer",
+        "binding_ids",
+        "assessments"
+      ],
+      "additionalProperties": false,
+      "description": "Assesses the entire actual input: every text field, native control and delivered image. input_sha256 is the dispatcher request digest or the external image-input binding digest."
+    }
+  }
 }

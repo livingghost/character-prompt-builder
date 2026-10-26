@@ -41,24 +41,55 @@ def grant(root: Path, run: str, intent: dict, *, reason: str = 'Synthetic test o
     import production_workflow as w
     request = w.draft_authorization(root, run, 'fixture-grant', intent)
     request['reason'] = reason
-    if intent['operation'] == 'submit':
-        if 'request_decision' in request:
+    if intent['operation'] == 'submit' and 'request_decision' in request:
+        if w.load_run(root, run)[1]['task']['execution'] == 'dispatcher':
             from production_request import assessment_source
             prepared = w.load_run(root, run)[1]
             evidence = prepared['authority']['evidence']
-            request['request_decision'] = {
-                'case': None, 'assessments': [],
-                'principal_approval': assessment_source(root, intent['payload'],
-                    principal=prepared['authority']['issuer'], path=evidence['path'], locator=evidence['locator']),
-                'rendition_review': {'request_sha256': intent['payload']['request_sha256'],
-                    'reviewer': ACTOR, 'conclusion': 'satisfied',
-                    'reason': 'Synthetic fixture assessment of declared bytes; not artistic or user approval.',
-                    'binding_ids': ['reference:' + str(item['reference_number'])
-                                    for item in intent['payload']['request_contract']['sealed']['bindings']]}}
+            request['request_decision']['principal_approval'] = assessment_source(root, intent['payload'],
+                principal=prepared['authority']['issuer'], path=evidence['path'], locator=evidence['locator'])
+        assess_rendition(request['request_decision']['rendition_review'])
 
     path = 'fixture-authorization-' + generate_uuid7() + '.json'
     (root / path).write_bytes(c.encoded(request))
     return w.authorize(root, run, path)['sha256']
+
+
+def assess_rendition(review: dict) -> None:
+    """Author the three explicit judgments of the labeled synthetic fixture actor."""
+    reasons = {
+        'finished-image': 'Synthetic depiction fixture assessed across every actual text field; not image quality or user approval.',
+        'supplied-inputs': 'Synthetic supplied-media assignments and input-use directions were assessed against this exact input.',
+        'ownership': 'Synthetic fixture keeps production bookkeeping separate from model image text and native controls.',
+    }
+    for item in review['assessments']:
+        item.update(conclusion='satisfied', reason=reasons[item['criterion']])
+
+
+def external_image_input(root: Path, spec: dict, *, count: int = 1) -> str:
+    """Author a reference-free exact external request for a synthetic image task."""
+    model = 'synthetic-external-image'
+    specification = (spec.get('generation') or {}).get('production_spec')
+    if specification is None:
+        specification = next((row['path'] for row in spec['sources']
+                              if row['role'] == 'production-spec' and row['disposition'] == 'applied'), None)
+    if specification is not None:
+        model = c.load(root / specification)['target_model']
+    stem = 'fixture-external-' + generate_uuid7()
+    request_file, evidence_file, input_file = (stem + suffix for suffix in ('-request.json', '-evidence.txt', '-input.json'))
+    prompt = (root / spec['delivery']['path']).read_bytes().decode('utf-8')
+    (root / request_file).write_bytes(c.encoded({'model': model, 'prompt': prompt, 'count': count}))
+    (root / evidence_file).write_text('Synthetic external request contract; no real provider claim.\n', encoding='utf-8')
+    value = {'artifact_type': 'image-input-plan',
+             'model': {'requested': model, 'catalog_status': 'missing', 'catalog_model': None,
+                       'target': {'service': 'synthetic', 'model_identifier': model, 'operation': 'generation'},
+                       'evidence': {'path': evidence_file, 'sha256': c.sha256_file(root / evidence_file), 'locator': 'whole'}},
+             'references': [],
+             'external_request': {'file': request_file, 'model_field': ['model'], 'prompt_field': ['prompt'],
+                                  'count_field': ['count'], 'operation_field': None, 'count': count, 'reference_fields': []}}
+    (root / input_file).write_bytes(c.encoded(value))
+    spec['image_input'] = input_file
+    return input_file
 
 
 def handoff(root: Path, run: str, recipient: str, method: str) -> dict:
@@ -156,6 +187,8 @@ def prepare_external_delivery(root: Path, prompt: str, *, route: str = 'generati
              'translation_notes': 'Exact synthetic test input.'},
             'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect actual received fixture bytes.'}],
             'world_views': []}
+    if artifact == 'image':
+        external_image_input(root, spec)
     task(root, spec, artifact=artifact, execution='external')
     (root / 'fixture-task.json').write_bytes(c.encoded(spec))
     run = w.prepare(root, 'fixture-task.json')['run']

@@ -90,8 +90,7 @@
     "negative_provenance": {
       "activated_sources": [],
       "diagnostic_sources_retained": [],
-      "semantic_exclusions_user_supplied": [],
-      "affirmative_translations": {}
+      "semantic_exclusions_user_supplied": []
     },
     "prompt_recommendations": {
       "resolved_model_id": "",

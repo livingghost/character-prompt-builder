@@ -169,17 +169,20 @@ class InspectionTests(unittest.TestCase):
         self.assertFalse(any(x['severity']=='problem' for x in report['findings']))
         self.assertTrue(any(x['check']=='conditioning clauses' for x in report['findings']))
 
-    def test_repeated_terms_inside_one_clause_still_fail(self):
+    def test_repeated_terms_inside_one_clause_preserve_authored_weights(self):
         report=self.report('("grey fur+, grey fur", "yellow eyes").and()')
-        error=next(x for x in report['findings'] if x['check']=='repeated tag')
-        self.assertEqual(error['clause'],0)
+        tags=report['channels']['positive']['clauses'][0]['tags']
+        self.assertEqual([tag['text'] for tag in tags], ['grey fur', 'grey fur'])
+        self.assertEqual([tag['weights'] for tag in tags], [[1.0, 1.1], [1.0]])
+        self.assertFalse(any(x['severity']=='problem' for x in report['findings']))
 
     def test_weighted_group_is_not_split_into_syntax_tokens(self):
         self.assertEqual(self.report('(grey fur, yellow eyes)1.2')['findings'],[])
 
     def test_negative_compel_is_inspected_with_same_grammar(self):
         report=self.report('grey fur','(grey fur)0.5')
-        self.assertTrue(any(x['check']=='in both' for x in report['findings']))
+        self.assertEqual(report['findings'], [])
+        self.assertEqual(report['channels']['negative']['clauses'][0]['tags'][0]['weights'], [0.5])
         error=self.report('grey fur','(yellow eyes:1.2)')['findings'][0]
         self.assertEqual(error['channel'],'negative')
 
@@ -189,17 +192,18 @@ class InspectionTests(unittest.TestCase):
 
     def test_literal_brackets_remain_dictionary_text(self):
         report=self.report('(grey fur)',syntax='literal')
-        self.assertTrue(any('(grey fur)' in x['terms'] for x in report['findings']))
+        self.assertEqual(report['unmatched_terms'], [{'channel':'positive','clause':0,'term':'(grey fur)'}])
 
     def test_non_tag_models_still_get_grammar_validation(self):
         result=checker.inspect('("a", "b").blend(1)','',None,None,syntax='compel')
         self.assertEqual(result['findings'][0]['check'],'clause weights')
 
-    def test_no_false_model_family_switch(self):
+    def test_family_guidance_is_complete_for_compound_and_single_prompts(self):
         result=self.report('("general, solo", "explicit, solo").blend(1,1)')
-        self.assertFalse(any(x['check']=='rating term' for x in result['findings']))
         single=self.report('general, explicit, solo')
-        self.assertTrue(any(x['check']=='rating term' for x in single['findings']))
+        self.assertEqual(result['dialect_guidance'], self.dialect)
+        self.assertEqual(single['dialect_guidance'], self.dialect)
+        self.assertEqual(single['findings'], [])
 
     def test_literal_break_is_a_visible_note(self):
         self.assertTrue(any(x['check']=='literal BREAK' for x in self.report('solo BREAK grey fur')['findings']))

@@ -102,15 +102,15 @@
         },
         "rating_terms": {
           "$ref": "#/$defs/term-array",
-          "description": "The content-register terms this family carries. One per rendition."
+          "description": "The family's content-register terms, retained as guidance for the author's rendition."
         },
         "period_terms": {
           "$ref": "#/$defs/term-array",
-          "description": "The terms that bias the render toward a slice of the corpus by date. One per rendition."
+          "description": "The family's terms for a slice of the corpus by date, retained as authored model guidance."
         },
         "inert_terms": {
           "$ref": "#/$defs/term-array",
-          "description": "Terms with no learned meaning on this family, which spend budget and act on nothing."
+          "description": "Terms the family's evidence describes as inert. The author evaluates this guidance for the selected target."
         },
         "negative_form": {
           "$ref": "#/$defs/non-empty-string",

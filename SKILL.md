@@ -5,25 +5,25 @@ description: Create image prompts, scoped negatives and canonical references for
 
 # Character Prompt Builder
 
-Keep subjects, world and expression coherent. Art-direct each image as one depiction, not a record list.
+Keep subjects, world and expression coherent. Art-direct one finished depiction.
 
 Use English prompts/retrieval and the user's language. Preserve meaning, modifier scope, relationships, negation and ambiguity without language word lists.
 
 ## Core contract
 
-Identify the artifact, purpose, anchors and creative space. Resolve consequential ambiguity; otherwise choose a coherent direction. Include requirements, necessary meaning and purposeful art direction. Leave incidental details open. Omissions grant no permission or exclusion. Check the instructions and result against the intended event.
+Identify the artifact, purpose, anchors and creative space. Include requirements, necessary meaning and purposeful art direction; leave incidental details open. Omissions grant no permission or exclusion. Resolve consequential ambiguity before completing the artifact.
 
-Never alter an anchor silently. Disclose each modification and its reason. Assumptions fill open space; modifications change intent. Keep creator portrayal intent separate from facts and psychology; apply it across outputs.
+Preserve anchors. Disclose every modification and its reason; assumptions fill open space rather than change intent. Keep creator portrayal intent distinct from facts and psychology across outputs.
 
-Bind inputs, target and count to the user's authorization. Distinguish direction, editing, submission, selection and canonical adoption. Proceed within delegated scope without repeated approval. Compare output with intent and revise only within authority.
+Bind inputs, target and count to actual authorization. Distinguish direction, editing, submission, selection and canonical adoption. Continue within delegated scope without repeated approval.
 
 Preserve supported production knowledge at full specificity across every genre and intensity level, from everyday and wholesome subjects to sensitive material such as violent, medical, grotesque, body-altering, or adult knowledge, without exception. Read [Prompt Knowledge and Execution Boundary](references/prompt-knowledge-boundary.md) when relevant.
 
-Use plain ASCII punctuation in studio documents, prompts, JSON text, and packaged examples. Do not emit the Unicode em dash.
+Use plain ASCII punctuation in studio documents, prompts, JSON text and packaged examples.
 
 Keep judgment and automation separate. The agent owns meaning, ambiguity, direction, visual authority, composition and review. Scripts own state, retrieval, validation, materialization, dependency checks, verification and dispatch. Do not force unresolved meaning into keywords. Use scripts with documented activation, inputs, outputs, failures and tests. Resolve paths from installed `SKILL.md`.
 
-Use source records, including metadata, to author the depiction. Resolve subjects and references within the model's actual prompt and media. Keep internal keys, source paths and production commentary in their records; depicted names and codes remain content.
+Model-facing prompts describe the depiction and necessary use of supplied media. Interpret records into relevant appearance, action and performance. Resolve subjects from the actual text and images. Keep internal keys, paths, provenance, decisions and assessment in their records; depicted names and codes remain content.
 
 ## Rendering and model controls
 
@@ -33,16 +33,16 @@ Keep presentation and subject identity separate. Use scoped overrides for mixed 
 After `pack_cli.py ready`, read the selected model card and use-case guidance and author preferences before model-specific wording. Unlisted targets use acquired provider contracts.
 Retrieve the wording, then bind its rendering span in `render_intent`: inside the Production Specification for dispatch, or as an applied task source for external work.
 A Generation Package requires the exact interface's profile and mode-valid controls. For an unlisted target, record the absence and follow [Image Generation](references/runtime/image-generation.md#choose-execution). Shared `image_input` binds references and exact external requests; actual edits add [Semantic instruction editing](references/runtime/semantic-instruction-edit.md). [Model request evidence](references/runtime/model-evidence.md) owns schemas, trials, profiles, suitability and failure diagnosis.
-Required scalar recommendations resolve with provenance; ranges require a choice. Unavailable controls are displayed, not sent.
+Put execution values in the interface's declared controls, without repeating them as prompt prose. Image shape and framing remain depiction choices. Required scalar recommendations resolve with provenance; ranges require a choice. Unavailable controls are displayed, not sent.
 Use the verified request and its named provider. Display the rendering choice and complete final request before submission; never substitute a different engine.
 
 ## Mandatory retrieval-before-composition gate
 
-This gate governs image prompts, not prose or brainstorming. Never hand-compose prompt wording before retrieval has been attempted: wrong or competing tags can cancel requested content.
+Retrieve image-production knowledge before composition. Synthesize its selected meaning into the intended picture; retrieved wording can be combined and rephrased.
 
 1. For every distinct visual element (pose, action, expression, camera, lighting, wardrobe, body feature, effect, and any specialized domain), search the catalog (`catalog_cli.py search`, then `inspect` the closest record) and, for tag-level wording, the prompt vocabulary (`pack_cli.py resource prompt-vocabulary` plus `search_prompt_vocabulary.py`). Add `--record lookups.json --element NAME` to every search and inspection; in catalog `batch` each `request_id` names its element, and in a vocabulary `--queries` object each key does.
 2. Mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID` (repeat `--adopted` for every record used), or with `--composed TEXT --reason TEXT`. When retrieval cannot run, state the reason instead; never fabricate retrieval or approval.
-3. Compose new wording only when retrieval finds nothing suitable; [Prompt-Only Core](references/runtime/prompt-only-core.md) gives the wording checks.
+3. When no inspected record fits, record authored wording and its reason. For a tag interface, check the selected terms' meanings and grammar together.
 4. When a newly composed phrase is confirmed effective in a finished image, add it back to the owning pack resource (dictionary entry or module record) as terms and wording only, with no session history, seeds, or run parameters.
 
 ## Mandatory runtime activation gate
@@ -55,7 +55,7 @@ Before prompt, reference, sheet, generation or visual-state series work (not per
 
 ## Artifact-bearing production gate
 
-For saved deliverables, run `python scripts/execution_routes.py read ROUTE --root STUDIO` with each applicable `--feature NAME`. Add `--model MODEL` for a catalog target or `--dialect ID` for an evidenced prompt family; omit both for an unknown external target. It prints [Production Execution](references/runtime/production-execution.md), the required documents and a reading record to complete. Use `--page-bytes N` and `--continue CURSOR` for long reads. Follow the route through completion; use `status` or `resume` after interruption.
+For saved deliverables, run `python scripts/execution_routes.py read ROUTE --root STUDIO` with applicable `--feature NAME` options. Add `--feature prompt-dialect` with `--model MODEL` for a catalog target or `--dialect ID` for an evidenced family; omit selectors for an unknown target. It prints [Production Execution](references/runtime/production-execution.md), required documents and a reading record. Use `--page-bytes N` and `--continue CURSOR` for long reads. Complete the route; use `status` or `resume` after interruption.
 
 ## Choose a runtime path
 
@@ -96,7 +96,7 @@ Add a specialist feature only for a load-bearing subject: `geometry` for exact m
 
 ## Mandatory studio gate
 
-Persistent character work, sheets, recorded generation and reusable drafts need a studio; one-off answers do not. If `python scripts/session_entry_points.py` reports none, use `studio.py init` before authoring. Follow [Studio Runtime](references/runtime/studio.md): `production_workflow.py execute` for dispatcher tasks, its external claim, capture and settlement branch for host tools.
+Saved deliverables, sheets and recorded generation use [Studio Runtime](references/runtime/studio.md). Conversation-only answers need no Studio. If `python scripts/session_entry_points.py` reports none, run `studio.py init` before authoring.
 
 Use managed attempts in [Sheet fills](references/runtime/sheet-fill-workflow.md). Apply HTML edits with `sheet_workflow.py apply-edit`. Record answers with `work_ledger.py respond`, reopen the indicated step, and suspend/resume when switching tasks. `studio.py status` or `sync` reconstructs views without repeating generation.
 
@@ -104,18 +104,19 @@ After story revisions, update Studio sources and run `studio.py sync` for the au
 
 ## Common runtime sequence
 
-For image work:
+For image work, apply the steps needed by the deliverable:
 
-1. Resolve the artifact and whether it needs saving. For saved work, establish the Studio and read the selected route.
-2. Separate requirements, purposeful choices and incidental deductions. Select the relationships and visible information the purpose needs. For character reuse, resolve reference coverage and stage-specific targets.
-3. Read interface guidance; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Retrieve every visual element. Inspect every selected canonical record in full. Dispatcher work resolves the execution profile.
-4. Write the selected depiction, render intent, reference scopes and matching criteria. Keep planning alternatives and unneeded details out of the prompt. Retain required plot approval and settle retrieval against the final wording.
-5. Save the final prompt, settings, evidence and any Studio recording destination in the task's declared inputs.
-6. `production_workflow.py check --task task.json` reports diagnostics without creating a run. `prepare` publishes the request preview and execution plan; dispatcher runs also contain a Generation Package.
-7. Review the complete request and operation targets. Dispatcher work uses `draft-execution --run RUN --grant GRANT --out decisions.json`, actual decisions, then `execute --run RUN --decisions-file decisions.json`.
-8. External work follows Production Execution's handoff, exact authorization, `claim-external`, host call, `capture` and `settle-external` branch. After interruption, `resume --run RUN` recovers the existing execution.
-9. Inspect candidates against the same requirements, not an imagined exact picture. Diagnose failures from saved evidence. Dispatcher trials use `variant`, `repeat` or `retarget`; external trials use new tasks and exact input binding. Actual edits also need semantic plans.
-10. `status` reports runs, next commands and execution records. [Operation logs](references/runtime/operation-logs.md) defines inspection, export and cleanup; inspect reported staging before applying cleanup to its exact owner operation.
+1. Resolve the artifact. For saved work, establish the Studio and read its route.
+2. Separate requirements, purposeful choices and incidental deductions. Select necessary relationships and visible information. For character reuse, resolve reference coverage and stage targets.
+3. Read interface guidance; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Retrieve visual elements. Inspect every selected canonical record in full. Resolve the dispatcher execution profile.
+4. Compose one finished image or requested edit: purpose, relationships and view, then identity, visible state, finish and reference directions. Retain necessary exclusions and critical detail; combine sources by meaning.
+5. Read back the exact text, negative channels, controls and media. Reconstruct the scene and compare it with the user's anchors. Can instructions coexist for the same subject, part, moment and condition? Distinct scopes must follow from the brief or actual input. Fix conflicting choices within authority; ask only when requirements remain irreconcilable. Do not deliver or submit unresolved contradictions or invent scope to make them pass. Recheck emphasis, repetition, leakage and fidelity after rewriting. Keep review outside the prompt; retain plot approval and settle retrieval against final wording.
+6. Save prompt, settings, evidence and any Studio destination in the task's declared inputs.
+7. `production_workflow.py check --task task.json` reports diagnostics without creating a run. `prepare` publishes request preview, execution plan and any dispatcher Generation Package.
+8. Review the complete prepared request and operation targets, repeating step 5 after transport changes. Dispatcher work follows `draft-execution`, actual decisions and `execute`.
+9. External work follows handoff, exact authorization, `claim-external`, host call, `capture` and `settle-external`. After interruption, `resume` recovers the existing execution.
+10. Compare candidates with requirements; diagnose failures from evidence. Dispatcher trials use `variant`, `repeat` or `retarget`; external trials use new tasks and exact input binding. Edits need semantic plans.
+11. `status` reports runs, next commands and execution records. [Operation logs](references/runtime/operation-logs.md) owns inspection, export and cleanup. Inspect staging before cleanup of its exact owner operation.
 
 Production Execution defines these commands, each with `--root STUDIO`. Prose and conversation-only prompts need no generation workflow.
 
@@ -137,9 +138,9 @@ Create reference artifacts only for selected sources. Declare authority, subject
 
 ## Output contract
 
-For world, persona or narrative work, return requested artifacts with their actual design status. Prompt work returns the prompt, with a negative only when requested or supported. Without a named parser, use portable wording and no interface-specific weights unless requested. Reference-free drafts include concise provenance and no empty placeholders.
+Return the requested artifact in its requested form. World, persona and narrative artifacts retain their actual design status. Prompt delivery contains the prompt and any requested or supported negative channel. Add settings or reference artifacts when the requested handoff needs them. Without a named parser, use portable wording and no interface-specific weights unless requested. Omit empty placeholders.
 
-Deliver actual reference files when selected or when a reusable package is requested; [Prompt-Only Core](references/runtime/prompt-only-core.md) defines each condition. A file path or hash is not delivery.
+Deliver actual selected reference files under [Prompt Artifact References](references/runtime/reference-prompt-artifacts.md). A file path or hash is not delivery.
 
 ## Maintenance and release
 

@@ -105,7 +105,8 @@ are relative to the Studio root, not to the JSON file's directory; named
 final saved file bytes and update the references whenever those bytes change.
 
 With `mode: "authored-rendition"`, the agent interprets the checked attachment
-mapping into the final prompt. Keep `fields: []`. The [reference delivery
+mapping into the necessary use directions for the images actually supplied.
+Keep `fields: []`. The [reference delivery
 contract](reference-delivery.md) supplies actual image positions, panel regions
 and source scopes for that judgment. `native-fields` uses only the provider's
 evidenced reference controls declared in the contract; `not-supported` leaves
@@ -115,9 +116,9 @@ reference instruction delivery unavailable. Without reference bindings,
 The [synthetic policy](../../examples/state-aware-pilot/generated/synthetic-validation/999c2597753319e4/policy.json)
 and [reference render contract](../../examples/state-aware-pilot/generated/synthetic-validation/999c2597753319e4/references.json)
 provide complete saved examples. Author the target, dialect, policy choice and
-source witnesses for the selected execution. Internal context remains authoring
-input; request acceptance and the image's use of references require their own
-structural and semantic review.
+source witnesses for the selected execution. Keep binding IDs, policy choices
+and source witnesses in those records. Review the complete authored image and
+its reference directions in the existing exact-input rendition review.
 
 ## Import a schema and publish it
 
@@ -158,6 +159,9 @@ The plan names one `purpose`; the compiler never infers it from words in the que
 - `output_quality`: the output meets a stated quality.
 
 The plan records the question, change factor, fixed conditions, comparison, observation targets, decision method, handling of an indeterminate result, any deviation from the model's recommendations with its reason, quantity, cost conditions and stop conditions.
+Author a complete depiction that exercises the trial's question. Keep the
+question, decision method and grading in the trial plan; native settings belong
+to the exact request controls.
 A trial is one external request with one output; the request's output count and the run's dispatch claims must match the plan's `quantity`.
 A visual question needs settings that give a judgeable image.
 A trial of a recommendation itself may use values outside it.

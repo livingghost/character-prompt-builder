@@ -141,13 +141,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--model", help="The model record; the production specification's target_model when omitted")
     parser.add_argument("--negative-file", help="Portable negative prompt, a UTF-8 text file")
     parser.add_argument("--integrated-prompt-file",
-                        help="Agent-authored affirmative rendition for single-prompt interfaces")
-    parser.add_argument("--native-negative-file", help="Concise native negative subset, a UTF-8 text file")
-    parser.add_argument("--negative-provenance-file", help="JSON object listing activated, retained, and translated negative sources")
+                        help="Authored rendition for the selected single-prompt interface")
+    parser.add_argument("--native-negative-file", help="Authored native negative text, a UTF-8 text file")
+    parser.add_argument("--negative-provenance-file", help="JSON object listing activated and retained sources and user exclusions")
     parser.add_argument("--negative-transport", choices=sorted(TRANSPORT_MODES), default="auto",
                         help="How the named target interface receives avoidance instructions")
     parser.add_argument("--critical-avoidance-integrated", action="store_true",
-                        help="Certify that the primary positive prompt already contains the critical affirmative construction requirements")
+                        help="Certify the primary prompt as the reviewed single-field rendition, including necessary exclusions")
     brief = parser.add_mutually_exclusive_group()
     brief.add_argument("--brief", default="", help="The request in words")
     brief.add_argument("--brief-file", help="The request as a UTF-8 text file")

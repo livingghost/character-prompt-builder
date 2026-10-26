@@ -17,7 +17,6 @@ from prompt_writing_guide import (
 
 
 SEMANTIC_EXCLUSION_SOURCE = "semantic_exclusions"
-SEMANTIC_EXCLUSION_SUFFIX = "only when the user explicitly excludes them."
 DIAGNOSTIC_ONLY_NEGATIVE_SOURCES = (
     "scene_failure_modes",
     "atomic_misreadings",
@@ -48,12 +47,13 @@ def negative_source_emission_allowed(
     negative_policy: Mapping[str, Any],
     source_id: str,
     *,
+    source_activated: bool = False,
     user_explicitly_excluded: bool = False,
 ) -> bool:
-    """Apply the merged negative-policy source activation boundary."""
+    """Check declared source authority and the author's activation decision."""
     if source_id == SEMANTIC_EXCLUSION_SOURCE:
-        rule = str(negative_policy.get("semantic_exclusion_rule") or "").strip()
-        if not rule.endswith(SEMANTIC_EXCLUSION_SUFFIX):
+        rule = negative_policy.get("semantic_exclusion_rule")
+        if not isinstance(rule, Mapping) or rule.get("requires_user_exclusion") is not True:
             raise ValueError("semantic exclusions must be user-request-only")
         return bool(user_explicitly_excluded)
 
@@ -64,9 +64,9 @@ def negative_source_emission_allowed(
             raise ValueError(f"diagnostic-only source {source_id!r} must be an object")
         return row.get("automatic_emission") is True
 
-    automatic = negative_policy.get("automatic_sources")
-    if isinstance(automatic, Mapping) and source_id in automatic:
-        return True
+    candidates = negative_policy.get("candidate_sources")
+    if isinstance(candidates, Mapping) and source_id in candidates:
+        return bool(source_activated)
     raise ValueError(f"unknown negative-policy source: {source_id}")
 
 
@@ -112,6 +112,19 @@ def validate_negative_policy(value: Any) -> list[str]:
     if not isinstance(value, Mapping):
         return ["negative-policy must contain an object"]
     errors: list[str] = []
+    candidates = value.get("candidate_sources")
+    if not isinstance(candidates, Mapping):
+        errors.append("candidate_sources must be an object")
+    else:
+        for source_id, source in candidates.items():
+            if not isinstance(source_id, str) or not source_id.strip():
+                errors.append("candidate source IDs must be nonempty strings")
+            if (not isinstance(source, Mapping) or not isinstance(source.get("activation"), str)
+                    or not source["activation"].strip()):
+                errors.append(f"candidate source {source_id!r} requires activation guidance")
+    rule = value.get("semantic_exclusion_rule")
+    if isinstance(rule, Mapping) and (not isinstance(rule.get("guidance"), str) or not rule["guidance"].strip()):
+        errors.append("semantic_exclusion_rule.guidance must be nonempty text")
     try:
         if negative_source_emission_allowed(
             value,

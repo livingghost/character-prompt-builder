@@ -275,8 +275,8 @@ def fill_decisions(root:Path,run:str,path:str)->str:
         if request['operation']=='submit':
             request['request_decision']['principal_approval']=assessment_source(root,request['payload'],
                 principal=authority['issuer'],path=authority['evidence']['path'],locator='whole')
-            request['request_decision']['rendition_review'].update(conclusion='satisfied',
-                reason='Synthetic protocol fixture checks exact bytes, not image quality.')
+            from production_fixtures import assess_rendition
+            assess_rendition(request['request_decision']['rendition_review'])
     write(root/path,value)
     return path
 

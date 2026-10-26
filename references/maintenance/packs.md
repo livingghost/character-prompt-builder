@@ -49,7 +49,7 @@ An `asset` is a searchable record, not a loose file. Its `primary_resource` iden
 Most named resources are opaque to core pack validation. Core workflows apply semantic contracts to named resources, including:
 
 - `pack-defaults` enables one medium family by default and permits a hybrid only after an explicit request: `medium_policy.single_medium_family_by_default` and `medium_policy.hybrid_requires_explicit_request` are both `true`.
-- `negative-policy` makes semantic exclusions user-request-only. Its `scene_failure_modes` and `atomic_misreadings` sources remain diagnostic-only with `automatic_emission: false`.
+- `negative-policy` stores candidate sources with activation guidance for the author. `semantic_exclusion_rule.requires_user_exclusion` is `true`; its `guidance` explains the scope. The author explicitly activates a candidate. `scene_failure_modes` and `atomic_misreadings` remain diagnostic-only with `automatic_emission: false`.
 - `discovery-lanes` keeps every `preferred_scene_ids` target resolvable in the active canonical record set. Missing targets exclude the resource and produce a diagnostic instead of being silently skipped.
 - `model-selection-preferences` holds scoped author choices under the [preference schema](../../schemas/model-selection-preferences.schema.json). Entries retain their selectors, reasons and provenance.
 

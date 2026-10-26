@@ -164,6 +164,32 @@
           "type": "null"
         }
       ]
+    },
+    "review_requirements": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "enum": [
+              "finished-image",
+              "supplied-inputs",
+              "ownership"
+            ]
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "statement"
+        ],
+        "additionalProperties": false
+      }
     }
   },
   "required": [
@@ -190,7 +216,8 @@
         "model",
         "prepared_request_sha256",
         "model_identity",
-        "validation"
+        "validation",
+        "review_requirements"
       ]
     }
   },
@@ -204,7 +231,8 @@
         "transport",
         "handoff",
         "validation",
-        "mutable_fields"
+        "mutable_fields",
+        "review_requirements"
       ]
     }
   },

@@ -38,6 +38,9 @@ an optional control is not automatically activated by a recommendation.
 
 ## Author the matching rendition
 
+Assign weights only after the complete depiction and each clause's scope are clear.
+Keep the necessary identity detail and exclusions when expressing priorities.
+
 | Intent | sdEmbeds rendition | Compel rendition |
 |---|---|---|
 | Explicit fragment weight | `(blue eyes:1.2)` | `(blue eyes)1.2` |
@@ -93,16 +96,17 @@ actual wire layout. Both positive and negative fields are parsed after model
 recommendations, negative-channel selection and reference instructions. Mixed
 syntax, broken delimiters, ignored trailing text, non-finite weights or invalid
 clause arity stop preparation. The final request bytes are not rewritten by the
-inspector. Vocabulary checks run within each conditioning clause, and the report
-keeps `channel`, `clause` and character ranges so the author can locate a finding.
+inspector. Dictionary evidence is collected within each conditioning clause, and
+the report keeps `channel`, `clause` and character ranges for inspection.
 A repeated term in two independent clauses is not a duplicate in a single clause.
-The combined picture is still an author review, not a mechanically proven result.
+Term repetition and dictionary relationships are evidence for the author's review
+of the combined picture, not mechanical acceptance criteria.
 
 `execution_plan.prompt_check` stores the selected syntax, parsed channels,
 findings, dictionary meanings and the verified model-recommendation audit beside
 the full request. A target without a
 learned tag family still receives syntax checks, without pretending prose is
-booru vocabulary. Dictionary notes and clause-meaning notes are not approval.
+booru vocabulary. Dictionary evidence is not approval of the combined meaning.
 
 ## Recommendations and shared reference instructions
 
@@ -124,7 +128,9 @@ rewrite the selected model record. The author can place any wanted guidance in
 the appropriate authored clause and approve the resulting request. Invalid
 **authored** text is still an error, not an advisory recommendation.
 
-The same boundary applies to reference/policy prefix text. A prefix that leaves
+The same boundary applies to authored directions for the actual supplied images.
+Internal binding identifiers and policy records remain outside the prompt.
+A prefix that leaves
 an entire compound outside the supported grammar is refused rather than guessed
 into its clauses. Select a declared native reference mechanism or author the
 instructions into the clause scope explicitly. Do not bypass the final request

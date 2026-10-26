@@ -28,8 +28,8 @@ def decisions(root: Path, run: str) -> str:
         if request['operation'] == 'submit':
             request['request_decision']['principal_approval'] = assessment_source(root, request['payload'],
                 principal=authority['issuer'], path=authority['evidence']['path'], locator='whole')
-            request['request_decision']['rendition_review'].update(conclusion='satisfied',
-                reason='Synthetic protocol fixture checks exact bytes, not image quality.')
+            from production_fixtures import assess_rendition
+            assess_rendition(request['request_decision']['rendition_review'])
     path = f'decisions-{run}.json'
     fixtures.write(root / path, value)
     return path
@@ -76,6 +76,38 @@ class ExecutionTests(unittest.TestCase):
         with self.assertRaises(ProductionError):
             execution.execute(self.root, self.run, decisions_file=path)
         self.assertEqual(store.event_rows(self.root, self.run), [])
+
+    def test_incomplete_whole_input_assessment_cannot_authorize_a_send(self):
+        path = decisions(self.root, self.run)
+        value = c.load(self.root / path)
+        submit = next(row for row in value['authorizations'] if row['operation'] == 'submit')
+        review = submit['request_decision']['rendition_review']
+        self.assertEqual(review['input_sha256'], submit['payload']['request_sha256'])
+        complete = copy.deepcopy(review)
+        for change in ('missing-criterion', 'wrong-actor', 'unmeasured-ownership',
+                       'not-satisfied', 'unmeasured', 'different-input'):
+            with self.subTest(change=change):
+                altered = copy.deepcopy(complete)
+                if change == 'missing-criterion':
+                    altered['assessments'].pop()
+                elif change == 'wrong-actor':
+                    altered['reviewer'] = 'another author'
+                elif change == 'unmeasured-ownership':
+                    next(item for item in altered['assessments'] if item['criterion'] == 'ownership')['conclusion'] = 'unmeasured'
+                elif change in {'not-satisfied', 'unmeasured'}:
+                    assessment = next(item for item in altered['assessments'] if item['criterion'] == 'finished-image')
+                    assessment.update(conclusion=change,
+                        reason='Synthetic reviewer leaves the same-subject action conflict unresolved.')
+                else:
+                    altered['input_sha256'] = '0' * 64
+                submit['request_decision']['rendition_review'] = altered
+                fixtures.write(self.root / path, value)
+                with patch.object(transport_synthetic, 'send') as send:
+                    with self.assertRaises(ValueError):
+                        execution.execute(self.root, self.run, decisions_file=path)
+                    send.assert_not_called()
+                self.assertEqual(store.event_rows(self.root, self.run), [])
+                self.assertEqual(accounting.all_states(self.root), [])
 
 
     def test_timeout_retains_execution_and_resume_never_sends(self):

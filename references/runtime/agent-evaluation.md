@@ -130,6 +130,28 @@ For scene Persona work, include:
 
 Evaluate the total actual work and the resulting expression; a shorter entrance document earns nothing for its brevity alone.
 
+### Prompt meaning
+
+Give each fresh agent a brief and its actual sources without the expected
+interpretation. Judge the resulting prompt or necessary clarification against
+the brief. Include these complementary cases:
+
+- Opposing properties belong to different subjects, regions or supported
+  moments. The result should preserve their scopes and complete the depiction.
+- Paraphrased requirements demand incompatible states of the same subject and
+  region at the same moment. Fixed anchors need a decision; a conflicting draft
+  choice should be repaired within the agent's authority.
+- A reference supplies identity while its pose differs from the requested
+  action. The source's unassigned state must not displace the target state.
+- A crop, action or exclusion changes the intended event despite valid syntax.
+  Assess fidelity to the event, not just the presence of its objects.
+
+Inspect the complete positive and negative text, media and native controls.
+Test the actual transport when it changes scope or emphasis. Record authored
+reasons and outputs as evidence; neither a schema-valid plan nor a satisfied
+review field demonstrates successful semantic reasoning. Judge useful repairs,
+unnecessary refusals and silent loss of anchors separately.
+
 ## Operational limits
 
 A fresh directory is a workspace rather than an operating-system security sandbox, so run trusted commands with approved arguments. They keep the executing user's permissions and environment, may reach the network and may use host credentials; the runner leaves remote spending unbounded.

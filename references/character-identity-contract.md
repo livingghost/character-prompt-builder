@@ -42,13 +42,13 @@ For every cross-scene reuse, derive an explicit transfer map:
 - source-render context or contamination that must be discarded or rescoped;
 - scene-only geometry or finish supplied by other references.
 
-Unless the user or approved state artifacts require continuity, unlock the complete source scene-specific character state across performance and attention, articulation and action, physical and physiological condition, appearance and presentation, possession and equipment, relationship and viewer awareness, environmental response, and resolved current state. Treat camera, crop, lighting, environment, finish, and source-specific text or insignia as source-render context rather than character identity. The model-facing prompt must define the state class, exclude it by domain, and provide affirmative target replacements for every load-bearing domain. A request for the `same character` does not communicate this distinction reliably by itself.
+Unless the user or approved state artifacts require continuity, unlock the complete source scene-specific character state across performance and attention, articulation and action, physical and physiological condition, appearance and presentation, possession and equipment, relationship and viewer awareness, environmental response, and resolved current state. Treat camera, crop, lighting, environment, finish, and source-specific text or insignia as source-render context rather than character identity. Keep this classification in the transfer map. Author the target scene from it, adding only the necessary directions for the images actually supplied. A request for the `same character` does not communicate this distinction reliably by itself.
 
 For an anthropomorphic subject, human-like head hair is not implied by base fur and is not interchangeable with a mane, ruff, cheek tuft, crest, or other regional covering. Record every coexisting system independently with explicit presence, stable boundaries, landmark-based length, density, direction, texture, color relationship, silhouette role, and continuity rules. Cross-scene transfer preserves those permanent definitions while leaving wetness, temporary styling, wind response, flattening, raised fur, and other current presentation to the target scene state.
 
 ## Anchor fragments
 
-Each anchor fragment has exact wording, priority, visibility conditions, carriers, and omission conditions. A signature ear stud may be carried by approved reference media, text when the ear is visible, and review criteria. It is not pasted into every prompt when the ear is fully occluded.
+Each anchor fragment has exact wording, priority, visibility conditions, carriers, and omission conditions. Preserve the full specificity needed to reconstruct the character; concision does not permit generic replacement of identity anchors. A signature ear stud may be carried by approved reference media, text when the ear is visible, and review criteria. It is not pasted into every prompt when the ear is fully occluded.
 
 ## Coverage requirements
 

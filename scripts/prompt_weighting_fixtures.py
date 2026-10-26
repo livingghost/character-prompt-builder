@@ -16,6 +16,7 @@ NEGATIVE = '("lettering+, watermark", "signature").blend(1, 0.5)'
 def refresh(case: dict) -> None:
     """Rebuild only authored synthetic evidence after changing this fixture's interface."""
     from prompt_retrieval import settle_retrieval_record
+    from prepare_generation_references import resolve_model_record
     from request_validation_fixtures import fixture_validation
     from reading_fixtures import fixture_reading
     root = case['root']
@@ -26,7 +27,9 @@ def refresh(case: dict) -> None:
     text = (root / 'prompt.txt').read_text(encoding='utf-8')
     base.write(root / 'retrieval.json', settle_retrieval_record(retrieval, prompt=text, plot=c.load(root / 'plot.json')))
     base.write(root / 'validation.json', fixture_validation(root, MODEL, reference_mode='authored-rendition', service='synthetic'))
-    base.write(root / 'reading.json', fixture_reading(route='generation', studio=root, ledger=root / 'work/reads.jsonl'))
+    dialect = resolve_model_record(MODEL)[1].get('prompt_dialect')
+    base.write(root / 'reading.json', fixture_reading(route='generation', studio=root,
+               ledger=root / 'work/reads.jsonl', dialect=dialect))
 
 
 def create(root: Path, runtime_root: Path, *, prompt: str = PROMPT, negative: str = NEGATIVE,

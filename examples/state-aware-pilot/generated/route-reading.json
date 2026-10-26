@@ -6,11 +6,11 @@
     },
     {
       "path": "references/runtime/production-permissions.md",
-      "sha256": "424b228dc96c03394c0f65aa8a805138b9067394771c815c718e2db6b96826cd"
+      "sha256": "156197e244f84c92d40db293147e0fc5a833b351154ee4bf7285091d5ce6ecda"
     },
     {
       "path": "references/runtime/production-execution.md",
-      "sha256": "1bebaacbf7580f9b8b85e34f7ea78ac4fb9f046f28a6669c9ffa30ddd9712dbe"
+      "sha256": "f2b017082d69bccafdfafb75e41425f4d3e22737e1bdf5958700959d73b40c07"
     },
     {
       "path": "references/runtime/state-aware-series.md",
@@ -26,11 +26,11 @@
     },
     {
       "path": "references/runtime/prompt-writing-guide.md",
-      "sha256": "a3adaaafa56fa88c4982c623155fba942d37cda3ebd5d7b7195c58b7e682ce3b"
+      "sha256": "4647e2a9f5a682f82f3a40709378c9671571f16297d58f686a3e99c9f1b1ef50"
     },
     {
       "path": "references/runtime/prompt-weighting.md",
-      "sha256": "f7a5c22070705910fb28f525c306744f2c2ec1e1b03c43df1ca953520b738b50"
+      "sha256": "b5ca5dae5b5b9a2066c980d39a5fbad1f5b66cc3a33bfa8f6f12d0150acd45de"
     },
     {
       "path": "references/runtime/reference-delivery.md",
@@ -38,7 +38,7 @@
     },
     {
       "path": "references/runtime/render-contract.md",
-      "sha256": "2cd879e29e5a91a8f214e67801071efe6135d67113c54b9f16c787d2016c6548"
+      "sha256": "772854bd4ce24805f288bcb23d88bd73468d9c3933da43b3bf93c380c3acb49c"
     },
     {
       "path": "references/runtime/studio.md",
@@ -61,17 +61,19 @@
       "status": "present",
       "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
       "path": "resources/prompt-writing-guide/guide.json",
-      "sha256": "616812fc4e9baba0c0dc3b367890bbd2edf25e19a3cd66e54ece9d85d6ac03c5"
+      "sha256": "4ec9149887348cf28ef3a4f9044348476ab4ce2083c8f30f2e40f778937f1ebe",
+      "dialect": null
     },
     "prompt-dialects": {
       "status": "present",
       "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
       "path": "resources/prompt-dialects/dialects.json",
-      "sha256": "0adf7253a6216efb551417dbd194cd00fe86ddcfb0634d47cdb949410afc96c7"
+      "sha256": "8e312911ca023fc605ccab595df6ec2af52ed4fe0dfa8443d8093fdd8b551f39",
+      "dialect": null
     }
   },
   "route": "state-series",
-  "reading_key": "b37c5501d4a941be762d759a8f39fca4",
+  "reading_key": "16561a9096e015267cf7e72dd1b3bca0",
   "applied": [
     {
       "path": "references/runtime/state-aware-series.md",

@@ -8,6 +8,60 @@ from input_evidence import InputEvidence
 from reference_delivery import validate_subject_uses
 
 
+REVIEW_REQUIREMENTS = (
+    {'id': 'finished-image',
+     'statement': 'Reconstruct the intended image from the complete input and compare it with the author anchors. Explain how actions, visibility and exclusions coexist within their actual subject, region and moment scopes. Unresolved conflicts prevent a satisfied assessment.'},
+    {'id': 'supplied-inputs',
+     'statement': 'Assess whether instructions use only the supplied media and convey their intended roles, limits and subject assignments.'},
+    {'id': 'ownership',
+     'statement': 'Assess whether image text contains depiction and necessary input-use directions, while production records and native execution controls retain their own information.'},
+)
+
+
+def review_requirements() -> list[dict]:
+    """The author's distinct judgments over every text field, control and supplied image."""
+    return copy.deepcopy(list(REVIEW_REQUIREMENTS))
+
+
+def draft_review(input_sha256: str, *, actor: str | None, binding_ids: list[str]) -> dict:
+    """Name the complete input and its reference scopes; leave every judgment unanswered."""
+    c.sha(input_sha256)
+    return {'input_sha256': input_sha256, 'reviewer': actor, 'binding_ids': list(binding_ids),
+            'assessments': [{'criterion': item['id'], 'conclusion': None, 'reason': ''}
+                            for item in REVIEW_REQUIREMENTS]}
+
+
+def validate_review(review: Any, *, input_sha256: str, actor: str, binding_ids: list[str]) -> None:
+    """Verify exact coverage and the responsible actor's supplied judgments, never infer meaning."""
+    c.exact(review, {'input_sha256', 'reviewer', 'binding_ids', 'assessments'}, 'rendition review')
+    c.sha(input_sha256)
+    if review['input_sha256'] != input_sha256:
+        raise ValueError('rendition review belongs to another complete model input')
+    c.text(actor, 'authorized rendition reviewer')
+    if review['reviewer'] != actor:
+        raise ValueError('the authorized actor must record the rendition assessment')
+    reviewed = review['binding_ids']
+    if (not isinstance(reviewed, list) or any(not isinstance(item, str) for item in reviewed)
+            or len(set(reviewed)) != len(reviewed) or reviewed != binding_ids):
+        raise ValueError('rendition review must cover every transported reference binding in order')
+    assessments = review['assessments']
+    if not isinstance(assessments, list):
+        raise ValueError('rendition assessments must be an array')
+    required = {item['id'] for item in REVIEW_REQUIREMENTS}
+    seen = set()
+    for item in assessments:
+        c.exact(item, {'criterion', 'conclusion', 'reason'}, 'rendition criterion assessment')
+        criterion = c.text(item['criterion'], 'rendition criterion')
+        if criterion not in required or criterion in seen:
+            raise ValueError('rendition assessment criterion is unknown or repeated')
+        seen.add(criterion)
+        c.text(item['reason'], 'rendition assessment reason')
+        if item['conclusion'] != 'satisfied':
+            raise ValueError('the rendition assessment is incomplete or not satisfied')
+    if seen != required:
+        raise ValueError('rendition assessment has missing criteria')
+
+
 def _binding_id(row:dict)->str:
     return 'reference:'+str(row['reference_number'])
 
@@ -76,24 +130,17 @@ def reference_contract(policy:dict|None,reader:InputEvidence,expected_target:dic
 
 
 def compose(original:str,*,segments:list[dict]|None,authored_source:dict,bindings:list[dict],
-            reference_policy:dict|None,production_consumer:dict|None,
-            reader:InputEvidence,target:dict,dialect:str|None)->dict:
+            reference_policy:dict|None,reader:InputEvidence,target:dict,dialect:str|None)->dict:
     """Preserve the selected depiction and keep production records in the review context."""
     if not isinstance(original,str):raise ValueError('rendition must be a string')
     validate_bindings(bindings)
     parts=[];trace=[];controls=[];offset=0
-    requirements=[{'id':'depiction-inputs','kind':'meaning',
-        'binding_ids':[_binding_id(row) for row in bindings], 'sources':[authored_source],
-        'statement':'Assess whether the exact instructions and delivered media identify the intended depiction without access to project records.'}]
     def append(text,kind,refs,transform,binding_ids=None):
         nonlocal offset
         if not text:return
         parts.append(text);trace.append({'source_kind':kind,'source_refs':copy.deepcopy(refs),'transform_id':transform,
             'target_field':None,'target_range':{'start':offset,'end':offset+len(text)},'binding_ids':list(binding_ids or [])})
         offset+=len(text)
-    if production_consumer is not None:
-        requirements.append({'id':'production-direction','kind':'meaning','binding_ids':[],
-            'sources':[authored_source],'statement':'Assess the selected direction against this exact rendition.'})
     contract=reference_contract(reference_policy,reader,target,dialect,bindings)
     if contract is not None:
         ids=[_binding_id(row) for row in bindings]
@@ -102,8 +149,6 @@ def compose(original:str,*,segments:list[dict]|None,authored_source:dict,binding
                 values=[row[item['binding_field']] for row in bindings]
                 controls.append({'id':'reference-control:'+item['binding_field'],'field':rc.path_parts(item['request_field']),
                     'value':values if item['container']=='ordered-array' else values[0],'binding_ids':ids})
-        requirements.append({'id':'reference-rendition','kind':'meaning','binding_ids':ids,
-            'sources':[reference_policy['contract']],'statement':'Assess how the declared reference bindings reach this exact request.'})
     if segments is None:
         append(original,'authored',[authored_source],'selected-rendition')
     else:
@@ -117,22 +162,4 @@ def compose(original:str,*,segments:list[dict]|None,authored_source:dict,binding
             append(segment['text'],segment['source_kind'],[authored_source],'authored-rendition' if segment['source_kind']=='authored' else 'chosen-recommendation')
             end=segment['end']
         if end!=len(original):raise ValueError('rendition segments do not cover the complete text')
-    return {'text':''.join(parts),'trace':trace,'native_reference_controls':controls,'review_requirements':requirements}
-
-
-def validate_review(review:Any,rendered:dict,requirements:list[dict],reader:InputEvidence)->None:
-    """Verify assessment coverage, not the truth of the assessor's creative judgment."""
-    c.exact(review,{'request_sha256','actor','assessments','guide_applied','evidence'},'request assessment')
-    if review['request_sha256']!=rendered['request_sha256']:raise ValueError('request assessment covers a different rendered request')
-    c.text(review['actor'],'request assessor');reader.basis(review['evidence'])
-    if not isinstance(review['guide_applied'],list):raise ValueError('guide application selectors must be an array')
-    seen=set()
-    for item in review['assessments']:
-        c.exact(item,{'id','binding_ids','conclusion','reason'},'request criterion assessment')
-        c.text(item['reason'],'request assessment reason')
-        if item['id'] in seen:raise ValueError('request assessment criterion repeats')
-        seen.add(item['id'])
-        requirement=next((r for r in requirements if r['id']==item['id']),None)
-        if requirement is None or item['binding_ids']!=requirement['binding_ids']:raise ValueError('request assessment binding coverage differs')
-        if item['conclusion']!='satisfied':raise ValueError('the assigned assessor has not accepted this request criterion')
-    if seen!={r['id'] for r in requirements}:raise ValueError('request assessment has missing criteria')
+    return {'text':''.join(parts),'trace':trace,'native_reference_controls':controls,'review_requirements':review_requirements()}

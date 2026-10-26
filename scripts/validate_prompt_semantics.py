@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Check a semantic plan for structure-count, action and camera contradictions before a prompt is delivered."""
+"""Check declared structure assignments and camera bounds before prompt delivery.
+
+The author judges camera descriptions and the meaning of the complete input.
+"""
 from __future__ import annotations
 import operation_context as _operation_context
 
@@ -15,24 +18,21 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "schemas/prompt-semantic-preflight.schema.json"
 TEMPLATE_PATH = ROOT / "templates/prompt-semantic-preflight.json"
 
-WORMS_EYE = {"worms-eye", "worm's-eye", "worm-eye", "extreme-low-angle"}
-DISTANT_SCALES = {"wide", "extreme-wide", "long", "establishing", "full-establishing"}
-DISTANT_DISTANCES = {"far", "distant", "remote", "establishing"}
-LOW_HEIGHTS = {"ground", "floor", "ankle", "below-knee"}
-UPWARD_PITCHES = {"upward", "steep-upward", "up"}
-
 # What to write in each field the check reads. `[]` is a list item, `*` a key the author names.
 FIELDS = {
     "subject_id": "optional label for the plan; not checked",
     "camera": "an object with angle, shot_scale, distance, pitch and subject_frame_occupancy;"
               " --template prints a plan to start from",
-    "camera.angle": "text such as eye-level, high, low or worms-eye; worms-eye (also worm's-eye,"
-                    " extreme-low-angle) adds the low-camera checks",
+    "camera.angle": "authored angle text such as eye-level, high, low or worms-eye",
     "camera.shot_scale": "text such as close-up, medium or wide",
     "camera.distance": "text such as near, medium or far",
     "camera.camera_height": "optional text such as eye, waist, below-knee or ground",
     "camera.pitch": "text such as level, upward or downward",
     "camera.subject_frame_occupancy": "a number from 0 to 1, the share of the frame the subject fills, such as 0.5",
+    "camera.subject_frame_occupancy_bounds": "optional object with minimum and maximum from 0 to 1;"
+                                            " include only explicitly chosen occupancy limits",
+    "camera.subject_frame_occupancy_bounds.minimum": "a number from 0 to 1, the lowest allowed subject_frame_occupancy",
+    "camera.subject_frame_occupancy_bounds.maximum": "a number from 0 to 1, the highest allowed subject_frame_occupancy",
     "camera.establishing_context": "optional true or false: the frame sets out the surrounding place",
     "structure_plan": "an object with expected_counts and assigned_structures, which may be {} and [];"
                       " --template prints a plan to start from",
@@ -213,28 +213,18 @@ def validate_plan(plan: dict[str, Any]) -> dict[str, Any]:
             if len(values) > 1:
                 groups = {str(value.get("compatible_group") or "").strip() for value in values}
                 if "" in groups or len(groups) > 1:
-                    errors.append(f"{structure_id}: multiple incompatible primary actions may duplicate the structure")
+                    errors.append(f"{structure_id}: multiple primary actions require one declared compatible_group"
+                                  " or allow_multiple_primary_actions=true")
 
-    camera = plan.get("camera") if isinstance(plan.get("camera"), dict) else {}
-    angle = str(camera.get("angle") or "").strip().lower()
-    if angle in WORMS_EYE:
-        scale = str(camera.get("shot_scale") or "").strip().lower()
-        distance = str(camera.get("distance") or "").strip().lower()
-        height = str(camera.get("camera_height") or "").strip().lower()
-        pitch = str(camera.get("pitch") or "").strip().lower()
-        occupancy = camera.get("subject_frame_occupancy")
-        if scale in DISTANT_SCALES:
-            errors.append("worms-eye camera conflicts with a distant or establishing shot scale")
-        if distance in DISTANT_DISTANCES:
-            errors.append("worms-eye camera conflicts with distant camera distance")
-        if height and height not in LOW_HEIGHTS:
-            errors.append("worms-eye camera requires ground, floor, ankle, or below-knee camera height")
-        if pitch not in UPWARD_PITCHES:
-            errors.append("worms-eye camera requires an upward pitch")
-        if not isinstance(occupancy, (int, float)) or occupancy < 0.55:
-            errors.append("worms-eye camera requires subject_frame_occupancy of at least 0.55")
-        if camera.get("establishing_context") is True:
-            errors.append("worms-eye close-subject promise conflicts with establishing_context=true")
+    camera = plan["camera"]
+    bounds = camera.get("subject_frame_occupancy_bounds")
+    if bounds is not None:
+        minimum, maximum = bounds["minimum"], bounds["maximum"]
+        occupancy = camera["subject_frame_occupancy"]
+        if minimum > maximum:
+            errors.append("camera.subject_frame_occupancy_bounds: minimum exceeds maximum")
+        elif not minimum <= occupancy <= maximum:
+            errors.append(f"camera.subject_frame_occupancy: {occupancy} is outside declared bounds [{minimum}, {maximum}]")
 
     return {
         "ok": not errors,
@@ -243,7 +233,7 @@ def validate_plan(plan: dict[str, Any]) -> dict[str, Any]:
         "stats": {
             "assigned_structure_count": len(assigned),
             "primary_action_count": len(actions),
-            "worms_eye_checked": angle in WORMS_EYE,
+            "occupancy_bounds_checked": bounds is not None,
         },
     }
 
@@ -266,6 +256,7 @@ def self_test() -> dict[str, Any]:
         "camera": {
             "angle": "worms-eye", "shot_scale": "medium-close", "distance": "near",
             "camera_height": "below-knee", "pitch": "upward", "subject_frame_occupancy": 0.7,
+            "subject_frame_occupancy_bounds": {"minimum": 0.6, "maximum": 0.8},
             "establishing_context": False,
         },
     }
@@ -273,10 +264,21 @@ def self_test() -> dict[str, Any]:
     duplicate["structure_plan"]["assigned_structures"].append(
         {"structure_id": "left-arm-duplicate", "kind": "arm", "side": "left", "owner_id": "C01"}
     )
-    distant = json.loads(json.dumps(good))
-    distant["camera"].update({"shot_scale": "wide", "distance": "distant", "subject_frame_occupancy": 0.25})
-    reports = {"good": validate_plan(good), "duplicate": validate_plan(duplicate), "distant": validate_plan(distant)}
-    ok = reports["good"]["ok"] and not reports["duplicate"]["ok"] and not reports["distant"]["ok"]
+    outside = json.loads(json.dumps(good))
+    outside["camera"]["subject_frame_occupancy"] = 0.25
+    inverted = json.loads(json.dumps(good))
+    inverted["camera"]["subject_frame_occupancy_bounds"] = {"minimum": 0.8, "maximum": 0.6}
+    wide = json.loads(json.dumps(good))
+    wide["camera"].pop("subject_frame_occupancy_bounds")
+    wide["camera"].update({"shot_scale": "wide", "distance": "distant", "camera_height": "ground",
+                           "subject_frame_occupancy": 0.25, "establishing_context": True})
+    descriptive = json.loads(json.dumps(wide))
+    descriptive["camera"]["angle"] = "view upward from the ground"
+    cases = {"good": (good, True), "duplicate": (duplicate, False), "outside_bounds": (outside, False),
+             "inverted_bounds": (inverted, False), "wide_low_angle": (wide, True),
+             "described_low_angle": (descriptive, True)}
+    reports = {name: validate_plan(plan) for name, (plan, _) in cases.items()}
+    ok = all(reports[name]["ok"] == expected for name, (_, expected) in cases.items())
     return {"ok": ok, "errors": [] if ok else ["semantic preflight self-test failed"], "reports": reports}
 
 

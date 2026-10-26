@@ -6,11 +6,11 @@ Use this adapter only for an active FLUX model or workflow record. Complete [Ima
 
 Read the [Prompt Writing Guide Runtime](../runtime/prompt-writing-guide.md) before final rendition. Use its interface-neutral hierarchy, visible-scope, and controlled-comparison rules. Do not import Stable Diffusion bracket weighting, LoRA notation, or negative-field assumptions into a FLUX workflow unless the exact active record declares them.
 
-Front-load subject identity and action, then composition, style, and context. Preserve explicit spatial and material relationships. Keep one visual grammar and avoid process vocabulary that would replace the selected finish with sketch, paper, brush, or strand artifacts.
+Establish the whole image through its subjects, action, composition and intended finish before refining local attributes. Preserve explicit spatial and material relationships and required identity specificity. Keep one visual grammar and use process terms only when their visible effect belongs in that finish.
 
 ## Negative transport
 
-Do not assume negative conditioning exists in the active workflow. When the active record declares no negative conditioning, use `integrated-critical`: author affirmative construction for the activated technical requirements and retain the portable negative for traceability. When the workflow has an evidence-backed separate channel, use the exact transport declared by its model record.
+Do not assume negative conditioning exists in the active workflow. When the active record declares no negative conditioning, use `integrated-critical`: author the needed constraints within one coherent rendition and retain a portable negative when authored. Direct exclusions remain valid where they express the requirement clearly. When the workflow has an evidence-backed separate channel, use the exact transport declared by its model record.
 
 ## Reference forwarding
 

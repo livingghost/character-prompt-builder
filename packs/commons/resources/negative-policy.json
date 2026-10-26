@@ -1,6 +1,6 @@
 {
-  "principle": "This policy names the conditions that activate a negative, not its words. A source is active when its condition holds for the current generation. The target writes an active source in its own form: a family in the prompt-dialects resource as its negative_form says, a model with a prose negative field in short plain phrases, and a model with no negative field as affirmative wording in the positive prompt.",
-  "automatic_sources": {
+  "principle": "This policy supplies scoped negative sources for the author to assess against the current depiction. Select the constraints the image needs and express them in the target's supported form. A single prose channel may carry direct exclusions or positive construction; polarity alone does not decide meaning.",
+  "candidate_sources": {
     "generation_hygiene": {
       "activation": "character-image generation where incidental marks are unrelated to the requested design",
       "guards_against": [
@@ -66,16 +66,6 @@
         "broken contact geometry"
       ]
     },
-    "selected_render_profile": {
-      "activation": "a render profile is selected as the active medium grammar",
-      "source_field": "render-profile:negative_terms"
-    },
-    "selected_style_family": {
-      "activation": "a style family is selected as the active drawing grammar",
-      "source_field": "style-family:negative_terms"
-    }
-  },
-  "conditional_sources": {
     "observed_generation_failure": {
       "activation": "a reviewed result shows a failure or a drift from what the positive states, to correct on retry",
       "source": "generation review"
@@ -83,6 +73,14 @@
     "user_exclusion": {
       "activation": "the user explicitly excludes a concept or presentation",
       "source": "user brief"
+    },
+    "selected_render_profile": {
+      "activation": "the author selects a supported medium-drift boundary from the chosen render profile for this image",
+      "source_field": "render-profile:negative_terms"
+    },
+    "selected_style_family": {
+      "activation": "the author selects a supported medium-drift boundary from the chosen style family for this image",
+      "source_field": "style-family:negative_terms"
     }
   },
   "diagnostic_only_sources": {
@@ -93,7 +91,10 @@
       "automatic_emission": false
     }
   },
-  "semantic_exclusion_rule": "A negative names only what an active source guards against, including a drift a reviewed result showed; add other concepts, themes, and presentations only when the user explicitly excludes them.",
-  "merge_rule": "Write only the sources whose condition is true for the current generation.",
-  "applicability_rule": "Drop a source when a change to the scene, anatomy, wardrobe, props, or selected medium makes its condition false."
+  "semantic_exclusion_rule": {
+    "requires_user_exclusion": true,
+    "guidance": "A negative names only what an active source guards against, including a drift a reviewed result showed; add other concepts, themes, and presentations only when the user explicitly excludes them."
+  },
+  "merge_rule": "Assess each source against the complete intended image, explicit user requirements and applicable evidence. Select only necessary constraints, preserve their scope and provenance, and remove redundant wording. Source applicability does not require emitting every term in its bundle or a sentence for every source.",
+  "applicability_rule": "Judge applicability from the intended scene, anatomy, wardrobe, props, camera and finish, including required details the draft has missed. Decide whether a constraint is needed from that full context. An unmentioned structure does not automatically require a negative bundle or an instruction declaring it absent, occluded or out of frame."
 }

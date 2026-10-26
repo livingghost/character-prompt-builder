@@ -69,6 +69,8 @@ def validate_task(task: Any) -> dict:
         raise ValueError('semantic editing requires a shared image_input plan')
     if task.get('image_input') and (task['artifact'] != 'image' or task['execution'] not in {'external', 'dispatcher'}):
         raise ValueError('image inputs use an image task with a declared model execution')
+    if task['artifact'] == 'image' and task['execution'] == 'external' and not task.get('image_input'):
+        raise ValueError('external image tasks require an exact image_input request, including reference-free generation')
     if bool(task.get('scene_materials', [])) != ('scene-persona' in route['features']):
         raise ValueError('scene-persona requires explicit scene_materials selectors and vice versa')
     ids: set[str] = set()
@@ -789,13 +791,13 @@ def authorize_value(root: Path, run: str, request: dict, *, evidence_files: list
                 held.add((item['path'], item['sha256']))
                 files.append(store.capture_evidence(root, directory, item['path'], locator=item['locator'],
                                                     purpose=item['purpose'], raw=item['raw'], rows=rows))
-        elif request.get('request_decision') is not None:
-            raise ValueError('only a model dispatcher submission carries a model request decision')
-        if (prepared['task']['execution'] == 'external' and request['operation'] == 'submit'
-                and consumer.get('image_input')):
-            from image_input import require_external_authority
+        elif (prepared['task']['execution'] == 'external' and prepared['task']['artifact'] == 'image'
+                and request['operation'] == 'submit'):
+            from production_request import check_external_authorization
             grant = permissions.check(prepared['authority'], request)
-            require_external_authority(consumer['image_input'], grant)
+            check_external_authorization(consumer, request, grant)
+        elif request.get('request_decision') is not None:
+            raise ValueError('only a model image submission carries a model request decision')
         data = {'files': files, 'request': request,
                 'protected_criteria': protected_criteria_record(prepared, request['grant'])}
         for row in rows:
@@ -826,10 +828,11 @@ def _permission(root: Path, prepared: dict, rows: list[dict], identifier: str,
         directory=run_dir(root,prepared['run'])
         recorded=[(item['path'],c.object_read(directory,item['sha256'])) for item in row['data']['files']]
         check_authorization(root, prepared, request, grant, recorded=recorded)
-    elif operation == 'submit' and prepared['task']['execution'] == 'external' and prepared['task'].get('image_input'):
-        from image_input import require_external_authority
+    elif (operation == 'submit' and prepared['task']['execution'] == 'external'
+            and prepared['task']['artifact'] == 'image'):
+        from production_request import check_external_authorization
         consumer = load_run(root, prepared['run'])[2]
-        require_external_authority(consumer['image_input'], grant)
+        check_external_authorization(consumer, request, grant)
     return request
 
 
@@ -1805,7 +1808,7 @@ def adopt(root: Path, run: str, candidate: str, character: str, iteration: str,
 
 
 def draft_authorization(root: Path, run: str, grant_id: str, intent: dict) -> dict:
-    _, prepared, _, _ = authorization_context(root, run, intent.get('operation'))
+    _, prepared, consumer, _ = authorization_context(root, run, intent.get('operation'))
     matches = [g for g in prepared['authority']['grants'] if g['id'] == grant_id]
     if len(matches) != 1:
         raise ValueError('unknown grant id')
@@ -1819,6 +1822,10 @@ def draft_authorization(root: Path, run: str, grant_id: str, intent: dict) -> di
         from production_request import draft_decision, validate_payload
         validate_payload(intent['payload'])
         result['request_decision'] = draft_decision(intent['payload']['request_contract'], actor=result['actor'])
+    elif (intent['operation'] == 'submit' and prepared['task']['execution'] == 'external'
+            and prepared['task']['artifact'] == 'image'):
+        from production_request import draft_external_decision
+        result['request_decision'] = draft_external_decision(consumer['image_input'], actor=result['actor'])
     return result
 
 

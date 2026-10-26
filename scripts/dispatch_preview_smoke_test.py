@@ -45,7 +45,8 @@ class PreviewTests(unittest.TestCase):
         self.assertEqual(view['request_contract']['request_sha256'], plan['request_sha256'])
         self.assertEqual(view['validation']['mode'], self.request['request_validation']['mode'])
         decision = production_request.draft_decision(view['request_contract'], actor='synthetic selector')
-        self.assertIsNone(decision['rendition_review']['conclusion'])
+        self.assertTrue(all(item['conclusion'] is None for item in decision['rendition_review']['assessments']))
+        self.assertEqual(view['review_requirements'], plan['review_requirements'])
         self.assertIsNone(decision['principal_approval'])
         self.assertFalse(view['execution_ready'])
 

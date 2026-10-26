@@ -464,7 +464,7 @@
       "domain-realization-anthropomorphic-animal-baseline",
       "profile-clear-2d-illustration"
     ],
-    "production_spec_sha256": "2ee7548df1fe2a8263cdb2f344acaaead8ef53afbf61684706f8c06b540e6fd0",
+    "production_spec_sha256": "c9563e165e314de71e2285c3348e13e624f32dabe2b40e28c626a178afb8bc41",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99"
   },
   "production_spec": {
@@ -2576,7 +2576,7 @@
               "cue_id": "performance-gaze-c02",
               "channel": "gaze",
               "observation": "C01 looks toward C02 and then briefly away.",
-              "visual_instruction": "Aim the eyes toward C02 with a small evasive break in the held gaze.",
+              "visual_instruction": "Keep the head angled toward the nearby colleague while the eyes glance down and aside.",
               "laterality": "bilateral",
               "intensity": "subtle",
               "direction_or_target": "C02, followed by a brief off-target glance",
@@ -2936,7 +2936,7 @@
         "pose_and_body_geometry": "upright medium-close three-quarter office portrait with left hand braced on the desk edge",
         "hands": "left hand carries the visible tension and remains fully attached to the desk-support chain",
         "legs_and_feet": "outside the crop",
-        "gaze_and_head": "looks toward C02, then briefly away, with the subject-left ear visible",
+        "gaze_and_head": "head angled toward C02 while the eyes glance down and aside, with the subject-left ear visible",
         "props_and_contacts": "desk edge supports the left hand; the transferred pendant is possessed by C02 and does not appear on C01"
       }
     ],
@@ -3070,8 +3070,8 @@
       "profile-clear-2d-illustration"
     ]
   },
-  "production_spec_sha256": "2ee7548df1fe2a8263cdb2f344acaaead8ef53afbf61684706f8c06b540e6fd0",
-  "composition_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+  "production_spec_sha256": "c9563e165e314de71e2285c3348e13e624f32dabe2b40e28c626a178afb8bc41",
+  "composition_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
   "retrieval_record": {
     "artifact_type": "prompt-retrieval-record",
     "pack_state": "illustrative-state-pilot",
@@ -3083,17 +3083,17 @@
         ],
         "inspected_records": [],
         "outcome": "composed",
-        "composed_wording": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+        "composed_wording": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
         "reason": "Illustrative deterministic fixture, not evidence of a production retrieval session."
       }
     ],
     "settled": true,
     "context": {
-      "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
+      "prompt_sha256": "19c16123526b5af191d2a8981416b5d3043b7b413c0d6bfd14027049cc0e4dd6",
       "plot_content_sha256": "58dd32ffbba312183167b59baa25e737f7ea21de2e692b37db7b92f8790541fe"
     }
   },
-  "retrieval_record_sha256": "5b6d2fb640782c473f4731617628dc53f729fafdc784cb32dce2447a983cbbcb",
+  "retrieval_record_sha256": "588108ff6fee4ddc156770fab454e0a6063aac698903a752d32023a5313c29ac",
   "plot": {
     "artifact_type": "prompt-plot",
     "story": [
@@ -9428,9 +9428,9 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
   "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-  "generation_input_sha256": "e4d73975f15a38f8e61785ebba0bb138e9394c4bc6314d11463eafb58b811d6e",
+  "generation_input_sha256": "5c16a27ae0465350887344a0bd7973194229790634496ca3b55028cdb2234b0f",
   "generation_payload": {
-    "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+    "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
     "native_negative": "",
     "transports": {
@@ -9438,17 +9438,17 @@
         "available": true,
         "channel": "prompt_plus_negative_fields",
         "method": "verbatim-separate-fields",
-        "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+        "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
         "negative": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
-        "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
+        "prompt_sha256": "19c16123526b5af191d2a8981416b5d3043b7b413c0d6bfd14027049cc0e4dd6",
         "negative_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570"
       },
       "integrated": {
         "available": true,
         "channel": "single_prompt_field",
-        "method": "authored-affirmative",
-        "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
-        "sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1"
+        "method": "authored-rendition",
+        "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
+        "sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121"
       },
       "native_subset": {
         "available": false,
@@ -9460,15 +9460,15 @@
         "negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "paste_instructions": {
-        "single_prompt_field": "Paste transports.integrated.text as the only prompt. The text must be an agent-authored affirmative rendition or the certified primary prompt.",
+        "single_prompt_field": "Paste transports.integrated.text as the only prompt. The text must be an authored single-field rendition or the certified primary prompt.",
         "prompt_plus_negative_fields": "Paste transports.separate.prompt into the positive field and transports.separate.negative into the independent negative field, verbatim.",
-        "prompt_plus_native_negative": "Paste transports.native_subset.prompt as the main prompt and transmit transports.native_subset.negative through the platform's concise native negative syntax, verbatim."
+        "prompt_plus_native_negative": "Paste transports.native_subset.prompt as the main prompt and transmit transports.native_subset.negative through the platform's native negative syntax, verbatim."
       }
     },
     "negative_transport": {
       "mode": "integrated-critical",
       "channel": "single_prompt_field",
-      "instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
+      "instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
       "critical_avoidance_integrated": true,
       "send_full_negative_verbatim": false,
       "send_native_negative_verbatim": false
@@ -9481,13 +9481,7 @@
         "state-integrity:prop-ownership"
       ],
       "diagnostic_sources_retained": [],
-      "semantic_exclusions_user_supplied": [],
-      "affirmative_translations": {
-        "style-family:style-family-clear-portrait": "crisp facial markings",
-        "render-profile:profile-clear-2d-illustration": "a clearly illustrated soft-cel medium",
-        "state-integrity:left-right": "stable left-right identity",
-        "state-integrity:prop-ownership": "the wolf's neck and shirt remain visibly free of that pendant"
-      }
+      "semantic_exclusions_user_supplied": []
     },
     "prompt_recommendations": {
       "merge_mode": "advisory-only",
@@ -9498,14 +9492,14 @@
         "weighting": "literal",
         "reason": "not-declared",
         "recommended_text": "",
-        "source_text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+        "source_text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
         "limit": null,
         "segments": [
           {
             "source_kind": "authored",
             "start": 0,
-            "end": 1009,
-            "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague."
+            "end": 964,
+            "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck."
           }
         ]
       },
@@ -9534,14 +9528,14 @@
         "weighting": "literal",
         "reason": "not-declared",
         "recommended_text": "",
-        "source_text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
+        "source_text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
         "limit": null,
         "segments": [
           {
             "source_kind": "authored",
             "start": 0,
-            "end": 1082,
-            "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant."
+            "end": 1069,
+            "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck."
           }
         ]
       },
@@ -9564,10 +9558,10 @@
       "observed_at": "2026-10-06",
       "schema_snapshot": "resources/observed-schemas/gpt-image-2-5-flare.runware.json"
     },
-    "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
+    "prompt_sha256": "19c16123526b5af191d2a8981416b5d3043b7b413c0d6bfd14027049cc0e4dd6",
     "negative_prompt_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",
     "native_negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "prompt_recommendations_sha256": "dd1dbdeddeb9892e98b64e519c86f131abbf63533a67bac439a835adac6a48e1"
+    "prompt_recommendations_sha256": "525c66a877c41b6b30015a6cdb645a146b70d4c910fa99539c9ec8b159898029"
   },
   "generation_contract": {
     "forward_verified_prompt_transport": true,
@@ -9575,20 +9569,20 @@
     "forward_ordered_reference_transports": true,
     "do_not_reconstruct_from_chat": true,
     "negative_transport_mode": "integrated-critical",
-    "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
+    "prompt_sha256": "19c16123526b5af191d2a8981416b5d3043b7b413c0d6bfd14027049cc0e4dd6",
     "negative_prompt_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",
     "native_negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "prompt_recommendations_sha256": "dd1dbdeddeb9892e98b64e519c86f131abbf63533a67bac439a835adac6a48e1",
-    "production_spec_sha256": "2ee7548df1fe2a8263cdb2f344acaaead8ef53afbf61684706f8c06b540e6fd0",
+    "prompt_recommendations_sha256": "525c66a877c41b6b30015a6cdb645a146b70d4c910fa99539c9ec8b159898029",
+    "production_spec_sha256": "c9563e165e314de71e2285c3348e13e624f32dabe2b40e28c626a178afb8bc41",
     "plot_sha256": "12379b02bc4cc79db80bbd6ce9f74dec157a0f59150965c2928125733acdff4f",
-    "retrieval_record_sha256": "5b6d2fb640782c473f4731617628dc53f729fafdc784cb32dce2447a983cbbcb",
+    "retrieval_record_sha256": "588108ff6fee4ddc156770fab454e0a6063aac698903a752d32023a5313c29ac",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "state_graphs_sha256": "9639bdbd5f1cb2b3b33f5515b7cbb9c47ac6ee26f7726360e6948c0b75a1d231",
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-    "generation_input_sha256": "e4d73975f15a38f8e61785ebba0bb138e9394c4bc6314d11463eafb58b811d6e",
-    "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
+    "generation_input_sha256": "5c16a27ae0465350887344a0bd7973194229790634496ca3b55028cdb2234b0f",
+    "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "5a0a9adf064411f018a3edb3f425f62437b467f79d278fc48f352dd1f6c15eef",
+    "route_reading_sha256": "e4c4d583a62caf5cb92abb046b51affec306fbf3dbca38b636a188c93de0d309",
     "request_validation_sha256": "12349d3ed381bb3c6ba33ed4a55363d668fe600081e341bb5481053caa52c25b",
     "input_snapshots_sha256": "63cc0dbacde1d5ec4bd174155c10863ff3498e1f5b205d8c511797107c4c2757"
   },
@@ -9617,11 +9611,11 @@
       },
       {
         "path": "references/runtime/production-permissions.md",
-        "sha256": "424b228dc96c03394c0f65aa8a805138b9067394771c815c718e2db6b96826cd"
+        "sha256": "156197e244f84c92d40db293147e0fc5a833b351154ee4bf7285091d5ce6ecda"
       },
       {
         "path": "references/runtime/production-execution.md",
-        "sha256": "1bebaacbf7580f9b8b85e34f7ea78ac4fb9f046f28a6669c9ffa30ddd9712dbe"
+        "sha256": "f2b017082d69bccafdfafb75e41425f4d3e22737e1bdf5958700959d73b40c07"
       },
       {
         "path": "references/runtime/state-aware-series.md",
@@ -9637,11 +9631,11 @@
       },
       {
         "path": "references/runtime/prompt-writing-guide.md",
-        "sha256": "a3adaaafa56fa88c4982c623155fba942d37cda3ebd5d7b7195c58b7e682ce3b"
+        "sha256": "4647e2a9f5a682f82f3a40709378c9671571f16297d58f686a3e99c9f1b1ef50"
       },
       {
         "path": "references/runtime/prompt-weighting.md",
-        "sha256": "f7a5c22070705910fb28f525c306744f2c2ec1e1b03c43df1ca953520b738b50"
+        "sha256": "b5ca5dae5b5b9a2066c980d39a5fbad1f5b66cc3a33bfa8f6f12d0150acd45de"
       },
       {
         "path": "references/runtime/reference-delivery.md",
@@ -9649,7 +9643,7 @@
       },
       {
         "path": "references/runtime/render-contract.md",
-        "sha256": "2cd879e29e5a91a8f214e67801071efe6135d67113c54b9f16c787d2016c6548"
+        "sha256": "772854bd4ce24805f288bcb23d88bd73468d9c3933da43b3bf93c380c3acb49c"
       },
       {
         "path": "references/runtime/studio.md",
@@ -9672,17 +9666,19 @@
         "status": "present",
         "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
         "path": "resources/prompt-writing-guide/guide.json",
-        "sha256": "616812fc4e9baba0c0dc3b367890bbd2edf25e19a3cd66e54ece9d85d6ac03c5"
+        "sha256": "4ec9149887348cf28ef3a4f9044348476ab4ce2083c8f30f2e40f778937f1ebe",
+        "dialect": null
       },
       "prompt-dialects": {
         "status": "present",
         "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
         "path": "resources/prompt-dialects/dialects.json",
-        "sha256": "0adf7253a6216efb551417dbd194cd00fe86ddcfb0634d47cdb949410afc96c7"
+        "sha256": "8e312911ca023fc605ccab595df6ec2af52ed4fe0dfa8443d8093fdd8b551f39",
+        "dialect": null
       }
     },
     "route": "state-series",
-    "reading_key": "b37c5501d4a941be762d759a8f39fca4",
+    "reading_key": "16561a9096e015267cf7e72dd1b3bca0",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
@@ -9709,7 +9705,7 @@
       }
     ]
   },
-  "route_reading_sha256": "5a0a9adf064411f018a3edb3f425f62437b467f79d278fc48f352dd1f6c15eef",
+  "route_reading_sha256": "e4c4d583a62caf5cb92abb046b51affec306fbf3dbca38b636a188c93de0d309",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",

@@ -67,9 +67,14 @@ Results are lexical candidates rather than adopted prompt text.
 python scripts/search_prompt_vocabulary.py   --dictionary DICTIONARY_JSON   --read prompt.txt   --negative negative.txt
 ```
 
-Search finds a term while the text is being written; this reads the text back once it is written. Every term is returned in the order the surface will read it, with the category and the description of what the dictionary says it draws, so the writer confirms the picture they meant against the picture the words make. A term the dictionary does not know is marked as such and is not an error, since a checkpoint knows words no dictionary lists; it is the one place where the writer has no statement to check against, and the place to look first when a result surprises.
-
-The report ends with notices, each a statement the text makes against itself: a weight written on a term the dictionary does not know, which raises the term's tokens without binding them to the thing meant; a term written in the primary field and the negative field at once; one single-valued property named twice; a pair the dictionary records as opposing; and a part these models draw badly asked for at close scale. None of them is decided by the tool. They are the questions a reader would otherwise have to remember to ask.
+Readback returns the written terms with every matching dictionary definition,
+including category guidance, aliases and usage notes. Several definitions may
+share a spelling. An unmatched term reports lookup coverage, not invalidity.
+Use the complete prompt and selected interface to decide which meanings apply.
+This lookup reads comma-separated phrases literally, preserving punctuation
+and numeric content. For weighted or compound conditioning, use
+`check_tag_prompt.py` with the interface's explicit parser selection under
+[Prompt Writing Guide](prompt-writing-guide.md#read-the-rendition-back-before-it-is-sent).
 
 The same reading is what a user is shown before a run when the decision is theirs, beside a rendering in their language.
 

@@ -23,7 +23,9 @@ A Production Specification may be regenerated whenever scene-visible semantic in
 
 Use `state_context.mode: "stateless"` for a one-off image and for the first images of a character, when no approved temporal canon exists. A stateless `state_context` holds only the mode and optional notes, and the builder seals the stateless lineage.
 
-For every such image, including prompt-only delivery, draft the smallest valid specification for its subject, replace each `"unspecified"` the author decides, add the camera contract and the performance record once decided, and validate it before final prompt delivery or packaging:
+For a detailed composition or dispatcher request, draft the specification for
+its subject. Replace each `"unspecified"` the author decides and add the camera
+and performance records once decided. Validate before delivery or packaging:
 
 ```bash
 python scripts/production_spec.py draft production-spec.json --root STUDIO --model grok-imagine-image-2.0 \
@@ -191,17 +193,24 @@ A free text field the author does not decide holds the string `"unspecified"`. T
 
 Select the specification's task-bearing content using
 [Prompt Composition](runtime/prompt-composition.md#select-the-depiction), then
-express one depiction in fluent English, with subjects and references resolved
-within the delivered inputs. `user_anchors` preserves requirements;
+compose the whole image before refining subject detail and necessary exclusions.
+Resolve subjects and reference uses within the delivered text and images.
+`user_anchors` preserves requirements;
 `purposeful_additions` records chosen effects; `construction_invariants` records
 relationships essential to the result. Scene, subject and camera fields hold
 their realization. Keep consequential assumptions at their existing owner.
 
 A complete state record is not a complete prompt inventory. Carry necessary
 identity, visible state, action, relationship, camera and finish at the
-specificity the image needs. Leave incidental deductions and unselected
+specificity the image needs. Interpret narrative context into its required
+visible state and performance. Leave incidental deductions and unselected
 alternatives out of the prompt. A desired effect such as a readable interaction
 does not by itself prescribe one camera position.
+
+Subject IDs, source paths, lineage, decisions and review criteria stay in the
+specification and related production records. Render settings use the exact
+interface's native controls. The prompt carries the depiction and any necessary
+directions for its supplied images, including scoped preservation or exclusions.
 
 After assembly, read the complete prompt with its actual ordered attachments and compare the likely picture with the image intent, Visual State Projection, Asset Render Specification, and current State Snapshot. Declare the reference mode as `prompt-only`, `prompt+1`, or `prompt+N`. For every image source, record its semantic role and decide whether it may govern permanent identity, target scene-conditioned construction, or another narrow visual property. Audit source scene-specific character state and source-render context separately. An identity-only source may not transfer gaze, expression, mouth state, pose, action, contact, support, physiology, surface condition, grooming condition, wardrobe, inventory, relationships, viewer awareness, environment response, current form, camera, crop, light, or finish unless an owning target-state or scene authority explicitly requires that property.
 

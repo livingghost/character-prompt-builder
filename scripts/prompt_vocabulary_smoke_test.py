@@ -216,46 +216,52 @@ def main() -> int:
     both = [{"cable", "knit"} <= words_of(row) for row in cable]
     add("commons 'cable knit': entries holding both words rank above entries holding one",
         bool(cable) and both[0] and both == sorted(both, reverse=True), [r.as_json() for r in cable[:8]])
-    alternation = read_prompt([value], "[blue eyes|green eyes], (closed eyes:1.3)")
-    add(
-        "a read returns bracketed alternatives in reading order",
-        [row["term"] for row in alternation["text"]] == ["blue eyes", "green eyes", "closed eyes"],
-        alternation["text"],
-    )
-    add(
-        "opposed pairs inside an alternation group are reported",
-        any("cannot both hold" in notice for notice in alternation["notices"]),
-        alternation["notices"],
-    )
-    add(
-        "one alternation group is one value of a single-valued property",
-        not any("one property named twice" in notice for notice in alternation["notices"]),
-        alternation["notices"],
-    )
+    literal = copy.deepcopy(value)
+    literal['categories'][3]['entries'].append({
+        'term': '[edition:2025]', 'description': 'A printed edition label including brackets and its year.'})
+    reading = read_prompt([literal], '[edition:2025], closed eyes')
+    add('literal punctuation and numeric content remain part of the lookup phrase',
+        reading['text'][0]['written'] == '[edition:2025]'
+        and reading['text'][0]['term'] == '[edition:2025]'
+        and reading['text'][0]['definitions'][0]['entry'] == literal['categories'][3]['entries'][-1], reading)
+    add('dictionary opposition remains complete source evidence',
+        reading['text'][1]['definitions'][0]['entry'] == value['categories'][3]['entries'][0], reading)
     repeated = read_prompt([value], "blue eyes, green eyes")
     add(
-        "the same property named twice outside brackets is still reported",
-        any("one property named twice" in notice for notice in repeated["notices"]),
-        repeated["notices"],
-    )
-    scheduled = read_prompt([value], "[blue eyes:green eyes:0.4]")
-    add(
-        "a scheduling step count is not read as a term",
-        [row["term"] for row in scheduled["text"]] == ["blue eyes", "green eyes"],
-        scheduled["text"],
+        "each authored property receives its own dictionary evidence",
+        [row["definitions"][0]["entry"]["description"] for row in repeated["text"]]
+        == ["A blue iris.", "A green iris."],
+        repeated,
     )
     crowded = read_prompt([value], "2girls, blue eyes, green eyes")
     add(
-        "a declared multiple-figures term excuses a property named twice",
-        not any("one property named twice" in notice for notice in crowded["notices"]),
-        crowded["notices"],
+        "multiple-figure guidance remains attached to the dictionary definition",
+        crowded["text"][0]["definitions"][0]["category_definition"]["multiple_figures_terms"] == ["2girls"],
+        crowded["text"][0],
     )
     alone = read_prompt([value], "solo, blue eyes, green eyes")
     add(
-        "without a multiple-figures term the same pair is still reported",
-        any("one property named twice" in notice for notice in alone["notices"]),
-        alone["notices"],
+        "scene scope does not change retrieved property definitions",
+        alone["text"][1:] == crowded["text"][1:],
+        alone,
     )
+    alternate = copy.deepcopy(value)
+    alternate["name"] = "Second authored dictionary"
+    alternate["categories"][2]["entries"][0].update({
+        "description": "A second source's description of blue eyes.",
+        "usage_notes": ["Review subject-specific markings."],
+        "part": "eyes", "hides": ["upper iris"], "fragile_at_close_scale": True,
+    })
+    evidence = read_prompt([value, alternate], "blue eyes, an unlisted term", "blue eyes")
+    definitions = evidence["text"][0]["definitions"]
+    add("multiple dictionary definitions and all authored entry fields survive lookup",
+        len(definitions) == 2 and definitions[1]["entry"] == alternate["categories"][2]["entries"][0]
+        and definitions[0]["entry"] == value["categories"][2]["entries"][0], definitions)
+    add("overlapping channels retain equal dictionary evidence without a semantic verdict",
+        evidence["negative"][0]["definitions"] == definitions and set(evidence) == {"text", "negative"}, evidence)
+    add("unlisted text remains visible without inferred meaning",
+        evidence["text"][1]["known"] is False and evidence["text"][1]["definitions"] == []
+        and evidence["text"][1]["written"] == "an unlisted term", evidence["text"][1])
 
     forbidden = {"source", "source_id", "source_section", "disposition", "blocked_from_search", "requires_review"}
     fields = {key for category in value["categories"] for entry in category["entries"] for key in entry}

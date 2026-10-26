@@ -4,7 +4,8 @@ Use this adapter only for a named image interface that lacks a dedicated adapter
 
 Keep the approved image intent, subject identity, art direction, appeal strategy, composition, medium family, surface and lighting plan, and visual authority unchanged. Read the [Prompt Writing Guide Runtime](../runtime/prompt-writing-guide.md) and apply only its interface-neutral rules until the exact surface is characterized. Adapt only syntax, prompt length, text handling, parameter placement, declared reference transport, and negative transport; the picture itself stays as designed.
 
-For a reference-free Generation Package, an unregistered interface may use an explicit non-`auto` `--negative-transport` decision. Record the actual interface evidence and retain the full portable negative for audit. The interface name implies nothing about an automatic negative mode.
+Choose text channels and negative transport from the acquired interface evidence.
+Keep the authored request and those decisions in the external execution record.
 
 Generation Package dispatch requires an enabled evidence-backed `model` record declaring every accepted reference media type. There is no explicit media override. When the record is absent, use Production Execution's external host branch with the exact named image-generation operation, or complete and validate the record before dispatch. Only existing-image edits require the source-bound [Semantic instruction edit](../runtime/semantic-instruction-edit.md); reference-free generation is not an edit. The external submission retains the requested identifier, acquired contract, and original media when any were selected. Four shortcuts are excluded:
 

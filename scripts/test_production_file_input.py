@@ -92,6 +92,7 @@ class PackageFileInputTests(unittest.TestCase):
     def external_run(self) -> str:
         """A run whose task names no generation documents, so the builder takes them as files."""
         task=c.load(self.root/'task.json');task.pop('generation');task['execution']='external'
+        production_fixtures.external_image_input(self.root,task)
         cases.write(self.root/'external-task.json',task)
         return workflow.prepare(self.root,'external-task.json')['run']
 

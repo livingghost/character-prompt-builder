@@ -58,7 +58,6 @@ NEGATIVE_PROVENANCE_FIELDS = {
     "activated_sources",
     "diagnostic_sources_retained",
     "semantic_exclusions_user_supplied",
-    "affirmative_translations",
 }
 MEDIA_SUFFIXES = {
     "image/png": ".png",
@@ -270,34 +269,7 @@ def normalize_negative_provenance(value: dict[str, Any] | None) -> dict[str, Any
         item = provenance.setdefault(key, [])
         if not isinstance(item, list):
             raise ValueError(f"negative provenance field must be a list: {key}")
-    translations = provenance.setdefault("affirmative_translations", {})
-    if not isinstance(translations, dict):
-        raise ValueError("negative provenance affirmative_translations must be an object")
-    for key, text in translations.items():
-        if not isinstance(key, str) or not isinstance(text, str) or not text.strip():
-            raise ValueError("affirmative_translations must map source IDs to non-empty text")
     return provenance
-
-
-def selected_medium_sources(production_spec: dict[str, Any], declared: list[Any]) -> list[Any]:
-    """The declared sources, plus the render profile and style family the specification selects.
-
-    The negative policy activates a selected render profile or style family
-    whenever one is selected, so the package records it without being told.
-    """
-
-    from production_spec import UNSPECIFIED
-
-    visual = production_spec.get("visual_language")
-    visual = visual if isinstance(visual, dict) else {}
-    sources = list(declared)
-    for kind, key in (("render-profile", "render_profile"), ("style-family", "style_family")):
-        value = visual.get(key)
-        if isinstance(value, str) and value.strip() and value != UNSPECIFIED:
-            source = f"{kind}:{value}"
-            if source not in sources:
-                sources.append(source)
-    return sources
 
 
 def infer_negative_transport(model: str) -> str:
@@ -322,10 +294,9 @@ def build_transports(
 ) -> dict[str, Any]:
     """Build three explicit, independently hashed interface renditions.
 
-    No negative text is appended mechanically to a positive prompt. A
-    negative-bearing package therefore needs an agent-authored affirmative
-    integrated rendition, or a certification that the primary prompt already
-    contains the required affirmative construction language.
+    The author supplies each rendition and chooses whether the primary prompt
+    already serves a single-field target. Unselected renditions may remain
+    unavailable. Necessary direct exclusions remain part of the authored text.
     """
     separate = {
         "available": True,
@@ -342,7 +313,7 @@ def build_transports(
     integrated_available = False
     if integrated_prompt.strip():
         integrated_text = integrated_prompt
-        integrated_method = "authored-affirmative"
+        integrated_method = "authored-rendition"
         integrated_available = True
     elif critical_avoidance_integrated:
         integrated_text = prompt
@@ -382,7 +353,7 @@ def build_transports(
         "paste_instructions": {
             "single_prompt_field": (
                 "Paste transports.integrated.text as the only prompt. The text must be an "
-                "agent-authored affirmative rendition or the certified primary prompt."
+                "authored single-field rendition or the certified primary prompt."
             ),
             "prompt_plus_negative_fields": (
                 "Paste transports.separate.prompt into the positive field and "
@@ -390,10 +361,89 @@ def build_transports(
             ),
             "prompt_plus_native_negative": (
                 "Paste transports.native_subset.prompt as the main prompt and transmit "
-                "transports.native_subset.negative through the platform's concise native "
+                "transports.native_subset.negative through the platform's native "
                 "negative syntax, verbatim."
             ),
         },
+    }
+
+
+def prepare_text_transports(
+    *,
+    model_id: str,
+    model_record: dict[str, Any] | None,
+    prompt: str,
+    negative_prompt: str,
+    integrated_prompt: str = "",
+    native_negative: str = "",
+    negative_transport: str = "auto",
+    critical_avoidance_integrated: bool = False,
+    weighting_syntax: str = "literal",
+) -> dict[str, Any]:
+    """Prepare recommendations, exact renditions and selected-channel checks."""
+    mode = (
+        str(model_record.get("negative_transport_mode") or "")
+        if negative_transport == "auto" and model_record is not None
+        else negative_transport
+    )
+    if mode not in TRANSPORT_MODES - {"auto"}:
+        raise ValueError(f"invalid negative transport mode: {mode!r}")
+    from model_contract import _merge_one
+    _, positive_audit = _merge_one(prompt, "", mode="advisory-only", limit=None,
+                                  field="prompt", weighting=weighting_syntax)
+    _, negative_audit = _merge_one(negative_prompt, "", mode="advisory-only", limit=None,
+                                  field="negative_prompt", weighting=weighting_syntax)
+    recommendation_audit = {
+        "resolved_model_id": model_id if model_record is not None else None,
+        "merge_mode": "advisory-only", "positive": positive_audit, "negative": negative_audit,
+        "integrated": None, "negative_preset": "",
+    }
+    if model_record is not None:
+        recommendation_record = dict(model_record)
+        if mode in {"integrated-critical", "retained-only"} and integrated_prompt.strip():
+            recommendation_record.pop("max_positive_prompt_chars", None)
+        if mode != "separate-field":
+            recommendation_record.pop("max_negative_prompt_chars", None)
+        prompt, negative_prompt, recommendation_audit = apply_prompt_recommendations(
+            recommendation_record, prompt=prompt, negative_prompt=negative_prompt,
+            weighting=weighting_syntax,
+        )
+        recommendation_audit["resolved_model_id"] = model_id
+        if integrated_prompt:
+            integrated_record = dict(model_record)
+            if mode not in {"integrated-critical", "retained-only"}:
+                integrated_record.pop("max_positive_prompt_chars", None)
+            integrated_prompt, integrated_audit = apply_positive_recommendation(
+                integrated_record, prompt=integrated_prompt, weighting=weighting_syntax,
+            )
+            recommendation_audit["integrated"] = integrated_audit
+
+    transports = build_transports(
+        prompt=prompt, negative_prompt=negative_prompt, integrated_prompt=integrated_prompt,
+        critical_avoidance_integrated=critical_avoidance_integrated, native_negative=native_negative,
+    )
+    if mode == "native-subset" and not transports["native_subset"]["available"]:
+        raise ValueError("native-subset targets require an authored native negative payload")
+    if mode in {"integrated-critical", "retained-only"} and not transports["integrated"]["available"]:
+        raise ValueError("the selected target requires an available integrated transport")
+    rendition = transports[{
+        "separate-field": "separate", "native-subset": "native_subset",
+        "integrated-critical": "integrated", "retained-only": "integrated",
+    }[mode]]
+    selected_prompt = rendition["text" if mode in {"integrated-critical", "retained-only"} else "prompt"]
+    selected_negative = rendition.get("negative", "")
+    if model_record is not None:
+        for text, field, label in (
+            (selected_prompt, "max_positive_prompt_chars", "prompt"),
+            (selected_negative, "max_negative_prompt_chars", "negative prompt"),
+        ):
+            limit = model_record.get(field)
+            if type(limit) is int and len(text) > limit:
+                raise ValueError(f"selected {label} exceeds the active model character limit")
+    return {
+        "prompt": prompt, "negative_prompt": negative_prompt, "integrated_prompt": integrated_prompt,
+        "mode": mode, "transports": transports, "prompt_recommendations": recommendation_audit,
+        "selected_prompt": selected_prompt, "selected_negative": selected_negative,
     }
 
 
@@ -405,10 +455,10 @@ def transport_instruction(mode: str) -> str:
         ),
         "integrated-critical": (
             "Use transports.integrated: send its text verbatim through the single prompt "
-            "field. The integrated rendition contains the affirmative construction language."
+            "field. The author has reviewed its image instructions and necessary exclusions."
         ),
         "native-subset": (
-            "Use transports.native_subset: send its prompt verbatim and transmit its concise "
+            "Use transports.native_subset: send its prompt verbatim and transmit its "
             "negative through the platform's native negative syntax."
         ),
         "retained-only": (
@@ -509,60 +559,21 @@ def build_payload(
         current_profile = selected_profile(model_record, current_offering)
         effective_parameters, _ = resolve_parameters(model_record, current_profile, mode, parameters)
         weighting_syntax = selected_weighting(effective_parameters)
-    from model_contract import _merge_one
-    _,positive_audit=_merge_one(prompt,'',mode='advisory-only',limit=None,field='prompt',weighting=weighting_syntax)
-    _,negative_audit=_merge_one(negative_prompt,'',mode='advisory-only',limit=None,field='negative_prompt',weighting=weighting_syntax)
-    recommendation_audit={'resolved_model_id':model_id if model_record is not None else None,
-        'merge_mode':'advisory-only','positive':positive_audit,'negative':negative_audit,
-        'integrated':None,'negative_preset':''}
-    if model_record is not None:
-        if model_record.get("operation_kind") == "upscale":
-            raise ValueError(
-                f"model record {model_id!r} is an upscaler; use build_upscale_package.py"
-            )
-        prompt, negative_prompt, recommendation_audit = apply_prompt_recommendations(
-            model_record,
-            prompt=prompt,
-            negative_prompt=negative_prompt, weighting=weighting_syntax,
-        )
-        recommendation_audit["resolved_model_id"] = model_id
-        if integrated_prompt:
-            integrated_prompt, integrated_audit = apply_positive_recommendation(
-                model_record, prompt=integrated_prompt, weighting=weighting_syntax
-            )
-            recommendation_audit["integrated"] = integrated_audit
-    mode = (
-        str(model_record.get("negative_transport_mode") or "")
-        if negative_transport == "auto" and model_record is not None
-        else negative_transport
-    )
-    if mode not in TRANSPORT_MODES - {"auto"}:
-        raise ValueError(f"invalid negative transport mode: {mode!r}")
-
-    if native_negative and not negative_prompt:
-        raise ValueError("native_negative requires a portable negative_prompt")
-
-    transports = build_transports(
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        integrated_prompt=integrated_prompt,
+    text_payload = prepare_text_transports(
+        model_id=model_id, model_record=model_record, prompt=prompt,
+        negative_prompt=negative_prompt, integrated_prompt=integrated_prompt,
+        native_negative=native_negative, negative_transport=negative_transport,
         critical_avoidance_integrated=critical_avoidance_integrated,
-        native_negative=native_negative,
+        weighting_syntax=weighting_syntax,
     )
-
-    # A negative-bearing package must remain usable when moved to a model that
-    # has only one prompt field. The affirmative rendition is semantic agent
-    # work and is never synthesized by string concatenation.
-    if negative_prompt and not transports["integrated"]["available"]:
-        raise ValueError(
-            "negative-bearing payloads require an agent-authored integrated prompt, "
-            "or --critical-avoidance-integrated when the primary prompt already contains "
-            "the affirmative construction requirements"
-        )
-    if mode == "native-subset" and negative_prompt and not transports["native_subset"]["available"]:
-        raise ValueError("native-subset targets require a concise native negative payload")
-    if mode in {"integrated-critical", "retained-only"} and not transports["integrated"]["available"]:
-        raise ValueError("the selected target requires an available integrated transport")
+    prompt = text_payload["prompt"]
+    negative_prompt = text_payload["negative_prompt"]
+    integrated_prompt = text_payload["integrated_prompt"]
+    mode = text_payload["mode"]
+    transports = text_payload["transports"]
+    recommendation_audit = text_payload["prompt_recommendations"]
+    selected_prompt = text_payload["selected_prompt"]
+    selected_negative = text_payload["selected_negative"]
 
     prompt_hash = sha256_text(prompt)
     negative_hash = sha256_text(negative_prompt)
@@ -573,19 +584,6 @@ def build_payload(
     if production_spec.get("target_model") != model:
         raise ValueError("package model differs from production specification target_model")
     production_spec_hash = sha256_json(production_spec)
-    provenance["activated_sources"] = selected_medium_sources(production_spec, provenance["activated_sources"])
-    # A single prompt field receives no negative, so the prompt itself states
-    # each active source affirmatively, and the provenance names those words.
-    if mode in {"integrated-critical", "retained-only"}:
-        untranslated = sorted({str(source) for source in provenance["activated_sources"]}
-                              - set(provenance["affirmative_translations"]))
-        if untranslated:
-            raise ValueError(
-                "the target has no negative field, so the prompt states each active negative source affirmatively; "
-                "name those words in --negative-provenance-file, for example "
-                + json.dumps({"affirmative_translations": {untranslated[0]: "<words copied from the prompt>"}})
-                + "; without words: " + ", ".join(untranslated)
-            )
 
     from state_protocol import artifact_hash, finalize_artifact, validate_artifact, validate_subject_state_graphs
     if state_lineage is not None and not isinstance(state_lineage, dict):
@@ -680,8 +678,8 @@ def build_payload(
             parameters,
             service=service,
             pack_root=model_pack_root(model_id),
-            prompt=prompt,
-            negative_prompt=negative_prompt if mode == "separate-field" else None,
+            prompt=selected_prompt,
+            negative_prompt=selected_negative if mode in {"separate-field", "native-subset"} else None,
             media_counts=media_counts,
         )
         if offering is not None:
@@ -1328,13 +1326,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--integrated-prompt-file",
         help=(
-            "Agent-authored affirmative rendition for single-prompt interfaces. "
-            "Required whenever a portable negative exists unless the primary prompt "
-            "is certified with --critical-avoidance-integrated."
+            "Authored rendition for the selected single-prompt interface. "
+            "When a portable negative exists, supply this rendition or certify the primary prompt "
+            "with --critical-avoidance-integrated."
         ),
     )
-    parser.add_argument("--native-negative-file", help="Concise native negative subset for the selected interface")
-    parser.add_argument("--negative-provenance-file", help="JSON object listing activated, retained, and translated negative sources")
+    parser.add_argument("--native-negative-file", help="Authored native negative text for the selected interface")
+    parser.add_argument("--negative-provenance-file", help="JSON object listing activated and retained sources and user exclusions")
     parser.add_argument(
         "--negative-transport",
         choices=sorted(TRANSPORT_MODES),
@@ -1344,7 +1342,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--critical-avoidance-integrated",
         action="store_true",
-        help="Certify that the primary positive prompt already contains the critical affirmative construction requirements.",
+        help="Certify the primary prompt as the reviewed single-field rendition, including necessary exclusions.",
     )
     brief = parser.add_mutually_exclusive_group()
     brief.add_argument("--brief", default="", help="The request in words")

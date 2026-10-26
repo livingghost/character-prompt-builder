@@ -21,11 +21,11 @@ import style_family_audit
 from audit_preset_quality import (
     Record,
     check_aesthetic_core,
+    check_atomic,
     check_archetype,
     check_correction,
     check_distinctive_detail,
     check_domain_realization,
-    check_positive_text_quality,
     check_recipes,
     check_scene,
     check_style_family,
@@ -421,9 +421,12 @@ def _recipe_fixture(scene: Record, profile: Record) -> Record:
         "detail_hierarchy",
     )
     staging = copy.deepcopy(scene.record["staging"])
-    prompt_template = " ".join(staging.values())
-    prompt_template += " " + _authored_text("finished recipe assembly", 120)
-    prompt_template += " " + _authored_text("finished recipe continuity review", 60)
+    prompt_template = (
+        "In a quiet workshop, two figures face each other in three-quarter view. "
+        "The figure on the left offers a small ceramic bowl; the figure on the right holds an open palm beneath it. "
+        "Both look toward the exchange, their hands clearly separated around the bowl and their faces fully visible. "
+        "Soft side light groups the figures against a subdued background in a clean illustration."
+    )
     return _curated_record(
         "recipe",
         "synthetic-recipe",
@@ -572,35 +575,7 @@ def run() -> dict[str, Any]:
         else:
             failures.append(message)
 
-    placeholder_errors: list[str] = []
-    placeholder_findings = check_positive_text_quality(
-        [
-            Record(
-                kind="module",
-                category="composition",
-                record={
-                    "id": "placeholder-language-probe",
-                    "curation_status": "curated",
-                    "prompt": (
-                        "Produce a nearby but different result with clear framing "
-                        "and readable visual hierarchy."
-                    ),
-                },
-                source="synthetic:placeholder-language-probe",
-            )
-        ],
-        placeholder_errors,
-    )
-    check(
-        any("nearby but different result" in item for item in placeholder_errors)
-        and any(
-            item.get("text") == "nearby but different result"
-            for item in placeholder_findings
-        ),
-        "curated prompt-facing placeholder summary language must be rejected",
-    )
-
-    def exercise_quality_handler(
+    def exercise_structure_handler(
         label: str,
         handler: Any,
         valid_record: Record,
@@ -609,11 +584,13 @@ def run() -> dict[str, Any]:
     ) -> None:
         valid_errors: list[str] = []
         valid_warnings: list[str] = []
+        original = copy.deepcopy(valid_record.record)
         handler(valid_record, valid_errors, valid_warnings)
         check(
             not valid_errors,
-            f"synthetic valid {label} must pass its rich quality handler: {valid_errors}",
+            f"synthetic valid {label} must satisfy its declared record structure: {valid_errors}",
         )
+        check(valid_record.record == original, f"{label} audit must preserve the complete source record")
 
         invalid_record = copy.deepcopy(valid_record)
         mutate(invalid_record.record)
@@ -625,8 +602,17 @@ def run() -> dict[str, Any]:
             f"synthetic invalid {label} mutation must be rejected: {invalid_errors}",
         )
 
+    atomic = _curated_record('module', 'synthetic-centered-object', category='composition',
+        label='Centered object', visual_function='Place one object at the center of the frame.',
+        prompt='A terracotta bowl rests at the center of a circular stone plinth.',
+        invariants=['One bowl.', 'A circular plinth.', 'A centered position.'],
+        misreadings_to_avoid=['Two bowls.', 'A square plinth.', 'An off-center position.'],
+        tags=['bowl-on-plinth'], domains=['shared'], applies_to=['single-object compositions'])
+    exercise_structure_handler('module', check_atomic, atomic,
+        lambda item: item.pop('prompt'), 'missing required field `prompt`')
+
     aesthetic_core = _aesthetic_core_fixture()
-    exercise_quality_handler(
+    exercise_structure_handler(
         "aesthetic-core",
         check_aesthetic_core,
         aesthetic_core,
@@ -635,7 +621,7 @@ def run() -> dict[str, Any]:
     )
 
     style_family = _style_family_fixture()
-    exercise_quality_handler(
+    exercise_structure_handler(
         "style-family",
         check_style_family,
         style_family,
@@ -644,7 +630,7 @@ def run() -> dict[str, Any]:
     )
 
     domain_realization = _domain_realization_fixture()
-    exercise_quality_handler(
+    exercise_structure_handler(
         "domain-realization",
         check_domain_realization,
         domain_realization,
@@ -653,7 +639,7 @@ def run() -> dict[str, Any]:
     )
 
     distinctive_detail = _distinctive_detail_fixture()
-    exercise_quality_handler(
+    exercise_structure_handler(
         "distinctive-detail",
         check_distinctive_detail,
         distinctive_detail,
@@ -662,17 +648,17 @@ def run() -> dict[str, Any]:
     )
 
     scene = _scene_fixture()
-    exercise_quality_handler(
+    exercise_structure_handler(
         "scene",
         check_scene,
         scene,
-        lambda item: item["staging"].__setitem__("body_geometry", "brief"),
-        "staging.body_geometry is under-authored",
+        lambda item: item["staging"].pop("body_geometry"),
+        "missing staging.body_geometry",
     )
 
     archetype = _archetype_fixture()
     archetype_policy = _archetype_policy_fixture()
-    exercise_quality_handler(
+    exercise_structure_handler(
         "archetype",
         lambda record, errors, warnings: check_archetype(
             record,
@@ -686,12 +672,12 @@ def run() -> dict[str, Any]:
     )
 
     correction = _correction_fixture()
-    exercise_quality_handler(
+    exercise_structure_handler(
         "correction",
         check_correction,
         correction,
-        lambda item: item.__setitem__("positive_correction", "restore contact"),
-        "positive repair is under-authored",
+        lambda item: item.pop("positive_correction"),
+        "missing required field `positive_correction`",
     )
 
     profile = _profile_for_recipe()

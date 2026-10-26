@@ -108,4 +108,4 @@ Only the verifier may turn a Generation Package into a host request. It resolves
 
 These schemas and templates are an installed copy of the public protocol. Consumers receive content-addressed interchange envelopes and declared features rather than copies of this source tree.
 
-- [`prompt-semantic-preflight.schema.json`](../schemas/prompt-semantic-preflight.schema.json): structured anatomy and camera contradiction preflight for prompt construction.
+- [`prompt-semantic-preflight.schema.json`](../schemas/prompt-semantic-preflight.schema.json): declared structure assignments and numeric camera bounds for prompt construction.

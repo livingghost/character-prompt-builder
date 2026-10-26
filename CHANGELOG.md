@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026.10.26.2
+
+- Read complete model inputs back against author anchors, resolving subject, region, moment and reference scope before prompt delivery or submission.
+- Keep unresolved or insufficiently assessed meaning from authorizing a send. Ground the existing finished-image assessment in the actual input and retain its integrity boundary.
+- Validate camera occupancy against explicitly declared bounds. Camera labels supply no inferred framing limits; declared structure counts, connections and action assignments remain enforced.
+- Exercise camera publication refusal and unsuccessful meaning assessments through existing tests. Define complementary agent evaluation cases for valid scope differences, genuine conflicts, source-state leakage and event fidelity.
+
+## 2026.10.26.1
+
+- Compose one coherent intended image under the common Skill contract, with task-specific composition, delivery and execution workflows.
+- Keep native execution controls, source provenance and production assessment with their owning records; model-facing text carries depiction and necessary supplied-input directions.
+- Select necessary exclusions by meaning and source authority. Preserve direct negation, critical identity detail and each interface's authored text transport without requiring a sentence per source.
+- Bind dispatcher and external image assessments to their complete exact inputs, including reference-free requests, native controls and supplied media.
+- Use vocabulary and dialect knowledge as author evidence. Validate declared grammar, channels, record structure and integrity without lexical judgments about prompt meaning.
+- Preserve all applicable source knowledge while scoping optional prompt-writing guidance to its supported interface.
+
 ## 2026.10.25.1
 
 - Author image instructions from the intended depiction and the actual delivered references. Keep Studio identifiers, source records and production assessments with their internal owners.

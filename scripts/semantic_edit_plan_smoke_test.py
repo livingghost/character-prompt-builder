@@ -133,6 +133,47 @@ class SemanticEditPlanTests(unittest.TestCase):
                          {'mode': 'bounded-probe', 'unmeasured': ['schema-unavailable']})
         inputs.validate_binding(result)
 
+    def test_external_review_covers_pixels_and_every_request_field(self):
+        from production_request import draft_external_decision, check_external_authorization
+        from production_fixtures import ACTOR, assess_rendition
+        binding = self.validate()
+        decision = draft_external_decision(binding, actor=ACTOR)
+        assess_rendition(decision['rendition_review'])
+        grant = {'id': 'synthetic-grant', 'submission_validation_modes': ['bounded-probe'], 'request_scope': None}
+
+        def authorization(value):
+            consumer = {'image_input': value}
+            request = {'actor': ACTOR, 'request_decision': copy.deepcopy(decision), 'payload': {
+                'consumer_sha256': c.content_id(consumer), 'recipient': 'synthetic-host',
+                'count': value['external_request']['count'], 'image_input_sha256': value['binding_sha256'],
+                'external_request_sha256': value['external_request']['sha256'], 'target': value['model']['target']}}
+            return consumer, request
+
+        check_external_authorization(*authorization(binding), grant)
+        request_path = self.root / self.plan['external_request']['file']
+        original_request, original_image = request_path.read_bytes(), (self.root / 'design.png').read_bytes()
+        for change in ('native-negative', 'native-parameter', 'additional-text', 'supplied-image', 'reference-scope'):
+            with self.subTest(change=change):
+                request = c.decode(original_request)
+                plan = copy.deepcopy(self.plan)
+                if change == 'native-negative':
+                    request['negative_prompt'] = 'No printed label.'
+                elif change == 'native-parameter':
+                    request['quality'] = 'high'
+                elif change == 'additional-text':
+                    request['instructions'] = 'Place a small cup beside the vase.'
+                elif change == 'supplied-image':
+                    write(self.root, 'design.png', png((70, 20, 40), (32, 24)))
+                else:
+                    plan['references'][1]['do_not_transfer'].append('color')
+                write(self.root, 'request.json', request)
+                changed = inputs.validate(plan, self.root)
+                self.assertNotEqual(changed['binding_sha256'], binding['binding_sha256'])
+                with self.assertRaisesRegex(ValueError, 'another complete model input'):
+                    check_external_authorization(*authorization(changed), grant)
+                request_path.write_bytes(original_request)
+                (self.root / 'design.png').write_bytes(original_image)
+
     def test_missing_required_reference_role_is_rejected(self):
         edit = c.load(self.root / 'edit-plan.json')
         edit['edit']['required_reference_roles'].append('surface-material')
@@ -401,6 +442,7 @@ class SemanticEditPlanTests(unittest.TestCase):
 
     def test_external_preview_does_not_relax_dispatcher_plan_requirements(self):
         from state_protocol import validate_against_schema
+        from model_rendition import review_requirements
         schema = c.load(edits.ROOT / 'schemas/authoring/production-execution-plan.schema.json')
         value = {'run': None, 'execution': 'external', 'input_sha256': '0' * 64,
                  'request_sha256': None, 'operations': [], 'external_effects': [],
@@ -408,7 +450,8 @@ class SemanticEditPlanTests(unittest.TestCase):
                  'request': c.load(self.root / 'request.json'), 'service': TARGET['service'],
                  'model': TARGET['model_identifier'], 'quantities': {'submissions': 1, 'outputs': 1},
                  'prepared_request_sha256': c.sha256_file(self.root / 'request.json'),
-                 'model_identity': None, 'validation': {'mode': 'bounded-probe', 'unmeasured': ['schema-unavailable']}}
+                 'model_identity': None, 'validation': {'mode': 'bounded-probe', 'unmeasured': ['schema-unavailable']},
+                 'review_requirements': review_requirements()}
         self.assertEqual(validate_against_schema(value, schema), [])
         value['execution'] = 'dispatcher'
         value.pop('validation')
@@ -1057,6 +1100,79 @@ class SemanticEditProductionTests(unittest.TestCase):
         result = workflow.settle_external(self.root, run, 'receipt.json')
         self.assertTrue(result['execution_completed'])
         self.assertEqual(result['request_evidence']['status'], 'matched-recorded-call')
+
+    def test_reference_free_external_submission_requires_complete_author_review(self):
+        import production_workflow as workflow
+        from reading_fixtures import fixture_reading
+        self.plan = setup_text_only_plan(self.root)
+        self.task.pop('semantic_edit')
+        self.task['features'] = []
+        self.task['sources'] = []
+        write(self.root, 'reading.json', fixture_reading(route=self.task['route'], features=[], studio=self.root,
+            ledger=self.root / 'work/reads.jsonl'))
+        self.task['route_reading'] = 'reading.json'
+        write(self.root, 'task.json', self.task)
+        run = workflow.prepare(self.root, 'task.json')['run']
+        self.fixture.handoff(self.root, run, 'synthetic-host', 'manual')
+        intent = workflow.external_intent(self.root, run, 1)
+        draft = workflow.draft_authorization(self.root, run, 'fixture-grant', intent)
+        review = draft['request_decision']['rendition_review']
+        self.assertEqual(review['input_sha256'], intent['payload']['image_input_sha256'])
+        self.assertEqual(review['binding_ids'], [])
+        self.assertTrue(all(item['conclusion'] is None and item['reason'] == '' for item in review['assessments']))
+        draft['reason'] = 'Explicit synthetic reference-free request assessment.'
+        self.fixture.assess_rendition(review)
+        before = workflow.load_run(self.root, run)[3]
+        for change in ('no-decision', 'missing-criterion', 'different-author',
+                       'not-satisfied', 'unmeasured', 'wrong-input'):
+            with self.subTest(change=change):
+                altered = copy.deepcopy(draft)
+                if change == 'no-decision':
+                    altered.pop('request_decision')
+                elif change == 'missing-criterion':
+                    altered['request_decision']['rendition_review']['assessments'].pop()
+                elif change == 'different-author':
+                    altered['request_decision']['rendition_review']['reviewer'] = 'another author'
+                elif change in {'not-satisfied', 'unmeasured'}:
+                    assessment = next(item for item in altered['request_decision']['rendition_review']['assessments']
+                                      if item['criterion'] == 'finished-image')
+                    assessment.update(conclusion=change,
+                        reason='Synthetic reviewer leaves the requested change and preservation conflict unresolved.')
+                else:
+                    altered['request_decision']['rendition_review']['input_sha256'] = intent['payload']['external_request_sha256']
+                with self.assertRaises(ValueError):
+                    workflow.authorize_value(self.root, run, altered, evidence_files=[])
+                self.assertEqual(workflow.load_run(self.root, run)[3], before)
+        token = self.fixture.grant(self.root, run, intent)
+        self.assertEqual(workflow.claim_external(self.root, run, 1, token)['data']['image_input_sha256'],
+                         intent['payload']['image_input_sha256'])
+
+    def test_external_image_requires_an_exact_request_while_nonimage_submission_keeps_its_contract(self):
+        import production_workflow as workflow
+        from production_compiler import check_task
+        from reading_fixtures import fixture_reading
+        self.task.pop('semantic_edit')
+        self.task.pop('image_input')
+        self.task['features'] = []
+        self.task['sources'] = []
+        write(self.root, 'reading.json', fixture_reading(route=self.task['route'], features=[], studio=self.root,
+            ledger=self.root / 'work/reads.jsonl'))
+        self.task['route_reading'] = 'reading.json'
+        write(self.root, 'task.json', self.task)
+        checked = check_task(self.root, 'task.json')
+        self.assertFalse(checked['ok'])
+        self.assertIn('image_input', str(checked['diagnostics']))
+        self.task['artifact'] = 'text'
+        for item in self.task['criteria']:
+            item['evidence'] = 'text'
+        write(self.root, 'task.json', self.task)
+        run = workflow.prepare(self.root, 'task.json')['run']
+        self.fixture.handoff(self.root, run, 'synthetic-host', 'manual')
+        intent = workflow.external_intent(self.root, run, 1)
+        draft = workflow.draft_authorization(self.root, run, 'fixture-grant', intent)
+        self.assertNotIn('request_decision', draft)
+        token = self.fixture.grant(self.root, run, intent)
+        self.assertEqual(workflow.claim_external(self.root, run, 1, token)['data']['count'], 1)
 
     def test_check_and_prepare_keep_authored_reference_instructions(self):
         import production_workflow as workflow

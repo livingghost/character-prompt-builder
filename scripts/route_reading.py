@@ -18,7 +18,6 @@ import execution_routes
 ROOT = Path(__file__).resolve().parents[1]
 _NO_MODEL = object()
 # A reading made without a model holds every family's guide sections.
-EVERY_FAMILY = object()
 
 
 def _hex(value: Any, length: int, label: str) -> str:
@@ -160,17 +159,17 @@ def _family(name: str, value: dict, dialect: str | None) -> bytes:
 
 
 def bound_dialect(value: dict) -> Any:
-    """The model family a reading holds the guide for, or EVERY_FAMILY."""
+    """The declared model family, or None for interface-neutral guidance."""
     found = {json.dumps(item['dialect']) for item in value['resources'].values() if 'dialect' in item}
     if len(found) > 1:
         raise ValueError('reading resources name different model families')
-    return json.loads(found.pop()) if found else EVERY_FAMILY
+    return json.loads(found.pop()) if found else None
 
 
 def _capture_resources(manifest: dict, bodies: list, dialect: Any) -> None:
     manifest['resources'] = {}
     if 'prompt-dialect' not in manifest['features']:
-        if dialect is not EVERY_FAMILY:
+        if dialect is not None:
             raise ValueError('a model or prompt family selects writing guide sections; add --feature prompt-dialect')
         return
     from catalog_retrieval.runtime import load_pack_catalog
@@ -192,16 +191,15 @@ def _capture_resources(manifest: dict, bodies: list, dialect: Any) -> None:
         raw = c.read(c.local(Path(catalog.pack_roots[resource.source_pack]), resource.relative_path))
         meta = {'status': 'present', 'source_pack': resource.source_pack, 'path': resource.relative_path,
                 'sha256': c.digest(raw)}
-        if dialect is not EVERY_FAMILY:
-            if name == 'prompt-dialects' and dialect is not None:
-                from pack_manager import PackError
-                from prompt_dialect import find_dialect
-                try:
-                    find_dialect(dialect, Path(resource.path))
-                except PackError as exc:
-                    raise ValueError(str(exc)) from None
-            meta['dialect'] = dialect
-            raw = _family(name, c.decode(raw), dialect)
+        if name == 'prompt-dialects' and dialect is not None:
+            from pack_manager import PackError
+            from prompt_dialect import find_dialect
+            try:
+                find_dialect(dialect, Path(resource.path))
+            except PackError as exc:
+                raise ValueError(str(exc)) from None
+        meta['dialect'] = dialect
+        raw = _family(name, c.decode(raw), dialect)
         c.decode(raw)
         manifest['resources'][name] = meta
         # The delivered bytes carry their own digest; the manifest binds the source file.
@@ -218,13 +216,12 @@ def _validate_resources(value: dict) -> None:
         if isinstance(item, dict) and item.get('status') == 'unavailable':
             c.exact(item, {'status'}, 'unavailable resource')
         else:
-            c.exact(item, fields | {'dialect'} if isinstance(item, dict) and 'dialect' in item else fields,
-                    'reading resource')
+            c.exact(item, fields | {'dialect'}, 'reading resource')
             if item['status'] != 'present':
                 raise ValueError('invalid resource status')
             c.sha(item['sha256']); c.text(item['source_pack'], 'resource pack')
             c.local(ROOT, item['path'], exists=False)
-            if 'dialect' in item and item['dialect'] is not None:
+            if item['dialect'] is not None:
                 c.text(item['dialect'], 'reading model family')
     bound_dialect(value)
 
@@ -235,7 +232,7 @@ def _require_resource_applications(record: dict, bodies: list, dialect: str | No
         raise ValueError('resource applications must be an array')
     available = {meta['resource']: c.decode(raw) for meta, raw in bodies if meta['kind'] == 'resource'}
     bound = bound_dialect(record)
-    if dialect is not _NO_MODEL and bound is not EVERY_FAMILY and bound != dialect:
+    if dialect is not _NO_MODEL and bound != dialect:
         raise ValueError(f'the reading holds the prompt-writing guide for the {bound!r} model family; '
                          'read the route again with --model for this model')
     if dialect is not _NO_MODEL and dialect is not None:
@@ -330,7 +327,7 @@ def _validate_manifest(value: dict[str, Any]) -> None:
 
 
 def capture(route: str, features: list[str] | None = None, *, root: Path = ROOT,
-            dialect: Any = EVERY_FAMILY) -> tuple[dict, list[tuple[dict, bytes]]]:
+            dialect: str | None = None) -> tuple[dict, list[tuple[dict, bytes]]]:
     resolved = execution_routes.resolve(route, features, root=root)
     bodies = []
     for entry in resolved['reads']:
@@ -362,7 +359,7 @@ def _issue(manifest: dict, ledger: Path, *, key: str | None = None, at: str | No
 def issue(route: str, features: list[str] | None = None, *, root: Path = ROOT,
           studio: Path | None = None, ledger: Path | None = None, stream: TextIO | None = None,
           key: str | None = None, at: str | None = None, cwd: str | None = None,
-          dialect: Any = EVERY_FAMILY) -> dict:
+          dialect: str | None = None) -> dict:
     """Output all bytes before issuing evidence. Fixed key/time are fixture inputs."""
     stream = sys.stdout if stream is None else stream
     target = ledger if ledger is not None else ledger_candidates(studio=studio)[0]
@@ -543,7 +540,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
               cursor: str | None = None, replay: bool = False, page_bytes: int = 16384,
               root: Path = ROOT, studio: Path | None = None, ledger: Path | None = None,
               stream: TextIO | None = None, runtime: dict | None = None,
-              dialect: Any = EVERY_FAMILY) -> dict:
+              dialect: str | None = None) -> dict:
     """Deliver an immutable page, then record its exact byte range under a lock."""
     if isinstance(page_bytes, bool) or not isinstance(page_bytes, int) or page_bytes < 4:
         raise ValueError('page-bytes must be an integer of at least four')
@@ -564,7 +561,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
                 c.object_store(folder, raw)
             start = 0
         else:
-            if route is not None or features or dialect is not EVERY_FAMILY:
+            if route is not None or features or dialect is not None:
                 raise ValueError('a cursor fixes its route, features and prompt family')
             folder, snapshot, page = _cursor(ledger, cursor)
             sid = c.content_id(snapshot)
@@ -692,7 +689,7 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
     """Read, then write the draft reading record for the issued key and print its path."""
     runtime = _configure_runtime(args, parser)
     ledger = ledger_candidates(studio=args.root)[0]
-    dialect = EVERY_FAMILY if args.dialect is None else args.dialect
+    dialect = args.dialect
     if args.model is not None:
         dialect = _model_family(args.model)
         from prepare_generation_references import resolve_model_record

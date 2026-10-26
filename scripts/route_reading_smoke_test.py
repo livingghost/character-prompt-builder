@@ -180,16 +180,18 @@ class ReadingTests(unittest.TestCase):
             r.require_route_reading(universal,root=self.root,ledgers=[self.ledger],dialect=None)
             with self.assertRaisesRegex(ValueError,'read the route again'):
                 r.require_route_reading(universal,root=self.root,ledgers=[self.ledger],dialect='family-a')
-    def test_reading_without_a_model_holds_every_family(self):
+    def test_read_command_without_a_target_selects_neutral_guidance(self):
+        import contextlib
         catalog,self.guide=self.family_catalog()
-        with catalog:
-            record,out=self.family_record(r.EVERY_FAMILY,2)
-            self.assertIn(self.guide['sections'][1]['rules'][0],out)
-            self.assertIn(self.guide['sections'][2]['rules'][0],out)
-            self.assertFalse(any('dialect' in x for x in record['resources'].values()))
-            r.require_route_reading(record,root=self.root,ledgers=[self.ledger],dialect='family-b')
-            with self.assertRaisesRegex(ValueError,'does not apply'):
-                r.require_route_reading(record,root=self.root,ledgers=[self.ledger],dialect='family-a')
+        out=io.StringIO()
+        with catalog,patch.dict(os.environ),contextlib.redirect_stdout(out):
+            os.environ.pop('CPB_READS_LEDGER',None)
+            r.read_command(*self.read_args('generation'))
+        draft=c.load(self.root/out.getvalue().rstrip().splitlines()[-1].split(': ',1)[1])
+        self.assertEqual({x['dialect'] for x in draft['resources'].values()},{None})
+        self.assertIn(self.guide['sections'][0]['rules'][0],out.getvalue())
+        for section in self.guide['sections'][1:]:
+            self.assertNotIn(section['rules'][0],out.getvalue())
     def test_paged_family_reading_issues_its_family(self):
         catalog,self.guide=self.family_catalog()
         with catalog:

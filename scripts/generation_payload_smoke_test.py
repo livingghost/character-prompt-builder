@@ -150,19 +150,16 @@ PROMPT = "A poised synthetic character in quiet studio light."
 NEGATIVE = "unintended text, malformed anatomy"
 NATIVE_NEGATIVE = "text, malformed anatomy"
 INTEGRATED_PROMPT = (
-    "A poised synthetic character with coherent anatomy in quiet, clean, "
-    "text-free studio light."
+    "A poised synthetic character with coherent anatomy in quiet, clean studio light. "
+    "No text or logos."
 )
-# The render profile and style family the pilot specification selects, which
-# the negative policy activates whenever they are selected.
+# Sources explicitly activated by this synthetic authoring fixture.
 _PILOT_VISUAL = json.loads(PILOT_PRODUCTION_SPEC.read_text(encoding="utf-8"))["visual_language"]
 MEDIUM_SOURCES = [f"render-profile:{_PILOT_VISUAL['render_profile']}", f"style-family:{_PILOT_VISUAL['style_family']}"]
 NEGATIVE_PROVENANCE = {
     "activated_sources": ["generation-hygiene", *MEDIUM_SOURCES],
     "diagnostic_sources_retained": ["anatomy-review"],
     "semantic_exclusions_user_supplied": [],
-    "affirmative_translations": {"anatomy-review": "coherent anatomy", "generation-hygiene": "text-free",
-                                 MEDIUM_SOURCES[0]: "clean", MEDIUM_SOURCES[1]: "poised"},
 }
 GENERIC_DISTINCTIVE_DETAIL = {
     "id": "detail-1",
@@ -2315,6 +2312,8 @@ def run() -> dict[str, Any]:
                             str(prompt_file),
                             "--negative-file",
                             str(negative_file),
+                            "--negative-transport",
+                            "integrated-critical",
                             "--plot-file",
                             str(plot_file),
                             "--production-spec-file",
@@ -2329,7 +2328,7 @@ def run() -> dict[str, Any]:
                         ]
             ):
                 raise SmokeFailure(
-                    "builder accepted a negative without affirmative integrated rendition"
+                    "builder accepted an unavailable selected integrated rendition"
                 )
             checked(
                 not missing_integrated_output.exists()
@@ -2560,11 +2559,11 @@ def run() -> dict[str, Any]:
                 == {
                     "available": True,
                     "channel": "single_prompt_field",
-                    "method": "authored-affirmative",
+                    "method": "authored-rendition",
                     "text": INTEGRATED_PROMPT,
                     "sha256": generation_builder.sha256_text(INTEGRATED_PROMPT),
                 },
-                "integrated-critical build did not preserve its portable and affirmative renditions",
+                "integrated-critical build did not preserve its portable and authored renditions",
             )
             integrated_verified = verify(integrated_package)
             checked(
@@ -2575,7 +2574,7 @@ def run() -> dict[str, Any]:
                 and integrated_verified["host_forwarding"]["effective_prompt"]
                 == INTEGRATED_PROMPT
                 and integrated_verified["negative_provenance"] == NEGATIVE_PROVENANCE,
-                "integrated-critical verification changed the authored affirmative rendition",
+                "integrated-critical verification changed the authored rendition",
             )
             integrated_export = emit_paste_for_target(
                 integrated_package,
@@ -2601,7 +2600,7 @@ def run() -> dict[str, Any]:
                 and integrated_export["paste_prompt"] == INTEGRATED_PROMPT
                 and integrated_export["paste_prompt_sha256"]
                 == generation_builder.sha256_text(INTEGRATED_PROMPT)
-                and integrated_export["integration_method"] == "authored-affirmative"
+                and integrated_export["integration_method"] == "authored-rendition"
                 and integrated_export["selected_references"] == [],
                 "integrated-critical export did not emit only its committed rendition",
             )
@@ -2771,21 +2770,19 @@ def run() -> dict[str, Any]:
                 and retained_export["paste_prompt"] == INTEGRATED_PROMPT
                 and retained_export["paste_prompt_sha256"]
                 == generation_builder.sha256_text(INTEGRATED_PROMPT)
-                and retained_export["integration_method"] == "authored-affirmative"
+                and retained_export["integration_method"] == "authored-rendition"
                 and "paste_negative" not in retained_export
                 and "native_negative" not in retained_export,
                 "retained-only export exposed an uncharacterized negative channel",
             )
 
-            # The policy activates the render profile and style family the
-            # specification selects, whether or not the author declared them.
             declared_only = {"activated_sources": ["generation-hygiene"], "diagnostic_sources_retained": [],
-                             "semantic_exclusions_user_supplied": [], "affirmative_translations": {}}
+                             "semantic_exclusions_user_supplied": []}
             medium_package = _package(empty_stateless_reference_set(), negative_provenance=declared_only)
             checked(
                 medium_package["generation_payload"]["negative_provenance"]["activated_sources"]
-                == ["generation-hygiene", *MEDIUM_SOURCES],
-                "the build did not activate the render profile and style family its specification selects",
+                == ["generation-hygiene"],
+                "the build changed the author's explicitly activated negative sources",
             )
             unselected_spec = _production_spec(MODEL_ID)
             unselected_spec["visual_language"].update({"render_profile": "unspecified", "style_family": None})
@@ -2796,19 +2793,78 @@ def run() -> dict[str, Any]:
                 == ["generation-hygiene"],
                 "an unspecified render profile or an absent style family activated a negative source",
             )
-            # A single prompt field with no negative at all still owes affirmative
-            # wording for every active source.
-            try:
-                _package(empty_stateless_reference_set(), model=INTEGRATED_MODEL_ID,
-                         production_target_model=INTEGRATED_MODEL_ID, negative_prompt="", integrated_prompt="",
-                         negative_provenance={})
-                refusal = ""
-            except ValueError as exc:
-                refusal = str(exc)
+            primary_only = _package(empty_stateless_reference_set(), model=INTEGRATED_MODEL_ID,
+                                    negative_prompt="", integrated_prompt="", negative_provenance=declared_only)
+            primary_verified = verify(primary_only)
             checked(
-                "no negative field" in refusal and all(source in refusal for source in MEDIUM_SOURCES),
-                "a target with no negative field accepted active sources without affirmative wording",
+                primary_verified["verified"] is True
+                and primary_verified["host_forwarding"]["effective_prompt"] == PROMPT
+                and primary_verified["negative_provenance"] == declared_only,
+                "single-field delivery changed the authored prompt or required source-specific restatements",
             )
+            separate_only = _package(empty_stateless_reference_set(), integrated_prompt="")
+            separate_verified = verify(separate_only)
+            checked(
+                separate_verified["verified"] is True
+                and separate_only["generation_payload"]["transports"]["integrated"]["available"] is False
+                and separate_verified["selected_transport"]["rendition"]["negative"] == NEGATIVE,
+                "separate-field delivery requires an unused integrated rendition",
+            )
+            native_only = _package(empty_stateless_reference_set(), model=NATIVE_MODEL_ID,
+                                   integrated_prompt="", native_negative=NATIVE_NEGATIVE)
+            native_verified_only = verify(native_only)
+            checked(
+                native_verified_only["verified"] is True
+                and native_only["generation_payload"]["transports"]["integrated"]["available"] is False
+                and native_verified_only["selected_transport"]["rendition"]["negative"] == NATIVE_NEGATIVE,
+                "native delivery requires an unused integrated rendition",
+            )
+            standalone_native = _package(empty_stateless_reference_set(), model=NATIVE_MODEL_ID,
+                                         negative_prompt="", integrated_prompt="", native_negative=NATIVE_NEGATIVE)
+            checked(
+                verify(standalone_native)["selected_transport"]["rendition"]["negative"] == NATIVE_NEGATIVE,
+                "native delivery did not preserve its independently authored negative text",
+            )
+            _, integrated_record = generation_builder.resolve_model_record(INTEGRATED_MODEL_ID)
+            integrated_record = {**integrated_record, "max_positive_prompt_chars": 40,
+                                 "max_negative_prompt_chars": 1}
+            selected_text = "A seated character. No text or logos."
+            with mock.patch.object(generation_builder, "resolve_model_record",
+                                   return_value=(INTEGRATED_MODEL_ID, integrated_record)):
+                limited_package = _package(empty_stateless_reference_set(), model=INTEGRATED_MODEL_ID,
+                                           integrated_prompt=selected_text)
+                limited_verified = verify(limited_package)
+                checked(
+                    limited_verified["host_forwarding"]["effective_prompt"] == selected_text
+                    and limited_verified["negative_prompt"] == NEGATIVE,
+                    "single-field limits were applied to retained text instead of the selected rendition",
+                )
+                try:
+                    _package(empty_stateless_reference_set(), model=INTEGRATED_MODEL_ID,
+                             integrated_prompt=INTEGRATED_PROMPT)
+                except ValueError as exc:
+                    limit_error = str(exc)
+                else:
+                    limit_error = ""
+                checked("limit" in limit_error, "the selected integrated prompt exceeded its declared character limit")
+            _, native_record = generation_builder.resolve_model_record(NATIVE_MODEL_ID)
+            native_record = {**native_record, "max_negative_prompt_chars": 4}
+            with mock.patch.object(generation_builder, "resolve_model_record",
+                                   return_value=(NATIVE_MODEL_ID, native_record)):
+                limited_native = _package(empty_stateless_reference_set(), model=NATIVE_MODEL_ID,
+                                          integrated_prompt="", native_negative="text")
+                checked(
+                    verify(limited_native)["selected_transport"]["rendition"]["negative"] == "text",
+                    "native negative limits were applied to the retained portable negative",
+                )
+                try:
+                    _package(empty_stateless_reference_set(), model=NATIVE_MODEL_ID,
+                             integrated_prompt="", native_negative=NATIVE_NEGATIVE)
+                except ValueError as exc:
+                    limit_error = str(exc)
+                else:
+                    limit_error = ""
+                checked("limit" in limit_error, "the selected native negative exceeded its declared character limit")
 
             integrated_text_tamper = copy.deepcopy(integrated_package)
             integrated_text_tamper["generation_payload"]["transports"]["integrated"][
@@ -2831,35 +2887,30 @@ def run() -> dict[str, Any]:
             )
             mutation_count += 1
 
-            missing_coverage = copy.deepcopy(integrated_package)
-            missing_coverage_text = (
+            rehashed_rendition = copy.deepcopy(integrated_package)
+            changed_text = (
                 "A poised synthetic character in a clean text-free quiet studio light."
             )
-            missing_coverage["generation_payload"]["transports"]["integrated"][
+            rehashed_rendition["generation_payload"]["transports"]["integrated"][
                 "text"
-            ] = missing_coverage_text
-            missing_coverage["generation_payload"]["transports"]["integrated"][
+            ] = changed_text
+            rehashed_rendition["generation_payload"]["transports"]["integrated"][
                 "sha256"
-            ] = generation_builder.sha256_text(missing_coverage_text)
-            missing_coverage_errors, _ = verify_transports(missing_coverage)
-            expected_coverage_error = (
-                "declared affirmative coverage for `anatomy-review` is absent from the "
-                "integrated rendition"
-            )
+            ] = generation_builder.sha256_text(changed_text)
+            transport_errors, _ = verify_transports(rehashed_rendition)
             checked(
-                expected_coverage_error in missing_coverage_errors
-                and "integrated transport hash mismatch" not in missing_coverage_errors,
-                "rehashed integrated rendition did not report the distinct affirmative-coverage error",
+                not transport_errors,
+                "the transport check inferred semantic obligations from negative provenance",
             )
             try:
-                verify(missing_coverage)
+                verify(rehashed_rendition)
             except ValueError as exc:
-                missing_coverage_verify_error = str(exc)
+                transformation_error = str(exc)
             else:
-                missing_coverage_verify_error = ""
+                transformation_error = ""
             checked(
-                "recommendation audit differs from its recorded transformation" in missing_coverage_verify_error,
-                "full verification did not reject the changed rendition against its transformation: " + missing_coverage_verify_error,
+                "recommendation audit differs from its recorded transformation" in transformation_error,
+                "full verification did not reject the changed rendition against its transformation: " + transformation_error,
             )
             mutation_count += 1
 

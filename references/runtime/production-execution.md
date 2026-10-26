@@ -34,8 +34,9 @@ Use its task ID in a task that follows `schemas/authoring/production-task.schema
 The task declares its route, direction, full source selectors, criteria and execution kind.
 For dispatcher generation it also declares `generation` and `recording`.
 The prompt file named by `delivery.path` is the single authored prompt.
-The agent interprets the sources and criteria into that depiction under
-[Prompt Composition](prompt-composition.md#prompt-assembly-and-review).
+The agent composes the complete wanted image from the sources, then refines its
+details and necessary exclusions. Interpret criteria as requirements on that
+depiction; keep their grading language in the task's review records.
 The compiler packages the rendition with the selected interface's declared controls.
 
 ```text
@@ -144,6 +145,8 @@ The draft follows `schemas/authoring/production-execution-decisions.schema.json`
 It contains the run, input digest, request digest and every required authorization.
 Complete its reasons, stop-condition assessments and final-request assessment from actual evidence.
 [Production permissions](production-permissions.md#authorization-and-execution-records) describes each authorization and its `request_decision`.
+Read the sealed prompt fields and actual supplied images together for the
+`rendition_review`; source records alone cannot establish what the model receives.
 A draft has unanswered judgments and grants no permission.
 A supplied decision file must cover the complete operation set; altering targets does not narrow the prepared requirement.
 With valid exact receipts already recorded, `execute --root STUDIO --run RUN` needs no decision file.
@@ -476,8 +479,8 @@ preserve and review meaning.
 The image input declares one model target, ordered references and an
 `external_request`. Dispatcher work supplies at least one reference, sets
 `external_request: null`, and uses its ordinary prepared set and compiled request.
-External work pins one exact saved request. External work without declared image
-input does not need an empty plan.
+Every external image task pins one exact saved request through this plan.
+External non-image work does not need an image-input plan.
 
 An exact text-only image request uses `references: []` and a complete, non-null
 `external_request` with `reference_fields: []`. Preparation pins the model
@@ -547,11 +550,13 @@ the images the target receives. Keep request field paths and internal keys in
 the binding record.
 
 `check` and `prepare` verify the saved request's exact prompt, ordered media
-mapping and source bytes. The agent reviews whether those received inputs
-identify each subject and convey the assigned reference uses. A change in
-scope, subject assignment, priority or image position requires that meaning
-review again. Dispatcher requests use the same boundary with their compiled
-image order or board regions.
+mapping and source bytes. The agent completes the existing `rendition_review`
+against that entire input, bound to `image_input.binding_sha256`. Review the
+wanted image, actual reference use and ownership of production information,
+including a text-only request's empty image set. A changed prompt, scope,
+subject assignment, priority or image position requires that meaning review
+again. Dispatcher review uses its compiled request and actual image order or
+board regions, bound to the request hash.
 
 For model identity carried in a parameter, `model_field` selects that exact
 parameter. If the interface selects a model through an endpoint or tool, use
@@ -800,7 +805,8 @@ Exported observations never authorize a new action; continue decisions through t
 Use [Scene Persona Material](scene-persona.md) to preserve a full-reading result for one scoped scene.
 Add `scene-persona` to the task features and name local selectors as `scene_materials: [{"plan": "scene-plan.json", "bundle": "scene-material"}]`.
 Preparation checks the complete source files and deterministic documents, stores their dependencies, and includes the document in `consumer.authoring_materials`.
-The agent applies the material's relevant meaning to the authored depiction.
+The agent interprets the material into the visible state, performance and
+relationships needed for the authored depiction.
 Source definitions, internal keys and review evidence remain in the authoring context.
 Viewpoint limits and exact submitted inputs keep their own boundaries.
 Public material requires an explicit content hash and accepted-by or basis instead of a search for its producer.

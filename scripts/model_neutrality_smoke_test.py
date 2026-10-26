@@ -117,7 +117,7 @@ SOURCE_EXCERPTS = {'references/adapters/instruction-edit.md': {'Stable Diffusion
                                             '[NovelAI](../adapters/novelai.md)': 1,
                                             '[Grok Imagine](../adapters/grok-imagine.md)': 1,
                                             'Stable Diffusion parentheses': 1,
-                                            "ComfyUI is a workflow host, so use the loaded model's record or an explicit workflow-level decision.": 1,
+                                            'For ComfyUI, identify the loaded model and its exact workflow contract.': 1,
                                             '`"transport": "runware"` selects `scripts/transport_runware.py`': 1,
                                             'Gemini or Imagen, Firefly, Ideogram, Recraft, Leonardo, and future design-oriented generators use that unlisted-interface rule. Inspect the exact active interface and model record; never infer media or negative transport from a brand family.': 1,
                                             '[Workflow Walkthrough](workflow-walkthrough.md) takes one idea to a prepared run and its exact request for `grok-imagine-image-2.0` on Runware. It sends nothing and uses no credential. State-aware example commands above name `--plot-file` and `--retrieval-record-file` for a run whose task declares neither; `examples/state-aware-pilot/build_example.py` supplies explicit illustrative lookup data for its generated package.': 1},

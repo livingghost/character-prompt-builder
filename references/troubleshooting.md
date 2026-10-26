@@ -15,6 +15,7 @@ This file stays small. It holds a routing index and **process-level** failures: 
 | Symptom | Destination |
 |---|---|
 | Output is polished but conceptually unrelated | section: The result is polished but feels unrelated |
+| Prompt reads like production notes or a growing exclusion list | section: The prompt describes the workflow instead of the image |
 | Output looks like a template | section: The result looks like a generic record |
 | Anime turned painterly, photo turned 3D, etc. | section: The medium drifts |
 | Wrong gaze, gesture, or interaction | section: Gaze, gesture, or interaction is wrong |
@@ -40,7 +41,11 @@ This file stays small. It holds a routing index and **process-level** failures: 
 
 ## The result is polished but feels unrelated
 
-Re-read the brief as a whole and restate the image intent. The prompt probably translated fragments instead of the pictured relationship.
+Re-read the brief as a whole and restate the complete wanted image. Check whether the prompt describes its subjects, action and relationships together before refining attributes. Narrative context should produce the visible state and performance needed for that moment.
+
+## The prompt describes the workflow instead of the image
+
+Rebuild the depiction from the current brief and approved sources. Keep internal IDs, provenance, selection reasons and grading in their owning records, and settings in native request fields. Replace abstract production instructions with their required visible result. Retain necessary identity detail, exclusions and concrete directions for the actual supplied images. Review the entire resulting input; deleting particular words cannot establish this boundary.
 
 ## The result looks like a generic record
 
@@ -93,13 +98,19 @@ The prompt likely contains attributes without performance. Add a visible decisio
 
 ## A predicted misreading appears in the output
 
-This is a process failure: the record that predicted it was retrieved and its diagnostics were read past. Re-run Prompt assembly and review in `references/runtime/prompt-composition.md`: for every selected record, ask whether the prompt actively prevents each entry in `misreadings_to_avoid` and each matching scene `failure_mode`. For prose-only models, convert each unresolved item into affirmative construction language from that same authority; for models with a negative channel, activate the matching correction.
+Compare the observed failure with the selected record's diagnostic knowledge. Re-run Prompt assembly and review in `references/runtime/prompt-composition.md` and decide which construction or exclusion the current image needs. Diagnostics inform that decision; they do not all become prompt clauses. Use the target's supported channel and preserve the intended depiction when adding a scoped correction.
 
 ## Revisions converge on the agent's first inventions
 
 This is a process failure. Symptom: across several revisions for the same brief, wardrobe category, palette, staging, props, and camera repeat, even though the user never specified them. Mechanism: the first retrieval seeds the choices (a query word such as muscular surfaces athletic records, and the agent adopts their wardrobe and staging), and the agent then freezes its own inventions across revisions, often under the reasonable-sounding rule of changing one variable at a time. The freeze itself was never requested.
 
-Repair: an agent invention is creative space, not an anchor, and every revision re-opens it by default. Only two things persist across revisions: user-specified anchors, and freezes the agent has explicitly disclosed as deliberate isolation choices the user can veto. When the user signals sameness, or simply on the second and later generations for one brief, vary the unlocked axes deliberately across the catalog's breadth: wardrobe family, palette, staging, camera distance, lighting, expression register, gaze target, and body build each have dozens to hundreds of records, and repetition wastes them. Retrieval seeding is diagnosable: if the current wardrobe or staging traces to the first query's incidental matches rather than to the brief, it is a seed, not a decision.
+Use the [Revision Contract](runtime/revision-contract.md) to distinguish a local
+edit from exploration. A local edit preserves the current baseline outside the
+requested change. When the author asks for alternatives or rejects repetitive
+directions, use `explore` to reconsider unlocked choices across wardrobe,
+staging, camera, lighting and performance. Diagnose whether repeated choices
+serve the brief or merely came from incidental retrieval matches. Retaining a
+draft choice during an edit does not make it permanent identity.
 
 ## A surface the style omits keeps getting described
 

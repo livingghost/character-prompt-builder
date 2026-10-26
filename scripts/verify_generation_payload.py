@@ -28,7 +28,7 @@ from state_protocol import find_non_finite_numbers, parse_json
 
 VALID_MODES = {"separate-field", "integrated-critical", "native-subset", "retained-only"}
 VALID_INTEGRATED_METHODS = {
-    "authored-affirmative",
+    "authored-rendition",
     "primary-prompt-certified",
     "no-negative-required",
     "unavailable",
@@ -132,7 +132,6 @@ NEGATIVE_PROVENANCE_FIELDS = {
     "activated_sources",
     "diagnostic_sources_retained",
     "semantic_exclusions_user_supplied",
-    "affirmative_translations",
 }
 
 
@@ -216,8 +215,6 @@ def verify_transports(data: dict[str, Any]) -> tuple[list[str], dict[str, Any]]:
             errors.append("integrated transport hash mismatch")
         if method in {"primary-prompt-certified", "no-negative-required"} and text != prompt:
             errors.append("certified integrated transport differs from primary prompt")
-        if negative and not available:
-            errors.append("negative-bearing payload has no affirmative integrated transport")
 
     native = transports.get("native_subset")
     if not isinstance(native, dict):
@@ -273,19 +270,6 @@ def verify_transports(data: dict[str, Any]) -> tuple[list[str], dict[str, Any]]:
             if not isinstance(instructions.get(channel), str) or not instructions[channel].strip():
                 errors.append(f"transport paste instruction is missing: {channel}")
 
-    provenance = gp.get("negative_provenance")
-    if isinstance(provenance, dict):
-        translations = provenance.get("affirmative_translations", {})
-        if not isinstance(translations, dict):
-            errors.append("negative provenance affirmative_translations is invalid")
-        elif translations:
-            integrated_text = str((integrated or {}).get("text") or "")
-            for source, translated_text in translations.items():
-                if not isinstance(source, str) or not isinstance(translated_text, str) or not translated_text.strip():
-                    errors.append("affirmative translation entry is invalid")
-                    continue
-                if translated_text not in integrated_text:
-                    errors.append(f"declared affirmative coverage for `{source}` is absent from the integrated rendition")
     return errors, transports
 
 
@@ -429,6 +413,17 @@ def _verify(
     parameters = payload.get("parameters")
     if not isinstance(parameters, dict):
         raise ValueError("generation parameters must be an object")
+    transport_errors, transports = verify_transports(data)
+    if transport_errors:
+        raise ValueError("; ".join(transport_errors))
+    transport = payload["negative_transport"]
+    mode = transport.get("mode")
+    if not isinstance(mode, str) or mode not in VALID_MODES:
+        raise ValueError(f"invalid negative transport mode: {mode}")
+    rendition = _selected_rendition(mode, transports)
+    selected_prompt = rendition["text" if mode in {"integrated-critical", "retained-only"} else "prompt"]
+    selected_negative = rendition.get("negative", "")
+    require_pair(selected_prompt, selected_negative, weighting_syntax)
     model_id = model
     model_record = None
     offering = None
@@ -451,7 +446,6 @@ def _verify(
             # as the service would see it.
             reference_set = data.get("prepared_reference_set") or {}
             references = reference_set.get("selected_references") or [] if isinstance(reference_set, dict) else []
-            mode = (payload.get("negative_transport") or {}).get("mode")
             declared = payload.get("service")
             if declared is not None and not isinstance(declared, dict):
                 raise ValueError("generation_payload.service must be an object or null")
@@ -461,8 +455,8 @@ def _verify(
                 parameters,
                 service=(declared or {}).get("id"),
                 pack_root=model_pack_root(model_id),
-                prompt=str(payload.get("prompt") or ""),
-                negative_prompt=str(payload.get("negative_prompt") or "") if mode == "separate-field" else None,
+                prompt=selected_prompt,
+                negative_prompt=selected_negative if mode in {"separate-field", "native-subset"} else None,
                 media_counts=None if selected is None else generation_media_counts(
                     selected, delivered_reference_count(reference_set),
                     media_role=data["render_contract"]["model_card"]["execution_profile"]["modes"][data["render_contract"]["intent"]["execution_mode"]]["media"]
@@ -480,10 +474,10 @@ def _verify(
                 )
             positive_limit = model_record.get("max_positive_prompt_chars")
             negative_limit = model_record.get("max_negative_prompt_chars")
-            if isinstance(positive_limit, int) and len(str(payload.get("prompt") or "")) > positive_limit:
-                raise ValueError("prompt exceeds the active model character limit")
-            if isinstance(negative_limit, int) and len(str(payload.get("negative_prompt") or "")) > negative_limit:
-                raise ValueError("negative prompt exceeds the active model character limit")
+            if type(positive_limit) is int and len(selected_prompt) > positive_limit:
+                raise ValueError("selected prompt exceeds the active model character limit")
+            if type(negative_limit) is int and len(selected_negative) > negative_limit:
+                raise ValueError("selected negative prompt exceeds the active model character limit")
         if model_record is not None:
             require_route_reading(data['route_reading'], studio=studio, ledgers=reading_ledgers,
                 package_root=package_root, routes=GENERATION_ROUTES,
@@ -661,25 +655,7 @@ def _verify(
     ):
         if not isinstance(provenance.get(key), list):
             raise ValueError(f"negative provenance field is invalid: {key}")
-    translations = provenance.get("affirmative_translations")
-    if not isinstance(translations, dict):
-        raise ValueError("negative provenance affirmative_translations is invalid")
-    for source, text in translations.items():
-        if not isinstance(source, str) or not isinstance(text, str) or not text.strip():
-            raise ValueError("affirmative translation entry is invalid")
 
-    transport_errors, transports = verify_transports(data)
-    if transport_errors:
-        raise ValueError("; ".join(transport_errors))
-    transport = payload.get("negative_transport")
-    if not isinstance(transport, dict):
-        raise ValueError("negative transport declaration is missing")
-    mode = str(transport.get("mode") or "")
-    if mode not in VALID_MODES:
-        raise ValueError(f"invalid negative transport mode: {mode}")
-    rendition = _selected_rendition(mode, transports)
-    require_pair(rendition['text' if mode in {'integrated-critical','retained-only'} else 'prompt'],
-                 rendition.get('negative') or '', weighting_syntax)
     channel = transport.get("channel")
     if not isinstance(channel, str) or channel != rendition.get("channel"):
         raise ValueError("selected transport channel differs from its committed rendition")

@@ -68,11 +68,10 @@ PROMPT = (
     "and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry "
     "closed field-office shirt and braces his left hand against the desk edge. His face presents "
     "controlled professional calm while shallow breathing, slight temple sweat, and tension "
-    "concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague "
-    "and then briefly away, close but not touching. Use warm window light with cool neutral "
+    "concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby "
+    "colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral "
     "office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder "
-    "planes, and a quiet field-office background. Keep the transferred silver pendant absent "
-    "from him because it is now carried by the colleague."
+    "planes, and a quiet field-office background. No pendant hangs at his neck."
 )
 
 NEGATIVE = (
@@ -88,12 +87,11 @@ INTEGRATED_PROMPT = (
     "and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry "
     "closed field-office shirt and braces his clearly separated left hand against the desk edge. "
     "His face presents controlled professional calm while shallow breathing, slight temple sweat, "
-    "and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted "
-    "colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel "
-    "medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial "
-    "markings, warm window light, cool neutral office fill, and restrained soft modeling. The "
-    "silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free "
-    "of that pendant."
+    "and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby "
+    "colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, "
+    "warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office "
+    "background. Preserve the subject-left placement of the ear stud and healed notch. "
+    "Keep the hand distinct from the desk at their contact. No pendant hangs at his neck."
 )
 
 
@@ -282,7 +280,7 @@ def build_production_spec(
                             "cue_id": "performance-gaze-c02",
                             "channel": "gaze",
                             "observation": "C01 looks toward C02 and then briefly away.",
-                            "visual_instruction": "Aim the eyes toward C02 with a small evasive break in the held gaze.",
+                            "visual_instruction": "Keep the head angled toward the nearby colleague while the eyes glance down and aside.",
                             "laterality": "bilateral",
                             "intensity": "subtle",
                             "direction_or_target": "C02, followed by a brief off-target glance",
@@ -583,7 +581,7 @@ def build_production_spec(
                 ),
                 "legs_and_feet": "outside the crop",
                 "gaze_and_head": (
-                    "looks toward C02, then briefly away, with the subject-left ear visible"
+                    "head angled toward C02 while the eyes glance down and aside, with the subject-left ear visible"
                 ),
                 "props_and_contacts": (
                     "desk edge supports the left hand; the transferred pendant is possessed by C02 "
@@ -779,14 +777,6 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
         ],
         "diagnostic_sources_retained": [],
         "semantic_exclusions_user_supplied": [],
-        "affirmative_translations": {
-            f"style-family:{DEFAULT_STYLE_FAMILY_ID}": "crisp facial markings",
-            f"render-profile:{DEFAULT_RENDER_PROFILE_ID}": "a clearly illustrated soft-cel medium",
-            "state-integrity:left-right": "stable left-right identity",
-            "state-integrity:prop-ownership": (
-                "the wolf's neck and shirt remain visibly free of that pendant"
-            ),
-        },
     }
     write_json(generated / "creative-intent.json", creative_intent)
     write_json(generated / "negative-provenance.json", negative_provenance)

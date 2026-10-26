@@ -40,14 +40,43 @@ A dispatcher submission carries `request_decision`:
   and actual reason.
 - `principal_approval`: the exact request hash, principal and
   `evidence{path,sha256,locator}`, or null when a delegated case applies.
-- `rendition_review`: request hash, reviewer, satisfied conclusion, reason and
-  every transported reference binding id.
+- `rendition_review`: exact input hash, reviewer, transported reference binding
+  IDs and the author's three meaning assessments below.
+
+Dispatcher and external image submissions use this same `rendition_review`.
+Its `input_sha256` is the dispatcher request hash or the external image-input
+binding hash. `reviewer` equals the authorized actor, and `binding_ids` names
+every transported logical reference, including uses sharing one attachment.
+Its `assessments` contains one conclusion and reason for each criterion:
+
+- `finished-image`: read back the complete input and compare the resulting
+  depiction with the author's anchors. Explain how the relevant actions,
+  visibility and exclusions coexist within their actual scopes. Resolve
+  conflicts under the composition's source authority before marking it satisfied.
+- `supplied-inputs`: subjects and reference uses resolve from the delivered text
+  and actual images; a reference-free request invents no supplied source.
+- `ownership`: prompt text carries depiction and necessary image-use directions;
+  production IDs, provenance, decisions, grading and native settings keep their
+  existing record or request-field owners.
+
+Record `not-satisfied` for a contradiction and `unmeasured` when evidence or
+interpretation remains insufficient. Both prevent submission. Repair the input
+within authority, prepare it again and assess the resulting exact input.
+A request can proceed only when every conclusion is `satisfied` with an explicit
+reason grounded in that input. Repeating a criterion or citing a passing checker
+does not perform the judgment. The validator checks attribution, coverage and
+input integrity; it cannot establish whether the author's reasoning is true.
+
+Binding IDs retain their exact delivery order. An external image submission's
+`request_decision` contains only this `rendition_review`; its ordinary outer
+authorization grants the exact operation.
 
 `draft-execution` derives identifiers but never fills judgments. Inspect its
 complete request, references, controls and `execution_plan.prompt_check` before
-approving. Tag-check notes and dictionary meanings are evidence to examine, not
-an automatic acceptance verdict. An unscoped request needs principal approval;
-a scoped delegation needs satisfied assessments. `GRANT_SCOPE_EXCEEDED` names
+approving. Draft assessments have null conclusions and empty reasons. Structural
+checks and dictionary evidence cannot fill them. An unscoped dispatcher request
+needs principal approval; a scoped delegation needs satisfied assessments.
+`GRANT_SCOPE_EXCEEDED` names
 missing targets and the current granted set without narrowing the requested work.
 
 An execution claim records the unique owner of an authorized submission. The

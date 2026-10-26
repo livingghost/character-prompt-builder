@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import copy
 import json
 import subprocess
 import sys
@@ -27,6 +28,16 @@ INVALID_SEMANTIC_PLAN = {
     "camera": {
         "angle": "worms-eye", "shot_scale": "wide", "distance": "distant",
         "camera_height": "eye", "pitch": "level", "subject_frame_occupancy": 0.2,
+    },
+}
+
+BOUNDED_CAMERA_PLAN = {
+    "structure_plan": {"expected_counts": {}, "assigned_structures": [], "primary_actions": []},
+    "camera": {
+        "angle": "worms-eye", "shot_scale": "wide", "distance": "distant",
+        "camera_height": "ground", "pitch": "upward", "subject_frame_occupancy": 0.25,
+        "subject_frame_occupancy_bounds": {"minimum": 0.2, "maximum": 0.3},
+        "establishing_context": True,
     },
 }
 
@@ -199,6 +210,25 @@ def main() -> int:
             "--semantic-plan", str(invalid), "--require-semantic-plan",
         )
 
+        # An occupancy requirement alone controls publication, independent of anatomy and camera wording.
+        camera_plan = root / "camera-semantic.json"
+        camera_plan.write_text(json.dumps(BOUNDED_CAMERA_PLAN) + NL, encoding="utf-8")
+        accepted_camera = run(
+            script, "--prompt", str(prompt), "--out-dir", str(root / "accepted-camera"), *answered,
+            "--semantic-plan", str(camera_plan), "--require-semantic-plan",
+        )
+        outside_camera = copy.deepcopy(BOUNDED_CAMERA_PLAN)
+        outside_camera["camera"]["subject_frame_occupancy"] = 0.4
+        camera_plan.write_text(json.dumps(outside_camera) + NL, encoding="utf-8")
+        camera_output = root / "blocked-camera"
+        blocked_camera = run(
+            script, "--prompt", str(prompt), "--out-dir", str(camera_output), *answered,
+            "--semantic-plan", str(camera_plan), "--require-semantic-plan",
+        )
+        camera_refused = (blocked_camera.returncode != 0 and not camera_output.exists()
+                          and "camera.subject_frame_occupancy: 0.4 is outside declared bounds [0.2, 0.3]"
+                          in blocked_camera.stdout + blocked_camera.stderr)
+
         # A prompt begins from a plot, and generation-ready needs it approved.
         no_plot = run(script, "--prompt", str(prompt), "--out-dir", str(root / "no-plot"),
                       "--retrieval-record", str(record))
@@ -339,6 +369,11 @@ def main() -> int:
             errors.append(f"unexpected minimal prompt-only package: return={proc.returncode}, files={files}, stderr={proc.stderr}")
         if blocked.returncode == 0:
             errors.append("an invalid semantic plan was published")
+        if accepted_camera.returncode != 0 or not camera_refused:
+            errors.append("camera occupancy publication gate failed: "
+                          f"accepted={accepted_camera.returncode}, refused={camera_refused}, "
+                          f"accepted_output={accepted_camera.stdout + accepted_camera.stderr}, "
+                          f"blocked_output={blocked_camera.stdout + blocked_camera.stderr}")
         if not plot_ok:
             errors.append(
                 "plot gate wrong: "
@@ -373,6 +408,8 @@ def main() -> int:
                 "files": files,
                 "authored_depiction_cases": 3,
                 "invalid_semantic_plan_blocked": blocked.returncode != 0,
+                "declared_camera_bounds_allow_publication": accepted_camera.returncode == 0,
+                "camera_only_violation_blocks_publication": camera_refused,
                 "plot_required": no_plot.returncode != 0,
                 "unapproved_plot_refused": unapproved_package.returncode != 0,
                 "approved_plot_allows_generation": approved_generation.returncode == 0,

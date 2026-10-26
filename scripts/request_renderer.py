@@ -24,10 +24,9 @@ def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,
     segments=audit['segments'] if audit is not None else None
     from reference_delivery import bindings
     prepared=package['prepared_reference_set'];rows=bindings(prepared['transport_mode'],prepared['selected_references'],prepared['single_board'])
-    binding=package['production_binding'];consumer=binding['consumer'] if binding is not None else None
     result=model_rendition.compose(original,segments=segments,
         authored_source={'kind':'generation-rendition','sha256':c.digest(original.encode('utf-8'))},bindings=rows,
-        reference_policy=policy.get('reference_instruction_transport'),production_consumer=consumer,
+        reference_policy=policy.get('reference_instruction_transport'),
         reader=local,target=expected,dialect=policy.get('text_dialect') or (model or {}).get('prompt_dialect'))
     from prompt_weighting import selected as selected_weighting, require_pair
     require_pair(result['text'], rendition.get('negative') or '', selected_weighting(package['render_contract']['parameters']))

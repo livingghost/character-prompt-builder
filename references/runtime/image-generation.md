@@ -21,7 +21,7 @@ Gemini or Imagen, Firefly, Ideogram, Recraft, Leonardo, and future design-orient
 ## Choose execution
 
 For `execution: dispatcher`, follow the package, prepared-reference and verifier procedures below.
-For a host tool, use Production Execution's external branch for the approved generation task. `task.image_input` binds the exact model, supplied media and external request through the [shared image-input plan](../../schemas/authoring/image-input-plan.schema.json). An existing-image replacement additionally follows [Semantic instruction editing](semantic-instruction-edit.md) for its source, intended changes and preserved properties. A text-to-image request does not acquire a scene-source or edit plan just because its model is absent from the catalog. The host request must still name the exact requested model, parameters, evidence and available media; a bounded trial requires its declared authority. External binding does not claim a compiled Generation Package or verified model profile.
+For a host tool, use Production Execution's external branch for the approved generation task. `task.image_input` binds the exact model, supplied media and external request through the [shared image-input plan](../../schemas/authoring/image-input-plan.schema.json). A text-only image request uses `references: []`. An existing-image replacement additionally follows [Semantic instruction editing](semantic-instruction-edit.md) for its source, intended changes and preserved properties. A text-to-image request does not acquire a scene-source or edit plan just because its model is absent from the catalog. The host request must still name the exact requested model, parameters, evidence and available media; a bounded trial requires its declared authority. External binding does not claim a compiled Generation Package or verified model profile.
 
 When accepted characters must share a scene, use [Character Assets and Multi-Character Scenes](character-repose-workflow.md) to decide whether any character asset is missing before preparing the scene request. Assess the exact stage's model against the requested use case and actual reference count through [Render contract](render-contract.md). An explicit model choice remains scoped to the stage the author selected.
 
@@ -55,32 +55,37 @@ Do not begin model-facing materialization until the dependency check passes.
 
 ## Prompt rendition gate
 
-Finish and review one master prompt before applying target syntax. Select the exact model record and adapter, then follow [Prompt Writing Guide Runtime](prompt-writing-guide.md). When the active pack state selects a `prompt-writing-guide` provider, resolve and read the complete guide before final rendition. Apply only the ordering, separators, weights, LoRA or embedding notation, negative handling, and other rules supported by the exact active interface.
+Finish and review the complete wanted image before applying target syntax. Establish its overall depiction before refining details and necessary exclusions. Select the exact model record and adapter, then follow [Prompt Writing Guide Runtime](prompt-writing-guide.md). When the active pack state selects a `prompt-writing-guide` provider, resolve and read the complete guide before final rendition. Apply only the ordering, separators, weights, LoRA or embedding notation, negative handling, and other rules supported by the exact active interface.
 
 If the parser is unknown, keep portable semantic text instead of guessing Stable Diffusion parentheses, square brackets, LoRA calls, embedding tokens, or platform parameters. Recheck the target rendition against the master prompt so syntax changes emphasis without changing subject identity, count, anatomy, relationships, camera, medium, or state.
 
 When the final rendition is shown to the user for a decision, show it twice: the exact text as it would be sent, which is the only copy that travels, and a literal rendering in the user's language beside it, term by term and field by field, the negative field included. A model-facing text is written in the language the checkpoint was trained on, and a person cannot approve a defect they cannot read; the rendering is a reading aid and is never sent, never a summary, and never shortened where the text repeats. A term with no ordinary equivalent is carried across as it stands, with a line on what it draws.
 
-Generation builders commit the supplied final rendition and the verified media. Resolve each subject and reference from those actual inputs during the existing meaning review. Source records, production context and evaluation criteria inform authoring and stay with their owning records. Builders preserve the authored language and apply only the selected interface's declared transport controls.
+Generation builders commit the supplied final rendition and the verified media. Review the whole image those actual inputs describe, including each subject and reference use, before submission. Record that judgment in the existing `rendition_review` under [Production permissions](production-permissions.md#authorization-and-execution-records). Builders preserve the authored language and apply only the selected interface's declared transport controls.
 
 ## Model and negative transport
 
-Enabled `model` records are the authority for automatic negative transport and accepted reference media. Use a canonical model ID, exact label, or declared alias. Unknown interfaces require an evidence-backed model record or explicit `--negative-transport`; there is no undeclared media override. ComfyUI is a workflow host, so use the loaded model's record or an explicit workflow-level decision.
+Enabled `model` records are the dispatcher authority for negative transport and
+accepted reference media. Use a canonical model ID, exact label or declared alias.
+For ComfyUI, identify the loaded model and its exact workflow contract.
 
-For Generation Package dispatch: The model-record catalog is the single extensibility boundary. Adding a valid `model` record to an enabled pack must update model resolution, negative transport, reference media and package construction immediately. Keep these capabilities in that record rather than a second model-name table. A reference-free call may use an explicit `--negative-transport` decision. Preparing a Generation Package with references requires an enabled, evidence-backed model record.
+Generation Package dispatch requires an enabled, evidence-backed model offering
+and execution profile, including for reference-free requests. Adding that record
+updates model resolution, negative transport, reference media and package
+construction together. Explicit transport selection operates within this contract.
 
 For a requested model missing from that catalog, distinguish the requested operation before choosing an execution path. For a new image, use the [Unlisted Image Interface](../adapters/unlisted-interface.md) with the normal generation task and exact provider evidence; prepare an authorized external host request, or explicitly register and validate a model offering before dispatcher packaging. For an edit of an existing image, use [Semantic instruction editing](semantic-instruction-edit.md) to pin the source and each reference. Neither path substitutes a nearby model or pretends that a missing offering is executable through the dispatcher. A host-tool result establishes only what was actually sent and returned, not a verified model profile.
 
 The supported negative modes are:
 
 - `separate-field`: send the complete verified negative to an independent field;
-- `integrated-critical`: author affirmative construction constraints in the positive prompt, retain the full portable negative for traceability, and supply `--integrated-prompt-file` or certify the reviewed primary prompt with `--critical-avoidance-integrated`;
+- `integrated-critical`: author one coherent rendition carrying the depiction and necessary exclusions, using direct negation or positive construction as meaning requires; supply `--integrated-prompt-file` or certify the reviewed primary prompt with `--critical-avoidance-integrated`;
 - `native-subset`: author a concise platform-native subset and package it through `--native-negative-file`;
 - `retained-only`: forward the verified integrated rendition while retaining the portable negative for audit when the interface remains uncharacterized.
 
-The builder never appends literal negative text to the positive prompt. Every Generation Package commits all three renditions independently under `generation_payload.transports` rather than deriving one during forwarding: `generation_payload.transports.separate` commits its positive and portable-negative text with `prompt_sha256` and `negative_sha256`; `generation_payload.transports.integrated` commits the reviewed affirmative integrated text with `sha256`; and `generation_payload.transports.native_subset` commits its positive and concise native-negative text with `prompt_sha256` and `negative_sha256`. The verifier recomputes those hashes and selects the exact committed rendition for the target mode.
+The builder preserves authored transport text rather than appending a negative list to the positive prompt. `generation_payload.transports` retains three independently hashed records: `separate` holds positive and portable-negative text; `integrated` holds the reviewed single-field rendition; `native_subset` holds positive and platform-native negative text. Unavailable integrated or native renditions have `available: false`, `method: "unavailable"`, empty text and matching hashes. Only the selected transport must be available. A separate or native negative field needs no unused integrated alternative, and a native negative needs no duplicate portable list. The verifier selects the exact committed rendition for the target mode.
 
-On an `integrated-critical` interface, the selected family's and render profile's `negative_terms` form the medium's anti-drift boundary, but the interface never receives those terms as negative text. Restate each activated finish or construction requirement affirmatively inside the positive prompt, adjacent to the surface or structure it governs. In negative provenance, map every activated source record ID to its nonempty positive wording under `affirmative_translations`; verification must prove that every translation survived into the committed integrated rendition. The builder adds the render profile and style family the Production Specification selects to `activated_sources`, and on a target with no negative field it refuses an active source that has no entry there. When medium drift is diagnosed, search the active catalog for a matching correction and inspect the exact resolved record before use. Core runtime logic must not assume that any optional-pack correction ID exists. Never paste diagnostic or negative vocabulary into the positive prompt.
+Select exclusions for the current image from the applicable policy, explicit requirements and observed or supported risks. A selected style or render profile supplies scoped evidence, not a command to emit all its `negative_terms`. Keep source IDs and activation decisions in negative provenance. Review whether the complete rendition preserves the intended finish and construction; no source-to-sentence mapping establishes that meaning. When medium drift is diagnosed, search the active catalog for a matching correction and inspect the exact resolved record before use. Core runtime logic must not assume that any optional-pack correction ID exists.
 
 ## Services and offerings
 
@@ -109,7 +114,7 @@ Adding a service is one record in `service-profiles`, an offering on every model
 
 ## Model-facing reference transport
 
-Before selecting model carriers, complete the semantic reading and reference-to-prompt synthesis in [Visual Reference Activation and Transport](../visual-reference-activation-and-transport.md). Every selected item must have reviewed preserve, replace, add, and omit scopes plus a positive prompt clause. Transport implements that authority; it does not decide what the SVG means.
+Before selecting model carriers, complete the semantic reading and reference-to-prompt synthesis in [Visual Reference Activation and Transport](../visual-reference-activation-and-transport.md). Review each item's intended use and preserve, replace, add, and omit scopes. Express the needed reference directions using the actual delivered image or panel. Transport implements that authority; it does not decide what the SVG means.
 
 Build the canonical plan from record uses. Use `multi-image` when the endpoint accepts several images and preserve every item independently in plan order. Use `single-board` only when the endpoint accepts one image. A board is disposable transport, not a new semantic source; retain each panel's source hash, model-transport hash, semantic role, authority, exclusions, coordinates, and the separate board hash.
 
@@ -257,7 +262,7 @@ python scripts/verify_generation_payload.py \
   --pack-root ADDITIONAL_PACK_ROOT
 ```
 
-The verifier output retains the complete positive prompt, portable negative, native subset, all three independently hashed transport renditions, the complete `prepared_reference_set` and `prepared_reference_set_sha256`, its embedded canonical Reference Use Plan and plan hash, its nested Surface and Lighting Plan and hash, and the optional finalized reference-selection origin tied to State Lineage. It does not replace those objects with an abbreviated inventory.
+The verifier output retains the complete positive prompt, authored negative text, all three transport records with their availability and hashes, the complete `prepared_reference_set` and `prepared_reference_set_sha256`, its embedded canonical Reference Use Plan and plan hash, its nested Surface and Lighting Plan and hash, and the optional finalized reference-selection origin tied to State Lineage. It does not replace those objects with an abbreviated inventory.
 
 - A relative package or output path is below `--studio-root STUDIO`; an absolute path needs no root.
 - Each output (`--prompt-out`, `--negative-out`, `--native-negative-out`, `--payload-out`) must be a new file; an existing one is refused with `OUTPUT_ALREADY_EXISTS`.

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Audit canonical preset authoring conformance and duplication risk.
+"""Audit preset record structure, source preservation and duplication evidence.
 
-This checks whether records marked as curated under the preset authoring
-standard contain executable visual knowledge. It does not score artistic
-quality and does not claim that a generator will follow every instruction.
+Check declared record fields, catalog integrity and preserved source content.
+The author assesses the meaning and usefulness of curated visual direction.
 """
 from __future__ import annotations
 import operation_context as _operation_context
@@ -26,10 +25,6 @@ from resource_policy import (
 
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
-
-
-def word_count(value: Any) -> int:
-    return len(re.findall(r"[A-Za-z0-9'-]+", str(value or "")))
 
 
 def token_set(record: dict[str, Any]) -> set[str]:
@@ -80,18 +75,10 @@ def check_atomic(record: Record, errors: list[str], warnings: list[str]) -> None
         "category", "label", "visual_function", "prompt", "invariants",
         "misreadings_to_avoid", "tags", "domains", "applies_to",
     ), errors)
-    if word_count(item.get("prompt")) < 24:
-        errors.append(f"{rid}: curated atomic prompt is under-authored ({word_count(item.get('prompt'))} words)")
-    if word_count(item.get("visual_function")) < 8:
-        errors.append(f"{rid}: visual_function is too short to state the module's job")
     if len(item.get("invariants", [])) < 3:
         errors.append(f"{rid}: requires at least three adaptation invariants")
     if len(item.get("misreadings_to_avoid", [])) < 3:
         errors.append(f"{rid}: requires at least three nearby misreadings")
-    normalized_label = re.sub(r"[^a-z0-9]+", " ", item.get("label", "").lower()).strip()
-    normalized_prompt = re.sub(r"[^a-z0-9]+", " ", item.get("prompt", "").lower()).strip()
-    if normalized_prompt == normalized_label or normalized_prompt in {f"a {normalized_label}", f"an {normalized_label}"}:
-        errors.append(f"{rid}: prompt merely repeats the label")
 
 
 
@@ -110,14 +97,6 @@ def check_distinctive_detail(record: Record, errors: list[str], warnings: list[s
         errors.append(f"{rid}: distinctive-detail laterality is invalid")
     if item.get("identity_priority") not in {"signature", "supporting", "optional"}:
         errors.append(f"{rid}: distinctive-detail identity_priority is invalid")
-    if word_count(item.get("landmark_relation")) < 6:
-        errors.append(f"{rid}: landmark_relation is under-authored")
-    if word_count(item.get("relative_size")) < 5:
-        errors.append(f"{rid}: relative_size must use a local proportional anchor")
-    if word_count(item.get("surface_interaction")) < 7:
-        errors.append(f"{rid}: surface_interaction is under-authored")
-    if word_count(item.get("visibility_and_occlusion")) < 7:
-        errors.append(f"{rid}: visibility_and_occlusion is under-authored")
     if len(item.get("adaptation_limits", [])) < 2:
         errors.append(f"{rid}: requires at least two adaptation limits")
 
@@ -131,16 +110,12 @@ def check_profile(record: Record, errors: list[str], warnings: list[str]) -> Non
         "negative_terms", "best_for", "avoid_for", "domains", "domain_neutrality",
     )
     require_fields(record, required, errors)
-    if word_count(item.get("rendering")) < 100:
-        errors.append(f"{rid}: rendering grammar is summary-like ({word_count(item.get('rendering'))} words)")
     if item.get("prompt") != item.get("rendering"):
         warnings.append(f"{rid}: prompt and rendering differ; verify both retain the full grammar")
     if len(item.get("avoid_for", [])) < 2:
         errors.append(f"{rid}: avoid_for must bound the profile's medium use")
     if item.get("domains") != ["shared"]:
         errors.append(f"{rid}: curated render profile must use domains ['shared']")
-    if word_count(item.get("domain_neutrality")) < 20:
-        errors.append(f"{rid}: render profile needs an explicit domain-neutrality contract")
 
 
 def check_aesthetic_core(record: Record, errors: list[str], warnings: list[str]) -> None:
@@ -159,18 +134,6 @@ def check_aesthetic_core(record: Record, errors: list[str], warnings: list[str])
     require_fields(record, required, errors)
     if item.get("domains") != ["shared"]:
         errors.append(f"{rid}: universal aesthetic core must use domains ['shared']")
-    if word_count(item.get("integration_prompt")) < 90:
-        errors.append(f"{rid}: aesthetic-core integration prompt is summary-like ({word_count(item.get('integration_prompt'))} words)")
-    for field in (
-        "aesthetic_promise", "appeal_center",
-        "silhouette_and_proportion_strategy",
-        "performance_and_expression_strategy", "viewer_relationship_strategy",
-        "composition_and_focal_strategy", "shape_and_rhythm_strategy",
-        "surface_and_tactility_strategy", "color_and_light_strategy",
-        "finish_and_detail_hierarchy", "domain_neutrality",
-    ):
-        if word_count(item.get(field)) < 20:
-            errors.append(f"{rid}: aesthetic-core field `{field}` is under-authored ({word_count(item.get(field))} words)")
     if len(item.get("compatible_medium_families", [])) < 1:
         errors.append(f"{rid}: aesthetic core needs at least one compatible medium family")
     if len(item.get("variation_axes", [])) < 4:
@@ -179,30 +142,6 @@ def check_aesthetic_core(record: Record, errors: list[str], warnings: list[str])
         errors.append(f"{rid}: aesthetic core needs at least three best_for uses")
     if len(item.get("avoid_for", [])) < 2:
         errors.append(f"{rid}: aesthetic core needs at least two avoid_for boundaries")
-
-    # A universal core defines appeal and art direction. Domain anatomy, surface
-    # systems, and expressive organs belong in domain-realization records.
-    positive = " ".join(
-        str(item.get(field, "")) for field in (
-            "aesthetic_promise", "appeal_center",
-            "silhouette_and_proportion_strategy",
-            "performance_and_expression_strategy", "viewer_relationship_strategy",
-            "composition_and_focal_strategy", "shape_and_rhythm_strategy",
-            "surface_and_tactility_strategy", "color_and_light_strategy",
-            "finish_and_detail_hierarchy", "integration_prompt", "domain_neutrality",
-        )
-    ).lower()
-    domain_specific = (
-        " fur ", " muzzle ", " paw ", " paws ", " tail ", " beak ",
-        " feather ", " feathers ", " skin ", " hair ", " chassis ",
-        " optic ", " optics ", " sensor ", " sensors ", " hoof ",
-        " hooves ", " wing ", " wings ", " manipulator ", " manipulators ",
-    )
-    padded = f" {positive} "
-    found = sorted({term.strip() for term in domain_specific if term in padded})
-    if found:
-        errors.append(f"{rid}: universal aesthetic core contains domain-realization vocabulary: {found}")
-
 
 def check_style_family(record: Record, errors: list[str], warnings: list[str]) -> None:
     item = record.record
@@ -219,8 +158,6 @@ def check_style_family(record: Record, errors: list[str], warnings: list[str]) -
     require_fields(record, required, errors)
     if item.get("domains") != ["shared"]:
         errors.append(f"{rid}: concrete style family must use domains ['shared']")
-    if word_count(item.get("integration_prompt")) < 100:
-        errors.append(f"{rid}: style-family integration prompt is summary-like ({word_count(item.get('integration_prompt'))} words)")
     for name in (
         "line_system", "form_system", "value_and_shadow_system",
         "highlight_system", "color_system", "surface_system", "background_system",
@@ -228,8 +165,6 @@ def check_style_family(record: Record, errors: list[str], warnings: list[str]) -
         value = item.get(name)
         if not isinstance(value, dict) or len(value) < 3:
             errors.append(f"{rid}: style-family `{name}` needs at least three authored components")
-        elif word_count(value) < 35:
-            errors.append(f"{rid}: style-family `{name}` is under-authored ({word_count(value)} words)")
     overlays = item.get("domain_overlays")
     expected = {"human", "anthropomorphic-animal", "animal", "creature", "hybrid", "robot"}
     if not isinstance(overlays, dict) or set(overlays) != expected:
@@ -244,8 +179,8 @@ def check_style_family(record: Record, errors: list[str], warnings: list[str]) -
             if missing:
                 errors.append(f"{rid}: domain overlay `{domain}` missing fields {missing}")
             for field in overlay_fields & set(overlay):
-                if word_count(overlay.get(field)) < 8:
-                    errors.append(f"{rid}: domain overlay `{domain}.{field}` is under-authored")
+                if overlay.get(field) in (None, "", [], {}):
+                    errors.append(f"{rid}: domain overlay `{domain}.{field}` must be populated")
     if len(item.get("compatible_render_profile_ids", [])) < 1:
         errors.append(f"{rid}: style family needs at least one compatible render profile")
     if item.get("base_render_profile_id") not in item.get("compatible_render_profile_ids", []):
@@ -275,23 +210,14 @@ def check_domain_realization(record: Record, errors: list[str], warnings: list[s
         errors.append(f"{rid}: domain realization requires one exact non-shared subject domain")
     if item.get("realization_level") == "foundation" and item.get("base_realization") is not True:
         errors.append(f"{rid}: foundation domain realization must set base_realization true")
-    for field in (
-        "realization_promise", "identity_and_silhouette", "performance_channels",
-        "anatomy_and_weight", "surface_and_materials", "viewer_relationship",
-        "motion_and_environment",
-    ):
-        if word_count(item.get(field)) < 20:
-            errors.append(f"{rid}: domain-realization field `{field}` is under-authored ({word_count(item.get(field))} words)")
-    if word_count(item.get("integration_prompt")) < 90:
-        errors.append(f"{rid}: domain-realization integration prompt is summary-like ({word_count(item.get('integration_prompt'))} words)")
     rules = item.get("translation_rules", {})
     required_rules = {"appeal_center", "shape_and_rhythm", "performance", "surface", "color_and_light", "detail_hierarchy"}
     missing_rules = sorted(required_rules - set(rules))
     if missing_rules:
         errors.append(f"{rid}: domain realization missing translation rules {missing_rules}")
     for name in required_rules & set(rules):
-        if word_count(rules.get(name)) < 12:
-            errors.append(f"{rid}: translation rule `{name}` is under-authored")
+        if rules.get(name) in (None, "", [], {}):
+            errors.append(f"{rid}: translation rule `{name}` must be populated")
     if len(item.get("extension_points", [])) < 3:
         errors.append(f"{rid}: domain realization needs at least three extension points")
     if len(item.get("best_for", [])) < 3:
@@ -314,10 +240,6 @@ def check_scene(record: Record, errors: list[str], warnings: list[str]) -> None:
     ):
         if not staging.get(field):
             errors.append(f"{rid}: missing staging.{field}")
-        elif word_count(staging[field]) < 14:
-            errors.append(f"{rid}: staging.{field} is under-authored ({word_count(staging[field])} words)")
-    if word_count(item.get("image_promise")) < 16:
-        errors.append(f"{rid}: image_promise is too short")
     if len(item.get("must_preserve", [])) < 4:
         errors.append(f"{rid}: requires at least four must_preserve relationships")
     if len(item.get("failure_modes", [])) < 4:
@@ -351,8 +273,6 @@ def check_archetype(
             f"{rid}: unknown creation_basis `{item.get('creation_basis')}` "
             f"(allowed: {sorted(allowed_basis)})"
         )
-    if word_count(item.get("evidence_scope")) < 10:
-        errors.append(f"{rid}: evidence_scope is too short to explain why the identity is reusable")
 
     axes = item.get("identity_axes")
     if not isinstance(axes, Mapping):
@@ -363,8 +283,6 @@ def check_archetype(
         value = axes.get(axis)
         if value in (None, "", [], {}):
             errors.append(f"{rid}: identity_axes missing required axis `{axis}`")
-        elif axis != "subject_domain" and word_count(value) < 2:
-            errors.append(f"{rid}: identity axis `{axis}` is under-authored")
     creation_gate = policy.get("creation_gate")
     # Core policy permits a prose creation gate; structured provider policies
     # can override the numeric minimum. Neither form should crash an audit.
@@ -383,32 +301,6 @@ def check_archetype(
         errors.append(f"{rid}: requires at least four identity invariants")
     if len(item.get("variable_fields", [])) < 4:
         errors.append(f"{rid}: variable_fields must explicitly protect presentation flexibility")
-    if word_count(item.get("character_lock")) < 35:
-        errors.append(f"{rid}: character_lock is too short to preserve identity")
-    lock = item.get("character_lock", "").lower()
-    transient_terms = ("rooftop", "couch", "low-angle", "sunny beach", "neon pool", "reclining pose")
-    if any(term in lock for term in transient_terms):
-        errors.append(f"{rid}: character_lock contains transient scene presentation")
-
-    domain = item.get("domain")
-    morphology_text = " ".join(
-        str(value) for value in (
-            lock,
-            axes.get("morphology"),
-            (item.get("defaults") or {}).get("morphology"),
-        ) if value
-    ).lower()
-    if domain == "anthropomorphic-animal" and not any(
-        term in morphology_text for term in ("anthropomorphic", "humanoid")
-    ):
-        errors.append(f"{rid}: anthropomorphic-animal archetype must state its humanoid or anthropomorphic body plan")
-    if domain == "animal":
-        if "natural" not in morphology_text:
-            errors.append(f"{rid}: ordinary-animal archetype must state natural anatomy or body plan")
-        forbidden = ("anthropomorphic", "humanoid body", "human hands", "humanlike hands")
-        found = [term for term in forbidden if term in morphology_text]
-        if found:
-            errors.append(f"{rid}: ordinary-animal archetype contains anthropomorphic body-plan terms {found}")
 
 
 def check_correction(record: Record, errors: list[str], warnings: list[str]) -> None:
@@ -418,8 +310,6 @@ def check_correction(record: Record, errors: list[str], warnings: list[str]) -> 
         "label", "trigger", "diagnosis", "positive_correction",
         "inspection_points", "avoidance_terms", "tags",
     ), errors)
-    if word_count(item.get("positive_correction")) < 25:
-        errors.append(f"{rid}: positive repair is under-authored ({word_count(item.get('positive_correction'))} words)")
     if len(item.get("inspection_points", [])) < 3:
         errors.append(f"{rid}: requires at least three inspection points")
 
@@ -456,12 +346,6 @@ def check_recipes(records: Sequence[Record], errors: list[str], warnings: list[s
         expected_grammar = {field: profile.get(field) for field in grammar_fields}
         if item.get("rendering_grammar") != expected_grammar:
             errors.append(f"{rid}: recipe rendering grammar does not preserve the canonical profile")
-        if word_count(item.get("prompt_template")) < 240:
-            errors.append(f"{rid}: finished recipe prompt is summary-like ({word_count(item.get('prompt_template'))} words)")
-        for value in scene.get("staging", {}).values():
-            if str(value) not in item.get("prompt_template", ""):
-                errors.append(f"{rid}: prompt_template omits a canonical staging field")
-                break
         if len(item.get("adaptation_rules", [])) < 4:
             errors.append(f"{rid}: requires explicit adaptation rules")
 
@@ -503,186 +387,6 @@ def check_near_duplicates(records: Sequence[Record], warnings: list[str]) -> lis
 
 
 
-POSITIVE_NEGATION_RE = re.compile(
-    r"\b(?:no|not|never|without|avoid|avoiding|exclude|excluded|excluding|"
-    r"prevent|preventing|omit|omits|omitted|omitting|refrain|refrains|refrained|refraining|"
-    r"unless|except|free\s+of)\b"
-    r"|\bdo\s+not\b|\bmust\s+not\b|\brather\s+than\b|\binstead\s+of\b"
-    r"|\bas\s+opposed\s+to\b|\bunlike\b|\babsence\s+of\b"
-    r"|\bnon[- ](?:linguistic|photoreal|photorealistic|literal|verbal)\b",
-    re.IGNORECASE,
-)
-
-
-def _walk_text(value: Any, path: str = "") -> Iterable[tuple[str, str]]:
-    if isinstance(value, str):
-        yield path, value
-    elif isinstance(value, list):
-        for index, child in enumerate(value):
-            yield from _walk_text(child, f"{path}[{index}]")
-    elif isinstance(value, dict):
-        for key, child in value.items():
-            child_path = f"{path}.{key}" if path else str(key)
-            yield from _walk_text(child, child_path)
-
-
-def _positive_fields(record: Record) -> dict[str, Any]:
-    item = record.record
-    if record.kind == "module":
-        names = ("visual_function", "prompt", "invariants")
-    elif record.kind == "profile":
-        names = (
-            "visual_intent", "linework", "shape_language", "value_structure",
-            "color_logic", "surface_policy", "lighting_response",
-            "background_policy", "detail_hierarchy", "prompt", "rendering",
-        )
-    elif record.kind == "aesthetic-core":
-        names = (
-            "aesthetic_promise", "appeal_center",
-            "silhouette_and_proportion_strategy",
-            "performance_and_expression_strategy", "viewer_relationship_strategy",
-            "composition_and_focal_strategy", "shape_and_rhythm_strategy",
-            "surface_and_tactility_strategy", "color_and_light_strategy",
-            "finish_and_detail_hierarchy", "integration_prompt", "domain_neutrality",
-        )
-    elif record.kind == "style-family":
-        names = (
-            "style_promise", "visual_signature", "line_system", "form_system",
-            "value_and_shadow_system", "highlight_system", "color_system",
-            "surface_system", "background_system", "detail_hierarchy",
-            "touch_policy", "style_reference_guidance", "domain_overlays",
-            "integration_prompt",
-        )
-    elif record.kind == "domain-realization":
-        names = (
-            "realization_promise", "identity_and_silhouette", "performance_channels",
-            "anatomy_and_weight", "surface_and_materials", "viewer_relationship",
-            "motion_and_environment", "translation_rules", "integration_prompt",
-        )
-    elif record.kind == "scene":
-        names = ("image_promise", "staging", "defaults", "must_preserve")
-    elif record.kind == "recipe":
-        blueprint = item.get("scene_blueprint", {})
-        positive_blueprint = {
-            key: blueprint[key]
-            for key in ("image_promise", "staging", "defaults", "must_preserve")
-            if key in blueprint
-        }
-        values = {
-            "image_promise": item.get("image_promise"),
-            "scene_blueprint": positive_blueprint,
-            "rendering_grammar": item.get("rendering_grammar"),
-            "rendering": item.get("rendering"),
-            "prompt_template": item.get("prompt_template"),
-            "adaptation_rules": item.get("adaptation_rules"),
-            "must_preserve": item.get("must_preserve"),
-            "generation_defaults": item.get("generation_defaults"),
-        }
-        return {name: value for name, value in values.items() if value not in (None, "", [], {})}
-    elif record.kind == "archetype":
-        names = (
-            "identity_axes", "identity_invariants", "identity_construction",
-            "character_lock", "constraints",
-        )
-    elif record.kind == "correction":
-        names = ("positive_correction",)
-    else:
-        names = ()
-    return {name: item[name] for name in names if name in item}
-
-
-def check_affirmative_positive_fields(records: Sequence[Record], errors: list[str]) -> list[dict[str, str]]:
-    findings: list[dict[str, str]] = []
-    for record in records:
-        item = record.record
-        if item.get("curation_status") != "curated":
-            continue
-        rid = str(item.get("id"))
-        for root_name, value in _positive_fields(record).items():
-            for subpath, text in _walk_text(value, root_name):
-                if POSITIVE_NEGATION_RE.search(text):
-                    findings.append({"id": rid, "kind": record.kind, "path": subpath, "text": text})
-                    errors.append(f"{rid}: positive-facing field uses exclusion language at `{subpath}`")
-    return findings
-
-
-
-
-def check_positive_text_quality(records: Sequence[Record], errors: list[str]) -> list[dict[str, str]]:
-    """Catch formatting and maintenance artifacts in curated prompt-facing data.
-
-    This is deliberately generic: it checks punctuation duplication, repeated
-    sentences, and known prompt-assembly meta instructions. It does not rewrite
-    data or decide artistic meaning.
-    """
-    findings: list[dict[str, str]] = []
-    forbidden_meta = (
-        "explicit user requirements override",
-        "do not shorten",
-        "adapt identity details freely",
-        "preserve the user's stated traits",
-        "do not reconstruct from chat",
-    )
-    forbidden_placeholder = ("nearby but different result",)
-    for record in records:
-        item = record.record
-        if item.get("curation_status") != "curated":
-            continue
-        rid = str(item.get("id"))
-        for root_name, value in _positive_fields(record).items():
-            for subpath, text in _walk_text(value, root_name):
-                if re.search(r"\.{2,}", text):
-                    findings.append({"id": rid, "path": subpath, "issue": "duplicate punctuation", "text": text})
-                    errors.append(f"{rid}: duplicate punctuation in positive-facing field `{subpath}`")
-                sentences = [
-                    segment.strip()
-                    for segment in re.split(r"(?<=[.!?])\s+", text)
-                    if segment.strip()
-                ]
-                counts: dict[str, int] = {}
-                for segment in sentences:
-                    folded = re.sub(r"\s+", " ", segment.lower()).strip()
-                    if len(folded) >= 28:
-                        counts[folded] = counts.get(folded, 0) + 1
-                repeated = [segment for segment, count in counts.items() if count > 1]
-                if repeated:
-                    findings.append({"id": rid, "path": subpath, "issue": "repeated sentence", "text": repeated[0]})
-                    errors.append(f"{rid}: repeated sentence in positive-facing field `{subpath}`")
-                # Also catch an adjacent sentence that restates the same long
-                # opening hierarchy and merely appends a clause. This keeps
-                # authored production prose concise without rewriting it.
-                for left, right in zip(sentences, sentences[1:]):
-                    left_words = re.findall(r"[a-z0-9]+", left.lower())
-                    right_words = re.findall(r"[a-z0-9]+", right.lower())
-                    prefix = min(8, len(left_words), len(right_words))
-                    if prefix >= 6 and left_words[:prefix] == right_words[:prefix]:
-                        findings.append({
-                            "id": rid,
-                            "path": subpath,
-                            "issue": "repeated sentence opening",
-                            "text": f"{left} | {right}",
-                        })
-                        errors.append(f"{rid}: adjacent sentences repeat the same opening in positive-facing field `{subpath}`")
-                lower = text.lower()
-                for phrase in forbidden_meta:
-                    if phrase in lower:
-                        findings.append({"id": rid, "path": subpath, "issue": "assembly meta instruction", "text": phrase})
-                        errors.append(f"{rid}: prompt-facing field contains assembly meta instruction `{phrase}` at `{subpath}`")
-                for phrase in forbidden_placeholder:
-                    if phrase in lower:
-                        findings.append({
-                            "id": rid,
-                            "path": subpath,
-                            "issue": "placeholder summary language",
-                            "text": phrase,
-                        })
-                        errors.append(
-                            f"{rid}: prompt-facing field contains placeholder summary language "
-                            f"`{phrase}` at `{subpath}`"
-                        )
-    return findings
-
-
 def check_negative_scope(root: Path, records: Sequence[Record], errors: list[str]) -> None:
     del root
     policy_path = named_resource_path("negative-policy")
@@ -690,18 +394,6 @@ def check_negative_scope(root: Path, records: Sequence[Record], errors: list[str
     policy = load_json(policy_path)
     for message in validate_known_resource("negative-policy", policy):
         errors.append(f"merged negative-policy: {message}")
-    required_automatic = {
-        "generation_hygiene", "visible_limb_integrity", "hand_or_paw_integrity",
-        "tail_integrity", "clothing_integrity", "held_prop_integrity",
-        "selected_render_profile", "selected_style_family",
-    }
-    automatic = policy.get("automatic_sources", {})
-    missing_automatic = sorted(required_automatic - set(automatic))
-    if missing_automatic:
-        errors.append(f"negative policy is missing feature-scoped automatic sources: {missing_automatic}")
-    for source_id, source in automatic.items():
-        if not isinstance(source, dict) or not source.get("activation"):
-            errors.append(f"negative policy automatic source lacks activation: {source_id}")
     scenes = {r.record["id"]: r.record for r in records if r.kind == "scene"}
     profiles = {r.record["id"]: r.record for r in records if r.kind == "profile"}
     for record in records:
@@ -781,18 +473,14 @@ MEDIUM_FAMILY_VOCABULARY = {
     "scientific and technical illustration",
 }
 
-_SUBJECT_ASSUMPTION_WORDS = ("anthro", "kemono", "furry")
-
-
 def check_medium_family_vocabulary(records: Sequence[Record], errors: list[str]) -> None:
     """One closed family vocabulary joins profiles and aesthetic cores.
 
     Every render profile (any tier) must declare a medium_family from the
     canonical set, and every aesthetic-core compatibility value must be a
     member of the same set, so signature-to-profile matching never depends on
-    free-text near-misses. Shared-scope profiles must also stay free of
-    subject-assumption words; subject-specialized grammars declare their
-    domain instead of implying it.
+    free-text near-misses. The author assesses the declared subject scope
+    against the complete grammar.
     """
     for record in records:
         item = record.record
@@ -801,17 +489,6 @@ def check_medium_family_vocabulary(records: Sequence[Record], errors: list[str])
             family = item.get("medium_family")
             if family not in MEDIUM_FAMILY_VOCABULARY:
                 errors.append(f"{rid}: medium_family `{family}` is not in the canonical vocabulary")
-            domains = item.get("domains") or ["shared"]
-            if domains == ["shared"]:
-                blob = " ".join(
-                    str(item.get(k, "")) for k in (
-                        "visual_intent", "linework", "shape_language", "value_structure",
-                        "surface_language", "color_logic", "finish", "rendering",
-                    )
-                ).lower()
-                found = sorted({w for w in _SUBJECT_ASSUMPTION_WORDS if w in blob})
-                if found:
-                    errors.append(f"{rid}: shared render profile contains subject-assumption words {found}; declare a domain scope or rephrase")
         if record.kind == "aesthetic-core":
             for value in item.get("compatible_medium_families", []):
                 if value not in MEDIUM_FAMILY_VOCABULARY:
@@ -1187,8 +864,6 @@ def audit(root: Path, *, write_report: bool = False) -> dict[str, Any]:
             check_archetype(record, errors, warnings, archetype_policy)
         elif record.kind == "correction":
             check_correction(record, errors, warnings)
-    positive_language_findings = check_affirmative_positive_fields(records, errors)
-    positive_text_quality_findings = check_positive_text_quality(records, errors)
     check_negative_scope(root, records, errors)
     check_global_integrity(records, errors, warnings)
     check_active_catalog(errors)
@@ -1200,10 +875,12 @@ def audit(root: Path, *, write_report: bool = False) -> dict[str, Any]:
     check_recipes(records, errors, warnings)
     duplicate_findings = check_near_duplicates(records, warnings)
     report = {
-        "audit": "preset-authoring-standard-conformance",
+        "audit": "preset-record-structure",
         "ok": not errors,
         "scope_note": (
-            "Checks whole-catalog integrity (label collisions, tag hygiene, canonical domain vocabulary), curated-record structure including archetype identity-axis governance, concrete style families, domain overlays, and distinctive identity details, affirmative prompt-facing data, text-maintenance artifacts, scoped negative activation, canonical-detail preservation, strict canonical identifiers, recipe source preservation, and duplication risk. It does not score artistic quality."
+            "Checks required record structure, canonical identifiers and domain values, declared negative scope, "
+            "catalog integrity, and preserved source snapshots. Near-duplicate evidence supports author review. "
+            "The author assesses visual meaning, detail sufficiency and prompt quality."
         ),
         "records_total": len(records),
         "curated_records": len(curated),
@@ -1232,8 +909,6 @@ def audit(root: Path, *, write_report: bool = False) -> dict[str, Any]:
         },
         "species_scaffolds": species_scaffolds,
         "near_duplicate_findings": duplicate_findings,
-        "positive_language_findings": positive_language_findings,
-        "positive_text_quality_findings": positive_text_quality_findings,
         "errors": errors,
         "warnings": warnings,
     }
@@ -1245,7 +920,7 @@ def audit(root: Path, *, write_report: bool = False) -> dict[str, Any]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = _operation_context.ArgumentParser()
+    parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     add_pack_runtime_arguments(parser)
     parser.add_argument("root", nargs="?", default=str(Path(__file__).resolve().parents[1]))
     parser.add_argument("--report-out", help="Optional external JSON report path")

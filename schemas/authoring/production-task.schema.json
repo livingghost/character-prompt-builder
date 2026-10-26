@@ -986,6 +986,27 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "artifact": {
+            "const": "image"
+          },
+          "execution": {
+            "const": "external"
+          }
+        },
+        "required": [
+          "artifact",
+          "execution"
+        ]
+      },
+      "then": {
+        "required": [
+          "image_input"
+        ]
+      }
     }
   ]
 }

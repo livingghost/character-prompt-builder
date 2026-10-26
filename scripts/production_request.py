@@ -10,12 +10,12 @@ from input_evidence import InputEvidence
 import request_contract as rc
 import request_scope
 import request_validation
+import model_rendition
 
 PAYLOAD_FIELDS = {'package_sha256', 'seed', 'count', 'service', 'model_identifier',
                   'offering_sha256', 'service_sha256', 'request_sha256',
                   'request_contract', 'request_validation', 'validation_inputs', 'external_effects'}
 DECISION_FIELDS = {'case', 'assessments', 'principal_approval', 'rendition_review'}
-REVIEW_FIELDS = {'request_sha256', 'reviewer', 'conclusion', 'reason', 'binding_ids'}
 
 
 def _binding_ids(rendered: dict) -> list[str]:
@@ -119,14 +119,41 @@ def validate_payload(payload: Any, *, snapshots: dict | None = None) -> None:
 def draft_decision(rendered: dict, *, actor: str | None) -> dict:
     """Derive request identifiers while leaving the actor's assessment unanswered."""
     rc.validate_seal(rendered)
-    review = {
-        'request_sha256': rendered['request_sha256'],
-        'reviewer': actor,
-        'conclusion': None,
-        'reason': '',
-        'binding_ids': _binding_ids(rendered),
-    }
+    review = model_rendition.draft_review(rendered['request_sha256'], actor=actor,
+                                         binding_ids=_binding_ids(rendered))
     return {'case': None, 'assessments': [], 'principal_approval': None, 'rendition_review': review}
+
+
+def draft_external_decision(binding: dict, *, actor: str | None) -> dict:
+    """Use the exact external image binding as the identity of the input under review."""
+    import image_input
+    image_input.validate_binding(binding)
+    if binding['external_request'] is None:
+        raise ValueError('external image review requires the exact request binding')
+    review = model_rendition.draft_review(binding['binding_sha256'], actor=actor,
+        binding_ids=['reference:' + str(index) for index in range(1, len(binding['references']) + 1)])
+    return {'rendition_review': review}
+
+
+def check_external_authorization(consumer: dict, request: dict, grant: dict) -> None:
+    """Check the actor's whole-input review under the existing exact-operation authority."""
+    import image_input
+    binding = consumer['image_input']
+    image_input.require_external_authority(binding, grant)
+    external = binding['external_request']
+    payload = request['payload']
+    c.exact(payload, {'consumer_sha256', 'recipient', 'count', 'image_input_sha256',
+                      'external_request_sha256', 'target'}, 'external image submission payload')
+    expected = {'consumer_sha256': c.content_id(consumer), 'count': external['count'],
+                'image_input_sha256': binding['binding_sha256'], 'external_request_sha256': external['sha256'],
+                'target': binding['model']['target']}
+    if any(c.encoded(payload[key]) != c.encoded(value) for key, value in expected.items()):
+        raise ValueError('external image authorization differs from the prepared complete model input')
+    c.text(payload['recipient'], 'external recipient')
+    decision = request.get('request_decision')
+    c.exact(decision, {'rendition_review'}, 'external image request decision')
+    model_rendition.validate_review(decision['rendition_review'], input_sha256=binding['binding_sha256'],
+        actor=request['actor'], binding_ids=['reference:' + str(index) for index in range(1, len(binding['references']) + 1)])
 
 
 class EvidenceWitnesses:
@@ -183,24 +210,8 @@ def check_authorization(root: Path, prepared: dict, request: dict, grant: dict, 
     decision = request.get('request_decision')
     c.exact(decision, DECISION_FIELDS, 'model request decision')
     rendered = payload['request_contract']
-    review = decision['rendition_review']
-    c.exact(review, REVIEW_FIELDS, 'rendition review')
-    if review['request_sha256'] != rendered['request_sha256']:
-        raise ValueError('rendition review belongs to another final request')
-    if review['reviewer'] != request['actor']:
-        raise ValueError('the authorized actor must record the rendition assessment')
-    c.text(review['reason'], 'rendition assessment reason')
-    if review['conclusion'] != 'satisfied':
-        raise ValueError('the rendition assessment is incomplete or not satisfied')
-    bindings = _binding_ids(rendered)
-    reviewed = review['binding_ids']
-    distinct = (isinstance(reviewed, list)
-                and all(isinstance(item, str) for item in reviewed)
-                and len(set(reviewed)) == len(reviewed))
-    if not distinct:
-        raise ValueError('rendition review requires distinct declared binding IDs')
-    if set(reviewed) != set(bindings):
-        raise ValueError('rendition review does not cover every transported reference binding')
+    model_rendition.validate_review(decision['rendition_review'], input_sha256=rendered['request_sha256'],
+                                   actor=request['actor'], binding_ids=_binding_ids(rendered))
     principal = decision['principal_approval']
     if principal is not None:
         if not isinstance(principal, dict) or principal.get('principal') != prepared['authority']['issuer']:

@@ -2,16 +2,16 @@
   "bindings": [],
   "review_requirements": [
     {
-      "id": "depiction-inputs",
-      "kind": "meaning",
-      "binding_ids": [],
-      "sources": [
-        {
-          "kind": "generation-rendition",
-          "sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1"
-        }
-      ],
-      "statement": "Assess whether the exact instructions and delivered media identify the intended depiction without access to project records."
+      "id": "finished-image",
+      "statement": "Reconstruct the intended image from the complete input and compare it with the author anchors. Explain how actions, visibility and exclusions coexist within their actual subject, region and moment scopes. Unresolved conflicts prevent a satisfied assessment."
+    },
+    {
+      "id": "supplied-inputs",
+      "statement": "Assess whether instructions use only the supplied media and convey their intended roles, limits and subject assignments."
+    },
+    {
+      "id": "ownership",
+      "statement": "Assess whether image text contains depiction and necessary input-use directions, while production records and native execution controls retain their own information."
     }
   ],
   "execution_policy": {
@@ -491,11 +491,11 @@
     "prompt_expression": "cinematic 2D soft-cel office portrait"
   },
   "model": "gpt-image-2.5-flare",
-  "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+  "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
   "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
   "native_negative": "",
   "negative_transport_mode": "integrated-critical",
-  "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
+  "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
   "negative_provenance": {
     "activated_sources": [
       "style-family:style-family-clear-portrait",
@@ -504,13 +504,7 @@
       "state-integrity:prop-ownership"
     ],
     "diagnostic_sources_retained": [],
-    "semantic_exclusions_user_supplied": [],
-    "affirmative_translations": {
-      "style-family:style-family-clear-portrait": "crisp facial markings",
-      "render-profile:profile-clear-2d-illustration": "a clearly illustrated soft-cel medium",
-      "state-integrity:left-right": "stable left-right identity",
-      "state-integrity:prop-ownership": "the wolf's neck and shirt remain visibly free of that pendant"
-    }
+    "semantic_exclusions_user_supplied": []
   },
   "creative_intent": {
     "image_promise": "A polished close office portrait in which a familiar wolf maintains professional composure while subtle physical cues reveal fear, and every visible identity and state change matches the canonical timeline.",
@@ -530,7 +524,7 @@
       "domain-realization-anthropomorphic-animal-baseline",
       "profile-clear-2d-illustration"
     ],
-    "production_spec_sha256": "2ee7548df1fe2a8263cdb2f344acaaead8ef53afbf61684706f8c06b540e6fd0",
+    "production_spec_sha256": "c9563e165e314de71e2285c3348e13e624f32dabe2b40e28c626a178afb8bc41",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99"
   },
   "production_spec": {
@@ -2642,7 +2636,7 @@
               "cue_id": "performance-gaze-c02",
               "channel": "gaze",
               "observation": "C01 looks toward C02 and then briefly away.",
-              "visual_instruction": "Aim the eyes toward C02 with a small evasive break in the held gaze.",
+              "visual_instruction": "Keep the head angled toward the nearby colleague while the eyes glance down and aside.",
               "laterality": "bilateral",
               "intensity": "subtle",
               "direction_or_target": "C02, followed by a brief off-target glance",
@@ -3002,7 +2996,7 @@
         "pose_and_body_geometry": "upright medium-close three-quarter office portrait with left hand braced on the desk edge",
         "hands": "left hand carries the visible tension and remains fully attached to the desk-support chain",
         "legs_and_feet": "outside the crop",
-        "gaze_and_head": "looks toward C02, then briefly away, with the subject-left ear visible",
+        "gaze_and_head": "head angled toward C02 while the eyes glance down and aside, with the subject-left ear visible",
         "props_and_contacts": "desk edge supports the left hand; the transferred pendant is possessed by C02 and does not appear on C01"
       }
     ],
@@ -3136,7 +3130,7 @@
       "profile-clear-2d-illustration"
     ]
   },
-  "production_spec_sha256": "2ee7548df1fe2a8263cdb2f344acaaead8ef53afbf61684706f8c06b540e6fd0",
+  "production_spec_sha256": "c9563e165e314de71e2285c3348e13e624f32dabe2b40e28c626a178afb8bc41",
   "state_lineage": {
     "artifact_type": "state-lineage",
     "mode": "state-aware",
@@ -3193,7 +3187,7 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
   "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-  "generation_input_sha256": "e4d73975f15a38f8e61785ebba0bb138e9394c4bc6314d11463eafb58b811d6e",
+  "generation_input_sha256": "5c16a27ae0465350887344a0bd7973194229790634496ca3b55028cdb2234b0f",
   "parameters": {
     "height": 1024,
     "safety": {
@@ -3207,13 +3201,13 @@
   "selected_transport": {
     "mode": "integrated-critical",
     "channel": "single_prompt_field",
-    "instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
+    "instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
     "rendition": {
       "available": true,
       "channel": "single_prompt_field",
-      "method": "authored-affirmative",
-      "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
-      "sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1"
+      "method": "authored-rendition",
+      "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
+      "sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121"
     }
   },
   "host_forwarding": {
@@ -3231,33 +3225,33 @@
     "selected_transport": {
       "mode": "integrated-critical",
       "channel": "single_prompt_field",
-      "instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The integrated rendition contains the affirmative construction language.",
+      "instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
       "rendition": {
         "available": true,
         "channel": "single_prompt_field",
-        "method": "authored-affirmative",
-        "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
-        "sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1"
+        "method": "authored-rendition",
+        "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
+        "sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121"
       }
     },
-    "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
-    "effective_prompt_sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1",
+    "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
+    "effective_prompt_sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121",
     "selected_references": [],
-    "generation_input_sha256": "e4d73975f15a38f8e61785ebba0bb138e9394c4bc6314d11463eafb58b811d6e",
+    "generation_input_sha256": "5c16a27ae0465350887344a0bd7973194229790634496ca3b55028cdb2234b0f",
     "prompt_trace": [
       {
         "source_kind": "authored",
         "source_refs": [
           {
             "kind": "generation-rendition",
-            "sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1"
+            "sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121"
           }
         ],
         "transform_id": "authored-rendition",
         "target_field": null,
         "target_range": {
           "start": 0,
-          "end": 1082
+          "end": 1069
         },
         "binding_ids": []
       }
@@ -3265,7 +3259,7 @@
     "native_reference_controls": [],
     "reference_media_role": "none"
   },
-  "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
+  "prompt_sha256": "19c16123526b5af191d2a8981416b5d3043b7b413c0d6bfd14027049cc0e4dd6",
   "negative_prompt_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",
   "native_negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "transports": {
@@ -3273,17 +3267,17 @@
       "available": true,
       "channel": "prompt_plus_negative_fields",
       "method": "verbatim-separate-fields",
-      "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. Keep the transferred silver pendant absent from him because it is now carried by the colleague.",
+      "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
       "negative": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
-      "prompt_sha256": "8d80b09c97948da7b789d009fb5385adc98b2b04f6d5d4a639a59cc710614770",
+      "prompt_sha256": "19c16123526b5af191d2a8981416b5d3043b7b413c0d6bfd14027049cc0e4dd6",
       "negative_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570"
     },
     "integrated": {
       "available": true,
       "channel": "single_prompt_field",
-      "method": "authored-affirmative",
-      "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. He looks toward a trusted colleague and then briefly away, close but not touching. Use a clearly illustrated soft-cel medium with stable left-right identity, clean anatomical hand-to-desk contact, crisp facial markings, warm window light, cool neutral office fill, and restrained soft modeling. The silver pendant belongs to the colleague and the wolf's neck and shirt remain visibly free of that pendant.",
-      "sha256": "062d3b4596cb91fc7c15f9922efce339675d719236c24cedca336785f793a7a1"
+      "method": "authored-rendition",
+      "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
+      "sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121"
     },
     "native_subset": {
       "available": false,
@@ -3295,9 +3289,9 @@
       "negative_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "paste_instructions": {
-      "single_prompt_field": "Paste transports.integrated.text as the only prompt. The text must be an agent-authored affirmative rendition or the certified primary prompt.",
+      "single_prompt_field": "Paste transports.integrated.text as the only prompt. The text must be an authored single-field rendition or the certified primary prompt.",
       "prompt_plus_negative_fields": "Paste transports.separate.prompt into the positive field and transports.separate.negative into the independent negative field, verbatim.",
-      "prompt_plus_native_negative": "Paste transports.native_subset.prompt as the main prompt and transmit transports.native_subset.negative through the platform's concise native negative syntax, verbatim."
+      "prompt_plus_native_negative": "Paste transports.native_subset.prompt as the main prompt and transmit transports.native_subset.negative through the platform's native negative syntax, verbatim."
     }
   }
 }

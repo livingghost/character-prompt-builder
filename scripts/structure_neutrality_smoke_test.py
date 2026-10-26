@@ -163,12 +163,80 @@ class StructureNeutralityTests(unittest.TestCase):
                 if mutation == "count": body["expected_counts"]["manipulator"] = 1
                 if mutation == "reference": body["primary_actions"][0]["structure_id"] = "missing"
                 if mutation == "action": body["primary_actions"].append({"structure_id": "left-upper", "action": "unrelated motion"})
-                self.assertFalse(validate_plan(plan)["ok"])
+                report = validate_plan(plan)
+                self.assertFalse(report["ok"])
+                if mutation == "action":
+                    self.assertEqual(["left-upper: multiple primary actions require one declared compatible_group"
+                                      " or allow_multiple_primary_actions=true"], report["errors"])
 
     def test_owner_specific_limit_is_enforced(self):
         plan = fixture("asymmetric-topology.json")
         plan["structure_plan"]["expected_by_owner"] = {"C01": {"manipulator": 1}}
         self.assertFalse(validate_plan(plan)["ok"])
+
+    def test_multiple_actions_follow_the_authored_compatibility_declaration(self):
+        plan = fixture("asymmetric-topology.json")
+        body = plan["structure_plan"]
+        body["primary_actions"][0]["compatible_group"] = "tool-contact"
+        body["primary_actions"].append({"structure_id": "left-upper", "action": "guides the tool",
+                                        "compatible_group": "tool-contact"})
+        self.assertTrue(validate_plan(plan)["ok"])
+        body["primary_actions"][-1]["compatible_group"] = "another-contact"
+        self.assertFalse(validate_plan(plan)["ok"])
+        body["allow_multiple_primary_actions"] = True
+        self.assertTrue(validate_plan(plan)["ok"])
+
+    def test_camera_words_do_not_invent_occupancy_bounds(self):
+        plan = fixture("asymmetric-topology.json")
+        plan["camera"].update(shot_scale="wide", distance="distant", camera_height="terrain beneath the subject",
+                              pitch="upward", subject_frame_occupancy=0.25, establishing_context=True)
+        for angle in ("worms-eye", "extreme-low-angle", "view upward from the ground"):
+            with self.subTest(angle=angle):
+                plan["camera"]["angle"] = angle
+                report = validate_plan(plan)
+                self.assertTrue(report["ok"], report["errors"])
+                self.assertFalse(report["stats"]["occupancy_bounds_checked"])
+                self.assertNotIn("subject_frame_occupancy_bounds", plan["camera"])
+
+    def test_declared_occupancy_bounds_include_endpoints(self):
+        plan = fixture("asymmetric-topology.json")
+        plan["camera"]["subject_frame_occupancy_bounds"] = {"minimum": 0.2, "maximum": 0.4}
+        for occupancy in (0.2, 0.3, 0.4):
+            with self.subTest(occupancy=occupancy):
+                plan["camera"]["subject_frame_occupancy"] = occupancy
+                report = validate_plan(plan)
+                self.assertTrue(report["ok"], report["errors"])
+                self.assertTrue(report["stats"]["occupancy_bounds_checked"])
+
+    def test_declared_occupancy_bounds_refuse_only_outside_values(self):
+        plan = fixture("asymmetric-topology.json")
+        plan["camera"]["subject_frame_occupancy_bounds"] = {"minimum": 0.2, "maximum": 0.4}
+        for angle in ("worms-eye", "view upward from the ground"):
+            for occupancy in (0.1, 0.5):
+                with self.subTest(angle=angle, occupancy=occupancy):
+                    plan["camera"].update(angle=angle, subject_frame_occupancy=occupancy)
+                    report = validate_plan(plan)
+                    self.assertFalse(report["ok"])
+                    self.assertEqual([f"camera.subject_frame_occupancy: {occupancy} is outside declared bounds [0.2, 0.4]"],
+                                     report["errors"])
+
+    def test_declared_occupancy_bounds_cannot_be_reversed(self):
+        plan = fixture("asymmetric-topology.json")
+        plan["camera"]["subject_frame_occupancy_bounds"] = {"minimum": 0.8, "maximum": 0.6}
+        report = validate_plan(plan)
+        self.assertFalse(report["ok"])
+        self.assertEqual(["camera.subject_frame_occupancy_bounds: minimum exceeds maximum"], report["errors"])
+
+    def test_occupancy_bounds_require_two_valid_fractions(self):
+        for bounds in ({"minimum": 0.2}, {"maximum": 0.4}, {"minimum": -0.1, "maximum": 0.4},
+                       {"minimum": 0.2, "maximum": 1.1}, {"minimum": "0.2", "maximum": 0.4},
+                       {"minimum": 0.2, "maximum": True}):
+            with self.subTest(bounds=bounds):
+                plan = fixture("asymmetric-topology.json")
+                plan["camera"]["subject_frame_occupancy_bounds"] = bounds
+                report = validate_plan(plan)
+                self.assertFalse(report["ok"])
+                self.assertTrue(all("$.camera.subject_frame_occupancy_bounds" in error for error in report["errors"]))
 
     def test_plan_errors_say_what_to_write(self):
         errors = validate_plan({"structure_plan": {"expected_counts": {}, "assigned_structures": []}})["errors"]
@@ -191,7 +259,7 @@ class StructureNeutralityTests(unittest.TestCase):
         self.assertFalse(report["ok"])
         self.assertEqual([
             "$.camera.lens: unknown field; this object takes angle, shot_scale, distance, camera_height, pitch,"
-            " subject_frame_occupancy, establishing_context",
+            " subject_frame_occupancy, subject_frame_occupancy_bounds, establishing_context",
             "$.structure_plan.assigned_structures[0].action: unknown field; an action goes in"
             ' structure_plan.primary_actions as {"structure_id": "...", "action": "..."}',
         ], report["errors"])
@@ -212,6 +280,7 @@ class StructureNeutralityTests(unittest.TestCase):
         self.assertEqual(set(), {name for name in names if f"  {name}  " not in shown})
         template = run("--template").stdout
         self.assertIn(template, shown)
+        self.assertNotIn("subject_frame_occupancy_bounds", json.loads(template)["camera"])
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "plan.json"
             path.write_text(template, encoding="utf-8")

@@ -686,11 +686,12 @@ def _precedence_checks(root: Path) -> tuple[int, list[str]]:
 
     def policy(guard: str) -> dict[str, Any]:
         return {
-            "automatic_sources": {guard: {"activation": "always"}},
+            "candidate_sources": {guard: {"activation": "when the author selects this guard"}},
             "diagnostic_only_sources": diagnostic_only,
-            "semantic_exclusion_rule": (
-                "Semantic alternatives enter a negative prompt only when the user explicitly excludes them."
-            ),
+            "semantic_exclusion_rule": {
+                "requires_user_exclusion": True,
+                "guidance": "Preserve the author's explicit exclusions.",
+            },
         }
 
     # A baseline pack in the place of the commons, and a pack that requires it.
@@ -2106,7 +2107,18 @@ def run() -> dict[str, Any]:
                 )
                 or negative_source_emission_allowed(
                     default_negative_policy,
+                    "selected_render_profile",
+                    source_activated=False,
+                )
+                or not negative_source_emission_allowed(
+                    default_negative_policy,
+                    "selected_render_profile",
+                    source_activated=True,
+                )
+                or negative_source_emission_allowed(
+                    default_negative_policy,
                     "scene_failure_modes",
+                    source_activated=True,
                 )
                 or negative_source_emission_allowed(
                     default_negative_policy,
@@ -2159,15 +2171,15 @@ def run() -> dict[str, Any]:
                 }
             }
             fixture_negative_policy = {
-                "automatic_sources": {},
+                "candidate_sources": {},
                 "diagnostic_only_sources": {
                     "scene_failure_modes": {"automatic_emission": False},
                     "atomic_misreadings": {"automatic_emission": False},
                 },
-                "semantic_exclusion_rule": (
-                    "Semantic alternatives enter a negative prompt only when the user "
-                    "explicitly excludes them."
-                ),
+                "semantic_exclusion_rule": {
+                    "requires_user_exclusion": True,
+                    "guidance": "Preserve explicit exclusions at their intended scope.",
+                },
             }
             semantic_resource_values = {
                 "discovery-lanes": fixture_discovery_lanes,
@@ -2242,8 +2254,8 @@ def run() -> dict[str, Any]:
                 ),
                 (
                     "negative-policy",
-                    lambda value: value.__setitem__(
-                        "semantic_exclusion_rule", "Invent semantic exclusions freely."
+                    lambda value: value["semantic_exclusion_rule"].__setitem__(
+                        "requires_user_exclusion", False
                     ),
                     "semantic exclusions must be user-request-only",
                 ),

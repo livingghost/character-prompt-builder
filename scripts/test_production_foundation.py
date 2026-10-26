@@ -502,7 +502,8 @@ class AggregateInputTests(unittest.TestCase):
     def test_negative_and_recording_errors_are_both_exposed(self):
         self.break_recording();task=c.load(self.root/'task.json')
         self.fixture.write(self.root/'negative.txt','Synthetic exclusion.')
-        task['generation']['negative']='negative.txt';self.fixture.write(self.root/'task.json',task)
+        task['generation'].update(negative='negative.txt',negative_transport='integrated-critical')
+        self.fixture.write(self.root/'task.json',task)
         report=self.check();phases={x['phase'] for x in report['diagnostics']}
         self.assertTrue({'negative-transport','recording-validation'}<=phases,report)
     def test_upscale_parameter_error_is_independent_of_recording(self):
@@ -611,6 +612,70 @@ class CompilerContractTests(unittest.TestCase):
         prepared=workflow.prepare(self.root,'task.json')
         compiler.validate_document(prepared['execution_plan'],compiler.PLAN_SCHEMA,'execution plan')
         self.assertEqual(prepared['execution_plan']['run'],prepared['run'])
+
+    def test_selected_integrated_text_survives_check_and_prepare(self):
+        import production_compiler as compiler
+        import production_workflow as workflow
+        def integrated_model(records):
+            records[0].update(negative_transport_mode='integrated-critical',supports_negative_prompt=False,
+                              max_positive_prompt_chars=40,max_negative_prompt_chars=4)
+        root=self.case_with(integrated_model)['root']
+        integrated='A flat graphic robot. No text.'
+        self.fixtures.write(root/'integrated.txt',integrated)
+        self.fixtures.write(root/'negative.txt','Unwanted lettering and malformed anatomy.')
+        task=c.load(root/'task.json')
+        task['generation'].update(integrated_prompt='integrated.txt',negative='negative.txt')
+        self.fixtures.write(root/'task.json',task)
+        self.assertGreater(len((root/'prompt.txt').read_text(encoding='utf-8')),40)
+        checked=compiler.check_task(root,'task.json')
+        self.assertTrue(checked['publishable'],checked['diagnostics'])
+        self.assertIn({'phase':'negative-transport','state':'passed'},
+                      [{'phase':row['phase'],'state':row['state']} for row in checked['checks']])
+        self.assertEqual(checked['request_preview']['prompt'],integrated)
+        self.assertNotIn('negative_prompt',checked['request_preview'])
+        prepared=workflow.prepare(root,'task.json')
+        self.assertEqual(prepared['request_preview']['prompt'],integrated)
+        self.assertNotIn('negative_prompt',prepared['request_preview'])
+        package=c.load(Path(prepared['package']))
+        self.assertEqual(package['generation_payload']['transports']['integrated']['text'],integrated)
+        self.assertEqual(package['generation_payload']['negative_prompt'],'Unwanted lettering and malformed anatomy.')
+
+    def test_native_preflight_uses_the_selected_negative_with_or_without_a_portable_alternative(self):
+        import production_compiler as compiler
+        def native_model(records):
+            records[0].update(negative_transport_mode='native-subset',max_negative_prompt_chars=4)
+        for portable in ('Unwanted lettering and malformed anatomy.',None):
+            with self.subTest(portable=portable):
+                root=self.case_with(native_model)['root']
+                self.fixtures.write(root/'native.txt','text')
+                task=c.load(root/'task.json');task['generation']['native_negative']='native.txt'
+                if portable is not None:
+                    self.fixtures.write(root/'negative.txt',portable)
+                    task['generation']['negative']='negative.txt'
+                self.fixtures.write(root/'task.json',task)
+                report=compiler.check_task(root,'task.json')
+                self.assertTrue(report['publishable'],report['diagnostics'])
+                self.assertEqual(report['request_preview']['negative_prompt'],'text')
+                self.assertEqual(report['request_preview']['prompt'],self.fixtures.PROMPT)
+                self.assertEqual(store.runs(root),[])
+
+    def test_selected_text_limits_fail_during_preflight(self):
+        import production_compiler as compiler
+        for mode,field in (('integrated-critical','integrated_prompt'),('native-subset','native_negative')):
+            with self.subTest(mode=mode):
+                def limited_model(records):
+                    records[0].update(negative_transport_mode=mode,supports_negative_prompt=mode=='native-subset',
+                                      max_negative_prompt_chars=4)
+                    if mode=='integrated-critical':records[0]['max_positive_prompt_chars']=40
+                root=self.case_with(limited_model)['root']
+                self.fixtures.write(root/'selected.txt','A selected text that exceeds the declared channel character limit.')
+                task=c.load(root/'task.json');task['generation'][field]='selected.txt'
+                self.fixtures.write(root/'task.json',task)
+                report=compiler.check_task(root,'task.json')
+                self.assertFalse(report['publishable'])
+                self.assertTrue(any(row['phase']=='negative-transport' and 'limit' in row['message']
+                                    for row in report['diagnostics']),report['diagnostics'])
+                self.assertEqual(store.runs(root),[])
 
     def test_task_schema_error_blocks_only_checks_that_need_the_task(self):
         self.edit('task.json',lambda task:task['criteria'][0].pop('text'))

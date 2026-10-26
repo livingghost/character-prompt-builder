@@ -540,8 +540,10 @@ def write_preview_outputs(args: argparse.Namespace, root: Path, rendered: dict, 
     if value is None:
         return
     from production_binding import new_output, write_new
+    from model_rendition import review_requirements
     path = new_output(root, value, option="--preview-out", root_option="--studio")
     write_new(path, execution_contract.encoded({"request_contract": rendered, "validation": validation,
+                                                "review_requirements": review_requirements(),
                                                 "execution_ready": False, "external_effect": False}),
               option="--preview-out", value=str(value))
 
@@ -620,7 +622,7 @@ def dispatch_generation(args: argparse.Namespace, root: Path) -> int:
     write_preview_outputs(args, root, rendered, validation)
     print(render_summary(stored["render_contract"]))
     show_preview(sealed=sealed, rendered=rendered, negative=negative_line(verified, rendered, target["offering"]),
-                 review=verified.get("review_requirements") or [], preview_out=args.preview_out)
+                 review=sealed[6]['review_requirements'], preview_out=args.preview_out)
     return 0
 
 
@@ -664,7 +666,7 @@ def dispatch_upscale(args: argparse.Namespace, root: Path) -> int:
             runtime_evidence.reader(root, snapshots=copy.deepcopy(stored["input_snapshots"])), rendered)
     write_preview_outputs(args, root, rendered, validation)
     print(render_summary(rendered["sealed"]["context"]["render_contract"]))
-    show_preview(sealed=sealed, rendered=rendered, negative="none; an upscale takes no negative prompt", review=[],
+    show_preview(sealed=sealed, rendered=rendered, negative="none; an upscale takes no negative prompt", review=sealed[6]['review_requirements'],
                  preview_out=args.preview_out)
     return 0
 

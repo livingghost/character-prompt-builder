@@ -5,7 +5,7 @@
 ## Prompt
 
 ```text
-<complete final English prompt, already rendered for the named target when one is specified>
+<complete depiction and necessary instructions for actual supplied media, already rendered for the named target when specified>
 ```
 
 ## Negative prompt
@@ -13,7 +13,15 @@
 Include this section only when the target or user uses a separate negative field.
 
 ```text
-<focused negative prompt or avoidance block>
+<necessary exclusions in the target's supported form, preserving their intended scope>
+```
+
+## Execution settings
+
+Include only when native request controls are selected. Keep their field names and values outside the prompt text.
+
+```text
+<selected native request fields and values supported by the named target>
 ```
 
 ## Reference mode

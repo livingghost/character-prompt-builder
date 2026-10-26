@@ -73,6 +73,8 @@ wardrobe reference cannot silently acquire identity or pose authority. A
 layout intermediate cannot redefine an adopted face or permanent physique.
 Generate image numbers from the finalized delivery; every number must refer
 to the actual attachment or board panel that will be sent.
+In prompt wording, identify the depicted subject and its supplied image clearly.
+Studio subject IDs and `subject_uses` remain in the binding records.
 
 When continuity needs state graphs, resolve each subject's identity, era,
 appearance, state and selected references independently. Aggregate them into
@@ -84,7 +86,7 @@ reference path without inventing event history.
 Apply the [Character Identity Contract](../character-identity-contract.md).
 Preserve adopted stable traits and release source-only expression, gaze,
 body orientation, pose, wardrobe and relationships unless explicitly retained.
-Write the target state affirmatively.
+Describe the complete target scene before specifying local changes or exclusions.
 
 Use Production Specification `subjects[]` for identity, performance, wardrobe,
 body geometry and contacts. Use its scene and camera fields for placement.
@@ -93,7 +95,8 @@ when the image needs one. Read the performance and geometry features when
 those decisions are load-bearing.
 
 Select instructions using [Prompt Composition](prompt-composition.md#select-the-depiction).
-For a conversation, establish the roles and interaction that convey the moment.
+For a conversation, interpret its narrative context into the visible exchange.
+Establish the roles and interaction that convey the moment.
 Specify sides, gaze or body orientation when they matter to that exchange.
 Readability need not fix every position, gesture or crop. Similar expressions
 can suit the scene; evaluate their meaning rather than forcing a difference.
@@ -138,7 +141,9 @@ description alone does not establish exact identity control.
 
 Use ordinary `generation` for asset creation and `repose` for reuse in a
 scene. Read the applicable route and interface feature, retrieve the required
-visual concepts, and author the complete target prompt and criteria.
+visual concepts, and author the complete target prompt. Keep acceptance criteria
+in the task's review record. Add only the image-use directions needed to carry
+the selected reference scopes into that scene.
 
 For shared image inputs, `task.image_input` binds the selected model,
 reference uses and any exact external request. Its prepared references retain

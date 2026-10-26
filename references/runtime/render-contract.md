@@ -26,8 +26,9 @@ python scripts/render_contract.py validate-intent render-intent.json --draft
 ```
 
 The draft has no invented prompt words. Retrieve wording under the skill's retrieval gate first.
-Then fill `prompt_expression` with the exact authored span that expresses the finish.
+Then fill `prompt_expression` with the exact authored span that describes the visible finish.
 Include every regional expression in the final prompt as well.
+Preset names, choice reasons and provenance stay in the intent record.
 `validate-intent` without `--draft` requires that wording.
 The generation builder also checks that it actually appears in the authored prompt.
 This proves inclusion, not semantic correctness or model effectiveness; the agent reviews those separately.
@@ -200,6 +201,7 @@ python scripts/render_contract.py compile --model MODEL_ID --service SERVICE_ID 
   --reference-count 0 --out render-contract.json --text
 ```
 
+Keep native execution settings in the selected interface's declared request fields.
 The output distinguishes explicit values, model recommendations, unselected features,
 dispatch-required controls, non-applicable controls, and backend-managed controls.
 Each decision includes its reason. The plan retains both authored and effective parameters.
@@ -216,6 +218,8 @@ Request-schema, reference, studio, cost and authority checks apply as well.
 
 The dispatcher preview prints the rendering choice before the complete request.
 Read the final positive and negative transport and all applied values from that preview.
+Review how the finish contributes to the whole depiction, with its required
+identity detail and scoped exclusions, before approving the exact request.
 A prompt-only answer uses the same deliberate finish choice and model guidance when a target is named,
 but does not need a submission authorization or an invented model when none was requested.
 

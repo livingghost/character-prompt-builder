@@ -19,7 +19,7 @@ def fixture_external_delivery(folder: Path, prompt: str, features: list[str]) ->
     """Prepare input for an independent package-construction test, not automatic dispatch.
 
     These tests inspect reference/package bytes and never execute a service. The
-    external delivery contract does not claim to have compiled a provider request.
+    external delivery uses a complete synthetic request and no provider claim.
     Complete automatic execution is covered by production_case_fixtures instead.
     """
     import execution_contract as c
@@ -35,6 +35,7 @@ def fixture_external_delivery(folder: Path, prompt: str, features: list[str]) ->
                          'translation_notes': 'Exact synthetic test input.'},
             'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect actual fixture bytes.'}],
             'world_views': []}
+    production_fixtures.external_image_input(root, spec)
     production_fixtures.task(root, spec, artifact='image', execution='external')
     (root / 'fixture-task.json').write_bytes(c.encoded(spec))
     return root, production_workflow.prepare(root, 'fixture-task.json')['run']

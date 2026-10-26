@@ -290,8 +290,8 @@ def task_binding(root: Path, task: dict, add) -> dict | None:
 def external_documents(root: Path, task: dict, add, *, inputs: dict | None = None) -> dict:
     """Apply the same authored specification and render intent checks externally.
 
-    Source roles select contracts explicitly. Tasks without these documents or
-    subject assignments remain ordinary external work; no empty plan is needed.
+    Source roles select contracts explicitly. An external image request uses its
+    exact input binding even when no image reference was selected.
     """
     if task['execution'] != 'external' or task['artifact'] != 'image':
         return {}

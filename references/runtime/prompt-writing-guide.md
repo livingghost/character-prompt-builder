@@ -13,7 +13,9 @@ Use this runtime when a final prompt must be rendered for a named model or inter
 - prompt-length pressure
 - controlled comparison of one term
 
-Art direction comes first: select the depiction under [Prompt Composition](prompt-composition.md#select-the-depiction), preserve every user anchor, and settle the relationships the purpose needs. Select the exact interface and one adapter before rendering. Catalog targets use their active model records; external generation or editing may use acquired provider evidence while recording a missing catalog definition.
+Adapt the selected depiction to one exact interface and adapter. Catalog targets
+use their active model records; external generation or editing may use acquired
+provider evidence while recording a missing catalog definition.
 
 ## Resolve the active guide
 
@@ -45,12 +47,12 @@ Read the complete resolved guide before writing the final model-facing rendition
 
 ## Application sequence
 
-1. Finish the master prompt from selected requirements and purposeful choices, free of parser notation and planning commentary.
+1. Finish the master depiction from selected requirements and purposeful choices. Make the whole image clear before refining attributes and necessary exclusions.
 2. Select the exact interface, its catalog record or acquired external contract, and one adapter.
 3. For a catalog target, resolve service weighting through [Explicit Prompt Weighting](prompt-weighting.md) and its family through `scripts/prompt_dialect.py --model <model-id>`. An external target uses only parser behavior its evidence supports. Rules for another family stay unapplied.
-4. Apply interface-neutral construction rules that improve hierarchy, concision, visible scope, and controlled testing.
+4. Preserve that whole depiction while applying the target's hierarchy and visible-scope guidance. Keep the identity and construction detail the image requires.
 5. Apply parser-specific separators, attention syntax, LoRA notation, negative transport, embeddings, or editor shortcuts only when the active interface supports that exact behavior.
-6. Take the wording from the pack's vocabulary, not from memory. The prompt-vocabulary dictionary aggregates Danbooru and e621 tag lists and states the effect each term has, so a term found there needs no web lookup. Search it for each planned element through `scripts/catalog_cli.py search` or by reading the dictionary itself, and prefer a carried term with the effect you mean over a remembered spelling. Reserve outside dictionaries for a term the resource does not carry, and treat that term as unverified until an image proves it.
+6. Search the pack's prompt vocabulary for each planned element through `scripts/catalog_cli.py search` or read the dictionary directly. Inspect definitions, usage notes and the selected model's evidence before choosing wording. Membership supplies vocabulary evidence; the author decides whether a term or descriptive phrase carries the intended meaning.
 7. Render selected vocabulary terms into one coherent prompt. Search results and guide examples are candidates and grammar demonstrations rather than automatic prompt expansion or boilerplate.
 8. Review the final rendition against the image intent, anchors, production or semantic edit plan, adapter contract and evidenced recommendations.
 
@@ -60,13 +62,13 @@ The Skill-using agent decides which rules are relevant. The exact model or provi
 
 Use attention weighting only to express a real priority in a compatible parser. Large weights are the wrong repair for contradictory anatomy, camera, action, or reference roles. Parentheses, square brackets, and numeric weights are interface syntax rather than universal prompt language.
 
-A weight raises attention on the tokens of a term. Binding the term to the thing the writer meant is a separate matter, and that distinction decides whether a weight helps or harms. On a term the checkpoint was trained on, the attention lands where the term already lands, and the weight is a priority. On an untrained term, the attention lands wherever those tokens reach on their own, and the weight multiplies that. An invented marking name at high weight puts the marking wherever the picture has room for it, and an invented garment name dresses the wrong part. So confirm that the vocabulary knows a term before weighting it. When it lacks the term, the repair is a term the surface knows, or a reference image, rather than a larger number. A term that must be invented is written plain and checked in the result.
+A weight changes emphasis; it does not establish what a term means or which subject it concerns. Resolve ambiguous wording and reference roles before raising its weight. Use dictionary definitions and target observations as evidence, then inspect the result. An unlisted descriptive phrase may still be appropriate; absence from a dictionary is not a semantic verdict.
 
 Assume nothing about a universal 75-token ceiling: prompt capacity, chunking, and truncation are properties of the active encoder and workflow. Keep high-priority construction early when the interface is tag-oriented, and keep required semantics even when a remembered number argues for cutting them.
 
-Omit incidental detail because it contributes no requirement or selected effect, regardless of available prompt capacity. Preserve canonical identity and scene state at their owners. Do not turn an omitted detail into a permission, exclusion or instruction to reveal it.
+Remove incidental detail that contributes no requirement or selected effect. Retain all specificity needed for identity, visible construction and the chosen scene, even when that requires a detailed prompt. Preserve the complete canonical identity and scene state at their owners. An omitted detail needs no replacement permission, exclusion or instruction to reveal it.
 
-The `negative-policy` resource decides which negative sources are active and how each kind of target writes one; a tag family's own form is the `negative_form` that `scripts/prompt_dialect.py` returns. A negative channel is for qualities that arrive uninvited. Before adding a term to it, check whether a positive term is requesting the quality being suppressed; if so, remove that positive term instead. Negatives that contradict live positives fight inside one representation and usually damage the wanted content along with the unwanted. A negative list that grows across successive revisions is a symptom of an unresolved positive-side cause rather than of a thorough exclusion policy.
+Use the `negative-policy` resource to assess applicable sources; a tag family's form is the `negative_form` that `scripts/prompt_dialect.py` returns. Keep required exclusions and corrections scoped to their intended subject, region or failure. Resolve a real contradiction by returning to the brief and source authority, then revise the conflicting wording. A repeated word across channels can carry different scopes; the author judges the combined meaning. A growing negative list calls for reassessment, not automatic deletion of necessary constraints.
 
 ## Controlled comparison
 
@@ -74,12 +76,7 @@ When the task is to test whether a term, placement, weight, LoRA strength, or ne
 
 ## Read the rendition back before it is sent
 
-A tag rendition can be wrong in ways the returned image leaves unreported:
-
-- a numeric weight written where it fails to bind leaves its digits in the prompt as text;
-- a repeated tag spends budget for nothing;
-- a term sits in both the prompt and the negative;
-- two terms the vocabulary itself calls opposed ask for different pictures.
+Inspect the exact rendition with the selected parser before reviewing its meaning. Structural checks locate broken delimiters, malformed weights, invalid conditioning clauses, unsupported channels and declared length violations. The report also retains dictionary and dialect evidence for the author's reading.
 
 ```bash
 python scripts/check_tag_prompt.py --weighting sdEmbeds --dictionary <prompt-vocabulary/dictionary.json> --prompt "<the rendition>" --negative "<the negative>" --model <model-id>
@@ -88,20 +85,9 @@ python scripts/check_tag_prompt.py --weighting sdEmbeds --dictionary <prompt-voc
 
 The example assumes an explicitly selected sdEmbeds parser; use `--weighting compel` for Compel or `literal` when no weighting control is selected. Independent conditioning clauses are checked separately and the original text is retained.
 
-The checks read the resolved vocabulary resource rather than a list kept in the script. They use:
+The checks read the resolved vocabulary resource and retain matched definitions, usage notes and declared dialect guidance. `--model` adds the record's declared prompt lengths and negative channel. `--dialect` names an evidenced family directly; an unknown ID is answered with the available IDs. Dictionary absence, repeated words, count terms, rating terms or lexical overlap do not establish a semantic failure.
 
-- a category the resource marks as describing one figure at a time;
-- the terms it names as putting more than one figure in the picture;
-- the terms each entry declares it opposes.
-
-With `--model` the rendition is also held to the record's declared prompt lengths and negative channel, and to its family. `--dialect` names the family directly, for a family without a model record, and an unknown id is answered with the ids the resource carries. The family checks report:
-
-- more than one rating or period term from that family's set;
-- a term the family lacks;
-- an explicit weight outside the range the family works in;
-- a rating, period, or quality term inside a longer tag, such as the period term old in old man.
-
-Output is JSON on stdout with `syntax`, parsed `channels`, a `findings` list and the family checked under `dialect`. A problem is a statement about the rendition's own grammar or about a pair the vocabulary calls incompatible; a note is a reading worth confirming, such as a term missing from the vocabulary or a chunk after a break that lacks a count tag. The exit status is 1 when a problem is reported, and the command exits with a message when the dictionary path is anything but a file. The standalone command reports evidence; preparation blocks mechanical problems, while the author evaluates notes and intended meaning. Its regression test is `scripts/check_tag_prompt_smoke_test.py`.
+Output is JSON on stdout with `syntax`, parsed `channels`, structural `findings` and the resolved dialect evidence. A `problem` describes a mechanical contract violation and returns exit status 1. A dictionary path that is not a file exits with a message. Preparation blocks mechanical problems; the author reads the complete positive and negative rendition with its actual media and judges the resulting picture. Its regression test is `scripts/check_tag_prompt_smoke_test.py`.
 
 ## Failure policy
 
@@ -126,8 +112,8 @@ The regression uses a fictional temporary guide. It leaves every owner-maintaine
 
 For a model with `prompt_dialect`, `prepare` checks the actual sealed positive and
 negative text after model recommendations and transport conversion. Mechanical
-`problem` findings stop preparation; `note` findings and each matched term's
-dictionary meaning/usage notes are saved in `execution_plan.prompt_check`. Inspect
-that report with the complete request before approving it. A known word can still
-be the wrong word for the intended anatomy or garment: membership is not semantic
-approval. Fix the authored prompt or model guidance rather than bypassing the gate.
+`problem` findings stop preparation. The complete dictionary and dialect evidence
+is saved in `execution_plan.prompt_check` for the existing rendition review.
+Inspect that evidence with the complete request before approving it. A known word
+can still be wrong for the intended anatomy or garment, and an unlisted phrase
+can express it correctly. Fix the authored wording when meaning is wrong.
