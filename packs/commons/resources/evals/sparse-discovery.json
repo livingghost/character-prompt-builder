@@ -1,0 +1,510 @@
+{
+  "purpose": "Verify bounded candidate discovery, source attribution, and coverage visibility for open expression choices. Artistic selection and image quality require separate review.",
+  "cases": [
+    {
+      "id": "single-view-attention",
+      "mode": "recommend",
+      "query": "make the main action read first",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-focal-hierarchy"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "gaze-target-reveal",
+      "mode": "recommend",
+      "query": "connect a glance to what is seen",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-eyeline-reveal-sequence"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "event-before-response",
+      "mode": "recommend",
+      "query": "show the event then the reaction",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-reveal-reaction-sequence"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "panel-route",
+      "mode": "recommend",
+      "query": "make the order of panels clear",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-panel-reading-flow"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "panel-emphasis",
+      "mode": "recommend",
+      "query": "give one story beat more room",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-panel-rhythm"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "overview-detail",
+      "mode": "recommend",
+      "query": "show the whole and a small detail",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-whole-detail-inset"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "comparable-alternatives",
+      "mode": "recommend",
+      "query": "make design differences easy to see",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-aligned-comparison"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "state-change",
+      "mode": "recommend",
+      "query": "explain change step by step",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-state-sequence"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "assembly-relationship",
+      "mode": "recommend",
+      "query": "show how the parts fit together",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-exploded-view"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "interior-location",
+      "mode": "recommend",
+      "query": "show what is inside while keeping the outer form",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-cutaway-view"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "image-text-balance",
+      "mode": "recommend",
+      "query": "make image and text work together",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-image-type-hierarchy"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "type-dominance",
+      "mode": "recommend",
+      "query": "let the words carry the poster",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-type-led-poster"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "publication-cover",
+      "mode": "recommend",
+      "query": "organize a cover around title image and lead story",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-editorial-cover-hierarchy"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "concept-metaphor",
+      "mode": "recommend",
+      "query": "one shape with two connected meanings",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-graphic-metaphor"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "page-prominence",
+      "mode": "recommend",
+      "query": "give a scene the whole page",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-splash-page-scene"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "self-contained-moment",
+      "mode": "recommend",
+      "query": "tell a moment in one comic frame",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-single-panel-scene"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "scroll-discovery",
+      "mode": "recommend",
+      "query": "reveal the story while scrolling down",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-vertical-scroll-reveal"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "open-brief-exposes-knowledge-inventory",
+      "mode": "recommend",
+      "query": "unmappedconcept",
+      "limit": 8,
+      "minimum_candidates": 0,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition",
+        "camera",
+        "lighting"
+      ],
+      "expected_candidate_count": 0
+    },
+    {
+      "id": "shared-space-media",
+      "mode": "recommend",
+      "query": "keep different media while sharing the same space",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-shared-space-mixed-rendering"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "fragment-relationship",
+      "mode": "recommend",
+      "query": "connect fragments through overlap and juxtaposition",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-layered-collage"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "mixed-information",
+      "mode": "recommend",
+      "query": "organize pictures diagrams and short facts together",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-modular-information-field"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "interface-meaning",
+      "mode": "recommend",
+      "query": "explain a screen state with pictures and controls",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-interface-illustration"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "editorial-information",
+      "mode": "recommend",
+      "query": "editorial spread with pictures and explanatory labels",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-modular-information-field"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    },
+    {
+      "id": "image-text-exhibition",
+      "mode": "recommend",
+      "query": "exhibition graphics with image and text hierarchy",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "composition-image-type-hierarchy"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "composition"
+      ]
+    }
+  ],
+  "case_count": 24
+}

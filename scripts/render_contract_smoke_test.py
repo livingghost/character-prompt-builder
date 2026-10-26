@@ -91,9 +91,17 @@ class RenderContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'custom intent'):self.compile()
 
     def test_custom_and_region_specific_finishes(self):
-        self.intent['preset']=None;self.intent['axes']['medium']='mixed-media'
-        self.intent['regional_overrides']=[{'region':'background','axes':{'shading':'wash'},'reason':'Deliberate background treatment.','prompt_expression':'observatory'}]
-        self.compile()
+        example=r.ROOT/'examples'/'composed-artifact'
+        self.intent=json.loads((example/'study-page-render-intent.json').read_text(encoding='utf-8'))
+        self.prompt=(example/'study-page-prompt.txt').read_text(encoding='utf-8')
+        plan=self.compile()
+        self.assertEqual(plan['intent'],self.intent)
+        self.assertEqual(plan['intent']['selection']['chosen_by'],'agent')
+        for region in self.intent['regional_overrides']:
+            with self.subTest(region=region['region']):
+                incomplete=self.prompt.replace(region['prompt_expression'],'',1)
+                with self.assertRaises(ValueError):
+                    r.compile_contract(self.model,None,self.intent,{},prompt=incomplete,reference_count=0)
 
     def test_range_is_not_a_value(self):
         self.model['recommended_parameters']['guidance']=[4,6]

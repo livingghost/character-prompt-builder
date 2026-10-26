@@ -40,7 +40,7 @@ _BATCH_OPTION_FIELDS = {
         "group_variants",
         "tier",
     },
-    "recommend": {"directions"},
+    "recommend": {"limit", "inventory_facets"},
     "inspire": {
         "categories",
         "per_category",
@@ -224,13 +224,8 @@ def execute_query_command(
             entries,
             request.canonical_query,
             resolved_domain,
-            max(
-                1,
-                min(
-                    8,
-                    _batch_integer(options.get("directions"), "directions", 4),
-                ),
-            ),
+            _batch_positive_integer(options.get("limit"), "limit", 8),
+            inventory_facets=sorted(_batch_string_set(options.get("inventory_facets"), "inventory_facets", "")),
             analysis=analysis,
             search_index=index,
         )

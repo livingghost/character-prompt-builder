@@ -4,7 +4,7 @@
 The test builds an isolated core containing only packs/commons plus a neutral
 temporary fixture pack, then starts from a literal brief instead of record IDs.
 It uses one explicit pack state and the documented public CLI subprocesses,
-discovers a direction, retrieves identity and staging candidates in one
+discovers knowledge, retrieves identity and staging candidates in one
 four-request batch process, inspects the selected canonical records, activates
 linked evidence, and materializes exact source SVGs as prompt artifacts.
 """
@@ -35,7 +35,7 @@ REQUIRED_CONTENT_CAPABILITIES = {
     "evidence-artifact-reference",
     "visual-evidence",
 }
-REQUIRED_RUNTIME_RESOURCES = {"discovery-lanes"}
+REQUIRED_RUNTIME_RESOURCES = {"fixture-maintenance-note"}
 REQUIRED_TECHNICAL_ROLES = {"structural-line-tone", "subject-mask"}
 IDENTITY_EXCLUDED_STATE = {
     "gaze": ("gaze", "eye contact", "eye direction"),
@@ -52,31 +52,7 @@ RUNTIME_CONTEXT_PATHS = (
     Path("references/runtime/reference-prompt-artifacts.md"),
     Path("references/runtime/pack-state-quickstart.md"),
 )
-PROBE_STOP_WORDS = {
-    "a",
-    "an",
-    "and",
-    "around",
-    "as",
-    "by",
-    "for",
-    "from",
-    "in",
-    "inside",
-    "into",
-    "of",
-    "on",
-    "one",
-    "or",
-    "the",
-    "their",
-    "this",
-    "through",
-    "to",
-    "toward",
-    "while",
-    "with",
-}
+
 
 
 def _sha256(path: Path) -> str:
@@ -361,78 +337,6 @@ def _build_fixture_pack(pack_container: Path) -> dict[str, Any]:
     _write_json(fixture_root / "records" / "scenes.json", scene)
     _write_json(fixture_root / "records" / "assets.json", asset)
 
-    lane_specs = (
-        (
-            "grounded-drive",
-            "Grounded drive",
-            "grounded athletic drive",
-            "style-family-sculpted-presence",
-            "camera-low-three-quarter",
-            "lighting-dusk-rim",
-        ),
-        (
-            "diagonal-action",
-            "Diagonal action",
-            "diagonal athletic action",
-            "style-family-clear-portrait",
-            "camera-close-eye-level",
-            "lighting-cool-window",
-        ),
-        (
-            "contact-study",
-            "Contact study",
-            "clear ball contact study",
-            "style-family-quiet-editorial",
-            "camera-profile-space",
-            "lighting-overcast-ambient",
-        ),
-        (
-            "layered-court",
-            "Layered court",
-            "layered practice-court depth",
-            "style-family-environmental-illustration",
-            "camera-environmental-medium",
-            "lighting-neutral-bounce",
-        ),
-    )
-    lanes = []
-    for priority, (
-        suffix,
-        label,
-        summary,
-        style_id,
-        camera_id,
-        lighting_id,
-    ) in enumerate(lane_specs, start=1):
-        lanes.append(
-            {
-                "id": f"fixture-{suffix}",
-                "label": label,
-                "domains": [DOMAIN],
-                "priority": 110 - priority,
-                "summary": (
-                    f"A {summary} direction with a low camera, readable contact, "
-                    "and a clean silhouette."
-                ),
-                "scene_query": "low-angle athletic motion scene clear planted",
-                "style_family_id": style_id,
-                "camera_id": camera_id,
-                "camera_query": "athletic character camera",
-                "lighting_id": lighting_id,
-                "lighting_query": "clear athletic lighting",
-                "preferred_scene_ids": [scene_id],
-                "adds": [summary, "readable hand-to-ball contact"],
-                "adjustable": ["action phase", "camera height", "court depth"],
-            }
-        )
-    _write_json(
-        fixture_root / "resources" / "discovery-lanes.json",
-        {
-            "purpose": "Deterministic fresh-session integration directions.",
-            "count": len(lanes),
-            "lanes": lanes,
-        },
-    )
     _write_json(
         fixture_root / "resources" / "fixture-maintenance-note.json",
         {
@@ -451,7 +355,6 @@ def _build_fixture_pack(pack_container: Path) -> dict[str, Any]:
             "record_globs": ["records/**/*.json"],
             "resource_globs": ["resources/**/*"],
             "resource_bindings": {
-                "discovery-lanes": "resources/discovery-lanes.json",
                 "fixture-maintenance-note": (
                     "resources/fixture-maintenance-note.json"
                 ),
@@ -461,10 +364,8 @@ def _build_fixture_pack(pack_container: Path) -> dict[str, Any]:
             {
                 *REQUIRED_CONTENT_CAPABILITIES,
                 "scene-records",
-                "sparse-brief-discovery",
             }
         ),
-        # It supersedes the commons, so its discovery lanes are the ones in use.
         "dependencies": [{"pack_id": COMMONS_PACK_ID}],
         "optional_dependencies": [],
         "replaces": [],
@@ -482,23 +383,6 @@ def _build_fixture_pack(pack_container: Path) -> dict[str, Any]:
             "subject-mask": mask_sha256,
         },
     }
-
-
-def _scene_probe(card: Mapping[str, Any]) -> str:
-    """Derive a concise scene probe from card prose, never from its record ID."""
-
-    text = str(card.get("what_you_get") or "")
-    if "Catalog staging option:" in text:
-        text = text.split("Catalog staging option:", 1)[1]
-    words = [
-        token.lower()
-        for token in re.findall(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*", text)
-        if token.lower() not in PROBE_STOP_WORDS
-    ]
-    probe = " ".join(words[:6])
-    if len(probe.split()) < 3:
-        raise ValueError("direction card did not provide a usable three-to-six-word probe")
-    return probe
 
 
 def _words(path: Path) -> int:
@@ -875,30 +759,23 @@ def _select_records(
     if archetype is None:
         raise ValueError("batch discovery did not return a black-panther archetype")
 
-    cards = list(recommendation.get("direction_cards") or [])[:3]
-    chosen_scene: dict[str, Any] | None = None
-    for card, response in zip(cards, batch_rows[1:], strict=True):
-        recommended_id = str((card.get("preset_ids") or {}).get("scene") or "")
-        hits = list((response.get("result") or {}).get("results") or [])
-        returned_recommendation = next(
-            (row for row in hits if str(row.get("id") or "") == recommended_id),
-            None,
-        )
-        if (
-            returned_recommendation is not None
-            and int(
-                (returned_recommendation.get("linked_asset_activation") or {}).get(
-                    "asset_count", 0
-                )
-            )
-            > 0
-        ):
-            chosen_scene = returned_recommendation
-            break
+    identity_ids = {str(row.get("id")) for row in recommendation.get("candidates") or []}
+    if str(archetype["id"]) not in identity_ids:
+        raise ValueError("identity search did not confirm an explored candidate")
+    discovered_scenes = {
+        str(row.get("id"))
+        for row in (batch_rows[1].get("result") or {}).get("candidates") or []
+        if row.get("kind") == "scene"
+    }
+    chosen_scene = next((
+        row
+        for response in batch_rows[2:]
+        for row in (response.get("result") or {}).get("results") or []
+        if str(row.get("id")) in discovered_scenes
+        and int((row.get("linked_asset_activation") or {}).get("asset_count", 0)) > 0
+    ), None)
     if chosen_scene is None:
-        raise ValueError(
-            "no batch-confirmed recommended scene exposed linked visual evidence"
-        )
+        raise ValueError("no inspected-purpose scene exposed linked visual evidence")
 
     retrieval_inputs = [
         BRIEF,
@@ -1089,8 +966,8 @@ def run() -> dict[str, Any]:
                     "recommend",
                     "--query-json",
                     str(recommendation_request_path),
-                    "--directions",
-                    "4",
+                    "--limit",
+                    "8",
                 ],
                 cwd=core_root,
                 label="catalog-recommend",
@@ -1107,12 +984,14 @@ def run() -> dict[str, Any]:
                 and not recommendation.get("terms_without_alias"),
                 analysis,
             )
-            cards = list(recommendation.get("direction_cards") or [])
+            candidates = list(recommendation.get("candidates") or [])
             _require(
                 checks,
-                "sparse-recommend-returns-four-whole-image-directions",
-                len(cards) == 4,
-                [card.get("title") for card in cards],
+                "discovery-returns-grounded-catalog-candidates",
+                bool(candidates)
+                and all(row.get("id") and row.get("source_pack") for row in candidates)
+                and recommendation.get("inspection_queue") == [row["id"] for row in candidates],
+                [row.get("id") for row in candidates],
             )
 
             batch_requests: list[dict[str, Any]] = [
@@ -1123,19 +1002,31 @@ def run() -> dict[str, Any]:
                     "domain": DOMAIN,
                     "kind": ["archetype"],
                     "limit": 6,
-                }
+                },
+                {
+                    "request_id": "action-knowledge",
+                    "command": "recommend",
+                    "canonical_query": "low-angle athletic motion scene clear planted",
+                    "domain": DOMAIN,
+                    "limit": 6,
+                },
+                {
+                    "request_id": "action-staging",
+                    "command": "search",
+                    "canonical_query": "athletic motion planted stance",
+                    "domain": DOMAIN,
+                    "kind": ["scene"],
+                    "limit": 6,
+                },
+                {
+                    "request_id": "action-contact",
+                    "command": "search",
+                    "canonical_query": "low angle ball contact action",
+                    "domain": DOMAIN,
+                    "kind": ["scene"],
+                    "limit": 6,
+                },
             ]
-            for index, card in enumerate(cards[:3], start=1):
-                batch_requests.append(
-                    {
-                        "request_id": f"direction-{index}-scene",
-                        "command": "search",
-                        "canonical_query": _scene_probe(card),
-                        "domain": DOMAIN,
-                        "kind": ["scene"],
-                        "limit": 6,
-                    }
-                )
             batch_path = temporary_root / "catalog-batch.json"
             batch_path.write_text(
                 json.dumps(batch_requests, ensure_ascii=False, indent=2) + "\n",

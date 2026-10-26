@@ -1,0 +1,28 @@
+{
+  "arrangement": "An open study page with one large specimen, a smaller drawn explanation beside it, and a quiet heading above both.",
+  "regions": [
+    {
+      "id": "specimen",
+      "placement": "Left and center, occupying most of the page",
+      "depiction": "A photographic gray river stone with a rounded triangular outline and two pale mineral veins crossing its front surface. Soft side light reveals the stone's smooth volume."
+    },
+    {
+      "id": "trace",
+      "placement": "At right, aligned with the specimen's center",
+      "depiction": "A fine blue line drawing repeats the stone's outline and the paths of its two veins at a smaller scale, with a short blue leader joining one matching point."
+    },
+    {
+      "id": "heading",
+      "placement": "Above the specimen and line drawing",
+      "depiction": "Small flat dark-blue lettering reads STONE AND STRUCTURE."
+    }
+  ],
+  "reading_order": ["heading", "specimen", "trace"],
+  "relationships": [
+    {
+      "from": "specimen",
+      "to": "trace",
+      "relation": "The drawing explains the visible contour and vein paths of the same stone. The leader remains a flat page mark."
+    }
+  ]
+}

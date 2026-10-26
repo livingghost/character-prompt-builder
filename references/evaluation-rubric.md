@@ -31,7 +31,7 @@ baseline and, where useful, alternate retrieval strategies.
 - Is the center of appeal identifiable?
 - Is the subject's relationship to the viewer, another subject, or the environment clear?
 - Do composition, shape rhythm, surface, color-light logic, and detail hierarchy belong to one direction?
-- Is one medium family chosen deliberately?
+- Do the rendering treatments and their boundaries support the selected construction?
 
 ## 4. Universal-core use
 

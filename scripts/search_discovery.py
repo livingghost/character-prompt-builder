@@ -460,7 +460,7 @@ PERMANENT_IDENTITY_FACETS = frozenset({
 # searchable facet. A query mentioning a prop or a rendering adjective should
 # not silently become a permanent identity lock, but age, role, clothing,
 # camera, lighting, and other directly stated choices must not be overwritten
-# by exploratory direction cards.
+# by retrieved knowledge candidates.
 LEXICAL_ANCHOR_FACETS = {
     "age",
     "presentation",

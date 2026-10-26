@@ -1,0 +1,43 @@
+{
+  "artifact_type": "render-intent",
+  "preset": null,
+  "axes": {
+    "medium": "photographic specimen on a designed page",
+    "dimensionality": "natural stone volume with flat page elements",
+    "linework": "natural photographic edges on the stone",
+    "shading": "soft directional shading on the specimen",
+    "surface": "smooth gray stone on warm white stock",
+    "detail": "visible mineral veins with quiet surrounding space"
+  },
+  "presentation": "natural-history study page",
+  "selection": {
+    "chosen_by": "agent",
+    "reason": "Photography carries the specimen's appearance while a separate line drawing explains its visible structure."
+  },
+  "execution_mode": "text-to-image",
+  "prompt_expression": "A photographic gray river stone",
+  "regional_overrides": [
+    {
+      "region": "the explanatory drawing and its leader",
+      "axes": {
+        "medium": "blue line illustration",
+        "dimensionality": "flat marks on the page",
+        "linework": "fine continuous blue lines",
+        "shading": "unshaded",
+        "surface": "clean drawn marks"
+      },
+      "reason": "A reduced contour isolates the visible structure for comparison.",
+      "prompt_expression": "A fine blue line drawing"
+    },
+    {
+      "region": "the heading",
+      "axes": {
+        "medium": "flat typography",
+        "dimensionality": "flat lettering",
+        "surface": "uniform dark-blue letterforms"
+      },
+      "reason": "A quiet heading gives the page a readable entry point.",
+      "prompt_expression": "Small flat dark-blue lettering reads STONE AND STRUCTURE."
+    }
+  ]
+}

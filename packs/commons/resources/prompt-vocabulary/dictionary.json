@@ -49861,7 +49861,7 @@
         },
         {
           "term": "collage",
-          "description": "Several illustrations pasted together on one canvas; highly random."
+          "description": "A composition assembled from distinct image, paper, drawing or lettering fragments. Crop, overlap, scale and spacing establish their selected relationships."
         },
         {
           "term": "column lineup",
@@ -49905,7 +49905,7 @@
         },
         {
           "term": "fake screenshot",
-          "description": "A game, stream, or phone capture look with floating, unreadable text."
+          "description": "An authored image adopting a selected game, stream or application capture format. Interface elements, wording and legibility follow the intended screen state."
         },
         {
           "term": "figure",
@@ -49941,7 +49941,7 @@
         },
         {
           "term": "magazine cover",
-          "description": "Magazine-cover layout with unreadable text; watch for invented titles resembling real magazines.",
+          "description": "A designed publication cover organizing a masthead, lead image, and any required cover lines. Wording, legibility, and image prominence follow the intended cover.",
           "aliases": [
             "magazine_cover"
           ]
@@ -50015,7 +50015,7 @@
         },
         {
           "term": "trading card",
-          "description": "On a portrait canvas, a trading-card layout with frame and rank marks; negative card (medium) if physical playing cards appear."
+          "description": "A collectible card face organizing artwork with selected identifiers or game information. Orientation, frame, symbols and wording follow the intended card design."
         },
         {
           "term": "viewfinder",
@@ -50075,7 +50075,7 @@
         },
         {
           "term": "album cover",
-          "description": "Frames the picture as square music cover art with an artist name and title laid over the image and a clean square edge."
+          "description": "Music-release cover artwork organized for a compact cover field. Artist wording, title, and purely visual treatment depend on the intended design."
         },
         {
           "term": "bromide",
@@ -50095,7 +50095,7 @@
         },
         {
           "term": "cover page",
-          "description": "Frames the picture as the front cover of a book or magazine, with a title, author name, and other printed text over the art."
+          "description": "The front design of a publication, using an image, typography, or both to establish its identity."
         },
         {
           "term": "cut-in",
@@ -50114,11 +50114,11 @@
         },
         {
           "term": "doujin cover",
-          "description": "Frames the picture as the cover of a self-published comic, with a title, a circle name, and a content rating over the art."
+          "description": "Cover artwork for a self-published comic or other fan publication. Title, creator information, and rating marks appear when part of the selected design."
         },
         {
           "term": "dvd cover",
-          "description": "Frames the picture as a home video sleeve, with a title, a spine, and a disc logo laid over the art in a tall rectangle."
+          "description": "A home-video sleeve design whose front, spine, back, and printed information depend on the intended view of the object or artwork."
         },
         {
           "term": "fading border",
@@ -50161,7 +50161,7 @@
         },
         {
           "term": "manga cover",
-          "description": "Frames the picture as the cover of a manga volume, with a large title logo, author name, and volume number over the art."
+          "description": "Cover artwork for a manga volume, balancing the lead imagery with any required title and publication information."
         },
         {
           "term": "move chart",
@@ -50208,7 +50208,7 @@
         },
         {
           "term": "poster (medium)",
-          "description": "Makes the entire picture read as a printed poster, with a bold central image, title lettering, credits, and a designed layout with margins.",
+          "description": "Poster artwork with a deliberate image or typography hierarchy, composed for its communication purpose. Text, credits, margins, and subject count vary with the design.",
           "aliases": [
             "poster"
           ]
@@ -50272,7 +50272,7 @@
         },
         {
           "term": "video game cover",
-          "description": "Lays the picture out as game box art with a bold title logo, a platform banner, a rating badge, and a dramatic hero image."
+          "description": "Game-cover artwork organizing the principal image and any required title or platform information for its intended format."
         },
         {
           "term": "wide image",
@@ -50303,7 +50303,7 @@
         },
         {
           "term": "screenshot",
-          "description": "Frames the picture as a screen capture, with a browser, app or video player interface, window edges and a cursor or status bar around the content."
+          "description": "A captured-screen presentation whose visible application, game or device interface follows the selected view. Window frames, cursors and status bars appear only when part of that view."
         },
         {
           "term": "stitched",
@@ -50312,6 +50312,62 @@
         {
           "term": "textless version",
           "description": "Yields the clean version of an illustration with all dialogue, titles, logos and rating marks removed, leaving only the artwork."
+        },
+        {
+          "term": "magazine cover with unreadable lettering",
+          "description": "Magazine-cover layout with unreadable text; watch for invented titles resembling real magazines."
+        },
+        {
+          "term": "album cover with artist and title",
+          "description": "Frames the picture as square music cover art with an artist name and title laid over the image and a clean square edge."
+        },
+        {
+          "term": "cover page with title and author",
+          "description": "Frames the picture as the front cover of a book or magazine, with a title, author name, and other printed text over the art."
+        },
+        {
+          "term": "doujin cover with circle name and content rating",
+          "description": "Frames the picture as the cover of a self-published comic, with a title, a circle name, and a content rating over the art."
+        },
+        {
+          "term": "dvd cover with spine and disc logo",
+          "description": "Frames the picture as a home video sleeve, with a title, a spine, and a disc logo laid over the art in a tall rectangle."
+        },
+        {
+          "term": "manga cover with title author and volume",
+          "description": "Frames the picture as the cover of a manga volume, with a large title logo, author name, and volume number over the art."
+        },
+        {
+          "term": "poster with title and credits",
+          "description": "Makes the entire picture read as a printed poster, with a bold central image, title lettering, credits, and a designed layout with margins."
+        },
+        {
+          "term": "video game cover with platform and rating marks",
+          "description": "Lays the picture out as game box art with a bold title logo, a platform banner, a rating badge, and a dramatic hero image."
+        },
+        {
+          "term": "mixed media",
+          "description": "A deliberate combination of distinct rendering or material treatments. Each treatment has a selected extent and role in the whole composition."
+        },
+        {
+          "term": "photomontage",
+          "description": "An arrangement of photographic fragments forming a selected association or constructed scene. Visible seams, shared space and scale depend on the intended construction."
+        },
+        {
+          "term": "editorial spread",
+          "description": "A coordinated facing-page composition that organizes images, text and supporting material across a shared reading field."
+        },
+        {
+          "term": "infographic",
+          "description": "A visual explanation that organizes supported information through pictures, diagrams, symbols, text and their meaningful relationships."
+        },
+        {
+          "term": "visual novel screen",
+          "description": "A static story screen coordinating a scene with any selected character display, dialogue area, speaker indication or choice interface."
+        },
+        {
+          "term": "information card",
+          "description": "A compact visual field pairing a recognizable subject or picture with selected labels, symbols or facts in a clear local hierarchy."
         }
       ],
       "single_valued": true
@@ -51705,11 +51761,11 @@
       "entries": [
         {
           "term": "borderless panel",
-          "description": "A panel without a frame, often full-bleed; signals an open or atmospheric moment and changes the page rhythm."
+          "description": "A panel whose boundary is implied by space or image edges rather than a drawn frame. Its effect depends on its content and relation to neighboring panels."
         },
         {
           "term": "double-page spread",
-          "description": "One image across two facing pages; the manga equivalent of the wide shot."
+          "description": "A composition spanning two facing pages. It can carry one large scene or several related views; the central binding affects placement."
         },
         {
           "term": "dramatic close-up",
@@ -51733,7 +51789,7 @@
         },
         {
           "term": "panel rhythm",
-          "description": "Panel size as pacing: small regular panels for fast dialogue, a large panel or spread for an emotional or action peak."
+          "description": "The pattern of panel extent, content density, repetition, and gaps across a sequence. These support emphasis and pacing together; panel size alone does not specify reading time."
         },
         {
           "term": "borderless panels",
@@ -51752,6 +51808,10 @@
           "aliases": [
             "right to left comic"
           ]
+        },
+        {
+          "term": "single-image double-page spread",
+          "description": "One wide narrative image spans two facing pages, with important details positioned in relation to the central binding."
         }
       ]
     },

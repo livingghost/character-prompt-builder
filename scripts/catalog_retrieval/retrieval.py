@@ -104,11 +104,13 @@ def compact_record(
         "kind": entry.kind,
         "category": entry.category,
         "source_pack": entry.source_pack,
+        "source_file": entry.source_file,
         "id": record.get("id"),
         "label": record.get("label"),
         "domain": record.get("domain"),
         "domains": record.get("domains"),
         "applies_to": record.get("applies_to"),
+        "applicability": record.get("applicability"),
         "tags": record.get("tags"),
         "prompt": record.get("prompt") or record.get("rendering") or record.get("positive_correction"),
         "curation_status": record.get("curation_status"),
@@ -133,6 +135,8 @@ def compact_record(
         "best_for": record.get("best_for"),
         "avoid_for": record.get("avoid_for"),
         "outcome_summary": profile.get("outcome_summary"),
+        "compatible_with": record.get("compatible_with") or profile.get("compatible_with"),
+        "avoid_with": record.get("avoid_with") or profile.get("avoid_with"),
         "discovery_group": profile.get("discovery_group"),
         "variant_of": profile.get("variant_of"),
         "variation_examples": profile.get("variation_examples"),
@@ -280,17 +284,23 @@ def search_entries(
         if len(selected) >= limit:
             break
 
-    if len(selected) < limit and not group_variants:
+    if len(selected) < limit:
         selected_ids = {
             str(corpus.entries[candidate_index].record.get("id"))
             for _, _, _, candidate_index in selected
         }
         for value, band, matched, evidence, candidate_index in candidates:
-            record_id = str(corpus.entries[candidate_index].record.get("id"))
+            entry = corpus.entries[candidate_index]
+            record_id = str(entry.record.get("id"))
             if record_id in selected_ids:
+                continue
+            profile = runtime_profile(entry, search_index)
+            group = str(profile.get("discovery_group") or record_id)
+            if group_variants and group in seen_groups:
                 continue
             selected.append((band, matched, evidence, candidate_index))
             selected_ids.add(record_id)
+            seen_groups.add(group)
             if len(selected) >= limit:
                 break
 

@@ -733,16 +733,16 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "Read `query_token_count`, `axis_coverage`, and any `retrieval_note`",
     ),
     "references/runtime/sparse-discovery.md": (
-        "# Sparse-Brief Discovery Runtime",
+        "# Production knowledge discovery",
         "## Activation",
         "## Anchor extraction",
         "## Translation boundary",
-        "## Direction cards",
+        "## Read the discovery result",
         "## Catalog workflow",
         "## Runtime failure rules",
         "Recommendation output is not an adopted record.",
-        "`fixed_component_overrides` is populated when",
-        "Read `query_token_count`, `axis_coverage`, and any `retrieval_note`",
+        "`catalog_inventory`",
+        "`--inventory-facets`",
     ),
     "references/runtime/prompt-writing-guide.md": (
         "# Prompt Writing Guide Runtime",
@@ -1701,8 +1701,6 @@ def check_english_content(root: Path) -> list[str]:
 def _pack_defaults_findings(defaults: dict[str, Any], profiles: list[dict[str, Any]]) -> list[str]:
     """What one pack's pack-defaults lacks; the release runtime holds only the default packs."""
     findings = list(validate_known_resource("pack-defaults", defaults))
-    if defaults.get("creative_policy", {}).get("art_direction_before_preset_search") is not True:
-        findings.append("art direction is not configured before preset search")
     if defaults.get("creative_policy", {}).get("art_direction_contains_aesthetic_judgment") is not True:
         findings.append("art direction does not explicitly contain aesthetic judgment")
     expected_art_direction_fields = {

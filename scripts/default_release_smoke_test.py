@@ -147,45 +147,23 @@ def evaluate_default_release(root: Path = ROOT) -> dict[str, Any]:
                         entries,
                         str(case.get("query") or ""),
                         str(case.get("domain") or "") or None,
-                        int(case.get("directions") or 4),
+                        int(case.get("limit") or 8),
                     )
-                    identity = result.get("identity_modules") or {}
-                    direction_cards = result.get("direction_cards") or []
-                    observed_identity = (
-                        {
-                            str(category): sorted(_record_ids(rows))
-                            for category, rows in identity.items()
-                        }
-                        if isinstance(identity, dict)
-                        else {}
-                    )
+                    candidate_ids = _record_ids(result.get("candidates"))
+                    inventory = result.get("catalog_inventory") or {}
                     observed = {
-                        "identity_modules": observed_identity,
-                        "direction_cards": (
-                            len(direction_cards)
-                            if isinstance(direction_cards, list)
-                            else 0
-                        ),
+                        "candidate_ids": sorted(candidate_ids),
+                        "inventory_categories": sorted(inventory.get("categories") or {}),
                     }
-                    expected_identity = case.get("expected_identity_modules") or {}
-                    if not isinstance(expected_identity, dict) or not expected_identity:
-                        case_errors.append(
-                            "recommend case has no expected_identity_modules"
-                        )
-                    else:
-                        for category, expected_id in expected_identity.items():
-                            if str(expected_id) not in set(
-                                observed_identity.get(str(category), [])
-                            ):
-                                case_errors.append(
-                                    f"identity module {category!r} is missing {expected_id!r}"
-                                )
-                    minimum_cards = int(case.get("minimum_direction_cards") or 1)
-                    if observed["direction_cards"] < minimum_cards:
-                        case_errors.append(
-                            f"expected at least {minimum_cards} direction cards, "
-                            f"got {observed['direction_cards']}"
-                        )
+                    expected_ids = {str(value) for value in case.get("expected_candidate_ids") or []}
+                    if not expected_ids:
+                        case_errors.append("recommend case has no expected_candidate_ids")
+                    missing = sorted(expected_ids - candidate_ids)
+                    if missing:
+                        case_errors.append(f"missing expected candidate IDs: {missing}")
+                    minimum = int(case.get("minimum_candidates") or 1)
+                    if len(candidate_ids) < minimum:
+                        case_errors.append(f"expected at least {minimum} candidates, got {len(candidate_ids)}")
                 elif operation == "inspire":
                     categories = [
                         str(value) for value in case.get("categories") or []

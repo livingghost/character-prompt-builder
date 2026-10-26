@@ -228,7 +228,7 @@ Aliases should describe the image as a user might: `low camera chest dominant po
 
 Keep modifier ownership explicit. A blue coat belongs to a subject-palette facet; blue rim light belongs to lighting; a blue wall belongs to environment; a glossy sheen drawing grammar belongs to style. This separation allows a sparse brief to preserve identity while exploring different scenes and treatments.
 
-Read `references/runtime/sparse-discovery.md` for direction-card runtime and `references/maintenance/search-discovery.md` for index, grouping, and evaluation requirements.
+Read `references/runtime/sparse-discovery.md` for knowledge discovery and `references/maintenance/search-discovery.md` for index, grouping and evaluation requirements.
 
 ## Style-family boundary review
 

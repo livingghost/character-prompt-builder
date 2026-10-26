@@ -18,7 +18,6 @@ from catalog_cli import configure_pack_runtime, load_entries, load_pack_catalog,
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 from pack_manager import species_scaffold_issues
 from resource_policy import (
-    validate_discovery_lane_targets,
     validate_known_resource,
 )
 
@@ -700,29 +699,6 @@ def check_runtime_search_index(root: Path, records: Sequence[Record], errors: li
                     + "; ".join(template_schema_errors)
                 )
 
-    lanes_path = named_resource_path("discovery-lanes")
-    if lanes_path is not None:
-        lanes_resource = load_json(lanes_path)
-        lanes = lanes_resource.get("lanes") or []
-        for message in validate_discovery_lane_targets(
-            lanes_resource,
-            canonical_ids,
-        ):
-            errors.append(f"discovery-lanes.json: {message}")
-        lane_ids: set[str] = set()
-        for lane in lanes:
-            if not isinstance(lane, Mapping):
-                errors.append("discovery-lanes.json: every lane must be an object")
-                continue
-            lane_id = str(lane.get("id") or "")
-            if not lane_id or lane_id in lane_ids:
-                errors.append(f"discovery-lanes.json: invalid or duplicate lane id `{lane_id}`")
-            lane_ids.add(lane_id)
-            for field in ("style_family_id", "camera_id", "lighting_id"):
-                target = str(lane.get(field) or "")
-                if target not in canonical_ids:
-                    errors.append(f"discovery-lanes.json: lane `{lane_id}` references missing {field} `{target}`")
-
 
 def check_pack_defaults(root: Path, records: Sequence[Record], errors: list[str]) -> None:
     """Check the resolved pack-defaults against the active records."""
@@ -756,13 +732,6 @@ def _check_one_pack_defaults(label: str, defaults: dict[str, Any], records: Sequ
         errors.append(f"{label}: default render profile must be curated: {profile_id}")
     if defaults.get("default_aesthetic_core") not in (None, ""):
         errors.append(f"{label}: must not force an aesthetic core; art direction is authoritative")
-    creative_policy = defaults.get("creative_policy") or {}
-    if creative_policy.get("sparse_brief_discovery_before_final_direction") is not True:
-        errors.append(f"{label}: must enable sparse-brief discovery before final direction")
-    if creative_policy.get("preset_names_or_ids_required_for_discovery") is not False:
-        errors.append(f"{label}: must state that preset names or IDs are not required for discovery")
-    if creative_policy.get("direction_cards_for_open_axes") is not True:
-        errors.append(f"{label}: must enable direction cards for open axes")
     if defaults.get("default_style_family") not in (None, ""):
         errors.append(f"{label}: must not force a concrete style family; art direction is authoritative")
     realization_defaults = defaults.get("default_domain_realization_by_domain", {})

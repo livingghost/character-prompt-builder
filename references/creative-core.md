@@ -1,252 +1,133 @@
-# Creative Core
+# Creative core
 
-Character Prompt Builder begins with a picture rather than a parameter sheet.
-
-The core workflow is:
-
-```text
-brief
-→ image intent
-→ several complete art directions
-→ one chosen direction
-→ selection of purpose-bearing instructions
-→ production-knowledge retrieval for those instructions
-→ final prompt
-→ review against the same intent
-```
+Purpose and attention govern the artifact's construction. Use
+[Production direction](runtime/production-direction.md#choose-the-expression)
+to consult knowledge and choose within the author's scope. This document offers
+ways to develop and compare the visible results.
 
 ## Image intent
 
-The image intent states what must be visually true and why the picture deserves to exist. It joins subject, relationship, feeling, and visual appeal into one concise proposition.
-
-A weak intent repeats attributes:
-
-```text
-[subject] with [attributes] in [framing]
-```
-
-A stronger intent describes the picture:
-
-```text
-[subject] creates [visual relationship or emotional contrast] through [observable performance, staging, and framing]
-```
-
-The second version gives every later decision a reason.
-
-Other valid intents include:
-
-- imposing physical scale softened by a candid, vulnerable moment;
-- a tiny machine expressing perseverance through its interaction with an oversized object;
-- elegant restraint in a formal portrait, with tension carried by posture and distance.
-
-This range matters: an image intent may center physical-emotional contrast, object interaction, or restrained social staging.
-
-## Complete art direction
-
-Use the relevant axes below to choose a coherent direction. Completeness means
-that the image can convey its purpose, not that every axis has a prompt clause.
-[Prompt Composition](runtime/prompt-composition.md#select-the-depiction) governs
-which imagined details become instructions.
-
-### Center of appeal
-
-What should the viewer value first? Examples:
-
-- heroic physical presence
-- fragile perseverance
-- restrained authority
-- gentle scale contrast
-- playful graphic impact
-- quiet natural behavior
-- engineered precision
-
-### Subject relationship
-
-How does the subject relate to:
-
-- the viewer
-- another subject
-- a prop
-- the environment
-- an event just before or after the pictured moment
-
-This relationship guides the gaze, distance, contact and other cues needed to communicate it. It need not fix every cue.
-
-### Composition and visual hierarchy
-
-Choose:
-
-- viewpoint and camera height
-- framing and crop
-- depth order
-- silhouette priority
-- focal sequence
-- foreground and background weight
-- negative space
-
-The composition makes the center of appeal visible before detail is added.
-
-### Medium family
-
-Choose one medium family:
-
-- 2D anime or character illustration
-- flat cartoon or graphic illustration
-- painterly illustration
-- photography
-- 3D character rendering
-- another explicit medium
-
-A mixed medium is its own direction rather than a default compromise between unrelated media.
-
-### Shape and rhythm
-
-Determine:
-
-- primary masses
-- secondary directional forms
-- repeated curves, angles, and spacing
-- proportion emphasis
-- useful asymmetry
-- connection among subject, clothing or casing, props, and environment
-
-### Surface and tactility
-
-Decide how relevant materials behave visually:
-
-- body surface or anatomy
-- hair, fur, feathers, scales, skin, hide, casing, panels, or mixed systems
-- cloth, leather, metal, glass, water, bedding, stone, vegetation, or effects
-- compression, tension, reflection, grouping, wear, glow, or assembly depth
-
-Surface choices serve the medium and focal hierarchy.
-
-### Color and light
-
-Use one coherent thesis:
-
-- warm window key with cool interior fill
-- hard summer sun with reflected water light
-- limited neon accents on dark local color
-- neutral design-sheet illumination
-- effect-driven magical light
-- soft overcast naturalism
-
-Local color and identity remain readable inside the light.
-
-### Detail hierarchy
-
-Allocate finish deliberately:
-
-1. identity and expression
-2. primary action or relationship
-3. contact and construction
-4. clothing, casing, props, and effects
-5. supporting environment
-
-Evenly distributed detail weakens hierarchy.
-
-## Candidate development
-
-Privately generate two to four directions that satisfy the same image intent and differ meaningfully in staging or visual thesis.
-
-Example brief:
-
-```text
-a small maintenance robot protecting a plant in a storm
-```
-
-Possible directions:
-
-1. intimate close view, robot shielding one leaf with its casing and hands
-2. full-body silhouette, robot braced against wind with the plant inside its stance
-3. graphic poster, diagonal rain and one bright protected green focal point
-
-Choose one. Camera from the first, pose from the second, and medium from the third combine only when those choices genuinely form a new coherent direction.
-
-## Meaning before prompt vocabulary
-
-Understand the pictured relationship before translating a phrase into a convenient tag.
-
-For any important expression or action, ask:
-
-- who or what performs it;
-- toward whom or what;
-- which body parts or structural channels carry it;
-- how the head, eyes, torso, limbs, tail, optics, or environment coordinate;
-- what nearby but different action must be kept from replacing it.
-
-The last question is a private review aid rather than automatic negative-prompt text.
-
-## Layered production knowledge
-
-After the direction exists, pack records may help in three ways.
-
-### Universal aesthetic core
-
-A core contributes cross-domain production judgment about appeal, hierarchy, viewer relationship, shape, tactility, color-light taste, and finish. It remains optional.
-
-### Domain realization
-
-A realization translates the direction into valid construction for the actual subject type. It supplies domain-specific identity, anatomy or body plan, expression or behavior, surface systems, locomotion, manipulation, and contact.
-
-### Render profile
-
-A [render profile](preset-system-contract.md#render-profile) supplies the medium mechanics.
-
-These layers answer different questions and remain distinct.
-
-## Invention
-
-Creative additions are valuable when they:
-
-- intensify the center of appeal;
-- clarify the relationship;
-- create a stronger silhouette or focal path;
-- make a material or action readable;
-- give the image a specific moment or environment;
-- create a memorable visual echo.
-
-Additions are weak when they:
-
-- arrive because a nearby record contains them;
-- add narrative unrelated to the intent;
-- force a profession, costume, or setting that changes the character;
-- average competing directions;
-- replace a specific emotion with a generic smile or pose.
-
-## Clarification
-
-Ask only when two complete readings remain similarly natural and materially change the image.
-
-Good clarification:
-
-```text
-Does “blue” describe the subject's body color or the lighting palette?
-```
-
-Unnecessary clarification:
-
-```text
-What background, lens, lighting, pose, clothing, and mood do you want?
-```
-
-The second question delegates the skill's creative job back to the user.
-
-## Final review
-
-Read the final prompt alone and predict its output. Check:
-
-- image intent
-- center of appeal
-- subject domain
-- gaze and relationship
-- pose, support, and contact
-- composition and crop
-- medium integrity
-- surface and material logic
-- color-light coherence
-- detail hierarchy
-- unintended narrative from a record
-
-Revise the prompt when the likely image is polished but conceptually wrong.
+An image intent joins the requested subject or information with the effect its
+presentation should create. It can center a relationship, a feeling, a contrast,
+an explanation, an identity or a visual pattern. It need not contain characters
+or a narrative.
+
+An attribute list such as a subject with a material, color and framing leaves
+the relationship between those choices unresolved. A useful intent describes
+what holds them together: a small machine's perseverance becomes visible in
+its effort against a much larger object; an assembly's structure becomes clear
+through the alignment of its separated components; a title becomes the focal
+shape that organizes a cover.
+
+Intent informs construction. It is not extra prose to paste into a model
+prompt, nor evidence that viewers will experience the intended effect.
+
+## Presentation, structure and finish
+
+These choices answer different questions:
+
+| Choice | Question | Possible realizations |
+| --- | --- | --- |
+| Presentation | What kind of artifact serves the use and viewing conditions? | Scene illustration, publication, card, screen image, display, explanatory plate, pattern, another authored form |
+| Structure | How does the viewer find and relate the information? | Continuous space, ordered views, whole and detail, comparison, image and type, layered explanation, repeated motif |
+| Finish | How are forms, marks and surfaces rendered? | Drawn contours and tone, flat shape, painted mass, photographic light, modeled volume, a deliberate regional combination |
+
+The examples are open possibilities. An editorial page can join photographs,
+drawn explanations and type. A game-like screen can combine a depicted event
+with visible dialogue or information. A card can organize recognition and
+reference information at different scales. The roles and relationships of
+these components determine the construction; form labels alone do not.
+
+Select relationships that serve the actual purpose. Consider these tradeoffs:
+
+| Purpose | Construction worth considering | What must be assessed |
+| --- | --- | --- |
+| Establish an action and its setting | One continuous scene with a readable focal event | Whether the needed action and expression fit one view |
+| Reveal an observation and a response | Ordered local views with an intentional transition | Reading order, continuity and whether time actually advances |
+| Explain a small feature in a larger object | Whole view paired with a detail | Context, correspondence and the detail's relative emphasis |
+| Compare alternatives or states | Aligned views with controlled common features | Which differences carry meaning and which should stay constant |
+| Make a public message memorable | A dominant image or typographic event with a supporting hierarchy | Exact text, viewing distance, visual competition and space |
+| Explain internal construction | Section, cutaway or separated components | Whether the representation preserves the required physical relationships |
+| Make an abstract idea legible | A specific visual analogy or transformation | Whether the chosen relationship communicates the intended idea |
+
+The agent may combine compatible techniques or author another construction.
+A table entry is neither a required template nor a keyword-to-format rule.
+
+## Visual hierarchy
+
+Decide what the viewer should notice first and what sustains the reading.
+Use scale, placement, contrast, repetition, spacing, directional forms and detail
+concentration where useful. Quiet areas can make an event legible without
+emptying the artifact of necessary information.
+
+A scene may use depth and gaze. A graphic artifact may use alignment and type.
+A sequence may use region size, gaps and repeated framing to control attention.
+Evaluate those relationships at the whole-artifact level before refining a
+single face, surface or decorative element.
+
+Exact geometry is useful when placement or order is load-bearing. Otherwise,
+describe the required hierarchy and relationships while leaving nonessential
+proportions open. More coordinates do not establish better communication.
+
+## Shape, surface and light
+
+Choose the relevant form hierarchy: primary masses, secondary directions and
+small information-bearing detail. Connect subject, clothing, props and setting
+through coherent scale, rhythm and material behavior. An identity detail can
+matter greatly without becoming the largest or sharpest feature everywhere.
+
+Use surface construction appropriate to the subject and finish: grouped hair,
+fabric tension, articulated casing, stone mass, reflection or another declared
+system. A domain realization supplies valid construction for that subject;
+it does not supply unrequested features.
+
+For a spatial image, light can clarify volume, material, attention and mood.
+For a flat graphic, value and color relationships may do the work directly.
+Choose color, light and edge behavior for the selected construction rather than
+requiring every artifact to simulate one physical camera and light source.
+
+A style family supplies a coherent drawing grammar. Its render profile supplies
+the medium envelope. An optional aesthetic core contributes cross-domain craft
+judgment. These sources retain their scopes when combined, and they need not
+all contribute to every artifact.
+
+## Compare complete constructions
+
+Consider a brief about a small maintenance machine sheltering a plant in rain.
+An intimate scene can focus on contact between the sheltering casing and the
+leaf. A short sequence can establish the weather, reveal the protective action
+and end on the surviving plant. A graphic poster can organize diagonal rain
+around a single protected green shape.
+
+Each construction serves a different emphasis and has different costs. A
+sequence spends area on context and continuity; a single scene concentrates
+detail but must carry its relationships in one view; a poster simplifies
+incidental action to strengthen recognition at a glance. The author's use and
+fixed requirements decide which tradeoff is useful. There is no required count
+of candidates or universal preference for the most elaborate construction.
+
+## Meaning before vocabulary
+
+Understand the pictured relationship before selecting a compact term. Resolve
+who acts, toward what, which visible channels carry the action, and which
+qualities and degree the author intends. Keep modifiers with their subject and
+scope. A term's dictionary definition is evidence about wording, not a decision
+about the artifact.
+
+Use a positive construction to communicate the wanted result. A necessary
+exclusion can protect that result, but cannot establish a missing action,
+quality or hierarchy. Nearby misreadings help review; they do not automatically
+become negative prompt text.
+
+## Invention and review
+
+An addition earns its place when it clarifies meaning, strengthens hierarchy,
+supports the intended effect or preserves a requirement. A nearby record's
+costume, setting or character type does not earn inclusion by being available.
+
+Read the completed rendition with its actual references and controls. Assess
+the artifact as a whole and each necessary region: intent, hierarchy,
+relationships, local visibility, identity, state, construction and finish.
+Revise a polished depiction when its likely meaning differs from the brief.
+Review the actual returned artifact separately; a coherent plan establishes
+intention, not observed quality.

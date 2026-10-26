@@ -1,0 +1,41 @@
+{
+  "arrangement": "Two equal views sit side by side, separated by a narrow white gutter.",
+  "regions": [
+    {
+      "id": "reach",
+      "placement": "Left half",
+      "depiction": "A round blue courier robot reaches toward a parcel on a waist-high shelf.",
+      "subjects": [
+        {
+          "subject_id": "courier",
+          "depiction": "The blue robot stands beside the shelf with both grippers open around the parcel.",
+          "current_state": {"parcel": "resting on the shelf"},
+          "pose_and_body_geometry": "Arms extended with grippers open.",
+          "props_and_contacts": "The shelf supports the parcel."
+        }
+      ]
+    },
+    {
+      "id": "carry",
+      "placement": "Right half",
+      "depiction": "The same blue robot carries the parcel away from the shelf, held close to its chest.",
+      "subjects": [
+        {
+          "subject_id": "courier",
+          "depiction": "The robot steps forward with both grippers supporting the parcel.",
+          "current_state": {"parcel": "held in both grippers"},
+          "pose_and_body_geometry": "Elbows bent and one foot lifted into a step.",
+          "props_and_contacts": "Both grippers support the parcel from below."
+        }
+      ]
+    }
+  ],
+  "reading_order": ["reach", "carry"],
+  "relationships": [
+    {
+      "from": "reach",
+      "to": "carry",
+      "relation": "Successive moments in the same collection action: the robot first reaches for the parcel, then carries it."
+    }
+  ]
+}

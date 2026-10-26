@@ -135,7 +135,8 @@ class Inventory(unittest.TestCase):
     def test_the_pack_runtime_is_prepared_before_the_commands_that_read_it(self):
         readers = [label for label, argv in self.commands if run_checks.needs_runtime(argv)]
         self.assertEqual("commons-only pack runtime", readers[0])
-        self.assertEqual({"preset quality audit", "scripts/default_release_smoke_test.py"}, set(readers[1:]))
+        self.assertEqual({"preset quality audit", "scripts/default_release_smoke_test.py",
+                          "catalog retrieval", "knowledge discovery"}, set(readers[1:]))
         self.assertEqual("commons-only pack runtime", self.labels[0])
 
     def test_list_prints_every_command_without_running_one(self):

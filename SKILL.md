@@ -5,13 +5,13 @@ description: Create image prompts, scoped negatives and canonical references for
 
 # Character Prompt Builder
 
-Keep subjects, world and expression coherent. Art-direct one finished depiction.
+Keep purpose, subjects, world and expression coherent. Art-direct the requested visual artifact.
 
 Use English prompts/retrieval and the user's language. Preserve meaning, modifier scope, relationships, negation and ambiguity without language word lists.
 
 ## Core contract
 
-Identify the artifact, purpose, anchors and creative space. Include requirements, necessary meaning and purposeful art direction; leave incidental details open. Omissions grant no permission or exclusion. Resolve consequential ambiguity before completing the artifact.
+Identify purpose, anchors and creative space. Follow [Production direction](references/runtime/production-direction.md): consult knowledge before choosing the expression and proceed within delegated scope. Include requirements and purposeful art direction; leave incidental details open. Omissions grant no permission or exclusion. Resolve consequential ambiguity before completion.
 
 Preserve anchors. Disclose every modification and its reason; assumptions fill open space rather than change intent. Keep creator portrayal intent distinct from facts and psychology across outputs.
 
@@ -40,10 +40,10 @@ Use the verified request and its named provider. Display the rendering choice an
 
 Retrieve image-production knowledge before composition. Synthesize its selected meaning into the intended picture; retrieved wording can be combined and rephrased.
 
-1. For every distinct visual element (pose, action, expression, camera, lighting, wardrobe, body feature, effect, and any specialized domain), search the catalog (`catalog_cli.py search`, then `inspect` the closest record) and, for tag-level wording, the prompt vocabulary (`pack_cli.py resource prompt-vocabulary` plus `search_prompt_vocabulary.py`). Add `--record lookups.json --element NAME` to every search and inspection; in catalog `batch` each `request_id` names its element, and in a vocabulary `--queries` object each key does.
+1. For each distinct visual element, search the catalog (`catalog_cli.py search`, then `inspect`) and the prompt vocabulary for tag wording (`pack_cli.py resource prompt-vocabulary` plus `search_prompt_vocabulary.py`). Add `--record lookups.json --element NAME` to each search and inspection; in catalog `batch`, `request_id` names the element; in vocabulary `--queries`, each key does.
 2. Mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID` (repeat `--adopted` for every record used), or with `--composed TEXT --reason TEXT`. When retrieval cannot run, state the reason instead; never fabricate retrieval or approval.
 3. When no inspected record fits, record authored wording and its reason. For a tag interface, check the selected terms' meanings and grammar together.
-4. When a newly composed phrase is confirmed effective in a finished image, add it back to the owning pack resource (dictionary entry or module record) as terms and wording only, with no session history, seeds, or run parameters.
+4. Add wording confirmed effective in a finished image to its owning dictionary or module, without session history or run parameters.
 
 ## Mandatory runtime activation gate
 
@@ -70,7 +70,7 @@ Each item names a route or `--feature` whose read prints its documents. A prompt
 - persistent world or narrative files, or scene-derived plots: feature `narrative-files`;
 - ordinary prompt-only work with no selected reference and no complex construction risk: route `prompt-only`; feature `subject-domain`, [Subject Domain](references/runtime/subject-domain-quick-reference.md), only when the subject domain is unresolved;
 - complex multi-axis prompt composition: route `composition`, [Composition](references/runtime/prompt-composition.md);
-- sparse brief or difficult emotion, activity, situation, relationship, or theme retrieval: feature `sparse-retrieval`, [Sparse Discovery](references/runtime/sparse-discovery.md);
+- open expressive choices, a sparse brief, or difficult purpose, activity, relationship, or theme retrieval: feature `sparse-retrieval`, [Discovery](references/runtime/sparse-discovery.md);
 - craft knowledge for open axes or an observed failure: feature `craft-consultation`, [Craft consultation](references/runtime/craft-consultation.md);
 - terminology lookup, alternate wording or category browsing: feature `vocabulary`, [Vocabulary](references/runtime/prompt-vocabulary.md);
 - final prompt ordering, weighting, LoRA notation, negative syntax or term comparison: feature `prompt-dialect`, [Writing Guide](references/runtime/prompt-writing-guide.md);
@@ -86,7 +86,7 @@ Each item names a route or `--feature` whose read prints its documents. A prompt
 - sheet, iteration, or accepted-image work, which lives in a studio: feature `studio` first;
 - explicit selection for a canonical owner: route or feature `adoption`;
 - scoped changes or review of existing artifacts: route `revise` or feature `revision-guidance`;
-- a production report or evidence study: feature `evidence-review`; preserved originals, host trials or repair hypotheses: feature `source-material`, `agent-evaluation` or `repair-analysis`;
+- reports or evidence studies: feature `evidence-review`; originals, host trials or repair hypotheses: feature `source-material`, `agent-evaluation` or `repair-analysis`;
 - public state or shot interchange: feature `protocol-exchange`;
 - absent pack state, custom packs, or a resource conflict between packs: feature `pack-runtime`.
 
@@ -107,9 +107,9 @@ After story revisions, update Studio sources and run `studio.py sync` for the au
 For image work, apply the steps needed by the deliverable:
 
 1. Resolve the artifact. For saved work, establish the Studio and read its route.
-2. Separate requirements, purposeful choices and incidental deductions. Select necessary relationships and visible information. For character reuse, resolve reference coverage and stage targets.
-3. Read interface guidance; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Retrieve visual elements. Inspect every selected canonical record in full. Resolve the dispatcher execution profile.
-4. Compose the wanted image or edit: purpose, relationships and view, then identity, state, finish and supplied-reference roles. Establish intended qualities and degree before necessary exclusions; combine sources by meaning.
+2. Separate requirements, open expression and incidental deductions. Consult applicable knowledge before selecting the presentation, hierarchy and necessary visible relationships. For character reuse, resolve reference coverage and stage targets.
+3. Read interface guidance; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Retrieve the chosen construction's visual elements. Inspect every selected canonical record in full. Resolve the dispatcher execution profile.
+4. Compose the wanted artifact or edit: whole-artifact hierarchy and any local views, then identity, state, finish and supplied-reference roles. Establish intended qualities and degree before necessary exclusions; combine sources by meaning.
 5. Read the exact text, negatives, controls and media back as a picture. Could it satisfy every exclusion while losing an anchor or wanted quality? Check compatibility for each subject, part, moment and condition, using only scopes supported by the brief or input. Repair conflicting choices within authority; ask about irreconcilable requirements. Leave unresolved contradictions unfinished. Recheck omissions, emphasis, repetition and leakage after rewriting. Keep review outside the prompt; retain plot approval and settle retrieval against final wording.
 6. Save prompt, settings, evidence and any Studio destination in the task's declared inputs.
 7. `production_workflow.py check --task task.json` reports diagnostics without creating a run. `prepare` publishes request preview, execution plan and any dispatcher Generation Package.
@@ -130,7 +130,7 @@ Scene-specific character state is an open class: any visible or performance-rele
 
 ## Catalog and pack runtime
 
-Use one resolved runtime across retrieval, planning, preparation and verification. `recommend` explores sparse outcomes; `search` and `inspire` retrieve known needs; `batch` runs several queries in one process. Inspect complete records and asset details together with `inspect-many` (or `inspect` plus `asset-lookup`). Do not start several catalog CLI processes in parallel.
+Use one resolved runtime across retrieval, planning, preparation and verification. `recommend` exposes relevant knowledge and the active catalog's expressive scope; `search` and `inspire` retrieve known needs; `batch` runs several queries in one process. Inspect complete records and asset details together with `inspect-many` (or `inspect` plus `asset-lookup`). Do not start several catalog CLI processes in parallel.
 
 ## Visual Reference Activation Gate
 

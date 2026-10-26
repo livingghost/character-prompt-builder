@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026.10.26.6
+
+- Choose visual forms and rendering treatments from purpose, viewing conditions and delegated direction, including combinations of image, diagram, type and interface content.
+- Apply rendering knowledge and medium-drift exclusions at the scope of each subject, part, layer or region. Preserve intended differences within a coherent construction.
+- Use Project Design to coordinate shared recognition anchors, complementary purposes and permitted variation across related image outputs.
+- Discover applicability conditions with catalog candidates. Add scoped construction knowledge for integrated treatments, collage, information units and interface explanations, and clarify general vocabulary independently from specialized variants.
+- Exercise mixed rendering through an authored study page, preserve local expressions in compiled requests, and validate pack-owned authoring declarations through the current resource contract.
+
+## 2026.10.26.5
+
+- Consult purpose-bearing knowledge before resolving open expressive choices in sparse or detailed briefs. Select the presentation within delegated scope and keep important choices visible without requiring a user selection for every task.
+- Discover scoped catalog candidates, category and facet inventory, and optional vocabulary categories through one recommendation contract. Keep record ranking separate from artistic selection and preserve distinct techniques within a shared category.
+- Represent whole-artifact arrangement, local depictions, recurring subjects and reading relationships in the Production Specification. Bind the same layout through render specifications and generation packages while retaining local visibility and state authority.
+- Author shared construction knowledge for attention, sequence, panel rhythm, graphic hierarchy, whole-and-detail views, comparison, explanatory views and visual metaphor. Keep specialized poster and illustration variants scoped to their actual construction.
+- Exercise active-pack discovery, batch equivalence, local region references, render handoff and authored prompt transport with current-contract fixtures. Preserve meaning review as an agent responsibility.
+
 ## 2026.10.26.4
 
 - Compose the wanted appearance, action, relationships and finish from author intent and applicable references. Preserve the intended qualities and degree when interpreting qualified exclusions.

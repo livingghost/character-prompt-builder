@@ -22,7 +22,8 @@
       ],
       "misreading_policy": {
         "role": "diagnostic-only",
-        "automatic_prompt_injection": false
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
       },
       "applies_to": "composition and focal hierarchy",
       "tags": [
@@ -45,7 +46,38 @@
           "weight": 1.0,
           "source": "author"
         }
-      ]
+      ],
+      "search_profile": {
+        "aliases": [
+          "make facial acting the main focus",
+          "show expression with grounded shoulders",
+          "clear identity in a close portrait"
+        ],
+        "outcome_summary": "Organize a close portrait around the face while giving the shoulders, silhouette, and background enough space to support identity and mood.",
+        "discovery_group": "composition-close-portrait",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "face-led single view"
+          ],
+          "communication_goal": [
+            "Organize a close portrait around the face while giving the shoulders, silhouette, and background enough space to support identity and mood."
+          ],
+          "expression_structure": [
+            "face-led single view"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      }
     },
     {
       "id": "composition-gaze-space",
@@ -67,7 +99,8 @@
       ],
       "misreading_policy": {
         "role": "diagnostic-only",
-        "automatic_prompt_injection": false
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
       },
       "applies_to": "composition and directional balance",
       "tags": [
@@ -90,7 +123,38 @@
           "weight": 0.95,
           "source": "author"
         }
-      ]
+      ],
+      "search_profile": {
+        "aliases": [
+          "leave room for the direction of attention",
+          "balance a side-facing subject with open space",
+          "show attention extending beyond the figure"
+        ],
+        "outcome_summary": "Use open space and directional balance to make an off-center portrait feel intentional while clarifying where the subject's attention extends.",
+        "discovery_group": "composition-gaze-space",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "gaze-directed single view"
+          ],
+          "communication_goal": [
+            "Use open space and directional balance to make an off-center portrait feel intentional while clarifying where the subject's attention extends."
+          ],
+          "expression_structure": [
+            "gaze-directed single view"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      }
     },
     {
       "id": "composition-rule-of-thirds-placement",
@@ -112,7 +176,8 @@
       ],
       "misreading_policy": {
         "role": "diagnostic-only",
-        "automatic_prompt_injection": false
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
       },
       "applies_to": "composition design",
       "tags": [
@@ -142,7 +207,38 @@
           "weight": 0.95,
           "source": "author"
         }
-      ]
+      ],
+      "search_profile": {
+        "aliases": [
+          "balance an off-center subject",
+          "place a focal feature near a third-line intersection",
+          "use open space beside the main subject"
+        ],
+        "outcome_summary": "Place the subject and key features on third-lines and their intersections for balanced off-center energy.",
+        "discovery_group": "composition-rule-of-thirds-placement",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "off-center single view"
+          ],
+          "communication_goal": [
+            "Place the subject and key features on third-lines and their intersections for balanced off-center energy."
+          ],
+          "expression_structure": [
+            "off-center single view"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      }
     },
     {
       "id": "composition-central-symmetry",
@@ -164,7 +260,8 @@
       ],
       "misreading_policy": {
         "role": "diagnostic-only",
-        "automatic_prompt_injection": false
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
       },
       "applies_to": "composition design",
       "tags": [
@@ -194,7 +291,38 @@
           "weight": 0.95,
           "source": "author"
         }
-      ]
+      ],
+      "search_profile": {
+        "aliases": [
+          "give a subject formal visual weight",
+          "align a figure with mirrored surroundings",
+          "create a centered iconic image"
+        ],
+        "outcome_summary": "Center the subject on a symmetric axis with mirrored surroundings for formal, iconic weight.",
+        "discovery_group": "composition-central-symmetry",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "symmetric single view"
+          ],
+          "communication_goal": [
+            "Center the subject on a symmetric axis with mirrored surroundings for formal, iconic weight."
+          ],
+          "expression_structure": [
+            "symmetric single view"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      }
     },
     {
       "id": "composition-negative-space-isolation",
@@ -216,7 +344,8 @@
       ],
       "misreading_policy": {
         "role": "diagnostic-only",
-        "automatic_prompt_injection": false
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
       },
       "applies_to": "composition design",
       "tags": [
@@ -246,7 +375,38 @@
           "weight": 0.95,
           "source": "author"
         }
-      ]
+      ],
+      "search_profile": {
+        "aliases": [
+          "make solitude visible through empty space",
+          "show a small subject within a broad field",
+          "give a figure calm breathing room"
+        ],
+        "outcome_summary": "Surround a small or off-set subject with deliberate empty space for calm, scale, or solitude.",
+        "discovery_group": "composition-negative-space-isolation",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "isolated subject in an open field"
+          ],
+          "communication_goal": [
+            "Surround a small or off-set subject with deliberate empty space for calm, scale, or solitude."
+          ],
+          "expression_structure": [
+            "isolated subject in an open field"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      }
     },
     {
       "id": "composition-frame-within-frame",
@@ -268,7 +428,8 @@
       ],
       "misreading_policy": {
         "role": "diagnostic-only",
-        "automatic_prompt_injection": false
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
       },
       "applies_to": "composition design",
       "tags": [
@@ -298,7 +459,38 @@
           "weight": 0.95,
           "source": "author"
         }
-      ]
+      ],
+      "search_profile": {
+        "aliases": [
+          "focus on a subject through an opening",
+          "add depth with a doorway or arch",
+          "enclose the focal subject within the setting"
+        ],
+        "outcome_summary": "Nest the subject inside an interior frame such as a doorway, window, or arch to add depth and focus.",
+        "discovery_group": "composition-frame-within-frame",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "nested spatial frame"
+          ],
+          "communication_goal": [
+            "Nest the subject inside an interior frame such as a doorway, window, or arch to add depth and focus."
+          ],
+          "expression_structure": [
+            "nested spatial frame"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      }
     },
     {
       "id": "composition-diagonal-flow",
@@ -320,7 +512,8 @@
       ],
       "misreading_policy": {
         "role": "diagnostic-only",
-        "automatic_prompt_injection": false
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
       },
       "applies_to": "composition design",
       "tags": [
@@ -350,7 +543,2446 @@
           "weight": 0.95,
           "source": "author"
         }
-      ]
+      ],
+      "search_profile": {
+        "aliases": [
+          "guide attention along an action diagonal",
+          "give a composition directional energy",
+          "connect subject and setting through angled lines"
+        ],
+        "outcome_summary": "Organize major lines and the subject axis along diagonals so the frame reads dynamic and directed.",
+        "discovery_group": "composition-diagonal-flow",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "diagonal single view"
+          ],
+          "communication_goal": [
+            "Organize major lines and the subject axis along diagonals so the frame reads dynamic and directed."
+          ],
+          "expression_structure": [
+            "diagonal single view"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      }
+    },
+    {
+      "id": "composition-focal-hierarchy",
+      "label": "Single-view focal hierarchy",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Guide attention from the main visual event to supporting context within one coherent view.",
+      "prompt": "Give the main subject or action the clearest silhouette and strongest local contrast. Arrange a quieter secondary shape along its gesture, gaze, or environmental line, with broad low-detail areas separating the focal groups. Keep the foreground, subject, and setting within one continuous perspective.",
+      "invariants": [
+        "the main visual event has a clear entry point",
+        "supporting detail explains the focal event",
+        "all depicted space shares one viewpoint"
+      ],
+      "applicability": [
+        "A single moment whose essential relationships can be seen together.",
+        "Useful for standalone illustration, key art, environmental portraiture, and image-led advertising."
+      ],
+      "interactions": [
+        "Crop and overlap determine which identity features are visible.",
+        "Selective edges, value grouping, and negative space reinforce the same focal order.",
+        "A hidden detail may require a different viewpoint or a separate view."
+      ],
+      "misreadings_to_avoid": [
+        "all objects receiving equal contrast",
+        "invented visibility of a surface turned away from the camera",
+        "a secondary accent overpowering the main event"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "single-view attention hierarchy",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "single-view attention hierarchy",
+        "single illustration",
+        "key visual",
+        "environmental storytelling"
+      ],
+      "search_profile": {
+        "aliases": [
+          "make the main action read first",
+          "guide attention through one scene",
+          "clear subject and supporting context"
+        ],
+        "outcome_summary": "Guide attention from the main visual event to supporting context within one coherent view.",
+        "discovery_group": "composition-focal-hierarchy",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "single-view attention hierarchy"
+          ],
+          "communication_goal": [
+            "Guide attention from the main visual event to supporting context within one coherent view."
+          ],
+          "expression_structure": [
+            "single-view attention hierarchy"
+          ],
+          "use_case": [
+            "single illustration",
+            "key visual",
+            "environmental storytelling"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "make the main action read first",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "guide attention through one scene",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "clear subject and supporting context",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/layout/tips-and-techniques.mdx",
+            "scope": "hierarchy, spacing, and compositional flow",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          },
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/illustration/tips-and-techniques.mdx",
+            "scope": "illustration purpose and level of detail",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-eyeline-reveal-sequence",
+      "label": "Look followed by its target",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Connect a visible act of looking to the target revealed in the next view.",
+      "prompt": "The first panel shows the observer turning attention toward an edge of the frame. The next panel shows the target from a spatially compatible direction, with a recognizable environmental cue connecting the two views. Give the gaze and target separate clear silhouettes and distinct panel boundaries.",
+      "invariants": [
+        "the observer view precedes the target reveal",
+        "the gaze direction and target location agree",
+        "identity and environment remain continuous across the views"
+      ],
+      "applicability": [
+        "A target reveal whose meaning depends on an observer noticing it.",
+        "Suitable for comics, storyboards, and sequential illustration."
+      ],
+      "interactions": [
+        "Reading direction determines which spatial panel comes first.",
+        "A broad establishing view can supply context when distance is important.",
+        "A close observer view can show expression that is hidden in the establishing view."
+      ],
+      "misreadings_to_avoid": [
+        "the next panel suggesting a different gaze target",
+        "forcing both views into one impossible camera",
+        "using a face close-up to imply unprovided knowledge"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "ordered gaze and target panels",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "ordered gaze and target panels",
+        "comic reveal",
+        "subjective attention",
+        "storyboard continuity"
+      ],
+      "search_profile": {
+        "aliases": [
+          "show someone looking then reveal the target",
+          "connect a glance to what is seen",
+          "attention followed by a visual reveal"
+        ],
+        "outcome_summary": "Connect a visible act of looking to the target revealed in the next view.",
+        "discovery_group": "composition-eyeline-reveal-sequence",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "ordered gaze and target panels"
+          ],
+          "communication_goal": [
+            "Connect a visible act of looking to the target revealed in the next view."
+          ],
+          "expression_structure": [
+            "ordered gaze and target panels"
+          ],
+          "use_case": [
+            "comic reveal",
+            "subjective attention",
+            "storyboard continuity"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "show someone looking then reveal the target",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "connect a glance to what is seen",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "attention followed by a visual reveal",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://filmanalysis.yale.edu/editing/",
+            "scope": "eyeline match and continuity editing",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          },
+          {
+            "url": "https://doi.org/10.3389/fpsyg.2014.00680",
+            "scope": "attentional framing and narrative sequence are distinct from layout",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-reveal-reaction-sequence",
+      "label": "Event followed by a reaction",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Let the viewer encounter an event before reading a participant's visible response.",
+      "prompt": "Show the event or object clearly in the first panel, then frame the participant's response in the next panel. Preserve a matching direction of attention and a shared setting cue. Concentrate the second view on the visible change in posture, eyes, mouth, hands, or other expressive structures.",
+      "invariants": [
+        "the event or target is introduced before the reaction",
+        "the response belongs to the same depicted situation",
+        "the reaction is carried by visible performance"
+      ],
+      "applicability": [
+        "A sequence where the viewer should understand the cause before interpreting the response.",
+        "The response may be understated, comic, dramatic, or mechanical according to the subject."
+      ],
+      "interactions": [
+        "A changed panel order changes what the viewer knows first.",
+        "Shot scale can separate context from emotional detail.",
+        "Panel size, spacing, and text density jointly influence emphasis."
+      ],
+      "misreadings_to_avoid": [
+        "an unrelated expression without a readable target",
+        "reaction cues that invent a later story state",
+        "panel prominence contradicting the intended attention order"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "ordered event and reaction panels",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "ordered event and reaction panels",
+        "reaction beat",
+        "comic timing",
+        "sequential illustration"
+      ],
+      "search_profile": {
+        "aliases": [
+          "show the event then the reaction",
+          "cause before visible response",
+          "reveal followed by an emotional close view"
+        ],
+        "outcome_summary": "Let the viewer encounter an event before reading a participant's visible response.",
+        "discovery_group": "composition-reveal-reaction-sequence",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "ordered event and reaction panels"
+          ],
+          "communication_goal": [
+            "Let the viewer encounter an event before reading a participant's visible response."
+          ],
+          "expression_structure": [
+            "ordered event and reaction panels"
+          ],
+          "use_case": [
+            "reaction beat",
+            "comic timing",
+            "sequential illustration"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "show the event then the reaction",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "cause before visible response",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "reveal followed by an emotional close view",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://filmanalysis.yale.edu/editing/",
+            "scope": "shot relationships and scene emphasis",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          },
+          {
+            "url": "https://doi.org/10.3389/fpsyg.2014.00680",
+            "scope": "narrative roles and attentional framing",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-panel-reading-flow",
+      "label": "Grouped panel reading flow",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Make the order of separate views clear through grouping, alignment, and spacing.",
+      "prompt": "Align related panels into clear rows or columns, with smaller gaps inside each group and a stronger gap between groups. Keep the route from one group to the next visually open. Let facing directions, motion paths, and any speech balloons reinforce the established reading direction.",
+      "invariants": [
+        "the panel sequence has an unambiguous entry and continuation",
+        "spatial grouping agrees with the intended sequence",
+        "each panel retains a distinct visible boundary"
+      ],
+      "applicability": [
+        "Multi-panel pages, strips, comparison sequences, and illustrated instructions.",
+        "Left-to-right, right-to-left, and vertical reading remain separate layout choices."
+      ],
+      "interactions": [
+        "The chosen reading convention supplies direction; page geometry alone does not define narrative order.",
+        "Large spans or nested insets need a clear group relationship.",
+        "Typography and balloon placement participate in the same reading route."
+      ],
+      "misreadings_to_avoid": [
+        "equally plausible competing next panels",
+        "a tall panel splitting a row in an unintended order",
+        "assuming every page follows one universal Z path"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "grouped panel reading order",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "grouped panel reading order",
+        "comic page",
+        "visual instructions",
+        "multi-view layout"
+      ],
+      "search_profile": {
+        "aliases": [
+          "make the order of panels clear",
+          "guide readers through grouped views",
+          "clear route across a comic page"
+        ],
+        "outcome_summary": "Make the order of separate views clear through grouping, alignment, and spacing.",
+        "discovery_group": "composition-panel-reading-flow",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "grouped panel reading order"
+          ],
+          "communication_goal": [
+            "Make the order of separate views clear through grouping, alignment, and spacing."
+          ],
+          "expression_structure": [
+            "grouped panel reading order"
+          ],
+          "use_case": [
+            "comic page",
+            "visual instructions",
+            "multi-view layout"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "make the order of panels clear",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "guide readers through grouped views",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "clear route across a comic page",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://doi.org/10.3389/fpsyg.2013.00186",
+            "scope": "page grouping and departures from a simple Z path",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          },
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/layout/tips-and-techniques.mdx",
+            "scope": "spacing and information hierarchy",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-panel-rhythm",
+      "label": "Panel emphasis and rhythm",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Vary visual attention across a sequence through panel extent, content density, and intervals.",
+      "prompt": "Use a recurring panel shape for related beats, then give the focal beat a distinct amount of space or a quieter surrounding field. Balance each view's crop and detail with its place in the sequence. Let the gutter before or after a change create a visible interval between beats.",
+      "invariants": [
+        "variation marks a meaningful beat or grouping",
+        "detail density and panel extent are considered together",
+        "the sequence remains readable through changes in scale"
+      ],
+      "applicability": [
+        "Sequences that benefit from a pause, contrast, reveal, or repeated action.",
+        "Equal panels remain useful when continuity or comparison matters more than a visual peak."
+      ],
+      "interactions": [
+        "A large panel may be read quickly or studied slowly depending on its content.",
+        "Dialogue length and detail can outweigh panel dimensions in reading time.",
+        "Rhythm supports the selected sequence; it does not determine story events."
+      ],
+      "misreadings_to_avoid": [
+        "treating panel area as an exact duration",
+        "making every panel compete as the climax",
+        "adding filler panels solely to complete a preset count"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "panel rhythm and emphasis",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "panel rhythm and emphasis",
+        "comic pacing",
+        "storyboard emphasis",
+        "visual pause"
+      ],
+      "search_profile": {
+        "aliases": [
+          "give one story beat more room",
+          "alternate repeated beats with a visual pause",
+          "vary panels to support attention"
+        ],
+        "outcome_summary": "Vary visual attention across a sequence through panel extent, content density, and intervals.",
+        "discovery_group": "composition-panel-rhythm",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "panel rhythm and emphasis"
+          ],
+          "communication_goal": [
+            "Vary visual attention across a sequence through panel extent, content density, and intervals."
+          ],
+          "expression_structure": [
+            "panel rhythm and emphasis"
+          ],
+          "use_case": [
+            "comic pacing",
+            "storyboard emphasis",
+            "visual pause"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "give one story beat more room",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "alternate repeated beats with a visual pause",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "vary panels to support attention",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-comic/references/layouts/mixed.md",
+            "scope": "panel extent and spacing as choices for emphasis",
+            "license_scope": "MIT for repository code and documentation."
+          },
+          {
+            "url": "https://doi.org/10.3389/fpsyg.2014.00680",
+            "scope": "layout and narrative structure interact without being identical",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-whole-detail-inset",
+      "label": "Whole view with a detail inset",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Show spatial context and a small identifying or explanatory detail at readable scales.",
+      "prompt": "Give the overall subject or scene the main field, then place a distinct close view of one small region beside it or within a clearly bounded inset. Repeat the region's shape and color landmarks in both views, with the enlarged detail subordinate to the overall scene.",
+      "invariants": [
+        "the detail corresponds to an identifiable region of the whole",
+        "the inset has its own crop and scale",
+        "the whole remains understandable without merging the two views"
+      ],
+      "applicability": [
+        "Small construction, identity, material, or action details that disappear at the overview scale.",
+        "Useful for technical illustration, design sheets, editorial explanation, and narrative detail."
+      ],
+      "interactions": [
+        "A connector is useful when the correspondence would otherwise be unclear.",
+        "An alternate angle can expose a hidden surface while retaining identity.",
+        "Text labels are optional and depend on the communication task.",
+        "An observed overview and a schematic detail can use distinct renderings while preserving the explained correspondence."
+      ],
+      "misreadings_to_avoid": [
+        "enlarging a detail inside the main perspective as if physically huge",
+        "showing an unsupported internal feature",
+        "duplicating a subject without distinguishing a second view"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "whole and detail inset",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "whole and detail inset",
+        "detail explanation",
+        "reference sheet",
+        "editorial inset"
+      ],
+      "search_profile": {
+        "aliases": [
+          "show the whole and a small detail",
+          "overview with an enlarged feature",
+          "keep context while explaining a close detail"
+        ],
+        "outcome_summary": "Show spatial context and a small identifying or explanatory detail at readable scales.",
+        "discovery_group": "composition-whole-detail-inset",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "whole and detail inset"
+          ],
+          "communication_goal": [
+            "Show spatial context and a small identifying or explanatory detail at readable scales."
+          ],
+          "expression_structure": [
+            "whole and detail inset"
+          ],
+          "use_case": [
+            "detail explanation",
+            "reference sheet",
+            "editorial inset"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "show the whole and a small detail",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "overview with an enlarged feature",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "keep context while explaining a close detail",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/illustration/tips-and-techniques.mdx",
+            "scope": "micro and macro viewpoints",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          },
+          {
+            "url": "https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-infographic/references/layouts/structural-breakdown.md",
+            "scope": "detail sections within structural explanation",
+            "license_scope": "MIT for repository code and documentation."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-aligned-comparison",
+      "label": "Aligned visual comparison",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Make differences between alternatives readable under comparable visual conditions.",
+      "prompt": "Place the alternatives in adjacent, clearly separated fields with matching scale, viewpoint, baseline, and lighting treatment. Align corresponding features across the fields and give each alternative comparable visual weight. Make the intended difference the strongest change between views.",
+      "invariants": [
+        "corresponding features can be compared directly",
+        "unrelated presentation changes stay controlled",
+        "the alternatives are visibly separate"
+      ],
+      "applicability": [
+        "Outfit options, design alternatives, material variants, and before-and-after states.",
+        "Use comparable depiction only for properties meant to be compared."
+      ],
+      "interactions": [
+        "When physical size is the comparison, preserve a common scale reference.",
+        "Before-and-after order is a temporal claim; alternatives need no implied chronology.",
+        "Labels can identify variants when their meaning is supplied."
+      ],
+      "misreadings_to_avoid": [
+        "camera changes mistaken for anatomical changes",
+        "one alternative gaining unintended visual importance",
+        "invented improvement from left-to-right placement"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "aligned comparison views",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "aligned comparison views",
+        "design comparison",
+        "before and after",
+        "variant lineup"
+      ],
+      "search_profile": {
+        "aliases": [
+          "compare alternatives on equal terms",
+          "make design differences easy to see",
+          "matching views for a before and after comparison"
+        ],
+        "outcome_summary": "Make differences between alternatives readable under comparable visual conditions.",
+        "discovery_group": "composition-aligned-comparison",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "aligned comparison views"
+          ],
+          "communication_goal": [
+            "Make differences between alternatives readable under comparable visual conditions."
+          ],
+          "expression_structure": [
+            "aligned comparison views"
+          ],
+          "use_case": [
+            "design comparison",
+            "before and after",
+            "variant lineup"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "compare alternatives on equal terms",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "make design differences easy to see",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "matching views for a before and after comparison",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-infographic/references/layouts/binary-comparison.md",
+            "scope": "corresponding visual positions in comparison",
+            "license_scope": "MIT for repository code and documentation."
+          },
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/layout/tips-and-techniques.mdx",
+            "scope": "consistent units and alignment",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-state-sequence",
+      "label": "Visible state progression",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Explain an action or change through ordered, distinguishable visible states.",
+      "prompt": "Arrange the successive states along one clear reading path. Keep a stable subject landmark and repeat the useful viewpoint across neighboring states, while making the changing part or action unmistakable. Give each step a distinct field and enough space for its decisive contact or change.",
+      "invariants": [
+        "the order of states is clear",
+        "each state adds a relevant visible change",
+        "stable features remain recognizable"
+      ],
+      "applicability": [
+        "Action breakdowns, transformations, assembly, growth, and process illustration.",
+        "State sequence needs supported steps; a single moment does not imply intermediate events."
+      ],
+      "interactions": [
+        "A different viewpoint can clarify a step when continuity remains explicit.",
+        "Arrows and labels may carry explanatory content when required.",
+        "The visual sequence can occupy one canvas or several output units."
+      ],
+      "misreadings_to_avoid": [
+        "repeated poses without a meaningful state change",
+        "an unexplained jump that hides the decisive action",
+        "invented events used to fill a fixed panel count"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "ordered state sequence",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "ordered state sequence",
+        "process illustration",
+        "action breakdown",
+        "state progression"
+      ],
+      "search_profile": {
+        "aliases": [
+          "explain change step by step",
+          "show the important stages of an action",
+          "make a progression visible across views"
+        ],
+        "outcome_summary": "Explain an action or change through ordered, distinguishable visible states.",
+        "discovery_group": "composition-state-sequence",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "ordered state sequence"
+          ],
+          "communication_goal": [
+            "Explain an action or change through ordered, distinguishable visible states."
+          ],
+          "expression_structure": [
+            "ordered state sequence"
+          ],
+          "use_case": [
+            "process illustration",
+            "action breakdown",
+            "state progression"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "explain change step by step",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "show the important stages of an action",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "make a progression visible across views",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-infographic/references/layouts/linear-progression.md",
+            "scope": "ordered stages and clear endpoints",
+            "license_scope": "MIT for repository code and documentation."
+          },
+          {
+            "url": "https://doi.org/10.3389/fpsyg.2014.00680",
+            "scope": "meaningful visual sequence",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-exploded-view",
+      "label": "Exploded assembly view",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Reveal how separate components fit together while preserving their assembly relationships.",
+      "prompt": "Separate the assembled parts along their attachment axes, leaving clear gaps between neighboring components. Retain their relative orientation, recognizable mating surfaces, and a consistent three-dimensional viewpoint. Keep the main assembly axis visually continuous through the separated parts.",
+      "invariants": [
+        "each separated component retains its assembly identity",
+        "orientation and attachment relationships remain recoverable",
+        "separation explains construction"
+      ],
+      "applicability": [
+        "Objects, costumes, mechanical subjects, and designed systems with known component relationships.",
+        "The component inventory and hidden structure require an authoritative design or an explicit conceptual invention."
+      ],
+      "interactions": [
+        "Exploded spacing is diagrammatic rather than physical scale.",
+        "Callouts can identify components without replacing visible construction.",
+        "An assembled overview can orient the viewer when the object is unfamiliar."
+      ],
+      "misreadings_to_avoid": [
+        "unrelated floating pieces",
+        "invented parts presented as documented construction",
+        "changing component scale to fill the page"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "exploded view",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "exploded view",
+        "assembly explanation",
+        "equipment construction",
+        "product breakdown"
+      ],
+      "search_profile": {
+        "aliases": [
+          "show how the parts fit together",
+          "separate components along assembly axes",
+          "explain an object through its connected parts"
+        ],
+        "outcome_summary": "Reveal how separate components fit together while preserving their assembly relationships.",
+        "discovery_group": "composition-exploded-view",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "exploded view"
+          ],
+          "communication_goal": [
+            "Reveal how separate components fit together while preserving their assembly relationships."
+          ],
+          "expression_structure": [
+            "exploded view"
+          ],
+          "use_case": [
+            "assembly explanation",
+            "equipment construction",
+            "product breakdown"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "show how the parts fit together",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "separate components along assembly axes",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "explain an object through its connected parts",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-infographic/references/layouts/structural-breakdown.md",
+            "scope": "exploded component relationships",
+            "license_scope": "MIT for repository code and documentation."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-cutaway-view",
+      "label": "Sectioned interior view",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Expose internal arrangement while retaining enough exterior form to locate it.",
+      "prompt": "Remove a clearly bounded portion of the outer surface to expose the interior in place. Preserve the exterior silhouette around the opening and show a consistent cut edge through the relevant layers. Keep the visible internal parts connected to their surrounding structure.",
+      "invariants": [
+        "the opening has a legible section boundary",
+        "interior and exterior share one spatial system",
+        "remaining outer form locates the exposed structure"
+      ],
+      "applicability": [
+        "Anatomical, architectural, product, and mechanical explanation with supported internal structure.",
+        "Conceptual interiors may be authored when their fictional status is part of the design."
+      ],
+      "interactions": [
+        "A section differs from an exploded view because parts remain in place.",
+        "Material differences can clarify layers without extra labels.",
+        "The cut plane controls which internal structures are actually visible."
+      ],
+      "misreadings_to_avoid": [
+        "transparent everything without a readable cut boundary",
+        "floating internal parts disconnected from the shell",
+        "invented internal anatomy treated as evidence"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "cutaway view",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "cutaway view",
+        "internal structure",
+        "technical illustration",
+        "anatomical explanation"
+      ],
+      "search_profile": {
+        "aliases": [
+          "show what is inside while keeping the outer form",
+          "explain internal layers through a section",
+          "reveal structure through a bounded opening"
+        ],
+        "outcome_summary": "Expose internal arrangement while retaining enough exterior form to locate it.",
+        "discovery_group": "composition-cutaway-view",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "cutaway view"
+          ],
+          "communication_goal": [
+            "Expose internal arrangement while retaining enough exterior form to locate it."
+          ],
+          "expression_structure": [
+            "cutaway view"
+          ],
+          "use_case": [
+            "internal structure",
+            "technical illustration",
+            "anatomical explanation"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "show what is inside while keeping the outer form",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "explain internal layers through a section",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "reveal structure through a bounded opening",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-infographic/references/layouts/structural-breakdown.md",
+            "scope": "cross-section and internal-layer explanation",
+            "license_scope": "MIT for repository code and documentation."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-image-type-hierarchy",
+      "label": "Image and typography hierarchy",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Coordinate a dominant image and meaningful text so their reading priorities support each other.",
+      "prompt": "Place the dominant image mass and the principal text block in complementary areas. Give the main wording a clear size and contrast advantage over supporting copy. Align secondary text to a shared edge, leaving calm spacing around the image's essential features and the text's readable shapes.",
+      "invariants": [
+        "image and text have intentional relative importance",
+        "supporting copy is visually subordinate",
+        "text placement respects essential depicted features"
+      ],
+      "applicability": [
+        "Posters, covers, advertising, editorial spreads, illustrated guides, exhibition graphics and package artwork.",
+        "Text may carry literal content, act as graphic form, or be absent in a scoped variant."
+      ],
+      "interactions": [
+        "The chosen text role determines whether exact readable wording is necessary.",
+        "Overlap can integrate type and image when letter recognition and depicted meaning survive.",
+        "Print grain and rendering style remain independent from layout hierarchy.",
+        "Related pages or fields can repeat alignment and text hierarchy while giving each view its own visual emphasis."
+      ],
+      "misreadings_to_avoid": [
+        "decorative marks substituted for required information",
+        "every block using the same prominence",
+        "text covering a load-bearing face, contact, or symbol"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "image and type hierarchy",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "image and type hierarchy",
+        "poster layout",
+        "editorial design",
+        "cover design"
+      ],
+      "search_profile": {
+        "aliases": [
+          "balance a picture with a headline",
+          "make image and text work together",
+          "clear headline and supporting information"
+        ],
+        "outcome_summary": "Coordinate a dominant image and meaningful text so their reading priorities support each other.",
+        "discovery_group": "composition-image-type-hierarchy",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "image and type hierarchy"
+          ],
+          "communication_goal": [
+            "Coordinate a dominant image and meaningful text so their reading priorities support each other."
+          ],
+          "expression_structure": [
+            "image and type hierarchy"
+          ],
+          "use_case": [
+            "poster layout",
+            "editorial design",
+            "cover design"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "balance a picture with a headline",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "make image and text work together",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "clear headline and supporting information",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/layout/tips-and-techniques.mdx",
+            "scope": "typographic hierarchy and compositional flow",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          },
+          {
+            "url": "https://github.com/yanliudesign/mono-color-skill/blob/c8ff70597ddedcd65f21a0b528f6a70c35690b0a/design-system/compositions.json",
+            "scope": "distinct image-led and type-led compositions",
+            "license_scope": "MIT for software and documentation; example artwork has a separate restrictive asset license."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-type-led-poster",
+      "label": "Type-led poster field",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Make the wording itself the dominant visual form of a poster.",
+      "prompt": "Build the principal wording into the largest shape on the page, with deliberate line breaks, spacing, and a strong typographic silhouette. Use a restrained secondary image or graphic accent aligned to the lettering. Place supporting information in a smaller, calmer region.",
+      "invariants": [
+        "the main wording is the dominant visual object",
+        "letter arrangement carries an intentional shape rhythm",
+        "supporting elements reinforce the main wording"
+      ],
+      "applicability": [
+        "Messages, announcements, slogans, titles, and editorial concepts where wording is central.",
+        "Readable wording and abstract letterform experiments require different text contracts."
+      ],
+      "interactions": [
+        "Cropping or overlap can add force while retaining the requested degree of legibility.",
+        "A character or object can become a secondary counterweight.",
+        "Actual poster artwork differs from a photograph of a poster in a setting."
+      ],
+      "misreadings_to_avoid": [
+        "a large illustration displacing the intended type focus",
+        "arbitrary filler text",
+        "ornament overwhelming the wording"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "type-led poster",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "type-led poster",
+        "typographic poster",
+        "announcement",
+        "editorial statement"
+      ],
+      "search_profile": {
+        "aliases": [
+          "let the words carry the poster",
+          "make a headline the main graphic shape",
+          "bold message with a small supporting image"
+        ],
+        "outcome_summary": "Make the wording itself the dominant visual form of a poster.",
+        "discovery_group": "composition-type-led-poster",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "type-led poster"
+          ],
+          "communication_goal": [
+            "Make the wording itself the dominant visual form of a poster."
+          ],
+          "expression_structure": [
+            "type-led poster"
+          ],
+          "use_case": [
+            "typographic poster",
+            "announcement",
+            "editorial statement"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "let the words carry the poster",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "make a headline the main graphic shape",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "bold message with a small supporting image",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/yanliudesign/mono-color-skill/blob/c8ff70597ddedcd65f21a0b528f6a70c35690b0a/design-system/compositions.json",
+            "scope": "type-led declaration as a distinct composition",
+            "license_scope": "MIT for software and documentation; example artwork has a separate restrictive asset license."
+          },
+          {
+            "url": "https://www.cooperhewitt.org/2015/02/05/cooper-hewitt-to-present-special-exhibition-how-posters-work/",
+            "scope": "text as image and typographic emphasis",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-editorial-cover-hierarchy",
+      "label": "Editorial cover hierarchy",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Establish a publication identity, a leading image, and supporting cover information in a clear hierarchy.",
+      "prompt": "Give the publication title a recognizable masthead region and the lead image a strong focal area. Place the main cover line near a quiet region of the image, then align smaller supporting lines along a consistent edge. Keep essential lettering and image features legible through any deliberate overlap.",
+      "invariants": [
+        "masthead, lead image, and main cover line have distinct roles",
+        "secondary lines have lower prominence",
+        "overlap preserves the intended reading"
+      ],
+      "applicability": [
+        "Magazine, journal, booklet, and publication-cover artwork.",
+        "A cover may be image-led or type-led; publication identity and wording come from the brief."
+      ],
+      "interactions": [
+        "The image crop and headline length constrain each other.",
+        "An abstract-lettering mockup is a separate scoped use, not a default cover rule.",
+        "An image of the physical publication additionally needs object and scene geometry."
+      ],
+      "misreadings_to_avoid": [
+        "unreadable placeholder marks replacing required titles",
+        "an invented publication name treated as supplied copy",
+        "cover lines distributed with no hierarchy"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "editorial cover",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "editorial cover",
+        "magazine cover",
+        "editorial cover",
+        "journal cover"
+      ],
+      "search_profile": {
+        "aliases": [
+          "organize a cover around title image and lead story",
+          "clear magazine cover reading order",
+          "publication identity with a strong lead image"
+        ],
+        "outcome_summary": "Establish a publication identity, a leading image, and supporting cover information in a clear hierarchy.",
+        "discovery_group": "composition-editorial-cover-hierarchy",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "editorial cover"
+          ],
+          "communication_goal": [
+            "Establish a publication identity, a leading image, and supporting cover information in a clear hierarchy."
+          ],
+          "expression_structure": [
+            "editorial cover"
+          ],
+          "use_case": [
+            "magazine cover",
+            "editorial cover",
+            "journal cover"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "organize a cover around title image and lead story",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "clear magazine cover reading order",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "publication identity with a strong lead image",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/yanliudesign/mono-color-skill/blob/c8ff70597ddedcd65f21a0b528f6a70c35690b0a/design-system/compositions.json",
+            "scope": "editorial-cover and editorial-journal compositions",
+            "license_scope": "MIT for software and documentation; example artwork has a separate restrictive asset license."
+          },
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/layout/tips-and-techniques.mdx",
+            "scope": "information hierarchy and alignment",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-graphic-metaphor",
+      "label": "Visual metaphor through a shared form",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Express a concept by joining two recognizable meanings through one visible structural relationship.",
+      "prompt": "Build one clear dominant form whose silhouette, opening, or surface also describes a second recognizable idea. Let the shared shape or interaction carry the connection, with a restrained background that keeps both readings available.",
+      "invariants": [
+        "both readings remain recognizable",
+        "one visible relationship connects the meanings",
+        "the conceptual connection determines the visual construction"
+      ],
+      "applicability": [
+        "Editorial illustration, conceptual posters, and symbolic communication.",
+        "Use when the subject permits an interpretive image rather than literal documentation."
+      ],
+      "interactions": [
+        "Scale contrast, substitution, negative space, or collage can construct the connection.",
+        "A caption may anchor interpretation when the intended metaphor is culturally ambiguous.",
+        "Literal identity requirements constrain which forms can be transformed."
+      ],
+      "misreadings_to_avoid": [
+        "unrelated symbols collected without a shared relationship",
+        "a metaphor mistaken for factual anatomy or an actual event",
+        "decorative complexity obscuring both readings"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "graphic metaphor",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "graphic metaphor",
+        "conceptual illustration",
+        "symbolic poster",
+        "editorial metaphor"
+      ],
+      "search_profile": {
+        "aliases": [
+          "express an idea through a visual metaphor",
+          "one shape with two connected meanings",
+          "make an abstract concept visible"
+        ],
+        "outcome_summary": "Express a concept by joining two recognizable meanings through one visible structural relationship.",
+        "discovery_group": "composition-graphic-metaphor",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "graphic metaphor"
+          ],
+          "communication_goal": [
+            "Express a concept by joining two recognizable meanings through one visible structural relationship."
+          ],
+          "expression_structure": [
+            "graphic metaphor"
+          ],
+          "use_case": [
+            "conceptual illustration",
+            "symbolic poster",
+            "editorial metaphor"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "express an idea through a visual metaphor",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "one shape with two connected meanings",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "make an abstract concept visible",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://www.cooperhewitt.org/2015/02/05/cooper-hewitt-to-present-special-exhibition-how-posters-work/",
+            "scope": "double meaning, scale, and visual storytelling",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          },
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/illustration/tips-and-techniques.mdx",
+            "scope": "literal and abstract strategies",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-splash-page-scene",
+      "label": "Page-filling narrative scene",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Give one narrative image the spatial emphasis of a full page or dominant spread.",
+      "prompt": "Expand the central narrative scene across the page, with one dominant visual event and supporting forms leading attention through the full image. Keep the essential action and setting readable at the larger scale, using the page edges as deliberate crop boundaries.",
+      "invariants": [
+        "one scene or event carries the page-level emphasis",
+        "the large field has an intentional focal hierarchy",
+        "page edges support the selected crop"
+      ],
+      "applicability": [
+        "Chapter openings, major reveals, environmental scale, and expressive peaks.",
+        "Subject count, lettering, and rendering finish remain choices of the actual scene."
+      ],
+      "interactions": [
+        "Supporting insets create a mixed layout when the narrative needs additional views.",
+        "Page-level prominence does not specify how long the depicted moment lasts.",
+        "A text-free solitary-character scene is one scoped variant."
+      ],
+      "misreadings_to_avoid": [
+        "assuming a splash requires one character",
+        "assuming a splash forbids typography",
+        "stretching a minor beat without enough visual structure"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "splash-page scene",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "splash-page scene",
+        "comic splash",
+        "chapter opening",
+        "narrative key image"
+      ],
+      "search_profile": {
+        "aliases": [
+          "give a scene the whole page",
+          "page-filling reveal with a clear focal event",
+          "large narrative image for a chapter opening"
+        ],
+        "outcome_summary": "Give one narrative image the spatial emphasis of a full page or dominant spread.",
+        "discovery_group": "composition-splash-page-scene",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "splash-page scene"
+          ],
+          "communication_goal": [
+            "Give one narrative image the spatial emphasis of a full page or dominant spread."
+          ],
+          "expression_structure": [
+            "splash-page scene"
+          ],
+          "use_case": [
+            "comic splash",
+            "chapter opening",
+            "narrative key image"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "give a scene the whole page",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "page-filling reveal with a clear focal event",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "large narrative image for a chapter opening",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://doi.org/10.3389/fpsyg.2014.00680",
+            "scope": "layout prominence and attentional framing",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          },
+          {
+            "url": "https://www.cooperhewitt.org/2015/02/05/cooper-hewitt-to-present-special-exhibition-how-posters-work/",
+            "scope": "scale and focal emphasis",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-single-panel-scene",
+      "label": "Self-contained comic panel",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Make one framed moment communicate through staging, action, and optional lettering.",
+      "prompt": "Compose one framed scene around a readable action or relationship. Give the important subjects and contacts clear silhouettes, and place any required speech, caption, or sound lettering in space that supports the scene's reading order.",
+      "invariants": [
+        "one framed moment owns the composition",
+        "the central action or relationship is visible",
+        "lettering, when present, belongs to the same reading hierarchy"
+      ],
+      "applicability": [
+        "Single-panel comics, illustrated moments, and one panel within a larger sequence.",
+        "A silent panel is a scoped text-free variant."
+      ],
+      "interactions": [
+        "The selected crop determines what can be shown directly.",
+        "A panel can contain several subjects without becoming several viewpoints.",
+        "A reaction and its hidden cause may need separate views instead of one overloaded panel."
+      ],
+      "misreadings_to_avoid": [
+        "multiple incompatible camera views fused into one scene",
+        "assuming comic art requires speech balloons",
+        "assuming comic art excludes speech balloons"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "single comic panel",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "single comic panel",
+        "single-panel comic",
+        "framed story moment",
+        "comic staging"
+      ],
+      "search_profile": {
+        "aliases": [
+          "tell a moment in one comic frame",
+          "one clear action with optional dialogue",
+          "self-contained illustrated panel"
+        ],
+        "outcome_summary": "Make one framed moment communicate through staging, action, and optional lettering.",
+        "discovery_group": "composition-single-panel-scene",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "single comic panel"
+          ],
+          "communication_goal": [
+            "Make one framed moment communicate through staging, action, and optional lettering."
+          ],
+          "expression_structure": [
+            "single comic panel"
+          ],
+          "use_case": [
+            "single-panel comic",
+            "framed story moment",
+            "comic staging"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "tell a moment in one comic frame",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "one clear action with optional dialogue",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "self-contained illustrated panel",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://doi.org/10.3389/fpsyg.2014.00680",
+            "scope": "image-level attentional framing within visual narrative",
+            "license_scope": "Research or educational publication; citation supports the stated craft principle."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-vertical-scroll-reveal",
+      "label": "Vertical scroll reveal",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Control successive discoveries as the viewer moves down a continuous vertical sequence.",
+      "prompt": "Stack the visual beats along a clear downward path, letting each scene occupy a distinct region. Use open intervals between major changes and place each reveal below the cue that prepares it. Repeat selected forms or background edges to carry continuity through the vertical space.",
+      "invariants": [
+        "the sequence progresses downward",
+        "each reveal follows its preparing cue",
+        "spacing distinguishes related and separate beats"
+      ],
+      "applicability": [
+        "Scrolling comics, mobile illustrated stories, and vertical explanatory sequences.",
+        "The intended viewing window affects which beats are encountered together."
+      ],
+      "interactions": [
+        "A tall single scene uses continuous spatial depth rather than sequential panels.",
+        "Long gutters change separation but do not specify exact reading time.",
+        "Lettering and image placement share the downward reading path."
+      ],
+      "misreadings_to_avoid": [
+        "a reveal visible beside its setup when concealment matters",
+        "arbitrary blank space unrelated to the sequence",
+        "one tall panorama misread as several times or places"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "vertical scroll sequence",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "vertical scroll sequence",
+        "scrolling comic",
+        "mobile story",
+        "vertical explanation"
+      ],
+      "search_profile": {
+        "aliases": [
+          "reveal the story while scrolling down",
+          "space visual beats along a vertical path",
+          "downward sequence with delayed discoveries"
+        ],
+        "outcome_summary": "Control successive discoveries as the viewer moves down a continuous vertical sequence.",
+        "discovery_group": "composition-vertical-scroll-reveal",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "vertical scroll sequence"
+          ],
+          "communication_goal": [
+            "Control successive discoveries as the viewer moves down a continuous vertical sequence."
+          ],
+          "expression_structure": [
+            "vertical scroll sequence"
+          ],
+          "use_case": [
+            "scrolling comic",
+            "mobile story",
+            "vertical explanation"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "reveal the story while scrolling down",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "space visual beats along a vertical path",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "downward sequence with delayed discoveries",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-comic/references/layouts/webtoon.md",
+            "scope": "vertical stacking and interval spacing; numeric presets are source-specific",
+            "license_scope": "MIT for repository code and documentation."
+          },
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/layout/tips-and-techniques.mdx",
+            "scope": "editorial rhythm across scrolling content",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-shared-space-mixed-rendering",
+      "label": "Different renderings in a shared scene",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Make differently rendered elements occupy the same depicted space while retaining their distinct visual treatments.",
+      "prompt": "Give each selected element its own consistent rendering treatment, while their positions, relative scale, overlaps and contact points form one continuous scene. Carry the scene's light direction through the appropriate shading language of each element, with contact shadows and reflected color joining the visible surfaces where they meet.",
+      "invariants": [
+        "each element retains its selected rendering treatment",
+        "perspective, scale and occlusion describe one shared space",
+        "contact and light response agree at the boundaries between treatments"
+      ],
+      "applicability": [
+        "A drawn subject inhabiting a photographic place, rendered objects within a painted setting, or another deliberate mixed treatment.",
+        "Use when interaction or contact between unlike renderings should feel spatially continuous."
+      ],
+      "interactions": [
+        "A common light direction can be represented by different shading grammars.",
+        "Graphic overlays outside the depicted space keep their own flat relationships.",
+        "References contribute only their assigned content or rendering scope."
+      ],
+      "misreadings_to_avoid": [
+        "all elements averaged into one unintended rendering style",
+        "contact or scale changing at the join between media",
+        "a flat explanatory mark treated as a physical object"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "shared-space mixed rendering",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "shared-space mixed rendering",
+        "photo illustration composite",
+        "mixed media scene",
+        "integrated artwork"
+      ],
+      "search_profile": {
+        "aliases": [
+          "put a drawn subject in a photographic scene",
+          "keep different media while sharing the same space",
+          "make unlike rendering treatments meet at believable contact points"
+        ],
+        "outcome_summary": "Make differently rendered elements occupy the same depicted space while retaining their distinct visual treatments.",
+        "discovery_group": "composition-shared-space-mixed-rendering",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "shared-space mixed rendering"
+          ],
+          "communication_goal": [
+            "Make differently rendered elements occupy the same depicted space while retaining their distinct visual treatments."
+          ],
+          "expression_structure": [
+            "shared-space mixed rendering"
+          ],
+          "use_case": [
+            "photo illustration composite",
+            "mixed media scene",
+            "integrated artwork"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "put a drawn subject in a photographic scene",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "keep different media while sharing the same space",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "make unlike rendering treatments meet at believable contact points",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/fal-ai-community/skills/blob/9ca850412943251fc9a466c4c29fdaf7a303a3d8/skills/fal-prompting/references/gpt-image-2.md",
+            "scope": "perspective, lighting and contact consistency for a composed scene; model claims are outside this record",
+            "license_scope": "Repository license unspecified; citation only."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-layered-collage",
+      "label": "Layered collage relationships",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Connect distinct image fragments through deliberate juxtaposition, overlap and visual hierarchy.",
+      "prompt": "Arrange distinct image fragments around a clear focal cluster on a shared field. Keep their selected cut edges, crop boundaries and local textures visible. Use overlap, repeated shapes and directional alignment to connect related fragments, with open spacing that lets each important fragment remain recognizable.",
+      "invariants": [
+        "fragment boundaries and layer order remain legible",
+        "juxtaposition expresses the selected relationships",
+        "each fragment retains its assigned content and treatment"
+      ],
+      "applicability": [
+        "Collage, photomontage, scrapbook, archival, music-cover and editorial constructions where association across fragments carries meaning.",
+        "Photographs, drawings, lettering and paper-like fields may contribute different roles."
+      ],
+      "interactions": [
+        "Scale differences can be symbolic when the layout establishes separate fragment spaces.",
+        "A common palette or recurring edge treatment may unify unlike source materials.",
+        "Reading order and story chronology are selected independently from stacking order."
+      ],
+      "misreadings_to_avoid": [
+        "incidental fragments obscuring the intended relationship",
+        "a montage treated as one continuous physical perspective",
+        "decorative source lettering replacing required wording"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "layered collage assembly",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "layered collage assembly",
+        "photomontage",
+        "scrapbook composition",
+        "editorial collage"
+      ],
+      "search_profile": {
+        "aliases": [
+          "connect fragments through overlap and juxtaposition",
+          "combine photographs drawings and paper in a collage",
+          "make cutout images form a readable visual relationship"
+        ],
+        "outcome_summary": "Connect distinct image fragments through deliberate juxtaposition, overlap and visual hierarchy.",
+        "discovery_group": "composition-layered-collage",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "layered collage assembly"
+          ],
+          "communication_goal": [
+            "Connect distinct image fragments through deliberate juxtaposition, overlap and visual hierarchy."
+          ],
+          "expression_structure": [
+            "layered collage assembly"
+          ],
+          "use_case": [
+            "photomontage",
+            "scrapbook composition",
+            "editorial collage"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "connect fragments through overlap and juxtaposition",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "combine photographs drawings and paper in a collage",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "make cutout images form a readable visual relationship",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/yanliudesign/mono-color-skill/blob/c8ff70597ddedcd65f21a0b528f6a70c35690b0a/design-system/compositions.json",
+            "scope": "purposeful overlap between image fragments and type in an overprint composition",
+            "license_scope": "MIT for repository code and documentation."
+          },
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/layout/tips-and-techniques.mdx",
+            "scope": "content grouping, editorial rhythm, hierarchy and spacing",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-modular-information-field",
+      "label": "Image and information units",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Make related pictures, diagrams, symbols and facts readable as connected information units.",
+      "prompt": "Group each picture or diagram with the wording and symbols that explain it. Give the leading unit greater visual weight, then align supporting units along shared edges with consistent internal spacing. Repeat the placement of equivalent labels and fields so their relationships remain clear across the composition.",
+      "invariants": [
+        "each explanatory item has an identifiable subject or referent",
+        "equivalent information uses a consistent local hierarchy",
+        "visual importance follows the selected information priority"
+      ],
+      "applicability": [
+        "Editorial spreads, illustrated reports, exhibition panels, field guides, information cards, package faces and compact dashboards.",
+        "Use when several kinds of information need a shared reading structure; the artifact determines its units and density."
+      ],
+      "interactions": [
+        "A continuous image may cross unit boundaries while labels retain clear associations.",
+        "Photographic evidence, drawn explanation and text can use different local treatments.",
+        "An actual card face, a page design and a photograph of either have different framing requirements.",
+        "Facts, quantities and exact wording retain their source meaning; visual grouping supplies no new data."
+      ],
+      "misreadings_to_avoid": [
+        "decoration or invented data filling every available field",
+        "labels detached from the picture or diagram they explain",
+        "equal visual emphasis hiding the main information"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "modular image and information field",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "modular image and information field",
+        "editorial spread",
+        "information card",
+        "exhibition graphic",
+        "infographic"
+      ],
+      "search_profile": {
+        "aliases": [
+          "organize pictures diagrams and short facts together",
+          "make an illustrated information card easy to scan",
+          "give mixed content a clear reading structure"
+        ],
+        "outcome_summary": "Make related pictures, diagrams, symbols and facts readable as connected information units.",
+        "discovery_group": "composition-modular-information-field",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "modular image and information field"
+          ],
+          "communication_goal": [
+            "Make related pictures, diagrams, symbols and facts readable as connected information units."
+          ],
+          "expression_structure": [
+            "modular image and information field"
+          ],
+          "use_case": [
+            "editorial spread",
+            "information card",
+            "exhibition graphic",
+            "infographic"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "organize pictures diagrams and short facts together",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "make an illustrated information card easy to scan",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "give mixed content a clear reading structure",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/layout/tips-and-techniques.mdx",
+            "scope": "content grouping, editorial rhythm, hierarchy and spacing",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          },
+          {
+            "url": "https://github.com/antvis/Infographic/blob/5ae0d9394ac6280cb688eb4b4345881e291b9209/site/src/content/learn/infographic-theory.en.md",
+            "scope": "semantic information units, supporting graphic elements and visual hierarchy",
+            "license_scope": "MIT for repository code and documentation."
+          },
+          {
+            "url": "https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-infographic/references/layouts/bento-grid.md",
+            "scope": "mixed information units grouped through shared alignment, spacing and visual importance",
+            "license_scope": "MIT for repository code and documentation."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
+    },
+    {
+      "id": "composition-interface-illustration",
+      "label": "Interface and illustration relationships",
+      "category": "composition",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Explain a selected screen state or concept through the relationship between interface regions and visual content.",
+      "prompt": "Organize the principal visual content and selected interface regions on a shared alignment system. Keep related labels, controls and status marks grouped, with clear scale and active-state contrast. Connect explanatory symbols or diagrams to their corresponding screen content, and preserve essential words and depicted features through the chosen overlaps.",
+      "invariants": [
+        "each interface region has a selected informational role",
+        "labels and controls remain associated with their visible referents",
+        "interface geometry and depicted scene geometry keep their declared relationship"
+      ],
+      "applicability": [
+        "Static application or game screens, visual-novel compositions, illustrated interfaces, and conceptual explanations built from interface fragments.",
+        "Choose the fidelity of the interface from the information the artifact must communicate."
+      ],
+      "interactions": [
+        "A visual-novel scene can share the field with dialogue or choices when those elements belong to the intended moment.",
+        "A HUD can remain flat over a spatial scene; a physical display belongs to the scene perspective.",
+        "Conceptual simplification and exact screen reproduction need different text and detail choices.",
+        "The depicted state does not establish functioning controls or an implemented application."
+      ],
+      "misreadings_to_avoid": [
+        "interface decoration substituted for meaningful state or information",
+        "unrequested browser or device furniture changing the intended screen format",
+        "necessary wording reduced to illegible placeholder marks"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false,
+        "activation": "use for review or a matching correction decision"
+      },
+      "applies_to": "interface and illustration composition",
+      "domains": [
+        "shared"
+      ],
+      "tags": [
+        "interface and illustration composition",
+        "screen depiction",
+        "visual novel screen",
+        "hybrid UI illustration",
+        "game HUD"
+      ],
+      "search_profile": {
+        "aliases": [
+          "show a scene together with meaningful interface information",
+          "explain a screen state with pictures and controls",
+          "combine interface fragments with an explanatory diagram"
+        ],
+        "outcome_summary": "Explain a selected screen state or concept through the relationship between interface regions and visual content.",
+        "discovery_group": "composition-interface-illustration",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "composition": [
+            "interface and illustration composition"
+          ],
+          "communication_goal": [
+            "Explain a selected screen state or concept through the relationship between interface regions and visual content."
+          ],
+          "expression_structure": [
+            "interface and illustration composition"
+          ],
+          "use_case": [
+            "screen depiction",
+            "visual novel screen",
+            "hybrid UI illustration",
+            "game HUD"
+          ]
+        },
+        "kind": "module",
+        "category": "composition",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "show a scene together with meaningful interface information",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "explain a screen state with pictures and controls",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "combine interface fragments with an explanatory diagram",
+          "facet": "composition",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ],
+      "knowledge_basis": {
+        "type": "authored craft synthesis",
+        "sources": [
+          {
+            "url": "https://github.com/carbon-design-system/design-language-website/blob/edf3841575f3527ba9a1ad8b2050c73642cf4c96/src/pages/illustration/hybrid-ui-style/design.mdx",
+            "scope": "relationships among interface fragments, diagrams, pictograms and illustration; fidelity selected for purpose",
+            "license_scope": "Apache-2.0 in the repository package declaration; brand assets have separate terms."
+          },
+          {
+            "url": "https://github.com/antvis/Infographic/blob/5ae0d9394ac6280cb688eb4b4345881e291b9209/site/src/content/learn/infographic-theory.en.md",
+            "scope": "semantic information units, supporting graphic elements and visual hierarchy",
+            "license_scope": "MIT for repository code and documentation."
+          }
+        ],
+        "evidence_scope": "Composition knowledge; image-model compliance and artistic quality are unmeasured."
+      }
     }
   ]
 }

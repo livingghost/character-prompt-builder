@@ -23,8 +23,8 @@ import catalog_retrieval.retrieval
 import catalog_retrieval.runtime
 import catalog_retrieval.scoring
 from catalog_retrieval.queries import validate_query_request
-from pack_cache import RuntimePackCatalog, RuntimePackEntry
-from search_discovery import CatalogQueryInput, SearchIndex, analyze_query
+from pack_cache import RuntimePackCatalog, RuntimePackEntry, RuntimePackResource
+from search_discovery import CatalogQueryInput, SearchIndex, analyze_query, build_search_profile
 
 
 PACK_ID = "01a0043b-2250-720d-87b7-f1e6fd7ed230"
@@ -740,7 +740,8 @@ class CatalogRuntimeTest(unittest.TestCase):
         ):
             with self.subTest(option=option):
                 self.assertIn(option, inspire_help)
-        self.assertIn("--directions", help_by_command["recommend"])
+        self.assertIn("--limit", help_by_command["recommend"])
+        self.assertIn("--inventory-facets", help_by_command["recommend"])
 
         with tempfile.TemporaryDirectory() as temporary:
             self._install_fixture_catalog(Path(temporary))
@@ -790,10 +791,13 @@ class CatalogRuntimeTest(unittest.TestCase):
                         self.assertEqual(catalog_cli.main([
                             "recommend",
                             "fixture identity",
-                            "--directions",
+                            "--limit",
                             "7",
+                            "--inventory-facets",
+                            "fixture_second,fixture_first",
                         ]), 0)
             self.assertEqual(recommend_call.call_args.args[3], 7)
+            self.assertEqual(recommend_call.call_args.kwargs["inventory_facets"], ["fixture_first", "fixture_second"])
             self.assertEqual(
                 json.loads(stdout.getvalue())["mode"],
                 "public-recommend-fixture",
@@ -997,7 +1001,7 @@ class CatalogRuntimeTest(unittest.TestCase):
                             "request_id": "recommend",
                             "command": "recommend",
                             "canonical_query": "fixture identity",
-                            "directions": 2,
+                            "limit": 2,
                         },
                         {
                             "request_id": "inspire",
@@ -1762,6 +1766,233 @@ class CatalogInspirationGroupingTest(unittest.TestCase):
             )
 
 
+class CatalogDiscoveryTest(unittest.TestCase):
+    """Discovery exposes available evidence without making an artistic selection."""
+
+    def tearDown(self) -> None:
+        catalog_cli.clear_runtime_caches()
+
+    def _install(self, root: Path, *, extra: bool = False, dictionary: bool = True):
+        records = [
+            {
+                "id": "fixture-interior-view", "label": "Section through an enclosure",
+                "category": "composition", "curation_status": "curated",
+                "domains": ["human"],
+                "visual_function": "Reveal a hidden mechanism while retaining its outer enclosure.",
+                "applies_to": ["one object and its interior"],
+                "applicability": [
+                    "Use when internal construction has an authoritative source.",
+                    "The exterior must remain recognizable in the depicted view.",
+                ],
+                "invariants": ["The enclosure and visible interior share one location."],
+                "prompt": "A section through one enclosure exposes the mechanism inside.",
+                "search_profile": {
+                    "aliases": ["reveal hidden mechanism", "show inner workings"],
+                    "outcome_summary": "An enclosure and its hidden mechanism remain connected in one view.",
+                    "facets": {"communication_goal": ["show inner workings"]},
+                },
+            },
+            {
+                "id": "fixture-ambient-light", "label": "Soft ambient light",
+                "category": "lighting", "curation_status": "vocabulary",
+                "domains": ["human"], "prompt": "soft ambient light",
+            },
+            {
+                "id": "fixture-creature-mechanism", "label": "Hidden mechanism creature",
+                "category": "anatomy", "curation_status": "curated",
+                "domains": ["creature"], "prompt": "reveal hidden mechanism",
+            },
+        ]
+        if extra:
+            records.append({
+                "id": "fixture-reader-flow", "label": "Reader path through an enclosure",
+                "category": "fixture-reading-structure", "curation_status": "curated",
+                "domains": ["human"],
+                "visual_function": "Reveal a hidden mechanism through a sequence of connected details.",
+                "prompt": "Connected detail views reveal a hidden mechanism.",
+                "search_profile": {
+                    "aliases": ["reveal hidden mechanism"],
+                    "outcome_summary": "Connected detail views lead from the enclosure to its inner mechanism.",
+                    "facets": {
+                        "fixture_reading_relation": ["context to detail", "detail to action", "whole to part", "inside to outside"],
+                        "fixture_secondary_relation": ["upper to lower", "left to right", "center to edge", "near to far"],
+                    },
+                },
+            })
+        packed = tuple(_runtime_entry(root, "module", row, str(row["category"])) for row in records)
+        resources = {}
+        if dictionary:
+            vocabulary_path = root / "vocabulary.json"
+            vocabulary_path.write_text(json.dumps({
+                "format": "character-prompt-builder-prompt-vocabulary",
+                "name": "Fixture vocabulary", "description": "Terms for technical imagery.",
+                "categories": [{
+                    "id": "technical-views", "name": "Technical views",
+                    "description": "Reveal a hidden mechanism or show inner workings.",
+                    "entries": [{"term": "cutaway"}, {"term": "exploded view"}],
+                }],
+            }), encoding="utf-8")
+            resources["prompt-vocabulary"] = RuntimePackResource(
+                "prompt-vocabulary", vocabulary_path, "application/json", PACK_ID, "vocabulary.json",
+            )
+        catalog_cli.clear_runtime_caches()
+        catalog_retrieval.runtime._PACK_CATALOG_CACHE = RuntimePackCatalog(
+            fingerprint="discovery-extra" if extra else "discovery-base", active_pack_count=1,
+            entries=packed, phrases={},
+            profiles={str(row["id"]): build_search_profile("module", str(row["category"]), row, []) for row in records},
+            resources=resources, assets_by_canonical_record={}, diagnostics=(),
+        )
+        return catalog_cli.load_entries()
+
+    def test_added_records_and_open_facets_appear_without_a_selection_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            initial = catalog_cli.recommend(self._install(root), "reveal hidden mechanism", "human")
+            self.assertEqual([row["id"] for row in initial["candidates"]], ["fixture-interior-view"])
+            expanded = catalog_cli.recommend(self._install(root, extra=True), "reveal hidden mechanism", "human")
+            ids = [row["id"] for row in expanded["candidates"]]
+            self.assertEqual(set(ids), {"fixture-interior-view", "fixture-reader-flow"})
+            self.assertEqual(expanded["inspection_queue"], ids)
+            self.assertEqual(expanded["catalog_inventory"]["categories"]["fixture-reading-structure"], 1)
+            facet = expanded["catalog_inventory"]["facets"]["fixture_reading_relation"]
+            self.assertEqual(facet["value_count"], 4)
+            self.assertEqual(len(facet["examples"]), 3)
+            self.assertTrue(facet["truncated"])
+            for candidate in expanded["candidates"]:
+                self.assertEqual(candidate["source_pack"], PACK_ID)
+                self.assertTrue(candidate["source_file"])
+                self.assertTrue(candidate["outcome_summary"])
+                self.assertTrue(candidate["match_evidence"])
+            inspected = catalog_cli.inspect_record(catalog_cli.load_entries(), "fixture-interior-view")
+            self.assertEqual(inspected["record"]["applies_to"], ["one object and its interior"])
+            self.assertEqual(inspected["record"]["applicability"], initial["candidates"][0]["applicability"])
+            self.assertEqual(inspected["record"]["invariants"], initial["candidates"][0]["invariants"])
+
+    def test_dictionary_categories_are_distinct_from_catalog_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = catalog_cli.recommend(self._install(root), "reveal hidden mechanism", "human")
+            vocabulary = result["vocabulary"]
+            self.assertEqual(vocabulary["category_counts"], {"technical-views": 2})
+            self.assertEqual(vocabulary["source_file"], "vocabulary.json")
+            self.assertEqual(vocabulary["matches"][0]["id"], "technical-views")
+            self.assertEqual(vocabulary["matches"][0]["entry_count"], 2)
+            self.assertNotIn("entries", vocabulary["matches"][0])
+            self.assertEqual(result["scope"], {"domain": "human", "source_packs": [PACK_ID]})
+            self.assertEqual(result["catalog_inventory"]["record_count"], 2)
+            without = catalog_cli.recommend(self._install(root, dictionary=False), "show inner workings", "human")
+            self.assertEqual(without["vocabulary"], {"available": False, "category_counts": {}, "matches": []})
+            self.assertEqual([row["id"] for row in without["candidates"]], ["fixture-interior-view"])
+
+    def test_inventory_expands_only_the_requested_authored_facets(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            entries = self._install(Path(temporary), extra=True)
+            compact = catalog_cli.recommend(entries, "reveal hidden mechanism", "human")
+            expanded = catalog_cli.recommend(
+                entries, "reveal hidden mechanism", "human",
+                inventory_facets=["fixture_reading_relation"],
+            )
+            facets = expanded["catalog_inventory"]["facets"]
+            requested = facets["fixture_reading_relation"]
+            authored = next(entry.record["search_profile"]["facets"]["fixture_reading_relation"]
+                            for entry in entries if entry.record["id"] == "fixture-reader-flow")
+            self.assertEqual(set(requested["examples"]), set(authored))
+            self.assertEqual(requested["value_count"], len(requested["examples"]))
+            self.assertFalse(requested["truncated"])
+            self.assertTrue(facets["fixture_secondary_relation"]["truncated"])
+            self.assertEqual(len(facets["fixture_secondary_relation"]["examples"]), 3)
+            self.assertEqual(expanded["candidates"], compact["candidates"])
+            self.assertEqual(expanded["query_analysis"], compact["query_analysis"])
+            self.assertEqual(expanded["vocabulary"], compact["vocabulary"])
+
+    def test_unknown_inventory_facet_is_a_query_local_diagnostic(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            entries = self._install(Path(temporary), extra=True)
+            report = catalog_cli.execute_batch(entries, [
+                {"request_id": "unknown-facet", "command": "recommend", "canonical_query": "reveal hidden mechanism",
+                 "domain": "human", "inventory_facets": ["fixture_unavailable_relation"]},
+                {"request_id": "known-facet", "command": "recommend", "canonical_query": "reveal hidden mechanism",
+                 "domain": "human", "inventory_facets": ["fixture_reading_relation"]},
+            ])
+            self.assertEqual(report["error_count"], 1)
+            rejected, accepted = report["results"]
+            self.assertEqual(rejected["error"]["type"], "query-error")
+            self.assertIn("fixture_unavailable_relation", rejected["error"]["message"])
+            self.assertIn("current catalog scope", rejected["error"]["message"])
+            self.assertTrue(accepted["ok"])
+            self.assertFalse(accepted["result"]["catalog_inventory"]["facets"]["fixture_reading_relation"]["truncated"])
+
+    def test_unmatched_query_retains_scope_and_inventory_without_filler(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            entries = self._install(Path(temporary))
+            request = CatalogQueryInput(
+                canonical_query="unknownquartz", domain="human",
+                source_brief="Unknown authored purpose", unresolved_terms=("unknownquartz",),
+                anchors={"lighting": ["authored illumination"]},
+            )
+            result = catalog_cli.execute_query_command(entries, "recommend", request, {"limit": 3})
+            self.assertEqual(result["candidates"], [])
+            self.assertEqual(result["inspection_queue"], [])
+            self.assertEqual(result["vocabulary"]["matches"], [])
+            self.assertEqual(result["query_request"], request.to_dict())
+            self.assertEqual(result["query_analysis"]["normalized_anchors"]["lighting"], ["authored illumination"])
+            self.assertIn("unknownquartz", result["terms_without_alias"])
+            self.assertEqual(result["catalog_inventory"]["categories"], {"composition": 1, "lighting": 1})
+
+    def test_discovery_batch_uses_one_catalog_and_matches_sequential_results(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._install(root, extra=True)
+            fixture = catalog_cli.load_pack_catalog()
+            requests = [
+                {"request_id": "purpose", "command": "recommend", "canonical_query": "reveal hidden mechanism", "domain": "human", "limit": 4, "inventory_facets": "fixture_reading_relation"},
+                {"request_id": "unknown", "command": "recommend", "canonical_query": "unknownquartz", "domain": "human", "limit": 2},
+                {"request_id": "invalid", "command": "recommend", "canonical_query": "show inner workings", "limit": 0},
+                {"request_id": "return", "command": "recommend", "canonical_query": "show inner workings", "domain": "human", "limit": 1, "inventory_facets": ["fixture_reading_relation", "fixture_secondary_relation"]},
+            ]
+            output = io.StringIO()
+            with mock.patch.object(catalog_retrieval.runtime, "load_runtime_catalog", return_value=fixture) as loader:
+                with contextlib.redirect_stdout(output):
+                    catalog_cli.main(["batch", "--input", json.dumps(requests)])
+            self.assertEqual(loader.call_count, 1)
+            result = json.loads(output.getvalue())
+            self.assertEqual([row["request_id"] for row in result["results"]], [row["request_id"] for row in requests])
+            self.assertEqual(result["error_count"], 1)
+            self.assertFalse(result["results"][2]["ok"])
+            self.assertTrue(result["results"][3]["ok"])
+            catalog_retrieval.runtime._PACK_CATALOG_CACHE = fixture
+            entries = catalog_cli.load_entries()
+            authored_conditions = next(
+                entry.record["applicability"] for entry in entries
+                if entry.record["id"] == "fixture-interior-view"
+            )
+            batch_candidate = next(
+                row for row in result["results"][0]["result"]["candidates"]
+                if row["id"] == "fixture-interior-view"
+            )
+            self.assertEqual(batch_candidate["applicability"], authored_conditions)
+            for request, response in zip(requests, result["results"], strict=True):
+                if response["ok"]:
+                    sequential = catalog_cli.execute_query_command(
+                        entries, "recommend", catalog_retrieval.batch._batch_query_request(request), request,
+                    )
+                    self.assertEqual(response["result"], sequential)
+
+    def test_discovery_uses_only_enabled_pack_records(self) -> None:
+        helper = LeftOutPackWarningTests()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = helper._pack(root / "packs" / "first", broken=False)
+            second = helper._pack(root / "packs" / "second", broken=False)
+            for enabled in ([first], [second], [first, second]):
+                response = helper._run(root, enabled, "recommend", "quiet light", "--limit", "4")
+                self.assertEqual(response.returncode, 0, response.stderr)
+                result = json.loads(response.stdout)
+                self.assertEqual(set(result["scope"]["source_packs"]), set(enabled))
+                self.assertEqual({row["source_pack"] for row in result["candidates"]}, set(enabled))
+                self.assertEqual(result["catalog_inventory"]["categories"]["lighting"], len(enabled))
+
+
 class ScopedRuntimeTests(unittest.TestCase):
     def test_restores_explicit_caller_after_failure(self):
         from pack_manager import default_settings
@@ -1815,6 +2046,7 @@ class RetrievalRecordingTests(unittest.TestCase):
             batch = json.dumps([{"request_id": "pose", "command": "search", "canonical_query": "fixture one",
                                  "kind": ["module"], "categories": ["species"], "limit": 1}])
             steps = [
+                ["recommend", "fixture identity", "--limit", "2", "--record", str(record), "--element", "identity"],
                 ["search", "fixture zero", "--kind", "module", "--record", str(record), "--element", "identity"],
                 ["batch", "--input", batch, "--record", str(record)],
                 ["inspect-many", "fixture-zero", "fixture-one", "--record", str(record),
@@ -1825,7 +2057,7 @@ class RetrievalRecordingTests(unittest.TestCase):
             value = json.loads(record.read_text(encoding="utf-8"))
             self.assertEqual(value["pack_state"], "fixture-catalog")
             self.assertEqual(value["elements"], [
-                {"element": "identity", "queries": ["fixture zero"], "inspected_records": ["fixture-zero"]},
+                {"element": "identity", "queries": ["fixture identity", "fixture zero"], "inspected_records": ["fixture-zero"]},
                 {"element": "pose", "queries": ["fixture one"], "inspected_records": ["fixture-one"]},
             ])
             with contextlib.redirect_stdout(io.StringIO()):

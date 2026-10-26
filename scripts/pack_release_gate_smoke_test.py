@@ -1207,6 +1207,11 @@ def run() -> dict[str, Any]:
 
         cwd_pack = root / "cwd-quality-pack"
         shutil.copytree(DEFAULT_PACK, cwd_pack)
+        cwd_manifest_path = cwd_pack / "pack.json"
+        cwd_manifest = json.loads(cwd_manifest_path.read_text(encoding="utf-8"))
+        for resource in ("catalog-search-regression", "sparse-discovery-evaluation"):
+            cwd_manifest["content"]["resource_bindings"].pop(resource)
+        _write_json(cwd_manifest_path, cwd_manifest)
         _bind(
             cwd_pack,
             "release-evaluation-contract",

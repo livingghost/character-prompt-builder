@@ -18,14 +18,14 @@ The subject can be a person, an animal, an anthropomorphic character, a creature
 
 ## Core production chain
 
-Each step leaves a record, and the next step starts from it.
+Saved production records the inputs and decisions needed by later steps.
 
-1. **Settle the intent.** Decide what the image is for and which details may not change, and compare complete alternatives while real choices stay open. See [Sparse-Brief Discovery](references/runtime/sparse-discovery.md).
-2. **Read the production knowledge.** A catalog search finds production records, and the agent reads each selected record in full. See the [Preset System Contract](references/preset-system-contract.md).
+1. **Settle the purpose and scope.** Identify what the artifact must communicate and which requirements stay fixed. See [Production direction](references/runtime/production-direction.md).
+2. **Discover and choose the expression.** Consult relevant knowledge before resolving open presentation choices. The agent chooses within delegated scope, using a scene, ordered views, graphic hierarchy or another suitable construction. Read each selected record in full. See [Knowledge discovery](references/runtime/sparse-discovery.md) and the [Preset System Contract](references/preset-system-contract.md).
 3. **Resolve the subject.** For a recurring character, its character profile, design and current story state say what stays fixed and what may vary. See [State-Aware Series](references/runtime/state-aware-series.md).
 4. **Choose the finish and the model controls.** Record the rendering intent, read the selected model's guidance and resolve each control it requires. See [Rendering choices and execution controls](references/runtime/render-contract.md).
 5. **Write the prompt and seal the request.** The prompt, the scoped negative, the settings and the ordered references are checked and bound to their files. See [Image Generation](references/runtime/image-generation.md).
-6. **Prepare, approve and send.** Preparation shows the complete request and its cost, and sending waits for a separate approval. See [Production Execution](references/runtime/production-execution.md).
+6. **Prepare, authorize and send.** Preparation shows the complete request and its cost; sending uses the author's recorded authorization for that scope. See [Production Execution](references/runtime/production-execution.md).
 7. **Review and continue.** Every returned image is kept and compared with the stated intent before anything is selected. See the [Studio Runtime](references/runtime/studio.md).
 
 A request for a prompt alone ends once the prompt is written. Selecting an image, using it as a reference and making a detail permanent are three separate decisions, each the author's. The tools check that a request matches its declared inputs, and people judge whether the image succeeds.
@@ -56,13 +56,17 @@ Settle the content-pack state, then ask the catalog for options around a real br
 
 ```sh
 python scripts/pack_cli.py ready
-python scripts/catalog_cli.py recommend "a retired lighthouse keeper at dawn, portrait, overcast light" --directions 2
+python scripts/catalog_cli.py recommend "whole object detail relationship" --limit 8
 python scripts/catalog_cli.py inspect RECORD_ID
 ```
 
-`ready` prints the enabled packs and any decision it waits on. `recommend` returns complete alternative directions, each naming what it keeps, what it adds and what stays adjustable. `inspect` prints one full record with its constraints. A first request to the installed skill can then be:
+`ready` prints enabled packs and any unresolved activation decision. `recommend`
+returns candidate knowledge with its functions and applicability, plus the
+active catalog's scope and optional dictionary categories. The agent uses that
+evidence to choose the construction. `inspect` prints one complete record.
+A first request to the installed skill can then be:
 
-> Develop an image prompt from this design. Preserve the attached identity details. Show alternatives only for decisions I have left open, state what you assumed, and do not send anything to a generation service.
+> Develop an image prompt from this design. Preserve the attached identity details, choose a suitable presentation and briefly explain the choice. Do not send it to a generation service.
 
 ### Examples that run locally
 
@@ -121,7 +125,8 @@ After an interruption, `resume` recovers the same execution from saved evidence 
 
 [SKILL.md](SKILL.md) routes the agent to these documents, and a person can read them directly.
 
-- Sparse briefs and alternative directions: [Sparse-Brief Discovery](references/runtime/sparse-discovery.md)
+- Expressive choices and sparse briefs: [Production direction](references/runtime/production-direction.md) and [Knowledge discovery](references/runtime/sparse-discovery.md)
+- Multiple views, graphic regions and shared identity: [Production Specification](references/production-specification.md)
 - Prompt wording for a target model: [Prompt Composition](references/runtime/prompt-composition.md) and [Prompt Vocabulary](references/runtime/prompt-vocabulary.md)
 - Finish, model guidance and controls: [Rendering choices and execution controls](references/runtime/render-contract.md) and [Model request evidence](references/runtime/model-evidence.md). Select an exact model and offering; observed interface constraints live in the active model record and its pinned schema, not in README examples.
 - Worlds, character profiles and the author's aims: [World-Coherent Creative Development](references/runtime/narrative-development.md), [Authorial Intent](references/runtime/authorial-intent.md) and [Narrative Authoring](references/narrative-authoring.md)

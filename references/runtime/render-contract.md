@@ -9,13 +9,23 @@ The agent decides meaning; the tools validate explicit choices and preserve thei
 `python scripts/render_contract.py presets` lists reusable starting points.
 Choose a preset or author a custom intent with `preset: null`.
 Keep six axes independent: medium, dimensionality, linework, shading, surface, and detail.
-The presentation field separately describes the artifact, such as a portrait, diagram, panel, or product view.
+The presentation field records the construction chosen under
+[Production direction](production-direction.md#choose-the-expression), such as
+a portrait, diagram, panel sequence or product view. A rendering preset or
+studio default supplies finish within that choice; it does not choose the
+presentation or require a single continuous scene.
 A vector-like appearance does not promise a vector file. Output encoding belongs to the interface controls.
 
 Record who chose the direction (`user` or `agent`) and why.
 Ask about a material ambiguity; otherwise choose deliberately within the user's open creative space.
-Use regional overrides for a genuinely mixed treatment, naming each region and its reason.
-Do not combine mutually exclusive whole-image treatments into an accidental average.
+The base axes describe the shared treatment. Regional overrides assign
+different treatment to a named subject, part, layer or area, with its reason
+and visible expression. A scope may overlap another or sit within one subject;
+it need not form a separate panel. Resolve which treatment governs each
+affected property and how the scopes meet. Author a custom intent when a
+selected combination is the treatment itself.
+The agent may choose a mixed treatment within delegated creative space.
+An explicit fixed medium or protected source region remains authoritative.
 The registry is a discovery aid, not a closed list of media.
 
 ```bash

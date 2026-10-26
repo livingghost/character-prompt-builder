@@ -1,9 +1,7 @@
 {
   "purpose": "Operational catalog policy preserved with the owner-maintained content pack.",
   "usage_policy": {
-    "art_direction_before_search": true,
     "well_specified_brief_uses_focused_lookup": true,
-    "sparse_brief_discovery_before_final_direction": true,
     "preset_names_or_ids_required_for_discovery": false,
     "field_aware_many_to_many_lexical_index": true,
     "agent_translates_user_brief_to_canonical_english": true,
@@ -11,7 +9,6 @@
     "language_specific_alias_dictionaries": false,
     "source_brief_is_opaque_audit_metadata": true,
     "style_family_taxonomy_is_audited": true,
-    "direction_cards_explain_outcome_and_open_axes": true,
     "art_direction_contains_aesthetic_judgment": true,
     "automatic_atomic_consultation": true,
     "optional_universal_aesthetic_core_consultation": true,
@@ -42,6 +39,8 @@
     "negative_sources_are_scoped": true,
     "feature_scoped_integrity_bundles": true,
     "semantic_exclusions_require_user_request": true,
-    "search_rank_is_not_artistic_judgment": true
+    "search_rank_is_not_artistic_judgment": true,
+    "expression_knowledge_before_open_choices": true,
+    "agent_selects_expression": true
   }
 }

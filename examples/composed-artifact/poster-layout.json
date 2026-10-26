@@ -1,0 +1,33 @@
+{
+  "arrangement": "A spacious graphic poster has a narrow title band above a large geometric image and a small caption below.",
+  "regions": [
+    {
+      "id": "title",
+      "placement": "Top band, aligned left",
+      "depiction": "The word SHIFT appears in large dark geometric lettering on a warm cream ground."
+    },
+    {
+      "id": "graphic",
+      "placement": "Broad central region",
+      "depiction": "Three flat blue discs overlap along an upward diagonal. A small orange square sits above the last disc."
+    },
+    {
+      "id": "caption",
+      "placement": "Lower left, beneath the graphic",
+      "depiction": "The words A STUDY IN MOTION appear in small dark lettering with generous spacing."
+    }
+  ],
+  "reading_order": ["title", "graphic", "caption"],
+  "relationships": [
+    {
+      "from": "title",
+      "to": "graphic",
+      "relation": "The title introduces the geometric image as a study of visual movement."
+    },
+    {
+      "from": "graphic",
+      "to": "caption",
+      "relation": "The caption labels the study; the overlapping discs form one abstract image rather than separate story moments."
+    }
+  ]
+}

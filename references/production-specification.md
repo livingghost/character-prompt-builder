@@ -1,6 +1,9 @@
 # Production Specification
 
-A Production Specification is the editable, scene-specific bridge between an approved art direction, resolved character state, and one exact image-generation request. It is not the canonical identity contract and it is not the State Event Ledger.
+A Production Specification describes the selected depiction for one image
+artifact. It joins art direction, resolved character state and an exact
+image-generation request. Stable identity and approved history retain their
+own contracts.
 
 ## Ownership boundary
 
@@ -11,9 +14,9 @@ The related artifacts have different jobs:
 - **State Event Ledger**: the append-only record of approved changes over story time, resolved here and never authored here.
 - **State Snapshot**: the resolved truth for one character at one story time.
 - **Scene Context Snapshot**: relationships, environment, wardrobe, inventory, props, disclosure, and planned transitions for one scene.
-- **Visual State Projection**: what the current camera should visibly express, what is occluded, which performance cues are required, and which references or text anchors should carry those facts.
+- **Visual State Projection**: which identity, state and performance facts the artifact should express, with relevant occlusion and reference authority.
 - **Asset Render Specification**: the exact purpose, view, crop, coverage obligations, and target assumptions for one generated image.
-- **Production Specification**: the coherent render specification compiled from those inputs for one image.
+- **Production Specification**: shared depiction requirements and any local views arranged within one image artifact.
 
 A Production Specification may be regenerated whenever scene-visible semantic inputs change. Stable identity and approved history remain in their owning artifacts rather than being overwritten inside the scene specification.
 
@@ -36,6 +39,8 @@ python scripts/production_spec.py validate STUDIO/production-spec.json --require
 
 `draft` resolves the output and `--render-intent` below `--root`; an absolute path needs no root.
 It refuses a relative path without `--root`, and it refuses an existing output, which it keeps.
+Supply `--layout LAYOUT.json` when a region arrangement has been selected.
+The draft preserves that authored layout and checks its subject references.
 The draft prints the builder arguments that name its subject (synthetic brief):
 
 ```json
@@ -117,14 +122,106 @@ A subject that names an `identity_contract_ref` also carries its morphology refe
 
 Do not force an unrelated structure into a human-named summary. Omit inapplicable optional summaries and use the declared structure IDs.
 
+## Layout and local views
+
+Use `layout` when the artifact needs distinct content regions or views.
+A region can hold a scene, detail, diagram, title, texture or another authored
+element. Regions may overlap as layers or share a continuous surface. Their
+relationships describe the intended integration or separation. Rendering
+differences use `render_intent.regional_overrides`; they do not require
+visible panel boundaries or a region for every brush or material.
+A continuous scene can use the ordinary specification directly.
+Selecting one output image does not select its internal arrangement.
+
+The layout records:
+
+- `arrangement`: the whole artifact's hierarchy, relative sizes, spacing and overlap;
+- `regions`: each region's `id`, `placement` and positive `depiction`;
+- `reading_order`, when selected: region IDs in the intended attention sequence;
+- `relationships`, when needed: `from`, `to` and an authored `relation` between regions.
+
+Reading order and depicted time are separate. State whether related views show
+the same instant, successive moments, an enlargement or another relationship.
+The order of the `regions` array alone grants no chronology.
+Leave decorative regions outside `reading_order` when they have no selected
+position in the attention sequence.
+
+Each region may name `subjects` through `subject_id`. The root subject owns
+shared identity and state authority. An occurrence owns its local `depiction`
+and any selected pose, gaze, performance, clothing, contact or visible state.
+Use `visible_elements` and `occluded_elements` only for distinctions the view
+depends on. Repeated appearances refer to the same subject record.
+
+Top-level scene, camera and lighting describe shared spatial requirements.
+Local `scene`, `camera` and `lighting` record a region's differences. A local
+camera is a complete contract. Flat lettering and graphic marks need only
+their depiction; spatial contracts apply to depicted space.
+When poses or visibility vary, author them locally and leave shared summaries
+undecided unless a common requirement applies.
+
+This synthetic excerpt shows different visibility for one subject:
+
+```json
+{
+  "arrangement": "A large rear view beside a smaller front detail.",
+  "regions": [
+    {
+      "id": "wide",
+      "placement": "Large left region",
+      "depiction": "A blue robot leans over a workbench, seen from behind.",
+      "subjects": [{
+        "subject_id": "mechanic",
+        "depiction": "Its rounded blue back and planted feet establish the stance.",
+        "occluded_elements": ["front display"]
+      }]
+    },
+    {
+      "id": "detail",
+      "placement": "Small right region",
+      "depiction": "A front close view shows the same robot's amber display.",
+      "subjects": [{
+        "subject_id": "mechanic",
+        "depiction": "One raised white indicator line appears on the amber display.",
+        "visible_elements": ["front display"]
+      }]
+    }
+  ],
+  "reading_order": ["wide", "detail"],
+  "relationships": [{
+    "from": "wide",
+    "to": "detail",
+    "relation": "The same instant, viewed from opposite sides."
+  }]
+}
+```
+
+Complete synthetic layouts are in `examples/composed-artifact/inspection-layout.json`,
+`sequence-layout.json` and `poster-layout.json`. The poster uses no character
+subjects or cameras. `inspection-prompt.txt` shows an authored depiction using
+spatial descriptions rather than internal region or subject IDs.
+The `study-page` layout, render intent and prompt combine a photographic
+specimen, a corresponding line drawing and typography in one informational page.
+
+The Asset Render Specification carries the same layout when state-aware
+production uses it. Both artifacts seal its content, and graph validation
+checks their agreement. Each managed subject still resolves one sealed
+snapshot. Occurrence state stays within that authority. If a composition needs
+distinct historical snapshots for one subject, resolve separate productions
+before composing their approved outputs.
+
+Validation checks unique region IDs, declared references and reading-order
+structure. The author reviews spatial coherence, temporal meaning and local
+visibility. Planned relationships become observed results only after reviewing
+the generated artifact.
+
 
 ## Performance language
 
-Use `references/performance-language-specification.md` for coordinated character acting. `subjects[].performance` is a structured performance-language record separating felt emotion, displayed emotion, masked or conflicted emotion, intent, viewer or partner relationship, intensity, temporal phase, visible channel cues, interpretation candidates, the selected interpretation, ambiguity notes, and the final prompt projection.
+Use `references/performance-language-specification.md` for coordinated character acting. `subjects[].performance` is a structured performance-language record separating felt emotion, displayed emotion, masked or conflicted emotion, intent, viewer or partner relationship, intensity, temporal phase, visible channel cues, interpretation candidates, the selected interpretation, ambiguity notes, and the final prompt projection. A region's subject occurrence may carry its own performance for that view.
 
 Channel cues record observation and affirmative visual instruction separately. This lets a source image retain several plausible readings while the current image intent selects one. Visible cues may include eyes, lids, brows, mouth, tongue, jaw, blush, tears, sweat, breath, head, shoulders, spine, hands, feet, distance, contact, ears, tail, whiskers, ruff, wings, crests, sensors, optics, manipulators, panels, indicators, actuators, and ventilation.
 
-The Visual State Projection owns which current cues must be visible. The Production Specification composes those cues with the current pose, camera, support, contact, environment, and art direction. A cue that is hidden by crop or occlusion remains state knowledge but does not appear as a visible claim in the prompt.
+The Visual State Projection owns which current cues must be visible. The Production Specification assigns those cues to the selected views and their pose, camera, support, contact, environment, and art direction. A cue hidden in one view remains state knowledge for that view. Another selected region can carry it visibly.
 
 
 ## Camera framing contract
@@ -143,6 +240,8 @@ Required visibility follows the artifact's purpose and the author's choices.
 A figure study may require the full silhouette; a tool-use image may depend on
 the contact between a hand, tool and workpiece. Keep those requirements distinct
 from how an imagined composition happens to crop a subject.
+For a composed artifact, assign each coverage requirement to the view that
+expresses it. Whole-artifact coverage does not require repetition in every region.
 
 Check ownership, attachment and support where the depicted action depends on
 them. Record a particular crop or occlusion when it is meaningful, explicitly
@@ -187,13 +286,21 @@ A style family is an indivisible concrete drawing grammar. When selected, use it
 
 ## Modular control
 
-A free text field the author does not decide holds the string `"unspecified"`. The `camera` contract and a subject's `performance` record are whole structures: the specification carries each only once the author decides it, and a draft carries neither. An optional structure the image does not depend on is left out. Each is preferable to invented filler. A sparse portrait may need little more than the draft; a multi-character contact scene, reference sheet, state transition, or recurring series image may need a complete one.
+A free text field the author does not decide holds the string `"unspecified"`.
+Camera, performance and layout are whole optional structures, added when selected.
+The base template and ordinary draft keep them absent. A supplied `--layout`
+is retained as authored. A sparse portrait can remain small; a contact scene,
+reference sheet, state transition or composed page may need more detail.
 
 ## Prompt assembly
 
 Select the specification's task-bearing content using
 [Prompt Composition](runtime/prompt-composition.md#select-the-depiction), then
 compose the whole image before refining subject detail and necessary exclusions.
+For a layout, establish its hierarchy and selected reading relationships, then
+describe each region at its needed level of detail. Resolve internal references
+into visible subject descriptions and positions. Select identity cues within
+the local view; preserving identity does not make every feature visible.
 Resolve subjects and reference uses within the delivered text and images.
 `user_anchors` preserves requirements;
 `purposeful_additions` records chosen effects; `construction_invariants` records
@@ -248,7 +355,7 @@ A subject that names an identity contract carries:
 - `individual_morphology_contract_ref`;
 - `resolved_morphology`.
 
-`resolved_morphology` is the shot-specific anatomy contract, and the subject's `frame_character` and `load_bearing_part_measurements` equal its own. It lists visible feature instances, hidden or out-of-frame features, active form, surface map, feature relationships, expression channels, communication tools, current state deltas, count and attachment checks, crop requirements, and uncertainties. It retains declared anatomy independently of the crop. Prompt wording selects the details needed for this depiction; the resolved record is not emitted as a visibility inventory.
+`resolved_morphology` is the resolved anatomy contract, and the subject's `frame_character` and `load_bearing_part_measurements` equal its own. It lists relevant feature instances, active form, surface map, feature relationships, expression channels, communication tools, current state deltas, count and attachment checks, coverage requirements, and uncertainties. It retains declared anatomy independently of crop. Local views own their visibility and pose. Prompt wording selects the details needed for each depiction; the resolved record is not emitted as a visibility inventory.
 
 Use [Morphology and species contracts](morphology-and-species-contracts.md) before authoring an unfamiliar, fictional, hybrid, ordinary-animal, or mechanical body plan.
 

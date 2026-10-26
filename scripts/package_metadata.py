@@ -34,7 +34,7 @@ CORE_EVALUATION_INCLUDES: frozenset[str] = frozenset()
 # ``config`` include beside the pack state the suite runs against.
 CORE_RELEASE_REGRESSION_CONTRACT = "config/default-release.json"
 CORE_EXAMPLE_INCLUDES = frozenset(
-    {"examples/render-contract", "examples/prompt-weighting", "examples/pack-authoring", "examples/feature-walkthrough", "examples/generation",
+    {"examples/render-contract", "examples/composed-artifact", "examples/prompt-weighting", "examples/pack-authoring", "examples/feature-walkthrough", "examples/generation",
     "examples/scene-mask", "examples/state-aware-pilot", "examples/declared-structures",
      "examples/authorial-intent", "examples/world-realization", "examples/production-execution", "examples/protocol-exchange", "examples/story-context", "examples/story-timeline", "examples/story-flow", "examples/reusable-authoring",
      "examples/cast-admission", "examples/resume-recording", "examples/input-assembly", "examples/craft-consultation", "examples/model-evidence", "examples/candidate-recipe"}

@@ -70,6 +70,8 @@ VALIDATORS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("state protocol", ("scripts/validate_state_protocol.py", ".")),
     ("integration contracts", ("scripts/validate_integration.py",)),
     ("execution routes", ("scripts/execution_routes.py", "validate")),
+    ("catalog retrieval", ("scripts/search_regression.py", *RUNTIME_ARGUMENTS)),
+    ("knowledge discovery", ("scripts/sparse_discovery_eval.py", "--no-write", *RUNTIME_ARGUMENTS)),
 )
 
 # The longest commands of a full run start first, so none of them starts last

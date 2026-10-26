@@ -17,7 +17,7 @@ alone does not tell those states apart. Do not invent decisions to finish a form
 - **requested_output**:
   <!-- What is being made now and what this note governs; no assumed novel, cast or image. -->
 - **medium_and_extent**:
-  <!-- Declared medium, scope, audience use and completion boundary; note unsupported serializers. -->
+  <!-- Declared forms, audience use, viewing conditions and completion boundary for each output; distinguish an artifact from an image of it. Note unsupported serializers. -->
 - **entry_point**:
   <!-- Existing premise, agent, setting, mechanism, event, theme, form or other starting material. -->
 - **anchors_and_exclusions**:
@@ -34,7 +34,7 @@ alone does not tell those states apart. Do not invent decisions to finish a form
 - **genre_conventions_and_departures**:
   <!-- Chosen conventions and boundaries; genre labels do not manufacture world facts. -->
 - **expression_and_transitions**:
-  <!-- Language, tone, visual grammar, rhythm and intended shifts, at the relevant scope. -->
+  <!-- Language, tone, visual grammar, rhythm and intended shifts. For mixed forms, give each component a role and define how components meet. -->
 - **organization_and_focus**:
   <!-- What organizes attention, presentation order and viewpoint; no required protagonist count. -->
 
@@ -104,7 +104,7 @@ species, gender, age, backstory, genre or emotion from a pattern. Empty unused r
 ## Continuity and information
 
 - **invariants_and_permitted_variation**:
-  <!-- What holds and where variation is intended across time, places, viewpoints or branches. -->
+  <!-- What holds across time, places, viewpoints, branches or related outputs; what changes to serve each use and how the outputs complement one another. -->
 - **time_and_information_access**:
   <!-- Story order versus presentation, who knows what now and what the audience may receive. -->
 - **planned_versus_established**:

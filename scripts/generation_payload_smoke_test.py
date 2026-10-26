@@ -546,6 +546,7 @@ def _package(
     prepared_reference_set: Any,
     *,
     model: str = MODEL_ID,
+    prompt: str = PROMPT,
     negative_prompt: str = NEGATIVE,
     integrated_prompt: str = INTEGRATED_PROMPT,
     native_negative: str = "",
@@ -566,15 +567,15 @@ def _package(
         refs = prepared_reference_set if isinstance(prepared_reference_set, dict) else {}
         has_refs = bool(refs.get("selected_references") or refs.get("single_board"))
         selected_mode = ("image-to-image" if model == SEED_MODEL_ID else "reference-guided") if has_refs else "text-to-image"
-        production_spec["render_intent"] = intent(PROMPT, selected_mode)
+        production_spec["render_intent"] = intent(prompt, selected_mode)
     from request_validation_fixtures import fixture_validation
     validation = fixture_validation(fixture_root(), model, reference_mode='authored-rendition')
 
     return build_payload(request_validation=validation, input_root=fixture_root(), visual_continuity=fixture_visual(production_spec), visual_root=fixture_root(), route_reading=fixture_reading(route='generation'), 
-        retrieval_record=fixture_retrieval(PROMPT, APPROVED_PLOT),
+        retrieval_record=fixture_retrieval(prompt, APPROVED_PLOT),
         plot=copy.deepcopy(APPROVED_PLOT),
         model=model,
-        prompt=PROMPT,
+        prompt=prompt,
         negative_prompt=negative_prompt,
         integrated_prompt=integrated_prompt,
         native_negative=native_negative,
@@ -1847,6 +1848,38 @@ def run() -> dict[str, Any]:
                 and distinctive_detail_report["errors"] == [],
                 "complete generic distinctive-detail fixture is not valid before mutation",
             )
+
+            composed_prompt = (
+                "A two-view character study in quiet studio light. A large left view shows the full figure; "
+                "a small right view enlarges the same subject's head at the same instant."
+            )
+            from render_contract_fixtures import intent
+            composed_spec = production_spec.draft(
+                model=MODEL_ID, brief=composed_prompt, subject="study-subject", kind="human",
+                render_intent=intent(composed_prompt),
+            )
+            composed_spec["layout"] = {
+                "arrangement": "A large full-figure view on the left beside a small head detail on the right.",
+                "regions": [
+                    {"id": "figure", "placement": "Left", "depiction": "The full figure in quiet studio light.",
+                     "subjects": [{"subject_id": composed_spec["subjects"][0]["id"],
+                                   "depiction": "A poised full-figure view."}]},
+                    {"id": "detail", "placement": "Right", "depiction": "An enlarged view of the same subject's head."},
+                ],
+                "reading_order": ["figure", "detail"],
+                "relationships": [{"from": "figure", "to": "detail", "relation": "An enlargement at the same instant."}],
+            }
+            composed_package = _package(
+                empty_stateless_reference_set(), production_spec_override=composed_spec,
+                prompt=composed_prompt, integrated_prompt="", negative_transport="separate-field",
+            )
+            checked(composed_package["production_spec"] == composed_spec
+                    and composed_package["production_spec_sha256"] == production_spec.digest(composed_spec),
+                    "generation packaging lost or changed the authored artifact layout")
+            composed_verified = verify(composed_package)
+            checked(composed_package["composition_prompt"] == composed_prompt
+                    and _forwarding_preserves_authored_rendition(composed_verified, composed_prompt),
+                    "generation forwarding changed the selected rendition or serialized layout metadata")
 
             invalid_laterality_spec = copy.deepcopy(distinctive_detail_spec)
             invalid_laterality_spec["subjects"][0]["distinctive_details"][0][

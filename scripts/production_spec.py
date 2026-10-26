@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Draft, validate, inspect, and hash the Production Specification of one image.
 
-The specification records the scene the author decided for one image. A free
-text field the author leaves open holds the string "unspecified". The camera
-contract and a subject's performance record are whole structures: the author
-adds each once decided, and a draft carries neither. Stable identity and
-temporal canon live in separate contracts; a specification that uses them
-records their exact references.
+The specification records the depiction selected for one image artifact. An
+optional layout scopes regions, reading order and local views. A free text
+field the author leaves open holds the string "unspecified". Optional camera,
+performance and layout contracts are added whole once selected. Stable identity
+and temporal canon retain their own exact source references.
 
     python scripts/production_spec.py draft production-spec.json --model MODEL \\
         --render-intent render-intent.json --brief TEXT --kind human --continuity one-off
@@ -16,6 +15,7 @@ from __future__ import annotations
 import operation_context as _operation_context
 
 import argparse
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -91,6 +91,52 @@ def _subject_errors(index: int, subject: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _layout_reference_errors(layout: Any, subject_ids: set[str] | None = None) -> list[str]:
+    """Check authored identifiers without interpreting depiction or temporal prose."""
+    if not isinstance(layout, dict) or not isinstance(layout.get("regions"), list):
+        return []
+    errors: list[str] = []
+    region_ids: set[str] = set()
+    for index, region in enumerate(layout["regions"]):
+        if not isinstance(region, dict):
+            continue
+        identifier = region.get("id")
+        if isinstance(identifier, str):
+            if identifier in region_ids:
+                errors.append(f"$.layout.regions[{index}].id: duplicate region id {identifier!r}")
+            region_ids.add(identifier)
+        occurrences = region.get("subjects")
+        if subject_ids is not None and isinstance(occurrences, list):
+            for offset, occurrence in enumerate(occurrences):
+                subject_id = occurrence.get("subject_id") if isinstance(occurrence, dict) else None
+                if isinstance(subject_id, str) and subject_id not in subject_ids:
+                    errors.append(f"$.layout.regions[{index}].subjects[{offset}].subject_id: "
+                                  f"unknown subject id {subject_id!r}")
+    order = layout.get("reading_order")
+    if isinstance(order, list):
+        for index, identifier in enumerate(order):
+            if isinstance(identifier, str) and identifier not in region_ids:
+                errors.append(f"$.layout.reading_order[{index}]: unknown region id {identifier!r}")
+    relationships = layout.get("relationships")
+    if isinstance(relationships, list):
+        for index, relation in enumerate(relationships):
+            if not isinstance(relation, dict):
+                continue
+            for field in ("from", "to"):
+                identifier = relation.get(field)
+                if isinstance(identifier, str) and identifier not in region_ids:
+                    errors.append(f"$.layout.relationships[{index}].{field}: unknown region id {identifier!r}")
+    return errors
+
+
+def require_layout(layout: Any, *, subject_ids: set[str] | None = None) -> None:
+    """Validate one authored layout, optionally against its shared subject table."""
+    errors = validate_against_schema(layout, {"$ref": "production-spec.schema.json#/$defs/layout"}, "$.layout")
+    errors.extend(_layout_reference_errors(layout, subject_ids))
+    if errors:
+        raise SpecificationError(errors)
+
+
 def validate(data: dict[str, Any], *, require_content: bool = False) -> dict[str, Any]:
     non_finite = find_non_finite_numbers(data)
     errors = [f"{path}: number must be finite" for path in non_finite]
@@ -111,6 +157,7 @@ def validate(data: dict[str, Any], *, require_content: bool = False) -> dict[str
             if isinstance(subject_id, str):
                 seen.add(subject_id)
             errors.extend(_subject_errors(index, subject))
+        errors.extend(_layout_reference_errors(data.get("layout"), seen))
     if isinstance(data, dict) and isinstance(data.get("render_intent"), dict):
         from render_contract_lib import validate_intent
         try:
@@ -159,11 +206,12 @@ def require_lineage(spec: dict[str, Any], lineage: dict[str, Any]) -> None:
         raise ValueError("production specification state-lineage hash mismatch")
 
 
-def draft(*, model: str, brief: str, subject: str, kind: str, render_intent: dict) -> dict[str, Any]:
+def draft(*, model: str, brief: str, subject: str, kind: str, render_intent: dict,
+          layout: dict[str, Any] | None = None) -> dict[str, Any]:
     """The smallest specification the builder accepts for one subject.
 
-    The draft carries no camera contract and no performance record: the author
-    adds each whole once decided, and an absent one is undecided.
+    Optional contracts are supplied or added when selected. The author chooses
+    the visible instructions; the draft preserves an explicit layout verbatim.
     """
     spec = load(TEMPLATE)
     spec["render_intent"] = render_intent
@@ -182,6 +230,8 @@ def draft(*, model: str, brief: str, subject: str, kind: str, render_intent: dic
         "pose_and_body_geometry": UNSPECIFIED,
         "props_and_contacts": UNSPECIFIED,
     }]
+    if layout is not None:
+        spec["layout"] = copy.deepcopy(layout)
     require(spec, require_content=False)
     return spec
 
@@ -205,6 +255,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     make.add_argument("--root", type=Path, help="The studio every relative path of this command is below")
     make.add_argument("--render-intent", required=True,
                       help="Explicit finish choice JSON from render_contract.py intent, relative to --root or absolute")
+    make.add_argument("--layout", help="Authored regions and reading relationships JSON, relative to --root or absolute")
     make.add_argument("--model", required=True, help="The model record the image is made with")
     make.add_argument("--brief", required=True, help="The request in one sentence")
     make.add_argument("--subject", default="C01", help="Subject ID the builder's --continuity names (default C01)")
@@ -231,7 +282,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             root = args.root.absolute() if args.root is not None else None
             out = new_output(root, args.out, option="output path")
             spec = draft(model=args.model, brief=args.brief, subject=args.subject, kind=args.kind,
-                         render_intent=load(studio_file(root, args.render_intent, option="--render-intent")))
+                         render_intent=load(studio_file(root, args.render_intent, option="--render-intent")),
+                         layout=load(studio_file(root, args.layout, option="--layout")) if args.layout is not None else None)
             write_new(out, (json.dumps(spec, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8"),
                       option="output path", value=args.out)
             result = {"created": args.out, "sha256": digest(spec),

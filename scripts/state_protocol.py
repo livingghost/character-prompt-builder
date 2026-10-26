@@ -1660,6 +1660,7 @@ def validate_state_artifact_graph(
         "target_model",
         "art_direction",
         "scene",
+        "layout",
         "camera",
         "lighting",
         "selected_preset_ids",

@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Search and inspect the Character Prompt Builder pack records.
 
-This script is deliberately not a prompt generator. It supports two retrieval
-paths: focused lookup after an art direction exists, and sparse-brief discovery
-that preserves explicit identity anchors while proposing several coherent
-visual directions for unspecified axes.
+Retrieve knowledge for unresolved expression choices and inspect chosen records.
+The calling agent chooses how the image communicates and authors its depiction.
 
 Catalog retrieval accepts canonical English craft wording or a structured query
 prepared by the calling agent. Source briefs may remain in any language, but
@@ -58,7 +56,7 @@ from catalog_retrieval.core import (
     token_set,
     tokens_of,
 )
-from catalog_retrieval.discovery import load_discovery_lanes, recommend
+from catalog_retrieval.discovery import recommend
 from catalog_retrieval.queries import (
     analyze_catalog_query,
     ensure_supported_query,
@@ -285,12 +283,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     recommendation = sub.add_parser(
         "recommend",
-        help="Explore coherent visual directions from a sparse canonical brief without requiring record names or IDs.",
+        help="Discover candidate knowledge and available categories from a purpose, without requiring technique names or IDs.",
     )
     _add_query_source_arguments(recommendation)
     _add_record_arguments(recommendation)
     recommendation.add_argument("--domain", choices=sorted(VALID_DOMAINS))
-    recommendation.add_argument("--directions", type=int, default=4)
+    recommendation.add_argument("--limit", type=int, default=8, help="Maximum catalog candidates and vocabulary category matches.")
+    recommendation.add_argument(
+        "--inventory-facets", metavar="NAME,...", default="",
+        help="Show every authored value of these inventory facets in the current catalog scope.",
+    )
 
     inspiration = sub.add_parser("inspire", help="Retrieve diverse atomic ingredients for a chosen direction")
     _add_query_source_arguments(inspiration)

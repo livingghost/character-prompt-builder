@@ -235,6 +235,20 @@
     ],
     "atmosphere": "warm still air with restrained heat tension"
   },
+  "lighting": {
+    "key_light": "warm window light from camera right",
+    "fill_or_ambient": "cool neutral office fill",
+    "rim_or_accent": "small cyan accents on eye and ear stud",
+    "shadow_character": "clean soft-cel shadows with crisp facial markings",
+    "color_relationship": "warm key against cool gray-blue fur and neutral office shadows"
+  },
+  "prompt_scaffold": "Create a state-aware left-three-quarter office portrait that preserves the approved wolf identity, the cyan subject-left ear stud, the healed outer ear-tip notch, cyan eyes, and paired cheek wedges. Show professional composure masking fear through shallow breath, slight temple sweat, and tension concentrated in the left hand. Keep the shirt closed and dry, place the left hand against the desk edge, and use warm window light with cool interior fill in the polished soft-cel style family.",
+  "selected_preset_ids": [
+    "style-family-clear-portrait",
+    "domain-realization-anthropomorphic-animal-baseline",
+    "profile-clear-2d-illustration"
+  ],
+  "render_spec_sha256": "f9fa7effeb1f7a6975d2760a77a076f75201a1483fdfc2d9b978b44756573195",
   "camera": {
     "shot_type": "medium close office portrait",
     "shot_scale": "chest-up",
@@ -315,19 +329,5 @@
       "lens does not exaggerate the muzzle",
       "crop does not pull back to full body"
     ]
-  },
-  "lighting": {
-    "key_light": "warm window light from camera right",
-    "fill_or_ambient": "cool neutral office fill",
-    "rim_or_accent": "small cyan accents on eye and ear stud",
-    "shadow_character": "clean soft-cel shadows with crisp facial markings",
-    "color_relationship": "warm key against cool gray-blue fur and neutral office shadows"
-  },
-  "prompt_scaffold": "Create a state-aware left-three-quarter office portrait that preserves the approved wolf identity, the cyan subject-left ear stud, the healed outer ear-tip notch, cyan eyes, and paired cheek wedges. Show professional composure masking fear through shallow breath, slight temple sweat, and tension concentrated in the left hand. Keep the shirt closed and dry, place the left hand against the desk edge, and use warm window light with cool interior fill in the polished soft-cel style family.",
-  "selected_preset_ids": [
-    "style-family-clear-portrait",
-    "domain-realization-anthropomorphic-animal-baseline",
-    "profile-clear-2d-illustration"
-  ],
-  "render_spec_sha256": "f9fa7effeb1f7a6975d2760a77a076f75201a1483fdfc2d9b978b44756573195"
+  }
 }

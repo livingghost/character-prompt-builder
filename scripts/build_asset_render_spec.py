@@ -108,7 +108,7 @@ def build_render_spec(
     required = (
         "render_spec_id", "asset_id", "purpose", "view", "framing",
         "style_family_id", "target_model", "art_direction", "subject_resolution",
-        "scene", "camera", "lighting", "prompt_scaffold",
+        "scene", "lighting", "prompt_scaffold",
     )
     missing = [key for key in required if request.get(key) in (None, "", {})]
     if missing:
@@ -146,12 +146,17 @@ def build_render_spec(
         "art_direction": require_object(request["art_direction"], "art_direction"),
         "subject_resolution": subject_resolution,
         "scene": require_object(request["scene"], "scene"),
-        "camera": require_object(request["camera"], "camera"),
         "lighting": require_object(request["lighting"], "lighting"),
         "prompt_scaffold": str(request["prompt_scaffold"]).strip(),
         "selected_preset_ids": list(request.get("selected_preset_ids", [])),
         "render_spec_sha256": "0" * 64,
     }
+    if "camera" in request:
+        artifact["camera"] = copy.deepcopy(require_object(request["camera"], "camera"))
+    if "layout" in request:
+        from production_spec import require_layout
+        require_layout(request["layout"])
+        artifact["layout"] = copy.deepcopy(request["layout"])
     artifact = finalize_artifact(artifact)
     report = validate_artifact(artifact)
     if not report.get("ok"):

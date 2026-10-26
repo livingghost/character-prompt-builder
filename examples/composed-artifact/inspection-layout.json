@@ -1,0 +1,58 @@
+{
+  "arrangement": "A large workshop view fills the left two thirds. Two smaller views stack at right with narrow pale gutters.",
+  "regions": [
+    {
+      "id": "workshop",
+      "placement": "Large left region",
+      "depiction": "A compact blue maintenance robot leans over a workbench, seen from behind. Its right gripper rests beside an open brass latch.",
+      "subjects": [
+        {
+          "subject_id": "mechanic",
+          "depiction": "The robot's rounded blue back and planted feet establish its stance at the bench.",
+          "pose_and_body_geometry": "Body inclined toward the latch, both feet planted, right arm extended over the bench.",
+          "visible_elements": ["blue back casing", "right gripper", "both feet"],
+          "occluded_elements": ["front display"]
+        }
+      ]
+    },
+    {
+      "id": "latch",
+      "placement": "Upper right region",
+      "depiction": "A close view shows the open brass latch beside the robot's blue gripper. The detached pin lies across the latch mouth.",
+      "subjects": [
+        {
+          "subject_id": "mechanic",
+          "depiction": "Only the blue gripper enters beside the latch.",
+          "visible_elements": ["right gripper"],
+          "props_and_contacts": "The gripper hovers beside the detached pin. The latch and pin rest on the workbench."
+        }
+      ]
+    },
+    {
+      "id": "display",
+      "placement": "Lower right region",
+      "depiction": "A close front view of the same robot's square amber display shows a single raised white indicator line.",
+      "subjects": [
+        {
+          "subject_id": "mechanic",
+          "depiction": "The amber display and its raised white indicator line occupy most of the region.",
+          "current_state": {"display": "one raised white indicator line"},
+          "visible_elements": ["front display", "blue display bezel"]
+        }
+      ]
+    }
+  ],
+  "reading_order": ["workshop", "latch", "display"],
+  "relationships": [
+    {
+      "from": "workshop",
+      "to": "latch",
+      "relation": "The detail enlarges the latch in the workshop view at the same instant."
+    },
+    {
+      "from": "latch",
+      "to": "display",
+      "relation": "The display belongs to the robot inspecting this latch at the same instant, seen from the other side."
+    }
+  ]
+}

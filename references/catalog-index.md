@@ -8,17 +8,17 @@ This index describes 1 explicitly configured default pack. User-owned and third-
 |---|---:|
 | `domain-realization` | 6 |
 | `model` | 5 |
-| `module` | 88 |
+| `module` | 109 |
 | `profile` | 1 |
 | `scene` | 4 |
 | `style-family` | 4 |
-| **All default-pack records** | **108** |
+| **All default-pack records** | **129** |
 
 ## Record roles
 
 | Role | Count |
 |---|---:|
-| `curated` | 95 |
+| `curated` | 116 |
 | `vocabulary` | 13 |
 
 `curated` records contain complete production knowledge. `vocabulary` records provide compact model-legible names and options. These are different jobs, not a quality ranking.
@@ -32,7 +32,7 @@ This index describes 1 explicitly configured default pack. User-owned and third-
 | `body-language-cue` | 9 |
 | `camera` | 8 |
 | `coat-palette` | 3 |
-| `composition` | 7 |
+| `composition` | 28 |
 | `creature-anatomy` | 20 |
 | `emotion-nuance` | 2 |
 | `gender-presentation` | 3 |
@@ -52,7 +52,7 @@ This index describes 1 explicitly configured default pack. User-owned and third-
   "human": 7,
   "hybrid": 42,
   "robot": 4,
-  "shared": 65
+  "shared": 86
 }
 ```
 

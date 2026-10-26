@@ -92,7 +92,11 @@ Read [Blind Image Evaluation Protocol](../blind-image-evaluation-protocol.md) on
 
 ## Search and reference acceptance
 
-For search changes, require modifier-scope cases, ID-free retrieval, grouping, direction diversity, and preservation of explicit anchors. A four-query batch must load one active catalog once, preserve request order, isolate per-query diagnostics, and match sequential results.
+For search changes, require modifier-scope cases, ID-free retrieval, grouping,
+distinct knowledge candidates, scoped inventory and preservation of explicit
+anchors. A four-query batch must load one active catalog once, preserve request
+order, isolate per-query diagnostics and match sequential results. Evaluate
+agent selection and application with raw briefs separately from textual recall.
 
 For inspection changes, require the complete canonical record plus compact linked-asset IDs, and exclude any complete resource or resolved-path payload. Full artifact details remain exclusive to `asset-lookup`; summary mode returns only compact technical inventory.
 

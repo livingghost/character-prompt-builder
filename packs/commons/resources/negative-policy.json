@@ -14,7 +14,7 @@
       ]
     },
     "single_picture": {
-      "activation": "the request is one picture, not panels, a sheet, or several views",
+      "activation": "the selected depiction is one continuous view and excludes panels, a sheet or additional views; output count alone does not establish this choice",
       "guards_against": [
         "panel layout",
         "several views of the subject"
@@ -75,11 +75,11 @@
       "source": "user brief"
     },
     "selected_render_profile": {
-      "activation": "the author selects a supported medium-drift boundary from the chosen render profile for this image",
+      "activation": "the author selects a supported medium-drift boundary within the scope where the render profile is applied",
       "source_field": "render-profile:negative_terms"
     },
     "selected_style_family": {
-      "activation": "the author selects a supported medium-drift boundary from the chosen style family for this image",
+      "activation": "the author selects a supported medium-drift boundary within the scope where the style family is applied",
       "source_field": "style-family:negative_terms"
     }
   },
@@ -95,6 +95,6 @@
     "requires_user_exclusion": true,
     "guidance": "A negative names only what an active source guards against, including a drift a reviewed result showed; add other concepts, themes, and presentations only when the user explicitly excludes them."
   },
-  "merge_rule": "Assess each source against the complete intended image, explicit user requirements and applicable evidence. Select only necessary constraints, preserve their scope and provenance, and remove redundant wording. Source applicability does not require emitting every term in its bundle or a sentence for every source.",
+  "merge_rule": "Assess each source against the complete intended artifact, explicit requirements and applicable evidence. Preserve the source scope in the selected constraint. A whole-image negative must hold throughout the image; another region may intentionally use the treatment excluded locally. If the interface cannot express a needed local exclusion, describe that local construction positively. Select only necessary constraints and consolidate redundant wording within their scopes.",
   "applicability_rule": "Judge applicability from the intended scene, anatomy, wardrobe, props, camera and finish, including required details the draft has missed. Decide whether a constraint is needed from that full context. An unmentioned structure does not automatically require a negative bundle or an instruction declaring it absent, occluded or out of frame."
 }

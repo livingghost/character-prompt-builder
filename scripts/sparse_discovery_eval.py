@@ -70,7 +70,7 @@ def _missing_expected_ids(
 ) -> list[str]:
     required = {
         str(value)
-        for key in ("expected_top_ids", "expected_identity_top_ids")
+        for key in ("expected_top_ids", "expected_candidate_ids")
         for value in case.get(key) or []
     }
     alternatives = {str(value) for value in case.get("expected_any_top_ids") or []}
@@ -157,61 +157,53 @@ def evaluate() -> dict[str, Any]:
             analysis_object = _analysis_for_request(request, index)
             result = recommend(
                 entries, query, str(domain) if domain else None,
-                int(case.get("directions", 4)), analysis=analysis_object,
+                int(case.get("limit", 8)), analysis=analysis_object, search_index=index,
             )
             analysis = result.get("query_analysis") or {}
             anchors = analysis.get("normalized_anchors") or {}
-            identities = [str(row.get("id")) for row in result.get("identity_candidates") or []]
-            cards = result.get("direction_cards") or []
-            lane_ids = [str(card.get("id")) for card in cards]
-            style_ids = {
-                str((card.get("preset_ids") or {}).get("style_family"))
-                for card in cards
-                if (card.get("preset_ids") or {}).get("style_family")
-            }
+            candidates = result.get("candidates") or []
+            candidate_ids = [str(row.get("id")) for row in candidates]
+            inventory = result.get("catalog_inventory") or {}
             observed = {
-                "canonical_query": analysis.get("canonical_query"),
-                "source_brief": analysis.get("source_brief"),
-                "source_language": analysis.get("source_language"),
-                "anchors": anchors,
-                "identity_ids": identities,
-                "lane_ids": lane_ids,
-                "style_family_ids": sorted(style_ids),
+                "query_analysis": analysis,
+                "candidate_ids": candidate_ids,
+                "inventory_categories": sorted(inventory.get("categories") or {}),
+                "inspection_queue": result.get("inspection_queue"),
+                "terms_without_alias": result.get("terms_without_alias"),
             }
             failures.extend(_contains_expected(anchors, case.get("expected_anchors") or {}))
-            expected_identity = [str(value) for value in case.get("expected_identity_top_ids") or []]
-            if expected_identity and identities[:len(expected_identity)] != expected_identity:
-                failures.append(f"top identity IDs {identities[:len(expected_identity)]} != expected {expected_identity}")
-            forbidden = {str(value) for value in case.get("forbidden_identity_ids") or []}
-            overlap = forbidden & set(identities)
+            expected = {str(value) for value in case.get("expected_candidate_ids") or []}
+            missing = sorted(expected - set(candidate_ids))
+            if missing:
+                failures.append(f"missing candidate IDs {missing}; got {candidate_ids}")
+            expected_top = [str(value) for value in case.get("expected_top_ids") or []]
+            if expected_top and candidate_ids[:len(expected_top)] != expected_top:
+                failures.append(f"top IDs {candidate_ids[:len(expected_top)]} != expected {expected_top}")
+            forbidden = {str(value) for value in case.get("forbidden_candidate_ids") or []}
+            overlap = sorted(forbidden & set(candidate_ids))
             if overlap:
-                failures.append(f"forbidden identity IDs returned: {sorted(overlap)}")
-            expected_lanes = [str(value) for value in case.get("expected_lane_ids") or []]
-            if expected_lanes and lane_ids != expected_lanes:
-                failures.append(f"lane IDs {lane_ids} != expected {expected_lanes}")
-            required_lanes = {str(value) for value in case.get("required_lane_ids") or []}
-            missing_lanes = sorted(required_lanes - set(lane_ids))
-            if missing_lanes:
-                failures.append(f"required lane IDs are missing: {missing_lanes}; got {lane_ids}")
-            minimum_styles = int(case.get("minimum_distinct_style_families", 0))
-            if len(style_ids) < minimum_styles:
-                failures.append(f"only {len(style_ids)} distinct style families; expected {minimum_styles}")
-            required_keys = [str(value) for value in case.get("required_preset_ids_per_card") or []]
-            required_fields = [str(value) for value in case.get("required_fields_per_card") or []]
-            forbidden_card_ids = {str(value) for value in case.get("forbidden_card_preset_ids") or []}
-            for card in cards:
-                missing = [key for key in required_keys if key not in (card.get("preset_ids") or {})]
-                if missing:
-                    failures.append(f"card {card.get('id')} lacks record IDs: {missing}")
-                missing_fields = [field for field in required_fields if not card.get(field)]
+                failures.append(f"forbidden candidate IDs returned: {overlap}")
+            minimum = int(case.get("minimum_candidates", 0))
+            if len(candidates) < minimum:
+                failures.append(f"only {len(candidates)} candidates; expected at least {minimum}")
+            expected_count = case.get("expected_candidate_count")
+            if expected_count is not None and len(candidates) != int(expected_count):
+                failures.append(f"candidate count {len(candidates)} != expected {expected_count}")
+            required_categories = {str(value) for value in case.get("expected_inventory_categories") or []}
+            missing_categories = sorted(required_categories - set(inventory.get("categories") or {}))
+            if missing_categories:
+                failures.append(f"inventory lacks categories {missing_categories}")
+            required_facets = {str(value) for value in case.get("expected_inventory_facets") or []}
+            missing_facets = sorted(required_facets - set(inventory.get("facets") or {}))
+            if missing_facets:
+                failures.append(f"inventory lacks authored facets {missing_facets}")
+            required_fields = [str(value) for value in case.get("required_candidate_fields") or []]
+            for candidate in candidates:
+                missing_fields = [field for field in required_fields if not candidate.get(field)]
                 if missing_fields:
-                    failures.append(f"card {card.get('id')} lacks fields: {missing_fields}")
-                selected_ids = {str(value) for value in (card.get("preset_ids") or {}).values()}
-                forbidden_overlap = forbidden_card_ids & selected_ids
-                if forbidden_overlap:
-                    failures.append(
-                        f"card {card.get('id')} contains forbidden record IDs: {sorted(forbidden_overlap)}"
-                    )
+                    failures.append(f"candidate {candidate.get('id')} lacks fields {missing_fields}")
+            if result.get("inspection_queue") != candidate_ids:
+                failures.append("inspection queue differs from returned candidate IDs")
 
         else:
             failures.append(f"unknown mode: {mode}")

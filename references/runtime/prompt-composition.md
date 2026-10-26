@@ -22,7 +22,13 @@ subjects and relationships the image depends on.
 
 ## Image intent and anchor integrity
 
-Before lookup, privately state in one or two sentences what must be visually true, what holds the image together emotionally and visually, how the subject relates to the viewer, another subject, an object, or the environment, and which medium and finish hold the image together. This image intent describes the finished picture rather than listing attributes. Do not show the private statement unless it helps the user understand a choice or the user asks for it. Records support the direction; they never choose it.
+Establish what the artifact must communicate and which relationships or visible
+information carry that purpose. Keep unresolved presentation and finish choices
+open while consulting knowledge. Follow
+[Production direction](production-direction.md#choose-the-expression) to select
+the construction within the brief's authority. The resulting image intent
+describes the artifact's visual focus; an attribute list is insufficient. State
+a consequential choice to the user when useful, outside the artifact.
 
 Separate anchors from creative space. Never silently alter species, age, build, color, clothing, exposure, role, action, relationship, camera, lighting, or medium. Ask one compact question only when ordinary language understanding still leaves two or more similarly natural readings that would produce materially different images. Do not treat every omission as ambiguity, and do not call a familiar expression ambiguous merely because its individual words admit several translations.
 
@@ -34,27 +40,42 @@ Disclose every anchor change and its actual reason separately from creative rati
 
 ## Whole-image art direction
 
-For a well-specified brief, privately compare two to four coherent treatments of the same intent and choose one. For a sparse brief, use the direction-card procedure in [Sparse-Brief Discovery Runtime](sparse-discovery.md). Never average candidates.
+Use [Discovery](sparse-discovery.md) for unresolved expressive questions in both
+sparse and detailed briefs. Compare treatments when they offer a real tradeoff,
+then select one coherent construction. Fully fixed treatment needs no invented
+contest. Discovery exposes knowledge; the agent owns the decision.
 
 Consider the relevant axes together when choosing a direction. This is a planning aid, not a list of clauses to emit:
 
 - center of appeal;
 - subject-viewer, subject-subject, or subject-environment relationship;
-- viewpoint, framing, depth, silhouette, focal sequence, and visual weight;
-- one medium family, unless a deliberate hybrid is requested;
+- whole-artifact hierarchy, reading order when meaningful, and the relationships
+  between any scenes, details, diagrams, image and type;
+- local viewpoint, framing, depth, silhouette and visual weight where applicable;
+- rendering treatments and their applicable subjects, parts, layers or areas;
 - major masses, directional rhythms, repeated curves or angles, and useful negative space;
 - anatomy, hair, fur, skin, feathers, scales, fabric, casing, metal, water, props, and effects as applicable;
-- local-color hierarchy and one lighting thesis;
+- color hierarchy, with lighting relationships for each depicted space;
 - edge, texture, finish, and complexity concentration.
 
-When medium is open, read the studio's `default_render_profile`. A new studio takes `profile-clear-2d-illustration`, a polished 2D character-illustration direction; inspect that complete render profile before using it. Treat production knowledge as four distinct layers:
+When finish is open, consider the studio's `default_render_profile` in the
+selected construction. A new studio takes `profile-clear-2d-illustration`, a
+polished 2D character-illustration finish; inspect that complete record before
+using it. A default cannot settle the artifact's presentation or override its
+purpose. Treat rendering knowledge as four distinct layers:
 
 1. A universal aesthetic core is optional, zero or one. It provides domain-neutral appeal, hierarchy, viewer relationship, shape rhythm, tactility, color-light taste, and finish. It may sharpen an already chosen direction, but never supplies anatomy or chooses the concept.
 2. A concrete style family is optional, zero or one. It is an indivisible drawing grammar binding line hierarchy, form abstraction, value and shadow design, highlight placement, color behavior, surface grouping, background treatment, detail hierarchy, and domain-specific realization. Select one only when it closely fits the direction. Use its linked render profile as the medium envelope and scoped negative boundary, not as a second positive grammar. If no family fits, proceed with a render profile directly.
 3. A domain realization is normally required for each represented subject domain. It translates the direction into valid identity cues, anatomy or body plan, expression channels, locomotion, surfaces, materials, contact, and environmental interaction. When a family is selected, use that family's matching domain overlay together with the selected domain realization.
 4. A [render profile](../preset-system-contract.md#render-profile) is optional, zero or one. It owns the medium envelope. Without a family it supplies the primary grammar. With a family it supplies compatibility and negative scope while the family remains the primary positive grammar.
 
-Then use only compatible atomic modules and activated corrections for specific construction questions. Aesthetic touches may refine the family only when they preserve its line, value, highlight, and surface systems. An empty candidate group is valid.
+Apply each selected grammar within its declared scope. The shared grammar can
+have zero or one family and profile; a different local treatment uses the
+existing render intent's regional overrides. Interpret knowledge from another
+profile into that scope's selected axes and wording. A family governs the
+areas assigned to it, including its line, value, highlight and surface systems.
+Use compatible atomic modules and activated corrections for the actual
+construction questions. An empty candidate group is valid.
 
 The authority order is:
 
@@ -137,7 +158,8 @@ questions where relevant; neither the plan nor the prompt needs every field:
 3. Who acts on what, addresses whom, or supports and contacts which object?
 4. Which spatial relations distinguish that event, including meaningful depth,
    orientation, scale, overlap or separation?
-5. Which information must be readable, and what camera or composition serves it?
+5. Which information must be readable, and what whole-artifact and local-view
+   composition serves it? Can the chosen view actually show that information?
 6. Which performance cues, clothing details and physical constructions carry
    identity, state or the selected effect?
 7. Which rendering grammar, lighting and material response serve the direction?
@@ -182,7 +204,10 @@ Resolve the image-level grammar independently from the selected medium:
 - material differentiation;
 - background integration.
 
-Project that grammar into one medium; do not concatenate overlapping family and rendering prose after a resolved contract exists.
+Realize the selected grammar within each treatment's scope. Resolve overlapping
+family and rendering knowledge into the actual marks, surfaces and transitions
+instead of appending complete source descriptions. Preserve intentionally
+different treatments within the whole-artifact hierarchy.
 
 Give each instruction the visual priority its meaning requires. Inspect whether local surface, pose or lighting detail overwhelms the whole-image direction. Combine overlapping finish instructions at their controlling scope and preserve distinct identity or construction detail. Repetition and word count alone establish neither useful emphasis nor fidelity; assess the complete rendition and the returned image.
 
@@ -240,13 +265,24 @@ Validate the completed specification before delivery:
 python scripts/production_spec.py validate production-specification.json --require-content
 ```
 
-For state-aware work, follow the State-Aware Series Runtime and reference the sealed lineage, scene context, identity, snapshot, and projection artifacts. For stateless work, do not invent those series references; the same current Production Specification structure still owns the exact one-image scene, camera, relationships, materials, and construction obligations.
+Use its optional `layout` when distinct regions need their own depiction or
+views. Whole-artifact arrangement and reading relationships govern those
+regions; each subject occurrence refers to shared identity and describes only
+its local pose, state and visibility. A simple scene needs no region wrapper.
+Text and diagram regions need no fictitious physical camera. Specify exact
+geometry only when the purpose or requirement needs it.
+
+For state-aware work, follow the State-Aware Series Runtime and reference the
+sealed lineage, scene context, identity, snapshot and projection artifacts.
+Local views retain that authority; a region does not authorize an unrecorded
+state transition. For stateless work, do not invent series references. The same
+Production Specification owns the requested artifact and its construction.
 
 ## Prompt assembly and review
 
 Compose the selected specification as one art brief. Its `image_promise` and
-`art_direction` establish the focus; subject, scene and camera fields resolve
-how that focus is realized. Open a prose rendition with the scene or edit and
+`art_direction` establish the focus; subject, layout, scene and local view fields
+resolve how that focus is realized. Open a prose rendition with the artifact or edit and
 its visual focus, then arrange detail around those relationships. A tag interface
 uses its evidenced order while preserving the same depiction. Field order does
 not determine sentence order. Populated fields need no individual sentence when
@@ -273,8 +309,9 @@ and this specification:
   weaken the intended effect.
 - Check that action ownership, contact, support, gaze and depth communicate the
   selected relationships together.
-- Check that the chosen camera preserves required visibility without changing
-  subject proportions or replacing the requested composition.
+- Check the whole-artifact hierarchy, reading relationships and each local view.
+  Required visibility must be possible in the assigned view. Shared identity
+  does not require every view to expose every identity detail.
 - Check that identity, current state and reference scope agree, including
   properties carried by images rather than repeated in text.
 - Check that local surface, lighting and detail instructions support the chosen
@@ -289,8 +326,9 @@ unusual or difficult depiction from an impossible conjunction of requirements.
 
 Synthetic example: one vase is opaque and another is transparent. Both fit one
 still life. Requiring the same intact wall of one vase to hide its contents and
-show them clearly in the same view needs a decision. Do not invent a cutaway,
-reflection or second moment to reconcile it unless the brief supports that.
+show them clearly in the same view needs a decision. A cutaway or separate view
+can serve an explanatory artifact when presentation is open. It cannot silently
+replace a fixed request for one natural continuous view.
 
 Apply the authority order above. Repair missing meaning or a conflicting draft
 choice in its owning scene or subject description, then rewrite the rendition. If fixed
@@ -379,7 +417,7 @@ Use `directed` and `balanced` unless the user requests another mode.
 - `directed`: make purposeful clothing, setting, lighting, and presentation choices that strengthen the intent;
 - `expansive`: make bolder narrative, fashion, environmental, or graphic choices while preserving the core concept.
 
-Even expansive additions form one image. Interaction modes are:
+Keep additions coherent within the requested artifact. Interaction modes are:
 
 - `balanced`: ask only about consequential unresolved meaning;
 - `interactive`: present two or three complete art directions for selection;

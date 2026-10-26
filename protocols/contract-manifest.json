@@ -31,7 +31,7 @@
     },
     {
       "schema": "shared-state/asset-render-specification.schema.json",
-      "sha256": "b5fea5f175a12a095c654b4b33e551aa58a7c3809f7e0096030efd0fb86a8695"
+      "sha256": "1a7f773e84f7b455dfed2a216431ed5873da3545295132175faa613b9b2f5a48"
     },
     {
       "schema": "shared-state/camera-framing-contract.schema.json",
@@ -127,7 +127,7 @@
     },
     {
       "schema": "shared-state/production-spec.schema.json",
-      "sha256": "f29e5fb38177b0afe58172d30ddc9f6f3e35f2b9d3cdefcd2a37616676b57b56"
+      "sha256": "716ed6723f9e970b11c53436cf4230dc8d2e4f0c6a0b83a7279478f979082e56"
     },
     {
       "schema": "shared-state/reference-bundle-plan.schema.json",
@@ -684,5 +684,5 @@
     "path": "scripts/protocol_contract.py",
     "sha256": "91052913d1da601f3b9f57f02dbc41ef684f5ada7faad60918c02959018ed439"
   },
-  "contract_set_sha256": "ca05d9de721c6c60dc583cfe027e91f1b8a22a496954d1105296e9fbdce0843b"
+  "contract_set_sha256": "b8d986c5d4483bdfa63d6286763a035ae94de8fb27d71efb0c8bbc1423530ea6"
 }

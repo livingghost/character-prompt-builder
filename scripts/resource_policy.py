@@ -6,7 +6,7 @@ core workflows read them, so their contracts hold in every pack that binds them.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Any, Callable
 
 from search_prompt_vocabulary import VocabularyError, validate_vocabulary
@@ -21,26 +21,6 @@ DIAGNOSTIC_ONLY_NEGATIVE_SOURCES = (
     "scene_failure_modes",
     "atomic_misreadings",
 )
-
-
-def medium_selection_allowed(
-    pack_defaults: Mapping[str, Any],
-    medium_families: Sequence[str],
-    *,
-    explicit_hybrid_request: bool,
-) -> bool:
-    """Apply one pack's pack-defaults medium policy to one request."""
-    policy = pack_defaults.get("medium_policy")
-    if not isinstance(policy, Mapping):
-        raise ValueError("medium_policy must be an object")
-    families = tuple(dict.fromkeys(str(value) for value in medium_families if value))
-    if len(families) <= 1:
-        return True
-    if policy.get("single_medium_family_by_default") is not True:
-        return True
-    if policy.get("hybrid_requires_explicit_request") is True:
-        return bool(explicit_hybrid_request)
-    return True
 
 
 def negative_source_emission_allowed(
@@ -71,39 +51,22 @@ def negative_source_emission_allowed(
 
 
 def validate_pack_defaults(value: Any) -> list[str]:
-    """Return medium-policy contract errors for one pack's pack-defaults."""
+    """Check declared authoring authority in pack-defaults."""
     if not isinstance(value, Mapping):
         return ["pack-defaults must contain an object"]
-    policy = value.get("medium_policy")
-    if not isinstance(policy, Mapping):
-        return ["medium_policy must be an object"]
 
     errors: list[str] = []
-    if policy.get("single_medium_family_by_default") is not True:
-        errors.append("medium_policy.single_medium_family_by_default must be true")
-    if policy.get("hybrid_requires_explicit_request") is not True:
-        errors.append("medium_policy.hybrid_requires_explicit_request must be true")
-    try:
-        if not medium_selection_allowed(
-            value,
-            ["single-medium"],
-            explicit_hybrid_request=False,
+    creative = value.get("creative_policy")
+    if not isinstance(creative, Mapping):
+        errors.append("creative_policy must be an object")
+    else:
+        for key, expected in (
+            ("expression_knowledge_before_open_choices", True),
+            ("agent_selects_expression", True),
+            ("preset_names_or_ids_required_for_discovery", False),
         ):
-            errors.append("the medium policy must allow one medium family")
-        if medium_selection_allowed(
-            value,
-            ["medium-a", "medium-b"],
-            explicit_hybrid_request=False,
-        ):
-            errors.append("the medium policy must reject an unrequested hybrid")
-        if not medium_selection_allowed(
-            value,
-            ["medium-a", "medium-b"],
-            explicit_hybrid_request=True,
-        ):
-            errors.append("the medium policy must allow an explicitly requested hybrid")
-    except ValueError as exc:
-        errors.append(str(exc))
+            if creative.get(key) is not expected:
+                errors.append(f"creative_policy.{key} must be {str(expected).lower()}")
     return errors
 
 
@@ -157,51 +120,6 @@ def validate_negative_policy(value: Any) -> list[str]:
     return errors
 
 
-def validate_discovery_lanes(value: Any) -> list[str]:
-    """Return structure errors for discovery-lanes."""
-    if not isinstance(value, Mapping):
-        return ["discovery-lanes must contain an object"]
-    lanes = value.get("lanes")
-    if not isinstance(lanes, list):
-        return ["lanes must be an array"]
-    errors: list[str] = []
-    for index, lane in enumerate(lanes):
-        if not isinstance(lane, Mapping):
-            errors.append(f"lanes[{index}] must be an object")
-            continue
-        lane_id = str(lane.get("id") or f"index-{index}")
-        preferred = lane.get("preferred_scene_ids")
-        if preferred is not None and (
-            not isinstance(preferred, list)
-            or any(not isinstance(target, str) or not target for target in preferred)
-        ):
-            errors.append(
-                f"lane {lane_id!r} preferred_scene_ids must be an array of non-empty IDs"
-            )
-    return errors
-
-
-def validate_discovery_lane_targets(
-    value: Any,
-    canonical_record_ids: Sequence[str] | set[str],
-) -> list[str]:
-    """Resolve every preferred scene against the active canonical record set."""
-    errors = validate_discovery_lanes(value)
-    if errors or not isinstance(value, Mapping):
-        return errors
-    available = {str(record_id) for record_id in canonical_record_ids}
-    for index, lane in enumerate(value.get("lanes") or []):
-        if not isinstance(lane, Mapping):
-            continue
-        lane_id = str(lane.get("id") or f"index-{index}")
-        for target in lane.get("preferred_scene_ids") or []:
-            if str(target) not in available:
-                errors.append(
-                    f"lane {lane_id!r} references missing preferred scene {str(target)!r}"
-                )
-    return errors
-
-
 def validate_prompt_vocabulary(value: Any) -> list[str]:
     """Return schema and uniqueness errors for a prompt-vocabulary resource."""
     try:
@@ -231,7 +149,6 @@ def validate_model_selection_preferences(value: Any) -> list[str]:
 
 
 KNOWN_RESOURCE_VALIDATORS: dict[str, Callable[[Any], list[str]]] = {
-    "discovery-lanes": validate_discovery_lanes,
     "negative-policy": validate_negative_policy,
     "pack-defaults": validate_pack_defaults,
     "prompt-vocabulary": validate_prompt_vocabulary,

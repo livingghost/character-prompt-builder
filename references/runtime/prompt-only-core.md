@@ -8,20 +8,29 @@ Identify the requested artifact: plain prompt text, prompt plus negative text, r
 
 Extract explicit anchors: subject domain, species or body plan, stable identity, count, role, situation, state, camera, medium, and any user-fixed appearance. Keep unmentioned axes open.
 
-Choose the rendering axes deliberately under [Rendering choices and execution controls](render-contract.md).
-Record user selection or the agent's reason. Keep the finish separate from subject identity and presentation.
+Follow [Production direction](production-direction.md#choose-the-expression) for
+the presentation and open expressive choices, then resolve the rendering axes
+under [Rendering choices and execution controls](render-contract.md).
+Record user selection or the agent's reason. Keep finish, presentation and
+subject identity distinct.
 When a model is named, read its complete model guidance card before final wording.
 When no model is named, keep the prompt portable rather than inventing execution settings.
 
 ## 2. Retrieve only what is useful
 
-Use catalog recommendation for a sparse brief. Use atomic search for a named axis. Inspect selected records. Shared identity, occupation, mood, and situation requirements apply to every direction. Camera, lighting, environment, and rendering direction may vary only where the user left them open.
+Use [Discovery](sparse-discovery.md) for an open expressive question, even when
+the subject is fully specified. Use focused search for a known construction
+need. Inspect selected records. Shared identity, occupation, mood and situation
+requirements apply to every direction. Camera, lighting, environment and
+rendering may vary only where the user left them open.
 
 Do not let role similarity replace an explicit species. Do not choose a specific subspecies from a broad species request without evidence. Use occupation modules for role and archetypes for identity structure.
 
 ## 3. Compose
 
-Write a complete depiction from the brief and selected knowledge. A reference-free
+Write the selected construction as a complete depiction from the brief and
+knowledge. Include whole-artifact hierarchy and local views only where needed.
+A reference-free
 prompt must identify its subjects and their necessary relationships in text.
 With references, identify each supplied image and the properties it should carry.
 For an edit, describe the requested change and the properties to preserve.

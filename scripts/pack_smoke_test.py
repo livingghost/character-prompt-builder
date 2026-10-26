@@ -34,7 +34,6 @@ from pack_cache import (
 from pack_cli import main as pack_cli_main
 from package_metadata import PACKAGE_VERSION, calver_key, load_package_metadata
 from resource_policy import (
-    medium_selection_allowed,
     negative_source_emission_allowed,
     validate_known_resource,
 )
@@ -697,7 +696,7 @@ def _precedence_checks(root: Path) -> tuple[int, list[str]]:
     # A baseline pack in the place of the commons, and a pack that requires it.
     baseline_id = _ranked_pack(base / "packs" / "baseline", "Precedence Baseline", {
         "negative-policy": policy("baseline_guard"),
-        "discovery-lanes": {"count": 1, "lanes": [{"id": "lane-baseline", "preferred_scene_ids": ["scene-shared"]}]},
+        "fixture-reference": {"description": "Shared fixture source", "record_ids": ["scene-shared"]},
     }, "scene-shared")
     dependent_id = _ranked_pack(base / "packs" / "dependent", "Precedence Dependent", {
         "negative-policy": policy("dependent_guard"),
@@ -733,9 +732,9 @@ def _precedence_checks(root: Path) -> tuple[int, list[str]]:
         checks += 1
 
     # Fallback: a name only the baseline binds comes from the baseline.
-    lanes = catalog.resources.get("discovery-lanes")
-    if lanes is None or lanes.source_pack != baseline_id or lanes.relative_path != "resources/discovery-lanes.json":
-        errors.append(f"a name only the baseline binds did not fall back to it: {lanes}")
+    reference = catalog.resources.get("fixture-reference")
+    if reference is None or reference.source_pack != baseline_id or reference.relative_path != "resources/fixture-reference.json":
+        errors.append(f"a name only the baseline binds did not fall back to it: {reference}")
     else:
         checks += 1
 
@@ -2080,21 +2079,6 @@ def run() -> dict[str, Any]:
             if (
                 validate_known_resource("pack-defaults", default_pack_defaults)
                 or validate_known_resource("negative-policy", default_negative_policy)
-                or not medium_selection_allowed(
-                    default_pack_defaults,
-                    ["one-medium"],
-                    explicit_hybrid_request=False,
-                )
-                or medium_selection_allowed(
-                    default_pack_defaults,
-                    ["medium-a", "medium-b"],
-                    explicit_hybrid_request=False,
-                )
-                or not medium_selection_allowed(
-                    default_pack_defaults,
-                    ["medium-a", "medium-b"],
-                    explicit_hybrid_request=True,
-                )
                 or negative_source_emission_allowed(
                     default_negative_policy,
                     "semantic_exclusions",
@@ -2126,7 +2110,7 @@ def run() -> dict[str, Any]:
                 )
             ):
                 errors.append(
-                    "bundled default known resources violated medium or negative-source behavior"
+                    "bundled known resources violated authoring or negative-source contracts"
                 )
             else:
                 checks += 1
@@ -2139,7 +2123,7 @@ def run() -> dict[str, Any]:
             )
             semantic_manifest["content"]["resource_globs"] = ["resources/**/*"]
             semantic_manifest["content"]["resource_bindings"] = {
-                "discovery-lanes": "resources/discovery-lanes.json",
+                "prompt-vocabulary": "resources/prompt-vocabulary.json",
                 "pack-defaults": "resources/pack-defaults.json",
                 "negative-policy": "resources/negative-policy.json",
             }
@@ -2156,19 +2140,23 @@ def run() -> dict[str, Any]:
                     ("fixture-species-b", "feline"),
                 ),
             )
-            fixture_discovery_lanes = {
-                "lanes": [
-                    {
-                        "id": "fixture-lane",
-                        "preferred_scene_ids": ["fixture-scene"],
-                    }
-                ]
+            fixture_vocabulary = {
+                "format": "character-prompt-builder-prompt-vocabulary",
+                "name": "Fixture expression vocabulary",
+                "description": "Compact wording for fixture visual structures.",
+                "categories": [{
+                    "id": "fixture-expression",
+                    "name": "Fixture expression",
+                    "description": "Vocabulary for an authored fixture structure.",
+                    "entries": [{"term": "paired views"}],
+                }],
             }
             fixture_pack_defaults = {
-                "medium_policy": {
-                    "single_medium_family_by_default": True,
-                    "hybrid_requires_explicit_request": True,
-                }
+                "creative_policy": {
+                    "expression_knowledge_before_open_choices": True,
+                    "agent_selects_expression": True,
+                    "preset_names_or_ids_required_for_discovery": False,
+                },
             }
             fixture_negative_policy = {
                 "candidate_sources": {},
@@ -2182,7 +2170,7 @@ def run() -> dict[str, Any]:
                 },
             }
             semantic_resource_values = {
-                "discovery-lanes": fixture_discovery_lanes,
+                "prompt-vocabulary": fixture_vocabulary,
                 "pack-defaults": fixture_pack_defaults,
                 "negative-policy": fixture_negative_policy,
             }
@@ -2240,17 +2228,32 @@ def run() -> dict[str, Any]:
             semantic_mutations = [
                 (
                     "pack-defaults",
-                    lambda value: value["medium_policy"].__setitem__(
-                        "single_medium_family_by_default", False
-                    ),
-                    "single_medium_family_by_default",
+                    lambda value: value["creative_policy"].__setitem__("agent_selects_expression", False),
+                    "creative_policy.agent_selects_expression must be true",
                 ),
                 (
                     "pack-defaults",
-                    lambda value: value["medium_policy"].__setitem__(
-                        "hybrid_requires_explicit_request", False
+                    lambda value: value["creative_policy"].__setitem__(
+                        "expression_knowledge_before_open_choices", "true"
                     ),
-                    "hybrid_requires_explicit_request",
+                    "creative_policy.expression_knowledge_before_open_choices must be true",
+                ),
+                (
+                    "pack-defaults",
+                    lambda value: value["creative_policy"].__setitem__(
+                        "preset_names_or_ids_required_for_discovery", True
+                    ),
+                    "creative_policy.preset_names_or_ids_required_for_discovery must be false",
+                ),
+                (
+                    "pack-defaults",
+                    lambda value: value.__setitem__("creative_policy", []),
+                    "creative_policy must be an object",
+                ),
+                (
+                    "pack-defaults",
+                    lambda value: value["creative_policy"].pop("agent_selects_expression"),
+                    "creative_policy.agent_selects_expression must be true",
                 ),
                 (
                     "negative-policy",
@@ -2300,28 +2303,17 @@ def run() -> dict[str, Any]:
                     resource_path,
                     semantic_resource_values[resource_name],
                 )
-            invalid_lanes = json.loads(json.dumps(fixture_discovery_lanes))
-            invalid_lanes["lanes"][0]["preferred_scene_ids"] = ["missing-scene"]
-            lanes_path = semantic_pack / "resources" / "discovery-lanes.json"
-            atomic_write_json(lanes_path, invalid_lanes)
-            write_lock(semantic_pack)
-            invalid_lane_pack_report = validate_pack(semantic_pack)
-            invalid_lane_catalog = load_runtime_catalog(semantic_settings)
-            invalid_lane_diagnostics = [
-                row for row in invalid_lane_catalog.diagnostics
-                if row.get("code") == "known-resource-contract"
-                and row.get("resource") == "discovery-lanes"
-            ]
-            if (
-                not invalid_lane_pack_report.valid
-                or "discovery-lanes" in invalid_lane_catalog.resources
-                or not invalid_lane_diagnostics
-                or "missing-scene" not in str(invalid_lane_diagnostics[0].get("errors"))
+            changed_vocabulary = json.loads(json.dumps(fixture_vocabulary))
+            changed_vocabulary["categories"].append(changed_vocabulary["categories"][0])
+            vocabulary_path = semantic_pack / "resources" / "prompt-vocabulary.json"
+            atomic_write_json(vocabulary_path, changed_vocabulary)
+            vocabulary_report = validate_pack(semantic_pack, require_lock=False, verify_lock=False)
+            if vocabulary_report.valid or not any(
+                issue.code == "known-resource-contract" and "duplicate category" in issue.message
+                for issue in vocabulary_report.issues
             ):
-                mutation_failures.append(
-                    "discovery-lanes: missing preferred scene was not rejected against active records"
-                )
-            atomic_write_json(lanes_path, fixture_discovery_lanes)
+                mutation_failures.append("prompt-vocabulary: duplicate categories were not reported")
+            atomic_write_json(vocabulary_path, fixture_vocabulary)
             write_lock(semantic_pack)
             if mutation_failures or not validate_pack(semantic_pack).valid:
                 errors.append(

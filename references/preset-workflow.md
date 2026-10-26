@@ -1,23 +1,32 @@
 # Preset Workflow
 
-This workflow combines discovery and focused lookup. Preserve the user's fixed anchors while consulting successful craft patterns to develop open choices. A sparse brief can compare coherent directions before selection. During composition and repair, return to the packs for each unresolved craft question. Follow [Craft consultation](runtime/craft-consultation.md) to connect selected knowledge to the production specification and its review.
+This workflow combines discovery and focused lookup. Preserve the user's fixed
+anchors while consulting knowledge to develop open choices. Follow
+[Production direction](runtime/production-direction.md#choose-the-expression)
+for selection and interaction, and [Craft consultation](runtime/craft-consultation.md)
+to connect applied knowledge to a saved specification and its review.
 
 ## 1. Choose the retrieval path
 
-Use focused lookup when the brief already establishes most outcome-defining axes: scene, relationship, composition, medium, camera, light, and mood.
-
-Use sparse-brief discovery when the user supplies only a few stable facts, such as species, build, coat color, age, occupation, or one accessory, while scene, wardrobe, camera, light, mood, and style remain open. Record names and IDs are not required.
+Discover knowledge before choosing an unresolved presentation or expressive
+relationship. Detailed subject requirements can leave those choices open.
+Use focused lookup for a known craft need. Neither path requires known record
+names or IDs.
 
 ```bash
 python scripts/catalog_cli.py recommend \
-  "elderly human botanist" \
-  --domain human \
-  --directions 4
+  "whole object detail relationship" \
+  --limit 8
 ```
 
-Recommendation returns normalized anchors, open axes, identity candidates, and several direction cards. Each card explains what the finished image could become, which anchors it preserves, which choices it adds, what remains adjustable, and which internal records can implement it. Choose one card or present materially distinct cards when the user asks for possibilities. Do not average them.
+Recommendation returns query evidence, candidate knowledge, a scoped catalog
+inventory and optional dictionary categories. Inspect applicable candidates,
+then choose or author a construction that serves the purpose. A search result
+does not supply an adopted direction.
 
-Read `references/runtime/sparse-discovery.md` for runtime modifier scope and direction cards. Read `references/maintenance/search-discovery.md` for many-to-many index authoring, variant grouping, and sparse-query evaluation.
+Read `references/runtime/sparse-discovery.md` for discovery and modifier scope.
+Read `references/maintenance/search-discovery.md` for index authoring, grouping
+and retrieval evaluation.
 
 ## 2. Develop the direction with focused retrieval
 
@@ -26,7 +35,8 @@ Use the brief and complete inspected records to establish:
 - image intent
 - center of appeal
 - subject relationship
-- composition and focal hierarchy
+- whole-artifact hierarchy and any reading relationships
+- local composition and visibility where applicable
 - medium family
 - shape and rhythm
 - surface and tactile character
@@ -101,7 +111,11 @@ Identity contracts: stable morphology, palette, connected marking logic, proport
 
 Atomic candidates from the requested categories. The default `any` retrieval includes both curated and vocabulary roles.
 
-Base scenes and finished recipes are reachable only through `search --kind scene` and `search --include-recipes`. Before atomic retrieval, always run one semantically focused `search --kind scene` query with the required staging relationships; do not restrict this query to staging already known to be common. Normal `search` output groups near-duplicate variants under one representative result. Use `--ungrouped` only when auditing exact inventory or comparing every variant.
+Use `search --kind scene` for base scenes and `search --include-recipes` for
+finished recipes. Retrieve scenes when spatial staging matters; a flat graphic
+needs no invented scene requirement. Normal `search` output groups related
+variants under one representative. Use `--ungrouped` for exact inventory or
+deliberate variant comparison.
 
 ## 5. Apply record roles correctly
 
@@ -167,7 +181,11 @@ Consult scene and recipe candidates while developing the staging or a repeatable
 
 ## 8. Build the modular production specification
 
-For a simple brief, keep the specification compact. For exact poses, interactions, character sheets, or series consistency, record the relevant identity, fashion, body geometry, left and right hand placement, leg placement, head and gaze, prop contact, scene, camera, lighting, and visual-language modules. Read `references/production-specification.md`.
+For a simple brief, keep the specification compact. For interacting requirements,
+record the necessary shared subjects, whole-artifact arrangement and local
+depictions, with geometry, camera and lighting where relevant. The optional
+`layout` owns distinct regions and their reading relationships. Read
+`references/production-specification.md`.
 
 The modules are optional and chainable in function. Include only the controls required by the image, then translate the reviewed specification into one coherent natural-language prompt.
 
@@ -176,13 +194,12 @@ The modules are optional and chainable in function. Include only the controls re
 A useful order is:
 
 ```text
-subject and identity
-→ performance and relationship
-→ pose, support, and contact
-→ composition and camera
-→ environment and light
-→ medium, shape, surface, color, and finish
-→ critical construction constraints
+artifact and visual focus
+-> whole-artifact organization and necessary local views
+-> subjects, performance and relationships
+-> construction, environment and light where relevant
+-> medium, shape, surface, color and finish
+-> necessary scoped constraints
 ```
 
 Do not paste every retrieved record. Integrate selected knowledge into one coherent art brief.
@@ -198,7 +215,7 @@ Check:
 - gaze and relationship
 - anatomy or body-plan coherence
 - support and contact
-- composition and crop
+- whole-artifact hierarchy, reading relationships and local visibility
 - medium integrity
 - surface and material logic
 - color and light
@@ -228,7 +245,7 @@ A scene may contain more than one domain, for example a human with an ordinary a
 - maintain one shared image intent and art direction
 - apply one domain realization to each materially different subject domain
 - coordinate scale, support, contact, and focal hierarchy across them
-- select one render profile for the whole image unless the user requests a deliberate mixed-medium construction
+- apply rendering knowledge at the scopes selected in the [render intent](runtime/render-contract.md)
 
 ## Empty results
 

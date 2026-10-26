@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "production-spec.schema.json",
-  "title": "Scene Production Specification",
-  "description": "The scene record for one image. A free-text field the author leaves open holds the string \"unspecified\". A subject that names an identity contract carries its morphology references and resolved morphology; a state-aware specification also names its lineage, scene context, state snapshot and visual projection.",
+  "title": "Production Specification",
+  "description": "The depiction record for one image artifact. Shared subjects retain identity while an optional layout scopes content, views and visible state to authored regions. A free-text field the author leaves open holds the string \"unspecified\". Referenced identity and state retain their sealed source authority.",
   "type": "object",
   "required": [
     "source_brief",
@@ -254,6 +254,9 @@
     "scene": {
       "type": "object"
     },
+    "layout": {
+      "$ref": "#/$defs/layout"
+    },
     "camera": {
       "$ref": "camera-framing-contract.schema.json"
     },
@@ -476,6 +479,133 @@
     }
   },
   "$defs": {
+    "layout": {
+      "type": "object",
+      "description": "An authored arrangement within one artifact. Regions may be scenes, details, text, diagrams or other content. Reading order expresses attention, independently of depicted time.",
+      "required": ["arrangement", "regions"],
+      "properties": {
+        "arrangement": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The whole artifact's spatial hierarchy, relative region sizes and separation or overlap."
+        },
+        "regions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "placement", "depiction"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "placement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "depiction": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The positive visible content, view and local hierarchy selected for this region."
+              },
+              "subjects": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/subject_occurrence"
+                }
+              },
+              "scene": {
+                "type": "object"
+              },
+              "camera": {
+                "$ref": "camera-framing-contract.schema.json"
+              },
+              "lighting": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "reading_order": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Region IDs in the intended attention sequence. Include only regions whose ordering is selected. This is not a story timeline."
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from", "to", "relation"],
+            "properties": {
+              "from": {
+                "type": "string",
+                "minLength": 1
+              },
+              "to": {
+                "type": "string",
+                "minLength": 1
+              },
+              "relation": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The intended connection, including shared time, elapsed time, enlargement, comparison or continuity wherever applicable."
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "subject_occurrence": {
+      "type": "object",
+      "description": "One depiction of a shared subject. Local state stays within its owning authority; local visibility does not redefine identity.",
+      "required": ["subject_id", "depiction"],
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "depiction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "current_state": {
+          "type": "object"
+        },
+        "pose_and_body_geometry": {},
+        "gaze_and_head": {},
+        "wardrobe_and_accessories": {},
+        "props_and_contacts": {},
+        "performance": {
+          "$ref": "performance-language.schema.json"
+        },
+        "visible_elements": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "occluded_elements": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "sha256": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"

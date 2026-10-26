@@ -1,13 +1,17 @@
-# Sparse-Brief Discovery Runtime
+# Production knowledge discovery
 
-Use this document when a brief fixes only a few stable anchors while several outcome-defining axes remain open. Sparse discovery proposes materially different finished-image directions; it does not replace language understanding or art direction.
+Use this document for open expressive choices, sparse briefs and unresolved
+craft questions. Discovery exposes relevant records and the active knowledge's
+scope before the agent commits to a construction. Follow
+[Production direction](production-direction.md#choose-the-expression) for the
+choice and user interaction.
 
 ## Contents
 
 - [Activation](#activation)
 - [Anchor extraction](#anchor-extraction)
 - [Translation boundary](#translation-boundary)
-- [Direction cards](#direction-cards)
+- [Read the discovery result](#read-the-discovery-result)
 - [Catalog workflow](#catalog-workflow)
 
 ## Activation
@@ -16,12 +20,15 @@ Typical sparse anchors include subject domain; species or body plan; build or pr
 
 Representative sparse briefs may specify only a subject type plus two or three identity anchors, such as age with occupation, chassis shape with one optic, or species with build and coat color.
 
-Skip recommendation when the brief already defines the outcome axes. Use focused `search` or `inspire` after forming the direction.
+An explicit subject and setting can still leave the way information is presented
+open. Query the communication problem as well as subject-specific construction.
+When all relevant choices are fixed, use focused `search` or `inspire` for the
+remaining craft need; there is no reason to invent competing presentations.
 
 The three catalog jobs are distinct:
 
 ```text
-recommend -> explore coherent outcome directions
+recommend -> discover candidate knowledge and available scope
 search or inspire -> retrieve a known craft need
 inspect -> read one selected canonical record in full
 ```
@@ -127,81 +134,57 @@ Start from [the catalog query template](../../templates/catalog-query-template.j
 ```bash
 python scripts/catalog_cli.py recommend \
   --query-json templates/catalog-query-template.json \
-  --directions 4
+  --limit 8
 ```
 
-## Direction cards
+## Read the discovery result
 
-Return three or four cards when the active catalog supports materially different outcomes. Each card contains:
+`recommend` returns `mode: knowledge-discovery` with:
 
-```text
-id
-title
-what_you_get
-why_it_fits
-preserves
-permanent_identity_preserves
-scene_specific_character_state
-terms_without_alias
-adds
-adjustable
-fixed_component_overrides
-preset_ids
-inspection_queue
-open_axes_after_card
+| Field | Use |
+| --- | --- |
+| `query_request`, `query_analysis` | Read the query, explicit anchor evidence, modifier scope and unresolved wording. |
+| `scope` | Confirm the domain and active source packs. |
+| `candidates` | Compare compact record summaries, authored functions, applicability, grouping and textual match evidence. |
+| `catalog_inventory` | See the scoped kinds, categories, tiers and authored facet summaries available for further questions. |
+| `vocabulary` | See the resolved optional dictionary, category counts and lexical category matches. |
+| `inspection_queue` | Locate the returned candidate records for full inspection. |
+| `terms_without_alias` | Preserve meaning that the lexical index has not resolved. |
+
+The inventory is derived from active canonical records. Facet examples are
+bounded; their counts and `truncated` flags distinguish examples from complete
+value coverage. New records and categories enter this inventory through the
+same record projection. The dictionary contributes terms and categories without
+being presented as curated construction knowledge.
+
+When a relevant facet is truncated and its remaining values could affect the
+choice, expand that returned facet name through `--inventory-facets`. The option
+accepts comma-separated names from the current inventory and exposes their full
+authored values. It works for any facet name; no technique list is maintained
+in the command. For example, when these names are present:
+
+```bash
+python scripts/catalog_cli.py recommend "make a small feature readable" \
+  --inventory-facets communication_goal,expression_structure --limit 8
 ```
 
-`fixed_component_overrides` is populated when an explicit style, camera, or light replaces the corresponding discovery-lane default. It records the fixed replacement rather than silently presenting the lane default as selected; otherwise the field remains empty.
+Unknown names produce a query diagnostic. Use this targeted expansion or an
+appropriate focused query when the initial summaries do not expose enough
+alternatives. Do not treat the first few examples as all available forms.
 
-The complete `recommend` result contains:
+Read candidates for what they help communicate and the conditions in which
+that construction works. Search their relevant category or described function
+when a summary exposes another useful question. Inspect the complete record
+before applying it. A candidate can contribute one relationship without its
+example's style, setting or other incidental choices.
 
-```text
-mode
-query_analysis
-identity_candidates
-identity_modules
-domain_realizations
-direction_cards
-terms_without_alias
-note
-```
-
-`query_analysis` contains:
-
-```text
-query
-canonical_query
-normalized_query
-source_brief
-source_language
-domain
-normalized_anchors
-anchor_evidence
-modifier_scope_evidence
-open_axes
-matched_alias_phrases
-terms_without_alias
-```
-
-`what_you_get` is the ordinary-language outcome; `preset_ids` and `inspection_queue` are post-selection internal identifiers for later inspection, not adopted knowledge. A useful card answers:
-
-1. What would the finished picture look and feel like?
-2. Which user anchors remain fixed?
-3. Which scene, camera, lighting, wardrobe, or style choices are proposed?
-4. Which choices can vary without breaking the direction?
-5. Which canonical records implement the result?
-
-Cards differ on outcome-defining axes, not labels. Four minor variants of one athlete portrait are not four directions. A close glossy portrait, athletic action, warm everyday scene, and regal nocturnal portrait are distinct.
-
-`cpb-resource:discovery-lanes` supplies compatible clusters rather than finished recipes. A preferred scene is eligible only when it respects every explicit domain, species, palette, role, wardrobe, accessory, environment, pose, gesture, performance, and staging anchor. Returning a card without a scene record is better than importing a conflict.
-
-The recommender scores lanes against the caller's canonical-English query and explicit facets, preserves fixed anchors and open axes, and returns a diverse set.
-
-A lane must not force a shark-specific water scene onto a wolf merely because both records contain `blue` or `muscular`; a species-specific scene needs explicit compatibility or an adaptable scene contract.
-
-Group near-duplicate variants under one discovery family so they cannot occupy the whole result set. Preserve `discovery_group` and `variant_of` information for inspection.
-
-When the user asks for possibilities, present cards in visual language. When the user asks for an immediate prompt or image, choose the strongest coherent card without asking solely about optional open axes.
+No result constitutes a complete art direction or automatic selection. An
+empty candidate list means that this query found no sufficiently relevant
+record; the inventory remains available for exploration. Counts and lexical
+rank prove neither suitability nor the impossibility of an authored expression.
+Keep subject anchors and source authority intact while deciding whether a
+technique fits. Use an authored construction when no inspected record fits,
+and record that choice through the ordinary retrieval workflow.
 
 ## Catalog workflow
 
@@ -221,12 +204,11 @@ Run recommendation with the same explicit state, cache, managed root, and additi
 
 ```bash
 python scripts/catalog_cli.py recommend \
-  "elderly human botanist" \
-  --domain human \
-  --directions 4
+  "observation reaction attention sequence" \
+  --limit 8
 ```
 
-After choosing a direction, retrieve one known craft need directly:
+Before or after choosing the direction, retrieve a known craft need directly:
 
 ```bash
 python scripts/catalog_cli.py search \
@@ -262,7 +244,7 @@ python scripts/catalog_cli.py inspire \
 
 Base scenes are available only through `search --kind scene`; recipes require `search --include-recipes`. Normal search groups variants; use `--ungrouped` only for exact inventory or variant comparison.
 
-After selecting a card, use one catalog process for all independent queries:
+Use one catalog process for independent questions at the same stage:
 
 ```bash
 python scripts/catalog_cli.py \
@@ -294,6 +276,16 @@ Use `inspect <record-id> --out <path>` when the complete record should go to UTF
 
 ## Runtime failure rules
 
-Never lock a lane suggestion, average cards, force an incompatible scene, let related variants crowd out distinct outcomes, omit unresolved wording, or adopt from an excerpt. One empty result does not prove absent coverage. Read `query_token_count`, `axis_coverage`, and any `retrieval_note` from the complete response. When every requested group and category is empty, or when `retrieval_note` reports that every requested atomic category is empty, separate materially different craft questions and retry each with three to six distinctive words before declaring coverage absent. Preserve every load-bearing anchor and modifier relationship; this is focused recovery from query dilution, not arbitrary shortening. If the batch has no anchor-compatible record with required linked evidence, preserve all anchors and run one focused recovery search for the missing scene, style, or other craft role. Asset presence never outranks compatibility: reject an incompatible asset-bearing record, then inspect and run asset lookup on every recovery candidate before adoption. Against a large pack, use one `batch` process instead of parallel CLI processes, then inspect every adoption completely.
+Preserve unresolved wording and inspect full records before adoption. Reject an
+incompatible candidate even when it has useful assets. A query with no result
+does not prove absent coverage. In focused `inspire` output, read
+`query_token_count`, `axis_coverage` and any `retrieval_note`. When every requested
+group or category is empty, separate materially different questions and retry
+them with concise wording that retains each load-bearing relationship and
+modifier. Three to six distinctive content words can help expose query dilution;
+they are not a limit that permits discarding meaning. Use the inventory to
+investigate another relevant category. Against a large pack, use one `batch`
+process for independent questions, then inspect each selected record and its
+actual linked evidence.
 
 Search-profile authoring, aliases, facets, grouping policy, and evaluation belong to [Search Discovery Maintenance](../maintenance/search-discovery.md), not this runtime path.

@@ -20,7 +20,6 @@
     "art_direction",
     "subject_resolution",
     "scene",
-    "camera",
     "lighting",
     "prompt_scaffold",
     "visual_authority_sha256",
@@ -113,6 +112,9 @@
     },
     "scene": {
       "type": "object"
+    },
+    "layout": {
+      "$ref": "production-spec.schema.json#/$defs/layout"
     },
     "camera": {
       "$ref": "camera-framing-contract.schema.json"

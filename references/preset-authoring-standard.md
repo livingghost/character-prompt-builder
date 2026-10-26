@@ -494,7 +494,7 @@ Do not collapse base anatomy into foreshortening, lighting arrangement into rend
 10. Confirm that ordinary short canonical-English descriptions can reach the record without an exact label, ID, category hint, or internal vocabulary. Preserve source-language briefs only at the agent or structured-query boundary.
 11. For a style-family addition, merge, split, generalization, or rename, update every affected family's review fields and record references in the same change.
 12. Update reference-cluster mapping and provenance notes without distributing source imagery or source identity.
-13. Add focused retrieval regression cases and sparse-discovery cases for modifier scope, anchor preservation, variant grouping, and materially different direction cards when artistic behavior changes.
+13. Add focused and sparse-query regression cases for modifier scope, anchor preservation, variant grouping and distinct useful knowledge candidates when discovery behavior changes. Evaluate actual expressive selection and application at the agent boundary.
 14. Rebuild the generated many-to-many search index and all metadata, then run every required audit.
 
 ### Classification guide

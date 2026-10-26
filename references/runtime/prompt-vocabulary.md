@@ -2,7 +2,15 @@
 
 ## Activation
 
-Use this runtime when the image direction is already understood but the agent needs broader English wording, an alternate phrase, category browsing, or a compact image-prompt term. It supplements catalog records; it does not replace art direction, canonical-record inspection, model adaptation, or the agent's judgment. The lookup is not optional polish: during prompt assembly, run one vocabulary search per distinct visual element before the wording is final, prefer a fitting dictionary term as the compact model-legible tag, and keep hand-composed wording wherever no term fits or prose carries the meaning (see [Prompt Composition Runtime](prompt-composition.md), Prompt assembly and review).
+Use this runtime to discover expressive forms through category browsing or to
+find English wording for a selected construction. Discovery can precede the
+direction choice; compact terms alone do not explain a form's purpose or make
+it appropriate. Inspect applicable production records and use
+[Production direction](production-direction.md#choose-the-expression) to choose.
+During prompt assembly, run one vocabulary search per distinct visual element
+before wording is final. Prefer a fitting term for a compact tag and keep
+authored wording wherever no term fits or prose carries the meaning (see
+[Prompt Composition Runtime](prompt-composition.md), Prompt assembly and review).
 
 A prompt-vocabulary resource is ordinary pack-owned knowledge. It does not decide which entries are appropriate, label entries for exclusion, or inject search results automatically. The Skill-using agent selects, combines, rewrites, or ignores results according to the request and active image interface. After term selection, use the [Prompt Writing Guide Runtime](prompt-writing-guide.md) for final ordering, supported weighting syntax, and model-facing rendition.
 

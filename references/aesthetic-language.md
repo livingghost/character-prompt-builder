@@ -2,7 +2,11 @@
 
 This document defines how Character Prompt Builder stores and applies visual taste across humans, anthropomorphic animals, ordinary animals, creatures, hybrids, and robots.
 
-The first aesthetic dataset was extracted from the reference images supplied during development. Those references were rich in anthropomorphic character art, so they contributed valuable knowledge about silhouette, performance, body mass, graphic surface grouping, clothing tension, viewer relationship, and illustrated lighting. The architecture does not treat those references as the boundary of the skill. It separates cross-domain visual judgment from domain-specific realization so future human, animal, creature, hybrid, and robot material can extend the system cleanly.
+Packs store reusable knowledge about hierarchy, silhouette, performance,
+physical construction, surface grouping, viewer relationships and rendering.
+The architecture separates cross-domain visual judgment from domain-specific
+realization. Source and subject coverage do not define the boundary of possible
+expression; each record states its actual scope.
 
 Source characters, signatures, logos, text, franchise identifiers, and one-off decoration are not preserved. Packs store reusable visual production knowledge for original work.
 
@@ -13,13 +17,15 @@ Aesthetic judgment is not an optional stage added after an otherwise complete di
 - the image's center of appeal
 - the subject's relationship to the viewer, another subject, or the environment
 - composition, depth, silhouette, and focal hierarchy
-- one medium family
+- coherent rendering treatments at their declared scopes
 - shape rhythm and proportion emphasis
 - surface and tactile character
 - color and lighting logic
 - detail and finish hierarchy
 
-Pack records support those decisions after the direction exists. They do not create an aesthetic direction by themselves.
+Consult pack records while developing open decisions and again for the chosen
+construction's details. Their functions and applicability inform direction;
+the agent chooses how they serve the current purpose.
 
 ## Four-layer production-knowledge architecture
 
@@ -145,7 +151,9 @@ enabled render profile records
 
 A [render profile](preset-system-contract.md#render-profile) defines the mechanics of one medium. Examples include clean anime cel illustration, flat cartoon, cinematic soft-cel art, concept-sheet rendering, painterly illustration, photography, and 3D character rendering.
 
-A render profile does not determine the subject's appeal or anatomy. Select at most one compatible render profile. A mixed medium is a separate art direction rather than an average of render profiles.
+A render profile does not determine the subject's appeal or anatomy. It supplies
+one treatment's medium grammar. Use the selected base profile and any scoped
+interpretations through [Rendering choices](runtime/render-contract.md).
 
 ## Atomic aesthetic touches
 

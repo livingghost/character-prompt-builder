@@ -6,24 +6,18 @@
     "center_of_appeal": "the primary visual reason the image should hold attention",
     "viewer_or_environment_relationship": "how the subject relates to the viewer, another subject, and the surrounding space",
     "composition_and_visual_hierarchy": "the framing, depth, focal order, silhouette, and distribution of visual weight",
-    "medium_family": "one deliberate rendering medium selected for the image",
+    "medium_family": "the rendering treatments and their scope within the selected construction",
     "shape_and_rhythm": "the major masses, directional accents, repetitions, and negative spaces that organize the design",
     "surface_and_tactility": "the material behavior of anatomy, covering, clothing, objects, and environment",
-    "color_and_light": "a coherent local-color hierarchy joined to one lighting idea",
+    "color_and_light": "the whole-artifact color hierarchy and relevant lighting relationships within depicted spaces",
     "detail_hierarchy": "the planned concentration of edge precision, texture, and finish"
   },
   "creative_policy": {
-    "art_direction_before_preset_search": true,
     "art_direction_contains_aesthetic_judgment": true,
-    "sparse_brief_discovery_before_final_direction": true,
     "preset_names_or_ids_required_for_discovery": false,
-    "direction_cards_for_open_axes": true,
-    "explicit_identity_anchors_remain_fixed": true
-  },
-  "medium_policy": {
-    "single_medium_family_by_default": true,
-    "hybrid_requires_explicit_request": true,
-    "explicit_user_medium_overrides_default": true
+    "explicit_identity_anchors_remain_fixed": true,
+    "expression_knowledge_before_open_choices": true,
+    "agent_selects_expression": true
   },
   "default_domain_realization_by_domain": {
     "human": "domain-realization-human-baseline",

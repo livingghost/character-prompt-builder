@@ -75,7 +75,7 @@ For anthropomorphic and creature identities, do not collapse human-like head hai
 
 ### IDs and taxonomy
 
-Canonical catalog IDs are stable semantic identifiers. When a taxonomy change changes an ID, update every internal reference, search profile, evaluation case, discovery lane, and documentation link in the same contribution. Every stored ID must resolve directly to a current record.
+Canonical catalog IDs are stable semantic identifiers. When a taxonomy change changes an ID, update every internal reference, search profile, evaluation case and documentation link in the same contribution. Every stored ID must resolve directly to a current record.
 
 ## State and the shot-request boundary
 

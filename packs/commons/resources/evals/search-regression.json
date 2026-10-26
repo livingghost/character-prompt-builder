@@ -1,0 +1,259 @@
+{
+  "purpose": "Verify retrieval of shared visual construction knowledge from ordinary purpose descriptions. Passing demonstrates catalog access, not image quality or model compliance.",
+  "cases": [
+    {
+      "name": "single-view-attention",
+      "mode": "search",
+      "query": "make the main action read first",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-focal-hierarchy"
+        ]
+      }
+    },
+    {
+      "name": "gaze-target-reveal",
+      "mode": "search",
+      "query": "connect a glance to what is seen",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-eyeline-reveal-sequence"
+        ]
+      }
+    },
+    {
+      "name": "event-before-response",
+      "mode": "search",
+      "query": "show the event then the reaction",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-reveal-reaction-sequence"
+        ]
+      }
+    },
+    {
+      "name": "panel-route",
+      "mode": "search",
+      "query": "make the order of panels clear",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-panel-reading-flow"
+        ]
+      }
+    },
+    {
+      "name": "panel-emphasis",
+      "mode": "search",
+      "query": "give one story beat more room",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-panel-rhythm"
+        ]
+      }
+    },
+    {
+      "name": "overview-detail",
+      "mode": "search",
+      "query": "show the whole and a small detail",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-whole-detail-inset"
+        ]
+      }
+    },
+    {
+      "name": "comparable-alternatives",
+      "mode": "search",
+      "query": "make design differences easy to see",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-aligned-comparison"
+        ]
+      }
+    },
+    {
+      "name": "state-change",
+      "mode": "search",
+      "query": "explain change step by step",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-state-sequence"
+        ]
+      }
+    },
+    {
+      "name": "assembly-relationship",
+      "mode": "search",
+      "query": "show how the parts fit together",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-exploded-view"
+        ]
+      }
+    },
+    {
+      "name": "interior-location",
+      "mode": "search",
+      "query": "show what is inside while keeping the outer form",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-cutaway-view"
+        ]
+      }
+    },
+    {
+      "name": "image-text-balance",
+      "mode": "search",
+      "query": "make image and text work together",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-image-type-hierarchy"
+        ]
+      }
+    },
+    {
+      "name": "type-dominance",
+      "mode": "search",
+      "query": "let the words carry the poster",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-type-led-poster"
+        ]
+      }
+    },
+    {
+      "name": "publication-cover",
+      "mode": "search",
+      "query": "organize a cover around title image and lead story",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-editorial-cover-hierarchy"
+        ]
+      }
+    },
+    {
+      "name": "concept-metaphor",
+      "mode": "search",
+      "query": "one shape with two connected meanings",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-graphic-metaphor"
+        ]
+      }
+    },
+    {
+      "name": "page-prominence",
+      "mode": "search",
+      "query": "give a scene the whole page",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-splash-page-scene"
+        ]
+      }
+    },
+    {
+      "name": "self-contained-moment",
+      "mode": "search",
+      "query": "tell a moment in one comic frame",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-single-panel-scene"
+        ]
+      }
+    },
+    {
+      "name": "scroll-discovery",
+      "mode": "search",
+      "query": "reveal the story while scrolling down",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-vertical-scroll-reveal"
+        ]
+      }
+    },
+    {
+      "name": "shared-space-media",
+      "mode": "search",
+      "query": "keep different media while sharing the same space",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-shared-space-mixed-rendering"
+        ]
+      }
+    },
+    {
+      "name": "fragment-relationship",
+      "mode": "search",
+      "query": "connect fragments through overlap and juxtaposition",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-layered-collage"
+        ]
+      }
+    },
+    {
+      "name": "mixed-information",
+      "mode": "search",
+      "query": "organize pictures diagrams and short facts together",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-modular-information-field"
+        ]
+      }
+    },
+    {
+      "name": "interface-meaning",
+      "mode": "search",
+      "query": "explain a screen state with pictures and controls",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-interface-illustration"
+        ]
+      }
+    },
+    {
+      "name": "editorial-information",
+      "mode": "search",
+      "query": "editorial spread with pictures and explanatory labels",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-modular-information-field"
+        ]
+      }
+    },
+    {
+      "name": "image-text-exhibition",
+      "mode": "search",
+      "query": "exhibition graphics with image and text hierarchy",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "composition-image-type-hierarchy"
+        ]
+      }
+    }
+  ],
+  "case_count": 23
+}

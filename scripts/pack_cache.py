@@ -36,7 +36,6 @@ from search_discovery import (
     build_search_profile,
     normalize,
 )
-from resource_policy import validate_discovery_lane_targets
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE_FILENAME = "catalog.sqlite3"
@@ -513,47 +512,6 @@ def _conflict(name: str, pack_ids: Sequence[str]) -> dict[str, Any]:
     }
 
 
-def _apply_contextual_resource_contracts(
-    resources: Sequence[_ResolvedResource],
-    records: Sequence[tuple[DiscoveredPack, PackRecord]],
-    diagnostics: list[dict[str, Any]],
-) -> list[_ResolvedResource]:
-    """Reject resolved known resources whose references miss active records."""
-    canonical_ids = {
-        str(record.record.get("id") or "")
-        for _, record in records
-        if record.record.get("id")
-    }
-    accepted: list[_ResolvedResource] = []
-    for resource in resources:
-        if resource.name != "discovery-lanes":
-            accepted.append(resource)
-            continue
-        try:
-            value = json.loads(resource.path.read_text(encoding="utf-8"))
-            errors = validate_discovery_lane_targets(value, canonical_ids)
-        except (OSError, json.JSONDecodeError) as exc:
-            errors = [str(exc)]
-        if errors:
-            diagnostics.append(
-                {
-                    "severity": "error",
-                    "code": "known-resource-contract",
-                    "resource": resource.name,
-                    "pack_ids": [resource.source_pack],
-                    "path": str(resource.path),
-                    "errors": errors,
-                    "message": (
-                        f"Named resource {resource.name!r} was excluded because its active-record "
-                        "references do not satisfy the core semantic contract."
-                    ),
-                }
-            )
-            continue
-        accepted.append(resource)
-    return accepted
-
-
 def _resolve_runtime_pack_inputs(
     settings: PackSettings,
 ) -> tuple[
@@ -854,11 +812,6 @@ def _create_database(
     resolved_records = _resolve_records(valid_packs, diagnostics, pack_order)
     resolved_records = _remove_broken_record_references(resolved_records, diagnostics)
     resolved_resources = _resolve_resources(valid_packs, pack_validations, diagnostics, pack_order)
-    resolved_resources = _apply_contextual_resource_contracts(
-        resolved_resources,
-        resolved_records,
-        diagnostics,
-    )
 
     # This database is written once into a new file and read whole. Every query
     # the loader issues returns an entire table in a stated order, so the index

@@ -99,7 +99,8 @@ Use the baseline domain realization matching the subject unless a more specific 
 
 A render profile is a pack record of kind `profile`: one coherent medium grammar of line, shape language, value structure, color behavior, surface rendering, light response, background policy, detail hierarchy, and medium-drift terms.
 
-Use at most one render profile. A hybrid medium is a separate art direction.
+Use a profile at its selected scope through the base treatment or regional
+overrides in [Rendering choices](runtime/render-contract.md).
 
 ### Base scene
 
@@ -127,14 +128,14 @@ Catalog retrieval is deterministic textual evidence, not artistic judgment. Reco
 
 Record retrieval has three modes:
 
-- `recommend`: explore coherent finished-image directions from a sparse brief. It returns anchor evidence, open axes, identity candidates, and direction cards.
-- `search` or `inspire`: retrieve known staging, identity, style, or atomic craft knowledge for a chosen direction. Normal search groups near-duplicate variants.
+- `recommend`: discover relevant knowledge before choosing an expression. It returns query evidence, compact candidates, scoped catalog inventory and optional dictionary categories.
+- `search` or `inspire`: retrieve known staging, identity, style or atomic craft knowledge during direction, composition or repair. Normal search groups near-duplicate variants.
 - `inspect`: read the complete canonical record selected by an internal ID.
 
 Search and recommendation output are discovery excerpts. `strong` and `moderate` describe textual evidence only. Empty results are valid. Every selected ID must be inspected in full before adoption. Expression, emotion, pose, activity, situation, relationship, theme, and content-intensity terms are valid retrieval evidence when the canonical records support them. Read `references/maintenance/search-discovery.md` when authoring this evidence.
 
 ```bash
-python scripts/catalog_cli.py recommend "elderly human botanist" --domain human --directions 4
+python scripts/catalog_cli.py recommend "elderly human botanist" --domain human --limit 8
 python scripts/catalog_cli.py inspect <record-id>
 ```
 

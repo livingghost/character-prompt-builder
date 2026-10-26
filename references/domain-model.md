@@ -78,7 +78,10 @@ A natural tiger and an upright tiger person may share tiger species vocabulary, 
 
 ## Multiple domains
 
-A single image may contain several domains. Apply one realization to each materially different subject domain while preserving one image intent, art direction, medium, composition, and lighting system.
+A single image may contain several domains. Apply one realization to each
+materially different subject domain within the shared art direction. Coordinate
+scale, contact and depth where subjects share depicted space; rendering scopes
+follow the selected [render intent](runtime/render-contract.md).
 
 ## Sparse wording
 

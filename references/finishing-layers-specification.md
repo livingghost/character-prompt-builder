@@ -14,17 +14,24 @@ Load this document when a delivered prompt keeps producing the right subject in 
 
 ## 2. The five finishing layers
 
-Every complete image resolves all five layers, explicitly or by default. An unstated layer is an open creative choice; a stated one is an anchor.
+Resolve the layers relevant to each depicted scope. A fixed choice is an
+anchor; an open choice follows the selected production direction. Flat graphics
+and lettering can be complete without a physical camera or lighting setup.
 
-1. Medium grammar is what the image physically pretends to be: flat cel, painterly, watercolor, photograph, 3D render, clay sculpt, vinyl figure, pixel art. One image, one dominant medium. Mixed grammars need an explicit boundary; a painted character over a photographic backdrop is a stated design rather than a drift.
+1. Medium grammar describes the marks and surfaces of a treatment: flat cel, watercolor, photograph, 3D render, clay, pixel art, or another authored treatment. Apply it at its selected scope through the [render intent](runtime/render-contract.md). Mixed treatments need defined relationships and boundaries, including deliberate transitions or material combinations within one subject.
 2. Optical system is how the frame sees. It covers focal behavior (telephoto compression, wide-angle stretch, fisheye), focus falloff (depth of field, blurry foreground or background), exposure character (overexposure, film grain, halation, chromatic aberration), and lens-era cues (film stock looks, analog artifacts).
 3. Light architecture is the physical arrangement: source count, direction, size, and color; named setups when photographic (three-point, Rembrandt, butterfly, split, rim); environment behavior when scenic (golden hour, blue hour, overcast, volumetric fog, crepuscular rays). Light architecture is physical; the medium grammar decides how it is drawn.
 4. Material response is how surfaces answer the light within the chosen medium: PBR separation for 3D, glistening or wet highlights, subsurface warmth, metallic versus matte versus translucent, toy-surface smoothness, fabric weave. A material term that contradicts the medium (photoreal skin pores on a vinyl figure) is a layer conflict to resolve rather than to stack.
-5. Presentation finish is the packaging of the whole frame. It covers backdrop treatment (solid color, gradient, detailed environment), post effects (bloom, vignette, color grading), border and composition furniture, and display idioms (product shot, blind-box presentation, reference sheet, poster layout with text zones).
+5. Presentation finish realizes the construction selected in Production direction. It covers the treatment of backgrounds, borders, lettering, diagrams and other components, plus relevant post effects. A form's familiar furniture is used only where it serves the intended content and hierarchy.
 
 ## 3. Composition order
 
-Resolve the layers top-down after the subject and scene are fixed: medium first, because it constrains everything below; then optics; then light; then materials; then presentation. When a selected style family or render profile already owns a layer, that record is the authority, and prompt text restates nothing that conflicts with it.
+Choose presentation and component relationships through
+[Production direction](runtime/production-direction.md) before refining their
+finish. Within each treatment, resolve medium, relevant optics and light,
+material response and finishing detail together. A selected style family or
+profile contributes within that scope. Preserve both local coherence and the
+chosen relationship between different treatments.
 
 During prompt assembly, run one vocabulary lookup per resolved layer (see the Prompt Vocabulary Runtime). The dictionary carries dedicated categories for typography and logo design, landscape and atmosphere, photography parameters, illustration technique, 3D rendering and materials, and toy and figure finish. Catalog modules exist for the recurring layer choices (rendering, lens, lighting, aesthetic-touch categories); search them before hand-composing a layer.
 

@@ -1,6 +1,8 @@
 # Search Discovery Maintenance
 
-Use this document only when adding or changing search metadata, discovery lanes, catalog retrieval behavior, sparse-direction behavior, or pack-owned retrieval evaluations. Runtime agents should use [Sparse-Brief Discovery Runtime](../runtime/sparse-discovery.md).
+Use this document only when adding or changing search metadata, catalog
+discovery, retrieval behavior or pack-owned evaluations. Runtime agents use
+[Production knowledge discovery](../runtime/sparse-discovery.md).
 
 ## Contents
 
@@ -8,7 +10,7 @@ Use this document only when adding or changing search metadata, discovery lanes,
 - [Search profiles](#search-profiles)
 - [Facet authoring](#facet-authoring)
 - [Modifier-scope authoring](#modifier-scope-authoring)
-- [Direction lanes and diversity](#direction-lanes-and-diversity)
+- [Purpose-bearing knowledge and diversity](#purpose-bearing-knowledge-and-diversity)
 - [Representative coverage cases](#representative-coverage-cases)
 - [Coverage changes and evaluation ownership](#coverage-changes-and-evaluation-ownership)
 - [Maintenance command index](#maintenance-command-index)
@@ -63,7 +65,7 @@ facets
 anchor_signature
 ```
 
-Supply at least three natural canonical-English aliases that do not repeat only the exact ID or label. After caller-side semantic translation, cover visible outcome, camera or viewer relationship, emotional or functional use, and the construction problem solved when supported. An outcome summary describes the image the record can help produce, not merely the record name; keep it concise enough for a direction card and concrete enough for comparison with another result.
+Supply at least three natural canonical-English aliases that do not repeat only the exact ID or label. After caller-side semantic translation, cover visible outcome, camera or viewer relationship, emotional or functional use, and the construction problem solved when supported. An outcome summary describes what the record can help communicate or construct, not merely its name; keep it concise and concrete enough to compare with another candidate.
 
 Reject aliases that copy the exact label three times, merely replace hyphens in the ID, or use one unexplained internal category name. Useful aliases describe visible and usable results, for example:
 
@@ -117,11 +119,28 @@ blue room
 
 Record source span, governed noun, adopted facet, and reason in analyzer evidence. Preserve intended existing cases such as `tall maintenance robot` while preventing unrelated words from entering body build.
 
-## Direction lanes and diversity
+## Purpose-bearing knowledge and diversity
 
-An authored discovery lane contains one outcome thesis, one preferred style family, optional compatible scenes, camera and lighting treatments, environment and mood vocabulary, intended use, and variation guidance. It is not a recipe.
+Canonical records own the relationship between purpose, visible construction
+and applicability. An expression technique belongs in the existing record
+that owns that knowledge, usually a composition module, scene or specialized
+construction record. Its `visual_function` or outcome summary explains what
+the viewer can understand; its prompt wording describes the positive
+construction; invariants and adaptation guidance delimit its scope. Diagnostics
+describe likely misreadings without becoming automatic negative text.
 
-Preferred scenes require explicit compatibility with every fixed domain, species, palette, role, wardrobe, accessory, environment, pose, gesture, performance, and staging anchor. A direction without a scene is better than a conflicting scene. Ensure cards differ materially and group near-duplicate variants.
+Use descriptive search facets for supported communication goals and forms.
+Facet names and values are open data; they are not a fixed media classifier or
+a purpose-to-template dispatch table. The recommender derives candidate
+summaries and kind, category and facet inventory from active records. It returns
+bounded facet examples with coverage counts. An added record therefore becomes
+discoverable without a separate selection registry.
+
+Group variants of one technique while preserving materially different
+constructions. Discovery can expose scene staging, ordered views, graphic
+hierarchy and other knowledge in the same catalog. It must not combine them
+into a selected style, camera or lighting treatment. The agent assesses
+compatibility with the brief and chooses the construction.
 
 When adding or promoting a curated record:
 
@@ -174,14 +193,19 @@ Every sparse-discovery evaluation must cover:
 - the body-build synonym family `muscular`, `muscled`, `powerful`, and `broad-built`;
 - modifier scope such as `blue fur` versus `blue eyes` versus `blue lighting`;
 - retrieval without exact record labels or IDs;
-- variant grouping and minimum direction diversity;
+- variant grouping and distinct relevant knowledge candidates;
 - preservation of explicit identity anchors;
 - preservation of explicit role, wardrobe, accessory, camera, and lighting anchors;
 - exclusion of identity candidates that conflict with explicit coat, species, or domain anchors;
-- domain-safe rejection of incompatible preferred scenes; and
+- scoped catalog inventory, honest empty results and optional dictionary
+  coverage without invented curated records; and
 - visibility of unresolved user wording.
 
-Core retrieval regression tests use canonical English. Multilingual integration tests belong at the agent boundary: they verify that source briefs normalize to the same English anchors and preserve unresolved meaning; they do not create locale dictionaries.
+Core retrieval regression tests use canonical English. Multilingual and
+art-direction evaluations belong at the agent boundary: use raw briefs and
+the installed skill to observe discovery, selection, scope and prompt quality.
+Those evaluations judge meaning and behavior without keyword verdicts or
+locale dictionaries. Retrieval hits alone do not establish useful application.
 
 Run all declared suites through the exact one-pack gate in [Release Validation](../release/validation.md). Deterministic passing proves known retrieval and structural behavior, not artistic quality.
 

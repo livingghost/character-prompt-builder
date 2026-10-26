@@ -53,7 +53,10 @@ The concept was replaced by the nearest record. Return to the chosen art directi
 
 ## The medium drifts
 
-Name one medium family explicitly, select one compatible render profile or style family, and activate its medium-drift terms through the negative policy.
+Identify the affected subject, part or region and its intended treatment.
+Resolve its marks and surfaces through the selected render intent. Apply
+medium-drift terms through the negative policy at that same scope, preserving
+different treatments used elsewhere in the image.
 
 ## Gaze, gesture, or interaction is wrong
 
