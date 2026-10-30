@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import itertools
+import shlex
 import subprocess
 import sys
 from collections import OrderedDict
@@ -2121,20 +2122,37 @@ class LeftOutPackWarningTests(unittest.TestCase):
         )
 
     def test_left_out_pack_is_one_line_and_first_when_nothing_else_is_left(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="cpb-left-out-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="cpb-left-out command-") as temporary:
             folder = Path(temporary).resolve()
             kept = self._pack(folder / "packs" / "kept-shelf", broken=False)
             broken = self._pack(folder / "packs" / "broken-shelf", broken=True)
-            warning = (
+            command_argv = [
+                os.path.abspath(sys.executable), str(Path(catalog_cli.__file__).resolve().with_name("pack_cli.py")),
+                "--state-file", str(folder / "state.json"), "--cache-dir", str(folder / "cache"),
+                "--managed-root", str(folder / "managed"),
+                "--pack-root", str(Path(catalog_cli.__file__).resolve().parents[1] / "packs"),
+                "--pack-root", str(folder / "managed"), "disable", broken,
+            ]
+            shown_command = subprocess.list2cmdline(command_argv) if os.name == "nt" else shlex.join(command_argv)
+            warning_prefix = (
                 "warning: pack broken-shelf is invalid (lock-extra-files: files not in pack.lock.json); "
-                "remove the extra files or disable it: python scripts/pack_cli.py "
-                f"--state-file {folder / 'state.json'} --cache-dir {folder / 'cache'} "
-                f"--managed-root {folder / 'managed'} disable {broken}"
+                "remove the extra files or disable it: "
             )
+            warning = warning_prefix + shown_command
             searched = self._run(folder, [kept, broken], "search", "kept-shelf quiet light")
             self.assertEqual(searched.returncode, 0, searched.stderr)
             self.assertEqual(searched.stderr.splitlines(), [warning])
             self.assertIn("kept-shelf-record", searched.stdout)
+            command = searched.stderr.splitlines()[0][len(warning_prefix):]
+            recovered = subprocess.run(
+                command, shell=True, cwd=folder, capture_output=True, text=True, encoding="utf-8", timeout=30,
+                env={**os.environ, "PATH": "", "PYTHONDONTWRITEBYTECODE": "1", **UNPAINTED},
+            )
+            self.assertEqual(recovered.returncode, 0, recovered.stdout + recovered.stderr)
+            settled = json.loads((folder / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(settled["enabled_packs"], [kept])
+            self.assertEqual(settled["disabled_packs"], [broken])
+            self.assertEqual(settled["pack_roots"], [str(folder / "packs")])
             alone = self._run(folder, [broken], "search", "broken-shelf quiet light")
             self.assertNotEqual(alone.returncode, 0)
             self.assertEqual(alone.stderr.splitlines()[0], warning)

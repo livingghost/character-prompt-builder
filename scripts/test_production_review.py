@@ -239,14 +239,24 @@ class ReviewTests(ReviewCase):
         self.assertTrue(any(expected in e and f'resume --root {self.root} --run {self.run}' in e for e in errors), errors)
 
     def test_corrupt_saved_answer_is_not_used_for_recovery(self):
+        import transport_synthetic
         claim=workflow.find(store.event_rows(self.root,self.run),'dispatch-claim')
         answer=self.root/claim['data']['journal']/'answer.json'
-        answer.write_text('{"data": []}',encoding='utf-8')
-        with self.assertRaises(ProductionError) as caught:
+        observation=answer.with_name('send-observation.json')
+        original=observation.read_bytes()
+        before=store.event_rows(self.root,self.run)
+        changed=b'{"data": []}'
+        answer.write_bytes(changed)
+        with patch.object(transport_synthetic,'send') as send, patch.object(transport_synthetic,'lookup') as lookup, \
+                self.assertRaises(ProductionError) as caught:
             execution.resume(self.root,self.run)
         # Existing candidate registration pins the answer too, so either the
         # general artifact verifier or response boundary may identify corruption.
         self.assertIn(caught.exception.diagnostic.code, {'RESPONSE_CORRUPT','EVIDENCE_SNAPSHOT_CORRUPT','ARTIFACT_CORRUPT'})
+        send.assert_not_called();lookup.assert_not_called()
+        self.assertEqual(answer.read_bytes(),changed)
+        self.assertEqual(observation.read_bytes(),original)
+        self.assertEqual(store.event_rows(self.root,self.run),before)
 
 
 class StoredContentTests(ReviewCase):

@@ -35,7 +35,17 @@ A crowd, a one-line functional participant and a background process stay imperso
 
 ## Before adding a person
 
-When a scene exposes a missing role, inspect the existing cast and world records first, and choose the smallest thing that meets the need:
+When a scene exposes a missing role, inspect the existing cast and world records and retain the
+request's fixed participants, cast size, relationships, knowledge and access. Follow
+[exploration of open choices](narrative-development.md#explore-open-choices-beyond-the-current-inventory)
+for the situation's undecided parts. An existing person's ability to fill a role does not by
+itself make the proposed situation the right choice. Compare what each permitted arrangement
+contributes to the intended development, observation or continuation, with the reasons and
+dependencies that support that judgment.
+
+Once the situation's purpose and applicable causal mechanism have been developed, check the
+candidate arrangements against the actual world and personas. Among arrangements permitted by
+the request, choose the smallest that fully meets the established need:
 
 1. an existing person, compared on their actual role, phase, access and availability;
 2. an unnamed functional participant, when nothing about them will recur;
@@ -43,6 +53,10 @@ When a scene exposes a missing role, inspect the existing cast and world records
 4. a new continuing individual.
 
 A reused person keeps their occupation and knowledge; anything new about them is a proposal. A new person who acts as a person has a present purpose of their own. A job title is a position, and the purpose is what they want there today. A person invented only to explain the focal relationship points to a gap in the world.
+
+The ordering resolves how to realize the situation; it does not decide the scope of open ideation.
+An intentional routine or observation may retain its cast and mechanism. A fixed cast remains a
+constraint throughout, and a proposed expansion follows the admission procedure below.
 
 ## Admission: the author decides who joins the cast
 

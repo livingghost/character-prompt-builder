@@ -16,7 +16,10 @@ sys.dont_write_bytecode = True
 from execution_contract import sha256_file
 from visual_evidence import validate_bundle
 from catalog_cli import load_pack_catalog
+from catalog_retrieval.runtime import using_pack_runtime
+from pack_cache import RuntimePackCatalog
 from pack_manager import validate_pack
+from pack_runtime_cli import add_pack_runtime_arguments, has_pack_runtime_arguments, resolve_pack_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -52,7 +55,7 @@ def self_hash(obj: dict[str, Any]) -> str:
     return hashlib.sha256(canonical(clone).encode("utf-8")).hexdigest()
 
 
-def _resolve_manifest(root: Path | None) -> Path | None:
+def _resolve_manifest(root: Path | None, catalog: RuntimePackCatalog | None = None) -> Path | None:
     if root is not None:
         resolved = root.resolve()
         candidate = resolved / "resources" / "reference-corpus" / "manifest.json"
@@ -67,7 +70,7 @@ def _resolve_manifest(root: Path | None) -> Path | None:
             if isinstance(document, dict) and "reference_corpus_manifest_sha256" in document
             else None
         )
-    resource = load_pack_catalog().resources.get("reference-corpus-manifest")
+    resource = (catalog if catalog is not None else load_pack_catalog()).resources.get("reference-corpus-manifest")
     return resource.path if resource is not None else None
 
 
@@ -154,10 +157,13 @@ def _declared_catalog_thumbnails(
 
 def _pack_record_closure(
     pack_root: Path,
+    *,
+    pack_roots: Mapping[str, Path] | None = None,
 ) -> tuple[dict[str, tuple[str, str, Mapping[str, Any]]], list[str], int]:
-    """Load records from one pack and its required sibling dependencies."""
-    roots_by_id: dict[str, Path] = {}
-    for child in sorted(pack_root.parent.iterdir(), key=lambda value: value.name.lower()):
+    """Load required dependencies from the selected runtime or a standalone sibling tree."""
+    roots_by_id = {pack_id: Path(path).resolve() for pack_id, path in (pack_roots or {}).items()}
+    candidates = () if pack_roots is not None else sorted(pack_root.parent.iterdir(), key=lambda value: value.name.lower())
+    for child in candidates:
         manifest_path = child / "pack.json"
         if not child.is_dir() or not manifest_path.is_file():
             continue
@@ -173,9 +179,12 @@ def _pack_record_closure(
     errors: list[str] = []
     visited: set[str] = set()
 
-    def visit(current_root: Path) -> None:
+    def visit(current_root: Path, expected_id: str | None = None) -> None:
         report = validate_pack(current_root, verify_lock=False)
         pack_id = str(report.pack_id or current_root.name)
+        if expected_id is not None and pack_id != expected_id:
+            errors.append(f"required pack {expected_id!r} resolves to pack {pack_id!r} at {current_root}")
+            return
         if pack_id in visited:
             return
         visited.add(pack_id)
@@ -198,11 +207,12 @@ def _pack_record_closure(
             dependency_id = str(dependency.get("pack_id") or "")
             dependency_root = roots_by_id.get(dependency_id)
             if dependency_root is None:
+                location = "in the selected pack runtime" if pack_roots is not None else f"beside {pack_root.name}"
                 errors.append(
-                    f"required pack {dependency_id!r} is not present beside {pack_root.name}"
+                    f"required pack {dependency_id!r} is not present {location}"
                 )
                 continue
-            visit(dependency_root)
+            visit(dependency_root, dependency_id)
 
     visit(pack_root.resolve())
     return records, errors, len(visited)
@@ -213,9 +223,12 @@ def validate(
     *,
     require_bundles: bool | None = None,
     workers: int = 1,
+    catalog: RuntimePackCatalog | None = None,
 ) -> dict[str, Any]:
     requested_workers = positive_worker_count(workers)
-    manifest_path = _resolve_manifest(root)
+    if root is None and catalog is None:
+        catalog = load_pack_catalog()
+    manifest_path = _resolve_manifest(root, catalog)
     errors: list[str] = []
     warnings: list[str] = []
     if manifest_path is None:
@@ -239,7 +252,9 @@ def validate(
     if pack_root is None:
         errors.append("reference corpus is not owned by a content pack")
     else:
-        available_records, pack_errors, pack_closure_count = _pack_record_closure(pack_root)
+        available_records, pack_errors, pack_closure_count = _pack_record_closure(
+            pack_root, pack_roots=catalog.pack_roots if catalog is not None else None
+        )
         errors.extend(pack_errors)
     evidence_assets = {
         str(record.get("source_sha256") or ""): record
@@ -461,6 +476,7 @@ def validate(
 
 def main() -> int:
     parser = _operation_context.ArgumentParser()
+    add_pack_runtime_arguments(parser)
     parser.add_argument(
         "root",
         nargs="?",
@@ -483,11 +499,21 @@ def main() -> int:
         require = False
     else:
         require = None
-    report = validate(
-        Path(args.root) if args.root else None,
-        require_bundles=require,
-        workers=args.workers,
-    )
+    if has_pack_runtime_arguments(args):
+        runtime = resolve_pack_runtime(parser, args)
+        with using_pack_runtime(runtime.settings):
+            report = validate(
+                Path(args.root) if args.root else None,
+                require_bundles=require,
+                workers=args.workers,
+                catalog=load_pack_catalog(),
+            )
+    else:
+        report = validate(
+            Path(args.root) if args.root else None,
+            require_bundles=require,
+            workers=args.workers,
+        )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["ok"] else 1
 

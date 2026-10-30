@@ -36,7 +36,6 @@ import copy
 import json
 import os
 import re
-import shlex
 import shutil
 import sys
 import tempfile
@@ -44,6 +43,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+from cli_invocation import python_argv, shown
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -73,7 +73,7 @@ PRODUCTION_STATUSES = ("candidate", "accepted", "superseded", "unavailable")
 # Fields read from the run's records for a Production candidate; they are never stored.
 PRODUCTION_PROJECTION = ("evaluation", "disposition", "unassessed_criteria", "selection_diagnostics", "review_ref",
                          "decision_kind", "reason", "production_diagnostic")
-INIT_COMMAND = 'init --out <dir> --studio-id <id> --title "<title>"'
+INIT_ARGUMENTS = ("init", "--out", "<dir>", "--studio-id", "<id>", "--title", "<title>")
 
 README = {
     "characters": "One directory per character: sheet/ (the Character Sheet), iterations/ (every generated image with the exact request and response), accepted/ (the image accepted for each slot), iterations.jsonl (the record of each iteration and its status).\n",
@@ -90,7 +90,7 @@ def read_json(path: Path) -> Any:
 
 def init_command() -> str:
     """The command that creates a studio, with every argument it requires."""
-    return f"python {shlex.quote(str(ROOT / 'scripts' / 'studio.py'))} {INIT_COMMAND}"
+    return shown(python_argv(ROOT / "scripts" / "studio.py", *INIT_ARGUMENTS))
 
 
 def studio_root(start: Path) -> Path | None:
@@ -1060,8 +1060,7 @@ def persona_change_line(root: Path) -> str | None:
         return None
     detail = [f"{states.count('stale')} stale"] if "stale" in states else []
     detail += [f"{states.count('missing')} with a source gone"] if "missing" in states else []
-    command = (f"python {shlex.quote(str(ROOT / 'scripts' / 'scene_persona.py'))} impact "
-               f"--root {shlex.quote(str(root))}")
+    command = shown(python_argv(ROOT / "scripts" / "scene_persona.py", "impact", "--root", str(root)))
     return (f"persona changes reach {_count(reached, 'scene material')}"
             + (f" ({', '.join(detail)})" if detail else "") + f": {command}")
 

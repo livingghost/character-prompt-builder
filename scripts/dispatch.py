@@ -428,11 +428,7 @@ def recorded_run(root: Path, **facts: Any):
 
 def send_and_keep(run: RunJournal, transport: Any, request: dict[str, Any], service: dict[str, Any],
                   key: str) -> dict[str, Any] | None:
-    """Send once and keep the answer with its outcome; None for a send whose outcome is unknown.
-
-    A send that ends without an answer keeps its reason in indeterminate.json and
-    no answer.json, so recovery and resume treat it as unconfirmed. The caller stops.
-    """
+    """Keep the first observation; only a terminal response becomes answer.json."""
     try:
         answer = transport_contract.send_once(transport, request, service, key)
     except transport_contract.Indeterminate as unknown:
@@ -442,60 +438,126 @@ def send_and_keep(run: RunJournal, transport: Any, request: dict[str, Any], serv
               f"again. Check the service's own records before preparing a new run; the request is kept in {run.path}",
               file=sys.stderr)
         return None
-    answer_path = run.write("answer.json", answer)
-    run.write("transport-outcome.json", {"outcome": transport_contract.outcome(transport, answer),
-              "response_sha256": hashlib.sha256(answer_path.read_bytes()).hexdigest()})
-    run.update(status="answered")
+    run.write('send-observation.json', answer)
+    keep_answer(run, transport, answer)
     return answer
 
 
-def acquire(run: RunJournal, transport: Any) -> dict[str, Any]:
-    """Save every image the saved answer returns that the journal does not hold yet.
+def _store_observation(run: RunJournal, name: str, value: Any) -> Path:
+    """Keep provider evidence immutable and diagnose differing saved bytes."""
+    from production_diagnostics import ProductionError
+    path = execution_contract.local(run.path, name, exists=False)
+    expected = execution_contract.encoded(value)
+    if path.exists():
+        actual = execution_contract.read(path)
+        if actual != expected:
+            raise ProductionError('RESPONSE_CORRUPT', 'Saved provider evidence differs from the response being recovered.',
+                                  phase='result-capture', file=str(path),
+                                  expected=hashlib.sha256(expected).hexdigest(), actual=hashlib.sha256(actual).hexdigest(),
+                                  required_action='Restore the recorded response bytes from the Production snapshot; do not resend the request.')
+    return run.write(name, value)
 
-    An image the answer carries inline is decoded from it, and one it names by
-    URL is downloaded. A result already in the journal is complete, because its
-    file is replaced only when whole. One failed image leaves the others.
 
-    The answer stays once, in answer.json. Each image's response-N.json names
-    its place among the returned images and the answer's SHA-256, with the seed,
-    the id and the URL the transport read there.
+def keep_answer(run: RunJournal, transport: Any, answer: dict[str, Any]) -> bool:
+    """Seal a completed provider response, leaving earlier observations unchanged."""
+    observed = transport_contract.outcome(transport, answer)
+    if not transport_contract.complete(transport, answer):
+        run.update(status='pending' if observed == transport_contract.ACCEPTED else 'indeterminate')
+        return False
+    answer_path = _store_observation(run, 'answer.json', answer)
+    _store_observation(run, "transport-outcome.json", {"outcome": transport_contract.outcome(transport, answer),
+              "response_sha256": hashlib.sha256(answer_path.read_bytes()).hexdigest()})
+    run.update(status="answered")
+    return True
+
+
+def acquire(run: RunJournal, transport: Any, *, answer_name: str = 'answer.json',
+            captured: dict[int, str] | None = None) -> dict[str, Any]:
+    """Acquire cumulative outputs against their first response and recorded bytes.
+
+    Each output keeps its first observation, stable index and acquisition digest.
+    Later observations may change order; an existing provider id reuses its index.
+    An interrupted download is retried, while changed acquired bytes are refused.
     """
+    from production_diagnostics import ProductionError
+    captured = dict(captured or {})
     upscale = run.document["operation"] == "upscale"
-    body = (run.path / "answer.json").read_bytes()
+    body = execution_contract.read(execution_contract.local(run.path, answer_name))
     answer, answer_sha256 = json.loads(body.decode("utf-8")), hashlib.sha256(body).hexdigest()
     entries = [entry for entry in transport.results(answer) if entry.get("url") or entry.get("data")]
     refused = transport.rejections(answer)
-    run.update(status="downloading", received=len(entries), refused=refused)
+    receipts = {int(path.stem.split('-')[1]): json.loads(path.read_text(encoding='utf-8'))
+                for path in run.path.glob('response-*.json') if path.stem.split('-')[1].isdigit()}
+    def media_key(entry: dict) -> str:
+        return execution_contract.content_id({'data': entry['data']} if entry.get('data') else {'url': entry.get('url')})
+    observed, assigned = {}, set()
+    for source_index, entry in enumerate(entries, 1):
+        shared_id = not entry.get('id') or sum(item.get('id') == entry.get('id') for item in entries) > 1 \
+            or sum(item.get('id') == entry.get('id') for item in receipts.values()) > 1
+        matches = [index for index, receipt in sorted(receipts.items()) if index not in assigned
+                   and receipt.get('id') == entry.get('id')
+                   and (not shared_id or receipt['media_key'] == media_key(entry))]
+        index = matches[0] if matches else max(receipts, default=0) + 1
+        assigned.add(index)
+        observed[index] = entry
+        if index not in receipts:
+            receipt = {'at': execution_contract.now(), 'answer': answer_name, 'answer_sha256': answer_sha256,
+                       'source_index': source_index, 'index': index, 'seed': entry.get('seed'),
+                       'id': entry.get('id'), 'url': entry.get('url'), 'media_key': media_key(entry)}
+            run.write(f'response-{index}.json', receipt)
+            receipts[index] = receipt
+    run.update(status="downloading", received=len(receipts), refused=refused)
     folder, stem = (run.path / "upscale.references", "output") if upscale else (run.path, "result")
     acquired, failed, downloaded = [], [], 0
-    for index, entry in enumerate(entries, 1):
+    for index, receipt in sorted(receipts.items()):
         response = run.path / f"response-{index}.json"
-        if not response.is_file():
-            run.write(response.name, {"at": execution_contract.now(), "answer_sha256": answer_sha256, "index": index,
-                                      "seed": entry.get("seed"), "id": entry.get("id"), "url": entry.get("url")})
-        else:
-            named = json.loads(response.read_text(encoding="utf-8"))
-            if (named.get("answer_sha256"), named.get("index")) != (answer_sha256, index):
-                raise ValueError(f"{response} names another answer or image than answer.json holds; "
-                                 "the saved evidence changed, so nothing is recorded from it")
+        source_body = execution_contract.read(execution_contract.local(run.path, receipt['answer']))
+        source_entries = [entry for entry in transport.results(json.loads(source_body.decode('utf-8')))
+                          if entry.get('url') or entry.get('data')]
+        position = receipt['source_index']
+        if (receipt['index'] != index or receipt['answer_sha256'] != hashlib.sha256(source_body).hexdigest()
+                or type(position) is not int or not 1 <= position <= len(source_entries)):
+            raise ValueError(f'{response} differs from its original provider observation')
+        entry = source_entries[position - 1]
+        if any(receipt.get(key) != entry.get(key) for key in ('id', 'url', 'seed')) or receipt['media_key'] != media_key(entry):
+            raise ValueError(f'{response} names another provider output')
+        acquired_path = run.path / f'acquisition-{index}.json'
+        previous = json.loads(acquired_path.read_text(encoding='utf-8')) if acquired_path.is_file() else None
+        expected = captured.get(index) or (previous or {}).get('sha256')
         try:
             if entry.get("data"):
                 raw = inline_image(entry["data"])
                 result = folder / f"{stem}-{index}{image_suffix(raw)}"
                 if not result.is_file():
                     execution_contract.atomic(result, raw, replace=True)
+                original = hashlib.sha256(raw).hexdigest()
             else:
                 result = folder / f"{stem}-{index}{suffix_of(entry['url'])}"
-                if not result.is_file():
+                if not result.is_file() or not expected:
                     save(entry["url"], result, transport.RESULT_HOSTS)
                     downloaded += 1
+                original = expected
+            digest = execution_contract.sha256_file(result)
+            latest_data = observed.get(index, {}).get('data')
+            latest_digest = hashlib.sha256(inline_image(latest_data)).hexdigest() if latest_data else digest
         except (OSError, ValueError, http.client.HTTPException) as exc:
             # No credential goes to a result host, so the reason is kept.
             failed.append({"index": index, "error": f"{type(exc).__name__}: {exc}"})
             continue
+        if ((original and digest != original) or (expected and digest != expected) or latest_digest != digest):
+            raise ProductionError('PROVIDER_OUTPUT_CHANGED', 'Acquired provider output differs from its first recorded bytes.',
+                                  phase='result-capture', file=str(result), expected=expected or original, actual=digest,
+                                  required_action='Restore the recorded output bytes from the Production snapshot; do not resend.')
+        acquisition = {'path': result.relative_to(run.path).as_posix(), 'sha256': digest, 'size': result.stat().st_size,
+                       'response_sha256': execution_contract.sha256_file(response)}
+        if previous is not None and previous != acquisition:
+            raise ProductionError('PROVIDER_OUTPUT_CHANGED', 'The acquisition receipt differs from the recorded output.',
+                                  phase='result-capture', file=str(acquired_path))
+        run.write(acquired_path.name, acquisition)
         acquired.append((index, result, response))
     run.update(failed_downloads=failed)
-    return {"entries": len(entries), "refused": refused, "acquired": acquired, "failed": failed, "downloaded": downloaded}
+    return {"entries": len(receipts), "observed_indices": sorted(observed), "refused": refused,
+            "acquired": acquired, "failed": failed, "downloaded": downloaded}
 
 
 def upscale_result_package(run: RunJournal, index: int, output: Path) -> Path:

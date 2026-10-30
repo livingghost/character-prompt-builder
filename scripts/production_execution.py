@@ -25,7 +25,7 @@ from production_diagnostics import ProductionError, compare_exact, from_exceptio
 INSPECTION_ERRORS = (ValueError, OSError, KeyError, TypeError, sqlite3.DatabaseError)
 # Step outcomes the provider evidenced as making nothing.
 NO_EFFECT_OUTCOMES = frozenset({'rejected', 'not_executed'})
-SCRIPT = 'scripts/production_workflow.py'
+SCRIPT = str(Path(__file__).with_name('production_workflow.py'))
 
 
 def _public_call(function):
@@ -67,7 +67,11 @@ def compiled(root: Path, run: str, *, fresh: bool = False) -> tuple:
     rc.validate_seal(rendered)
     compare_exact(plan['request_sha256'], rendered['request_sha256'], phase='integrity')
     transport = transport_contract.load(target['service']['transport'])
-    compare_exact(target['transport_sha256'], c.sha256_file(Path(transport.__file__)), phase='integrity')
+    current_transport = c.sha256_file(Path(transport.__file__))
+    if target['transport_sha256'] != current_transport:
+        raise ProductionError('TRANSPORT_IMPLEMENTATION_CHANGED', 'The installed transport differs from the one sealed for this run.',
+                              phase='integrity', run=run, expected=target['transport_sha256'], actual=current_transport,
+                              required_action='Use the installation that prepared this run to recover its existing provider task. Do not resend it.')
     transport.endpoint(target['service'])
     return directory, prepared, consumer, rows, package, rendered, plan, target, transport
 
@@ -343,6 +347,8 @@ def _transmit(root: Path, run: str, journal, rendered: dict, claim: dict, author
             result = status(root, run)
             result.update(ok=False, execution_completed=False, external_effect=True)
             return result
+        if not transport_contract.complete(transport, answer):
+            return _unfinished(root, run, journal, claim, transport, answer, 'send-observation.json')
         _acknowledge(root, run, journal, claim)
         result = _finish(root, run, journal, transport)
         result.update(external_effect=True)
@@ -358,6 +364,28 @@ def _acknowledge(root: Path, run: str, journal, claim: dict, *, witnesses: tuple
     return _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'acknowledged',
         'response_sha256': c.sha256_file(journal.path / 'answer.json'), **facts,
         'evidence': _evidence(root, run, journal, names)})
+
+
+def _unfinished(root: Path, run: str, journal, claim: dict, transport: Any, answer: dict,
+                answer_name: str, *, witnesses: tuple[str, ...] = (), **facts: Any) -> dict:
+    """Keep an unfinished observation and capture outputs without finalizing the send."""
+    import transport_contract
+    observed = transport_contract.outcome(transport, answer)
+    known_accepted = any(row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
+                         and row['data'].get('submission') == 'pending' for row in store.event_rows(root, run))
+    submission = 'pending' if observed == transport_contract.ACCEPTED or known_accepted else 'outcome_unknown'
+    reason = ('The provider accepted the request and has unfinished outputs.' if submission == 'pending'
+              else 'The saved provider observation does not settle whether the request was carried out.')
+    _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': submission,
+        'provider_outcome': observed, 'reason': reason, **facts,
+        'evidence': _evidence(root, run, journal, ['request-contract.json', 'request.json', answer_name, *witnesses])})
+    if any(entry.get('url') or entry.get('data') for entry in transport.results(answer)):
+        result = _finish(root, run, journal, transport, answer_name=answer_name, provider_complete=False)
+    else:
+        result = status(root, run)
+    journal.update(status=submission)
+    result.update(ok=False, execution_completed=False, external_effect=True)
+    return result
 
 
 def _refused_upload(root: Path, run: str, journal, claim: dict, authorization: str, index: int, refusal) -> dict:
@@ -409,8 +437,10 @@ def submission_state(rows: list[dict], prepared: dict, run: str, *, sender_alive
         return 'not_executed', effects
     outcomes = [row['data']['submission'] for row in rows
                 if row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']]
-    if 'acknowledged' in outcomes or any(row['event'] == 'dispatch-results' for row in rows):
+    if 'acknowledged' in outcomes:
         return 'acknowledged', effects
+    if 'pending' in outcomes:
+        return 'pending', effects
     if outcomes and outcomes[-1] == 'outcome_unknown':
         return 'outcome_unknown', effects
     return ('send_started' if sender_alive else 'outcome_unknown'), effects
@@ -435,30 +465,36 @@ def _record_execution_failure(root: Path, run: str, journal, claim: dict, error:
             current().event('formal_record_unavailable', run=run, phase='execution-recovery')
 
 
-def _finish(root: Path, run: str, journal, transport: Any) -> dict:
+def _finish(root: Path, run: str, journal, transport: Any, *, answer_name: str = 'answer.json',
+            provider_complete: bool = True) -> dict:
     """Recover against the saved runtime, without overriding current selection for a new send."""
     import runtime_snapshot
     import production_workflow as workflow
     prepared=workflow.load_run(root,run)[1]
     descriptor=prepared['runtime_snapshot']
     with runtime_snapshot.using(runtime_snapshot.path(root,descriptor),descriptor):
-        return _finish_captured(root,run,journal,transport)
+        return _finish_captured(root,run,journal,transport,answer_name=answer_name,provider_complete=provider_complete)
 
 
-def _finish_captured(root: Path, run: str, journal, transport: Any) -> dict:
+def _finish_captured(root: Path, run: str, journal, transport: Any, *, answer_name: str = 'answer.json',
+                     provider_complete: bool = True) -> dict:
     """Commit every acquired candidate and accounting before updating Studio."""
     import dispatch
     import production_workflow as workflow
     import studio
     rows = store.event_rows(root, run)
-    expected = {row['data']['response_sha256'] for row in rows
-                if row['event'] == 'execution-outcome' and row['data'].get('response_sha256')}
-    if expected and expected != {c.sha256_file(journal.path / 'answer.json')}:
+    answer_path = journal.path / answer_name
+    relative_answer = answer_path.relative_to(root).as_posix()
+    expected = {item['sha256'] for row in rows for item in row['data'].get('evidence', [])
+                if item['path'] == relative_answer}
+    if expected and expected != {c.sha256_file(answer_path)}:
         raise ProductionError('RESPONSE_CORRUPT', 'Saved provider response differs from its durable receipt.',
-                              phase='result-capture', run=run, file=str(journal.path / 'answer.json'),
+                              phase='result-capture', run=run, file=str(answer_path),
                               required_action='Restore the recorded response bytes; do not resend the request.')
+    captured = {index: item['sha256'] for row in rows if row['event'] == 'dispatch-results'
+                for index, item in zip(row['data']['output_indices'], row['data']['files'])}
     with stage('result-capture'):
-        acquisition = dispatch.acquire(journal, transport)
+        acquisition = dispatch.acquire(journal, transport, answer_name=answer_name, captured=captured)
     package = c.load(journal.path / 'package.json')
     capture_diagnostics=[]
     if acquisition['refused']:
@@ -466,7 +502,7 @@ def _finish_captured(root: Path, run: str, journal, transport: Any) -> dict:
             'message':'The saved provider answer includes refusal information. Inspect its exact reason with the generation failure assessment; a provider rejection alone does not identify moderation.',
             'required_action':'Use render_contract.py diagnose with the saved response before changing models or retrying.',
             'count':len(acquisition['refused'])})
-    if acquisition['entries']!=journal.document['expected']:
+    if provider_complete and acquisition['entries']!=journal.document['expected']:
         capture_diagnostics.append({'code':'OUTPUT_COUNT_MISMATCH','severity':'warning','phase':'result-capture',
             'message':'Returned output count differs from the authorized request.','expected':journal.document['expected'],'actual':acquisition['entries']})
     result_packages={}
@@ -483,7 +519,7 @@ def _finish_captured(root: Path, run: str, journal, transport: Any) -> dict:
             [path for _, path, _ in acquisition['acquired']], journal.document['expected'],
             indices=[index for index, _, _ in acquisition['acquired']], returned_count=acquisition['entries'],
             upscale_packages=result_packages if journal.document['operation']=='upscale' else None,
-            invalid_output_indices=invalid_upscale)
+            invalid_output_indices=invalid_upscale, answer_name=answer_name, provider_complete=provider_complete)
         directory, prepared, _, rows = workflow.load_run(root, run)
         claim = workflow.find(rows, 'dispatch-claim')
         handoff = workflow.find(rows, 'handoff')
@@ -494,18 +530,23 @@ def _finish_captured(root: Path, run: str, journal, transport: Any) -> dict:
                  'media': workflow.media.inspect(c.object_read(directory, item['sha256']), prepared['task']['artifact']),
                  'note': 'Captured provider output; not a review or selection.',
                  'output_index': index, 'provider_output_id': response.get('id')})
-        answer = c.load(journal.path / 'answer.json')
+        answer = c.load(answer_path)
         usage = transport.usage(answer)
-        response_ref = workflow.file_record(root, directory, (journal.path / 'answer.json').relative_to(root).as_posix())
+        if usage is not None and len(acquisition['observed_indices']) != acquisition['entries']:
+            # This charge covers only the latest observation. Earlier outputs
+            # remain captured, but their costs cannot be inferred or counted twice.
+            usage = {**usage, 'final': False}
+        response_ref = workflow.file_record(root, directory, relative_answer)
         authorization=claim['data']['authorizations'][0]
         rendered=c.load(journal.path/'request-contract.json')
         for index in range(len(rendered['media'])):
             _upload_receipt(root,run,journal,rendered,claim,authorization,index)
-        accounting.record_effect(root,run,authorization,claim=claim['sha256'],step='send',usage=usage,evidence=[response_ref])
+        if provider_complete:
+            accounting.record_effect(root,run,authorization,claim=claim['sha256'],step='send',usage=usage,evidence=[response_ref])
         state=accounting.require_active(store.event_rows(root,run),prepared,run,authorization)
         actual_cost,_=accounting.effect_total(state)
         accounting.record_result(root, run, authorization, outputs=len(acquisition['acquired']),
-            cost=actual_cost, final=not acquisition['failed'], evidence=[response_ref])
+            cost=actual_cost if provider_complete else None, final=provider_complete and not acquisition['failed'], evidence=[response_ref])
         _append(root, run, 'capture-status', {'claim': claim['sha256'], 'capture': 'complete' if result['data']['complete'] else 'partial',
             'received': acquisition['entries'], 'registered': len(acquisition['acquired']), 'expected': journal.document['expected'], 'diagnostics':capture_diagnostics})
     # These files are projections. A slot removed during generation cannot
@@ -522,7 +563,7 @@ def _finish_captured(root: Path, run: str, journal, transport: Any) -> dict:
                 if found is None:
                     row = studio.iterate(root, journal.document['character'], journal.document['slot'], path,
                         package=result_packages.get(index,journal.path / 'package.json'), request=journal.path / 'request.json', response=response,
-                        answer=journal.path / 'answer.json', note='Projection of the captured Production candidate.',
+                        answer=c.local(journal.path, c.load(response)['answer']), note='Projection of the captured Production candidate.',
                         service=journal.document['offering'],
                         package_companion=(journal.path / journal.document['companion']) if journal.document.get('companion') else None,
                         layout=c.load(journal.path / 'request-contract.json')['layout'])
@@ -540,14 +581,15 @@ def _finish_captured(root: Path, run: str, journal, transport: Any) -> dict:
             journal.update(status='projection-missing')
     report = status(root, run)
     report['warnings'] = warnings
-    report['execution_completed'] = result['data']['complete'] and not warnings
+    report['execution_completed'] = provider_complete and result['data']['complete'] and not warnings
     report['ok'] = report['ok'] and report['execution_completed']
     return report
 
 
 def _lookup_receipt_name(journal) -> str:
     number = 1
-    while (journal.path / f'lookup-{number:03d}.json').exists():
+    while any((journal.path / name).exists() for name in
+              (f'lookup-{number:03d}.json', f'lookup-{number:03d}-answer.json')):
         number += 1
     return f'lookup-{number:03d}.json'
 
@@ -555,6 +597,7 @@ def _lookup_receipt_name(journal) -> str:
 def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transport: Any) -> dict:
     """Ask the provider once for the lost answer of the started send, and record what it said."""
     import transport_contract
+    import dispatch
     request = c.load(journal.path / 'request.json')
     # A transport without lookup is asked nothing, so it needs no credential.
     key = _credential(transport, target['service']) if callable(getattr(transport, 'lookup', None)) else ''
@@ -571,20 +614,25 @@ def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transpo
         return result
     receipt = {'outcome': found['outcome'], 'reason': found['reason'], 'transport': target['service']['transport'],
                'request_sha256': c.sha256_file(journal.path / 'request.json'), 'looked_up_at': c.now()}
+    if found.get('evidence') is not None:
+        receipt['evidence'] = found['evidence']
     name = _lookup_receipt_name(journal)
     if found['outcome'] == 'found':
-        answer_path = journal.write('answer.json', found['answer'])
+        answer_name = name.removesuffix('.json') + '-answer.json'
+        answer_path = journal.write(answer_name, found['answer'])
         response_sha256 = c.sha256_file(answer_path)
-        journal.write('transport-outcome.json', {'outcome': transport_contract.outcome(transport, found['answer']),
-                                                 'response_sha256': response_sha256})
         journal.write(name, {**receipt, 'response_sha256': response_sha256})
-        journal.update(status='answered')
+        if not dispatch.keep_answer(journal, transport, found['answer']):
+            return _unfinished(root, run, journal, claim, transport, found['answer'], answer_name,
+                               witnesses=(name,), lookup='found')
         _acknowledge(root, run, journal, claim, witnesses=(name,), reconciled='provider-lookup', lookup='found')
         result = _finish(root, run, journal, transport)
         result.update(external_effect=True)
         return result
     journal.write(name, receipt)
-    _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'outcome_unknown',
+    known_accepted = any(row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
+                         and row['data'].get('submission') == 'pending' for row in store.event_rows(root, run))
+    _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'pending' if known_accepted else 'outcome_unknown',
         'lookup': found['outcome'], 'reason': found['reason'], 'evidence': _evidence(root, run, journal, [name])})
     result = status(root, run)
     result.update(ok=False, execution_completed=False, external_effect=False)
@@ -620,7 +668,9 @@ def _record_not_executed(root: Path, run: str, journal, claim: dict, execution_s
     if send is None:
         raise ProductionError('OUTCOME_STATEMENT_NOT_APPLICABLE', 'No send started for this execution.', phase='resume', run=run,
                               required_action='Resume this unsent execution, or abandon the task without changing its history.')
-    if (journal.path / 'answer.json').is_file():
+    if (journal.path / 'answer.json').is_file() or any(
+            row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
+            and row['data'].get('submission') == 'pending' for row in store.event_rows(root, run)):
         raise ProductionError('OUTCOME_STATEMENT_CONFLICT', 'The provider answer for this send is saved.', phase='resume', run=run,
                               required_action='Run resume without --outcome-file to register the saved answer.')
     if statement['actor'] not in execution_state['outcome_actors']:
@@ -649,6 +699,7 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
     """Recover the same claim, without freshness gates on already received bytes."""
     import dispatch
     import production_workflow as workflow
+    import transport_contract
     initial = workflow.load_run(root, run)
     if initial[1]['task']['execution'] != 'dispatcher':
         if outcome_file is not None:
@@ -667,7 +718,30 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
     if outcome_file is not None:
         return _record_not_executed(root, run, journal, claim, execution_state, outcome_file)
     send = next((step for step in execution_state['steps'] if step['operation'] == 'send'), None)
+    observations = ([journal.path / 'send-observation.json'] if (journal.path / 'send-observation.json').is_file() else [])
+    observations += sorted(journal.path.glob('lookup-*-answer.json'), key=lambda path: int(path.name.split('-')[1]))
+    if observations and send is not None:
+        observation = observations[-1]
+        relative = observation.relative_to(root).as_posix()
+        recorded = {item['sha256'] for row in rows for item in row['data'].get('evidence', []) if item['path'] == relative}
+        if recorded and recorded != {c.sha256_file(observation)}:
+            raise ProductionError('RESPONSE_CORRUPT', 'The saved provider observation differs from its durable receipt.',
+                                  phase='resume', run=run, file=str(observation))
+        saved = c.load(observation)
+        if transport_contract.complete(transport, saved):
+            # Recover a crash after saving the observation but before publishing the final answer.
+            dispatch.keep_answer(journal, transport, saved)
+        elif not (journal.path / 'answer.json').is_file():
+            witnessed = bool(recorded)
+            if not witnessed:
+                return _unfinished(root, run, journal, claim, transport, saved, observation.name)
+            if (any(entry.get('url') or entry.get('data') for entry in transport.results(saved))
+                    or list(journal.path.glob('response-*.json'))):
+                _finish(root, run, journal, transport, answer_name=observation.name, provider_complete=False)
     if (journal.path / 'answer.json').is_file():
+        if not transport_contract.complete(transport, c.load(journal.path / 'answer.json')):
+            raise ProductionError('RESPONSE_CORRUPT', 'The sealed final answer no longer settles this request.',
+                                  phase='resume', run=run, required_action='Restore the recorded answer bytes; do not resend.')
         acknowledged = any(row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
                            and row['data'].get('submission') == 'acknowledged' for row in rows)
         if send is not None and not acknowledged:
@@ -780,7 +854,8 @@ def _logs_by_run(root: Path) -> dict[str, list[str]]:
 
 
 def _argv(command: str, root: Path, *arguments: str) -> list[str]:
-    return ['python', SCRIPT, command, '--root', str(root), *arguments]
+    from cli_invocation import python_argv
+    return python_argv(SCRIPT, command, '--root', str(root), *arguments)
 
 
 def _action(command: str, root: Path, arguments: list[str], reason: str) -> dict:
@@ -863,6 +938,11 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
     run = report['run']
     mode = prepared['task']['execution']
     events = {row['event'] for row in rows}
+    if mode == 'dispatcher' and report['submission'] == 'pending':
+        return _action('resume', root, ['--run', run],
+            'The provider accepted this task and is still processing. Resume retrieves the same task without sending again.')
+    if mode == 'dispatcher' and report['submission'] == 'outcome_unknown':
+        return _unknown_outcome_action(root, run, rows)
     if report['task_disposition'] == 'completed':
         return None
     if report['task_disposition'] == 'abandoned':

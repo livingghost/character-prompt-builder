@@ -216,13 +216,15 @@ Each run reports these state axes:
 |---|---|
 | `preparation` | `staged`, `prepared` |
 | `readiness` | `ready`, `authorization_required`, `configuration_required`, `blocked` |
-| `submission` | `unclaimed`, `claimed`, `send_started`, `acknowledged`, `outcome_unknown`, `not_executed` |
+| `submission` | `unclaimed`, `claimed`, `send_started`, `pending`, `acknowledged`, `outcome_unknown`, `not_executed` |
 | `capture` | `none`, `partial`, `complete` |
 | `registration` | `unregistered`, `registered`, `projection-missing` |
 | `review` | `unreviewed`, `partial`, `complete` |
 | `task_disposition` | `open`, `completed`, `abandoned` |
 
 `submission` comes only from the claim, the send step and `execution-outcome` events.
+`pending` means the provider accepted the request and still has unfinished outputs; its next action is `resume`.
+`outcome_unknown` means the available evidence does not establish whether the provider carried out the request.
 `readiness` reports current authority, credentials, input and recording diagnostics before any send.
 External tasks with a declared image input require a recorded handoff and a current exact submission authorization before reporting `ready`.
 A complete review is not necessarily a passing one.
@@ -245,12 +247,19 @@ A synthetic prepared run that waits for authority shows (trimmed, the studio pat
 
 `resume` recovers the same execution from saved evidence and never sends its request again:
 
-- A saved provider answer is registered again without sending. Repeated recovery creates no second candidate, Studio iteration or settlement.
+- A completed provider answer is registered again without sending. Repeated recovery creates no second candidate, Studio iteration or settlement.
 - Every acquired output is kept, including partial or unexpected output counts.
+- A processing response keeps the execution open. Its available outputs become candidates while `resume` asks for the same provider task.
+- The first response stays in `send-observation.json`; each lookup keeps its own receipt and response. Only a completed response becomes `answer.json`.
+- Each output retains its first response, acquisition digest and stable position. A later response can change order without duplicating candidates.
+- A response charge remains provisional when that response omits earlier acquired outputs. Unknown total cost never becomes a confirmed smaller bill.
+- Resume compares acquired bytes with their first digest. Restore a changed journal image from its Production snapshot before recovering further outputs.
 - An execution with no started step continues after current conditions are checked again. A failed check is recorded as a stopped attempt of the same claim.
 - A durably completed upload can be reused before the first send; an upload without a saved response stays unknown.
-- A started send without a saved answer is `outcome_unknown`. `resume` asks the provider once per call through the transport's lookup.
-- When the lookup finds no answer, `draft-outcome` writes the statement form. The actor fills it with evidence that the provider's records hold no such task.
+- An unreadable successful HTTP response or an inconclusive JSON response stays `outcome_unknown`. The journal preserves the observation.
+- A started send without a completed answer uses the transport's lookup once per `resume` call, including accepted processing tasks.
+- When acceptance remains unknown and lookup finds no answer, `draft-outcome` writes the statement form.
+  The actor fills it with evidence that the provider's records hold no such task.
 - `resume --outcome-file` records that statement as `not_executed`; the actor must be one of the execution's recorded outcome actors.
 
 A synthetic send whose answer was lost makes `resume` exit 4 after the lookup, with this run state (trimmed):
@@ -262,7 +271,20 @@ A synthetic send whose answer was lost makes `resume` exit 4 after the lookup, w
 ```
 
 An outcome-unknown execution stays unresolved. Inspect provider evidence; a timeout or missing file never authorizes resending.
+A pending task keeps `resume` as its next action even when a later lookup has no answer.
+Transport adapters normalize their supported output carriers: URL, base64 or data URI.
+Direct responses and lookup share the same acquisition contract.
+A synthetic partial-response test reports this state while one output remains unfinished (trimmed):
+
+```json
+{"submission": "pending", "capture": "partial",
+ "execution": {"status": "captured"}, "next_action": {"command": "resume"}}
+```
+
 A transport without lookup returns the warning `PROVIDER_LOOKUP_UNSUPPORTED`.
+Recovery uses the exact transport implementation sealed at preparation.
+Keep that installation until its sent runs finish; the pack snapshot contains catalog data, not executable transport code.
+`TRANSPORT_IMPLEMENTATION_CHANGED` directs recovery through that installation without changing the task identifier or sending again.
 The [synthetic resume example](../../examples/resume-recording/README.md) shows a real report before and after an input change.
 
 Abandon a work task with `work_ledger.py --studio STUDIO abandon --reason TEXT --actor NAME`.

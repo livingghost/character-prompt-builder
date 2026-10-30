@@ -144,14 +144,26 @@ These prose statuses are author records, not a machine-enforced approval system.
 
 ## Alternatives and probes
 
+Establish the shared comparison and locked baseline before developing the candidates. Keep an
+identifiable record for each alternative, with its own explanation, source basis and unresolved
+dependencies. The three comparison fields below belong to each candidate; repeat them within its
+record or link to their complete contents there. Use the sections that serve the requested
+output, preserving the information needed to judge each proposal.
+
 - **comparison_axis**:
-  <!-- Which decision varies, and why these are alternatives to the same request. -->
+  <!-- Which decisions remain open, why these are alternatives to the same request, and whether the purpose is a new development, an intentional continuation, observation or formal variation. -->
 - **locked_baseline**:
-  <!-- Decisions that every option must preserve; disclose any required cross-layer change. -->
+  <!-- User requirements and adopted decisions every option must preserve from the start, with their owning sources: participants, cast size and composition, knowledge, access, relationships, world rules, setting, timing, viewpoint and form where fixed. Disclose any proposed cross-layer change as a separate branch with its consequences and adoption scope. -->
 - **candidate_records**:
-  <!-- Keep incompatible options apart; hypothetical probes are not established story events. -->
+  <!-- Identify each alternative and its status. Keep incompatible options apart; hypothetical probes are not established story events. Record the comparisons below per candidate and retain the basis for selection or further development. -->
+- **borrowed_material_and_function**:
+  <!-- Name the relevant existing people, places, objects, routines, scenes or tropes, their source or decision basis, and what each contributes here. Explain why reuse serves this candidate; availability alone is insufficient. If no material is borrowed, record n/a with a reason. -->
+- **new_causal_contribution**:
+  <!-- For causal development, identify the new choice, pressure, information, obligation, consequence or relationship, what it changes afterward, and the earlier scene or alternative used for comparison. A new name or place alone is not a causal contribution. For intentional reprise, routine, observation or formal continuation, record the intended persistence and why causal novelty is inapplicable. -->
+- **substitution_test_and_reuse_reason**:
+  <!-- Within permitted variation, would replacing the borrowed element preserve the same choice, pressure and outcome? Identify the compared mechanism and the relationships supporting the answer, then explain the reason to reuse or reconsider the material. Preserve fixed identities and conditions; a hypothetical substitution does not authorize a change to the baseline. -->
 - **interface_test_and_counterexample**:
-  <!-- Test a boundary or dependent context as well as the favorable example. For individualized portrayal, reference persona rules and EXAMPLES: held/changed conditions, context overlap, switch/recovery and an unused situation. Record findings, not a duplicate editable rule set or an originality score. -->
+  <!-- Before selecting, map shortlisted mechanisms back to the applicable world, personas and current state. Record why each fits or fails the locked baseline and what remains unresolved. Test a boundary or dependent context as well as the favorable example. For individualized portrayal, reference persona rules and EXAMPLES: held/changed conditions, context overlap, switch/recovery and an unused situation. Record findings, not a duplicate editable rule set or an originality score. -->
 
 ## Portrayal review
 

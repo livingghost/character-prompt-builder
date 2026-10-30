@@ -212,7 +212,7 @@ def lookup(request:dict,service:dict,key:str)->dict|None:
 
 def rejections(answer:dict)->list[dict]:return list(answer.get('errors',[]))
 def results(answer:dict)->list[dict]:return list(answer.get('data',[]))
-def observation_outcome(answer:dict)->str:return 'rejected' if rejections(answer) else 'accepted'
+def observation_outcome(answer:dict)->str:return 'accepted' if results(answer) else 'rejected' if rejections(answer) else 'indeterminate'
 
 
 def usage(answer:dict)->dict|None:

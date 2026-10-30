@@ -266,6 +266,8 @@ A garment or carried item shown by itself is drawn from the dressed panel rather
 
 Raster text and model instructions are separate contracts. The PNG receives a short, complete `caption`; the selected panel prompt or confirmed masked-sheet prompt and `sheet-layout.json` retain the complete `hint`. Headers, titles, character facts, palette entries, and captions are printed in full rather than shortened with an ellipsis: the renderer reduces type within the declared minimum, then fails if the complete text still overflows. Text outside the Latin script is printed with platform fonts, and each run of text uses the first installed font that has every glyph it needs. A character that no installed font can print stops the render and is named in the error, so the sheet never shows a replacement box.
 
+Before rendering CJK labels, run `python scripts/check_dependencies.py --profile visual --sheet-text TEXT` with the actual text. Repeat `--sheet-text` for additional labels. The check uses the renderer's regular and bold font resolution and reports missing characters or weights before sheet construction. A successful check covers the supplied labels; the renderer still checks every actual glyph. [Dependencies](../../DEPENDENCIES.md#native-library-notes) describes font installation and the representative coverage required by the Tested profile.
+
 **The design is audited against the character definition before anything renders.** The audit requires:
 
 - at least two canonical views: the layout profile's authored set, or the sheet's declared view rows when a declared views table replaces them;

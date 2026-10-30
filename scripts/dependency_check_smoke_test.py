@@ -274,6 +274,78 @@ class DefinitionTests(unittest.TestCase):
         self.assertIn(f"must pin {first} to one version with ==", errors)
 
 
+class SheetFontTests(unittest.TestCase):
+    TEXT = "\u65e5\u672c\u8a9e"
+
+    @staticmethod
+    def passing_profile():
+        return {"ok": True, "python": "3", "profile": "tested", "definition": "test",
+                "dependencies": [], "errors": []}
+
+    def test_missing_fonts_fail_before_rendering_and_name_both_weights(self):
+        from character_sheet_render import textmetrics
+        with mock.patch.object(textmetrics, "usable_cjk_font_files", return_value=[]):
+            report = deps.sheet_font_report([self.TEXT])
+        self.assertFalse(report["ok"])
+        self.assertFalse(report["roles"]["regular"]["ok"])
+        self.assertFalse(report["roles"]["bold"]["ok"])
+        self.assertIn("no usable CJK font", " ".join(report["errors"]))
+
+    def test_a_regular_font_does_not_satisfy_bold_text(self):
+        from character_sheet_render import textmetrics
+        font = Path("synthetic-regular.ttf")
+        with mock.patch.object(textmetrics, "usable_cjk_font_files",
+                               side_effect=lambda role: [font] if role == "regular" else []), \
+                mock.patch.object(textmetrics, "font_has_glyph", return_value=True):
+            report = deps.sheet_font_report([self.TEXT])
+        self.assertTrue(report["roles"]["regular"]["ok"])
+        self.assertFalse(report["roles"]["bold"]["ok"])
+        self.assertFalse(report["ok"])
+
+    def test_available_files_do_not_hide_missing_requested_glyphs(self):
+        from character_sheet_render import textmetrics
+        with mock.patch.object(textmetrics, "usable_cjk_font_files", return_value=[Path("synthetic.ttf")]), \
+                mock.patch.object(textmetrics, "font_has_glyph", return_value=False):
+            report = deps.sheet_font_report([self.TEXT])
+        self.assertFalse(report["ok"])
+        self.assertIn("U+65E5", " ".join(report["errors"]))
+
+    def test_tested_profile_checks_fonts_and_visual_only_checks_requested_text(self):
+        from character_sheet_render import textmetrics
+        with mock.patch.object(deps, "check", side_effect=lambda path: self.passing_profile()), \
+                mock.patch.object(deps, "ffprobe_report", return_value={"required": True, "runs": True}), \
+                mock.patch.object(textmetrics, "usable_cjk_font_files", return_value=[]):
+            visual = deps.check_profile("visual", plan=([], None))
+            tested = deps.check_profile("tested", plan=([], None))
+            requested = deps.check_profile("visual", plan=([], None), sheet_text=[self.TEXT])
+        self.assertTrue(visual["ok"])
+        self.assertNotIn("sheet_fonts", visual)
+        self.assertFalse(tested["ok"])
+        self.assertIn(deps.TESTED_SHEET_TEXT, tested["sheet_fonts"]["checked_texts"])
+        self.assertFalse(requested["ok"])
+        self.assertEqual(requested["sheet_fonts"]["checked_texts"], [self.TEXT])
+
+    def test_virtual_environment_keeps_its_own_font_result_and_requested_text(self):
+        child = {**self.passing_profile(), "sheet_fonts": {"ok": False, "roles": {"bold": {"ok": False}}}}
+        child.update(ok=False, errors=["child environment has no bold font"])
+        completed = subprocess.CompletedProcess([], 1, stdout=json.dumps(child), stderr="")
+        with mock.patch.object(deps.subprocess, "run", return_value=completed) as run:
+            report = deps.check_in("python-in-env", "visual", sheet_text=[self.TEXT])
+        self.assertEqual(run.call_args.args[0][-1], "--sheet-text=" + self.TEXT)
+        self.assertEqual(report["sheet_fonts"], child["sheet_fonts"])
+        self.assertFalse(report["ok"])
+
+    def test_a_label_starting_with_a_hyphen_survives_the_real_child_cli(self):
+        text = "-" + self.TEXT
+        report = deps.check_in(sys.executable, "visual", sheet_text=[text])
+        self.assertEqual(report["profile"], "visual")
+        self.assertEqual(report["sheet_fonts"]["checked_texts"], [text])
+
+    def test_core_profile_keeps_its_standard_library_boundary(self):
+        with self.assertRaisesRegex(ValueError, "Visual profile"):
+            deps.check_profile("core", sheet_text=[self.TEXT])
+
+
 def run_main(arguments, *, reports, run=None, terminal=None):
     """Run main with the reports check_profile returns in order, the commands' exit statuses and a
     mocked terminal answer; return the exit code, the printed report, what stderr showed and the calls."""

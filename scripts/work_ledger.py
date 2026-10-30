@@ -30,11 +30,11 @@ import operation_context as _operation_context
 
 import argparse
 import json
-import shlex
 import sys
 from pathlib import Path
 from typing import Any
 
+from cli_invocation import python_argv, shown
 from studio_activity import timestamp as now
 
 SCRIPT = Path(__file__).resolve()
@@ -45,8 +45,8 @@ LEDGER = "ledger.jsonl"
 
 def begin_command(root: Path) -> str:
     """The command that opens a task in this studio, with every argument it requires."""
-    return (f"python {shlex.quote(str(SCRIPT))} begin --studio {shlex.quote(str(root))}"
-            ' --goal "<goal>" --step "<step>" --step "<step>"')
+    return shown(python_argv(SCRIPT, "begin", "--studio", str(root.resolve()),
+                             "--goal", "<goal>", "--step", "<step>", "--step", "<step>"))
 
 
 def work_dir(root: Path) -> Path:

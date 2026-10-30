@@ -11,7 +11,7 @@ import contextlib
 import io
 import json
 import os
-import shlex
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import session_entry_points  # noqa: E402
 import studio  # noqa: E402
 import work_ledger  # noqa: E402
+from pack_manager import COMMONS_PACK_ID  # noqa: E402
 
 
 def entry(cwd: Path, state_file: Path, *extra: str) -> str:
@@ -50,6 +51,15 @@ class SessionEntry(unittest.TestCase):
         studio.init(self.studio, "entry-test", "Entry test")
         (self.studio / "story").mkdir()
         work_ledger.begin(self.studio, "draft the first design note", ["record the brief", "propose two directions"])
+
+    def settle_commons(self, state: Path, cache: Path, managed: Path, cwd: Path, environment: dict) -> None:
+        ready = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "pack_cli.py"),
+             "--state-file", str(state), "--cache-dir", str(cache), "--managed-root", str(managed),
+             "ready", "--only", COMMONS_PACK_ID],
+            cwd=cwd, env=environment, capture_output=True, text=True, encoding="utf-8",
+        )
+        self.assertEqual(ready.returncode, 0, ready.stdout + ready.stderr)
 
     def test_open_task_prints_before_a_missing_pack_runtime(self) -> None:
         text = entry(self.studio / "story", self.missing_state)
@@ -88,19 +98,50 @@ class SessionEntry(unittest.TestCase):
         self.assertIn("No pack runtime", text)
 
     def test_hints_run_as_printed_with_the_runtime_paths_given(self) -> None:
-        cache, managed = self.root / "cache", self.root / "managed"
+        cache, managed = self.root / "cache's $literal", self.root / "managed & packs"
         text = entry(self.studio, self.missing_state, "--cache-dir", str(cache), "--managed-root", str(managed))
         hint = next(line for line in text.splitlines() if line.startswith("No pack runtime"))
-        command = shlex.split(hint.split("Run: ", 1)[1], posix=True)
-        self.assertEqual(command[-1], "ready")
-        self.assertEqual(command[command.index("--state-file") + 1], str(self.missing_state.resolve()))
-        self.assertEqual(command[command.index("--cache-dir") + 1], str(cache.resolve()))
-        self.assertEqual(command[command.index("--managed-root") + 1], str(managed.resolve()))
-        outside = self.root / "elsewhere"
+        command = hint.split("Run: ", 1)[1]
+        outside = self.root / "elsewhere's $literal"
         outside.mkdir()
+        environment = {**os.environ, "PATH": "", "CPB_HOME": str(self.root / "home")}
+        # Keep a developer's personal packs outside this command-execution fixture.
+        self.settle_commons(self.missing_state, cache, managed, outside, environment)
+        ready = subprocess.run(command, shell=True, cwd=outside, env=environment,
+                               capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(ready.returncode, 0, ready.stdout + ready.stderr)
+        self.assertTrue(self.missing_state.is_file())
+        self.assertTrue(cache.is_dir())
+        self.assertIn(str(managed.resolve()), ready.stderr)
+
         create = next(line for line in entry(outside, self.missing_state).splitlines() if "not in a studio" in line)
-        arguments = shlex.split(create.split("Create one with: ", 1)[1], posix=True)
-        self.assertEqual(arguments[2:], ["init", "--out", "<dir>", "--studio-id", "<id>", "--title", "<title>"])
+        command = create.split("Create one with: ", 1)[1]
+        command = command.replace("<dir>", "opened").replace("<id>", "opened").replace("<title>", "Opened")
+        created = subprocess.run(command, shell=True, cwd=outside, env=environment,
+                                 capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(created.returncode, 0, created.stdout + created.stderr)
+        opened = outside / "opened"
+        self.assertEqual(studio.manifest(opened)["studio_id"], "opened")
+        begin = next(line for line in created.stdout.splitlines() if "work_ledger.py" in line)
+        command = begin.partition(": ")[2].replace("<goal>", "Synthetic-goal").replace("<step>", "Synthetic-step")
+        begun = subprocess.run(command, shell=True, cwd=outside, env=environment,
+                               capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(begun.returncode, 0, begun.stdout + begun.stderr)
+        self.assertEqual(work_ledger.read_current(opened)["goal"], "Synthetic-goal")
+
+    def test_state_only_hint_completes_the_runtime_selector(self) -> None:
+        outside = self.root / "caller"
+        outside.mkdir()
+        text = entry(outside, self.missing_state)
+        hint = next(line for line in text.splitlines() if line.startswith("No pack runtime"))
+        environment = {**os.environ, "PATH": "", "CPB_HOME": str(self.root / "home")}
+        self.settle_commons(self.missing_state, self.missing_state.parent / "cache",
+                            self.missing_state.parent / "packs", outside, environment)
+        ready = subprocess.run(hint.split("Run: ", 1)[1], shell=True, cwd=outside, env=environment,
+                               capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(ready.returncode, 0, ready.stdout + ready.stderr)
+        self.assertTrue(self.missing_state.is_file())
+        self.assertTrue((self.missing_state.parent / "cache").is_dir())
 
     def test_work_ledger_accepts_the_studio_after_the_command(self) -> None:
         with contextlib.redirect_stdout(io.StringIO()):

@@ -3,7 +3,10 @@
 from __future__ import annotations
 import copy
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -371,8 +374,23 @@ class StudioSceneTests(unittest.TestCase):
         path = self.root / self.PERSONA
         path.write_bytes(path.read_bytes().replace(b'short sentences', b'clipped sentences'))
         line = studio.status(self.root).splitlines()[-1]
-        self.assertTrue(line.startswith('persona changes reach 1 scene material (1 stale): python '), line)
-        self.assertTrue(line.endswith(' impact --root ' + shlex.quote(str(self.root.resolve()))), line)
+        prefix = 'persona changes reach 1 scene material (1 stale): '
+        self.assertTrue(line.startswith(prefix), line)
+        command = line[len(prefix):]
+        command_argv = [os.path.abspath(sys.executable), str(Path(scene.__file__).resolve()),
+                        'impact', '--root', str(self.root.resolve())]
+        shown_command = subprocess.list2cmdline(command_argv) if os.name == 'nt' else shlex.join(command_argv)
+        self.assertEqual(command, shown_command)
+        inspected = subprocess.run(
+            command, shell=True, cwd=self.tmp.name, capture_output=True, text=True, encoding='utf-8', timeout=30,
+            env={**os.environ, 'PATH': '', 'PYTHONDONTWRITEBYTECODE': '1'},
+        )
+        self.assertEqual(inspected.returncode, 1, inspected.stdout + inspected.stderr)
+        impact = json.loads(inspected.stdout)
+        self.assertFalse(impact['ok'])
+        self.assertEqual([(row['material'], row['status']) for row in impact['scenes']],
+                         [(self.BUNDLE + '/material.json', 'stale')])
+        self.assertTrue(impact['next'])
         self.assertEqual(scene.impact(self.root, self.PERSONA)['scenes'][0]['material'], self.BUNDLE + '/material.json')
 
     def test_impact_names_the_studio_images_made_from_a_material(self):

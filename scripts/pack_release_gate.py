@@ -793,6 +793,7 @@ def _corpus_suite(
         None,
         require_bundles=True,
         workers=1,
+        catalog=catalog,
     )
     stats = report.get("stats") or {}
     expected = {
@@ -815,6 +816,7 @@ def _corpus_suite(
         errors.append(f"reference corpus reported {skip_count} skipped items")
     if report.get("errors"):
         errors.append(f"reference corpus produced {len(report['errors'])} errors")
+        errors.extend(f"reference corpus: {message}" for message in report["errors"])
     if report.get("ok") is not True:
         errors.append("reference corpus validation reported ok=false")
     suite_ok = not errors

@@ -94,22 +94,28 @@ Use `status` or `resume` after interruption and recover the existing host result
 
 ## What the Skill conforms to
 
-The Agent Skills specification, which belongs to no single host. It fixes what
-every host reads and what every host refuses:
+Character Prompt Builder uses the
+[Agent Skills specification](https://agentskills.io/specification). Its format
+requires `name` and `description`, limited to 64 and 1024 characters respectively.
+The specification recommends keeping the main instructions below 5000 tokens,
+keeping `SKILL.md` below 500 lines, and making referenced material reachable
+without deep chains of links. Detailed resources are loaded when the task needs
+them. These recommendations do not establish identical refusal or delivery
+behavior across hosts.
 
-- `name` at most 64 characters and `description` at most 1024. A host refuses
-  more than that.
-- The body under 500 lines, and under 5000 tokens once loaded, because a host
-  loads all of it the moment the Skill activates.
-- References one level deep from `SKILL.md`. A file reached only through another
-  file may be read in part rather than in full.
-- Scripts are executed rather than read into context.
+This repository enforces its own entry document limits in `scripts/validate.py`.
+It rejects `SKILL.md` above 500 lines or 5000 estimated tokens, counting the whole
+file and rounding characters divided by four upward. The estimate is a local
+validation measure rather than a tokenizer result. Preserve complete detailed
+instructions in the routed resources when organizing the entry document.
 
-`scripts/validate.py` refuses a body over 500 lines or over 5000 tokens,
-estimated as characters divided by four. It also settles that every reference
-document is reached from a `SKILL.md` link or from a route or feature `SKILL.md`
-names, and that every script entrypoint other than a test module is named by
-routed documentation. `scripts/run_checks.py` names every test module.
+The validator also checks that every reference document is reached from a
+`SKILL.md` link or from a route or feature `SKILL.md` names. Every script
+entrypoint other than a test module is named by routed documentation, and
+`scripts/run_checks.py` names every test module. Run scripts for supported
+operations; read their implementation when maintaining or investigating those
+operations. Verify host support and actual delivery separately from these local
+checks.
 
 ## Source ownership and change discipline
 
@@ -163,19 +169,35 @@ claims to follow.
 These rules apply to every file a person reads: README, CONTRIBUTING, CHANGELOG,
 the references, the templates, docstrings and commit messages.
 
-- Say what a thing does, as an action: "the tool records every returned
-  candidate". State a boundary at most once per section, and as who decides:
-  "the author decides when a candidate becomes canon", not "the tool does not
-  decide".
-- One idea per sentence, about twenty words. Three or more items become a list.
-- Prefer the general word. Where a product term must appear because the tools
-  use it, put the general phrase beside it at its first use and use the general
-  word afterward. Do not add a glossary, a preamble about the document itself,
-  or a section that explains why other sections repeat.
-- Show a real example next to any claim about output: an actual command's output
-  or an actual record, trimmed, and labeled synthetic when it is a fixture.
-- Delete a repeated principle and refer to the place it is stated. Longer is
-  not safer.
+- State what a thing does and who decides: "the tool records every returned
+  candidate" and "the author decides when a candidate becomes canon". Keep the
+  conditions, limits and evidence needed to apply those statements correctly.
+- Give sentences and paragraphs a clear purpose. Use lists for parallel items
+  or ordered steps, while preserving the relationships and explanations that
+  make the information usable. Length alone does not determine completeness.
+- Prefer familiar words and explain required product terms where the reader
+  encounters them. Retain the distinctions and definitions needed for each use.
+- Show a real example beside a claim about output. Include the input, output
+  and context needed to assess the claim, and label a synthetic fixture as such.
+  An excerpt must identify its scope and keep the evidence relevant to the claim.
+- Preserve supported behavior, authored knowledge and the material needed for
+  judgment when revising instructions. Before considering removal, examine the
+  mechanism, theory or function from multiple relevant perspectives and establish
+  that it is complete within its intended scope. Inspect its requirements,
+  implementation, dependent uses, examples and failure cases. Establishing that
+  completeness is a prerequisite; it does not itself justify any deletion.
+- A passing test suite, current nonuse or similar wording alone establishes
+  neither completeness nor lack of need. Preserve the material needed to examine
+  unresolved dependencies and to support future extensions of the intended
+  design. After establishing completeness, assess each proposed deletion's
+  effects and verify that every affected use retains its behavior, explanatory
+  basis and necessary information.
+- Repeated wording or a shorter replacement alone is insufficient reason to
+  delete material. Keep explanations that supply another perspective, expose a
+  dependency, support a different check or make a local procedure understandable.
+  Consolidate only when those functions survive, the complete owning source is
+  reachable, and the affected procedures and references remain usable. State the
+  reason in the change review and verify the resulting behavior and meaning.
 - State durable product facts, rules and evidence in records and artifacts.
   Keep task-specific work instructions, work reports, process notes, decision
   histories, session narratives and conversation quotations out of product artifacts.

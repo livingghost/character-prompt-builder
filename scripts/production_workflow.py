@@ -1605,7 +1605,8 @@ def record_dispatch_results(root: Path, run: str, package: dict, journal: Path,
                             result_paths: list[Path], expected_count: int, *,
                             indices: list[int] | None = None, returned_count: int | None = None,
                             upscale_packages: dict[int, Path] | None = None,
-                            invalid_output_indices: set[int] | None = None) -> dict:
+                            invalid_output_indices: set[int] | None = None,
+                            answer_name: str = 'answer.json', provider_complete: bool = True) -> dict:
     with store.transaction(root):
         directory, prepared, _, rows = load_run(root, run)
         claim = find(rows, 'dispatch-claim')
@@ -1623,6 +1624,13 @@ def record_dispatch_results(root: Path, run: str, package: dict, journal: Path,
         files = [file_record(root, directory, path.absolute().relative_to(root.absolute()).as_posix()) for path in result_paths]
         if len({f['path'] for f in files}) != len(files):
             raise ValueError('repeated dispatch output path')
+        prior = [row['data'] for row in rows if row['event'] == 'dispatch-results' and row['data']['claim'] == claim['sha256']]
+        known = {index: item['sha256'] for receipt in prior for index, item in zip(receipt['output_indices'], receipt['files'])}
+        if not set(known).issubset(indices) or any(index in known and known[index] != item['sha256']
+                                                 for index, item in zip(indices, files)):
+            raise ProductionError('PROVIDER_OUTPUT_CHANGED', 'A provider output cannot lose or change its first captured bytes.',
+                                  phase='result-capture', run=run,
+                                  required_action='Restore the recorded output from its Production snapshot; do not resend.')
         for item in files:
             media.inspect(c.object_read(directory, item['sha256']), prepared['task']['artifact'])
         import request_contract as rc
@@ -1636,8 +1644,9 @@ def record_dispatch_results(root: Path, run: str, package: dict, journal: Path,
                 raise ValueError('upload receipt differs from the sealed input bytes')
             media_ids[index] = upload['provider_id']
         rc.validate_wire(rendered, c.load(journal / 'request.json'), media_ids)
+        c.local(journal, answer_name)
         evidence = [file_record(root, directory, base + '/' + name)
-                    for name in ('package.json', 'request-contract.json', 'request.json', 'answer.json')]
+                    for name in ('package.json', 'request-contract.json', 'request.json', answer_name)]
         evidence.extend(file_record(root, directory, base + f'/upload-{index + 1:03d}.json')
                         for index in range(len(rendered['media'])))
         if (journal/'transport-outcome.json').is_file():
@@ -1674,11 +1683,25 @@ def record_dispatch_results(root: Path, run: str, package: dict, journal: Path,
                 evidence.append(file_record(root,directory,base+'/'+name))
         elif upscale_packages or invalid_output_indices:
             raise ValueError('upscale result metadata is only valid for an upscale request')
-        evidence.extend(file_record(root, directory, base + f'/response-{i}.json') for i in indices)
+        for index in indices:
+            response = c.load(journal / f'response-{index}.json')
+            source = c.local(journal, response['answer'])
+            if c.sha256_file(source) != response['answer_sha256']:
+                raise ProductionError('RESPONSE_CORRUPT', 'The output response differs from its original observation.',
+                                      phase='result-capture', run=run)
+            for name in (f'response-{index}.json', f'acquisition-{index}.json', response['answer']):
+                item = file_record(root, directory, base + '/' + name)
+                if item not in evidence:
+                    evidence.append(item)
+        known_evidence = {item['path']: item['sha256'] for receipt in prior for item in receipt['evidence']}
+        if any(item['path'] in known_evidence and item['sha256'] != known_evidence[item['path']] for item in evidence):
+            raise ProductionError('RESPONSE_CORRUPT', 'Previously recorded provider evidence changed.',
+                                  phase='result-capture', run=run)
         return append_record(directory, prepared, rows, 'dispatch-results',
                              {'claim': claim['sha256'], 'files': files, 'evidence': evidence, 'expected_count': expected_count,
                               'output_indices': indices, 'returned_count': returned_count,
-                              'complete': len(files) == returned_count == expected_count,
+                              'answer': answer_name, 'provider_complete': provider_complete,
+                              'complete': provider_complete and len(files) == returned_count == expected_count,
                               'contract_valid': not invalid_output_indices,
                               'invalid_output_indices': sorted(invalid_output_indices)})
 

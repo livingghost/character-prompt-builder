@@ -65,14 +65,20 @@ The resvg-py wheel contains its renderer, so SVG rasterization needs no system l
 
 Character-sheet text uses the installed system fonts. Latin text takes the first installed family in the sheet's font list, and the render stops and prints that list when none is installed. Chinese, Japanese and Korean text needs an installed font that covers it; the render names any character no installed font prints.
 
+Before rendering CJK sheet text, pass the actual labels to the Visual dependency check with repeated `--sheet-text TEXT` arguments. The check uses the sheet renderer's font discovery and glyph checks for both regular and bold text. Its `sheet_fonts` report names the checked text, resolved files, missing characters and unavailable weights. It checks the selected Python environment, including when `--venv` is supplied. Coverage of those labels establishes nothing about characters that were not checked.
+
+The Tested profile always checks representative Chinese, Japanese and Korean text at both weights, and also checks any supplied labels. Core and ordinary Visual checks retain their operation-specific requirements. Font installation is a system-font operation; `--install` installs the declared Python packages and required FFmpeg, while the report explains any font requirement that remains.
+
 Prefer a binary wheel for rasterio. Building it from source requires a compatible GDAL development environment and is outside the normal installation path.
 
 On Windows, activate a virtual environment with `.venv\Scripts\activate`. On POSIX shells, use `. .venv/bin/activate`.
 
 ## Verification and changes
 
-`scripts/check_dependencies.py` checks the selected definition, installed versions, imports, minimal functional operations and ffprobe. It emits JSON and exits nonzero when the environment is incomplete or inconsistent.
+`scripts/check_dependencies.py` checks the selected definition, installed versions, imports, minimal functional operations and ffprobe. Tested checks and explicit sheet-text checks also verify CJK font coverage. It emits JSON and exits nonzero when the environment is incomplete or inconsistent.
 
 `scripts/validate_reference_corpus.py` validates an existing pack corpus under Core without reconstructing unavailable source rasters. It checks pack closure, corpus manifest, asset links, content hashes, SVG safety, bundle structure, and stored metric consistency. Source extraction, metric recomputation, and SVG rasterization require Visual.
+
+Corpus validation uses the active catalog's resolved dependency roots, including packs stored in separate directories. The CLI accepts the complete pack-runtime selectors used by catalog commands. A positional pack without runtime selectors can still validate a standalone tree whose dependencies are siblings. The pack release gate passes its exact catalog to the corpus validator and preserves each detailed corpus error in its report.
 
 For exact publication commands and smoke gates, follow [Release Validation](references/release/validation.md). A third-party import change updates `requirements-visual.txt`, `requirements-tested.txt`, this document and the checker's import names in one change. List transitive packages only when project code imports them directly.

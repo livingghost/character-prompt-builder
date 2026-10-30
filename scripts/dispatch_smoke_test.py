@@ -34,7 +34,7 @@ import transport_contract  # noqa: E402
 import transport_runware  # noqa: E402
 from request_contract import MANAGEMENT_VALUE
 
-EXPECTED_CHECKS = 67
+EXPECTED_CHECKS = 69
 
 SERVICE = {"endpoint": {"base_url": "https://example.invalid/v1", "method": "POST"}, "operations": {"imageInference": {}}, "auth": {"env_var": "EXAMPLE_KEY"}}
 TEXT_KEYS = {"model": ["model"], "prompt": ["positivePrompt"], "negative prompt": ["negativePrompt"]}
@@ -393,10 +393,10 @@ def main() -> int:
     for body, name in ((b"<html>502 Bad Gateway</html>", "a 200 answer that is not JSON"),
                        (b'["not", "an", "object"]', "a 200 answer that is JSON but not an object")):
         with patch.object(transport_contract.urllib.request, "build_opener", return_value=FakeOpener(body)):
-            answer = transport_runware.send({"taskType": "imageInference"}, runware, "KEY")
-        check(f"{name} is kept as an error answer with its body",
-              transport_runware.rejections(answer) == [{"code": "http200-not-json-object", "message": body.decode()}]
-              and transport_runware.observation_outcome(answer) == "rejected", answer)
+            answer = unknown(lambda: transport_runware.send({"taskType": "imageInference"}, runware, "KEY"))
+        check(f"{name} stays indeterminate and keeps its HTTP status and body",
+              answer is not None and answer.status == 200 and answer.body == body
+              and answer.evidence()['outcome'] == 'indeterminate', answer and answer.evidence())
 
     # The Runware transport's refusal, charge and lookup, against synthetic answers; nothing is sent.
     posted: list[Any] = []
@@ -432,6 +432,20 @@ def main() -> int:
     with patch.object(transport_runware, "post", side_effect=answering({"data": []})):
         check("Runware lookup gives None when the service returns no image for the task",
               transport_runware.lookup({"taskUUID": "t-1"}, runware, "KEY") is None)
+    processing={'data':[{'taskUUID':'t-1','status':'processing'}]}
+    with patch.object(transport_runware,'post',side_effect=answering(processing)):
+        waiting=transport_runware.lookup({'taskUUID':'t-1'},runware,'KEY')
+    check('processing with a task identifier is accepted but incomplete; an unidentified observation stays unknown',
+          waiting==processing and transport_runware.observation_outcome(waiting)=='accepted'
+          and not transport_contract.complete(transport_runware,waiting)
+          and transport_runware.observation_outcome({'data':[{'status':'processing'}]})=='indeterminate')
+    failure={'errors':[{'taskUUID':'t-1','code':'synthetic-refusal'},
+                       {'taskUUID':'another-task','code':'unrelated'}]}
+    with patch.object(transport_runware,'post',side_effect=answering(failure)):
+        found=transport_runware.lookup({'taskUUID':'t-1'},runware,'KEY')
+    check('lookup retains a terminal refusal only for the original task',
+          found=={'errors':[failure['errors'][0]]} and transport_runware.observation_outcome(found)=='rejected'
+          and transport_contract.complete(transport_runware,found),found)
 
     # The network rules every transport shares.
     check("an address is https, or http on a loopback address, and names no user or password",

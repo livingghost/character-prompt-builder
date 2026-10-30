@@ -6,7 +6,7 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
-from pack_manager import PackSettings, default_settings
+from pack_manager import PackSettings, default_settings, pack_runtime_arguments
 
 
 @dataclass(frozen=True)
@@ -18,17 +18,7 @@ class PackRuntimeContext:
 
     def command_arguments(self) -> list[str]:
         """Return a complete runtime argument vector for a child process."""
-        output = [
-            "--state-file",
-            str(self.settings.state_file),
-            "--cache-dir",
-            str(self.settings.cache_dir),
-            "--managed-root",
-            str(self.settings.managed_root),
-        ]
-        for root in self.pack_roots:
-            output.extend(("--pack-root", str(root)))
-        return output
+        return pack_runtime_arguments(self.settings, pack_roots=self.pack_roots)
 
 
 def add_pack_runtime_arguments(parser: argparse.ArgumentParser) -> None:

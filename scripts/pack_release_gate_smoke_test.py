@@ -1291,6 +1291,7 @@ def run() -> dict[str, Any]:
         _write_json(corpus_manifest, {})
         corpus_pack_id = _manifest(base)["pack_id"]
         corpus_catalog = SimpleNamespace(
+            pack_roots={corpus_pack_id: base},
             resources={
                 "reference-corpus-manifest": SimpleNamespace(
                     source_pack=corpus_pack_id,
@@ -1310,12 +1311,14 @@ def run() -> dict[str, Any]:
             *,
             require_bundles: bool | None = None,
             workers: int | None = None,
+            catalog: Any = None,
         ) -> dict[str, Any]:
             captured_corpus_call.update(
                 {
                     "root": root,
                     "require_bundles": require_bundles,
                     "workers": workers,
+                    "catalog": catalog,
                 }
             )
             return {
@@ -1356,8 +1359,52 @@ def run() -> dict[str, Any]:
         check(
             hostile_env_corpus["ok"] is True
             and captured_corpus_call
-            == {"root": None, "require_bundles": True, "workers": 1},
-            "release corpus suite must commit workers=1 and ignore hostile ambient worker state",
+            == {"root": None, "require_bundles": True, "workers": 1, "catalog": corpus_catalog},
+            "release corpus suite must retain its resolved runtime and explicit worker count",
+        )
+
+        separated = root / "separate-corpus-owner" / "pack"
+        separated_manifest = initialize_pack(separated, name="Separated Corpus Owner")
+        dependency_id = _manifest(DEFAULT_PACK)["pack_id"]
+        separated_manifest["dependencies"] = [{"pack_id": dependency_id}]
+        _write_json(separated / "pack.json", separated_manifest)
+        records, closure_errors, closure_count = validate_reference_corpus._pack_record_closure(
+            separated, pack_roots={separated_manifest["pack_id"]: separated, dependency_id: DEFAULT_PACK}
+        )
+        check(
+            not closure_errors and closure_count == 2 and bool(records),
+            "corpus closure must load a required dependency from its resolved non-sibling root",
+        )
+        _, missing_errors, _ = validate_reference_corpus._pack_record_closure(separated, pack_roots={})
+        check(
+            any(dependency_id in error and "selected pack runtime" in error for error in missing_errors),
+            "an explicit corpus runtime must report a missing dependency without ambient discovery",
+        )
+        _, identity_errors, _ = validate_reference_corpus._pack_record_closure(
+            separated, pack_roots={dependency_id: separated}
+        )
+        check(
+            any("resolves to pack" in error and dependency_id in error for error in identity_errors),
+            "corpus dependency roots must identify the required pack",
+        )
+        detail = f"required pack {dependency_id!r} is not present in the selected pack runtime"
+        failed_corpus = fake_corpus_validate(workers=1, catalog=corpus_catalog)
+        failed_corpus.update(ok=False, errors=[detail])
+        with mock.patch.object(validate_reference_corpus, "validate", return_value=failed_corpus):
+            failed_suite = _corpus_suite(
+                {
+                    "manifest_resource": "reference-corpus-manifest",
+                    "expected_searchable_asset_count": 1,
+                    "expected_source_file_count": 1,
+                    "expected_evidence_bundle_count": 1,
+                },
+                corpus_catalog,
+                corpus_pack_id,
+                {},
+            )
+        check(
+            failed_suite["ok"] is False and f"reference corpus: {detail}" in failed_suite["errors"],
+            "release corpus diagnostics must preserve the actionable child error",
         )
 
     return {

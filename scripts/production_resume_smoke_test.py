@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -79,8 +80,12 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(report['registration'],'unregistered')
         action=report['next_action']
         self.assertEqual(action['command'],'draft-execution')
-        # The suggested command names the checked root, as the command line does.
-        self.assertEqual(action['argv'][1:5],['scripts/production_workflow.py','draft-execution','--root',str(self.root.resolve())])
+        # The complete command keeps this interpreter, the checked root and the exact run and grant.
+        self.assertEqual(action['argv'], [
+            os.path.abspath(sys.executable), str(Path(workflow.__file__).resolve()),
+            'draft-execution', '--root', str(self.root.resolve()), '--run', self.run,
+            '--grant', 'fixture-grant', '--out', action['draft'],
+        ])
         self.assertTrue(action['draft'].startswith(f'production/decisions/{self.run}/execution/'))
         self.assertEqual(action['argv'][-2:], ['--out', action['draft']])
         self.assertEqual(whole['current_task']['task_id'],report['task_id'])

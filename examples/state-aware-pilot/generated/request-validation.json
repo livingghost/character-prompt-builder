@@ -6,19 +6,19 @@
     "operation": "generate"
   },
   "service_execution_sha256": "b82ad4a4ea40a52bd6f098773c23dbd0b25f00e73a39e9772f051eb50d880af5",
-  "offering_contract_sha256": "5d45a5dc1472e20e3e5a3e66587f2bef611227ef06c2f6ca3904d422698b5629",
-  "transport_sha256": "7fa67b0ab339bb789e5e455a38deed869bb1b42afd747e69f2993244c834557b",
+  "offering_contract_sha256": "2191af2fe1632f4abf68b8b70b6a8bc175af15931b59b968d5ee16ab58b655e0",
+  "transport_sha256": "cf5b6e38c3da1c98c492c991155fec171bdc197140b130b6792f246d060d5fbc",
   "contract": {
-    "path": "synthetic-validation/59798d7c808e3000/contract.json",
+    "path": "synthetic-validation/8670e93963609738/contract.json",
     "sha256": "cdd7df03e86e1987057c723ddd339a0cf6e6399f23d1a4e09c0b82f66e07c2b4"
   },
   "evidence": {
-    "path": "synthetic-validation/59798d7c808e3000/acquisition.json",
-    "sha256": "50703ef7f4e4e02d6f57095958146e6df46a64b0931c260e549c4d5731c8eaa4"
+    "path": "synthetic-validation/8670e93963609738/acquisition.json",
+    "sha256": "5addcf3baf84986817fce3ff87072f2da82dea77da4a0b038ae0f2b3526f8b63"
   },
   "execution_policy": {
-    "path": "synthetic-validation/59798d7c808e3000/policy.json",
-    "sha256": "825020595dc8fc9416f4c78f9d2f622339691b6195861a3d604f090f29a743ad"
+    "path": "synthetic-validation/8670e93963609738/policy.json",
+    "sha256": "e4c6ced5482b17eedd0ecd054b0be3921c572d331d95c704df112d96ad71b6a7"
   },
   "unmeasured": []
 }

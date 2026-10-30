@@ -24,7 +24,7 @@ Install and verify the exact Tested profile with the Python 3.12 that CI uses. R
 python scripts/check_dependencies.py --tested --venv ../cpb-tested --install
 ```
 
-Run every other check with that environment's Python. The Tested profile also requires ffprobe from FFmpeg, and the same command installs it through the system package manager.
+Run every other check with that environment's Python. The Tested profile also requires ffprobe from FFmpeg, and the same command installs it through the system package manager. It checks representative CJK glyph coverage with the sheet renderer's regular and bold font resolution. Install missing system fonts before the sheet suites; the dependency report identifies unavailable weights and characters.
 
 Core and Visual profiles support development and task-specific runtime; only the Tested profile validates publication. The tested pins lie inside the Visual ranges, and the tested check refuses a pin outside them. Each of these blocks publication:
 

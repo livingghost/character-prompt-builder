@@ -22,17 +22,17 @@ the same from here, and reading would hang on the second. Every command it
 prints runs as printed, with the runtime paths it was given.
 
 Usage:
-  python scripts/session_entry_points.py [--state-file FILE] [--cache-dir DIR] [--managed-root DIR]
+  python scripts/session_entry_points.py [--state-file FILE] [--cache-dir DIR] [--managed-root DIR] [--pack-root DIR]
 """
 from __future__ import annotations
 import operation_context as _operation_context
 
 import argparse
 import json
-import shlex
 import sys
 from pathlib import Path
 
+from cli_invocation import python_argv, shown
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -75,11 +75,11 @@ def authoring_lines(cwd: Path) -> list[str]:
                 None,
             )
     except Exception as exc:  # noqa: BLE001 - one damaged studio is reported, never raised
-        check = shlex.join(["python", str(ROOT / "scripts" / "validate_studio.py"), str(root)])
+        check = shown(python_argv(ROOT / "scripts" / "validate_studio.py", str(root)))
         return [f"The studio at {root} cannot be read: {one_line(exc)}. Check it with: {check}"]
     if run:
-        command = ["python", str(ROOT / "scripts/production_workflow.py"), "resume", "--root", str(root), "--run", run]
-        lines.append("Production status: " + shlex.join(command))
+        command = python_argv(ROOT / "scripts/production_workflow.py", "resume", "--root", str(root), "--run", run)
+        lines.append("Production status: " + shown(command))
     elif active:
         lines.append("No prepared run for the open task. Follow Production Execution to prepare exact inputs before delivery.")
     return lines
@@ -90,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--state-file", type=Path)
     parser.add_argument("--cache-dir", type=Path)
     parser.add_argument("--managed-root", type=Path)
+    parser.add_argument("--pack-root", type=Path, action="append", default=[])
     arguments = parser.parse_args(argv)
 
     # Every path printed here is absolute. The reader's working directory belongs
@@ -101,16 +102,12 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001 - the hook blocks nothing
         lines.append(f"The studio of the working directory cannot be looked up: {one_line(exc)}")
 
-    from pack_manager import default_settings
+    from pack_manager import default_settings, pack_runtime_arguments
 
-    explicit = {"--state-file": arguments.state_file, "--cache-dir": arguments.cache_dir,
-                "--managed-root": arguments.managed_root}
-    state_file = default_settings(state_file=arguments.state_file, cache_dir=arguments.cache_dir,
-                                  managed_root=arguments.managed_root).state_file
-    pack_cli = ["python", str(ROOT / "scripts" / "pack_cli.py")]
-    for flag, value in explicit.items():
-        if value is not None:
-            pack_cli.extend((flag, str(value.resolve())))
+    settings = default_settings(state_file=arguments.state_file, cache_dir=arguments.cache_dir,
+                                managed_root=arguments.managed_root, extra_roots=arguments.pack_root)
+    state_file = settings.state_file
+    pack_cli = python_argv(ROOT / "scripts" / "pack_cli.py", *pack_runtime_arguments(settings))
     state = read_state(state_file)
     counts = None
     if state is not None:
@@ -121,11 +118,11 @@ def main(argv: list[str] | None = None) -> int:
     if state is None:
         lines.append(
             f"No pack runtime at {state_file}. Files under the skill directory are not "
-            f"activation. Run: {shlex.join([*pack_cli, 'ready'])}"
+            f"activation. Run: {shown([*pack_cli, 'ready'])}"
         )
     elif counts is None:
         lines.append(f"The pack runtime at {state_file} is not in the form the runtime writes. "
-                     f"Check it with: {shlex.join([*pack_cli, 'list'])}")
+                     f"Check it with: {shown([*pack_cli, 'list'])}")
     else:
         lines.append(
             f"Pack runtime: {state_file}, {counts[0]} pack(s) enabled, {counts[1]} disabled by the author, "
@@ -133,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         lines.append(
             "Packs that appeared since the author last decided are not checked here. "
-            f"Run: {shlex.join([*pack_cli, 'ready'])}"
+            f"Run: {shown([*pack_cli, 'ready'])}"
         )
     print("\n".join(lines))
     return 0

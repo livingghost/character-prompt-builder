@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
+from cli_invocation import python_argv, shown
 from execution_contract import LOCK_FILE, atomic_write_json, lock, sha256_file
 from package_metadata import calver_key
 from model_contract import recommended_parameter_issues, validate_model_record
@@ -1415,17 +1416,23 @@ def _under_state_lock(operation):
     return locked
 
 
+def pack_runtime_arguments(
+    settings: PackSettings, *, pack_roots: Sequence[Path] | None = None,
+) -> list[str]:
+    """Reproduce the selected runtime, including every explicit discovery root."""
+    arguments = [
+        "--state-file", str(settings.state_file.resolve()),
+        "--cache-dir", str(settings.cache_dir.resolve()),
+        "--managed-root", str(settings.managed_root.resolve()),
+    ]
+    for root in settings.roots if pack_roots is None else pack_roots:
+        arguments.extend(("--pack-root", str(root.resolve())))
+    return arguments
+
+
 def pack_cli_command(settings: PackSettings) -> str:
     """The `pack_cli.py` invocation that acts on this runtime, for a printed fix."""
-    home = user_data_home()
-    selected = (settings.state_file, settings.cache_dir, settings.managed_root)
-    if selected == (home / "pack-state.json", home / "cache", home / "packs"):
-        return "python scripts/pack_cli.py"
-    quoted = [f'"{path}"' if " " in str(path) else str(path) for path in selected]
-    return (
-        f"python scripts/pack_cli.py --state-file {quoted[0]} "
-        f"--cache-dir {quoted[1]} --managed-root {quoted[2]}"
-    )
+    return shown(python_argv(Path(__file__).with_name("pack_cli.py"), *pack_runtime_arguments(settings)))
 
 
 def _manifest_only(pack_root: Path) -> tuple[dict[str, Any] | None, list[PackIssue]]:

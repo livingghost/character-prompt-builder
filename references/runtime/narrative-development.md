@@ -135,6 +135,63 @@ enough world for the present work and its likely continuations. State which depe
 checked, deferred or judged inapplicable. Let detail density follow causal and expressive
 importance rather than headcount.
 
+### Explore open choices beyond the current inventory
+
+Establish what the requested scene, chapter, event or range of alternatives is meant to do.
+A request for a new scene can continue an intentional reprise, routine or observation. State the
+intended change or deliberate persistence before comparing proposals. A work that sustains a
+condition or follows a formal pattern may keep its mechanism or use no causal development.
+Choices, costs, conflict and consequences are developed where they serve that purpose.
+
+Recover user requirements and adopted decisions before abstracting any part of the situation.
+State the locked baseline and the permitted variation together. Preserve fixed participants,
+cast size and composition, identity, relationships, knowledge and access throughout exploration.
+The same applies to fixed world rules, locations, times, viewpoint and form. Identify what remains
+open from the request and its authoritative records; an undecided choice is different from a
+restriction, and a previously drafted choice is different from an adopted fact.
+
+Existing scenes, people, places, props and motifs are available material. For the open parts of
+the request, their availability does not exhaust the creative space. Explore how a situation
+could work before choosing among those resources. Neutral roles or unspecified locations can
+help where those choices are open. A fixed participant retains their applicable persona,
+knowledge and circumstances even when the event is described abstractly.
+
+For a requested causal development, compare the mechanisms that create different choices,
+pressures, information, obligations, consequences or relationships. Examine what each mechanism
+allows to happen next. For an intentional continuation, compare how the proposed material
+realizes the requested persistence, observation or formal relationship without inventing a
+change to qualify as an alternative.
+
+Before selecting a mechanism, map the shortlisted candidates back to the applicable cast, world
+and current state. Check who can know, obtain and do what the proposal requires, under which
+conditions, and how its consequences fit the intended continuation. Keep the reasons a candidate
+fits or fails, including its unresolved dependencies. Revise a candidate that cannot meet the
+locked baseline. A proposal to change the baseline belongs to a separately identified design
+branch with its consequences and adoption scope; selecting a mechanism grants no such change.
+
+For each candidate, keep the following observations with that candidate's identifier or link in
+the conversation or the owning design record. Preserve the explanations and evidence needed to
+compare the candidates and examine the eventual choice:
+
+- **Borrowed material and function**: Which existing people, places, objects, routines, scenes or
+  tropes the proposal uses, which sources or decisions establish them, and what each contributes
+  here. Explain the function of reuse rather than treating availability as its justification.
+- **New causal contribution**: What new choice, pressure, information, obligation, consequence or
+  relationship changes what can happen next, and how it differs from the relevant earlier scene
+  or alternative. For an intentional reprise, routine, observation or formal continuation, record
+  the intended persistence and why a new causal contribution is inapplicable.
+- **Substitution test and reuse reason**: Within the permitted variation, would replacing the
+  borrowed setting, participant or prop leave the same choice, pressure and outcome intact?
+  Identify the mechanism being compared and the relationships that support the answer. Retain
+  the reason to reuse the material or reconsider it. A hypothetical substitution changes no
+  adopted fact, and fixed identities and constraints stay in force during the comparison.
+
+Changing only the setting, participant or prop while preserving the same choice, pressure and
+outcome supplies a surface variation rather than a new causal mechanism. Reuse can give old
+material a new function. An intentional reprise or observation can also preserve that function
+when it serves the requested effect. Explain which purpose the candidate meets, and keep proposed
+events, inspected source facts and untested assumptions distinct.
+
 ### Claims, mechanisms and what sustains them
 
 A compressed description is an entry point rather than a finished design: a long trust, a weekly
@@ -257,8 +314,9 @@ consequences in the proposal. Keep incompatible branches separate instead of ave
 leaking facts between them.
 
 When alternatives are requested, offer a manageable set of substantive ones, each with why it fits
-the current work, its important tradeoff and its open dependency. The count of people and
-candidate situations stays open, and a local refinement may produce a single refinement.
+the current work, its important tradeoff and its open dependency. Preserve the number and
+composition of participants or alternatives when the request fixes them. Keep those choices open
+where the request leaves them undecided; a local refinement may produce a single refinement.
 
 ## 4. Test coherence at the interfaces
 

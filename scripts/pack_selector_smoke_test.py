@@ -5,8 +5,11 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -52,6 +55,48 @@ class PackSelectorTests(unittest.TestCase):
         self.assertEqual(code, 0, payload)
         self.assertEqual(Path(payload["resolved_root"]), external.resolve())
         self.assertFalse((self.root / "state.json").exists())
+
+    def test_ready_repairs_run_as_printed_with_multiple_discovery_roots(self) -> None:
+        first_root = self.root / "first root's $literal"
+        second_root = self.root / "second root & extra"
+        first_root.mkdir(); second_root.mkdir()
+        shutil.move(str(self.pack), first_root / "alpha")
+        second = pack_manager.initialize_pack(second_root / "beta", name="Second fixture pack")
+        outside = self.root / "caller"
+        outside.mkdir()
+        environment = {**os.environ, "CPB_HOME": str(self.root / "home"), "PATH": ""}
+        base = [sys.executable, str(ROOT / "scripts" / "pack_cli.py"), *self.common]
+
+        # The state predates both extra discovery roots. Only commons is enabled.
+        initial = subprocess.run(
+            [*base, "ready", "--only", pack_manager.COMMONS_PACK_ID],
+            cwd=outside, env=environment, capture_output=True, text=True, encoding="utf-8",
+        )
+        self.assertEqual(initial.returncode, 0, initial.stdout + initial.stderr)
+        selected = [*base, "--pack-root", str(first_root), "--pack-root", str(second_root), "ready"]
+        ready = subprocess.run(selected, cwd=outside, env=environment,
+                               capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(ready.returncode, 1, ready.stdout + ready.stderr)
+        decisions = [line for line in ready.stdout.splitlines() if "is new and not enabled" in line]
+        self.assertEqual(len(decisions), 2, ready.stdout)
+
+        for line in decisions:
+            # Execute the offered fix unchanged, outside the product directory and
+            # without any Python alias on PATH. Shell metacharacters stay in paths.
+            command = line.split("then run ", 1)[1].split(" or ", 1)[0]
+            fixed = subprocess.run(command, shell=True, cwd=outside, env=environment,
+                                   capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(fixed.returncode, 0, fixed.stdout + fixed.stderr)
+            self.assertTrue(json.loads(fixed.stdout)["ok"])
+
+        settled = subprocess.run(selected, cwd=outside, env=environment,
+                                 capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(settled.returncode, 0, settled.stdout + settled.stderr)
+        state = json.loads((self.root / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(set(state["enabled_packs"]), {
+            pack_manager.COMMONS_PACK_ID, self.manifest["pack_id"], second["pack_id"],
+        })
+        self.assertEqual(state["pack_roots"], [])
 
     def test_all_suboperations_use_one_resolved_runtime(self) -> None:
         from unittest.mock import patch

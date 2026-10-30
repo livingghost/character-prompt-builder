@@ -185,6 +185,267 @@ class DispatchRecoveryTests(unittest.TestCase):
         first=self.call();second=execution.resume(self.root,self.run)
         self.assertFalse(first['execution_completed']);self.assertFalse(second['execution_completed']);self.assertEqual(self.send.call_count,1)
 
+    def test_inconclusive_json_keeps_its_first_observation_and_recovers_once(self):
+        def answer(*args):
+            self.actual_send(*args)
+            return {}
+        self.send.side_effect=answer
+        first=self.call();journal=self.journal();original=(journal.path/'send-observation.json').read_bytes()
+        self.assertEqual(first['runs'][0]['submission'],'outcome_unknown')
+        self.assertEqual(first['runs'][0]['next_action']['command'],'resume')
+        self.assertEqual(accounting.all_states(self.root)[0]['status'],'started')
+        self.assertFalse((journal.path/'answer.json').exists())
+        with patch.object(transport_synthetic,'lookup',wraps=transport_synthetic.lookup) as lookup:
+            final=execution.resume(self.root,self.run)
+        self.assertTrue(final['execution_completed']);self.assertEqual(lookup.call_count,1)
+        self.assertEqual(lookup.call_args.args[0],c.load(journal.path/'request.json'))
+        self.assertEqual((journal.path/'send-observation.json').read_bytes(),original)
+        self.assertEqual(c.load(journal.path/'lookup-001-answer.json'),c.load(journal.path/'answer.json'))
+        self.assertEqual((self.send.call_count,len(self.candidates())),(1,2))
+
+    def test_unreadable_success_keeps_unknown_outcome_and_recovers_by_lookup(self):
+        import transport_runware
+        body=b'<html>incomplete successful response</html>'
+        def answer(*args):
+            self.actual_send(*args)
+            return transport_runware._answer(200,body)
+        self.send.side_effect=answer
+        first=self.call();journal=self.journal()
+        self.assertEqual(first['runs'][0]['submission'],'outcome_unknown')
+        observed=c.load(journal.path/'indeterminate.json')
+        self.assertEqual((observed['http_status'],observed['body']),(200,body.decode()))
+        self.assertFalse((journal.path/'answer.json').exists())
+        self.assertTrue(execution.resume(self.root,self.run)['execution_completed'])
+        self.assertEqual((self.send.call_count,len(self.candidates())),(1,2))
+
+    def test_processing_stays_pending_after_an_empty_or_unreadable_lookup(self):
+        import transport_contract
+        def answer(*args):
+            self.actual_send(*args)
+            return {'data':[{'id':args[0]['request_id'],'pending':True}]}
+        self.send.side_effect=answer
+        first=self.call()
+        self.assertEqual(first['runs'][0]['submission'],'pending')
+        self.assertEqual(accounting.all_states(self.root)[0]['status'],'started')
+        self.assertEqual(self.candidates(),[])
+        failure=transport_contract.Indeterminate('Synthetic unreadable lookup',status=200,body=b'{broken')
+        for response in (None,failure):
+            with patch.object(transport_synthetic,'lookup',side_effect=response if isinstance(response,Exception) else None,
+                              return_value=None):
+                again=execution.resume(self.root,self.run)
+            self.assertEqual(again['runs'][0]['submission'],'pending')
+            self.assertEqual(again['runs'][0]['next_action']['command'],'resume')
+            self.assertFalse(again['execution_completed'])
+        self.assertEqual(c.load(self.journal().path/'lookup-002.json')['evidence']['body'],'{broken')
+        self.assertTrue(execution.resume(self.root,self.run)['execution_completed'])
+        self.assertEqual((self.send.call_count,len(self.candidates())),(1,2))
+
+    def partial_processing(self,*args):
+        answer=self.actual_send(*args)
+        return {**answer,'data':[answer['data'][0],{'id':'unfinished-output','pending':True}]}
+
+    def test_partial_processing_captures_once_when_lookup_changes_output_order(self):
+        self.send.side_effect=self.partial_processing
+        first=self.call();journal=self.journal()
+        original=(journal.path/'send-observation.json').read_bytes()
+        first_id=self.candidates()[0]['data']['provider_output_id']
+        self.assertEqual((first['runs'][0]['submission'],first['runs'][0]['capture']),('pending','partial'))
+        self.assertEqual(first['runs'][0]['next_action']['command'],'resume')
+        self.assertEqual(accounting.all_states(self.root)[0]['status'],'captured')
+        self.assertFalse((journal.path/'answer.json').exists())
+        with patch.object(transport_synthetic,'lookup',return_value=c.load(journal.path/'send-observation.json')):
+            pending=execution.resume(self.root,self.run)
+        self.assertEqual(pending['runs'][0]['submission'],'pending')
+        self.assertEqual(len(self.candidates()),1)
+        self.assertFalse((journal.path/'answer.json').exists())
+        lookup=transport_synthetic.lookup
+        def reversed_answer(*args):
+            answer=lookup(*args);answer['data'].reverse();return answer
+        with patch.object(transport_synthetic,'lookup',side_effect=reversed_answer) as asked:
+            final=execution.resume(self.root,self.run)
+            repeated=execution.resume(self.root,self.run)
+        self.assertTrue(final['execution_completed']);self.assertTrue(repeated['execution_completed'])
+        self.assertEqual(asked.call_count,1)
+        self.assertEqual((self.send.call_count,len(self.candidates())),(1,2))
+        self.assertEqual([row['data']['output_index'] for row in self.candidates()],[1,2])
+        self.assertEqual(self.candidates()[0]['data']['provider_output_id'],first_id)
+        self.assertEqual((journal.path/'send-observation.json').read_bytes(),original)
+        self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'robot'))),2)
+        self.assertEqual(accounting.all_states(self.root)[0]['captured_outputs'],2)
+
+    def test_pending_observation_cannot_be_edited_into_a_final_answer(self):
+        from production_diagnostics import ProductionError
+        self.send.side_effect=self.partial_processing
+        self.call();journal=self.journal()
+        changed=c.load(journal.path/'send-observation.json');changed['data']=changed['data'][:1]
+        cases.write(journal.path/'send-observation.json',changed)
+        with patch.object(transport_synthetic,'lookup') as lookup,self.assertRaises(ProductionError) as caught:
+            execution.resume(self.root,self.run)
+        self.assertEqual(caught.exception.diagnostic.code,'RESPONSE_CORRUPT')
+        lookup.assert_not_called();self.assertEqual(len(self.candidates()),1)
+        self.assertFalse((journal.path/'answer.json').exists())
+
+    def test_partial_and_final_projection_failures_recover_each_original_response(self):
+        self.send.side_effect=self.partial_processing
+        with patch.object(studio,'iterate',side_effect=OSError('Synthetic projection failure')):
+            pending=self.call()
+            final=execution.resume(self.root,self.run)
+        self.assertEqual(pending['runs'][0]['submission'],'pending')
+        self.assertEqual(final['runs'][0]['registration'],'projection-missing')
+        self.assertEqual(len(self.candidates()),2)
+        self.assertEqual(studio.read_iterations(studio.character_dir(self.root,'robot')),[])
+        recovered=execution.resume(self.root,self.run)
+        self.assertTrue(recovered['execution_completed'])
+        self.assertEqual(recovered['runs'][0]['registration'],'registered')
+        self.assertEqual((self.send.call_count,len(self.candidates())),(1,2))
+        iterations=studio.read_iterations(studio.character_dir(self.root,'robot'))
+        self.assertEqual(len(iterations),2)
+        journal=self.journal()
+        self.assertEqual({row['answer']['sha256'] for row in iterations},
+                         {c.sha256_file(journal.path/name) for name in ('send-observation.json','answer.json')})
+
+    def test_interruption_before_first_partial_acquisition_recovers_before_lookup(self):
+        self.send.side_effect=self.partial_processing
+        with patch.object(dispatch,'acquire',side_effect=OSError('Synthetic interruption before output receipts')):
+            with self.assertRaises(OSError):self.call()
+        journal=self.journal()
+        self.assertEqual(list(journal.path.glob('response-*.json')),[])
+        self.assertEqual(self.candidates(),[])
+        with patch.object(transport_synthetic,'lookup',return_value=None),patch.object(dispatch,'acquire',wraps=dispatch.acquire) as acquire:
+            pending=execution.resume(self.root,self.run)
+        self.assertEqual(acquire.call_count,1)
+        self.assertEqual((pending['runs'][0]['submission'],len(self.candidates())),('pending',1))
+        actual_lookup=transport_synthetic.lookup
+        def final_output(*args):
+            answer=actual_lookup(*args);answer['data']=answer['data'][1:];return answer
+        with patch.object(transport_synthetic,'lookup',side_effect=final_output):
+            final=execution.resume(self.root,self.run)
+        self.assertTrue(final['execution_completed'])
+        self.assertEqual((self.send.call_count,len(self.candidates())),(1,2))
+
+    def test_changed_partial_output_is_not_registered_again_or_polled(self):
+        from production_diagnostics import ProductionError
+        self.send.side_effect=self.partial_processing
+        self.call();before=self.candidates();journal=self.journal()
+        (journal.path/'result-1.png').write_bytes(transport_synthetic._png(32,32,b'\x08\x10\x18'))
+        with patch.object(transport_synthetic,'lookup') as lookup,self.assertRaises(ProductionError) as caught:
+            execution.resume(self.root,self.run)
+        self.assertEqual(caught.exception.diagnostic.code,'PROVIDER_OUTPUT_CHANGED')
+        lookup.assert_not_called();self.assertEqual(self.candidates(),before)
+        self.assertEqual(self.send.call_count,1)
+
+    def test_missing_or_repeated_output_ids_use_media_identity_when_lookup_reorders(self):
+        import transport_runware
+        for identifier in (None,'repeated-output-id'):
+            with self.subTest(identifier=identifier):
+                self.root=cases.copy_studio(self.origin,self.base/('no-id' if identifier is None else 'shared-id'))
+                self.send.reset_mock();complete=None
+                def provider(*args):
+                    nonlocal complete
+                    answer=self.actual_send(*args)
+                    entries=[{'taskUUID':args[0]['request_id'],'imageBase64Data':entry['data'],'cost':'0',
+                              **({'imageUUID':identifier} if identifier is not None else {})} for entry in answer['data']]
+                    complete={'data':list(reversed(entries))}
+                    return {'data':[entries[0],{'taskUUID':args[0]['request_id'],'status':'processing'}]}
+                self.send.side_effect=provider
+                with patch.object(transport_synthetic,'results',side_effect=transport_runware.results), \
+                        patch.object(transport_synthetic,'observation_outcome',side_effect=transport_runware.observation_outcome), \
+                        patch.object(transport_synthetic,'usage',side_effect=transport_runware.usage), \
+                        patch.object(transport_synthetic,'lookup',side_effect=lambda *args:complete) as lookup:
+                    self.call();first=self.candidates()[0]['data']['files'][0]['sha256']
+                    self.assertTrue(execution.resume(self.root,self.run)['execution_completed'])
+                    execution.resume(self.root,self.run)
+                self.assertEqual((self.send.call_count,lookup.call_count,len(self.candidates())),(1,1,2))
+                self.assertEqual(self.candidates()[0]['data']['files'][0]['sha256'],first)
+                self.assertEqual([row['data']['provider_output_id'] for row in self.candidates()],[identifier,identifier])
+
+    def test_incremental_charge_stays_provisional_and_cumulative_charge_is_counted_once(self):
+        import transport_runware
+        for cumulative in (False,True):
+            with self.subTest(cumulative=cumulative):
+                self.root=cases.copy_studio(self.origin,self.base/('cumulative-cost' if cumulative else 'incremental-cost'))
+                self.send.reset_mock();complete=None
+                def provider(*args):
+                    nonlocal complete
+                    answer=self.actual_send(*args)
+                    entries=[{'taskUUID':args[0]['request_id'],'imageUUID':entry['id'],
+                              'imageBase64Data':entry['data'],'cost':cost}
+                             for entry,cost in zip(answer['data'],('0.11','0.13'))]
+                    complete={'data':entries if cumulative else entries[1:]}
+                    return {'data':[entries[0],{'taskUUID':args[0]['request_id'],'status':'processing'}]}
+                self.send.side_effect=provider
+                with patch.object(transport_synthetic,'results',side_effect=transport_runware.results), \
+                        patch.object(transport_synthetic,'observation_outcome',side_effect=transport_runware.observation_outcome), \
+                        patch.object(transport_synthetic,'usage',side_effect=transport_runware.usage), \
+                        patch.object(transport_synthetic,'lookup',side_effect=lambda *args:complete):
+                    self.call()
+                    self.assertTrue(execution.resume(self.root,self.run)['execution_completed'])
+                    recorded=accounting.summary(self.root)
+                    execution.resume(self.root,self.run)
+                self.assertEqual(accounting.summary(self.root),recorded)
+                self.assertEqual((self.send.call_count,len(self.candidates())),(1,2))
+                self.assertEqual(recorded['reported_cost'],{'USD':'0.24'} if cumulative else {})
+                state=accounting.all_states(self.root)[0]
+                self.assertEqual(state['effect_results']['send']['usage'],
+                                 {'currency':'USD','amount':'0.24' if cumulative else '0.13','final':cumulative})
+                self.assertEqual(accounting.effect_total(state)[1],cumulative)
+
+    def test_runware_output_formats_are_captured_directly_and_after_lookup(self):
+        import base64
+        import transport_runware
+        from production_diagnostics import ProductionError
+        for output_type in ('URL','base64Data','dataURI'):
+            for recovery in (False,True):
+                with self.subTest(output_type=output_type,recovery=recovery):
+                    self.root=cases.copy_studio(self.origin,self.base/f'{output_type}-{recovery}')
+                    self.send.reset_mock();raw_images={};answer=None
+                    def provider(*args):
+                        nonlocal answer
+                        generated=self.actual_send(*args)
+                        entries=[]
+                        for item in generated['data']:
+                            raw=base64.b64decode(item['data']);url='https://im.runware.ai/'+item['id']+'.png'
+                            raw_images[url]=raw
+                            fields={'URL':{'imageURL':url},'base64Data':{'imageBase64Data':item['data']},
+                                    'dataURI':{'imageDataURI':'data:image/png;base64,'+item['data']}}[output_type]
+                            entries.append({'taskUUID':args[0]['request_id'],'imageUUID':item['id'],'cost':'0',**fields})
+                        answer={'data':entries}
+                        if recovery:raise TimeoutError('Synthetic response loss')
+                        return answer
+                    def retrieve(request,service,key):
+                        unrelated={'taskUUID':'another-task','imageURL':'https://im.runware.ai/unrelated.png'}
+                        with patch.object(transport_runware,'_post',return_value={'data':[*answer['data'],unrelated]}) as post:
+                            found=transport_runware.lookup({'taskUUID':request['request_id']},service,key)
+                        self.assertEqual(post.call_args.args[0],[{'taskType':'getResponse','taskUUID':request['request_id']}])
+                        return found
+                    def download(url,path,hosts):
+                        self.assertIn('im.runware.ai',hosts)
+                        c.atomic(path,raw_images[url],replace=True)
+                        return c.digest(raw_images[url])
+                    self.send.side_effect=provider
+                    with patch.object(transport_synthetic,'results',side_effect=transport_runware.results), \
+                            patch.object(transport_synthetic,'observation_outcome',side_effect=transport_runware.observation_outcome), \
+                            patch.object(transport_synthetic,'usage',side_effect=transport_runware.usage), \
+                            patch.object(transport_synthetic,'RESULT_HOSTS',transport_runware.RESULT_HOSTS), \
+                            patch.object(transport_synthetic,'lookup',side_effect=retrieve) as lookup, \
+                            patch.object(dispatch,'save',side_effect=download) as save:
+                        result=self.call()
+                        if recovery:result=execution.resume(self.root,self.run)
+                        self.assertTrue(result['execution_completed'])
+                        self.assertEqual((self.send.call_count,lookup.call_count),(1,int(recovery)))
+                        self.assertEqual(len(self.candidates()),2)
+                        self.assertEqual({item['data']['files'][0]['sha256'] for item in self.candidates()},
+                                         {c.digest(raw) for raw in raw_images.values()})
+                        execution.resume(self.root,self.run)
+                        self.assertEqual(len(self.candidates()),2)
+                        self.assertEqual(save.call_count,2 if output_type=='URL' else 0)
+                        before=self.candidates()
+                        (self.journal().path/'result-1.png').write_bytes(transport_synthetic._png(32,32,b'\x08\x10\x18'))
+                        with self.assertRaises(ProductionError) as caught:execution.resume(self.root,self.run)
+                        self.assertEqual(caught.exception.diagnostic.code,'PROVIDER_OUTPUT_CHANGED')
+                        self.assertEqual(self.candidates(),before)
+                        self.assertEqual(self.send.call_count,1)
+
     def test_partial_count_keeps_real_candidate(self):
         def answer(*args):
             result=self.actual_send(*args);result['data']=result['data'][:1];return result

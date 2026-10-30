@@ -56,7 +56,8 @@ gives one the wrong type, naming each such name in one error:
 
     results(answer) -> list[dict]
         One entry per returned image with its "seed" and "id", and either its
-        "url" or its bytes as base64 text in "data".
+        "url" or its bytes as base64 text in "data". An unfinished output has
+        "pending": true. Acceptance does not imply that all outputs finished.
 
     observation_outcome(answer) -> str
         The outcome of an answer the service gave.
@@ -65,7 +66,7 @@ A transport may also define these names; check() refuses one with the wrong type
 
     lookup(request, service, key) -> dict | None
         Ask the service for the answer to a request that was sent and whose
-        answer was lost, by the identifiers the request itself carries. It
+        answer was lost or remains unfinished, by its original identifiers. It
         returns that answer in the shape send() returns, or None when the
         service gives no answer for it. A transport without lookup cannot
         reconcile a lost answer, and the outcome stays unknown.
@@ -248,7 +249,7 @@ def lookup_once(transport: Any, request: dict[str, Any], service: dict[str, Any]
     try:
         answer = transport.lookup(request, service, key)
     except Indeterminate as unknown:
-        return {"outcome": "unavailable", "answer": None, "reason": unknown.reason}
+        return {"outcome": "unavailable", "answer": None, "reason": unknown.reason, "evidence": unknown.evidence()}
     except (OSError, http.client.HTTPException) as exc:
         return {"outcome": "unavailable", "answer": None,
                 "reason": _failure(exc, environment_seconds(TIMEOUT)).reason}
@@ -313,3 +314,13 @@ def outcome(transport: Any, answer: dict[str, Any]) -> str:
     if value not in OUTCOMES:
         raise ValueError(f"the transport gave the outcome {value!r}; an answer's outcome is one of {', '.join(OUTCOMES)}")
     return value
+
+
+def complete(transport: Any, answer: dict[str, Any]) -> bool:
+    """Whether this observation settles the request, independently of acceptance."""
+    observed = outcome(transport, answer)
+    entries = transport.results(answer)
+    if observed == INDETERMINATE or any(entry.get('pending') for entry in entries):
+        return False
+    return observed == REJECTED or bool(transport.rejections(answer)) or any(
+        entry.get('url') or entry.get('data') for entry in entries)

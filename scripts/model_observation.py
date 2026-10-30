@@ -79,18 +79,19 @@ def _derive(source:dict)->dict:
     known_outputs={};previous_indices=set();invalid=set();returned=None
     for result in results:
         data=result['data']
+        response=journal.get(data['answer'])
         if response is None or data['expected_count']!=1:
             raise ValueError('result observation lacks its exact one-output request and response')
-        if returned is not None and returned!=data['returned_count']:
-            raise ValueError('one saved provider response has conflicting output counts')
+        if returned is not None and returned>data['returned_count']:
+            raise ValueError('later observations cannot erase known provider outputs')
         returned=data['returned_count']
-        required={c.digest(journal[name]) for name in ('request-contract.json','request.json','answer.json')}
+        required={c.digest(journal[name]) for name in ('request-contract.json','request.json',data['answer'])}
         if not required<={f['sha256'] for f in data['evidence']}:
             raise ValueError('result receipt does not bind the rendered request and response')
         indices=data['output_indices']
         if len(indices)!=len(data['files']) or len(set(indices))!=len(indices) or not previous_indices.issubset(indices):
             raise ValueError('capture progress cannot erase or duplicate prior output positions')
-        if data['complete']!=(len(indices)==returned==1):
+        if type(data['provider_complete']) is not bool or data['complete']!=(data['provider_complete'] and len(indices)==returned==1):
             raise ValueError('capture completeness differs from the recorded output counts')
         for index,item in zip(indices,data['files']):
             if type(index) is not int or index<1 or index>returned:
@@ -99,7 +100,10 @@ def _derive(source:dict)->dict:
                 raise ValueError('the same provider output position changed its captured bytes')
             responses=[f['sha256'] for f in data['evidence'] if f['path'].endswith(f'/response-{index}.json')]
             named=c.decode(_read_object(source['objects'][responses[0]])) if len(responses)==1 and responses[0] in source['objects'] else None
-            if not isinstance(named,dict) or named.get('answer_sha256')!=c.digest(response) or named.get('index')!=index:
+            originals=[f['sha256'] for f in data['evidence'] if isinstance(named,dict)
+                       and f['path'].endswith('/'+str(named.get('answer')))]
+            if (not isinstance(named,dict) or originals != [named.get('answer_sha256')]
+                    or named.get('index')!=index):
                 raise ValueError('result receipt does not bind its image to the saved provider response')
             raw=_read_object(source['objects'][item['sha256']]);_inspect_output(raw,item,prepared)
             known_outputs[index]=item['sha256']
@@ -302,5 +306,6 @@ def _journal(directory, rows, claim) -> dict:
         raise ValueError('observation is missing its recorded request contract')
     rendered = c.decode(witnesses['request-contract.json'])
     names = ['request-contract.json', 'request.json', 'answer.json', 'transport-outcome.json']
+    names += [row['data']['answer'] for row in rows if row['event'] == 'dispatch-results']
     names += [f'upload-{i + 1:03d}.json' for i in range(len(rendered['media']))]
     return {name: witnesses[name] for name in names if name in witnesses}

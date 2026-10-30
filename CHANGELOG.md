@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026.10.30.1
+
+- Keep uncertain and accepted-but-processing generation responses recoverable through the same provider task. Preserve the initial response and subsequent lookup evidence, and capture available partial results without another submission.
+- Capture Runware URL, base64 and data-URI images through the same result path. Bind each returned image to its provider identity and first acquired bytes when resuming.
+- Produce executable session and recovery commands with the running Python, absolute script paths and complete pack-runtime selectors, including additional discovery roots.
+- Validate reference-corpus dependencies through the selected runtime, including separate pack directories, and retain actionable child errors in release reports.
+- Check regular and bold CJK glyph coverage before sheet rendering when actual labels are supplied. Include representative CJK coverage in the Tested dependency profile.
+- Explore open narrative choices after retaining adopted facts and explicit constraints. Compare causal mechanisms where the requested purpose calls for development, and preserve intentional continuation, observation and formal variation.
+- Record each candidate's borrowed material, contribution, comparison basis and unresolved dependencies. Check candidates against the world, personas and current state before selection.
+- Preserve the information, explanations and supported behavior needed by current and future uses. Require evidence of completion and affected-use analysis before removing material from instructions.
+
 ## 2026.10.26.6
 
 - Choose visual forms and rendering treatments from purpose, viewing conditions and delegated direction, including combinations of image, diagram, type and interface content.

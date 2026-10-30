@@ -42,7 +42,10 @@ Use Python 3.11 or newer. Core scripts use the standard library only. [Release V
 - [package-manifest.toml](package-manifest.toml) owns product release metadata and the release allowlist.
 - [MANIFEST.json](MANIFEST.json) is generated product-build metadata and must not be edited by hand.
 
-Do not duplicate ownership. When information belongs to an existing canonical file, update that file and leave a link or pointer elsewhere.
+Each mutable fact or contract has one canonical owner. Update that owner when its meaning changes
+and link to it from dependent material. Retain local explanations that supply necessary conditions,
+evidence, a different perspective or a usable procedure. Those explanations must agree with the
+owner rather than become separately editable versions of the same rule.
 
 ## Preset contributions
 
@@ -113,19 +116,41 @@ Every file path mentioned in the README must be a Markdown link unless it is par
 
 The writing rules in the repository guide apply here and to every reference, template and changelog entry:
 
-- Say what a thing does, as an action: "the tool records every returned
-  candidate". State a boundary at most once per section, and as who decides:
-  "the author decides when a candidate becomes canon", not "the tool does not
-  decide".
-- One idea per sentence, about twenty words. Three or more items become a list.
-- Prefer the general word. Where a product term must appear because the tools
-  use it, put the general phrase beside it at its first use and use the general
-  word afterward. Do not add a glossary, a preamble about the document itself,
-  or a section that explains why other sections repeat.
-- Show a real example next to any claim about output: an actual command's output
-  or an actual record, trimmed, and labeled synthetic when it is a fixture.
-- Delete a repeated principle and refer to the place it is stated. Longer is
-  not safer.
+- State what a thing does and who decides: "the tool records every returned
+  candidate" and "the author decides when a candidate becomes canon". Keep the
+  conditions, limits and evidence needed to apply those statements correctly.
+- Give sentences and paragraphs a clear purpose. Use lists for parallel items
+  or ordered steps, while preserving the relationships and explanations that
+  make the information usable. Length alone does not determine completeness.
+- Prefer familiar words and explain required product terms where the reader
+  encounters them. Retain the distinctions and definitions needed for each use.
+- Show a real example beside a claim about output. Include the input, output
+  and context needed to assess the claim, and label a synthetic fixture as such.
+  An excerpt must identify its scope and keep the evidence relevant to the claim.
+- Preserve supported behavior, authored knowledge and the material needed for
+  judgment when revising instructions. Before considering removal, examine the
+  mechanism, theory or function from multiple relevant perspectives and establish
+  that it is complete within its intended scope. Inspect its requirements,
+  implementation, dependent uses, examples and failure cases. Establishing that
+  completeness is a prerequisite; it does not itself justify any deletion.
+- A passing test suite, current nonuse or similar wording alone establishes
+  neither completeness nor lack of need. Preserve the material needed to examine
+  unresolved dependencies and to support future extensions of the intended
+  design. After establishing completeness, assess each proposed deletion's
+  effects and verify that every affected use retains its behavior, explanatory
+  basis and necessary information.
+- Repeated wording or a shorter replacement alone is insufficient reason to
+  delete material. Keep explanations that supply another perspective, expose a
+  dependency, support a different check or make a local procedure understandable.
+  Consolidate only when those functions survive, the complete owning source is
+  reachable, and the affected procedures and references remain usable. State the
+  reason in the change review and verify the resulting behavior and meaning.
+- State durable product facts, rules and evidence in records and artifacts.
+  Keep task-specific work instructions, work reports, process notes, decision
+  histories, session narratives and conversation quotations out of product artifacts.
+  Generalize task-specific lessons into reusable guidance.
+  A measurement's evidence (when, what, the result) is a fact; the story of
+  producing it is not.
 - ASCII punctuation, no em or en dashes, English throughout.
 - After changing README.md, run `python scripts/readme_smoke_test.py` and keep
   the executable example blocks byte-identical unless the commands changed.
@@ -287,7 +312,12 @@ Character Prompt Builder is licensed under the [GNU General Public License versi
 
 ## Prompt-only contract changes
 
-When modifying runtime instructions, keep the shortest prompt-only route small and preserve all displaced detail in conditional references. Run:
+When modifying runtime instructions, preserve the complete requirements, reasoning aids and
+procedures needed for the requested prompt work. Separate applicable uses through explicit routes
+and conditional references whose full contents remain discoverable and readable. Moving detail
+must preserve the conditions that activate it and the evidence needed to use it correctly.
+Inspect the reading footprint together with actual task completion; a smaller footprint alone
+does not establish an improvement. Run:
 
 ```bash
 python scripts/runtime_read_footprint.py

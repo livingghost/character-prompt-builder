@@ -16,7 +16,6 @@ import io
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -24,6 +23,8 @@ import sysconfig
 import tomllib
 from pathlib import Path
 from typing import Any, Sequence
+
+from cli_invocation import python_argv, shown
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "requirements-core.txt"
@@ -63,7 +64,7 @@ PROFILE_ARGUMENTS = {
     "tested": ("--tested",),
 }
 PROFILE_CHECK_COMMANDS = {
-    profile: " ".join(("python", "scripts/check_dependencies.py", *arguments))
+    profile: shown(python_argv(Path(__file__), *arguments))
     for profile, arguments in PROFILE_ARGUMENTS.items()
 }
 INSTALLABLE_PROFILES = frozenset({"visual", "full", "tested"})
@@ -72,11 +73,45 @@ FFPROBE_REQUIRED = {"visual": False, "full": False, "tested": True}
 FFPROBE_ENABLES = "measured audio and video streams in temporal production evidence"
 REPORT_FIELDS = ("ok", "python", "profile", "definition", "dependencies", "errors")
 HAS_PIP = "import importlib.util, sys; sys.exit(importlib.util.find_spec('pip') is None)"
+TESTED_SHEET_TEXT = "\u4e2d\u6587 \u65e5\u672c\u8a9e \u3042\u30a2 \ud55c\uad6d\uc5b4"
 
 
-def shown(command: Sequence[str]) -> str:
-    """One command as this platform's shell reads it."""
-    return subprocess.list2cmdline(list(command)) if os.name == "nt" else shlex.join(command)
+def sheet_font_report(texts: Sequence[str]) -> dict[str, Any]:
+    """Check the sheet renderer's regular and bold CJK coverage for the supplied text."""
+    from character_sheet_render.textmetrics import contains_cjk, segment_text_by_font
+
+    required = tuple(text for text in texts if contains_cjk(text))
+    roles: dict[str, Any] = {}
+    errors: list[str] = []
+    for role in ("regular", "bold"):
+        paths: set[str] = set()
+        failures: list[str] = []
+        for text in required:
+            try:
+                paths.update(str(path) for path, _ in segment_text_by_font(role, text))
+            except (ImportError, OSError, RuntimeError, ValueError) as exc:
+                failures.append(str(exc))
+        roles[role] = {"ok": not failures, "paths": sorted(paths), "errors": failures}
+        errors.extend(f"sheet {role} font: {error}" for error in failures)
+    return {
+        "ok": not errors,
+        "required": bool(required),
+        "checked_texts": list(texts),
+        "scope": "CJK glyph coverage for the checked text at regular and bold weights",
+        "roles": roles,
+        "errors": errors,
+        "installation": "Install system fonts covering the reported characters at both weights, then rerun the check.",
+    }
+
+
+def with_sheet_fonts(report: dict[str, Any], texts: Sequence[str]) -> dict[str, Any]:
+    fonts = sheet_font_report(texts)
+    return {
+        **report,
+        "ok": bool(report["ok"] and fonts["ok"]),
+        "errors": [*report["errors"], *fonts["errors"]],
+        "sheet_fonts": fonts,
+    }
 
 
 def externally_managed() -> bool:
@@ -439,9 +474,11 @@ def _failed_report(profile: str, error: str) -> dict[str, Any]:
     }
 
 
-def check_in(python: str, profile: str) -> dict[str, Any]:
+def check_in(python: str, profile: str, *, sheet_text: Sequence[str] = ()) -> dict[str, Any]:
     """Run this check in a new process of the interpreter at python and return its report."""
     command = [python, str(Path(__file__).resolve()), *PROFILE_ARGUMENTS[profile]]
+    for text in sheet_text:
+        command.append("--sheet-text=" + text)
     try:
         completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False)
     except OSError as exc:
@@ -451,6 +488,8 @@ def check_in(python: str, profile: str) -> dict[str, Any]:
         result = {field: report[field] for field in REPORT_FIELDS}
         if "ffprobe" in report:
             result["ffprobe"] = report["ffprobe"]
+        if "sheet_fonts" in report:
+            result["sheet_fonts"] = report["sheet_fonts"]
         return result
     except (ValueError, KeyError, TypeError):
         detail = completed.stderr.strip().splitlines()
@@ -467,6 +506,7 @@ def check_profile(
     *,
     fresh: bool = False,
     plan: tuple[list[list[str]], str | None] | None = None,
+    sheet_text: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Return an actionable dependency report for one declared profile.
 
@@ -477,13 +517,18 @@ def check_profile(
 
     if profile not in PROFILE_PATHS:
         raise ValueError(f"unknown dependency profile: {profile!r}")
+    if sheet_text and profile == "core":
+        raise ValueError("sheet text coverage requires the Visual profile")
     python = sys.executable if venv is None else str(environment_python(venv))
     if venv is None and not fresh:
         report = check(PROFILE_PATHS[profile])
+        texts = (TESTED_SHEET_TEXT, *sheet_text) if profile == "tested" else tuple(sheet_text)
+        if texts:
+            report = with_sheet_fonts(report, texts)
     elif venv is not None and not is_environment(venv):
         report = _failed_report(profile, f"{venv} holds no virtual environment")
     else:
-        report = check_in(python, profile)
+        report = check_in(python, profile, sheet_text=sheet_text) if sheet_text else check_in(python, profile)
     if "ffprobe" not in report and profile in FFPROBE_REQUIRED:
         report = with_ffprobe(report, profile)
     dependencies = report.get("dependencies") or []
@@ -500,10 +545,15 @@ def check_profile(
         and row.get("constraint_ok") is not True
     )
     commands, note = install_plan(profile, venv) if plan is None else plan
+    check_arguments = list(PROFILE_ARGUMENTS[profile])
+    for text in sheet_text:
+        check_arguments.append("--sheet-text=" + text)
+    if venv is not None:
+        check_arguments.extend(("--venv", str(venv)))
     return {
         **report,
         "executable": python,
-        "check_command": PROFILE_CHECK_COMMANDS[profile] + ("" if venv is None else f" --venv {shown([str(venv)])}"),
+        "check_command": shown(python_argv(Path(__file__), *check_arguments)),
         **({"venv_command": shown(commands[0])} if len(commands) > 1 else {}),
         "install_command": shown(commands[-1]) if commands else None,
         **({"install_note": note} if note else {}),
@@ -588,6 +638,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="check the virtual environment at DIR; the printed commands create it when absent and install into it",
     )
     parser.add_argument(
+        "--sheet-text",
+        action="append",
+        default=[],
+        metavar="TEXT",
+        help="check regular and bold CJK glyph coverage for actual sheet text; repeat for multiple labels",
+    )
+    parser.add_argument(
         "--install",
         action="store_true",
         help="run the printed commands once the user confirms them, then check again",
@@ -603,16 +660,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--yes confirms --install; pass both")
     if (args.install or args.venv) and profile not in INSTALLABLE_PROFILES:
         parser.error("the core profile installs nothing")
+    if args.sheet_text and profile == "core":
+        parser.error("--sheet-text requires --profile visual, --profile full, or --tested")
     venv = Path(os.path.abspath(args.venv)) if args.venv else None
     plan = install_plan(profile, venv)
-    report = check_profile(profile, venv, plan=plan)
+    report = check_profile(profile, venv, plan=plan, sheet_text=args.sheet_text)
     commands = pending_commands(report, plan) if args.install else []
     refusal = confirmation(commands, yes=args.yes) if commands else None
     if refusal:
         report["errors"].append(refusal)
     elif commands:
         ran, failure = run_commands(commands)
-        report = {**check_profile(profile, venv, fresh=True), "install_ran": ran}
+        report = {**check_profile(profile, venv, fresh=True, sheet_text=args.sheet_text), "install_ran": ran}
         if failure:
             report["ok"] = False
             report["errors"].append(failure)

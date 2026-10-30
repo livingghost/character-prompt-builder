@@ -8,9 +8,9 @@ own identifier; the model sits in `model`, the count in `numberResults`, and the
 seed in `seed`. The prompt, the negative and the media go on the keys the
 offering gives them. An upscale asks for `upscaleFactor` and a PNG
 `outputFormat`. An image is registered with `imageUpload` as a data URI and
-travels by the id it returns. A finished image comes back as `imageURL` on
-im.runware.ai. An answer body that is not a JSON object is kept as an error
-answer.
+travels by the id it returns. Finished images arrive as `imageURL` on
+im.runware.ai, `imageBase64Data`, or `imageDataURI`. An unreadable successful
+response stays indeterminate and retains its HTTP status and body.
 
 A task entry carries its charge in `cost`, in US dollars, when the request
 selected `includeCost`; without it the charge stays unknown. A lost answer is
@@ -27,7 +27,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from model_contract import NEGATIVE_ROLE, PROMPT_ROLE, generation_media_counts, required_request_key
-from transport_contract import Refused, post
+from transport_contract import Indeterminate, Refused, post
 
 SERVICE = "runware"
 API_HOST = "api.runware.ai"
@@ -47,13 +47,16 @@ def endpoint(service: dict[str, Any]) -> str:
 
 
 def _answer(status: int, body: bytes) -> dict[str, Any]:
-    """The parsed answer, or an error answer that keeps a body that is not a JSON object."""
+    """Parse a provider answer without treating an unreadable success as a refusal."""
     try:
         value = json.loads(body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         value = None
     if isinstance(value, dict):
         return value
+    if 200 <= status < 300:
+        raise Indeterminate('the service returned a successful HTTP response without a JSON object',
+                            status=status, body=body)
     return {"errors": [{"code": f"http{status}-not-json-object", "message": body.decode("utf-8", "replace")}]}
 
 
@@ -263,14 +266,19 @@ def send(request: dict[str, Any], service: dict[str, Any], key: str) -> dict[str
 
 
 def lookup(request: dict[str, Any], service: dict[str, Any], key: str) -> dict[str, Any] | None:
-    """The images the service returns for this request's own taskUUID, or None when it returns none."""
+    """Return this task's outputs, processing entries and failures from one lookup."""
     identifier = request.get("taskUUID") if isinstance(request, dict) else None
     if not isinstance(identifier, str) or not identifier:
         return None
     answer = _post([{"taskType": "getResponse", "taskUUID": identifier}], service, key)
-    entries = [entry for entry in (answer.get("data") or []) if isinstance(entry, dict)
-               and entry.get("taskUUID") == identifier and entry.get("imageURL")]
-    return {"data": entries} if entries else None
+    found = {}
+    for field in ('data', 'errors'):
+        entries = answer.get(field)
+        matched = [entry for entry in entries if isinstance(entry, dict) and entry.get('taskUUID') == identifier] \
+            if isinstance(entries, list) else []
+        if matched:
+            found[field] = matched
+    return found or None
 
 
 def rejections(answer: dict[str, Any]) -> list[dict[str, Any]]:
@@ -283,20 +291,36 @@ def rejections(answer: dict[str, Any]) -> list[dict[str, Any]]:
 def results(answer: dict[str, Any]) -> list[dict[str, Any]]:
     entries = (answer.get("data") or []) if isinstance(answer, dict) else []
     found = []
-    for entry in entries:
+    for entry in entries if isinstance(entries, list) else []:
         if not isinstance(entry, dict):
             continue
-        identifier = entry.get("imageUUID") or entry.get("taskUUID")
-        found.append({"url": entry.get("imageURL"), "seed": entry.get("seed"), "id": identifier})
+        identifier = entry.get('imageUUID')
+        data = entry.get('imageBase64Data')
+        if entry.get('imageDataURI'):
+            uri = entry['imageDataURI']
+            if not isinstance(uri, str) or ',' not in uri:
+                raise ValueError('the returned image data URI is malformed')
+            header, data = uri.split(',', 1)
+            if header.lower() not in {'data:image/png;base64', 'data:image/jpeg;base64', 'data:image/webp;base64'}:
+                raise ValueError('the returned image data URI must declare a base64 PNG, JPEG or WebP image')
+            # The shared acquisition owner validates the decoded image bytes.
+        image = {'url': entry.get('imageURL'), 'seed': entry.get('seed'), 'id': identifier}
+        if data is not None:
+            image['data'] = data
+        if entry.get('status') == 'processing' or (not image.get('url') and not image.get('data')
+                                                   and entry.get('status') != 'error'):
+            image['pending'] = True
+            image['id'] = identifier or entry.get('taskUUID')
+        found.append(image)
     return found
 
 
 def observation_outcome(answer: dict) -> str:
+    entries = results(answer)
+    if any(entry.get('id') or entry.get('url') or entry.get('data') for entry in entries):
+        return 'accepted'
     if rejections(answer):
         return 'rejected'
-    entries = results(answer)
-    if any(entry.get('id') or entry.get('url') or entry.get('pending') for entry in entries):
-        return 'accepted'
     return 'indeterminate'
 
 

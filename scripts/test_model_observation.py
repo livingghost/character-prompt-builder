@@ -152,6 +152,33 @@ class RecordedObservationTests(unittest.TestCase):
             observation._derive(changed)
 
 
+class ProcessingObservationTests(unittest.TestCase):
+    def test_partial_and_final_receipts_keep_one_output_and_export_its_first_response(self):
+        import shutil
+        import transport_synthetic
+        with tempfile.TemporaryDirectory() as folder:
+            base=Path(folder);case=fixtures.create(base/'studio',base/'runtime');root=case['root']
+            run=workflow.prepare(root,'task.json')['run'];send=transport_synthetic.send
+            def processing(*args):
+                answer=send(*args)
+                return {**answer,'data':[*answer['data'],{'id':'processing','pending':True}]}
+            with patch.object(transport_synthetic,'send',side_effect=processing) as sent:
+                first=execution.execute(root,run,decisions_file=decisions(root,run))
+                pending=observation._derive(observation.capture(root,run))
+                self.assertEqual(first['runs'][0]['submission'],'pending')
+                self.assertEqual(pending['outcome'],'indeterminate')
+                self.assertEqual(len(pending['results']),1)
+                final=execution.resume(root,run)
+                self.assertEqual(sent.call_count,1)
+            source=observation.capture(root,run)
+            self.assertTrue(final['execution_completed'])
+            self.assertIn('send-observation.json',source['journal'])
+            shutil.rmtree(root)
+            completed=observation._derive(source)
+            self.assertEqual(completed['outcome'],'completed')
+            self.assertEqual(completed['results'],pending['results'])
+
+
 def create_probe(base,upscale=False):
     case=fixtures.create(base/'studio',base/'runtime',with_upscale=upscale)
     root=case['root'];task_path=fixtures.upscale_task(root) if upscale else 'task.json'
@@ -214,7 +241,8 @@ class CaptureProgressObservationTests(unittest.TestCase):
             base=Path(directory)
             root=fixtures.create(base/'studio',base/'runtime')['root']
             run=workflow.prepare(root,'task.json')['run']
-            incomplete={'entries':1,'refused':[],'acquired':[],'failed':[{'index':1,'error':'Synthetic interrupted local capture'}],'downloaded':0}
+            incomplete={'entries':1,'observed_indices':[1],'refused':[],'acquired':[],
+                        'failed':[{'index':1,'error':'Synthetic interrupted local capture'}],'downloaded':0}
             with patch.object(dispatch,'acquire',return_value=incomplete):
                 first=execution.execute(root,run,decisions_file=decisions(root,run))
             self.assertEqual(first['runs'][0]['capture'],'partial')

@@ -115,6 +115,15 @@ staging, camera, lighting and performance. Diagnose whether repeated choices
 serve the brief or merely came from incidental retrieval matches. Retaining a
 draft choice during an edit does not make it permanent identity.
 
+Narrative development can converge when available cast, locations and motifs determine each
+proposal before its intended function is considered. Reuse can support a new causal mechanism,
+and an intentional reprise, routine or observation can preserve an existing one. Establish which
+facts and choices are fixed, then use
+[exploration of open choices](runtime/narrative-development.md#explore-open-choices-beyond-the-current-inventory)
+for the requested development. Compare the contribution of each candidate and test its fit to
+the existing world and personas before selecting it. A changed backdrop alone does not establish
+a new mechanism, and a request for alternatives does not release adopted constraints.
+
 ## A surface the style omits keeps getting described
 
 This is a process failure. Symptom: a surface the target style deliberately leaves undrawn (fur, pores, fabric weave, panel seams) keeps reappearing in the output, and every attempted fix adds more language about that surface: shorter fur, sparser texture, an in-world reason the surface looks smooth. Mechanism: a completeness reflex treats an unmentioned surface as unspecified, so the agent describes a minimal version of it; under the emphasis budget every mention is a vote to render it, and diegetic justifications (fur so short it looks like skin) reintroduce the omitted concept as a property of the subject. The reference model is stylistic omission: the subject still has the surface; the artist declines to draw it, exactly as anime skin omits pores.

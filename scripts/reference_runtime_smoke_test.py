@@ -8,6 +8,7 @@ import json
 import os
 import stat
 import struct
+import sys
 import tempfile
 import zlib
 from pathlib import Path
@@ -16,6 +17,7 @@ from unittest.mock import patch
 
 from catalog_cli import configure_pack_runtime
 from check_dependencies import check_profile, install_command
+from cli_invocation import shown
 from pack_manager import PackSettings, write_lock
 from prepare_generation_references import (
     host_reference_transports,
@@ -1221,7 +1223,8 @@ def run() -> dict[str, Any]:
                         and exc.report.get("required") is True
                         and exc.report.get("profile") == "visual"
                         and exc.report.get("check_command")
-                        == "python scripts/check_dependencies.py --profile visual"
+                        == shown([os.path.abspath(sys.executable), str(ROOT / "scripts" / "check_dependencies.py"),
+                                  "--profile", "visual"])
                         and exc.report.get("install_command")
                         == install_command("visual")[0]
                     )
