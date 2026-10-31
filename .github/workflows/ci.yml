@@ -67,7 +67,7 @@ jobs:
           ffprobe -version | head -n 1
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
       # Every step after the install runs even when an earlier one failed, and
       # the runner runs every suite whatever another suite did, so one run names
@@ -161,7 +161,7 @@ jobs:
           ffprobe -version | head -n 1
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
       - name: Synchronize the locked environment
         env:
