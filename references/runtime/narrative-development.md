@@ -425,6 +425,17 @@ scene still declares what is presented, where and how; a held condition is recor
 structures and arc developmental sections are optional; when used, the latter describe the actual
 organization rather than mandatory escalation.
 
+Context can guide the scene's placement, preserved conditions and realization while
+remaining unpresented. An unseen sleeper may support a careful hand movement and
+framing that keeps their room outside view. Retain that context in the depiction's
+`from` links; a downstream prompt plot can carry the same basis for its chosen
+expression. The visible focal beat still identifies the material actually presented.
+Record learning on a visible beat's `teaches`, and source exchanges, persistent
+consequences and relationship changes to visible beats where they occur. Respect
+focalization and each character's knowledge when interpreting authoring context.
+The [Narrative Protocol](../narrative-protocol.md#scene-plot) owns these source rules;
+the state runtime separately owns approved state events.
+
 The JSON protocol currently serializes ordered chapters and scenes in prose, comics, screen or
 mixed realization. It is not a native interactive branch graph or a format for every possible
 medium. Keep unsupported structures in design documents, or create explicitly scoped serialized

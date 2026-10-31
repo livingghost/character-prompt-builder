@@ -44,6 +44,12 @@ references: [kanda-station]
 for that phase has to be this file: where the two disagree the check refuses, rather than leaving a
 session to read whichever it opened first.
 
+The narrative's current `characters[].persona` and each `phases[].persona` path
+are relative to the series directory, which contains `narrative/`. In the
+standard layout, this file's pointer is `narrative/personas/c01.md`. The same
+pointer applies when the series directory is a studio's `story/`; a Scene
+Persona plan rooted at that studio uses `story/narrative/personas/c01.md`.
+
 ```
 python <skill>/scripts/narrative_entity.py --series <series> add persona c01 --character C01
 python <skill>/scripts/narrative_index.py <series>

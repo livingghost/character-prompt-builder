@@ -41,6 +41,21 @@ Keep their scopes distinct even when the same pixels carry multiple properties.
 The assessment is not a prose inventory for the final prompt. In particular,
 an omitted incidental detail needs no model-facing permission or denial.
 
+Connect the assessment to the task's existing applied sources, direction and
+criteria. For each relevant attribute, identify the subject, the readable source
+region, the target value or intended change, and how the output can demonstrate
+it. Record the selected interpretation in `direction.decisions` when it needs
+an authored decision. Preserve the distinction between an observed source
+feature, a chosen depiction and an unresolved detail. A reference's useful
+coverage and authority determine its role, including a complete character sheet
+as primary evidence where it supplies the required design.
+
+Resolve scope overlaps at the attribute level using
+[Exact reference delivery](runtime/reference-delivery.md#resolve-the-attributes-needed-by-this-image).
+Carry every required feature through the resulting source assignments or target
+description. Complementary views and an explicitly scoped exception can coexist;
+the final instruction states which source controls the attribute that matters.
+
 ## Role map
 
 Use the following semantic boundaries for canonical reference uses. External semantic plans may name other explicit roles, such as `scene` or `geometry`.
@@ -73,19 +88,33 @@ Select the target depiction under
 [Prompt Composition](runtime/prompt-composition.md#select-the-depiction), then
 bind the relevant source evidence to it.
 
-1. State the intended event or visual purpose and its necessary relationships.
+1. State the intended event or visual purpose, its present situation and
+   necessary relationships. Establish any premise needed to understand the
+   chosen action or performance through the actual prompt and supplied media.
 2. Assign the delivered references to their subjects and permitted uses in
    the authored prompt, guided by the canonical bindings. Express required precedence.
 3. Describe target changes as the chosen result. Keep a required exclusion when
    it has independent meaning; do not manufacture an opposite for every deletion.
 4. Specify geometry where ownership, contact, depth or framing carries the
    intended action or a reconstruction-critical detail.
-5. Use record knowledge only for the selected depiction. A record's defaults,
-   possible failures and example objects are not automatic additions.
+5. Apply record knowledge according to its role in the selected depiction.
+   Keep fuller histories, source decisions and conclusions outside that
+   depiction at their owners. A record's defaults, possible failures and
+   example objects are not automatic additions.
 6. Add required target properties absent from the references. Let a sheet's
    relevant views supply its declared identity or wardrobe information.
-7. Check the prompt against the actual ordered inputs. Together they must
-   communicate the intent, without narrating irrelevant source contents.
+7. Reconstruct the picture from the prompt and actual ordered inputs, then
+   compare it with the intended result. Check that necessary premises and
+   reference uses are available to the model and that each contextual
+   instruction serves the selected depiction.
+
+Use the committed delivery mapping for that final comparison, including shared
+attachments and board regions. Inspect the actual carriers for legible evidence
+of the attributes being assigned. Compare the requested appearance with the
+adopted source regions before using words such as `exact` or `preserve`; express
+the specific shape, placement or relationship when it is needed to convey the
+target. Keep source decisions and unresolved coverage with the existing task
+records so that image review can assess the same requirements.
 
 Synthetic example with a character sheet and an environment source:
 
@@ -134,7 +163,18 @@ Match transport claims to the exact interface:
 
 If the selected model cannot express the required role separation, change the technical path without changing the image intent. A different intermediate model may prepare a role-integrated carrier only when the user permits that model path and the final generation still preserves the declared authority and provenance.
 
-**Reference hygiene.** Whatever the surface, a character reference works best at about a thousand pixels or more on the short side, with a sharp face, even light, one character, a plain ground, and a front or three-quarter view; two or three views of the same individual (front, profile, three-quarter) anchor identity across angles better than any one of them. An extreme angle, an occluded face, a second person, a heavy filter, or a dark exposure weakens the anchor. The prompt then carries place, action, light, and camera, and does not restate or contradict what the reference shows.
+**Reference hygiene.** Prepare reusable character evidence with a sharp face,
+even light and a readable outline. A plain ground, one clearly assigned subject
+and a front or three-quarter view provide a useful starting arrangement; front,
+profile and three-quarter views can supply complementary coverage. Around a
+thousand pixels or more on the short side is a preparation guideline. Judge the
+actual face and required detail regions at the delivered size, including their
+size within a sheet or board. Select additional views or details when angle,
+occlusion, several subjects, filtering or exposure obscures a needed attribute.
+Choose their number from the task's coverage and the interface limits. A clear
+full sheet can remain the principal reference. The prompt supplies the target
+place, action, light and camera, together with the assigned uses of the readable
+reference evidence.
 
 **Service records.** How a service is called is recorded once, in the `service-profiles` resource of the active pack: endpoint, authentication shape, request envelope, operations, asynchronous delivery and polling, error shape, and limits, with one observation date and one source for the whole record, because a record is refreshed as a whole from the service's documentation. A model's behaviour is not in that record; a model record carries it, and an offering inside the model record says how the model is exposed on one service (its identifier there, the request keys per input mode, and the limits that service enforces, such as a duration band). The same model on a second service is a second offering, not a second record. Scripts read the record rather than carrying endpoints of their own, and print its observation date beside what they send, so an ageing record is seen before it fails.
 
@@ -146,6 +186,15 @@ Color evidence does not determine gloss or shadow. Resolve source-lighting autho
 
 ## Review
 
+Use the preserved attributes and requested changes from production direction
+and the reference assessment as the existing review criteria. Compare the
+actual candidate with its assigned source regions, taking the target view and
+accepted variation into account. Record the visible result, its interpretation
+against the criterion and the limits of the observation. Use `indeterminate`
+when inspected evidence cannot resolve a criterion, and `not-assessed` for a
+criterion that has yet to be inspected. Input integrity and visual realization
+remain separate findings.
+
 Review each declared role independently after generation:
 
 - identity drift: the target character changed or inherited the pose source's subject;
@@ -156,3 +205,9 @@ Review each declared role independently after generation:
 - prompt omission: requested additions or replacements never became visible.
 
 Repair the failed role first. Change its prompt clause, carrier, weight, or precedence without globally strengthening every reference. If the interface cannot isolate the repair, treat that as a capability limit rather than repeatedly rewriting unrelated prompt content.
+
+Link the repair to the existing review observation and affected direction
+decision. State the desired resulting attribute and retain the working features
+of the candidate. Choose the prompt, reference, transport or supported editing
+operation that addresses the observed cause, then evaluate the next actual
+image against the same retained and changed requirements.

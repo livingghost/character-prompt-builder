@@ -179,7 +179,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         )
 
     def test_named_route_feature_routes_and_reaches_its_documents(self) -> None:
-        required = SKILL_ROUTED_DOCUMENTS[0]
+        required = next(path for path in SKILL_ROUTED_DOCUMENTS if path not in SKILL_DIRECT_LINKS)
         specialist = "references/specialist.md"
         adapter = "references/adapters/stray-surface.md"
         self._write(specialist, "# Specialist\n\nA route read delivers this document.")
@@ -409,7 +409,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             self.assertIn(routed_command, reference)
             self.assertIsInstance(json.loads(result.stdout), dict)
 
-    def test_visual_preflight_is_conditionally_routed(self) -> None:
+    def test_skill_uses_one_locked_environment_for_all_routes(self) -> None:
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         generation = (ROOT / "references/runtime/image-generation.md").read_text(
             encoding="utf-8"
@@ -418,12 +418,15 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             ROOT / "references/runtime/reference-prompt-artifacts.md"
         ).read_text(encoding="utf-8")
         self.assertIn("dependency checks", skill.lower())
-        self.assertIn(
-            "python scripts/check_dependencies.py --profile visual", generation
-        )
+        check = "uv run --project <skill-root> --locked python <skill-root>/scripts/check_dependencies.py"
+        self.assertIn(check, skill)
+        self.assertIn(check, generation)
+        self.assertIn(check, prompt_artifacts)
+        self.assertIn("uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...", skill)
+        self.assertIn("Use this same environment for every route", skill)
+        self.assertLess(skill.index("## Mandatory execution environment"), skill.index("## Core contract"))
         self.assertIn("prompt-artifacts", prompt_artifacts)
-        self.assertIn("Core", prompt_artifacts)
-        self.assertIn("Do not install Visual dependencies", prompt_artifacts)
+        self.assertIn("same locked environment", prompt_artifacts)
 
     def test_svg_reference_prompt_synthesis_is_routed(self) -> None:
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
@@ -445,7 +448,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             "Assign the delivered references to their subjects and permitted uses",
             "Describe target changes as the chosen result",
             "Add required target properties absent from the references",
-            "without narrating irrelevant source contents",
+            "Apply record knowledge according to its role in the selected depiction.",
         ):
             self.assertIn(marker, reference)
         self.assertIn(
@@ -467,10 +470,63 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn("For saved deliverables", gate)
         self.assertIn(route_command, gate)
         self.assertEqual(1, skill.count(route_command))
+        for marker in ("--page-bytes", "reading-actions", "`continue`", "`replay`", "reading-record"):
+            self.assertIn(marker, gate)
 
         sequence = skill.partition("## Common runtime sequence")[2].partition("\n## ")[0]
-        first = next(line for line in sequence.splitlines() if line.startswith("1. "))
+        owner = "references/runtime/production-workflow.md"
+        self.assertIn(f"]({owner})", sequence)
+        self.assertIn("for every image deliverable", sequence)
+        workflow = (ROOT / owner).read_text(encoding="utf-8")
+        first = next(line for line in workflow.splitlines() if line.startswith("1. "))
         self.assertIn("For saved work", first)
+
+    def test_paged_reading_guidance_matches_the_continuation_cli(self) -> None:
+        document = (ROOT / "references/runtime/production-execution.md").read_text(encoding="utf-8")
+        reading = document.partition("### Read the route to completion")[2].partition("\n### ")[0]
+        for marker in ("reading-actions", "`argv`", "`command`", "`reason`", "`continue`", "`replay`",
+                       "--reading-ledger", "CPB_READS_LEDGER", "reading-record"):
+            self.assertIn(marker, reading)
+        run = subprocess.run([sys.executable, str(ROOT / "scripts/execution_routes.py"), "read", "--help"],
+                             cwd=self.root, env=UNPAINTED, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        for option in ("--page-bytes", "--continue", "--replay", "--reading-ledger"):
+            self.assertIn(option, run.stdout)
+
+    def test_pack_quickstart_registration_example_runs_in_its_selected_runtime(self) -> None:
+        from shutil import copytree
+        from pack_manager import write_lock
+
+        document = (ROOT / "references/runtime/pack-state-quickstart.md").read_text(encoding="utf-8")
+        blocks = re.findall(r"```bash\n(.*?)\n```", document, flags=re.S)
+        commands = [block for block in blocks if "root-add PACK_OR_CONTAINER" in block]
+        self.assertEqual(len(commands), 1)
+        argv = shlex.split(commands[0].replace("\\\n", " "))
+        self.assertEqual(argv[:2], ["python", "scripts/pack_cli.py"])
+        container = self.root / "documented pack container"
+        pack = container / "example pack"
+        copytree(ROOT / "examples/pack-authoring/minimal-pack", pack)
+        write_lock(pack)
+        selected = self.root / "documented runtime"
+        caller = self.root / "different caller"
+        caller.mkdir()
+        substitutions = {
+            "python": sys.executable,
+            "scripts/pack_cli.py": str(ROOT / "scripts/pack_cli.py"),
+            "TASK_PACK_STATE_JSON": str(selected / "state.json"),
+            "TASK_CATALOG_CACHE": str(selected / "cache"),
+            "TASK_MANAGED_PACKS": str(selected / "managed"),
+            "PACK_OR_CONTAINER": str(container),
+        }
+        argv = [substitutions.get(word, word) for word in argv]
+        environment = {**UNPAINTED, "CPB_HOME": str(self.root / "unselected home"), "PATH": ""}
+        run = subprocess.run(argv, cwd=caller, env=environment, capture_output=True,
+                             text=True, encoding="utf-8")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertEqual(json.loads(run.stdout)["operation"], "root-add")
+        state = json.loads((selected / "state.json").read_text(encoding="utf-8"))
+        self.assertIn(str(container), state["pack_roots"])
+        self.assertFalse((self.root / "unselected home/pack-state.json").exists())
 
     def test_prompt_writing_guide_is_an_executed_rendition_stage(self) -> None:
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
@@ -479,9 +535,10 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         prompt_only = (ROOT / "references/runtime/prompt-only-core.md").read_text(encoding="utf-8")
         composition = (ROOT / "references/runtime/prompt-composition.md").read_text(encoding="utf-8")
         output_template = (ROOT / "templates/output-template.md").read_text(encoding="utf-8")
+        workflow = (ROOT / "references/runtime/production-workflow.md").read_text(encoding="utf-8")
 
-        self.assertIn("resolve the optional `prompt-writing-guide`", skill)
-        self.assertIn("read the complete selected guide before final rendition", skill)
+        self.assertIn("resolve the optional `prompt-writing-guide`", workflow)
+        self.assertIn("read the complete selected guide before final rendition", workflow)
         self.assertIn("## Prompt rendition gate", generation)
         self.assertIn("resolve and read the complete guide before final rendition", generation)
         self.assertIn("Generation builders commit the supplied final rendition", generation)
@@ -721,6 +778,24 @@ class ReleaseDocumentationOwnershipTests(unittest.TestCase):
         with patch.object(Path, "read_text", without_manifest_link):
             check_documentation(ROOT, errors)
         self.assertIn("README must link to package-manifest.toml", errors)
+
+    def test_readme_local_links_accept_real_anchors_and_report_missing_anchors(self):
+        from unittest.mock import patch
+        from validate import check_documentation
+        read = Path.read_text
+        for fragment, accepted in (('common-runtime-sequence', True), ('unavailable-synthetic-heading', False)):
+            with self.subTest(fragment=fragment):
+                target = 'references/runtime/production-workflow.md#' + fragment
+                def with_anchor(path, *args, **kwargs):
+                    text = read(path, *args, **kwargs)
+                    if path == ROOT / 'README.md':
+                        return text + '\nRead [the workflow](' + target + ').\n'
+                    return text
+                errors = []
+                with patch.object(Path, 'read_text', with_anchor):
+                    check_documentation(ROOT, errors)
+                expected = [] if accepted else ['broken local anchor link in README.md: ' + target]
+                self.assertEqual(errors, expected)
 
 
 DOCUMENTED_COMMAND = re.compile(r"\bpython3? scripts/(\w+)\.py\b")

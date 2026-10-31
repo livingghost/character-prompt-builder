@@ -15,14 +15,12 @@ import copy
 import hashlib
 import importlib.metadata
 import json
-import math
 import os
 import re
 import shutil
 import struct
 import tempfile
 from dataclasses import dataclass
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -31,6 +29,7 @@ from catalog_cli import (
     configure_pack_runtime,
     load_pack_catalog,
 )
+from check_dependencies import install_command
 from execution_contract import atomic_write_json, sha256_file
 from package_metadata import calver_key
 from model_contract import model_reference_limit
@@ -39,7 +38,7 @@ from reference_active_validation import validate_active_reference_use_plan
 from reference_contract import state_authority_for, validate_reference_use_plan_contract
 from reference_delivery import attachment_numbers, delivered_reference_count, prepared_origin_projection, validate_subject_uses
 from state_protocol import finalize_artifact, parse_json, validate_artifact
-from visual_evidence import inspect_svg, render_svg
+from visual_evidence import inspect_svg, render_svg, svg_dimensions
 
 
 ROLE_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,119}$")
@@ -317,36 +316,6 @@ def image_dimensions(path: Path, media_type: str) -> tuple[int, int]:
     raise ValueError(f"Dimensions are not supported for media type {media_type!r}")
 
 
-def _numeric_svg_length(value: str) -> float | None:
-    match = re.fullmatch(r"\s*([0-9]+(?:\.[0-9]+)?)\s*(?:px)?\s*", value)
-    if not match:
-        return None
-    number = float(match.group(1))
-    return number if math.isfinite(number) and number > 0 else None
-
-
-def svg_dimensions(path: Path) -> tuple[int, int]:
-    try:
-        root = ET.fromstring(Path(path).read_bytes())
-    except ET.ParseError as exc:
-        raise ValueError(f"SVG XML is invalid: {path}: {exc}") from exc
-    if root.tag.rsplit("}", 1)[-1].lower() != "svg":
-        raise ValueError(f"SVG root element is invalid: {path}")
-    width = _numeric_svg_length(str(root.attrib.get("width") or ""))
-    height = _numeric_svg_length(str(root.attrib.get("height") or ""))
-    if width is None or height is None:
-        parts = str(root.attrib.get("viewBox") or "").replace(",", " ").split()
-        if len(parts) != 4:
-            raise ValueError(f"SVG has no concrete width/height or valid viewBox: {path}")
-        try:
-            _x, _y, width, height = (float(value) for value in parts)
-        except ValueError as exc:
-            raise ValueError(f"SVG viewBox is invalid: {path}") from exc
-        if not all(math.isfinite(value) for value in (width, height)) or width <= 0 or height <= 0:
-            raise ValueError(f"SVG viewBox dimensions are invalid: {path}")
-    return max(1, round(width)), max(1, round(height))
-
-
 def raster_dimensions_for_max_side(path: Path, max_side: int) -> tuple[int, int]:
     width, height = svg_dimensions(path)
     scale = min(1.0, max_side / max(width, height))
@@ -618,9 +587,10 @@ def _validate_transport(
             try:
                 installed_renderer_release = importlib.metadata.version(SVG_RENDERER)
             except importlib.metadata.PackageNotFoundError as exc:
+                command, note = install_command()
                 raise RuntimeError(
                     f"{SVG_RENDERER} is required to verify SVG-derived references; "
-                    "install requirements-visual.txt"
+                    f"complete the skill environment: {command or note}"
                 ) from exc
             if renderer_release != installed_renderer_release:
                 raise ValueError(
@@ -1761,8 +1731,10 @@ def _materialize_preflight(
         try:
             renderer_release = importlib.metadata.version(SVG_RENDERER)
         except importlib.metadata.PackageNotFoundError as exc:
+            command, note = install_command()
             raise RuntimeError(
-                f"{SVG_RENDERER} is required to prepare SVG references; install requirements-visual.txt"
+                f"{SVG_RENDERER} is required to prepare SVG references; "
+                f"complete the skill environment: {command or note}"
             ) from exc
 
     staging: Path | None = None

@@ -5,6 +5,7 @@ import copy
 import io
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -86,6 +87,7 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(manifest['features']['recurring-identity']['reads'],['references/character-identity-contract.md'])
     def test_a_route_reads_only_what_its_tasks_use(self):
         manifest=c.load(r.ROOT/r.execution_routes.MANIFEST)
+        self.assertIn('references/runtime/production-workflow.md', manifest['always_read'])
         prompt_only=r.execution_routes.resolve('prompt-only')
         self.assertEqual([x['path'] for x in prompt_only['reads']],
                          manifest['always_read']+['references/runtime/prompt-only-core.md','references/runtime/render-contract.md'])
@@ -131,6 +133,189 @@ class ReadingTests(unittest.TestCase):
         self.assertTrue(last.startswith('reading-record: work/readings/development-'),last)
         draft=c.load(self.root/last.split(': ',1)[1])
         self.assertEqual((draft['route'],draft['applied'],draft['resource_applied']),('development',[],[]))
+        owner = 'references/runtime/production-workflow.md'
+        body = (r.ROOT / owner).read_bytes()
+        self.assertIn(body.decode('utf-8'), run.stdout)
+        self.assertIn({'path': owner, 'sha256': c.digest(body)}, draft['documents'])
+
+    def cli_read(self, argv, *, cwd, environment):
+        run = subprocess.run(argv, cwd=cwd, env=environment, capture_output=True,
+                             text=True, encoding='utf-8', check=False)
+        self.assertEqual(run.returncode, 0, run.stdout[-2000:] + run.stderr)
+        return run.stdout
+
+    def cli_reading_actions(self, output, *, studio, ledger, runtime, roots, page_bytes):
+        lines = [line for line in output.splitlines() if line.startswith('reading-actions: ')]
+        self.assertTrue(lines, output[-2000:])
+        actions = json.loads(lines[-1].split(': ', 1)[1])
+        self.assertIn('replay', actions)
+        self.assertTrue(set(actions) <= {'continue', 'replay'}, actions)
+        for name, action in actions.items():
+            self.assertEqual(set(action), {'argv', 'command', 'reason'})
+            argv = action['argv']
+            self.assertEqual(argv[:3], [os.path.abspath(sys.executable),
+                                       str(r.ROOT / 'scripts/execution_routes.py'), 'read'])
+            self.assertTrue(action['reason'].strip())
+            self.assertTrue(action['command'].strip())
+            if os.name != 'nt':
+                self.assertEqual(shlex.split(action['command']), argv)
+            expected = {'--root': str(studio), '--reading-ledger': str(ledger),
+                        '--page-bytes': str(page_bytes), **runtime}
+            for option, value in expected.items():
+                self.assertEqual(argv.count(option), 1, argv)
+                self.assertEqual(argv[argv.index(option) + 1], value, argv)
+            self.assertEqual([argv[i + 1] for i, word in enumerate(argv) if word == '--pack-root'],
+                             [str(path) for path in roots])
+            self.assertEqual(argv.count('--' + name), 1, argv)
+            for fixed in ('development', '--feature', '--model', '--dialect'):
+                self.assertNotIn(fixed, argv[3:])
+        return actions
+
+    def cli_reading_record(self, output, *, studio, ledger):
+        last = output.rstrip().splitlines()[-1]
+        self.assertTrue(last.startswith('reading-record: '), last)
+        path = Path(last.split(': ', 1)[1])
+        if not path.is_absolute():
+            path = studio / path
+        record = c.load(path)
+        r.require_route_reading(record, root=r.ROOT, ledgers=[ledger], routes={'development'})
+        self.assertEqual((record['applied'], record['resource_applied']), ([], []))
+        return path, record
+
+    def exercise_cli_paged_actions(self, *, explicit):
+        import studio as studio_runtime
+
+        studio = self.root / "Studio with spaces and an apostrophe's"
+        studio_runtime.init(studio, 'paged-reading', 'Paged reading fixture')
+        first_cwd = studio / 'work/first caller' if not explicit else self.root / 'first caller'
+        second_cwd = self.root / 'different caller'
+        first_cwd.mkdir(parents=True)
+        second_cwd.mkdir()
+        home = self.root / 'initial default home'
+        environment = {k: v for k, v in os.environ.items() if k != 'CPB_READS_LEDGER'}
+        environment.update(CPB_HOME=str(home), PATH='', PYTHONDONTWRITEBYTECODE='1')
+        page_bytes = 8192
+        base = [sys.executable, str(r.ROOT / 'scripts/execution_routes.py'), 'read']
+        start = [*base, 'development', '--page-bytes', str(page_bytes)]
+        roots = []
+        if explicit:
+            selected = self.root / 'selected runtime with spaces'
+            runtime = {'--state-file': str(selected / 'state.json'),
+                       '--cache-dir': str(selected / 'cache'),
+                       '--managed-root': str(selected / 'managed')}
+            roots = [self.root / "first root's $literal", self.root / 'second root & extra']
+            for path in roots:
+                path.mkdir()
+            start.extend(['--root', str(studio), '--feature', 'studio'])
+            start.extend(word for option, value in runtime.items() for word in (option, value))
+            start.extend(word for path in roots for word in ('--pack-root', str(path)))
+            relative_ledger = Path('relative ledger') / 'reading evidence.jsonl'
+            environment['CPB_READS_LEDGER'] = str(relative_ledger)
+            ledger = first_cwd / relative_ledger
+        else:
+            runtime = {'--state-file': str(home / 'pack-state.json'),
+                       '--cache-dir': str(home / 'cache'),
+                       '--managed-root': str(home / 'packs')}
+            ledger = studio / 'work/reads.jsonl'
+        expected = dict(studio=studio, ledger=ledger, runtime=runtime,
+                        roots=roots, page_bytes=page_bytes)
+        output = self.cli_read(start, cwd=first_cwd, environment=environment)
+        actions = self.cli_reading_actions(output, **expected)
+        self.assertIn('continue', actions)
+        self.assertFalse(ledger.exists())
+        cursor = next(line.split(': ', 1)[1] for line in reversed(output.splitlines())
+                      if line.startswith('reading-cursor: '))
+        snapshot_path = ledger.parent / 'reading-snapshots' / cursor.split(':')[0] / 'snapshot.json'
+        snapshot_bytes = snapshot_path.read_bytes()
+        snapshot = json.loads(snapshot_bytes)
+        self.assertEqual(set(snapshot), {'manifest', 'root', 'runtime', 'nonce', 'bodies'})
+        self.assertEqual(snapshot['runtime'], {
+            'state_file': runtime['--state-file'], 'cache_dir': runtime['--cache-dir'],
+            'managed_root': runtime['--managed-root'], 'extra_roots': [str(path) for path in roots]})
+
+        # Each offered argv runs unchanged in another cwd with different ambient
+        # settings and no Python alias on PATH. The saved context owns this read.
+        other_home = self.root / 'different ambient home'
+        other_ledger = second_cwd / 'unrelated reads.jsonl'
+        continued_environment = {**environment, 'CPB_HOME': str(other_home),
+                                 'CPB_READS_LEDGER': str(other_ledger)}
+        replay = self.cli_read(actions['replay']['argv'], cwd=second_cwd,
+                               environment=continued_environment)
+        headers = lambda text: [json.loads(line[4:-4]) for line in text.splitlines()
+                                if line.startswith('--- {') and line.endswith('} ---')]
+        self.assertEqual(headers(replay), headers(output))
+        self.cli_reading_actions(replay, **expected)
+        output = self.cli_read(actions['continue']['argv'], cwd=second_cwd,
+                               environment=continued_environment)
+        actions = self.cli_reading_actions(output, **expected)
+        if explicit:
+            # A manually supplied cursor may omit runtime selectors. The next
+            # offered commands must still name the runtime stored in the snapshot.
+            self.assertIn('continue', actions)
+            cursor = next(line.split(': ', 1)[1] for line in reversed(output.splitlines())
+                          if line.startswith('reading-cursor: '))
+            output = self.cli_read([*base, '--continue', cursor, '--root', str(studio),
+                                    '--reading-ledger', str(ledger), '--page-bytes', str(page_bytes)],
+                                   cwd=second_cwd, environment=continued_environment)
+            actions = self.cli_reading_actions(output, **expected)
+        for _ in range(64):
+            if 'continue' not in actions:
+                break
+            output = self.cli_read(actions['continue']['argv'], cwd=second_cwd,
+                                   environment=continued_environment)
+            actions = self.cli_reading_actions(output, **expected)
+        else:
+            self.fail('Returned continuation commands did not finish the route reading')
+        self.assertEqual(set(actions), {'replay'})
+        path, record = self.cli_reading_record(output, studio=studio, ledger=ledger)
+        self.assertEqual(record['features'], ['studio'] if explicit else [])
+        first_record_bytes = path.read_bytes()
+        replay = self.cli_read(actions['replay']['argv'], cwd=second_cwd,
+                               environment=continued_environment)
+        self.assertEqual(set(self.cli_reading_actions(replay, **expected)), {'replay'})
+        _, replay_record = self.cli_reading_record(replay, studio=studio, ledger=ledger)
+        self.assertNotEqual(record['reading_key'], replay_record['reading_key'])
+        self.assertEqual(path.read_bytes(), first_record_bytes)
+        r.require_route_reading(record, root=r.ROOT, ledgers=[ledger])
+        self.assertEqual(len(r.ledger_rows(ledger)), 2)
+        self.assertEqual(snapshot_path.read_bytes(), snapshot_bytes)
+        self.assertFalse(other_ledger.exists())
+        self.assertFalse((other_home / 'pack-state.json').exists())
+
+    def test_cli_paged_actions_keep_explicit_runtime_roots_and_custom_ledger(self):
+        self.exercise_cli_paged_actions(explicit=True)
+
+    def test_cli_paged_actions_keep_default_runtime_and_discovered_studio(self):
+        self.exercise_cli_paged_actions(explicit=False)
+
+    def test_cursor_cli_rejects_start_selectors_before_model_lookup(self):
+        import contextlib
+        cases = [('development', '--continue', 'synthetic-cursor'),
+                 ('--continue', 'synthetic-cursor', '--feature', 'extra'),
+                 ('--continue', 'synthetic-cursor', '--model', 'synthetic-missing-model'),
+                 ('--replay', 'synthetic-cursor', '--dialect', 'synthetic-family')]
+        for words in cases:
+            with self.subTest(words=words):
+                args, parser = self.read_args(*words)
+                with patch.object(r, '_model_family') as lookup, contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises((ValueError, SystemExit)):
+                        r.read_command(args, parser)
+                lookup.assert_not_called()
+        self.assertFalse((self.root / 'work/reading-snapshots').exists())
+
+    def test_reading_ledger_argument_is_reserved_for_continuation(self):
+        import contextlib
+        ledger = self.root / 'existing ledger/reads.jsonl'
+        ledger.parent.mkdir()
+        original = b'Existing ledger bytes are retained.\n'
+        ledger.write_bytes(original)
+        args, parser = self.read_args('development', '--reading-ledger', str(ledger))
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises((ValueError, SystemExit)):
+                r.read_command(args, parser)
+        self.assertEqual(ledger.read_bytes(), original)
+        self.assertFalse((ledger.parent / 'reading-snapshots').exists())
+
     def family_catalog(self):
         pack=self.root/'pack';(pack/'resources').mkdir(parents=True)
         rule='Synthetic rule for {} gives the rendition one clear priority and records it in the delivered prompt.'

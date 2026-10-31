@@ -299,12 +299,14 @@ class BoundaryTests(unittest.TestCase):
 class PublicationBoundaryTests(unittest.TestCase):
     def test_nested_metadata_is_part_of_immutable_publication(self):
         import production_compiler as compiler
+        from publication_artifacts import ArtifactSet
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
+            artifacts = ArtifactSet(directory)
             for name in ('manifest.json', 'owner.json', 'failure.json'):
-                c.atomic(directory / 'references' / name, c.encoded({'source': name}))
+                artifacts.write('references/' + name, c.encoded({'source': name}))
             c.atomic(directory / 'owner.json', c.encoded({'operation_id': 'fixture'}))
-            manifest = compiler.write_manifest(directory)
+            manifest = compiler.write_manifest(directory, artifacts)
             self.assertEqual({item['path'] for item in manifest['files']},
                              {'references/manifest.json', 'references/owner.json', 'references/failure.json'})
             compiler.verify_publication(directory)
@@ -312,6 +314,134 @@ class PublicationBoundaryTests(unittest.TestCase):
             with self.assertRaises(ProductionError) as caught:
                 compiler.verify_publication(directory)
             self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_CORRUPT')
+
+    def test_unknown_stage_member_is_kept_without_becoming_a_publication(self):
+        import production_compiler as compiler
+        from publication_artifacts import ArtifactSet
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            artifacts = ArtifactSet(directory)
+            artifacts.write('delivery.txt', b'authored content')
+            extra = directory / 'runtime' / 'records' / 'unexpected.json'
+            c.atomic(extra, b'preserved unexpected bytes')
+            with self.assertRaises(ProductionError) as caught:
+                compiler.write_manifest(directory, artifacts)
+            self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_SET_MISMATCH')
+            self.assertIn('runtime/records/unexpected.json', caught.exception.diagnostic.details['unexpected'])
+            self.assertEqual(extra.read_bytes(), b'preserved unexpected bytes')
+            self.assertFalse((directory / 'manifest.json').exists())
+
+    def test_published_inputs_keep_their_membership_as_other_owners_write_later_files(self):
+        import production_compiler as compiler
+        from publication_artifacts import ArtifactSet
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            artifacts = ArtifactSet(directory)
+            artifacts.write('inputs/task.json', b'{}\n')
+            original = compiler.write_manifest(directory, artifacts)
+            c.object_store(directory, b'later candidate evidence')
+            c.atomic(directory / 'review-draft.json', b'{}\n')
+            self.assertEqual(compiler.verify_publication(directory), original)
+            self.assertEqual(artifacts.files(), original['files'])
+            (directory / 'inputs/task.json').write_bytes(b'changed original bytes')
+            with self.assertRaises(ProductionError) as caught:
+                compiler.verify_publication(directory)
+            self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_CORRUPT')
+
+    def test_companion_copy_uses_every_owned_file_and_refuses_an_extra(self):
+        from publication_artifacts import ArtifactSet
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            artifacts = ArtifactSet(base / 'source')
+            artifacts.write('bundle/manifest.json', b'{"approved":true}\n')
+            artifacts.write('bundle/image.bin', b'exact carrier bytes')
+            companion = artifacts.subtree('bundle')
+            companion.copy_to(base / 'first')
+            self.assertEqual((base / 'first/manifest.json').read_bytes(), b'{"approved":true}\n')
+            self.assertEqual((base / 'first/image.bin').read_bytes(), b'exact carrier bytes')
+            extra = base / 'source/bundle/unowned.bin'
+            c.atomic(extra, b'unowned')
+            with self.assertRaises(ProductionError) as caught:
+                companion.copy_to(base / 'second')
+            self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_SET_MISMATCH')
+            self.assertFalse((base / 'second').exists())
+            self.assertEqual(extra.read_bytes(), b'unowned')
+
+    def test_declarations_validate_structure_before_duplicate_or_conflict_checks(self):
+        from publication_artifacts import ArtifactSet
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            row = {'path': 'item.txt', 'sha256': c.digest(b'first'), 'size': 5}
+            for bad in ([{**row, 'path': []}], [row, row], [{**row, 'size': True}], [{**row, 'path': '../item.txt'}]):
+                with self.subTest(rows=bad), self.assertRaises(ProductionError) as caught:
+                    ArtifactSet(root, bad)
+                self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_MANIFEST_CORRUPT')
+            artifacts = ArtifactSet(root, [row])
+            with self.assertRaises(ProductionError):
+                artifacts.add('item.txt', b'different')
+            self.assertEqual(artifacts.files(), [row])
+
+    def test_an_explicitly_declared_control_remains_a_verified_member(self):
+        import production_compiler as compiler
+        from publication_artifacts import ArtifactSet
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            artifacts = ArtifactSet(directory)
+            artifacts.write('delivery.txt', b'delivery')
+            artifacts.write(c.LOCK_FILE, b'0')
+            manifest = compiler.write_manifest(directory, artifacts)
+            self.assertEqual(compiler.verify_publication(directory), manifest)
+            (directory / c.LOCK_FILE).write_bytes(b'changed')
+            with self.assertRaises(ProductionError) as caught:
+                compiler.verify_publication(directory)
+            self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_CORRUPT')
+
+    def test_a_rewrite_requires_the_producer_to_own_the_existing_file(self):
+        from publication_artifacts import ArtifactSet
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            c.atomic(directory / 'plan.json', b'unclaimed bytes')
+            artifacts = ArtifactSet(directory)
+            with self.assertRaises(FileExistsError):
+                artifacts.write('plan.json', b'new producer bytes', replace=True)
+            self.assertEqual((directory / 'plan.json').read_bytes(), b'unclaimed bytes')
+            self.assertEqual(artifacts.files(), [])
+
+    def test_producer_paths_keep_link_spelling_until_the_shared_owner_checks_it(self):
+        from publication_artifacts import ArtifactSet
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            directory = base / 'stage'
+            artifacts = ArtifactSet(directory)
+            artifacts.write('owned/item.bin', b'original internal bytes')
+            outside = base / 'outside/item.bin'
+            c.atomic(outside, b'original outside bytes')
+            for label, target in (('internal', directory / 'owned/item.bin'), ('outside', outside)):
+                with self.subTest(target=label):
+                    leaf = directory / (label + '-link.bin')
+                    folder = directory / (label + '-folder')
+                    try:
+                        leaf.symlink_to(target)
+                        folder.symlink_to(target.parent, target_is_directory=True)
+                    except (OSError, NotImplementedError) as exc:
+                        self.skipTest('Symlink creation is unavailable: ' + str(exc))
+                    original = target.read_bytes()
+                    for path in (leaf, folder / target.name):
+                        with self.assertRaises(ValueError):
+                            artifacts.write(path, b'changed through alias', replace=True)
+                        self.assertEqual(target.read_bytes(), original)
+
+    def test_producer_path_accepts_the_declared_root_spelling(self):
+        from publication_artifacts import ArtifactSet
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            (base / 'parent').mkdir()
+            spelling = base / 'parent' / '..' / 'stage'
+            artifacts = ArtifactSet(spelling)
+            artifacts.write(spelling / 'item.txt', b'owned bytes')
+            artifacts.require_membership()
+            self.assertEqual(artifacts.root, (base / 'stage').resolve())
+            self.assertEqual(artifacts.files(), [{'path': 'item.txt', 'sha256': c.digest(b'owned bytes'), 'size': 11}])
 
 if __name__ == '__main__':
     import stdio_utf8

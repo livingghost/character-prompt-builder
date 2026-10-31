@@ -5,8 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${PLUGIN_ROOT}/scripts/session_entry_points.py\" || python \"${PLUGIN_ROOT}/scripts/session_entry_points.py\"",
-            "timeout": 20
+            "command": "command -v uv >/dev/null 2>&1 || { printf '%s\\n' 'Character Prompt Builder requires uv. Install uv, then rerun this command to continue in the current Studio.' >&2; exit 1; }; uv run --locked --project \"${PLUGIN_ROOT}\" python \"${PLUGIN_ROOT}/scripts/session_entry_points.py\"",
+            "timeout": 180
           }
         ]
       }

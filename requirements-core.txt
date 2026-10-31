@@ -1,3 +1,0 @@
-# Character Prompt Builder Core uses only the Python 3.11+ standard library.
-# Install requirements-visual.txt only for visual-evidence extraction,
-# SVG rasterization, or full release validation.

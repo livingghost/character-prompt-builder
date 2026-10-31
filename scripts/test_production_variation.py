@@ -259,6 +259,85 @@ class VariationTests(unittest.TestCase):
         self.assertEqual(len(list(workflow.run_dir(self.root, child['run']).glob('package.*.references'))), 1)
         self.assertNotIn('inputs', self.parent['request_preview'])
 
+    def test_review_retains_shared_carrier_scopes_after_original_sources_are_removed(self):
+        import shutil
+        import production_evidence as media
+        from prepare_generation_references import prepare_references
+        from test_production_execution import decisions
+        from transport_synthetic import _png
+        svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
+               '<path d="M0 0H32V32H0Z" fill="#5078a0"/></svg>').encode('utf-8')
+        for name, mode, suffix, raw in (
+            ('raster', 'multi-image', '.png', _png(32, 32, b'\x50\x78\xa0')),
+            ('vector', 'multi-image', '.svg', svg),
+            ('board', 'single-board', '.svg', svg),
+        ):
+            with self.subTest(name=name):
+                folder = self.root / 'variants' / name
+                source = folder / ('source' + suffix)
+                c.atomic(source, raw)
+                selections = [{'role': role,
+                    'source': {'kind': 'supplied-file', 'reference_id': name + '-' + role,
+                               'resolved_path': str(source)},
+                    'subject_uses': [{'subject_id': 'robot', 'use': use, 'priority': 0}]}
+                    for role, use in (('palette', 'local-color'), ('finish', 'surface-finish'))]
+                references = prepare_references(selections, model=fixtures.MODEL_ID,
+                    output_dir=folder / 'prepared', max_side=64, transport_mode=mode)
+                fixtures.write(folder / 'references.json', references)
+                child = self.change({'references': {'path': (folder / 'references.json').relative_to(self.root).as_posix()},
+                                     'execution-mode': 'reference-guided'})
+                run = child['run']
+                result = execution.execute(self.root, run, decisions_file=decisions(self.root, run))
+                self.assertTrue(result['execution_completed'], result.get('warnings'))
+                candidate = result['runs'][0]['candidates'][0]
+                directory, _, consumer, _ = workflow.load_run(self.root, run)
+                self.assertNotIn('image_input', consumer)
+                prepared = c.load(directory / 'package.json')['prepared_reference_set']
+                shutil.rmtree(folder)
+                draft = workflow.draft_review(self.root, run, candidate)
+                evidence = draft['evidence']
+                self.assertEqual([item['id'] for item in evidence], ['delivered-reference:1', 'delivered-reference:2'])
+                self.assertEqual(len({item['path'] for item in evidence}), 1)
+                self.assertEqual(draft['observations'], [])
+                self.assertTrue(all(check['verdict'] == 'not-assessed' for check in draft['checks']))
+                assignments = [json.loads(item['relation'].split(': ', 1)[1]) for item in evidence]
+                self.assertEqual([item['delivery']['attachment_number'] for item in assignments], [1, 1])
+                self.assertEqual([item['delivery']['role'] for item in assignments], ['palette', 'finish'])
+                for index, (item, assignment) in enumerate(zip(evidence, assignments, strict=True)):
+                    selected = prepared['selected_references'][index]
+                    self.assertEqual(assignment['source'], selected['source'])
+                    self.assertEqual(assignment['derivation'], selected['transport']['derivation'])
+                    self.assertEqual(assignment['delivery']['subject_uses'], selections[index]['subject_uses'])
+                    self.assertEqual(assignment['delivery']['controls'], selected['authority']['controls'])
+                    self.assertEqual(assignment['delivery']['must_not_control'], selected['authority']['must_not_control'])
+                    pixels = c.read(c.local(self.root, item['path']))
+                    measured = media.inspect(pixels, item['kind'])
+                    self.assertEqual(measured['format'], 'PNG')
+                    carrier = prepared['single_board'] if mode == 'single-board' else selected['transport']
+                    self.assertEqual(c.digest(pixels), carrier['sha256'])
+                    if suffix == '.svg':
+                        self.assertEqual(assignment['source']['media_type'], 'image/svg+xml')
+                        self.assertNotEqual(c.digest(pixels), assignment['source']['sha256'])
+                    region = assignment['delivery']['region_pixels']
+                    if mode == 'single-board':
+                        self.assertEqual(region, prepared['single_board']['panels'][index]['box'])
+                        locator = {'kind': 'image-region', 'x': region['x'] / measured['width'],
+                            'y': region['y'] / measured['height'], 'width': region['width'] / measured['width'],
+                            'height': region['height'] / measured['height']}
+                    else:
+                        self.assertIsNone(region)
+                        locator = {'kind': 'whole'}
+                    draft['observations'].append({'evidence': item['id'], 'locator': locator,
+                        'observation': 'The saved synthetic reference carrier is a readable PNG.',
+                        'interpretation': 'This observation concerns the declared ' + assignment['delivery']['role'] + ' use.',
+                        'limitations': ['Candidate quality has not been assessed.']})
+                draft.update(reviewer='Synthetic carrier reviewer',
+                             conclusion='Prepared delivery remains inspectable within each source assignment.')
+                fixtures.write(self.root / 'review.json', draft)
+                recorded = workflow.review(self.root, run, 'review.json')
+                self.assertEqual(recorded['data']['review']['evidence'], evidence)
+                self.assertEqual(len(recorded['data']['review']['observations']), 2)
+
     def test_changed_unreplaced_source_is_not_silently_reused(self):
         fixtures.write(self.root / 'creative-intent.json', {'image_promise': 'A different current author intent.'})
         with self.assertRaises(ProductionError) as caught:

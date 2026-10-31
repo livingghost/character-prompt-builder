@@ -30,12 +30,31 @@ python scripts/revision_contract.py revision.json --out revision-report.json
 
 Use `--help` for the CLI. `requested_paths` and `frozen_paths` are non-root RFC6901 JSON pointers. Each optional `consistency_changes` entry has exactly `path` and a nonempty `reason`. Objects are compared recursively; arrays are atomic so reordering cannot hide a change. Replacing an ancestor does not count as a permitted child edit. Output includes `ok`, `operation`, `scope`, exact `changed_paths`, both hashes, disclosed consistency changes and errors. Invalid input or an out-of-scope change returns nonzero.
 
-Select the revised depiction from its current approved requirements. Rebuild affected
-wording instead of accumulating repair clauses, preserving required identity
-detail and scoped exclusions. Keep change history and reasons in the revision
-record. During a local edit, preserve the working baseline outside the actual
-change. An exploratory prompt may reconsider incidental choices within its delegated scope. Omitted instructions
-need no replacement permission or contrary statement.
+Select the revised depiction from its current approved requirements and present
+situation. Describe the corrected appearance, action, relationship or degree,
+then rebuild the affected passage with the premises needed to understand it.
+Preserve required identity detail, useful context and scoped exclusions. The
+baseline owns the intended meaning and choices; assess an earlier prompt's
+wording against that meaning when it contains a missing premise or an
+instruction outside the selected depiction. Record affected semantic changes
+and necessary consistency repairs through the existing revision contract.
+Use a direct exclusion when it supplies a necessary image boundary; retain its
+subject, region, time and modifier scope. Keep the observed problem, change
+history, story-management decisions and reasons in their owning records.
+During a local edit, preserve the working requirements outside the actual change.
+An exploratory prompt may reconsider incidental choices within its delegated
+scope. Omitted instructions need no replacement permission or contrary statement.
+
+Trace a failed result to the selected realization, reference assignment,
+wording, actual supplied image or output execution before selecting a repair.
+Use [Prompt Composition](prompt-composition.md#select-the-depiction) to restore
+the intended result and [Reference Delivery](reference-delivery.md) to resolve
+source roles. Read the complete revised prompt and its supplied images as the
+receiving model's input, then compare the resulting situation and performance
+with the approved revision. Restore a necessary premise when the revised action
+depends on it; retain contextual instructions for their role in the current
+depiction. Carry the same applicable requirements into the next candidate
+review. This sequence applies to a first correction and to later retries alike.
 
 When materializing a revision, pass `--revision-contract revision.json` to `build_prompt_artifacts.py`. For a Generation Package include the same object as `creative_intent.revision_contract`; both builder and verifier validate it. Render the final prompt from the approved candidate semantics and preserve all actual reference commitments. Source-preservation or change instructions concern the images actually supplied. Structured validation does not prove that an independently written prompt faithfully describes the candidate; the executing agent must compare them.
 

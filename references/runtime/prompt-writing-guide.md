@@ -2,7 +2,7 @@
 
 ## Activation
 
-Use this runtime when a final prompt must be rendered for a named model or interface, or when the user asks about any of these:
+Use this runtime when a final prompt is rendered as portable text or for a named model or interface, or when the user asks about any of these:
 
 - prompt order
 - comma-separated tags
@@ -13,9 +13,11 @@ Use this runtime when a final prompt must be rendered for a named model or inter
 - prompt-length pressure
 - controlled comparison of one term
 
-Adapt the selected depiction to one exact interface and adapter. Catalog targets
-use their active model records; external generation or editing may use acquired
-provider evidence while recording a missing catalog definition.
+For a named target, adapt the selected depiction to one exact interface and
+adapter. Catalog targets use their active model records; external generation or
+editing may use acquired provider evidence while recording a missing catalog
+definition. A portable prompt uses interface-neutral guidance and preserves the
+depiction until a target is selected.
 
 ## Resolve the active guide
 
@@ -47,16 +49,47 @@ Read the complete resolved guide before writing the final model-facing rendition
 
 ## Application sequence
 
-1. Finish the master depiction from selected requirements and purposeful choices. Make the whole image clear before refining attributes and necessary exclusions.
-2. Select the exact interface, its catalog record or acquired external contract, and one adapter.
+1. Finish the master depiction from selected requirements and purposeful choices. Resolve this artifact's scope and the situation needed to understand its wanted action, appearance, relationships and degree. Establish the necessary premise before wording that depends on it. Do this for the first draft and each revision; recover preserved properties and context from the accepted baseline.
+2. For a named target, select the exact interface, its catalog record or acquired external contract, and one adapter. A portable rendition keeps interface-neutral wording while the target remains open.
 3. For a catalog target, resolve service weighting through [Explicit Prompt Weighting](prompt-weighting.md) and its family through `scripts/prompt_dialect.py --model <model-id>`. An external target uses only parser behavior its evidence supports. Rules for another family stay unapplied.
 4. Preserve that whole depiction while applying the target's hierarchy and visible-scope guidance. Keep the identity and construction detail the image requires.
 5. Apply parser-specific separators, attention syntax, LoRA notation, negative transport, embeddings, or editor shortcuts only when the active interface supports that exact behavior.
 6. Search the pack's prompt vocabulary for each planned element through `scripts/catalog_cli.py search` or read the dictionary directly. Inspect definitions, usage notes and the selected model's evidence before choosing wording. Membership supplies vocabulary evidence; the author decides whether a term or descriptive phrase carries the intended meaning.
-7. Render selected vocabulary terms into one coherent prompt. Search results and guide examples are candidates and grammar demonstrations rather than automatic prompt expansion or boilerplate.
-8. Review the final rendition against the image intent, anchors, production or semantic edit plan, adapter contract and evidenced recommendations.
+7. Render selected vocabulary terms into one coherent prompt whose instructions establish the wanted result, necessary current context and roles of its supplied images. Select exclusions for this depiction and input use, then place them in supported channels and scopes. Keep separate authoring decisions at their owners. Search results and guide examples are candidates and grammar demonstrations rather than automatic prompt expansion or boilerplate.
+8. Reconstruct the selected artifact from the final text, controls and actual media, identifying what they establish without task-specific knowledge held only by the author. Compare that reading with the scoped image intent, anchors, production or semantic edit plan, adapter contract and evidenced recommendations. Resolve missing premises and instructions outside this artifact's purpose before accepting the rendition.
 
 The Skill-using agent decides which rules are relevant. The exact model or provider contract decides what the interface can receive. The guide governs rendition; image intent and visual authority remain with their owning plans.
+
+## Describe the intended result first
+
+Lead a prose rendition with the artifact or edit and its desired result, then
+establish the situation needed to understand its action, appearance,
+relationships, degree and reference uses. The receiving model has the delivered
+input; the agent's conversation and source records are separate knowledge.
+Supply necessary task-specific context where it makes dependent instructions
+intelligible. Use [Composition](prompt-composition.md#carry-scene-intent-into-depiction)
+to select those premises at the artifact's scope. Narrative or emotional intent
+can guide the current performance, including subtlety or a requested double
+reading. Keep authoring conclusions beyond this depiction at their owners.
+A tag interface retains its evidenced hierarchy and conveys the same requirements
+through supported terms and channels. Preserve this connection through interface
+conversion rather than translating source notes into additional image tasks.
+
+For a corrective request, state the successful replacement or remaining quality
+before refining its boundaries. Use the request, accepted baseline and actual
+reference evidence to determine that state and its necessary premises. A direct exclusion is complete
+when only that boundary matters. Required negation, modifier scope and a
+supported negative channel remain available; an affirmative alternative need
+not be invented for each exclusion. Judge how the full input defines the wanted
+image, rather than counting negatives or requiring positive-only wording.
+
+Synthetic example: the requested result is a richly decorated hall with a calm
+visual hierarchy. "Carved bands frame broad arches, with quiet wall areas
+between them" states a possible result. A required exclusion of lettering can
+remain alongside it. The carving and spacing explain the desired richness and
+order; the exclusion protects a different boundary. If a later image is too
+cluttered, revise the distribution and density while retaining the requested
+decoration, then reread the complete input with its references.
 
 ## Weighting and prompt pressure
 
@@ -77,6 +110,14 @@ When the task is to test whether a term, placement, weight, LoRA strength, or ne
 ## Read the rendition back before it is sent
 
 Inspect the exact rendition with the selected parser before reviewing its meaning. Structural checks locate broken delimiters, malformed weights, invalid conditioning clauses, unsupported channels and declared length violations. The report also retains dictionary and dialect evidence for the author's reading.
+
+Then apply [Composition's two readings](prompt-composition.md#prompt-assembly-and-review):
+reconstruct from the delivered input and compare with the scoped source intent.
+Explain any missing premise, changed meaning or added task in the existing
+review. A source instruction can govern an author's state or adoption decision
+without belonging in the renderer's request. Equally, a prior event can be
+necessary context for the current performance even though it is outside the
+frame. Preserve that distinction in translations, revisions and transport.
 
 ```bash
 python scripts/check_tag_prompt.py --weighting sdEmbeds --dictionary <prompt-vocabulary/dictionary.json> --prompt "<the rendition>" --negative "<the negative>" --model <model-id>

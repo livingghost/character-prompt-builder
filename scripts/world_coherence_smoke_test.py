@@ -192,9 +192,19 @@ class ReaderTests(unittest.TestCase):
                                         "change": "Meets a gaze", "from": ["b1"]}]
         self.refused(value, "who the scene does not say is in it", scene_plot.validate_scene_plot)
 
-    def test_unseen_context_cannot_support_visible_observation(self):
+    def test_an_observation_still_needs_a_presented_focal_beat(self):
         value = observational_scene(); value["beats"][0]["visibility"] = "context"
-        self.refused(value, "context", scene_plot.validate_scene_plot)
+        self.refused(value, "focal_beat names 'b1', a context beat", scene_plot.validate_scene_plot)
+
+    def test_context_can_support_an_unpeopled_held_condition(self):
+        value = observational_scene()
+        value["beats"].append({"id": "b2", "beat": "A screen beyond the visible bank shelters the basin.",
+                               "visibility": "context"})
+        value["must_preserve"] = [{"statement": "The water remains still.", "from": ["b1", "b2"]}]
+        report = self.accepted(value, scene_plot.validate_scene_plot)
+        self.assertEqual(report["visible_beats"], 1)
+        self.assertEqual(report["state_changes"], 0)
+        self.assertEqual(value["beats"][1]["visibility"], "context")
 
     def test_named_structure_still_checks_its_parts(self):
         value = observational_scene(); value["structure"] = {"profile": "kishotenketsu", "parts": {}}

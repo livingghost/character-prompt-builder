@@ -10,11 +10,11 @@ from reference_delivery import validate_subject_uses
 
 REVIEW_REQUIREMENTS = (
     {'id': 'finished-image',
-     'statement': 'Reconstruct the wanted image from the complete input and compare its qualities, degree, relationships and finish with the author anchors. Identify how text and supplied media establish that target beyond satisfying exclusions. Explain how actions, visibility and exclusions coexist within their actual scopes. Missing anchors, weakened intent and unresolved conflicts prevent a satisfied assessment.'},
+     'statement': 'Reconstruct the selected artifact and depicted situation from only the final text, supported controls and actual supplied media. State what they establish about the subjects, present circumstances, action, relationships, intended degree, framing and finish, as applicable. Identify premises that the instructions require but the delivered input leaves unstated. Then compare that reading with the brief and selected production scope. Assess necessary exclusions together with the wanted result. Explain missing meaning, unsupported inferences and instructions that exceed the requested depiction; resolve those differences before a satisfied assessment.'},
     {'id': 'supplied-inputs',
-     'statement': 'Assess whether instructions use only the supplied media and convey their intended roles, limits and subject assignments.'},
+     'statement': 'Inspect the actual supplied media and assign each relevant subject attribute to its source: retained identity, requested change, pose, clothing, finish or another declared use. Distinguish what the delivered images establish from knowledge available only in source records or prior conversation. Confirm that reference numbers, subject assignments, crops and delivered details match the final instructions. Resolve priorities and scoped exceptions together while preserving every required attribute and its evidence.'},
     {'id': 'ownership',
-     'statement': 'Assess whether image text contains depiction and necessary input-use directions, while production records and native execution controls retain their own information.'},
+     'statement': 'Explain how each consequential instruction serves the selected artifact, including context that makes its present depiction intelligible and necessary use of supplied inputs. Keep production and story-management decisions outside that depiction in their owning records. Apply ambiguity or narrative outcomes as portrayal choices when the requested artifact includes them. Place production identifiers, provenance, review reasoning and execution values in their records or native controls. Trace the scoped intent through the final wording and any requested translation, including modifiers, degree and necessary exclusions.'},
 )
 
 

@@ -1,6 +1,6 @@
 # Release Validation
 
-Use this document only for publishing a core release or a pack release. Ordinary prompt and prompt-artifact runtime must leave it unloaded. Release validation is an exact-profile gate, not an artistic-quality claim.
+Use this document only for publishing a core release or a pack release. Ordinary prompt and prompt-artifact runtime must leave it unloaded. Release validation checks the environment and artifact contracts. Artistic quality requires separate observation and judgment.
 
 ## Contents
 
@@ -18,15 +18,24 @@ Use this document only for publishing a core release or a pack release. Ordinary
 
 ## Core release environment
 
-Install and verify the exact Tested profile with the Python 3.12 that CI uses. Run this check with that Python; it creates the environment at `../cpb-tested` and installs the pins into it once you confirm:
+Use the same locked environment for ordinary skill execution and publication. `pyproject.toml` owns the supported Python minimum and the direct package pins, `.python-version` selects Python 3.12 by default, and `uv.lock` records the complete resolution. From the skill directory, run:
 
 ```bash
-python scripts/check_dependencies.py --tested --venv ../cpb-tested --install
+uv sync --locked
+uv run --locked python scripts/check_dependencies.py
 ```
 
-Run every other check with that environment's Python. The Tested profile also requires ffprobe from FFmpeg, and the same command installs it through the system package manager. It checks representative CJK glyph coverage with the sheet renderer's regular and bold font resolution. Install missing system fonts before the sheet suites; the dependency report identifies unavailable weights and characters.
+Prefix the `python` commands in this document with `uv run --locked`, or use the synchronized environment's interpreter. From a Studio directory, select the skill with `--project` and use absolute script paths as described in [Dependencies](../../DEPENDENCIES.md#uv-project-environment). CI synchronizes an environment outside the checkout and adds that environment's interpreter directory to its executable search path. `UV_PROJECT_ENVIRONMENT` selects an absolute environment directory outside the product tree when needed.
 
-Core and Visual profiles support development and task-specific runtime; only the Tested profile validates publication. The tested pins lie inside the Visual ranges, and the tested check refuses a pin outside them. Each of these blocks publication:
+The dependency checker also supports installing the same generated `requirements.txt` into an explicitly selected Python environment. With the selected Python, this command creates the environment at `../cpb-environment` when absent and installs into it after the required confirmation:
+
+```bash
+python scripts/check_dependencies.py --venv ../cpb-environment --install
+```
+
+Run every other check with the selected environment's Python. The environment requires ffprobe from FFmpeg; `check_dependencies.py --install` prints its system-package installation command and runs it under the checker's confirmation rules. The check verifies representative CJK glyph coverage with the sheet renderer's regular and bold font resolution. Install missing system fonts before the sheet suites; the dependency report identifies unavailable weights and characters. uv synchronizes Python packages, and this check verifies the complete environment used by runtime and publication.
+
+The declared dependency versions apply to every operation. Each of these blocks publication:
 
 - missing pin
 - import failure
@@ -157,13 +166,23 @@ bytes. Reject unsupported required features, and retain optional evidence only u
 its declared policy. Validation and receipt leave generation and canon changes
 unauthorized.
 
-After the runner and the validator pass in the exact Tested environment:
+After changing product version, dependency declarations or the supported Python minimum, update the generated dependency artifacts before rebuilding release metadata:
+
+```bash
+uv lock
+uv lock --check
+uv export --locked --no-emit-project --format requirements.txt > requirements.txt
+```
+
+`project.dependencies` remains the editable direct-package authority. uv generates the resolution and its pip export, including transitive versions and hashes. The export command's standard output is the complete `requirements.txt`; its generated command header is retained. The release contract compares the file against the same official export command, and the inventory records both generated dependency artifacts. CI's `uv sync --locked` checks that the committed lock is current before running the suites.
+
+After the runner and the validator pass in the synchronized environment:
 
 1. Run `python scripts/rebuild_metadata.py` and confirm only intended metadata changes; generated inventories are rebuilt, never hand-edited.
 2. Build with `python scripts/package.py`; the working tree is never zipped directly.
 3. Verify the reports the packager writes beside the archive: the generated `<archive>.sha256` file, and in `archive-check.json` the `zip_crc_ok`, `deterministic_rebuild`, `stage_extracted_tree_match` and `installed_smoke` fields, together with `stage-extracted-tree-check.json`, `installed-smoke.json` and `validation-read-only-check.json`.
 4. If a content pack changed, advance its UTC CalVer, rebuild its lock, and run its gate with the state described above, dedicated cache, explicit managed root, and report outside the pack.
-5. If visual tooling changed, check the Visual profile with `python scripts/check_dependencies.py --profile visual`, then run the runner again in the Tested environment.
+5. Keep the synchronized environment through validation and packaging. If dependencies change during a correction, synchronize and verify them before repeating the affected checks.
 6. Validate every non-bundled pack independently. The core allowlist contains only the bundled commons pack; a separately distributed pack stays outside the core archive unless explicitly included.
 
 The packager rejects symbolic links at source, staging, tree-hash, and ZIP boundaries. Regenerate canonical metadata and manifests after file moves, then verify the staged and extracted trees contain exactly the declared release inventory and each routed document appears exactly once.
@@ -206,14 +225,15 @@ The final report keeps this shape. Trimmed output of a real run:
 {
   "ok": true,
   "package": "character-prompt-builder",
-  "version": "2026.10.04.1",
-  "content_sha256": "9592674000bcfd574d558f19eb2db9769b8c85112dd1462bbda712d52ca7809f",
+  "version": "2026.10.31.2",
+  "content_sha256": "4762c1ddbb42878ef080db7e2a4098c430080beedc656bb8bca9b3924aa0c298",
   "publication_mode": "fresh-attempt-archive-last",
-  "staged_validation": {"files": 888, "manifest_files": 887, "tested_dependencies": 6, "default_pack_records": 105},
+  "staged_validation": {"files": 991, "manifest_files": 990, "environment_dependencies": 6, "default_pack_records": 129},
   "stage_extracted_tree_match": true,
-  "installed_smoke": {"ok": true, "seconds": 8.39, "commands": ["commons-only pack runtime", "production workflow help", "session entry", "synthetic generation example", "synthetic prepare"]},
+  "installed_smoke": {"ok": true, "seconds": 3.18, "commands": ["commons-only pack runtime", "production workflow help", "session entry", "synthetic generation example", "synthetic prepare"]},
   "staged_validation_read_only": true,
   "installed_smoke_read_only": true,
+  "environment": {"definition": "pyproject.toml", "python_requirement": ">=3.12"},
   "transport": "synthetic only"
 }
 ```

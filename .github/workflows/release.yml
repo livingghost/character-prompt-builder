@@ -39,11 +39,15 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
 
-      - name: Install tested release dependencies
-        run: uv pip install --system -r requirements-tested.txt
+      - name: Synchronize the locked environment
+        env:
+          UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/cpb-environment
+        run: |
+          uv sync --locked
+          uv run --locked python -c 'import os, sys; print(os.path.dirname(sys.executable))' >> "$GITHUB_PATH"
 
-      - name: Validate exact tested dependencies
-        run: python scripts/check_dependencies.py --tested
+      - name: Validate the complete environment
+        run: python scripts/check_dependencies.py
 
       - name: Validate product identity, documentation and process evidence
         shell: bash

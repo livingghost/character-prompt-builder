@@ -1437,10 +1437,271 @@
    "expect": {
     "ok": false,
     "refuses": [
-     "depicts must name what this chapter presents or holds"
+     "depicts must be a non-empty array of non-empty strings naming what this chapter presents or holds"
     ]
    },
    "name": "a chapter that says nothing it depicts"
+  },
+  {
+   "artifact": "narrative",
+   "document": {
+    "arcs": [
+     {
+      "characters": [
+       "C01",
+       "C02"
+      ],
+      "climax": "The habit is refused.",
+      "id": "a1",
+      "name": "The main arc",
+      "resolution": "What replaces it is chosen rather than fallen into.",
+      "rising": [
+       "One of them is asked for something.",
+       "The asking becomes a habit."
+      ],
+      "setup": "Two people share a room and not much else.",
+      "status": "in-progress",
+      "themes": [
+       "t1"
+      ],
+      "type": "main"
+     }
+    ],
+    "artifact_type": "narrative",
+    "chapters": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": "The empty room remains dark.",
+      "id": "ch1",
+      "number": 1,
+      "status": "complete",
+      "story_order_end": 100,
+      "story_order_start": 0,
+      "title": "First"
+     },
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The first refusal."
+      ],
+      "id": "ch2",
+      "number": 2,
+      "status": "in-progress",
+      "story_order_end": 200,
+      "story_order_start": 100,
+      "title": "Second"
+     }
+    ],
+    "characters": [
+     {
+      "id": "C01",
+      "name": "The first",
+      "persona": "narrative/personas/c01.md",
+      "prohibitions": [
+       {
+        "kind": "surface",
+        "surface": "never say this"
+       },
+       {
+        "kind": "judgement",
+        "statement": "Does not explain himself while working."
+       }
+      ]
+     },
+     {
+      "id": "C02",
+      "name": "The second",
+      "persona": "narrative/personas/c02.md"
+     }
+    ],
+    "knowledge": [
+     {
+      "fact": "The debt exists.",
+      "id": "k1",
+      "known_by": [
+       "C01",
+       "audience"
+      ],
+      "learned_in": "ch1"
+     }
+    ],
+    "medium": "screen",
+    "promises": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "characters": [
+       "C01"
+      ],
+      "id": "p1",
+      "planted": "ch1",
+      "statement": "The debt is named out loud.",
+      "status": "planted"
+     }
+    ],
+    "questions": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "id": "q1",
+      "introduced": "ch1",
+      "statement": "Who asked first.",
+      "status": "open"
+     }
+    ],
+    "series_id": "smoke",
+    "themes": [
+     {
+      "id": "t1",
+      "statement": "What a person owes the people who wait for them."
+     }
+    ],
+    "timeline_id": "main"
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "chapters[0].depicts must be a non-empty array"
+    ]
+   },
+   "name": "one chapter description still needs an array"
+  },
+  {
+   "artifact": "narrative",
+   "document": {
+    "arcs": [
+     {
+      "characters": [
+       "C01",
+       "C02"
+      ],
+      "climax": "The habit is refused.",
+      "id": "a1",
+      "name": "The main arc",
+      "resolution": "What replaces it is chosen rather than fallen into.",
+      "rising": [
+       "One of them is asked for something.",
+       "The asking becomes a habit."
+      ],
+      "setup": "Two people share a room and not much else.",
+      "status": "in-progress",
+      "themes": [
+       "t1"
+      ],
+      "type": "main"
+     }
+    ],
+    "artifact_type": "narrative",
+    "chapters": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "  静かな部屋。\n\nThe empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. \n  ",
+       "  静かな部屋。\n\nThe empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. The empty room remains dark. \n  "
+      ],
+      "id": "ch1",
+      "number": 1,
+      "status": "complete",
+      "story_order_end": 100,
+      "story_order_start": 0,
+      "title": "First"
+     },
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The first refusal."
+      ],
+      "id": "ch2",
+      "number": 2,
+      "status": "in-progress",
+      "story_order_end": 200,
+      "story_order_start": 100,
+      "title": "Second"
+     }
+    ],
+    "characters": [
+     {
+      "id": "C01",
+      "name": "The first",
+      "persona": "narrative/personas/c01.md",
+      "prohibitions": [
+       {
+        "kind": "surface",
+        "surface": "never say this"
+       },
+       {
+        "kind": "judgement",
+        "statement": "Does not explain himself while working."
+       }
+      ]
+     },
+     {
+      "id": "C02",
+      "name": "The second",
+      "persona": "narrative/personas/c02.md"
+     }
+    ],
+    "knowledge": [
+     {
+      "fact": "The debt exists.",
+      "id": "k1",
+      "known_by": [
+       "C01",
+       "audience"
+      ],
+      "learned_in": "ch1"
+     }
+    ],
+    "medium": "screen",
+    "promises": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "characters": [
+       "C01"
+      ],
+      "id": "p1",
+      "planted": "ch1",
+      "statement": "The debt is named out loud.",
+      "status": "planted"
+     }
+    ],
+    "questions": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "id": "q1",
+      "introduced": "ch1",
+      "statement": "Who asked first.",
+      "status": "open"
+     }
+    ],
+    "series_id": "smoke",
+    "themes": [
+     {
+      "id": "t1",
+      "statement": "What a person owes the people who wait for them."
+     }
+    ],
+    "timeline_id": "main"
+   },
+   "expect": {
+    "ok": true,
+    "refuses": []
+   },
+   "name": "long multiline descriptions in any language may repeat"
   },
   {
    "artifact": "narrative",
@@ -6614,6 +6875,937 @@
     ]
    },
    "name": "a first phase that says what changed"
+  },
+  {
+   "artifact": "narrative",
+   "document": {
+    "arcs": [
+     {
+      "characters": [
+       "C01",
+       "C02"
+      ],
+      "climax": "The habit is refused.",
+      "id": "a1",
+      "name": "The main arc",
+      "resolution": "What replaces it is chosen rather than fallen into.",
+      "rising": [
+       "One of them is asked for something.",
+       "The asking becomes a habit."
+      ],
+      "setup": "Two people share a room and not much else.",
+      "status": "in-progress",
+      "themes": [
+       "t1"
+      ],
+      "type": "main"
+     }
+    ],
+    "artifact_type": "narrative",
+    "chapters": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The empty room remains dark.",
+       ""
+      ],
+      "id": "ch1",
+      "number": 1,
+      "status": "complete",
+      "story_order_end": 100,
+      "story_order_start": 0,
+      "title": "First"
+     },
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The first refusal."
+      ],
+      "id": "ch2",
+      "number": 2,
+      "status": "in-progress",
+      "story_order_end": 200,
+      "story_order_start": 100,
+      "title": "Second"
+     }
+    ],
+    "characters": [
+     {
+      "id": "C01",
+      "name": "The first",
+      "persona": "narrative/personas/c01.md",
+      "prohibitions": [
+       {
+        "kind": "surface",
+        "surface": "never say this"
+       },
+       {
+        "kind": "judgement",
+        "statement": "Does not explain himself while working."
+       }
+      ]
+     },
+     {
+      "id": "C02",
+      "name": "The second",
+      "persona": "narrative/personas/c02.md"
+     }
+    ],
+    "knowledge": [
+     {
+      "fact": "The debt exists.",
+      "id": "k1",
+      "known_by": [
+       "C01",
+       "audience"
+      ],
+      "learned_in": "ch1"
+     }
+    ],
+    "medium": "screen",
+    "promises": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "characters": [
+       "C01"
+      ],
+      "id": "p1",
+      "planted": "ch1",
+      "statement": "The debt is named out loud.",
+      "status": "planted"
+     }
+    ],
+    "questions": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "id": "q1",
+      "introduced": "ch1",
+      "statement": "Who asked first.",
+      "status": "open"
+     }
+    ],
+    "series_id": "smoke",
+    "themes": [
+     {
+      "id": "t1",
+      "statement": "What a person owes the people who wait for them."
+     }
+    ],
+    "timeline_id": "main"
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "chapters[0].depicts[1] must be a non-empty string"
+    ]
+   },
+   "name": "a chapter depiction item cannot be empty text"
+  },
+  {
+   "artifact": "narrative",
+   "document": {
+    "arcs": [
+     {
+      "characters": [
+       "C01",
+       "C02"
+      ],
+      "climax": "The habit is refused.",
+      "id": "a1",
+      "name": "The main arc",
+      "resolution": "What replaces it is chosen rather than fallen into.",
+      "rising": [
+       "One of them is asked for something.",
+       "The asking becomes a habit."
+      ],
+      "setup": "Two people share a room and not much else.",
+      "status": "in-progress",
+      "themes": [
+       "t1"
+      ],
+      "type": "main"
+     }
+    ],
+    "artifact_type": "narrative",
+    "chapters": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The empty room remains dark.",
+       " \n\t "
+      ],
+      "id": "ch1",
+      "number": 1,
+      "status": "complete",
+      "story_order_end": 100,
+      "story_order_start": 0,
+      "title": "First"
+     },
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The first refusal."
+      ],
+      "id": "ch2",
+      "number": 2,
+      "status": "in-progress",
+      "story_order_end": 200,
+      "story_order_start": 100,
+      "title": "Second"
+     }
+    ],
+    "characters": [
+     {
+      "id": "C01",
+      "name": "The first",
+      "persona": "narrative/personas/c01.md",
+      "prohibitions": [
+       {
+        "kind": "surface",
+        "surface": "never say this"
+       },
+       {
+        "kind": "judgement",
+        "statement": "Does not explain himself while working."
+       }
+      ]
+     },
+     {
+      "id": "C02",
+      "name": "The second",
+      "persona": "narrative/personas/c02.md"
+     }
+    ],
+    "knowledge": [
+     {
+      "fact": "The debt exists.",
+      "id": "k1",
+      "known_by": [
+       "C01",
+       "audience"
+      ],
+      "learned_in": "ch1"
+     }
+    ],
+    "medium": "screen",
+    "promises": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "characters": [
+       "C01"
+      ],
+      "id": "p1",
+      "planted": "ch1",
+      "statement": "The debt is named out loud.",
+      "status": "planted"
+     }
+    ],
+    "questions": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "id": "q1",
+      "introduced": "ch1",
+      "statement": "Who asked first.",
+      "status": "open"
+     }
+    ],
+    "series_id": "smoke",
+    "themes": [
+     {
+      "id": "t1",
+      "statement": "What a person owes the people who wait for them."
+     }
+    ],
+    "timeline_id": "main"
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "chapters[0].depicts[1] must be a non-empty string"
+    ]
+   },
+   "name": "a chapter depiction item cannot be whitespace"
+  },
+  {
+   "artifact": "narrative",
+   "document": {
+    "arcs": [
+     {
+      "characters": [
+       "C01",
+       "C02"
+      ],
+      "climax": "The habit is refused.",
+      "id": "a1",
+      "name": "The main arc",
+      "resolution": "What replaces it is chosen rather than fallen into.",
+      "rising": [
+       "One of them is asked for something.",
+       "The asking becomes a habit."
+      ],
+      "setup": "Two people share a room and not much else.",
+      "status": "in-progress",
+      "themes": [
+       "t1"
+      ],
+      "type": "main"
+     }
+    ],
+    "artifact_type": "narrative",
+    "chapters": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The empty room remains dark.",
+       null
+      ],
+      "id": "ch1",
+      "number": 1,
+      "status": "complete",
+      "story_order_end": 100,
+      "story_order_start": 0,
+      "title": "First"
+     },
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The first refusal."
+      ],
+      "id": "ch2",
+      "number": 2,
+      "status": "in-progress",
+      "story_order_end": 200,
+      "story_order_start": 100,
+      "title": "Second"
+     }
+    ],
+    "characters": [
+     {
+      "id": "C01",
+      "name": "The first",
+      "persona": "narrative/personas/c01.md",
+      "prohibitions": [
+       {
+        "kind": "surface",
+        "surface": "never say this"
+       },
+       {
+        "kind": "judgement",
+        "statement": "Does not explain himself while working."
+       }
+      ]
+     },
+     {
+      "id": "C02",
+      "name": "The second",
+      "persona": "narrative/personas/c02.md"
+     }
+    ],
+    "knowledge": [
+     {
+      "fact": "The debt exists.",
+      "id": "k1",
+      "known_by": [
+       "C01",
+       "audience"
+      ],
+      "learned_in": "ch1"
+     }
+    ],
+    "medium": "screen",
+    "promises": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "characters": [
+       "C01"
+      ],
+      "id": "p1",
+      "planted": "ch1",
+      "statement": "The debt is named out loud.",
+      "status": "planted"
+     }
+    ],
+    "questions": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "id": "q1",
+      "introduced": "ch1",
+      "statement": "Who asked first.",
+      "status": "open"
+     }
+    ],
+    "series_id": "smoke",
+    "themes": [
+     {
+      "id": "t1",
+      "statement": "What a person owes the people who wait for them."
+     }
+    ],
+    "timeline_id": "main"
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "chapters[0].depicts[1] must be a non-empty string"
+    ]
+   },
+   "name": "a chapter depiction item cannot be null"
+  },
+  {
+   "artifact": "narrative",
+   "document": {
+    "arcs": [
+     {
+      "characters": [
+       "C01",
+       "C02"
+      ],
+      "climax": "The habit is refused.",
+      "id": "a1",
+      "name": "The main arc",
+      "resolution": "What replaces it is chosen rather than fallen into.",
+      "rising": [
+       "One of them is asked for something.",
+       "The asking becomes a habit."
+      ],
+      "setup": "Two people share a room and not much else.",
+      "status": "in-progress",
+      "themes": [
+       "t1"
+      ],
+      "type": "main"
+     }
+    ],
+    "artifact_type": "narrative",
+    "chapters": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The empty room remains dark.",
+       0
+      ],
+      "id": "ch1",
+      "number": 1,
+      "status": "complete",
+      "story_order_end": 100,
+      "story_order_start": 0,
+      "title": "First"
+     },
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The first refusal."
+      ],
+      "id": "ch2",
+      "number": 2,
+      "status": "in-progress",
+      "story_order_end": 200,
+      "story_order_start": 100,
+      "title": "Second"
+     }
+    ],
+    "characters": [
+     {
+      "id": "C01",
+      "name": "The first",
+      "persona": "narrative/personas/c01.md",
+      "prohibitions": [
+       {
+        "kind": "surface",
+        "surface": "never say this"
+       },
+       {
+        "kind": "judgement",
+        "statement": "Does not explain himself while working."
+       }
+      ]
+     },
+     {
+      "id": "C02",
+      "name": "The second",
+      "persona": "narrative/personas/c02.md"
+     }
+    ],
+    "knowledge": [
+     {
+      "fact": "The debt exists.",
+      "id": "k1",
+      "known_by": [
+       "C01",
+       "audience"
+      ],
+      "learned_in": "ch1"
+     }
+    ],
+    "medium": "screen",
+    "promises": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "characters": [
+       "C01"
+      ],
+      "id": "p1",
+      "planted": "ch1",
+      "statement": "The debt is named out loud.",
+      "status": "planted"
+     }
+    ],
+    "questions": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "id": "q1",
+      "introduced": "ch1",
+      "statement": "Who asked first.",
+      "status": "open"
+     }
+    ],
+    "series_id": "smoke",
+    "themes": [
+     {
+      "id": "t1",
+      "statement": "What a person owes the people who wait for them."
+     }
+    ],
+    "timeline_id": "main"
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "chapters[0].depicts[1] must be a non-empty string"
+    ]
+   },
+   "name": "a chapter depiction item cannot be number"
+  },
+  {
+   "artifact": "narrative",
+   "document": {
+    "arcs": [
+     {
+      "characters": [
+       "C01",
+       "C02"
+      ],
+      "climax": "The habit is refused.",
+      "id": "a1",
+      "name": "The main arc",
+      "resolution": "What replaces it is chosen rather than fallen into.",
+      "rising": [
+       "One of them is asked for something.",
+       "The asking becomes a habit."
+      ],
+      "setup": "Two people share a room and not much else.",
+      "status": "in-progress",
+      "themes": [
+       "t1"
+      ],
+      "type": "main"
+     }
+    ],
+    "artifact_type": "narrative",
+    "chapters": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The empty room remains dark.",
+       false
+      ],
+      "id": "ch1",
+      "number": 1,
+      "status": "complete",
+      "story_order_end": 100,
+      "story_order_start": 0,
+      "title": "First"
+     },
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The first refusal."
+      ],
+      "id": "ch2",
+      "number": 2,
+      "status": "in-progress",
+      "story_order_end": 200,
+      "story_order_start": 100,
+      "title": "Second"
+     }
+    ],
+    "characters": [
+     {
+      "id": "C01",
+      "name": "The first",
+      "persona": "narrative/personas/c01.md",
+      "prohibitions": [
+       {
+        "kind": "surface",
+        "surface": "never say this"
+       },
+       {
+        "kind": "judgement",
+        "statement": "Does not explain himself while working."
+       }
+      ]
+     },
+     {
+      "id": "C02",
+      "name": "The second",
+      "persona": "narrative/personas/c02.md"
+     }
+    ],
+    "knowledge": [
+     {
+      "fact": "The debt exists.",
+      "id": "k1",
+      "known_by": [
+       "C01",
+       "audience"
+      ],
+      "learned_in": "ch1"
+     }
+    ],
+    "medium": "screen",
+    "promises": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "characters": [
+       "C01"
+      ],
+      "id": "p1",
+      "planted": "ch1",
+      "statement": "The debt is named out loud.",
+      "status": "planted"
+     }
+    ],
+    "questions": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "id": "q1",
+      "introduced": "ch1",
+      "statement": "Who asked first.",
+      "status": "open"
+     }
+    ],
+    "series_id": "smoke",
+    "themes": [
+     {
+      "id": "t1",
+      "statement": "What a person owes the people who wait for them."
+     }
+    ],
+    "timeline_id": "main"
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "chapters[0].depicts[1] must be a non-empty string"
+    ]
+   },
+   "name": "a chapter depiction item cannot be boolean"
+  },
+  {
+   "artifact": "narrative",
+   "document": {
+    "arcs": [
+     {
+      "characters": [
+       "C01",
+       "C02"
+      ],
+      "climax": "The habit is refused.",
+      "id": "a1",
+      "name": "The main arc",
+      "resolution": "What replaces it is chosen rather than fallen into.",
+      "rising": [
+       "One of them is asked for something.",
+       "The asking becomes a habit."
+      ],
+      "setup": "Two people share a room and not much else.",
+      "status": "in-progress",
+      "themes": [
+       "t1"
+      ],
+      "type": "main"
+     }
+    ],
+    "artifact_type": "narrative",
+    "chapters": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The empty room remains dark.",
+       {}
+      ],
+      "id": "ch1",
+      "number": 1,
+      "status": "complete",
+      "story_order_end": 100,
+      "story_order_start": 0,
+      "title": "First"
+     },
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The first refusal."
+      ],
+      "id": "ch2",
+      "number": 2,
+      "status": "in-progress",
+      "story_order_end": 200,
+      "story_order_start": 100,
+      "title": "Second"
+     }
+    ],
+    "characters": [
+     {
+      "id": "C01",
+      "name": "The first",
+      "persona": "narrative/personas/c01.md",
+      "prohibitions": [
+       {
+        "kind": "surface",
+        "surface": "never say this"
+       },
+       {
+        "kind": "judgement",
+        "statement": "Does not explain himself while working."
+       }
+      ]
+     },
+     {
+      "id": "C02",
+      "name": "The second",
+      "persona": "narrative/personas/c02.md"
+     }
+    ],
+    "knowledge": [
+     {
+      "fact": "The debt exists.",
+      "id": "k1",
+      "known_by": [
+       "C01",
+       "audience"
+      ],
+      "learned_in": "ch1"
+     }
+    ],
+    "medium": "screen",
+    "promises": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "characters": [
+       "C01"
+      ],
+      "id": "p1",
+      "planted": "ch1",
+      "statement": "The debt is named out loud.",
+      "status": "planted"
+     }
+    ],
+    "questions": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "id": "q1",
+      "introduced": "ch1",
+      "statement": "Who asked first.",
+      "status": "open"
+     }
+    ],
+    "series_id": "smoke",
+    "themes": [
+     {
+      "id": "t1",
+      "statement": "What a person owes the people who wait for them."
+     }
+    ],
+    "timeline_id": "main"
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "chapters[0].depicts[1] must be a non-empty string"
+    ]
+   },
+   "name": "a chapter depiction item cannot be object"
+  },
+  {
+   "artifact": "narrative",
+   "document": {
+    "arcs": [
+     {
+      "characters": [
+       "C01",
+       "C02"
+      ],
+      "climax": "The habit is refused.",
+      "id": "a1",
+      "name": "The main arc",
+      "resolution": "What replaces it is chosen rather than fallen into.",
+      "rising": [
+       "One of them is asked for something.",
+       "The asking becomes a habit."
+      ],
+      "setup": "Two people share a room and not much else.",
+      "status": "in-progress",
+      "themes": [
+       "t1"
+      ],
+      "type": "main"
+     }
+    ],
+    "artifact_type": "narrative",
+    "chapters": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The empty room remains dark.",
+       []
+      ],
+      "id": "ch1",
+      "number": 1,
+      "status": "complete",
+      "story_order_end": 100,
+      "story_order_start": 0,
+      "title": "First"
+     },
+     {
+      "arcs": [
+       "a1"
+      ],
+      "depicts": [
+       "The first refusal."
+      ],
+      "id": "ch2",
+      "number": 2,
+      "status": "in-progress",
+      "story_order_end": 200,
+      "story_order_start": 100,
+      "title": "Second"
+     }
+    ],
+    "characters": [
+     {
+      "id": "C01",
+      "name": "The first",
+      "persona": "narrative/personas/c01.md",
+      "prohibitions": [
+       {
+        "kind": "surface",
+        "surface": "never say this"
+       },
+       {
+        "kind": "judgement",
+        "statement": "Does not explain himself while working."
+       }
+      ]
+     },
+     {
+      "id": "C02",
+      "name": "The second",
+      "persona": "narrative/personas/c02.md"
+     }
+    ],
+    "knowledge": [
+     {
+      "fact": "The debt exists.",
+      "id": "k1",
+      "known_by": [
+       "C01",
+       "audience"
+      ],
+      "learned_in": "ch1"
+     }
+    ],
+    "medium": "screen",
+    "promises": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "characters": [
+       "C01"
+      ],
+      "id": "p1",
+      "planted": "ch1",
+      "statement": "The debt is named out loud.",
+      "status": "planted"
+     }
+    ],
+    "questions": [
+     {
+      "arcs": [
+       "a1"
+      ],
+      "id": "q1",
+      "introduced": "ch1",
+      "statement": "Who asked first.",
+      "status": "open"
+     }
+    ],
+    "series_id": "smoke",
+    "themes": [
+     {
+      "id": "t1",
+      "statement": "What a person owes the people who wait for them."
+     }
+    ],
+    "timeline_id": "main"
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "chapters[0].depicts[1] must be a non-empty string"
+    ]
+   },
+   "name": "a chapter depiction item cannot be array"
   },
   {
    "artifact": "narrative",
@@ -21886,6 +23078,221 @@
     "delivery_role": "chapter_opening",
     "exchanges": [],
     "focalization": {
+     "character": "C01",
+     "kind": "external"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "focalization has unknown keys: ['character']; allowed keys are kind, through, note; through is required for internal, optional for external, and zero has no named holder"
+    ]
+   },
+   "name": "an unknown focalization key names the supported fields"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
      "kind": "internal"
     },
     "free": [
@@ -22528,6 +23935,431 @@
     "delivery_role": "chapter_opening",
     "exchanges": [],
     "focalization": {
+     "kind": "external"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": true,
+    "refuses": []
+   },
+   "name": "external focalization without a holder"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "external",
+     "through": null
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": true,
+    "refuses": []
+   },
+   "name": "external focalization with a null holder"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
      "kind": "zero"
     },
     "free": [
@@ -22694,6 +24526,219 @@
     "refuses": []
    },
    "name": "zero focalization"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "zero",
+     "through": null
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": true,
+    "refuses": []
+   },
+   "name": "zero focalization with a null holder"
   },
   {
    "artifact": "scene-plot",
@@ -29311,10 +31356,239 @@
    "expect": {
     "ok": false,
     "refuses": [
-     "cannot put anything in a frame"
+     "this field requires a visible beat"
     ]
    },
    "name": "an exchange said in a beat the scene does not show"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [
+     {
+      "about": "the second lantern",
+      "achieves": "he is answered",
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "from": [
+       "b3",
+       "b5"
+      ],
+      "id": "e1"
+     }
+    ],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "this field requires a visible beat"
+    ]
+   },
+   "name": "an exchange cannot add context to its visible event source"
   },
   {
    "artifact": "scene-plot",
@@ -30731,6 +33005,1077 @@
     "placement": [
      {
       "from": [
+       "b1",
+       "b5"
+      ],
+      "statement": "he stays by the bench, away from the ladder to the sleeping room"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": true,
+    "refuses": []
+   },
+   "name": "context supports the selected placement"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b5"
+      ],
+      "statement": "keep the sleeping person outside the frame"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": true,
+    "refuses": []
+   },
+   "name": "context supports a preserved exclusion"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1",
+          "b5"
+         ],
+         "statement": "he steadies the lantern as it leaves the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": true,
+    "refuses": []
+   },
+   "name": "context supports a shot's visible performance"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b5"
+         ],
+         "statement": "close on the hands and lantern, below the ladder"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": true,
+    "refuses": []
+   },
+   "name": "context supports the selected framing"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b5",
+       "b9"
+      ],
+      "statement": "he is at the bench"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "names a beat that does not exist: 'b9'"
+    ]
+   },
+   "name": "a contextual statement still resolves every source"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b5",
        "b5"
       ],
       "statement": "he is at the bench"
@@ -30875,10 +34220,10 @@
    "expect": {
     "ok": false,
     "refuses": [
-     "cannot put anything in a frame"
+     "repeats a beat id"
     ]
    },
-   "name": "a statement from a context beat"
+   "name": "a contextual statement cannot repeat its source"
   },
   {
    "artifact": "scene-plot",
@@ -32370,6 +35715,868 @@
     ]
    },
    "name": "a state change whose beat id is not a string"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "wakes up",
+      "from": [
+       "b5"
+      ],
+      "target": "C02"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "state_changes[0].from names 'b5', a context beat"
+    ]
+   },
+   "name": "context cannot establish a persistent consequence"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit",
+      "from": [
+       "b3",
+       "b5"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "this field requires a visible beat"
+    ]
+   },
+   "name": "a consequence cannot add context to its visible event source"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "they trust one another",
+      "channel": "trust",
+      "from": [
+       "b5"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "relationship_delta[0].from names 'b5', a context beat"
+    ]
+   },
+   "name": "context cannot establish a relationship change"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first",
+      "channel": "initiates-contact",
+      "from": [
+       "b3",
+       "b5"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": false,
+    "refuses": [
+     "this field requires a visible beat"
+    ]
+   },
+   "name": "a relationship change cannot add context to its visible event source"
   },
   {
    "artifact": "scene-plot",
@@ -35329,7 +39536,7 @@
    "expect": {
     "ok": false,
     "refuses": [
-     "cannot put anything in a frame"
+     "this field requires a visible beat"
     ]
    },
    "name": "a unit carrying a beat the scene does not show"
@@ -36231,6 +40438,194 @@
       {
        "focal_beat": "b1",
        "id": "p1",
+       "panels": 4,
+       "shows": [
+        {
+         "from": [
+          "b1",
+          "b5"
+         ],
+         "statement": "close panels follow the steadying hands, leaving the sleeper unseen"
+        }
+       ]
+      },
+      {
+       "focal_beat": "b2",
+       "id": "p2",
+       "panels": 3,
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "ends_on_turn": true,
+       "focal_beat": "b3",
+       "id": "p3",
+       "panels": 1,
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ],
+       "spread": true
+      },
+      {
+       "focal_beat": "b4",
+       "id": "p4",
+       "panels": 5,
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the empty doorway"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": true,
+    "refuses": []
+   },
+   "name": "context supports a page's treatment"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "pages",
+     "units": [
+      {
+       "focal_beat": "b1",
+       "id": "p1",
        "panels": null,
        "shows": [
         {
@@ -36986,6 +41381,192 @@
        "covers": [
         {
          "from": [
+          "b1",
+          "b5"
+         ],
+         "statement": "follow the careful lowering of the lantern without entering the sleeping room"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "s1",
+       "mode": "scene"
+      },
+      {
+       "covers": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the morning to that point"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "s2",
+       "mode": "summary"
+      },
+      {
+       "covers": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the second lantern lit beside the first"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "s3",
+       "mode": "scene"
+      },
+      {
+       "covers": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the leaving"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "s4",
+       "mode": "scene"
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "ok": true,
+    "refuses": []
+   },
+   "name": "context supports a passage's treatment"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stands at the bench, the lanterns in front of him"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "passages",
+     "units": [
+      {
+       "covers": [
+        {
+         "from": [
           "b1"
          ],
          "statement": "the reach for the hook"
@@ -37345,9 +41926,10 @@
     "placement": [
      {
       "from": [
-       "b1"
+       "b1",
+       "b5"
       ],
-      "statement": "he stands at the bench, the lanterns in front of him"
+      "statement": "he stays by the bench, away from the ladder to the sleeping room"
      }
     ],
     "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
@@ -37492,7 +42074,7 @@
      "is marked visible but nothing takes anything from it"
     ]
    },
-   "name": "a visible beat nothing takes anything from"
+   "name": "contextual support leaves an uncovered visible beat detectable"
   },
   {
    "artifact": "scene-plot",
@@ -44877,6 +49459,445 @@
     "approved": false
    },
    "name": "an approval with an unknown key"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "approved": {
+     "at": "2026-09-11T00:00:00Z",
+     "by": "the case author",
+     "content_sha256": "589cdb83ac0b318d558fdd9a055ef62655752b79469fb8aa3425b3220bacf173"
+    },
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1",
+       "b5"
+      ],
+      "statement": "he stays by the bench, away from the ladder to the sleeping room"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "approval_refuses": [],
+    "approved": true
+   },
+   "name": "an approval covers contextual depiction support"
+  },
+  {
+   "artifact": "scene-plot",
+   "document": {
+    "approved": {
+     "at": "2026-09-11T00:00:00Z",
+     "by": "the case author",
+     "content_sha256": "589cdb83ac0b318d558fdd9a055ef62655752b79469fb8aa3425b3220bacf173"
+    },
+    "arcs": [
+     "a1"
+    ],
+    "artifact_type": "scene-plot",
+    "beats": [
+     {
+      "beat": "He lifts one lantern down.",
+      "id": "b1",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He fills the oil for more than one.",
+      "id": "b2",
+      "visibility": "visible"
+     },
+     {
+      "beat": "He lights a second lantern beside the first.",
+      "id": "b3",
+      "teaches": [
+       "audience"
+      ],
+      "visibility": "visible"
+     },
+     {
+      "beat": "He leaves it burning and goes.",
+      "id": "b4",
+      "visibility": "visible"
+     },
+     {
+      "beat": "The other one is still asleep up the ladder.",
+      "id": "b5",
+      "visibility": "context"
+     }
+    ],
+    "chapter": "ch1",
+    "characters": [
+     "C01",
+     "C02"
+    ],
+    "delivery_role": "chapter_opening",
+    "exchanges": [],
+    "focalization": {
+     "kind": "internal",
+     "through": "C02"
+    },
+    "free": [
+     {
+      "statement": "what hangs on the far wall"
+     }
+    ],
+    "must_preserve": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "the linen shirt and the leather apron"
+     }
+    ],
+    "narrative_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "order": 1,
+    "placement": [
+     {
+      "from": [
+       "b1"
+      ],
+      "statement": "he stays by the bench, away from the ladder to the sleeping room"
+     }
+    ],
+    "proposition": "From a shared boathouse before either of them speaks, one of them lights a second lantern, leaving the morning admitted rather than said.",
+    "realization": {
+     "kind": "shots",
+     "units": [
+      {
+       "composition": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "from the hatch, waist level"
+        }
+       ],
+       "focal_beat": "b1",
+       "id": "sc01-m01",
+       "shows": [
+        {
+         "from": [
+          "b1"
+         ],
+         "statement": "one lantern coming down from the hook"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "close on the oil line"
+        }
+       ],
+       "focal_beat": "b2",
+       "id": "sc01-m02",
+       "shows": [
+        {
+         "from": [
+          "b2"
+         ],
+         "statement": "the oil filling past one measure"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "the bench across frame"
+        }
+       ],
+       "focal_beat": "b3",
+       "id": "sc01-m03",
+       "shows": [
+        {
+         "from": [
+          "b3"
+         ],
+         "statement": "two lanterns side by side"
+        }
+       ]
+      },
+      {
+       "composition": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "held wide from the same hatch"
+        }
+       ],
+       "focal_beat": "b4",
+       "id": "sc01-m04",
+       "shows": [
+        {
+         "from": [
+          "b4"
+         ],
+         "statement": "the hatch, empty, the lanterns still burning"
+        }
+       ]
+      }
+     ]
+    },
+    "relationship_delta": [
+     {
+      "between": [
+       "C01",
+       "C02"
+      ],
+      "change": "he moves first, without being asked",
+      "channel": "initiates-contact",
+      "from": [
+       "b3"
+      ]
+     }
+    ],
+    "scene_function": "entry",
+    "scene_id": "sc01",
+    "setting": {
+     "interior_exterior": "interior",
+     "location": "riverside-boathouse",
+     "season": "the first cold week",
+     "time_of_day": "early, before either of them has spoken",
+     "weather": "clear and still",
+     "where": "at the bench, the hatch behind him"
+    },
+    "state_changes": [
+     {
+      "change": "it is lit on the bench",
+      "from": [
+       "b3"
+      ],
+      "target": "the second lantern"
+     }
+    ],
+    "structure": {
+     "parts": {
+      "ketsu": "b4",
+      "ki": "b1",
+      "sho": "b2",
+      "ten": "b3"
+     },
+     "profile": "kishotenketsu"
+    },
+    "themes": [
+     "t1"
+    ],
+    "turn": {
+     "from": "unspoken",
+     "to": "set burning on the bench",
+     "value": "what is admitted between them"
+    }
+   },
+   "expect": {
+    "approval_refuses": [
+     "the plot changed after it was approved"
+    ],
+    "approved": false
+   },
+   "name": "changing contextual support invalidates its approval"
   }
  ],
  "verdict": {

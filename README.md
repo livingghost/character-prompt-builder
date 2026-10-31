@@ -32,23 +32,35 @@ A request for a prompt alone ends once the prompt is written. Selecting an image
 
 ## Installation
 
-Use Python 3.11 or later. The core needs only the standard library. Image conversion, visual evidence and image editing need the optional visual dependencies.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) to run the skill in its declared Python environment. Prompt work, image processing and validation use the same dependencies. [The Python selection](.python-version) chooses Python 3.12 by default; [the project declaration](pyproject.toml) supports Python 3.12 or later and owns the direct package pins.
 
 Copy the complete extracted product folder to the host's skill location, or install the package's plugin root on a plugin-capable host. [SKILL.md](SKILL.md) is the agent's entry point, and the scripts, schemas and resources beside it are part of the product. A text-only chat can discuss a design but cannot run the tools.
 
 The [package manifest](package-manifest.toml) identifies the installed release and declares its bundled contents.
 
-Run the following from the extracted product folder with the interpreter the host will use:
+From the extracted product folder, synchronize the committed [lockfile](uv.lock), then check the complete environment:
 
-<!-- readme-example: core-check -->
 ```sh
-python scripts/check_dependencies.py --profile core
+uv sync --locked
+```
+
+Execute each `python` command on this page through `uv run --locked`. The environment check's script invocation is:
+
+<!-- readme-example: environment-check -->
+```sh
+python scripts/check_dependencies.py
 ```
 <!-- end-readme-example -->
 
-For image work, run the same check with `--profile visual --install`. It prints the commands that install what is missing, runs them once you confirm and checks again.
+Its complete uv invocation is:
 
-[DEPENDENCIES.md](DEPENDENCIES.md) explains each dependency, Pythons managed by the system, virtual environments and fonts. The [core](requirements-core.txt), [visual](requirements-visual.txt) and [combined](requirements.txt) requirement files define the dependency profiles. The [tested requirements](requirements-tested.txt) pin the release-validation environment.
+```sh
+uv run --locked python scripts/check_dependencies.py
+```
+
+The host's session hook uses this same uv environment. An agent working from a Studio directory selects the skill with `uv run --locked --project /absolute/path/to/character-prompt-builder` and passes the script's absolute path; its working directory stays in the Studio. Child tools inherit that environment's Python.
+
+[DEPENDENCIES.md](DEPENDENCIES.md) explains every package, virtual environments, fonts and FFmpeg. The check reports missing prerequisites; `--install` prints the installation commands, asks for confirmation and checks again after running them. The generated [requirements file](requirements.txt) provides the same locked packages to pip-based tooling. [Release Validation](references/release/validation.md#core-release-environment) defines the publication checks in this environment.
 
 ## First commands
 

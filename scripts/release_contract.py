@@ -10,13 +10,17 @@ import operation_context as _operation_context
 import argparse
 from datetime import date
 import json
+import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import tomllib
 from typing import Any, Mapping
 
 CALVER = re.compile(r"([0-9]{4})\.(0[1-9]|1[0-2])\.(0[1-9]|[12][0-9]|3[01])\.([1-9][0-9]*)", re.ASCII)
+ENVIRONMENT_EXPORT_COMMAND = ("uv", "export", "--locked", "--no-emit-project", "--format", "requirements.txt")
 
 
 def calver_parts(value: object) -> tuple[int, int, int, int]:
@@ -113,6 +117,36 @@ def product_root() -> Path:
     raise ValueError("package-manifest.toml is not present above the installed script")
 
 
+def check_dependency_artifacts(root: Path) -> dict[str, Any]:
+    """Verify the project, lock and exact official requirements export read-only."""
+    from package_metadata import DEPENDENCY_DEFINITIONS, validate_environment_artifacts
+    report: dict[str, Any] = {"ok": False, "definition": DEPENDENCY_DEFINITIONS["pyproject"],
+                             "export_command": list(ENVIRONMENT_EXPORT_COMMAND), "errors": []}
+    try:
+        with (root / "package-manifest.toml").open("rb") as stream:
+            declarations = tomllib.load(stream).get("dependencies", {})
+        with (root / DEPENDENCY_DEFINITIONS["pyproject"]).open("rb") as stream:
+            project = tomllib.load(stream)
+        report["python_requirement"] = validate_environment_artifacts(root, declarations, project)
+        if shutil.which("uv") is None:
+            raise ValueError("uv is required to verify the locked environment artifacts; install uv and rerun validation")
+        completed = subprocess.run(ENVIRONMENT_EXPORT_COMMAND, cwd=root, capture_output=True,
+            env={**os.environ, "UV_OFFLINE": "1", "UV_NO_PROGRESS": "1"}, timeout=60, check=False)
+        report["export_returncode"] = completed.returncode
+        if completed.returncode:
+            detail = completed.stderr.decode("utf-8", errors="replace").strip()
+            raise ValueError("uv could not verify the locked environment export: " + detail)
+        expected = (root / declarations["requirements"]).read_bytes()
+        report["export_matches"] = completed.stdout == expected
+        if not report["export_matches"]:
+            raise ValueError("requirements.txt differs from the official locked uv export; regenerate it with "
+                             + " ".join(ENVIRONMENT_EXPORT_COMMAND))
+    except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
+        report["errors"].append(str(exc))
+    report["ok"] = not report["errors"]
+    return report
+
+
 def check(root: Path, tag: str | None = None) -> dict[str, Any]:
     root = root.resolve()
     try:
@@ -142,6 +176,7 @@ def check(root: Path, tag: str | None = None) -> dict[str, Any]:
             errors.append(f"cannot read {rel}: {exc}")
     dependencies = manifest.get("dependencies", {})
     pyproject_path = dependencies.get("pyproject") if isinstance(dependencies, dict) else None
+    environment = None
     if pyproject_path:
         try:
             with (root / pyproject_path).open("rb") as stream:
@@ -152,6 +187,8 @@ def check(root: Path, tag: str | None = None) -> dict[str, Any]:
                 errors.append("pyproject.toml must represent this product CalVer in normalized PEP 440 spelling")
         except (OSError, ValueError, KeyError, TypeError) as exc:
             errors.append(f"cannot validate Python distribution identity: {exc}")
+        environment = check_dependency_artifacts(root)
+        errors.extend(environment["errors"])
         try:
             inventory = json.loads((root / "MANIFEST.json").read_text(encoding="utf-8"))
             identities["MANIFEST.json"] = inventory.get("version")
@@ -167,7 +204,7 @@ def check(root: Path, tag: str | None = None) -> dict[str, Any]:
             errors.append(f"cannot validate distribution inventory identity: {exc}")
     return {"ok": not errors, "package": package.get("name"), "version": version,
             "version_scheme": package.get("version_scheme"), "release_timezone": package.get("release_timezone"),
-            "distribution_identities": identities, "errors": errors}
+            "distribution_identities": identities, "dependency_artifacts": environment, "errors": errors}
 
 
 def main() -> int:

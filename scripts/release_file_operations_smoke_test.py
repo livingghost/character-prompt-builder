@@ -92,6 +92,38 @@ def main() -> int:
 
         with (ROOT / metadata.pyproject_file).open("rb") as stream:
             pyproject = tomllib.load(stream)
+        if metadata.python_requirement != pyproject["project"]["requires-python"]:
+            errors.append("package metadata must derive the Python requirement from pyproject.toml")
+        else:
+            checks += 1
+        environment_files = {metadata.pyproject_file, metadata.lock_file,
+                             metadata.requirements_file, metadata.python_version_file}
+        if not environment_files.issubset(metadata.release_include):
+            errors.append("the release must carry every environment definition artifact")
+        else:
+            checks += 1
+        validation = {"ok": True, "command_returncode": 0, "errors": [],
+            "dependencies": {"ok": True, "definition": "pyproject.toml", "dependencies": [],
+                             "ffprobe": {"runs": True}, "sheet_fonts": {"ok": True, "required": True}},
+            "dependency_artifacts": {"ok": True, "definition": "pyproject.toml", "export_matches": True},
+            "release_manifest": {"strict_release_tree": True}}
+        if package_module.stage_report_errors(validation, strict_release_tree=True):
+            errors.append("the complete project environment and artifact report must pass the stage gate")
+        else:
+            checks += 1
+        for field in ("ffprobe", "sheet_fonts"):
+            incomplete = copy.deepcopy(validation)
+            del incomplete["dependencies"][field]
+            if not package_module.stage_report_errors(incomplete, strict_release_tree=True):
+                errors.append("the stage gate accepted a report without " + field)
+            else:
+                checks += 1
+        incomplete = copy.deepcopy(validation)
+        incomplete["dependency_artifacts"]["export_matches"] = False
+        if not package_module.stage_report_errors(incomplete, strict_release_tree=True):
+            errors.append("the stage gate accepted a changed requirements export")
+        else:
+            checks += 1
         validated_pyproject_version = validate_pyproject_release_identity(
             pyproject,
             package_name=metadata.name,

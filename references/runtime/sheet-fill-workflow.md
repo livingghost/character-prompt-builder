@@ -6,6 +6,13 @@ Read [Character Sheet Discipline](character-sheet-discipline.md) for authored id
 
 A slot has `current`, `candidates`, `history` and `fill_policy`. `current` is null or an artifact plus its recorded approval. Candidates are immutable artifacts; history holds prior selections and their approval evidence. An artifact names the exact image, dimensions, media type, hash and provenance hash. `.fills/artifacts/<artifact_id>/` keeps those bytes, the complete package and request/response evidence where applicable, and recursively pinned source artifacts. `.fills/approvals/` retains decisions and the evidence bytes they cite.
 
+Artifact verification owns those file reads and checks each source within its
+sheet-relative boundary before checking hashes, image data, package structure
+and approval bindings. A projection that observes verification records every
+source actually read, including attachments and recursive sources, and any
+filesystem refusal before bytes are available. Reusing a verification result
+within one observer does not replace another observer's dependency collection.
+
 Generation and model-upscale artifacts carry their respective packages. A crop, local resize, shared image or scale composition carries its operation recipe and exact sources rather than pretending it was generated. Source slot IDs alone are insufficient: every source includes its immutable artifact ID and pixel hash. Model upscales retain source and output carriers together with their Production run binding.
 
 Creating a candidate does not alter the accepted-source dependency digest. Adopting a replacement changes that digest, updates image and provenance together, and retains the old selection. The full original sidecar remains in captured input evidence. Do not edit image paths, hashes or histories by hand. They are runtime-owned, not browser authoring fields. `publication.json` beside each immutable artifact records its first local publication time separately from the hashed creation recipe; the gallery labels this as recorded/published time, not a provider-certified creation time.

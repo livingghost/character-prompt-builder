@@ -9,6 +9,14 @@ from pathlib import Path
 from pack_manager import PackSettings, default_settings, pack_runtime_arguments
 
 
+PACK_RUNTIME_SELECTION_HELP = (
+    "Select one explicit pack runtime with --state-file, --cache-dir, and --managed-root together. "
+    "Omit all three to use the configured default runtime. "
+    "With the explicit three-path selection, repeat --pack-root for additional discovery roots "
+    "used by this invocation."
+)
+
+
 @dataclass(frozen=True)
 class PackRuntimeContext:
     """Resolved runtime paths plus the explicit discovery roots to propagate."""
@@ -23,15 +31,16 @@ class PackRuntimeContext:
 
 def add_pack_runtime_arguments(parser: argparse.ArgumentParser) -> None:
     """Add the complete pack-runtime selector shared by catalog-aware CLIs."""
-    parser.add_argument("--state-file", type=Path, help="Explicit pack-state path")
-    parser.add_argument("--cache-dir", type=Path, help="Explicit derived-cache directory")
-    parser.add_argument("--managed-root", type=Path, help="Explicit managed-pack root")
-    parser.add_argument(
+    group = parser.add_argument_group("pack runtime", PACK_RUNTIME_SELECTION_HELP)
+    group.add_argument("--state-file", type=Path, help="Pack-state path in the explicit three-path selection")
+    group.add_argument("--cache-dir", type=Path, help="Derived-cache directory in the explicit three-path selection")
+    group.add_argument("--managed-root", type=Path, help="Managed-pack root in the explicit three-path selection")
+    group.add_argument(
         "--pack-root",
         action="append",
         type=Path,
         default=[],
-        help="Additional pack discovery root; repeat for multiple roots",
+        help="Additional discovery root for this invocation; use with all three runtime paths and repeat for multiple roots",
     )
 
 

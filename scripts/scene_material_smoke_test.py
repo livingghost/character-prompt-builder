@@ -236,6 +236,49 @@ class FormPersonaTests(unittest.TestCase):
         self.assertEqual(plan['sources'][1]['path'], 'narrative/personas/c01.md')
         self.assertTrue(scene.build(self.root, 'plan.json', 'material')['ok'])
 
+    def test_draft_resolves_the_same_personas_from_studio_and_series_roots(self):
+        series = self.root / 'story'
+        series.mkdir()
+        (self.root / 'narrative').rename(series / 'narrative')
+        document = series / 'narrative/narrative.json'
+        original = document.read_bytes()
+        self.assertTrue(scene.draft(self.root, 'story/' + self.PLOT,
+                                    'story/studio.plan.json', 'text')['ok'])
+        self.assertTrue(scene.draft(series, self.PLOT, 'series.plan.json', 'text')['ok'])
+        studio_sources = m.load(self.root, 'story/studio.plan.json')['sources']
+        series_sources = m.load(series, 'series.plan.json')['sources']
+        self.assertEqual([(row['path'], row['sha256']) for row in studio_sources],
+                         [('story/' + row['path'], row['sha256']) for row in series_sources])
+        self.assertEqual([row['path'] for row in series_sources if row['role'] == 'persona'],
+                         ['narrative/personas/c01.md', 'narrative/personas/c02.md'])
+        self.assertEqual(document.read_bytes(), original)
+
+    def test_a_missing_current_or_phase_pointer_reports_its_series_base_without_guessing(self):
+        series = self.root / 'story'
+        series.mkdir()
+        (self.root / 'narrative').rename(series / 'narrative')
+        document = series / 'narrative/narrative.json'
+        original = m.decode(document.read_bytes())
+        for ident, index, phase in [('C01', 0, True), ('C02', 1, False)]:
+            with self.subTest(character=ident):
+                changed = copy.deepcopy(original)
+                character = changed['characters'][index]
+                owner = character['phases'][0] if phase else character
+                owner['persona'] = f'personas/{ident.lower()}.md'
+                document.write_bytes(m.encoded(changed))
+                before = document.read_bytes()
+                output = f'story/{ident}.plan.json'
+                with self.assertRaises(ValueError) as failure:
+                    scene.draft(self.root, 'story/' + self.PLOT, output, 'text', [ident])
+                message = str(failure.exception)
+                for detail in ('story/narrative/narrative.json', f"character {ident!r}",
+                               "chapter 'ch1'", f'series directory {series}',
+                               f'missing material: story/personas/{ident.lower()}.md'):
+                    self.assertIn(detail, message)
+                self.assertTrue((series / f'narrative/personas/{ident.lower()}.md').is_file())
+                self.assertFalse((self.root / output).exists())
+                self.assertEqual(document.read_bytes(), before)
+
     def test_an_unfilled_draft_is_refused(self):
         scene.draft(self.root, self.PLOT, 'raw.json', 'text')
         with self.assertRaisesRegex(ValueError, 'placeholder not filled: .*purpose'):

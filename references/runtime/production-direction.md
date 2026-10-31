@@ -26,6 +26,24 @@ handled or encountered together. Distinguish the artifact itself from an image
 of that artifact in a setting. A screenshot appearance supplies visible screen
 content; working interaction requires a separately supported implementation.
 
+Establish which part of the source material this artifact presents. For a
+scene, resolve its participants, present circumstances, activity, relationships
+and selected moment. A sequence may include several moments; a diagram may
+instead explain a structure or comparison. The requested artifact determines
+that scope. Read the source material in full where needed to understand it,
+then select the facts and contextual premises that make this output intelligible.
+
+The renderer receives the authored input and actual supplied media. Establish
+the needed circumstances there before relying on them to explain an action,
+expression or reference use. Relevant history can supply a present premise;
+the rest of the history remains available in its owning source. Authorial
+decisions about future events, canon or what a result will count as stay with
+those owners when outside the requested depiction. Deliberate ambiguity and
+narrative conclusions belong in the image when its purpose calls for them;
+an undecided production or story choice alone does not select that portrayal.
+Use [Prompt Composition](prompt-composition.md#carry-scene-intent-into-depiction)
+to carry the selected scope and premises into the rendition.
+
 Choose how the information is organized and how its marks or surfaces look.
 A rendering medium or profile supplies the latter. Layout, attention, sequence,
 typography and relationships still need direction. One image can contain
@@ -92,8 +110,9 @@ Use the selected knowledge by meaning and scope. A record's incidental subjects,
 palette, default camera or example format do not become requirements. Preserve
 its useful relationship or construction and adapt the realization deliberately.
 The existing Production Specification owns any needed whole-artifact and local
-region detail. Final prompt text describes those visible choices and necessary
-reference use; selection reasons, source IDs and review criteria stay outside it.
+region detail. Final prompt text establishes the selected depiction, the
+context needed to understand it and necessary reference use. Selection reasons,
+source IDs and review criteria stay in the production records.
 
 When the request spans related images, use the existing
 [Project Design](../../templates/narrative/design/design-template.md) to establish
@@ -111,6 +130,13 @@ The task's `direction` holds `purpose`, `intended_effect`, applied source IDs
 in `basis`, optional `decisions`, optional `action_slice`, and `limitations`.
 Keep the distinction between an intended effect and an audience response
 actually observed; a manifest or passing test proves neither.
+
+Define each criterion for the task's artifact and its declared evidence
+medium. A visible depiction, supplied text, measured structure and documented
+state support different judgments. Keep wider source knowledge available for
+comparison while identifying what this output is responsible for expressing.
+Record consequential limits and unresolved authorial choices at their existing
+owners; those records do not automatically become renderer instructions.
 
 Record a consequential branch as `material`, with the considered options,
 tradeoffs, selection and reason; the reader requires at least two options with

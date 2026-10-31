@@ -88,8 +88,11 @@ def rasterize_board(svg_markup: str, png_path: Path) -> None:
         import resvg_py
         from PIL import Image
     except ImportError as exc:
+        from check_dependencies import install_command
+        command, note = install_command()
         raise RuntimeError(
-            "resvg-py and Pillow are required. Run scripts/check_dependencies.py --profile visual."
+            "resvg-py and Pillow are required; "
+            f"complete the skill environment: {command or note}"
         ) from exc
     probe = resvg_py.svg_to_bytes(
         svg_string=(

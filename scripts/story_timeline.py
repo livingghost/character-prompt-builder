@@ -12,6 +12,7 @@ import operation_context as _operation_context
 
 from collections import Counter
 import copy
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import html
 import json
@@ -19,7 +20,7 @@ import os
 from pathlib import Path
 import re
 import story_flow
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 from urllib.parse import quote, urlsplit
 
 import execution_contract as c
@@ -37,51 +38,44 @@ DEFAULT = {'artifact_type': 'story-timeline-view', 'base_state': 'state/world-st
 def configured(root: Path) -> bool:
     """Activate for authored state or story sources, not an empty scaffold directory."""
     if any((root / path).exists() or (root / path).is_symlink()
-           for path in (CONFIG, DEFAULT['base_state'], DEFAULT['events'], story_flow.NARRATIVE)):
+           for path in (CONFIG, DEFAULT['base_state'], DEFAULT['events'])):
         return True
-    directory = root / story_flow.SCENES
-    if directory.is_symlink():
-        return True  # The safe reader will diagnose it without following it.
-    if directory.is_dir():
-        for parent, dirs, files in os.walk(directory, followlinks=False):
-            dirs[:] = [name for name in dirs if not (Path(parent) / name).is_symlink()]
-            for name in files:
-                path = Path(parent) / name
-                if path.suffix.lower() != '.json':
-                    continue
-                if path.is_symlink():
-                    return True
-                try:
-                    value = parse_json(c.read(path).decode('utf-8-sig'))
-                    if isinstance(value, dict) and value.get('artifact_type') == 'scene-plot':
-                        return True
-                except (ValueError, OSError):
-                    return True
-    return False
+    return story_flow.has_sources(Inputs(root, root / OUTPUT))
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
 
 
-def _path(root: Path, name: str, *, exists: bool = True) -> Path:
+def _literal_path(name: str) -> str:
     if not isinstance(name, str) or not name or '\\' in name or '\x00' in name or re.match(r'^[A-Za-z][A-Za-z0-9+.-]*:', name):
         raise ValueError('expected a literal Studio-relative path: ' + repr(name))
     if Path(name).is_absolute() or '..' in Path(name).parts:
         raise ValueError('path must stay within the Studio: ' + repr(name))
-    return c.local(root, name, exists=exists)
+    return name
+
+
+def _path(root: Path, name: str, *, exists: bool = True) -> Path:
+    return c.local(root, _literal_path(name), exists=exists)
 
 
 def _href(path: Path, output: Path) -> str:
     return quote(os.path.relpath(path, output.parent).replace(os.sep, '/'), safe='/')
 
 
+@dataclass
+class _Observation:
+    fact: dict
+    raw: bytes | None
+    error: Exception | None
+    load: Callable[[], bytes | None]
+
+
 class Inputs:
-    """Read each input once and retain presence/hash facts for a publication recheck."""
+    """Observe each path/access contract once and recheck it before publication."""
     def __init__(self, root: Path, output: Path) -> None:
         self.root, self.output = root, output
-        self.dependencies: dict[str, dict] = {}
-        self.cache: dict[str, bytes | None] = {}
+        self._observations: dict[tuple[str, str], _Observation] = {}
         self.collections: dict[str, list[str]] = {}
 
     def _members(self, name: str) -> list[str]:
@@ -91,7 +85,9 @@ class Inputs:
         if not directory.is_dir():
             raise ValueError('scene collection is not a directory: ' + name)
         found = []
-        for parent, dirs, files in os.walk(directory, followlinks=False):
+        def unreadable(error: OSError) -> None:
+            raise error
+        for parent, dirs, files in os.walk(directory, followlinks=False, onerror=unreadable):
             # Never traverse a symbolic directory. Report its path as an unreadable
             # source instead of dropping it or reading outside the Studio.
             for child in list(dirs):
@@ -110,22 +106,66 @@ class Inputs:
             self.collections[name] = self._members(name)
         return list(self.collections[name])
 
-    def read(self, name: str, *, optional: bool = False) -> bytes | None:
-        if name in self.cache:
-            return self.cache[name]
-        path = _path(self.root, name, exists=False)
+    def _source_path(self, path: Path) -> None:
         if path == self.output or path == self.output.with_suffix('.status.json') or path == self.output.with_suffix('.last-good.html'):
             raise ValueError('a timeline projection cannot be its own input')
+
+    def _load(self, name: str) -> bytes | None:
+        path = _path(self.root, name, exists=False)
+        self._source_path(path)
         if not path.exists():
-            self.dependencies[name] = {'path': name, 'status': 'missing', 'sha256': None}
-            self.cache[name] = None
-            if optional:
-                return None
+            return None
+        return c.read(path)
+
+    @staticmethod
+    def _observe(name: str, contract: dict | None, load: Callable[[], bytes | None]) -> _Observation:
+        fact = {'path': name, 'status': 'missing', 'sha256': None}
+        if contract is not None:
+            fact['read_contract'] = copy.deepcopy(contract)
+        try:
+            raw = load()
+        except (ValueError, OSError, TypeError) as exc:
+            fact.update(status='failed', failure={
+                'type': type(exc).__module__ + '.' + type(exc).__qualname__, 'message': str(exc),
+                'errno': getattr(exc, 'errno', None), 'winerror': getattr(exc, 'winerror', None)})
+            return _Observation(fact, None, exc, load)
+        if raw is not None:
+            fact.update(status='present', sha256=c.digest(raw), bytes=len(raw))
+        return _Observation(fact, raw, None, load)
+
+    def _read(self, name: str, load: Callable[[], bytes | None], *,
+              optional: bool = False, contract: dict | None = None) -> bytes | None:
+        key = (name, canonical_json(contract) if contract is not None else '')
+        if key not in self._observations:
+            self._observations[key] = self._observe(name, contract, load)
+        observed = self._observations[key]
+        if observed.error is not None:
+            raise observed.error
+        if observed.raw is None and not optional:
             raise ValueError('required story input is missing: ' + name)
-        raw = c.read(path)
-        self.dependencies[name] = {'path': name, 'status': 'present', 'sha256': c.digest(raw), 'bytes': len(raw)}
-        self.cache[name] = raw
-        return raw
+        return observed.raw
+
+    def read(self, name: str, *, optional: bool = False) -> bytes | None:
+        _literal_path(name)
+        return self._read(name, lambda: self._load(name), optional=optional)
+
+    def read_sheet(self, root: Path, relative: str, load: Callable[[], bytes]) -> bytes:
+        """Observe the verifier's sheet-boundary access, including its refusal."""
+        boundary = root.relative_to(self.root).as_posix()
+        name = (root / relative).relative_to(self.root).as_posix()
+        contract = {'kind': 'sheet', 'root': boundary, 'relative': relative}
+        def access() -> bytes:
+            self._source_path(root / relative)
+            return load()
+        return self._read(name, access, contract=contract)
+
+    def fact(self, name: str) -> dict:
+        """The ordinary Studio access fact; another boundary cannot substitute."""
+        observed = self._observations.get((name, ''))
+        return copy.deepcopy(observed.fact) if observed is not None else {}
+
+    def facts(self) -> list[dict]:
+        return [copy.deepcopy(observed.fact) for _, observed in sorted(self._observations.items())]
 
     def json(self, name: str, *, optional: bool = False):
         raw = self.read(name, optional=optional)
@@ -135,13 +175,11 @@ class Inputs:
         for name, members in self.collections.items():
             if self._members(name) != members:
                 raise ValueError('story scene collection changed during projection: ' + name)
-        for name, fact in self.dependencies.items():
-            path = _path(self.root, name, exists=False)
-            if fact['status'] == 'missing':
-                if path.exists():
-                    raise ValueError('story input appeared during projection: ' + name)
-            elif not path.is_file() or c.sha256_file(path) != fact['sha256']:
-                raise ValueError('story input changed during projection: ' + name)
+        for (name, _), observed in self._observations.items():
+            current = self._observe(name, observed.fact.get('read_contract'), observed.load)
+            if current.fact != observed.fact:
+                change = 'appeared' if observed.fact['status'] == 'missing' and current.fact['status'] == 'present' else 'changed'
+                raise ValueError('story input ' + change + ' during projection: ' + name)
 
 
 def _events(raw: bytes) -> tuple[list[dict], list[int]]:
@@ -216,26 +254,23 @@ def _scene_images(inputs: Inputs, config: dict, diagnostics: list[dict]) -> list
     for spec in config['scene_artwork']:
         row = {**copy.deepcopy(spec), 'status': 'unavailable', 'href': None, 'artifact_id': None}
         try:
-            studio.character_home(inputs.root, spec['character'])
             if not studio.valid_character_id(spec['character']) or not re.fullmatch(r'[a-z0-9][a-z0-9._-]*', spec['slot']):
                 raise ValueError('invalid scene artwork character or slot')
             name = f"characters/{spec['character']}/sheet/sheet-data.json"
-            sheet_root = _path(inputs.root, name, exists=False).parent
             if name not in states:
                 from character_sheet import validate_sidecar
-                states[name] = validate_sidecar(inputs.json(name))
+                value = inputs.json(name)
+                studio.character_home(inputs.root, spec['character'], read_bytes=inputs.read)
+                states[name] = validate_sidecar(value)
+            sheet_root = _path(inputs.root, name, exists=False).parent
             current = states[name]['slots'].get(spec['slot'], {}).get('current')
             if current is None:
                 row.update(status='not-adopted', message='This explicit slot has no current accepted artwork.')
             else:
-                # A verification cache is scoped to one sheet and one projection.
-                fills.verify_acceptance(current, sheet_root, spec['slot'], cache=verification.setdefault(name, {}))
+                fills.verify_acceptance(current, sheet_root, spec['slot'],
+                                        cache=verification.setdefault(name, {}), read_source=inputs.read_sheet)
                 art = current['artifact']
-                for fact in (art['image'], art['provenance']):
-                    inputs.read((sheet_root / fact['path']).relative_to(inputs.root).as_posix())
                 approval = current['approval']
-                for key in ('decision_path', 'evidence_path'):
-                    inputs.read((sheet_root / approval[key]).relative_to(inputs.root).as_posix())
                 row.update(status='adopted', artifact_id=art['artifact_id'], image_sha256=art['image']['sha256'],
                            href=_href(sheet_root / art['image']['path'], inputs.output),
                            provenance_href=_href(sheet_root / art['provenance']['path'], inputs.output),
@@ -266,14 +301,16 @@ def build_model(root: Path, output: Path, *, config_path: str = CONFIG, selectio
     inputs = Inputs(root, output)
     config = _config(inputs, config_path)
     narrative_sources = story_flow.read_sources(inputs)
-    # A narrative-only Studio can be read before it has a state ledger. Never
-    # substitute an empty base for one missing half of an existing state pair.
-    narrative_only = (config_path == CONFIG and inputs.cache.get(config_path) is None
-        and not (root / config['base_state']).exists() and not (root / config['events']).exists()
-        and (narrative_sources['narrative'] is not None or narrative_sources['scenes']))
+    inputs.read(config['base_state'], optional=True)
+    inputs.read(config['events'], optional=True)
+    narrative_status = inputs.fact(narrative_sources['narrative_source']['path']).get('status')
+    # A selected narrative retains its read failure before a state ledger exists.
+    # Once either state member exists, the complete pair remains required.
+    narrative_only = (config_path == CONFIG and inputs.fact(config_path).get('status') == 'missing'
+        and inputs.fact(config['base_state']).get('status') == 'missing'
+        and inputs.fact(config['events']).get('status') == 'missing'
+        and (narrative_status in {'present', 'failed'} or narrative_sources['scenes']))
     if narrative_only:
-        inputs.read(config['base_state'], optional=True)
-        inputs.read(config['events'], optional=True)
         base, events, lines = {}, [], []
     else:
         base = inputs.json(config['base_state'])
@@ -328,7 +365,7 @@ def build_model(root: Path, output: Path, *, config_path: str = CONFIG, selectio
         'base': base, 'events': cards, 'processes': processes, 'views': resolved,
         'scene_artwork': images, 'diagnostics': diagnostics, 'coverage': audit['coverage'],
         'ok': not any(row['severity'] == 'error' for row in diagnostics),
-        'inputs': sorted(inputs.dependencies.values(), key=lambda row: row['path']),
+        'inputs': inputs.facts(),
         'source_collections': [{'path': name, 'members': members} for name, members in sorted(inputs.collections.items())],
         'semantics': {'axis': 'effective_order', 'text_labels': ['effective_from', 'recorded_at', 'disclosed_at', 'story_time'],
             'supersession': 'whole earlier event, from the strictly later editorial revision order; earlier snapshots retain it',
@@ -474,7 +511,8 @@ def notify_state_write(path: Path) -> None:
         watched.update(row['path'] for row in status.get('inputs', []) if isinstance(row.get('path'), str))
     except (ValueError, OSError, KeyError, TypeError):
         pass
-    if relative in watched or relative == story_flow.NARRATIVE or relative.startswith(story_flow.SCENES + '/'):
+    if relative in watched or any(relative == narrative_path or relative.startswith(scenes_path + '/')
+                                  for _, narrative_path, scenes_path in story_flow.source_locations()):
         changed(path, 'story-input-written', revision=c.sha256_file(path), details={'path': relative})
 
 

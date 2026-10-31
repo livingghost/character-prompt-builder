@@ -14,6 +14,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
+.venv/
+*.egg-info/
 validation-report.json
 preset-authoring-audit.json
 style-family-audit.json

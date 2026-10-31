@@ -242,6 +242,33 @@ class PublicationRecoveryTests(unittest.TestCase):
         self.assertEqual(store.event_rows(self.root, run), [])
         self.assertFalse(compiler.recover_publication(self.root, run)['recovered'])
 
+    def test_unregistered_publication_rejects_undeclared_files_and_keeps_evidence(self):
+        import production_compiler as compiler
+        run = self.interrupted_publication()
+        directory = self.root/'production/runs'/run
+        manifest = (directory/'manifest.json').read_bytes()
+        extra = directory/'unowned.txt'
+        contents = b'Unowned content retained for inspection.\n'
+        c.atomic(extra, contents)
+
+        report = compiler.unregistered_publications(self.root)
+        with self.assertRaises(ProductionError) as caught:
+            compiler.recover_publication(self.root, run)
+
+        self.assertEqual(len(report), 1)
+        self.assertEqual(report[0]['run'], run)
+        self.assertFalse(report[0]['recoverable'])
+        diagnostic = report[0]['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'ARTIFACT_SET_MISMATCH')
+        self.assertEqual(diagnostic['unexpected'], ['unowned.txt'])
+        self.assertEqual(diagnostic['missing'], [])
+        self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_SET_MISMATCH')
+        self.assertEqual(caught.exception.diagnostic.details['unexpected'], ['unowned.txt'])
+        self.assertEqual(store.runs(self.root), [])
+        self.assertEqual(store.event_rows(self.root, run), [])
+        self.assertEqual(extra.read_bytes(), contents)
+        self.assertEqual((directory/'manifest.json').read_bytes(), manifest)
+
     def test_publication_consumer_digest_is_checked_before_registration(self):
         import production_compiler as compiler
         run = self.interrupted_publication()
@@ -251,8 +278,11 @@ class PublicationRecoveryTests(unittest.TestCase):
         (directory/'consumer.json').write_bytes(c.encoded(consumer))
         # Deliberately forge a new self-consistent manifest to exercise the
         # independent consumer commitment, not exclusive file publication.
+        from publication_artifacts import ArtifactSet
+        artifacts = ArtifactSet(directory, c.load(directory/'manifest.json')['files'])
+        artifacts.add('consumer.json', c.encoded(consumer), replace=True)
         (directory/'manifest.json').unlink()
-        compiler.write_manifest(directory)
+        compiler.write_manifest(directory, artifacts)
         report = compiler.unregistered_publications(self.root)
         self.assertFalse(report[0]['recoverable'])
         with self.assertRaises(ProductionError):
@@ -723,7 +753,7 @@ class CompilerContractTests(unittest.TestCase):
         self.assertEqual([states[name] for name in ('world-views','moment-views','scene-materials')],['passed']*3)
         self.assertTrue({'source-validation','package-compilation','request-compilation','execution-plan'}<=set(states))
 
-    def test_missing_visual_dependency_is_reported_for_reference_tasks(self):
+    def test_missing_dependency_is_reported_for_reference_tasks(self):
         from prepare_generation_references import prepare_references
         from transport_synthetic import _png
         import reference_runtime
@@ -732,10 +762,15 @@ class CompilerContractTests(unittest.TestCase):
             'resolved_path':str(self.root/'palette.png')}}],model=self.fixtures.MODEL_ID,output_dir=self.root/'reference-preparation')
         self.fixtures.write(self.root/'references.json',references)
         self.edit('task.json',lambda task:task['generation'].update(references='references.json'))
-        with patch.object(reference_runtime,'preflight_visual_dependencies',side_effect=ImportError('No module named synthetic_visual')):
+        with patch.object(reference_runtime,'preflight_dependencies',side_effect=ImportError('No module named synthetic_dependency')):
             report=self.check()
         found=[row for row in report['diagnostics'] if row['phase']=='dependency-preflight']
         self.assertEqual([row['code'] for row in found],['DEPENDENCY_UNAVAILABLE'])
+        from cli_invocation import shown
+        skill_root=Path(__file__).resolve().parents[1]
+        self.assertIn(shown(['uv','sync','--locked','--project',str(skill_root)]),found[0]['required_action'])
+        self.assertIn(shown(['uv','run','--locked','--project',str(skill_root),'python',
+                             str(skill_root/'scripts/check_dependencies.py')]),found[0]['required_action'])
         self.assertEqual({row['phase']:row['state'] for row in report['checks']}['reference-preparation'],'not-performed')
 
     def test_no_reference_preparation_publishes_no_reference_companion(self):

@@ -325,7 +325,9 @@ def rewrite_intent_paths(series: Path, previous: Path, target: Path) -> list[str
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _operation_context.ArgumentParser(description=__doc__.split(NL)[0])
-    parser.add_argument("--series", type=Path, required=True)
+    parser.add_argument("--series", type=Path, required=True,
+                        help="Series directory containing narrative/; narrative persona paths "
+                             "and the reported written path are relative to it")
     sub = parser.add_subparsers(dest="action", required=True)
 
     creator = sub.add_parser("add", help="Create one entity file")
@@ -398,7 +400,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "ok": True,
             "written": str(path.relative_to(series)).replace("\\", "/"),
             "next": (
-                "point the narrative at it"
+                "use the series-relative written path in the applicable narrative persona pointer; "
+                "when phases are declared, set phases[].persona and keep characters[].persona "
+                "on the last phase"
                 if args.kind == "persona"
                 else "record scope and declared dependencies; a design root is not approval"
                 if args.kind == "design"

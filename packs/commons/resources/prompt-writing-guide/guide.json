@@ -8,6 +8,10 @@
       "title": "Model-facing language and vocabulary",
       "rules": [
         "Render the model-facing prompt in English unless the active model record or interface provides better evidence for another language.",
+        "Define the selected picture and present situation before choosing wording: establish its subjects, action, relationships, appearance, degree, finish and actual reference roles from the brief. Select the source information needed for this depiction, keeping fuller history and authoring decisions at their owners.",
+        "Convey the premises needed to understand the current scene through the actual text and supplied media. Establish a required circumstance before relying on it to explain a dependent action or performance; use readable supplied evidence where it already carries the information. Render the complete selected picture in the supported prose or tag grammar.",
+        "In a revision, state the corrected result at its intended scope and rebuild the affected passage with its necessary premises while preserving other requirements. Select direct exclusions when they add necessary image boundaries for the request, supplied-image use or observed failure; polarity and negative-term count are not quality scores.",
+        "Read the final positive and negative channels with the actual supplied media as the receiving model's input. Reconstruct the present situation and intended picture using only that input, then compare them with the brief and selected direction. Check both missing premises and instructions outside the depiction. Preserve the same meaning, scope and available context in any translated readback.",
         "When a term has weak effect, first test a clearer model-legible phrase and its placement. Consider a different model only when the requested concept remains intact and the current model lacks the needed vocabulary or behavior.",
         "Vocabulary lookup supplies options. The agent chooses, combines, rewrites, weights, or ignores them according to the request and active interface.",
         "For a tag-oriented checkpoint with documented public training corpora, use their tag databases to check membership, canonical spelling and frequency. Frequency is weak evidence of model behavior: a rare distinctive term may work while a common term fails to express a subtle relation. Database membership does not establish behavior for another checkpoint or a prose interface.",
@@ -181,7 +185,7 @@
       "title": "Prompt budget and visible scope",
       "rules": [
         "Determine capacity, chunking and truncation from the active encoder and workflow. Some Automatic1111-style CLIP workflows chunk beyond a 75-token window; other CLIP paths can truncate without chunking support. ComfyUI, Diffusers and web forms host different models and pipelines, so their names alone establish no universal token ceiling.",
-        "Do not spend limited prompt budget on off-frame details unless they are continuity anchors, reference-authority constraints, or needed to prevent a wrong visible inference.",
+        "Include prior or off-frame information when it is needed to interpret the selected current appearance, action, performance, relationship or supplied-image use. State the relevant circumstance and its role in that picture. Preserve complete identity and story information at their owners; a continuity record or undecided authoring outcome alone does not create another image instruction.",
         "When an off-frame garment or body-detail tag degrades visible anatomy and is not load-bearing for the current frame, omit it from the model-facing rendition while retaining it in the underlying identity or scene state."
       ]
     },

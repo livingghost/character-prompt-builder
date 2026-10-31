@@ -93,11 +93,39 @@ def main() -> int:
         fixture=Path(td)
         (fixture/"package-manifest.toml").write_text((root/"package-manifest.toml").read_text(encoding="utf-8"), encoding="utf-8")
         (fixture/"CHANGELOG.md").write_text((root/"CHANGELOG.md").read_text(encoding="utf-8"), encoding="utf-8")
-        for rel in (".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "pyproject.toml", "MANIFEST.json"):
+        for rel in (".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "pyproject.toml", "uv.lock",
+                    "requirements.txt", ".python-version", "MANIFEST.json"):
             p=root/rel
             if p.exists():
                 target=fixture/rel; target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(p.read_bytes())
         expect(check(fixture)["ok"], "isolated product identity must validate")
+        requirements = fixture / "requirements.txt"
+        saved_requirements = requirements.read_bytes()
+        requirements.write_bytes(saved_requirements + b"\n# Changed after the official export.\n")
+        changed_export = check(fixture)
+        expect(any("requirements.txt differs" in error for error in changed_export["errors"]),
+               "release validation binds the complete official requirements export")
+        requirements.write_bytes(saved_requirements)
+        project = tomllib.loads((fixture / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+        lock = fixture / "uv.lock"
+        saved_lock = lock.read_text(encoding="utf-8")
+        lock_mutations = (
+            (f'requires-python = "{project["requires-python"]}"', 'requires-python = ">=3.0"', "requires-python differs"),
+            (f'name = "{project["name"]}"\nversion = "{project["version"]}"',
+             f'name = "{project["name"]}"\nversion = "2000.1.1.1"', "project identity differs"),
+        )
+        for original, changed, diagnosis in lock_mutations:
+            expect(original in saved_lock, "lock fixture contains the declaration under review")
+            lock.write_text(saved_lock.replace(original, changed, 1), encoding="utf-8")
+            expect(any(diagnosis in error for error in check(fixture)["errors"]),
+                   "lock follows its owning project: " + diagnosis)
+        lock.write_text(saved_lock, encoding="utf-8")
+        python_version = fixture / ".python-version"
+        saved_python = python_version.read_bytes()
+        python_version.write_text("3.0\n", encoding="utf-8")
+        expect(any("below pyproject.toml" in error for error in check(fixture)["errors"]),
+               "the selected interpreter satisfies the project's supported Python minimum")
+        python_version.write_bytes(saved_python)
         for rel in (".claude-plugin/plugin.json", ".codex-plugin/plugin.json"):
             target=fixture/rel; saved=target.read_bytes(); data=json.loads(saved);data["version"]="2000.01.01.1";target.write_text(json.dumps(data), encoding="utf-8")
             expect(not check(fixture)["ok"], f"stale generated host metadata: {rel}");target.write_bytes(saved)

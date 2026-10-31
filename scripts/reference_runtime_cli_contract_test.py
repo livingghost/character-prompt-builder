@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused checks for reference-plan CLI discovery and Visual preflight."""
+"""Focused checks for reference-plan CLI discovery and environment preflight."""
 from __future__ import annotations
 
 import contextlib
@@ -18,9 +18,9 @@ from reference_plan_cli_contract import (
     surface_lighting_schema,
 )
 from reference_runtime import (
-    VisualDependencyPreflightError,
-    preflight_visual_dependencies,
-    visual_dependency_requirement,
+    DependencyPreflightError,
+    preflight_dependencies,
+    reference_processing_requirement,
 )
 
 
@@ -141,24 +141,24 @@ def run() -> dict[str, Any]:
 
     svg_item = {"source": {"media_type": "image/svg+xml"}}
     png_item = {"source": {"media_type": "image/png"}}
-    prompt_requirement = visual_dependency_requirement(
+    prompt_requirement = reference_processing_requirement(
         {"transport_mode": "prompt-artifacts", "reference_items": [svg_item]}
     )
-    bundle_requirement = visual_dependency_requirement(
+    bundle_requirement = reference_processing_requirement(
         {"transport_mode": "svg-bundle", "reference_items": [svg_item]}
     )
-    multi_svg_requirement = visual_dependency_requirement(
+    multi_svg_requirement = reference_processing_requirement(
         {"transport_mode": "multi-image", "reference_items": [svg_item]}
     )
-    multi_png_requirement = visual_dependency_requirement(
+    multi_png_requirement = reference_processing_requirement(
         {"transport_mode": "multi-image", "reference_items": [png_item]}
     )
-    board_requirement = visual_dependency_requirement(
+    board_requirement = reference_processing_requirement(
         {"transport_mode": "single-board", "reference_items": [png_item]}
     )
     _record(
         checks,
-        "visual-profile-is-gated-by-actual-model-facing-raster-work",
+        "environment-recheck-is-gated-by-actual-model-facing-raster-work",
         prompt_requirement["required"] is False
         and bundle_requirement["required"] is False
         and multi_svg_requirement["required"] is True
@@ -175,36 +175,35 @@ def run() -> dict[str, Any]:
 
     failed_dependency_report = {
         "ok": False,
-        "profile": "visual",
-        "definition": "requirements-visual.txt",
+        "definition": "pyproject.toml",
         "python": sys.version.split()[0],
         "dependencies": [],
         "errors": ["resvg-py is not installed"],
-        "check_command": "python scripts/check_dependencies.py --profile visual",
-        "install_command": "python -m pip install -r requirements-visual.txt",
+        "check_command": "python scripts/check_dependencies.py",
+        "install_command": "python -m pip install -r requirements.txt",
         "missing_packages": ["resvg-py"],
         "incompatible_packages": [],
     }
-    with patch("reference_runtime.check_profile", return_value=failed_dependency_report):
+    with patch("reference_runtime.check_environment", return_value=failed_dependency_report):
         try:
             with contextlib.redirect_stdout(io.StringIO()):
-                preflight_visual_dependencies(
+                preflight_dependencies(
                     {"transport_mode": "multi-image", "reference_items": [svg_item]}
                 )
             structured_failure = False
             structured_detail: Any = "preflight unexpectedly succeeded"
-        except VisualDependencyPreflightError as exc:
+        except DependencyPreflightError as exc:
             structured_detail = exc.report
             structured_failure = (
                 exc.report["check_command"]
-                == "python scripts/check_dependencies.py --profile visual"
+                == "python scripts/check_dependencies.py"
                 and exc.report["install_command"]
-                == "python -m pip install -r requirements-visual.txt"
+                == "python -m pip install -r requirements.txt"
                 and exc.report["missing_packages"] == ["resvg-py"]
             )
     _record(
         checks,
-        "failed-visual-preflight-is-structured-and-actionable",
+        "failed-environment-preflight-is-structured-and-actionable",
         structured_failure,
         structured_detail,
     )

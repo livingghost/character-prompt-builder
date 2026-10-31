@@ -7,8 +7,7 @@ Generated file. Edit `hosts/shared/repository-guide.md.template`.
 ```
 <repo>/
   README.md CHANGELOG.md CONTRIBUTING.md DEPENDENCIES.md LICENSE
-  package-manifest.toml pyproject.toml requirements-core.txt
-  requirements-visual.txt requirements.txt requirements-tested.txt
+  package-manifest.toml pyproject.toml uv.lock .python-version requirements.txt
   SKILL.md                                        the skill, and the plugin root
   .claude-plugin/ .codex-plugin/ .agents/ hooks/ MANIFEST.json      generated
   hosts/shared/                                   templates for the generated
@@ -20,10 +19,21 @@ Generated file. Edit `hosts/shared/repository-guide.md.template`.
 plugin with no `skills/` directory and no `skills` manifest field is loaded as a
 single skill, and declaring the field would suppress that.
 
-Commands are written with `python`. Use `python3` where that name is not on the
-path, which is the default on macOS and on Debian and Ubuntu. Paths are written
-from the directory holding `SKILL.md`, which is wherever the Skill is installed,
-not from the working directory.
+The skill uses one uv environment for runtime work and validation. Follow
+[Dependencies](DEPENDENCIES.md#uv-project-environment) to synchronize it. Commands
+written with `python` run through `uv run --locked` or with the synchronized
+environment's interpreter. Paths are relative to the directory holding `SKILL.md`,
+which is wherever the skill is installed.
+
+When the working directory is a Studio, preserve it and select the installed skill
+explicitly:
+
+```sh
+uv run --locked --project /absolute/path/to/character-prompt-builder python /absolute/path/to/character-prompt-builder/scripts/session_entry_points.py
+```
+
+Use that same project and absolute script paths for later commands. Child tools
+inherit the selected environment's Python through `sys.executable`.
 
 ## Before anything reads a pack
 

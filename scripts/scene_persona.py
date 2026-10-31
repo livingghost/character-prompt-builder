@@ -518,7 +518,15 @@ def draft(root: Path, scene_plot: str, output: str, medium: str, subjects: list[
         path = phase_persona(narrative, ident, plot.get('chapter'))
         if path is None:
             raise ValueError(f'the narrative names no persona for {ident}')
-        raw = m.read(m.local(root, path))
+        try:
+            raw = m.read(m.local(root, path))
+        except (ValueError, OSError) as exc:
+            series = narrative[2]
+            raise ValueError(
+                f"{series + NARRATIVE}: persona for character {ident!r} in chapter "
+                f"{plot.get('chapter')!r} is read at {path!r} under root {root}; "
+                f"narrative persona paths are relative to series directory {root / series}: {exc}"
+            ) from exc
         found = parsed_units(raw, path)
         source_id = 'persona-' + ident
         sources.append({'source_id': source_id, 'path': path, 'role': 'persona', 'subject_ids': [ident],

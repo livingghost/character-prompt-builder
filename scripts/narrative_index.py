@@ -382,7 +382,8 @@ def scan(series: Path) -> dict[str, Any]:
                     if not path.is_file():
                         gaps.append(
                             f"narrative/narrative.json: {label} names the persona document "
-                            f"{pointer}, which nobody has written"
+                            f"{pointer}, not found relative to series directory {series}; "
+                            "narrative persona paths are relative to that directory"
                         )
                         continue
                     entity = entities.get(path.stem)

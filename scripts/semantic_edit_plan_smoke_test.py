@@ -626,6 +626,188 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
             'reference_id': row['id'], 'resolved_path': str(self.root / row['file'])}}
             for row in self.plan['references']]
 
+    def assert_review_sources_and_carriers(self, draft, references, directory):
+        selected = references['selected_references']
+        original = [item for item in draft['evidence'] if item['id'].startswith('input-reference:')]
+        delivered = [item for item in draft['evidence'] if item not in original]
+        self.assertEqual(len(original), len(selected))
+        self.assertEqual(len(delivered), len(selected))
+        self.assertEqual(draft['observations'], [])
+        self.assertTrue(all(row['verdict'] == 'not-assessed' for row in draft['checks']))
+        for index, (source_item, delivered_item, reference) in enumerate(zip(original, delivered, selected, strict=True)):
+            self.assertEqual(source_item['kind'], 'image')
+            self.assertEqual(c.sha256_file(self.root / source_item['path']), reference['source']['sha256'])
+            assignment = json.loads(delivered_item['relation'].split(': ', 1)[1])
+            scope = assignment['delivery']
+            self.assertEqual(assignment['source']['sha256'], reference['source']['sha256'])
+            self.assertEqual(assignment['derivation'], reference['transport']['derivation'])
+            self.assertEqual(scope['role'], reference['role'])
+            self.assertEqual(scope['controls'], reference['authority']['controls'])
+            self.assertEqual(scope['must_not_control'], reference['authority']['must_not_control'])
+            self.assertEqual(scope.get('subject_uses', []), reference.get('subject_uses', []))
+            board = references['single_board']
+            carrier = board if board is not None else reference['transport']
+            self.assertEqual(scope['attachment_number'], 1 if board is not None else index + 1)
+            self.assertEqual(scope['region_pixels'], board['panels'][index]['box'] if board is not None else None)
+            saved = self.root / delivered_item['path']
+            saved.resolve().relative_to(directory.resolve())
+            self.assertEqual(delivered_item['kind'], 'image')
+            self.assertEqual(c.sha256_file(saved), carrier['sha256'])
+            self.assertNotEqual(carrier['sha256'], reference['source']['sha256'])
+        expected_files = 1 if references['single_board'] is not None else len(selected)
+        self.assertEqual(len({item['path'] for item in delivered}), expected_files)
+        return delivered
+
+    def external_carrier_fixture(self, mode):
+        external = setup_plan(self.root)
+        if mode == 'multi-image':
+            for row, color in zip(external['references'], ('#145064', '#781e50'), strict=True):
+                row['file'] = row['id'] + '.svg'
+                svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="24" viewBox="0 0 32 24">'
+                       '<rect width="32" height="24" fill="' + color + '"/></svg>')
+                write(self.root, row['file'], svg.encode('utf-8'))
+        selections = [{'role': row['role'], 'source': {'kind': 'supplied-file',
+            'reference_id': row['id'], 'resolved_path': str(self.root / row['file'])}}
+            for row in external['references']]
+        references = self.refs.prepare_references(selections, model=self.model,
+            output_dir=self.base / 'external-carriers', max_side=12 if mode == 'multi-image' else 96,
+            transport_mode=mode)
+        external['prepared_references'] = 'external-references.json'
+        write(self.root, external['prepared_references'], references)
+        values = ['synthetic-board'] if mode == 'single-board' else ['synthetic-scene', 'synthetic-design']
+        request = c.load(self.root / 'request.json')
+        request['images'] = values
+        write(self.root, 'request.json', request)
+        carriers = [references['single_board']] if mode == 'single-board' else [row['transport'] for row in references['selected_references']]
+        write(self.root, 'upload-evidence.json', {'synthetic': True, 'carriers': [
+            {'image_id': value, 'sha256': row['sha256']} for value, row in zip(values, carriers, strict=True)]})
+        for index, (row, reference, field) in enumerate(zip(external['references'], references['selected_references'],
+                                                          external['external_request']['reference_fields'], strict=True)):
+            row.update(use_for=reference['authority']['controls'],
+                       do_not_transfer=reference['authority']['must_not_control'])
+            attachment = 0 if mode == 'single-board' else index
+            field.update(field=['images', attachment], value=values[attachment])
+            field['evidence']['sha256'] = c.sha256_file(self.root / 'upload-evidence.json')
+        body = ('Use the scene and geometry panels of the supplied board for their assigned uses.'
+                if mode == 'single-board' else 'Use the supplied scene and geometry images for their assigned uses.')
+        sync_external_prompt(self.root, external, body + ' Show a blue vase on a table.')
+        write(self.root, 'external-input.json', external)
+        task = copy.deepcopy(self.case['task'])
+        task.pop('generation')
+        task.pop('recording')
+        task.update(execution='external', image_input='external-input.json')
+        write(self.root, 'external-task.json', task)
+        return external, references, carriers
+
+    def check_external_carrier_review(self, mode):
+        import production_workflow as workflow
+        import production_fixtures as fixture
+        from production_diagnostics import ProductionError
+        external, references, carriers = self.external_carrier_fixture(mode)
+        mappings = inputs.reference_bindings(external, base=self.root)
+        for index, mapping in enumerate(mappings):
+            self.assertEqual(mapping['attachment_number'], 1 if mode == 'single-board' else index + 1)
+            self.assertEqual(mapping['request_field'], ['images', 0 if mode == 'single-board' else index])
+            expected_region = references['single_board']['panels'][index]['box'] if mode == 'single-board' else None
+            self.assertEqual(mapping['region_pixels'], expected_region)
+            self.assertEqual(mapping['controls'], external['references'][index]['use_for'])
+        run = workflow.prepare(self.root, 'external-task.json')['run']
+        fixture.handoff(self.root, run, 'synthetic-host', 'manual')
+        token = fixture.grant(self.root, run, workflow.external_intent(self.root, run, 1))
+        workflow.claim_external(self.root, run, 1, token)
+        write(self.root, 'external-result.png', png((80, 120, 40)))
+        candidate = workflow.capture(self.root, run, 'external-result.png', 'Synthetic local result for reference comparison.')
+        directory, _, _, _ = workflow.load_run(self.root, run)
+        draft = workflow.draft_review(self.root, run, candidate['sha256'])
+        delivered = self.assert_review_sources_and_carriers(draft, references, directory)
+        for index, item in enumerate(delivered):
+            scope = json.loads(item['relation'].split(': ', 1)[1])['delivery']
+            self.assertEqual(scope['request_field'], ['images', 0 if mode == 'single-board' else index])
+        authored = copy.deepcopy(draft)
+        authored['reviewer'] = 'Synthetic source and delivery reviewer'
+        authored['observations'] = [{'evidence': item['id'], 'locator': {'kind': 'whole'},
+            'observation': 'The saved synthetic reference is a readable image.',
+            'interpretation': 'Its bytes remain available within the assigned reference scope.',
+            'limitations': ['Candidate quality is unassessed.']} for item in authored['evidence']]
+        authored['conclusion'] = 'Source and prepared carrier observations are recorded separately.'
+        write(self.root, 'external-review.json', authored)
+        recorded = workflow.review(self.root, run, 'external-review.json')
+        self.assertEqual(recorded['data']['review']['evidence'], authored['evidence'])
+        self.assertEqual([row['sha256'] for row in recorded['data']['evidence']],
+                         [c.sha256_file(self.root / item['path']) for item in authored['evidence']])
+        # The historical review owns its pixels after the prepared live paths change.
+        for carrier in carriers:
+            path = Path(carrier['resolved_path'])
+            path.rename(path.with_name('saved-original-' + path.name))
+        self.assertEqual(workflow.draft_review(self.root, run, candidate['sha256']), draft)
+        for carrier in carriers:
+            Path(carrier['resolved_path']).write_bytes(png((1, 2, 3)))
+        for reference in external['references']:
+            (self.root / reference['file']).unlink()
+        self.assertEqual(workflow.draft_review(self.root, run, candidate['sha256']), draft)
+        frozen = self.root / delivered[0]['path']
+        original_bytes = frozen.read_bytes()
+        for damage in ('changed', 'missing'):
+            with self.subTest(saved_carrier=damage):
+                if damage == 'changed':
+                    frozen.write_bytes(png((10, 20, 30)))
+                else:
+                    frozen.unlink()
+                try:
+                    with self.assertRaises(ProductionError) as caught:
+                        workflow.draft_review(self.root, run, candidate['sha256'])
+                    expected = {'ARTIFACT_CORRUPT', 'EVIDENCE_SNAPSHOT_CORRUPT'} if damage == 'changed' else {
+                        'ARTIFACT_MISSING', 'EVIDENCE_SNAPSHOT_MISSING'}
+                    self.assertIn(caught.exception.diagnostic.code, expected)
+                finally:
+                    frozen.write_bytes(original_bytes)
+
+    def test_external_board_review_keeps_sources_panels_and_frozen_carrier(self):
+        self.check_external_carrier_review('single-board')
+
+    def test_external_rasterized_review_keeps_sources_and_frozen_carriers(self):
+        self.check_external_carrier_review('multi-image')
+
+    def test_external_prepared_binding_rejects_different_carriers_in_one_field(self):
+        external, _, carriers = self.external_carrier_fixture('multi-image')
+        self.assertNotEqual(carriers[0]['sha256'], carriers[1]['sha256'])
+        fields = external['external_request']['reference_fields']
+        fields[1].update(field=list(fields[0]['field']), value=fields[0]['value'])
+        request = c.load(self.root / 'request.json')
+        request['images'] = request['images'][:1]
+        write(self.root, 'request.json', request)
+        with self.assertRaisesRegex(ValueError, 'overlap'):
+            inputs.validate(external, self.root)
+
+    def test_external_schema_uses_single_board_dimensions_and_bytes(self):
+        from PIL import Image
+        external, _, carriers = self.external_carrier_fixture('single-board')
+        carrier_bytes = Path(carriers[0]['resolved_path']).read_bytes()
+        with Image.open(io.BytesIO(carrier_bytes)) as board:
+            self.assertEqual(board.size, (96, 96))
+        source_sizes = [(self.root / row['file']).stat().st_size for row in external['references']]
+        self.assertGreater(len(carrier_bytes), max(source_sizes))
+        for operation, bounds, accepted in (
+            ('width', {'maximum': 32}, False),
+            ('width', {'minimum': 64, 'maximum': 96}, True),
+            ('height', {'minimum': 64, 'maximum': 96}, True),
+            ('fileSize', {'maximum': max(source_sizes)}, False),
+            ('fileSize', {'minimum': len(carrier_bytes), 'maximum': len(carrier_bytes)}, True),
+        ):
+            with self.subTest(operation=operation, bounds=bounds, accepted=accepted):
+                schema = {'type': 'object', 'x-constraints': [
+                    {'operation': operation, 'parameters': ['images'], 'scope': 'each', **bounds}]}
+                write(self.root, 'media-schema.json', schema)
+                external['external_request']['schema'] = {'path': 'media-schema.json',
+                    'sha256': c.sha256_file(self.root / 'media-schema.json'), 'pointer': []}
+                if accepted:
+                    binding = inputs.validate(external, self.root)
+                    self.assertEqual(binding['external_request']['schema_validation'],
+                                     {'mode': 'target-schema', 'unmeasured': []})
+                else:
+                    with self.assertRaisesRegex(ValueError, 'violates acquired schema'):
+                        inputs.validate(external, self.root)
+
     def test_public_cli_derives_model_files_and_exact_scopes_without_selection_json(self):
         import contextlib
         from pack_runtime_cli import PackRuntimeContext
@@ -691,6 +873,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         write(self.root, 'external-input.json', external)
         write(self.root, 'external-task.json', task)
         run = workflow.prepare(self.root, 'external-task.json')['run']
+        self.assertEqual(workflow.impact(self.root, run).get('provenance'), [])
         fixture.handoff(self.root, run, 'synthetic-host', 'manual')
         token = fixture.grant(self.root, run, workflow.external_intent(self.root, run, 1))
         claim = workflow.claim_external(self.root, run, 1, token)
@@ -698,11 +881,13 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         archive = directory / 'image-input.references'
         proof = studio_reference.validate_source(source, active=False, source_archive=archive / 'sources')
         self.assertEqual(proof['acceptance']['artifact']['artifact_id'], source['artifact_id'])
-        records = [row for row in snapshot['dependencies'] if row['path'].startswith('image-input.references/')]
+        proof_prefix = archive.relative_to(self.root).as_posix() + '/'
+        records = [row for row in snapshot['dependencies'] if row['path'].startswith(proof_prefix)]
         self.assertGreater(len(records), 3)
         self.assertTrue(any('/sheet/' in row['path'] for row in records))
         for record in records:
-            self.assertEqual(c.object_read(directory, record['sha256']), (directory / record['path']).read_bytes())
+            self.assertEqual(record['space'], 'evidence')
+            self.assertEqual(c.object_read(directory, record['sha256']), (self.root / record['path']).read_bytes())
         accepted(sheet, marker='new-adoption', color=(40, 80, 120))
         with self.assertRaisesRegex(ValueError, 'no longer matches'):
             inputs.validate(external, self.root)
@@ -753,6 +938,15 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         self.assertEqual(inputs.request_context(binding)['references'][0]['subject_id'], 'C01')
         self.assertEqual(prompt, body)
         self.assertEqual(binding['external_request']['request']['prompt'], body)
+        import production_workflow as workflow
+        archive = self.base / 'review-objects'
+        c.object_store(archive, (self.root / 'scene.png').read_bytes())
+        evidence = workflow._review_reference_evidence(archive, 'fixture', {'image_input': binding})
+        scope = json.loads(evidence[0]['relation'].split(': ', 1)[1])
+        self.assertEqual(scope['subject_id'], 'C01')
+        self.assertEqual(scope['subject_uses'], [])
+        self.assertIn('consumer.json#/image_input/external_request/reference_fields/0', evidence[0]['limitations'][0])
+        self.assertIn('consumer.json#/image_input/prepared_reference_set', evidence[0]['limitations'][0])
 
     def test_empty_authored_exclusions_remain_empty_only_in_the_bound_branch(self):
         from state_protocol import finalize_artifact, validate_artifact
@@ -864,7 +1058,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'hash mismatch'):
             self.refs.validate_prepared_reference_content(value, package_root=moved)
 
-    def object_task(self, model_name=None):
+    def object_task(self, model_name=None, **reference_options):
         import studio
         import production_spec
         import prompt_plot
@@ -899,7 +1093,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         write(self.root, 'retrieval.json', prompt_retrieval.settle_retrieval_record(retrieval, prompt=PROMPT, plot=plot))
         write(self.root, 'validation.json', fixture_validation(self.root, self.model,
             reference_mode='authored-rendition', service='synthetic'))
-        write(self.root, 'references.json', self.prepare())
+        write(self.root, 'references.json', self.prepare(**reference_options))
         task['generation'].update(references='references.json', continuity={})
         studio.add_character(self.root, 'product-scene', 'general')
         task['recording'].update(character='product-scene', slot='candidate', subject_map={}, sheet_panel=False)
@@ -936,6 +1130,25 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
             execution.resume(self.root, run)
         self.assertEqual(accounting.summary(self.root), before)
         self.assertEqual((before['submissions'], before['captured_outputs']), (1, 1))
+
+    def test_bound_dispatcher_review_keeps_sources_and_board_after_live_inputs_are_removed(self):
+        import shutil
+        import production_workflow as workflow
+        import production_execution as execution
+        from test_production_execution import decisions
+        self.object_task(transport_mode='single-board', max_side=96)
+        references = c.load(self.root / 'references.json')
+        run = workflow.prepare(self.root, 'task.json')['run']
+        result = execution.execute(self.root, run, decisions_file=decisions(self.root, run))
+        self.assertTrue(result['execution_completed'], result.get('warnings'))
+        directory, _, consumer, _ = workflow.load_run(self.root, run)
+        self.assertIn('image_input', consumer)
+        shutil.rmtree(self.base / 'carriers')
+        for name in ('scene.png', 'design.png'):
+            (self.root / name).unlink()
+        candidate = result['runs'][0]['candidates'][0]
+        draft = workflow.draft_review(self.root, run, candidate)
+        self.assert_review_sources_and_carriers(draft, references, directory)
 
     def test_alias_declared_target_still_seals_the_request(self):
         import production_workflow as workflow
@@ -1007,6 +1220,47 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.fixture.handoff(self.root, run, 'synthetic-host', 'manual')
         token = self.fixture.grant(self.root, run, workflow.external_intent(self.root, run, 1))
         return run, token
+
+    def test_shared_source_keeps_distinct_reference_scopes_in_review(self):
+        import production_workflow as workflow
+        self.plan['references'][1]['file'] = 'scene.png'
+        self.plan['external_request']['reference_fields'][1]['value'] = 'synthetic-scene'
+        request = c.load(self.root / 'request.json')
+        request['images'][1] = 'synthetic-scene'
+        write(self.root, 'request.json', request)
+        write(self.root, 'upload-evidence.json', {'synthetic': True, 'images': [
+            {'source_sha256': c.sha256_file(self.root / 'scene.png'), 'image_id': 'synthetic-scene'}
+            for _ in self.plan['references']]})
+        for field in self.plan['external_request']['reference_fields']:
+            field['evidence']['sha256'] = c.sha256_file(self.root / 'upload-evidence.json')
+        write(self.root, 'image-input.json', self.plan)
+        run, token = self.prepared()
+        workflow.claim_external(self.root, run, 1, token)
+        write(self.root, 'output.png', png((90, 110, 130)))
+        candidate = workflow.capture(self.root, run, 'output.png', 'Synthetic shared-source scope test.')
+        review = workflow.draft_review(self.root, run, candidate['sha256'])
+        source_evidence = review['evidence']
+        self.assertEqual([item['id'] for item in source_evidence], ['input-reference:scene', 'input-reference:design'])
+        self.assertEqual(source_evidence[0]['path'], source_evidence[1]['path'])
+        scopes = [json.loads(item['relation'].split(': ', 1)[1]) for item in source_evidence]
+        self.assertEqual([item['role'] for item in scopes], ['scene', 'geometry'])
+        self.assertEqual(scopes[0]['use_for'], self.plan['references'][0]['use_for'])
+        self.assertEqual(scopes[1]['use_for'], self.plan['references'][1]['use_for'])
+        for index, item in enumerate(source_evidence):
+            self.assertIn('consumer.json#/image_input/external_request/reference_fields/' + str(index), item['limitations'][0])
+        review['reviewer'] = 'Synthetic shared-reference reviewer'
+        review['observations'] = [
+            {'evidence': item['id'], 'locator': {'kind': 'whole'},
+             'observation': 'The archived source is a readable synthetic PNG.',
+             'interpretation': 'This observation addresses the assigned ' + scopes[index]['role'] + ' scope.',
+             'limitations': ['Synthetic scope-retention test.']}
+            for index, item in enumerate(source_evidence)
+        ]
+        review['conclusion'] = 'Both source scopes remain distinct; candidate criteria await assessment.'
+        write(self.root, 'review.json', review)
+        recorded = workflow.review(self.root, run, 'review.json')
+        self.assertEqual(recorded['data']['review']['evidence'], source_evidence)
+        self.assertEqual(len(recorded['data']['review']['observations']), 2)
 
     def update_authority(self, authority):
         import production_store as store
@@ -1387,6 +1641,27 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual((before['submissions'], before['captured_outputs']), (1, 1))
         review = workflow.draft_review(self.root, run, candidate['sha256'])
         self.assertTrue(all(x['verdict'] == 'not-assessed' for x in review['checks']))
+        self.assertEqual(review['observations'], [])
+        self.assertEqual([item['id'] for item in review['evidence']], ['input-reference:scene', 'input-reference:design'])
+        for item, reference in zip(review['evidence'], bound['references']):
+            self.assertEqual(c.sha256_file(self.root / item['path']), reference['sha256'])
+            for value in reference['use_for'] + reference['do_not_transfer']:
+                self.assertIn(value, item['relation'])
+        (self.root / 'design.png').unlink()
+        self.assertEqual(workflow.draft_review(self.root, run, candidate['sha256']), review)
+        review['reviewer'] = 'Synthetic reference-comparison fixture'
+        review['observations'] = [{
+            'evidence': item['id'], 'locator': {'kind': 'whole'},
+            'observation': 'The archived input is a readable synthetic PNG.',
+            'interpretation': 'This verifies access to prepared source bytes.',
+            'limitations': ['Synthetic source access only.']
+        } for item in review['evidence']]
+        review['conclusion'] = 'Source observations recorded; candidate criteria remain unassessed.'
+        write(self.root, 'review.json', review)
+        recorded = workflow.review(self.root, run, 'review.json')
+        self.assertEqual(recorded['data']['review']['checks'], review['checks'])
+        self.assertEqual([item['sha256'] for item in recorded['data']['evidence']],
+                         [item['sha256'] for item in bound['references']])
 
     def test_changed_required_reference_blocks_claim_before_any_send(self):
         import production_workflow as workflow

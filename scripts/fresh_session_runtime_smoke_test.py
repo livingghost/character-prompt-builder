@@ -47,6 +47,7 @@ IDENTITY_EXCLUDED_STATE = {
 }
 RUNTIME_CONTEXT_PATHS = (
     Path("SKILL.md"),
+    Path("references/runtime/production-workflow.md"),
     Path("references/runtime/prompt-composition.md"),
     Path("references/runtime/sparse-discovery.md"),
     Path("references/runtime/reference-prompt-artifacts.md"),

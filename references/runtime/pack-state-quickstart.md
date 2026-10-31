@@ -16,9 +16,9 @@ left out: spare-shelf 01a0cb9d-1ac3-7f2a-beac-af4b6d1362e2 (disabled)
 
 State resolution is deterministic:
 
-1. An explicit `--state-file` path is the complete authority for that invocation.
+1. An explicit CLI runtime supplies `--state-file`, `--cache-dir` and `--managed-root` together. The named state file is the complete activation authority for that invocation; the other two paths select its derived cache and managed packs.
 2. Without `--state-file`, the configuration directory is the one `CPB_HOME` names, or `~/.character-prompt-builder` on every platform while `CPB_HOME` is unset.
-3. Commands then use `pack-state.json` in that directory, with the cache in `cache/` and personal or installed packs in `packs/` beside it; an explicit state file has the same neighbors. Runtime state never lives inside the Skill directory, so those packs and activation survive Skill updates.
+3. The default runtime uses `pack-state.json` in that directory, with the cache in `cache/` and personal or installed packs in `packs/` beside it. These are also the conventional neighbors of an explicit state file. The explicit CLI selector names the actual three paths, allowing that layout or deliberately separated locations. Runtime state never lives inside the Skill directory, so those packs and activation survive Skill updates.
 4. While the selected state file does not exist, `config/pack-initialization.json` enables every discovered pack on top of the minimal `config/default-pack-state.json` seed; `ready --only PACK_ID`, repeated for each pack, enables exactly the named packs instead and reads nothing of the others but `pack.json`.
 
 Once a state file exists it is complete: nothing re-enables a pack the author disabled. `disable`, `ready --without` and `ready --only` record that decision in `disabled_packs`, and `enable` clears it; `ready` asks only about a discovered pack in neither list.
@@ -38,6 +38,8 @@ python scripts/pack_cli.py \
   --managed-root TASK_MANAGED_PACKS \
   root-add PACK_OR_CONTAINER
 ```
+
+Supply the three runtime paths as one selection, or omit all three to use the configured default runtime. `root-add` stores the registration in that state file for subsequent invocations. An additional `--pack-root` discovers a root for the current invocation; use it with the complete three-path selection and repeat it for each additional root. Discovery and registration preserve their separate purposes.
 
 Replace the final `root-add` line with one needed subcommand. `list` exposes UUIDs and capabilities, and `validate --pack` returns one pack's manifest and validation. Select by capability, not name.
 

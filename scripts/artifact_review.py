@@ -38,7 +38,7 @@ def studio_root(root: Path) -> Path:
 
 
 def attachment(raw: bytes) -> tuple[str, str]:
-    """Choose an inert delivery extension; never publish arbitrary active HTML/SVG."""
+    """Choose an inert extension or a verified self-contained image."""
     if raw.startswith(b'\x89PNG\r\n\x1a\n'):
         return '.png', 'image'
     if raw.startswith(b'\xff\xd8\xff'):
@@ -49,6 +49,13 @@ def attachment(raw: bytes) -> tuple[str, str]:
         return '.wav', 'audio'
     if len(raw) > 12 and raw[4:8] == b'ftyp':
         return '.mp4', 'video'
+    if raw.lstrip(b'\xef\xbb\xbf \t\r\n').startswith(b'<'):
+        from production_evidence import inspect
+        try:
+            if inspect(raw, 'image').get('format') == 'SVG':
+                return '.svg', 'image'
+        except ValueError:
+            pass
     try:
         raw.decode('utf-8')
     except UnicodeDecodeError:

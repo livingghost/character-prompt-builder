@@ -17,19 +17,40 @@ python scripts/story_timeline.py --studio STUDIO
 python scripts/studio.py sync --studio STUDIO
 ```
 
-The default inputs are `state/world-state-base.json` and `state/events.jsonl`.
+The default inputs are the Studio-relative `state/world-state-base.json` and `state/events.jsonl`.
 If present, `state/processes.json` supplies one State Process or an array of them.
 The default output is `timeline.html` at the Studio root, with a small
-`timeline.status.json` publication receipt beside it. Flow also discovers `narrative/narrative.json` and scene-plot JSON
-files under `narrative/scenes/`, including subdirectories. A narrative-only Studio can
+`timeline.status.json` publication receipt beside it. Flow discovers one series in
+the Studio itself or its `story/` subdirectory. Within that series it reads
+`narrative/narrative.json` and scene-plot JSON files under `narrative/scenes/`,
+including subdirectories. A narrative-only Studio can
 display its scenes before a state ledger exists. It creates no imaginary world base,
 event, initial condition or resolved viewpoint. An empty scaffold alone does not activate it.
+
+A conventional narrative file or Scene Plot makes its location an authored series;
+scenes can be read before a narrative document exists. Invalid drafts remain sources
+to inspect. An unreadable selected narrative keeps its input failure and original
+reading notice in the narrative-only view. A ledger with only one required member
+remains incomplete and blocks the projection.
+Empty directories and valid JSON belonging to another artifact type
+do not select a series. If both locations hold authored sources, the projection
+reports both and fails without choosing or combining them. An unsafe source
+location also fails selection. The existing unavailable and last-good views below
+make that failure visible.
 
 Use [the view template](../../templates/story-timeline-view.json) as
 `state/timeline-view.json` to select other Studio-relative inputs, named viewpoints,
 explicit scene artwork and evidence sources. Its
 [schema](../../schemas/authoring/story-timeline-view.schema.json) validates the complete form.
 Paths are literal local paths within this Studio. Symlinks and escaping paths are refused.
+
+A Scene Plot's `setting.scene_context` is relative to its series directory.
+For example, `"state/contexts/gate.json"` in a scene under
+`story/narrative/scenes/` names `story/state/contexts/gate.json` in the Studio.
+The source link uses that path while the scene's recorded pointer remains unchanged.
+The view configuration, base, event ledger, evidence and artwork paths retain their
+Studio-relative bases. A missing context is reported at its declared series
+location; a same-named file elsewhere does not supply the link.
 
 A named viewpoint follows this form. This is a synthetic example:
 
@@ -289,7 +310,11 @@ The owning sheet supplies the exact artifact, image hash, provenance and approva
 Candidates are not displayed as adopted. Replacing the accepted artifact updates
 this link on the next normal projection refresh without changing story order.
 A missing or damaged image produces a link diagnostic, not a different world state.
-Shared artwork is verified once per owning sheet during a projection.
+Verification follows the selected artifact's actual image, provenance, attachments,
+package and recursive source artifacts, together with its saved adoption decision
+and evidence. The registered character and sidecar are inputs too. Shared artwork
+verification is reused within the same sheet and projection; another projection
+records its own dependencies. Every read retains the sheet's path boundary.
 
 `evidence_sources` maps explicit `source_id` values to local paths and optional
 SHA-256 commitments. Event evidence can also name an explicit local `path` or
@@ -306,17 +331,42 @@ referenced scene context. A changed scene, new scene file, deleted file, narrati
 revision or changed accepted image changes the projection identity.
 Files edited in an external editor are not watched by a service:
 run `studio.py sync` after saving. This rechecks the base, events, processes,
-configuration, narrative/scene files, collection membership and explicit artwork/evidence dependencies. Already open pages show
+configuration, narrative/scene files in both conventional locations, collection
+membership and explicit artwork/evidence dependencies. The alternative location
+is part of that check even when it has no authored sources, so a newly appearing
+series cannot be silently ignored during publication. Already open pages show
 their printed input revision until reloaded; reloading the page refreshes
 the view, not the source files or the story itself.
 
-The output contains its input hashes, renderer identity and generated time.
-Inputs are rechecked before an atomic HTML publication. Repeating an unchanged sync
-keeps the same page and does not duplicate its activity event.
+The output contains its observed inputs, renderer identity and generated time.
+An input records present bytes with their actual hash, absence, or an access
+failure without a content hash. Optional input reads allow absence; they still
+report access failures. Each path is observed once under each read contract during model
+construction. A sheet-relative read keeps its boundary in that contract, so an
+earlier read under another boundary cannot bypass the sheet's checks.
+
+A current default page's publication receipt keeps its failed source paths known
+to writer notifications. A fatal failure does not retain that input list, and a
+custom view alone does not supply the default notification route. Recover the
+default page with `studio.py sync`; rerun the selected `story_timeline.py --out`
+command to refresh a custom view.
+
+Inputs are freshly rechecked before and after rendering, before atomic HTML
+publication. Present inputs must still have the same bytes; failed access must
+still produce the same refusal. The latter makes no claim about unknown content
+or the identity of a refused filesystem entry. A repaired, removed or newly
+unreadable source changes its observation and prevents publication of the old
+model. Repeating an unchanged sync keeps the same page and does not duplicate
+its activity event.
 Projection actions enter the operator activity journal, never `state/events.jsonl`.
 
-If inputs cannot be loaded or rendering fails, the current page becomes an explicit
-unavailable view. The prior successful view is retained as `timeline.last-good.html`
+An unreadable scene, referenced context, local evidence or declared artwork can
+remain a source notice on a current page when its observed failure is unchanged.
+Malformed JSON or other invalid content still carries the hash of the bytes
+that were read. No unavailable source supplies a guessed link or world state.
+If required configuration or ledger inputs cannot be loaded, series selection
+fails, an input changes during publication, or rendering fails, the current page
+becomes an explicit unavailable view. The prior successful view is retained as `timeline.last-good.html`
 with a visible STALE banner. An inaccessible output path may prevent even that
 warning from being written; the operation diagnostic and pending-projection marker
 then require `studio.py sync`. A story-view failure does not undo an image adoption

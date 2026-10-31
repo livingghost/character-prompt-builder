@@ -57,7 +57,8 @@ def _structure(plan: Any) -> None:
             if rc.overlaps(path, other['field']):
                 left, right = refs[row['reference']], refs[other['reference']]
                 same_bytes = (left.get('sha256') is not None and left.get('sha256') == right.get('sha256')) or left['file'] == right['file']
-                if path != other['field'] or row['value'] != other['value'] or not same_bytes:
+                prepared_origin = plan.get('prepared_references') is not None
+                if path != other['field'] or row['value'] != other['value'] or not (same_bytes or prepared_origin):
                     raise ValueError('external media fields overlap without identical bytes and value: '
                         f"reference {row['reference']!r} at {json.dumps(path, ensure_ascii=False)} conflicts with "
                         f"reference {other['reference']!r} at {json.dumps(other['field'], ensure_ascii=False)}")
@@ -65,6 +66,14 @@ def _structure(plan: Any) -> None:
 
 
 def _reference_bindings(plan: dict, external: dict, *, prepared: dict | None = None) -> list[dict]:
+    prepared = prepared if prepared is not None else plan.get('prepared_reference_set')
+    if prepared is not None:
+        from reference_delivery import bindings
+        rows = bindings(prepared['transport_mode'], prepared['selected_references'], prepared['single_board'])
+        for row, field in zip(rows, external['reference_fields'], strict=True):
+            row['request_field'] = list(field['field'])
+            row.setdefault('subject_uses', [])
+        return rows
     rows = [
         {'reference_number': index, 'request_field': list(field['field']),
          'region_pixels': None, 'role': reference['role'],
@@ -73,11 +82,6 @@ def _reference_bindings(plan: dict, external: dict, *, prepared: dict | None = N
          'subject_uses': copy.deepcopy(reference.get('subject_uses', []))}
         for index, (reference, field) in enumerate(zip(plan['references'], external['reference_fields']), 1)
     ]
-    prepared = prepared if prepared is not None else plan.get('prepared_reference_set')
-    if prepared is not None:
-        for row, selected in zip(rows, prepared['selected_references']):
-            if 'subject_id' in selected:
-                row['subject_id'] = selected['subject_id']
     return rows
 
 
@@ -155,6 +159,39 @@ def _reference_rows(binding: dict, prepared: dict, *, require_hash: bool = True)
             raise ValueError('image input reference authority differs from prepared delivery')
         if actual.get('subject_uses', []) != expected.get('subject_uses', []):
             raise ValueError('image input subject uses differ from prepared delivery')
+    external = binding.get('external_request')
+    if external is not None:
+        carriers = {}
+        for reference, field in zip(selected, external['reference_fields'], strict=True):
+            carrier = prepared['single_board'] if prepared['transport_mode'] == 'single-board' else reference['transport']
+            c.sha(carrier['sha256'])
+            identity = (carrier['media_type'], carrier['sha256'])
+            key = tuple(field['field'])
+            if key in carriers and carriers[key] != identity:
+                raise ValueError('external media fields overlap without identical prepared carriers')
+            carriers[key] = identity
+
+
+def _request_image_metadata(binding: dict, source_metadata: dict) -> dict:
+    """Measure the exact delivered carriers for external request constraints."""
+    prepared = binding.get('prepared_reference_set')
+    if prepared is None:
+        return source_metadata
+    from prepare_generation_references import host_reference_transports
+    from production_evidence import inspect
+    from production_store import stable_bytes
+    measured = {}
+    for carrier in host_reference_transports(prepared):
+        path = Path(carrier['resolved_path'])
+        raw = stable_bytes(path.parent, path.name)
+        if c.digest(raw) != carrier['sha256']:
+            raise ValueError('prepared external reference carrier checksum mismatch: ' + str(path))
+        measured[(carrier['media_type'], carrier['sha256'])] = {**inspect(raw, 'image'), 'size': len(raw)}
+    result = {}
+    for reference, selected in zip(binding['references'], prepared['selected_references'], strict=True):
+        carrier = prepared['single_board'] if prepared['transport_mode'] == 'single-board' else selected['transport']
+        result[reference['id']] = measured[(carrier['media_type'], carrier['sha256'])]
+    return result
 
 
 def validate(plan: dict, base: Path, *, read=None) -> dict:
@@ -216,6 +253,7 @@ def validate(plan: dict, base: Path, *, read=None) -> dict:
                 schema = c.decode(schema.encode('utf-8'))
             if not isinstance(schema, dict):
                 raise ValueError('external schema selector must resolve to an acquired JSON Schema')
+            image_metadata = _request_image_metadata(result, image_metadata)
             metadata = {}
             for row in external['reference_fields']:
                 path = row['field']

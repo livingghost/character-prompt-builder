@@ -62,8 +62,9 @@ arcs            id, name, type, status, the themes and characters it carries,
 acts            id, number from 1 without gaps, name, does, and the chapters it
                 groups; every chapter belongs to one act or the series declares none
 chapters        id, number from 1 without gaps, title, status, the declared arcs,
-                depicts as the material presented here, and the story orders it
-                covers as story_order_start and story_order_end
+                depicts as a non-empty array of non-empty strings describing the
+                material presented or held here, and the story orders it covers
+                as story_order_start and story_order_end
 characters      id, name, persona as the document in force, phases as the earlier
                 phases of that life, prohibitions as what this person never does,
                 and optionally the chapters they first_appears in and are
@@ -90,6 +91,24 @@ knowledge       id, fact, known_by, learned_in, and an optional note; who learne
 approved        by, at as an RFC3339 UTC time, content_sha256, and an optional note
 ```
 
+One description still uses an array. This synthetic excerpt contains only a
+chapter's `depicts` field:
+
+```json
+{"depicts": ["The empty room remains dark."]}
+```
+
+The author chooses the descriptions, their language and length. Multiline and
+repeated descriptions are valid; the reader checks the string shape, not what
+the chapter should present or whether its condition changes.
+
+`characters[].persona` and `characters[].phases[].persona` are paths relative
+to the series directory, the directory containing `narrative/`. In the standard
+layout, `<series>/narrative/personas/c01.md` is recorded as
+`"narrative/personas/c01.md"`. The base stays the series directory when that
+series sits inside a studio. The current pointer still names the last declared
+phase; a scene selects the phase applicable to its chapter.
+
 ## `scene-plot`
 
 ```text
@@ -101,17 +120,18 @@ chapter, order  which chapter, and where in it; a chapter's scenes run from 1
 arcs            the declared organizing threads this scene carries; may be empty
 characters      who is in this scene
 themes          which of the series' themes this scene carries
-focalization    kind; internal names the character it is through and external may name
-                one, zero names none; and an optional note
+focalization    kind; through as a character id, required for internal and optional
+                for external; zero has no named holder; and an optional note
 setting         interior_exterior, location as an id, where inside it, time_of_day,
                 optionally season and weather, and optionally scene_context naming
-                a derived snapshot
+                a derived snapshot by a path relative to the series directory
 scene_function  authored text describing this scene's function
 delivery_role   what job the scene does for the audience
 proposition     why the scene exists, in one sentence
 turn            optional value, from and to comparison, including persistence, and an optional note
 structure       optionally profile and parts, each part naming a beat this scene holds
-beats           id, beat as what happens, visibility, and optionally who it teaches
+beats           id, beat as presented material or a contextual fact, visibility,
+                and optionally who it teaches
 exchanges       id, between as who speaks, about, achieves as what saying it
                 accomplishes, and from
 placement       who or what is where; must_preserve, what cannot change; free, what
@@ -126,10 +146,44 @@ realization     kind, one of shots, pages or passages, and the units it breaks i
 approved        by, at as an RFC3339 UTC time, content_sha256, and an optional note
 ```
 
-Every statement about the scene or a frame names the beat it follows from, as
-`from`: a non-empty list of ids of beats this scene holds, without repeats. A context
-beat is not one of them, because a beat the scene does not show cannot put anything in
-a frame. The one exception is `free`, which is what the scene leaves open.
+Every sourced statement names its supporting beats in `from`: a non-empty list of
+ids of beats this scene holds, without repeats. The field determines what that
+support establishes.
+
+| Field | Support |
+|---|---|
+| `placement`, `must_preserve` | Visible or context beats can ground an arrangement or preserved condition. |
+| Unit `shows`, `composition`, `covers` | Visible or context beats can ground the selected depiction, framing or treatment. |
+| `exchanges`, `state_changes`, `relationship_delta` | Each source is a visible beat in which the speaking, consequence or interaction change is established. |
+| Unit `focal_beat` | An existing visible beat that the unit presents as its focus. |
+| `free` | No source: this is what the scene leaves open. |
+
+A context reference retains the beat's declared visibility. It can explain a
+depiction choice without presenting the contextual fact or establishing a new
+event. The author judges whether the choice follows from its sources and what
+the audience receives. If the scene discloses that fact, record the disclosure as
+presented material; a context beat cannot carry `teaches`. Learning, exchanges
+and lasting changes still need their explicit declarations and visible support.
+Applying a consequence through the state runtime requires its separately approved
+state event.
+
+For example, in a synthetic boathouse scene, visible beat `b1` is a worker lifting
+a lantern down and context beat `b5` is another person sleeping up the ladder.
+That context can support the shot composition below while the lantern action
+remains its visible focus. This excerpt describes only that unit's treatment:
+
+```json
+{
+  "focal_beat": "b1",
+  "shows": [{"statement": "The worker steadies the lantern as it leaves the hook.", "from": ["b1", "b5"]}],
+  "composition": [{"statement": "Close on the hands and lantern; keep the sleeper outside the frame.", "from": ["b5"]}]
+}
+```
+
+The sleeping person need not be shown or learn anything for that choice to have
+a source. A wake-up, spoken exchange or lasting relationship change would require
+its own presented support. Necessary exclusions, such as keeping the sleeper
+outside the frame, remain part of the authored depiction.
 
 ## The closed lists
 
@@ -199,7 +253,10 @@ which kind a scene of this series takes.
 
 `focal_beat` names the unit's focal visible beat; it need not depict a
 change. It names one beat this unit carries, and `shows`, `composition` and
-`covers` are statements, each naming the beats it follows from. `panels` is how many
+`covers` are statements, each naming the visible or context beats supporting its
+depiction choices. Context support does not cover an otherwise unsupported visible
+beat or make a context beat a valid focal beat. In prose, presented material can be
+told or summarized; `visible` does not require an invented optical view. `panels` is how many
 panels the page holds, from 1; `spread` and `ends_on_turn` say whether the page is a
 spread and whether the reader must turn to resolve it.
 
@@ -219,6 +276,20 @@ This is not the camera. A shot's viewpoint profile says where the lens is; focal
 knowledge the telling is limited to, which is why it sits beside the narrative's knowledge entries
 and not beside the camera.
 
+The character is named in `through`, and must appear in the scene's `characters`
+array. These synthetic examples use `C01` for a character included in the scene:
+
+| Access to the scene | Focalization object |
+|---|---|
+| Restricted to C01's knowledge | `{"kind": "internal", "through": "C01"}` |
+| Exterior observation staying with C01 | `{"kind": "external", "through": "C01"}` |
+| Exterior observation without a named holder | `{"kind": "external"}` |
+| Unrestricted narrator | `{"kind": "zero"}` |
+
+Each object may also carry `note`. External and zero focalization can omit
+`through` or set it to `null` when no holder is named. Internal focalization
+requires a nonempty character ID; zero focalization cannot name a holder.
+
 ## The hash an approval carries
 
 `content_sha256` is the sha256 of the document with its `approved` block removed, over canonical
@@ -233,8 +304,8 @@ that was approved, and a self-hash is a claim about the document that carries it
 ## The implementation that answers this contract
 
 Most of what these contracts refuse cannot be written as a schema. Chapter numbers running from 1
-without gaps, a payoff that arrives before its plant, an answer before its question, a statement
-sourced from a beat the scene does not show, phases out of chapter order, a character in a scene
+without gaps, a payoff that arrives before its plant, an answer before its question, an exchange
+sourced from a context beat, phases out of chapter order, a character in a scene
 after they were written out: each of those is a relation between two parts of the document or
 between two documents. A schema that expressed the third of this contract it can express would be a
 schema a document could pass and still be wrong, which is worse than none.
@@ -247,9 +318,9 @@ itself. What it can do is compare its own against the hash published here, of th
 endings normalised:
 
 ```text
-scripts/narrative.py           00c74384f18e6e114fec6a8b482932abd8daaed5de7d17e5d2c41f31420da26d
-scripts/scene_plot.py          dfc979f6df741ede97baef1fefdfdad3be59a35f0dd467ae32eca49f7d931d72
-scripts/narrative_corpus.json  2c89042e7e3ee0f39d9e46b0ec2dcf8b07c2c9e81914dd3c9102cc27ac331289
+scripts/narrative.py           b345ffdddc822dd9a5ad790b4a7386c8ef8627d249ec6e30d3dceff179a7e889
+scripts/scene_plot.py          5ca1e875c100b72e2bc0496df8e0699907d5efa16929c1805d2c0d3ee38509d0
+scripts/narrative_corpus.json  eec0a5a58c7a67131be3df3cd752d51a35d388bddcd2410ae486a65316c510db
 ```
 
 An edit to a reader that does not travel with this document fails against it. That is the most a
@@ -273,3 +344,6 @@ python scripts/scene_plot.py <plot> --content-sha256
 A document written from one of these names it as its `source`: the artifact type, its
 id, the `content_sha256` it was approved under, and the unit it covers. That field is
 optional, because work made from a brief has no source and the brief is its root.
+The downstream prompt plot can likewise retain context as support for its chosen
+depiction. Its source commitment identifies the approved scene and unit; contextual
+support in either plot does not grant knowledge, establish an event or adopt state.

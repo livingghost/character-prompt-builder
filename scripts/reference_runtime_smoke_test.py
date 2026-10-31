@@ -16,7 +16,7 @@ from typing import Any
 from unittest.mock import patch
 
 from catalog_cli import configure_pack_runtime
-from check_dependencies import check_profile, install_command
+from check_dependencies import check_environment, install_command
 from cli_invocation import shown
 from pack_manager import PackSettings, write_lock
 from prepare_generation_references import (
@@ -25,7 +25,7 @@ from prepare_generation_references import (
 )
 from reference_contract import canonical_json, finalize_reference_use_plan
 from reference_runtime import (
-    VisualDependencyPreflightError,
+    DependencyPreflightError,
     build_reference_use_plan,
     execute_reference_use_plan,
     validate_reference_use_plan,
@@ -518,21 +518,19 @@ def run() -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     errors: list[str] = []
     skipped_checks: list[dict[str, str]] = []
-    visual_report = check_profile("visual")
-    environment_prerequisites = [
-        {
-            "profile": "visual",
-            "ok": bool(visual_report["ok"]),
-            "required_for": [
-                "SVG rasterization for multi-image transport",
-                "single-board raster composition",
-            ],
-            "check_command": visual_report["check_command"],
-            "install_command": visual_report["install_command"],
-            "missing_packages": visual_report["missing_packages"],
-            "incompatible_packages": visual_report["incompatible_packages"],
-        }
-    ]
+    environment_report = check_environment()
+    environment_prerequisites = {
+        "definition": environment_report["definition"],
+        "ok": bool(environment_report["ok"]),
+        "required_for": [
+            "SVG rasterization for multi-image transport",
+            "single-board raster composition",
+        ],
+        "check_command": environment_report["check_command"],
+        "install_command": environment_report["install_command"],
+        "missing_packages": environment_report["missing_packages"],
+        "incompatible_packages": environment_report["incompatible_packages"],
+    }
     try:
         with tempfile.TemporaryDirectory(prefix="cpb-reference-runtime-") as td:
             temp = Path(td)
@@ -958,9 +956,9 @@ def run() -> dict[str, Any]:
             )
             direct_dir = temp / "direct-raster-multi-image"
             with patch(
-                "reference_runtime.check_profile",
+                "reference_runtime.check_environment",
                 side_effect=AssertionError(
-                    "direct-raster multi-image must not inspect Visual dependencies"
+                    "direct-raster multi-image needs no rasterization preflight"
                 ),
             ):
                 prepared_direct = execute_reference_use_plan(
@@ -977,7 +975,7 @@ def run() -> dict[str, Any]:
             )
             _record(
                 checks,
-                "direct-raster-multi-image-is-copied-under-package-without-visual",
+                "direct-raster-multi-image-is-copied-under-package-without-rasterization",
                 len(direct_references) == 1
                 and not Path(str(direct_transport["resolved_path"])).is_absolute()
                 and direct_transport_path.is_file()
@@ -1007,9 +1005,9 @@ def run() -> dict[str, Any]:
 
                 try:
                     with patch(
-                        "reference_runtime.check_profile",
+                        "reference_runtime.check_environment",
                         side_effect=AssertionError(
-                            "direct-raster multi-image must not inspect Visual dependencies"
+                            "direct-raster multi-image needs no rasterization preflight"
                         ),
                     ), patch(
                         "reference_runtime.validate_prepared_reference_set",
@@ -1060,9 +1058,9 @@ def run() -> dict[str, Any]:
 
                 try:
                     with patch(
-                        "reference_runtime.check_profile",
+                        "reference_runtime.check_environment",
                         side_effect=AssertionError(
-                            "direct-raster multi-image must not inspect Visual dependencies"
+                            "direct-raster multi-image needs no rasterization preflight"
                         ),
                     ), patch(
                         "reference_runtime.validate_prepared_reference_set",
@@ -1090,7 +1088,7 @@ def run() -> dict[str, Any]:
                 )
             finally:
                 os.chmod(read_only_source, stat.S_IREAD | stat.S_IWRITE)
-            if visual_report["ok"]:
+            if environment_report["ok"]:
                 multi_dir = temp / "multi-image"
                 prepared_multi = execute_reference_use_plan(
                     multi_plan,
@@ -1216,21 +1214,20 @@ def run() -> dict[str, Any]:
                     )
                     structured_preflight = False
                     preflight_detail = "model-facing execution unexpectedly continued"
-                except VisualDependencyPreflightError as exc:
+                except DependencyPreflightError as exc:
                     preflight_detail = canonical_json(exc.report)
                     structured_preflight = (
                         not blocked_dir.exists()
                         and exc.report.get("required") is True
-                        and exc.report.get("profile") == "visual"
+                        and exc.report.get("definition") == "pyproject.toml"
                         and exc.report.get("check_command")
-                        == shown([os.path.abspath(sys.executable), str(ROOT / "scripts" / "check_dependencies.py"),
-                                  "--profile", "visual"])
+                        == shown([os.path.abspath(sys.executable), str(ROOT / "scripts" / "check_dependencies.py")])
                         and exc.report.get("install_command")
-                        == install_command("visual")[0]
+                        == install_command()[0]
                     )
                 _record(
                     checks,
-                    "model-facing-svg-rasterization-stops-at-structured-visual-preflight",
+                    "model-facing-svg-rasterization-stops-at-structured-environment-preflight",
                     structured_preflight,
                     preflight_detail,
                 )
@@ -1244,7 +1241,7 @@ def run() -> dict[str, Any]:
                     skipped_checks.append(
                         {
                             "name": name,
-                            "reason": "Visual profile is not available in this environment",
+                            "reason": "The skill environment is incomplete",
                         }
                     )
 
@@ -1537,10 +1534,7 @@ def run() -> dict[str, Any]:
             "failed": len(failed),
             "total": len(checks),
         },
-        "environment_prerequisites": {
-            "ok": all(row["ok"] for row in environment_prerequisites),
-            "profiles": environment_prerequisites,
-        },
+        "environment_prerequisites": environment_prerequisites,
         "checks": checks,
         "skipped_checks": skipped_checks,
         "errors": errors,

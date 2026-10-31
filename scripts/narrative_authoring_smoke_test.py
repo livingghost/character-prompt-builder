@@ -135,7 +135,7 @@ def main() -> int:
         base = Path(temp)
 
         # A series directory is created, and what it creates answers the contract.
-        series = base / "made"
+        series = base / "studio" / "story"
         done = start(series)
         expect("init succeeds", done.returncode == 0, done.stdout)
         expect("init reports a valid narrative",
@@ -303,11 +303,18 @@ def main() -> int:
                str(list(after)))
 
         # A persona is created from the installed current form, headed for the character.
+        narrative_path = series / "narrative/narrative.json"
+        narrative_before_creation = narrative_path.read_bytes()
         made = entity(series, "add", "persona", "c02", "--character", "C02",
                       "--name", "The second", "--phase", "school")
         expect("entity add persona succeeds", made.returncode == 0, made.stdout)
-        written = series / "narrative/personas/c02.md"
+        reported = json.loads(made.stdout).get("written")
+        expect("entity reports a series-relative persona path",
+               reported == "narrative/personas/c02.md", str(reported))
+        written = series / str(reported)
         expect("the persona is written", written.is_file())
+        expect("persona creation leaves narrative pointers and adoption to the author",
+               narrative_path.read_bytes() == narrative_before_creation)
         if written.is_file():
             body = written.read_text(encoding="utf-8")
             expect("the persona starts from the form", len(body.splitlines()) > 20,
@@ -325,6 +332,24 @@ def main() -> int:
         expect("persona carries identity and authorial bindings",
                "## 2. PORTRAYAL IDENTITY" in body and "**authorial_intent_refs**:" in body,
                "current identity-led full form")
+
+        # A missing relative pointer is reported even when the intended file exists elsewhere.
+        original_narrative = narrative_path.read_bytes()
+        wrong_base = json.loads(original_narrative)
+        wrong_base["characters"][0]["persona"] = "personas/c01.md"
+        narrative_path.write_text(json.dumps(wrong_base, ensure_ascii=False, indent=2) + NL,
+                                  encoding="utf-8", newline="\n")
+        incorrect_narrative = narrative_path.read_bytes()
+        report = narrative_index.scan(series)
+        expect("the correct persona remains available under narrative",
+               (series / "narrative/personas/c01.md").is_file())
+        expect("index reports the missing pointer and its actual base",
+               any("characters[C01]" in gap and "personas/c01.md, not found" in gap
+                   and f"series directory {series}" in gap for gap in report["gaps"]),
+               str(report["gaps"])[:400])
+        expect("the index leaves the declared pointer unchanged",
+               narrative_path.read_bytes() == incorrect_narrative)
+        narrative_path.write_bytes(original_narrative)
 
         # Removing something the narrative still names is refused, and forced through.
         removed = entity(series, "remove", "c01")
@@ -346,6 +371,48 @@ def main() -> int:
         expect("coverage runs as a command", spawned.returncode == 0, spawned.stdout[:200])
         strict = run("scripts/narrative_coverage.py", str(empty), "--json", "--strict")
         expect("coverage --strict fails on a gap", strict.returncode != 0, strict.stdout[:200])
+
+        # Context can guide a shot without satisfying the chapter's learning
+        # claim. An explicit presented disclosure supplies that separate claim.
+        contextual = base / "contextual"
+        start(contextual)
+        entity(contextual, "add", "location", "the-boathouse", "--name", "The boathouse")
+        document_path = contextual / "narrative/narrative.json"
+        document = json.loads(document_path.read_text(encoding="utf-8"))
+        document["knowledge"] = [{"id": "sleeping-guest", "fact": "A guest is asleep upstairs.",
+                                  "known_by": ["audience"], "learned_in": "ch01"}]
+        document_path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + NL,
+                                 encoding="utf-8", newline="\n")
+        context_plot = scene_plot(contextual, "the-boathouse")
+        context_plot["beats"].append({"id": "b3", "beat": "A guest is asleep upstairs.",
+                                      "visibility": "context"})
+        context_plot["realization"]["units"][0]["composition"] = [
+            {"statement": "the door frames her while the upstairs room stays outside view",
+             "from": ["b1", "b3"]}]
+        context_path = contextual / "narrative/scenes/sc01-plot.json"
+        context_path.write_text(json.dumps(context_plot, ensure_ascii=False, indent=2) + NL,
+                                encoding="utf-8", newline="\n")
+        coverage = narrative_coverage.cover(document_path, context_path.parent, series=contextual)
+        expect("coverage counts the context-supported scene",
+               coverage["ok"] and coverage["scenes"] == 1, str(coverage["errors"])[:300])
+        expect("contextual depiction does not establish audience learning",
+               any("no beat" in gap and "teaches audience" in gap for gap in coverage["gaps"]),
+               str(coverage["gaps"])[:300])
+        indexed = narrative_index.scan(contextual)
+        expect("index accepts the context-supported scene", indexed["ok"], str(indexed["errors"])[:300])
+        context_plot["beats"].append({"id": "b4", "beat": "A note on the stairs says a guest is sleeping upstairs.",
+                                      "visibility": "visible", "teaches": ["audience"]})
+        context_plot["realization"]["units"].append({
+            "id": "sh03", "focal_beat": "b4",
+            "shows": [{"statement": "the note says that the guest is asleep upstairs", "from": ["b4"]}],
+            "composition": [{"statement": "hold the note clearly enough to read", "from": ["b4"]}],
+        })
+        context_path.write_text(json.dumps(context_plot, ensure_ascii=False, indent=2) + NL,
+                                encoding="utf-8", newline="\n")
+        coverage = narrative_coverage.cover(document_path, context_path.parent, series=contextual)
+        expect("the presented disclosure supplies the learning claim",
+               coverage["ok"] and not any(gap.startswith("knowledge[") for gap in coverage["gaps"]),
+               str(coverage["errors"] + coverage["gaps"])[:300])
 
         # A scene realized in a kind the series is not made of.
         wrong = base / "wrong"

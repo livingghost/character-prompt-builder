@@ -44,6 +44,29 @@ For every cross-scene reuse, derive an explicit transfer map:
 
 Unless the user or approved state artifacts require continuity, unlock the complete source scene-specific character state across performance and attention, articulation and action, physical and physiological condition, appearance and presentation, possession and equipment, relationship and viewer awareness, environmental response, and resolved current state. Treat camera, crop, lighting, environment, finish, and source-specific text or insignia as source-render context rather than character identity. Keep this classification in the transfer map. Author the target scene from it, adding only the necessary directions for the images actually supplied. A request for the `same character` does not communicate this distinction reliably by itself.
 
+Apply the transfer map to the attributes that matter in the current image.
+Inspect their actual construction and location in the adopted references,
+including the visible facial proportions, marking boundaries and body silhouette.
+Pair each retained attribute with its source and each requested change with its
+current scene or contract owner. Choose the reference view that reveals the
+attribute; a full sheet, portrait and detail image can each carry primary
+evidence within their coverage. Preserve unknown regions as unresolved coverage.
+
+Use the same retained attributes and requested changes in the task's existing
+criteria. Evaluate the result with the selected view, expression and approved
+variation in mind: a head turn changes the projected outline while the face
+construction remains the identity requirement. State the region that can
+establish each relevant property and any required visibility. A newly chosen
+gesture or expression realizes the present scene; its selection alone leaves
+permanent identity and future behavior with their existing owners.
+
+Keep these application decisions in Production direction, the reference scopes
+and the existing review, at the depth needed for the task. The contract remains
+the owner of stable facts. Use a criterion's observed outcome to decide whether
+the current image carries those facts successfully; a valid contract or matching
+source hash establishes the input authority, while the rendered candidate
+supplies the evidence of its realization.
+
 For an anthropomorphic subject, human-like head hair is not implied by base fur and is not interchangeable with a mane, ruff, cheek tuft, crest, or other regional covering. Record every coexisting system independently with explicit presence, stable boundaries, landmark-based length, density, direction, texture, color relationship, silhouette role, and continuity rules. Cross-scene transfer preserves those permanent definitions while leaving wetness, temporary styling, wind response, flattening, raised fur, and other current presentation to the target scene state.
 
 ## Anchor fragments

@@ -176,8 +176,8 @@ The report separates exact source bytes, identical decoded pixels, near-visual
 candidates, semantic overlap, declared distinctions, and existing discovery
 groups. The visual pass uses normalized RGB pixels, perceptual hash, difference
 hash, aspect ratio, mean color, linked canonical records, and record semantics.
-Use `--semantic-only` under the Core dependency profile. Visual scanning
-requires the Visual profile.
+Use `--semantic-only` when the audit concerns record semantics alone. The full
+scan also compares image pixels in the same locked skill environment.
 
 Every result is advisory. Exact source bytes reuse one content-addressed source.
 Pixel-identical or near-visual results still receive human review for crop,
@@ -293,10 +293,10 @@ quarantine path. Run the owning release gate and regenerate the catalog afterwar
 The duplicate, consolidation, and removal transaction regressions are exercised by
 `scripts/preset_maintenance_smoke_test.py`.
 
-Visual extraction requires a passing Visual-profile preflight. Follow the install-or-stop authority in [Dependencies](../../DEPENDENCIES.md), then use either the single-source or batch entrypoint:
+Visual extraction uses the complete locked skill environment. Verify it with the environment check in [Dependencies](../../DEPENDENCIES.md), then use either the single-source or batch entrypoint:
 
 ```bash
-python scripts/check_dependencies.py --profile visual
+uv run --project <skill-root> --locked python <skill-root>/scripts/check_dependencies.py
 python scripts/extract_visual_evidence.py <source> --output <new-bundle-dir> --record <record-id>
 python scripts/native_vector_visual_evidence.py --pack-root <pack-root> --source-map <source-map.json> --report <report.json>
 python scripts/validate_visual_evidence.py <bundle-dir>

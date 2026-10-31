@@ -40,6 +40,12 @@ CORE_EXAMPLE_INCLUDES = frozenset(
      "examples/cast-admission", "examples/resume-recording", "examples/input-assembly", "examples/craft-consultation", "examples/model-evidence", "examples/candidate-recipe"}
 )
 CORE_PACK_INCLUDES = frozenset({"packs/commons"})
+DEPENDENCY_DEFINITIONS = {
+    "pyproject": "pyproject.toml",
+    "lock": "uv.lock",
+    "requirements": "requirements.txt",
+    "python_version": ".python-version",
+}
 PACK_GITIGNORE_RULES = (
     "/packs/*",
     "!/packs/commons/",
@@ -55,11 +61,10 @@ class PackageMetadata:
     license_id: str
     description: str
     python_requirement: str
-    core_requirements_file: str
-    visual_requirements_file: str
     requirements_file: str
-    tested_requirements_file: str
     pyproject_file: str
+    lock_file: str
+    python_version_file: str
     release_output: str
     release_include: tuple[str, ...]
     release_exclude_names: tuple[str, ...]
@@ -437,6 +442,60 @@ def verify_release_includes_present(root: Path, include_paths: Sequence[PurePosi
             raise ValueError(f"release include is missing: {path.as_posix()!r}")
 
 
+def validate_environment_artifacts(root: Path, declarations: Mapping[str, Any],
+                                   project_data: Mapping[str, Any]) -> str:
+    """Bind the lock and default Python to the project's one dependency policy."""
+    if declarations != DEPENDENCY_DEFINITIONS:
+        raise ValueError(f"dependencies must declare the environment artifact paths: {DEPENDENCY_DEFINITIONS}")
+    for label, relative in declarations.items():
+        if not (root / relative).is_file():
+            raise ValueError(f"dependency definition {label} is missing: {relative!r}")
+    from check_dependencies import load_dependencies
+    minimum, packages = load_dependencies(root / declarations["pyproject"])
+    project = project_data["project"]
+    requirement = project["requires-python"]
+    selected_python = (root / declarations["python_version"]).read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"[0-9]+\.[0-9]+(?:\.[0-9]+)?", selected_python):
+        raise ValueError(".python-version must select one concrete Python version")
+    if tuple(map(int, selected_python.split(".")[:2])) < minimum:
+        raise ValueError(".python-version is below pyproject.toml requires-python")
+    try:
+        with (root / declarations["lock"]).open("rb") as stream:
+            lock = tomllib.load(stream)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ValueError("uv.lock is unreadable") from exc
+    if lock.get("requires-python") != requirement:
+        raise ValueError("uv.lock requires-python differs from pyproject.toml")
+    locked = lock.get("package")
+    if not isinstance(locked, list) or any(not isinstance(row, dict) for row in locked):
+        raise ValueError("uv.lock must contain its resolved package records")
+    source_kind = "virtual" if project_data.get("tool", {}).get("uv", {}).get("package") is False else "editable"
+    roots = [row for row in locked if row.get("source") == {source_kind: "."}]
+    if len(roots) != 1 or any(roots[0].get(field) != project.get(field) for field in ("name", "version")):
+        raise ValueError("uv.lock project identity differs from pyproject.toml")
+
+    def normalized(name: str) -> str:
+        return re.sub(r"[-_.]+", "-", name).lower()
+
+    expected = {normalized(row["distribution"]): "==" + row["version"] for row in packages}
+    declared = roots[0].get("metadata", {}).get("requires-dist")
+    if (not isinstance(declared, list) or len(declared) != len(expected)
+            or any(not isinstance(row, dict) or set(row) != {"name", "specifier"}
+                   or not isinstance(row["name"], str) for row in declared)
+            or {normalized(row["name"]): row["specifier"] for row in declared} != expected):
+        raise ValueError("uv.lock direct dependency metadata differs from pyproject.toml")
+    direct = roots[0].get("dependencies")
+    if (not isinstance(direct, list) or len(direct) != len(expected)
+            or any(not isinstance(row, dict) or not isinstance(row.get("name"), str) for row in direct)
+            or {normalized(row["name"]) for row in direct} != set(expected)):
+        raise ValueError("uv.lock project dependency edges differ from pyproject.toml")
+    for name, specifier in expected.items():
+        if not any(isinstance(row.get("name"), str) and normalized(row["name"]) == name
+                   and row.get("version") == specifier[2:] for row in locked):
+            raise ValueError("uv.lock omits the pinned project dependency: " + name + specifier)
+    return requirement
+
+
 def load_package_metadata(
     root: Path = ROOT,
     *,
@@ -456,12 +515,10 @@ def load_package_metadata(
     release_timezone = str(package.get("release_timezone") or "")
     license_id = str(package.get("license") or "")
     description = str(package.get("description") or "")
-    python_requirement = str(dependencies.get("python") or "")
-    core_requirements_file = str(dependencies.get("core_requirements") or "")
-    visual_requirements_file = str(dependencies.get("visual_requirements") or "")
     requirements_file = str(dependencies.get("requirements") or "")
-    tested_requirements_file = str(dependencies.get("tested_requirements") or "")
     pyproject_file = str(dependencies.get("pyproject") or "")
+    lock_file = str(dependencies.get("lock") or "")
+    python_version_file = str(dependencies.get("python_version") or "")
     release_output = str(release.get("output") or "")
     release_include = tuple(str(value) for value in release.get("include") or [])
     release_exclude_names = tuple(str(value) for value in release.get("exclude_names") or [])
@@ -475,15 +532,9 @@ def load_package_metadata(
         raise ValueError(f"release timezone must be UTC: {release_timezone!r}")
     if license_id != "GPL-3.0-only":
         raise ValueError(f"unexpected license identifier: {license_id!r}")
-    if python_requirement != ">=3.11":
-        raise ValueError(f"unexpected Python requirement: {python_requirement!r}")
-    for field_name, value in (
-        ("core_requirements", core_requirements_file),
-        ("visual_requirements", visual_requirements_file),
-        ("requirements", requirements_file),
-        ("tested_requirements", tested_requirements_file),
-        ("pyproject", pyproject_file),
-    ):
+    if dependencies != DEPENDENCY_DEFINITIONS:
+        raise ValueError(f"dependencies must declare the environment artifact paths: {DEPENDENCY_DEFINITIONS}")
+    for field_name, value in dependencies.items():
         if not value or not (root / value).is_file():
             raise ValueError(f"dependency definition {field_name} is missing: {value!r}")
 
@@ -498,6 +549,7 @@ def load_package_metadata(
         package_name=name,
         package_version=version,
     )
+    python_requirement = validate_environment_artifacts(root, dependencies, pyproject_data)
     validate_skill_frontmatter_contract(root / "SKILL.md", expected_name=name)
 
     expected_output = f"dist/{name}-{version}.zip"
@@ -505,6 +557,8 @@ def load_package_metadata(
         raise ValueError(f"release output must be {expected_output!r}, got {release_output!r}")
     if not release_include:
         raise ValueError("release include list must not be empty")
+    if not set(dependencies.values()).issubset(release_include):
+        raise ValueError("release includes must contain every declared environment artifact")
     if len(set(release_include)) != len(release_include):
         raise ValueError("release include entries must be unique")
     validate_core_release_includes(release_include)
@@ -566,11 +620,10 @@ def load_package_metadata(
         license_id=license_id,
         description=description,
         python_requirement=python_requirement,
-        core_requirements_file=core_requirements_file,
-        visual_requirements_file=visual_requirements_file,
         requirements_file=requirements_file,
-        tested_requirements_file=tested_requirements_file,
         pyproject_file=pyproject_file,
+        lock_file=lock_file,
+        python_version_file=python_version_file,
         release_output=release_output,
         release_include=release_include,
         release_exclude_names=release_exclude_names,
@@ -592,6 +645,13 @@ def session_hook(root_variable: str) -> dict[str, Any]:
     """The session hook, written against one host's plugin-root variable."""
 
     script = f'"${{{root_variable}}}/scripts/session_entry_points.py"'
+    project = f'"${{{root_variable}}}"'
+    command = (
+        "command -v uv >/dev/null 2>&1 || { "
+        "printf '%s\\n' 'Character Prompt Builder requires uv. Install uv, then rerun this command to continue in the current Studio.' >&2; "
+        "exit 1; }; "
+        f"uv run --locked --project {project} python {script}"
+    )
     return {
         "hooks": {
             "SessionStart": [
@@ -599,8 +659,8 @@ def session_hook(root_variable: str) -> dict[str, Any]:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"python3 {script} || python {script}",
-                            "timeout": 20,
+                            "command": command,
+                            "timeout": 180,
                         }
                     ]
                 }

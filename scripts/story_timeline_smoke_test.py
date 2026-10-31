@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Read-only story projection, safe publication, sync and explicit artwork tests."""
 from __future__ import annotations
+from collections import Counter
 import copy
+import errno
 import json
 from pathlib import Path
 import re
@@ -16,6 +18,7 @@ import story_timeline as story
 import studio
 import studio_activity as activity
 from story_timeline_fixtures import setup, event, process, view, write_events
+from story_flow_fixtures import setup as setup_story
 
 
 def data_from_html(path: Path) -> dict:
@@ -23,6 +26,108 @@ def data_from_html(path: Path) -> dict:
     match=re.search(r'<script id="timeline-data" type="application/json">(.*?)</script>',text,re.S)
     if not match:raise ValueError('no complete embedded projection')
     return json.loads(match[1])
+
+
+class InputObservationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.inputs=story.Inputs(self.root,self.root/story.OUTPUT)
+
+    def test_required_policy_applies_to_each_cached_missing_read(self):
+        for optional in (False,True):
+            with self.subTest(optional=optional):
+                name=str(optional)+'.json'
+                if optional:self.assertIsNone(self.inputs.read(name,optional=True))
+                else:
+                    with self.assertRaisesRegex(ValueError,'required story input is missing'):self.inputs.read(name)
+                with self.assertRaisesRegex(ValueError,'required story input is missing'):self.inputs.read(name)
+                self.assertIsNone(self.inputs.read(name,optional=True))
+                self.assertEqual(self.inputs.fact(name),{'path':name,'status':'missing','sha256':None})
+
+    def test_decoding_failure_and_json_null_retain_actual_bytes(self):
+        for name,raw in (('invalid.json',b'{'),('encoding.json',b'\xff'),('null.json',b'null\n')):
+            with self.subTest(name=name):
+                (self.root/name).write_bytes(raw)
+                with patch.object(c,'read',wraps=c.read) as read:
+                    if name=='null.json':self.assertIsNone(self.inputs.json(name))
+                    else:
+                        with self.assertRaises(ValueError):self.inputs.json(name)
+                    self.assertEqual(self.inputs.read(name),raw)
+                    self.assertEqual(read.call_count,1)
+                self.assertEqual(self.inputs.fact(name),{'path':name,'status':'present','sha256':c.digest(raw),'bytes':len(raw)})
+
+    def test_refusal_is_cached_optional_does_not_hide_it_and_recheck_is_fresh(self):
+        path=self.root/'source.json';path.write_bytes(b'{}')
+        failure=PermissionError(errno.EACCES,'synthetic access refusal')
+        with patch.object(c,'read',side_effect=failure) as read:
+            for optional in (False,True,False):
+                with self.assertRaises(PermissionError):self.inputs.read(path.name,optional=optional)
+            self.assertEqual(read.call_count,1)
+            fact=self.inputs.fact(path.name)
+            self.assertEqual(fact['status'],'failed');self.assertIsNone(fact['sha256']);self.assertNotIn('bytes',fact)
+            self.assertEqual(fact['failure']['errno'],errno.EACCES)
+            self.inputs.recheck();self.assertEqual(read.call_count,2)
+        with self.assertRaisesRegex(ValueError,'input changed during projection'):self.inputs.recheck()
+        with self.assertRaises(PermissionError):self.inputs.read(path.name)
+        fresh=story.Inputs(self.root,self.root/story.OUTPUT)
+        self.assertEqual(fresh.read(path.name),b'{}')
+
+    def test_refusal_change_or_disappearance_invalidates_observation(self):
+        path=self.root/'source.json';path.write_bytes(b'{}')
+        with patch.object(c,'read',side_effect=PermissionError(errno.EACCES,'synthetic refusal')):
+            with self.assertRaises(PermissionError):self.inputs.read(path.name)
+        with patch.object(c,'read',side_effect=OSError(errno.EIO,'synthetic I/O failure')):
+            with self.assertRaisesRegex(ValueError,'input changed during projection'):self.inputs.recheck()
+        path.unlink()
+        with self.assertRaisesRegex(ValueError,'input changed during projection'):self.inputs.recheck()
+
+    def test_each_sheet_boundary_has_its_own_observation_and_normalized_spelling(self):
+        import sheet_artifacts as fills
+        folder=self.root/'nested';folder.mkdir();path=folder/'source.json';path.write_bytes(b'{}')
+        with patch.object(c,'read',wraps=c.read) as read:
+            for _ in range(2):
+                self.assertEqual(self.inputs.read('nested/source.json'),b'{}')
+                self.assertEqual(fills._source_bytes(self.root,'nested//source.json',read_source=self.inputs.read_sheet),b'{}')
+                self.assertEqual(fills._source_bytes(folder,'source.json',read_source=self.inputs.read_sheet),b'{}')
+            self.assertEqual(read.call_count,3)
+            with self.assertRaisesRegex(ValueError,'safe path relative'):
+                fills._source_bytes(folder,'../nested/source.json',read_source=self.inputs.read_sheet)
+            self.assertEqual(read.call_count,3)
+            self.inputs.recheck();self.assertEqual(read.call_count,6)
+        facts=self.inputs.facts();self.assertEqual(len(facts),3)
+        self.assertTrue(all(row['path']=='nested/source.json' for row in facts))
+        self.assertNotIn('read_contract',self.inputs.fact('nested/source.json'))
+        self.assertEqual({row['read_contract']['root'] for row in facts if 'read_contract' in row},{'.','nested'})
+
+    def test_default_cached_bytes_do_not_bypass_a_sheet_refusal(self):
+        import sheet_artifacts as fills
+        path=self.root/'source.json';path.write_bytes(b'{}')
+        self.inputs.read(path.name)
+        target=self.root/'sentinel.json';target.write_bytes(b'outside the declared source')
+        path.unlink()
+        try:path.symlink_to(target)
+        except (OSError,NotImplementedError):self.skipTest('symbolic links unavailable')
+        with patch.object(c,'read',wraps=c.read) as read:
+            with self.assertRaisesRegex(ValueError,'symbolic link'):
+                fills._source_bytes(self.root,path.name,read_source=self.inputs.read_sheet)
+            self.assertEqual(read.call_count,0)
+        self.assertEqual(self.inputs.fact(path.name)['status'],'present')
+        self.assertEqual([row['status'] for row in self.inputs.facts()],['present','failed'])
+        with self.assertRaisesRegex(ValueError,'input changed during projection'):self.inputs.recheck()
+
+    def test_each_read_contract_refuses_the_projection_and_its_receipts(self):
+        import sheet_artifacts as fills
+        for suffix in ('.html','.status.json','.last-good.html'):
+            path=(self.root/story.OUTPUT).with_suffix(suffix);path.write_bytes(b'{}')
+            with self.subTest(path=path),patch.object(c,'read',wraps=c.read) as read:
+                with self.assertRaisesRegex(ValueError,'cannot be its own input'):self.inputs.read(path.name)
+                with self.assertRaisesRegex(ValueError,'cannot be its own input'):
+                    fills._source_bytes(self.root,path.name,read_source=self.inputs.read_sheet)
+                self.assertEqual(read.call_count,0)
+        self.assertEqual(len(self.inputs.facts()),6)
+        self.assertTrue(all(row['status']=='failed' for row in self.inputs.facts()))
+        self.inputs.recheck()
 
 
 class ProjectionTests(unittest.TestCase):
@@ -185,6 +290,107 @@ class ProjectionTests(unittest.TestCase):
         self.assertIn('No current state is asserted',self.output.read_text(encoding='utf-8'))
         self.assertTrue(story.refresh(self.root)['ok'])
 
+    def test_failed_child_is_known_and_recovery_during_render_keeps_last_good(self):
+        cases={'scene':'story/narrative/scenes/gate-plot.json',
+               'context':'story/state/contexts/gate.json','evidence':'notes/inline.txt'}
+        for kind,name in cases.items():
+            with self.subTest(kind=kind):
+                root=self.root.parent/kind;fixture=setup_story(root,series_prefix='story')
+                if kind=='evidence':
+                    c.atomic(root/name,b'Synthetic local evidence.\n')
+                    fixture['events'][0]['evidence']=[{'path':name,'locator':'whole','basis':'Synthetic test evidence.'}]
+                    write_events(root,fixture['events'])
+                path=root/name;raw=path.read_bytes();ledger=(root/'state/events.jsonl').read_bytes()
+                first=story.refresh(root);self.assertTrue(first['ok'],first)
+                sentinel=self.root.parent/(kind+'-sentinel.json');sentinel.write_bytes(b'{}')
+                path.unlink()
+                try:path.symlink_to(sentinel)
+                except (OSError,NotImplementedError):self.skipTest('symbolic links unavailable')
+                with patch.object(c,'read',wraps=c.read) as read:
+                    failed,inputs=story.build_model(root,root/story.OUTPUT);inputs.recheck()
+                    self.assertFalse(any(Path(call.args[0]).resolve()==sentinel for call in read.call_args_list))
+                fact=next(row for row in failed['inputs'] if row['path']==name)
+                self.assertEqual(fact['status'],'failed');self.assertIsNone(fact['sha256'])
+                stable=story.refresh(root);self.assertTrue(stable['ok'],stable)
+                self.assertFalse(story.refresh(root)['written'])
+                receipt=c.load((root/story.OUTPUT).with_suffix('.status.json'))
+                self.assertIn(fact,receipt['inputs'])
+                path.unlink();c.atomic(path,raw)
+                with self.assertRaisesRegex(ValueError,'input changed during projection'):inputs.recheck()
+                with patch.object(activity,'changed') as notify:story.notify_state_write(path)
+                self.assertEqual(notify.call_count,1)
+                path.unlink();path.symlink_to(sentinel)
+                conf=c.load(root/story.CONFIG);conf['views'][0]['label']='A new authored view label'
+                c.atomic_write_json(root/story.CONFIG,conf)
+                original=story.render_html
+                def repair(model,generated):
+                    path.unlink();c.atomic(path,raw);return original(model,generated)
+                with patch.object(story,'render_html',side_effect=repair):result=story.refresh(root)
+                self.assertFalse(result['ok'],result);self.assertIn(name,result['message'])
+                previous=(root/story.OUTPUT).with_suffix('.last-good.html')
+                self.assertEqual(data_from_html(previous)['projection_id'],stable['projection_id'])
+                self.assertEqual((root/'state/events.jsonl').read_bytes(),ledger)
+                self.assertTrue(story.refresh(root)['ok'])
+
+    def test_two_series_preserve_last_good_and_do_not_rewrite_authored_sources(self):
+        root=self.root.parent/'nested-story';fixture=setup_story(root,series_prefix='story')
+        output=root/story.OUTPUT
+        first=activity.refresh(root)['story_timeline'];self.assertTrue(first['ok'],first)
+        c.atomic_write_json(root/'narrative/narrative.json',fixture['narrative'])
+        before={path:path.read_bytes() for path in root.rglob('*') if path.is_file()
+                and any(part in {'narrative','state'} for part in path.relative_to(root).parts)}
+        result=activity.refresh(root);self.assertFalse(result['ok'])
+        self.assertEqual(result['story_timeline']['status'],'unavailable')
+        self.assertIn('narrative/, story/narrative/',result['story_timeline']['message'])
+        previous=output.with_suffix('.last-good.html')
+        self.assertIn('STALE:',previous.read_text(encoding='utf-8'))
+        self.assertEqual(data_from_html(previous)['projection_id'],first['projection_id'])
+        self.assertTrue(all(path.read_bytes()==raw for path,raw in before.items()))
+        self.assertTrue((root/'gallery.html').is_file())
+        self.assertTrue((root/'work/activity/timeline.jsonl').is_file())
+
+    def test_nested_scene_change_during_render_is_not_published_as_current(self):
+        root=self.root.parent/'nested-story';fixture=setup_story(root,series_prefix='story')
+        first=story.refresh(root);self.assertTrue(first['ok'],first)
+        path=root/'story/narrative/scenes/gate-plot.json'
+        value=fixture['scenes'][0];value['proposition']='A revised source before publication.'
+        c.atomic_write_json(path,value)
+        ledger=(root/'state/events.jsonl').read_bytes()
+        original=story.render_html
+        def change(model,generated):
+            value['proposition']='A source changed during publication.'
+            c.atomic_write_json(path,value)
+            return original(model,generated)
+        with patch.object(story,'render_html',side_effect=change):result=story.refresh(root)
+        self.assertFalse(result['ok'])
+        self.assertIn('story input changed during projection: story/narrative/scenes/gate-plot.json',result['message'])
+        self.assertEqual((root/'state/events.jsonl').read_bytes(),ledger)
+        self.assertEqual(data_from_html((root/story.OUTPUT).with_suffix('.last-good.html'))['projection_id'],first['projection_id'])
+
+    def test_alternative_sources_appearing_during_render_invalidate_publication(self):
+        for prefix,other in (('','story/'),('story/','')):
+            for source in ('narrative','new-scene','material-to-scene'):
+                with self.subTest(prefix=prefix,source=source):
+                    name=('nested-' if prefix else 'root-')+source
+                    root=self.root.parent/name;fixture=setup_story(root,series_prefix=prefix)
+                    alternate=root/(other+('narrative/narrative.json' if source=='narrative'
+                                          else 'narrative/scenes/appearing.json'))
+                    if source=='material-to-scene':c.atomic_write_json(alternate,{'artifact_type':'some-material'})
+                    first=story.refresh(root);self.assertTrue(first['ok'],first)
+                    value=fixture['scenes'][0];value['proposition']='A revised source before publication.'
+                    c.atomic_write_json(root/(prefix+'narrative/scenes/gate-plot.json'),value)
+                    original=story.render_html
+                    def change(model,generated):
+                        c.atomic_write_json(alternate,fixture['narrative'] if source=='narrative' else fixture['scenes'][1])
+                        return original(model,generated)
+                    with patch.object(story,'render_html',side_effect=change):result=story.refresh(root)
+                    self.assertFalse(result['ok'],result)
+                    expected={'narrative':'input appeared','new-scene':'collection changed',
+                              'material-to-scene':'input changed'}[source]
+                    self.assertIn(expected+' during projection',result['message'])
+                    self.assertIn(other+'narrative/',result['message'])
+                    self.assertEqual(data_from_html((root/story.OUTPUT).with_suffix('.last-good.html'))['projection_id'],first['projection_id'])
+
     def test_projection_refuses_escape_symlink_and_foreign_output(self):
         for out in (Path('../outside.html'),Path('state/events.jsonl')):
             with self.subTest(out=out),self.assertRaises(ValueError):story.refresh(self.root,out=out)
@@ -295,10 +501,69 @@ class ArtworkTests(unittest.TestCase):
         import sheet_artifacts as fills
         conf=c.load(self.root/story.CONFIG);second=copy.deepcopy(conf['scene_artwork'][0]);second['scene_context_id']='SC2';conf['scene_artwork'].append(second)
         c.atomic_write_json(self.root/story.CONFIG,conf)
-        with patch.object(fills,'_image_metadata',wraps=fills._image_metadata) as decode:
+        with patch.object(fills,'_image_metadata',wraps=fills._image_metadata) as decode, patch.object(c,'read',wraps=c.read) as read:
             model,_=story.build_model(self.root,self.root/story.OUTPUT)
             self.assertEqual(decode.call_count,1)
             self.assertEqual(len(model['scene_artwork']),2)
+        current=c.load(self.sheet)['slots']['canon.primary']['current']
+        relative='characters/robot/sheet/'
+        expected={relative+self.first[key]['path'] for key in ('image','provenance')}
+        expected.add(relative+(Path(self.first['provenance']['path']).parent/'package.json').as_posix())
+        expected.update(relative+current['approval'][key] for key in ('decision_path','evidence_path'))
+        facts={row['path']:row for row in model['inputs']}
+        self.assertTrue(expected.issubset(facts))
+        self.assertTrue(all(facts[name]['read_contract']['kind']=='sheet' for name in expected))
+        self.assertEqual(facts['studio.json']['status'],'present')
+        self.assertEqual(facts[relative+'sheet-data.json']['status'],'present')
+        reads=Counter(Path(call.args[0]).relative_to(self.root).as_posix() for call in read.call_args_list)
+        self.assertTrue(all(reads[name]==1 for name in expected|{'studio.json',relative+'sheet-data.json'}))
+
+    def test_recursive_artwork_sources_and_early_refusals_are_publication_inputs(self):
+        import sheet_artifacts as fills
+        from sheet_artifacts_smoke_test import decision
+        derived=fills.crop(self.sheet,'canon.primary','part.hand',[10,20,30,40])
+        fills.adopt(self.sheet,decision(self.sheet,'part.hand',derived),evidence_root=self.sheet.parent)
+        conf=c.load(self.root/story.CONFIG);conf['scene_artwork'][0]['slot']='part.hand'
+        c.atomic_write_json(self.root/story.CONFIG,conf)
+        current=c.load(self.sheet)['slots']['part.hand']['current']
+        cases={'manifest':self.root/'studio.json','sidecar':self.sheet,
+               'image':self.sheet.parent/derived['image']['path'],
+               'provenance':self.sheet.parent/derived['provenance']['path'],
+               'source-image':self.sheet.parent/self.first['image']['path'],
+               'source-provenance':self.sheet.parent/self.first['provenance']['path'],
+               'source-package':(self.sheet.parent/self.first['provenance']['path']).parent/'package.json',
+               'decision':self.sheet.parent/current['approval']['decision_path'],
+               'evidence':self.sheet.parent/current['approval']['evidence_path']}
+        ledger=(self.root/'state/events.jsonl').read_bytes()
+        original_sidecar=self.sheet.read_bytes()
+        sentinel=self.root.parent/'refused-source';sentinel.write_bytes(b'Synthetic external bytes must not be read.')
+        for label,path in cases.items():
+            with self.subTest(source=label):
+                first=story.refresh(self.root);self.assertTrue(first['ok'],first)
+                good=data_from_html(self.root/story.OUTPUT)
+                self.assertEqual(good['scene_artwork'][0]['artifact_id'],derived['artifact_id'])
+                self.assertTrue({p.relative_to(self.root).as_posix() for p in cases.values()}.issubset(
+                    {row['path'] for row in good['inputs']}))
+                raw=path.read_bytes();name=path.relative_to(self.root).as_posix();path.unlink()
+                try:path.symlink_to(sentinel)
+                except (OSError,NotImplementedError):self.skipTest('symbolic links unavailable')
+                with patch.object(c,'read',wraps=c.read) as read:
+                    failed,inputs=story.build_model(self.root,self.root/story.OUTPUT);inputs.recheck()
+                    self.assertFalse(any(Path(call.args[0]).resolve()==sentinel for call in read.call_args_list))
+                fact=next(row for row in failed['inputs'] if row['path']==name)
+                self.assertEqual(fact['status'],'failed');self.assertIsNone(fact['sha256'])
+                self.assertEqual(failed['scene_artwork'][0]['status'],'unavailable')
+                self.assertIsNone(failed['scene_artwork'][0]['href'])
+                original=story.render_html
+                def repair(model,generated):
+                    path.unlink();c.atomic(path,raw);return original(model,generated)
+                with patch.object(story,'render_html',side_effect=repair):result=story.refresh(self.root)
+                self.assertFalse(result['ok'],result);self.assertIn(name,result['message'])
+                self.assertEqual(data_from_html((self.root/story.OUTPUT).with_suffix('.last-good.html'))['projection_id'],first['projection_id'])
+                with self.assertRaisesRegex(ValueError,'input changed during projection'):inputs.recheck()
+                self.assertTrue(story.refresh(self.root)['ok'])
+                self.assertEqual((self.root/'state/events.jsonl').read_bytes(),ledger)
+                self.assertEqual(self.sheet.read_bytes(),original_sidecar)
 
 
 if __name__=='__main__':

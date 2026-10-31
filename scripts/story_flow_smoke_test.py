@@ -44,6 +44,25 @@ class FlowTests(unittest.TestCase):
         self.assertIsNone(gate['timeline_id']);self.assertEqual(gate['event_keys'],[])
         self.assertIn('E-accusation',str(data['flow']['nodes']))
 
+    def test_contextual_depiction_keeps_visibility_and_existing_event_links(self):
+        value=self.fixture['scenes'][2]
+        contextual={'id':'c1','beat':'The accusation remains unresolved for Mara.','visibility':'context'}
+        value['beats'].append(contextual)
+        value['realization']['units'][0]['composition']=[{
+            'statement':'Stay close to the offered key and the space between their hands.',
+            'from':['b1','c1']}]
+        self.write('narrative/scenes/key-plot.json',value)
+        ledger_before=(self.root/'state/events.jsonl').read_bytes()
+        data=self.model();key=next(n for n in self.scenes(data) if n['scene_id']=='key')
+        self.assertTrue(key['report']['ok'],key['report']['errors'])
+        self.assertEqual(key['scene_record']['beats'][-1],contextual)
+        self.assertEqual(key['scene_record']['state_changes'],value['state_changes'])
+        expected=next(n['key'] for n in data['flow']['nodes'] if n.get('event_id')=='E-key')
+        self.assertEqual(key['event_keys'],[expected])
+        self.assertEqual({n['event_id'] for n in data['flow']['nodes'] if n['kind']=='event'},
+                         {e['event_id'] for e in self.fixture['events']})
+        self.assertEqual((self.root/'state/events.jsonl').read_bytes(),ledger_before)
+
     def test_no_state_inputs_still_produce_a_narrative_reading_view(self):
         for p in ['state/events.jsonl','state/world-state-base.json','state/timeline-view.json']:(self.root/p).unlink()
         self.assertTrue(timeline.configured(self.root))
@@ -55,6 +74,12 @@ class FlowTests(unittest.TestCase):
         (self.root/'state/world-state-base.json').unlink()
         report=timeline.refresh(self.root)
         self.assertFalse(report['ok']);self.assertIn('missing',report['message'])
+
+    def test_present_null_config_does_not_elect_absent_configuration_defaults_for_narrative_only(self):
+        for name in ('state/world-state-base.json','state/events.jsonl'):(self.root/name).unlink()
+        c.atomic_write_json(self.root/timeline.CONFIG,None)
+        report=timeline.refresh(self.root)
+        self.assertFalse(report['ok']);self.assertIn('required story input is missing',report['message'])
 
     def test_ledger_without_scenes_uses_verbatim_notes_and_changes(self):
         for p in (self.root/'narrative').rglob('*.json'):p.unlink()
@@ -226,7 +251,11 @@ class FlowTests(unittest.TestCase):
 
 
     def test_empty_scene_scaffold_does_not_create_a_story_ledger(self):
-        empty=self.root.parent/'empty';(empty/'narrative/scenes').mkdir(parents=True)
+        empty=self.root.parent/'empty'
+        for prefix in ('','story/'):(empty/(prefix+'narrative/scenes')).mkdir(parents=True)
+        self.assertFalse(timeline.configured(empty))
+        for prefix in ('','story/'):
+            c.atomic_write_json(empty/(prefix+'narrative/scenes/material.json'),{'artifact_type':'some-material'})
         self.assertFalse(timeline.configured(empty))
 
     def test_known_state_writer_updates_context_link_without_flow_file(self):
@@ -255,6 +284,296 @@ class FlowTests(unittest.TestCase):
             name=call.args[1]
             if name.startswith('narrative/scenes/'):counts[name]=counts.get(name,0)+1
         self.assertEqual(list(counts.values()),[1,1,1])
+
+
+class SeriesLocationTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+        self.directory=Path(self.tmp.name)
+
+    def fixture(self,name,prefix='',**options):
+        root=self.directory/name
+        return root,setup(root,series_prefix=prefix,**options)
+
+    def model(self,root):return timeline.build_model(root,root/timeline.OUTPUT)[0]
+
+    def scenes(self,data):return [row for row in data['flow']['nodes'] if row['kind']=='scene']
+
+    def test_conventional_layouts_keep_content_and_declared_path_bases(self):
+        for prefix in ('','story/'):
+            with self.subTest(prefix=prefix):
+                root,fixture=self.fixture('nested' if prefix else 'root',prefix)
+                before={p:p.read_bytes() for p in root.rglob('*') if p.is_file()
+                        and 'work' not in p.relative_to(root).parts}
+                output=root/'views/deep/story.html'
+                result=timeline.refresh(root,out=Path('views/deep/story.html'))
+                self.assertTrue(result['ok'],result)
+                self.assertFalse(timeline.refresh(root,out=Path('views/deep/story.html'))['written'])
+                data,_=timeline.build_model(root,output)
+                self.assertEqual(data['flow']['narrative_source']['path'],prefix+'narrative/narrative.json')
+                self.assertEqual(data['flow']['narrative_source']['href'],'../../'+prefix+'narrative/narrative.json')
+                by_id={row['scene_id']:row for row in self.scenes(data)}
+                for source in fixture['scenes']:
+                    node=by_id[source['scene_id']]
+                    self.assertEqual(node['scene_record'],source)
+                    self.assertEqual(node['source']['path'],prefix+f"narrative/scenes/{source['scene_id']}-plot.json")
+                    self.assertEqual(node['source']['href'],'../../'+node['source']['path'])
+                    self.assertEqual(node['context_source']['path'],prefix+source['setting']['scene_context'])
+                    self.assertEqual(node['context_source']['href'],'../../'+node['context_source']['path'])
+                    self.assertEqual(len(node['event_keys']),1)
+                    self.assertFalse(node['report']['approved'])
+                self.assertEqual(data['source_links']['base'],'../../state/world-state-base.json')
+                self.assertEqual(data['source_paths']['events'],'state/events.jsonl')
+                self.assertEqual(data['events'][0]['references'][0]['href'],'../../decision.txt')
+                self.assertEqual(data['flow']['diagnostics'],[])
+                self.assertTrue(all(path.read_bytes()==raw for path,raw in before.items()))
+
+    def test_each_layout_reads_narrative_and_scenes_before_state_exists(self):
+        import studio_activity
+        import validate_studio
+        for prefix in ('','story/'):
+            for sources in ('both','narrative','scenes'):
+                with self.subTest(prefix=prefix,sources=sources):
+                    name=('nested-' if prefix else 'root-')+sources
+                    root,_=self.fixture(name,prefix,include_state=False,include_scenes=sources!='narrative')
+                    if sources=='scenes':(root/(prefix+'narrative/narrative.json')).unlink()
+                    self.assertTrue(timeline.configured(root))
+                    result=studio_activity.refresh(root)
+                    self.assertTrue(result['story_timeline']['ok'],result)
+                    self.assertEqual(validate_studio.validate(root),[])
+                    data=self.model(root)
+                    self.assertEqual(data['events'],[]);self.assertEqual(data['views'],[])
+                    self.assertEqual(len(self.scenes(data)),0 if sources=='narrative' else 3)
+                    for path in ('state/world-state-base.json','state/events.jsonl','state/timeline-view.json'):
+                        self.assertFalse((root/path).exists())
+
+    def test_empty_scaffold_and_other_material_do_not_compete_with_authored_series(self):
+        for prefix,other in (('','story/'),('story/','')):
+            with self.subTest(prefix=prefix):
+                root,_=self.fixture('nested' if prefix else 'root',prefix,include_state=False)
+                path=other+'narrative/scenes/material.json'
+                c.atomic_write_json(root/path,{'artifact_type':'some-material'})
+                data=self.model(root)
+                self.assertEqual(len(self.scenes(data)),3)
+                self.assertEqual(data['flow']['narrative_source']['path'],prefix+'narrative/narrative.json')
+                facts={row['path']:row for row in data['inputs']}
+                self.assertEqual(facts[other+'narrative/narrative.json']['status'],'missing')
+                self.assertEqual(facts[path]['status'],'present')
+                self.assertEqual({row['path'] for row in data['source_collections']},
+                                 {'narrative/scenes','story/narrative/scenes'})
+
+    def test_unreadable_narrative_only_retains_its_failure_in_the_reading_view(self):
+        from story_timeline_smoke_test import data_from_html
+        for prefix in ('','story/'):
+            for failure in ('directory','permission'):
+                with self.subTest(prefix=prefix,failure=failure):
+                    root,_=self.fixture(('nested-' if prefix else 'root-')+failure,prefix,
+                                        include_state=False,include_scenes=False)
+                    relative=prefix+'narrative/narrative.json';path=root/relative
+                    original=path.read_bytes()
+                    if failure=='directory':path.unlink();path.mkdir()
+                    read=c.read
+                    def source_read(source,**kwargs):
+                        if failure=='permission' and Path(source)==path:
+                            raise PermissionError('synthetic narrative access denied')
+                        return read(source,**kwargs)
+                    with patch.object(c,'read',side_effect=source_read):
+                        self.assertTrue(timeline.configured(root))
+                        result=timeline.refresh(root)
+                    self.assertTrue(result['ok'],result)
+                    data=data_from_html(root/timeline.OUTPUT)
+                    notice=next(row for row in data['flow']['diagnostics']
+                                if row['code']=='FLOW_NARRATIVE_UNAVAILABLE')
+                    facts={row['path']:row for row in data['inputs']}
+                    fact=facts[relative]
+                    self.assertEqual(fact['status'],'failed');self.assertIsNone(fact['sha256'])
+                    self.assertNotIn('bytes',fact)
+                    self.assertEqual(notice['source_path'],relative)
+                    self.assertEqual(notice['message'],fact['failure']['message'])
+                    self.assertEqual(data['flow']['narrative_source'],
+                                     {'path':relative,'sha256':None,'href':None})
+                    self.assertIsNone(data['flow']['narrative_report'])
+                    self.assertEqual(data['events'],[]);self.assertEqual(data['views'],[])
+                    self.assertEqual(self.scenes(data),[])
+                    for name in ('state/world-state-base.json','state/events.jsonl','state/timeline-view.json'):
+                        self.assertFalse((root/name).exists())
+                    if failure=='directory':self.assertTrue(path.is_dir())
+                    else:self.assertEqual(path.read_bytes(),original)
+
+    def test_unreadable_narrative_preserves_the_required_state_pair(self):
+        for prefix in ('','story/'):
+            for existing,missing in (('state/world-state-base.json','state/events.jsonl'),
+                                     ('state/events.jsonl','state/world-state-base.json')):
+                with self.subTest(prefix=prefix,existing=existing):
+                    root,fixture=self.fixture(('nested-' if prefix else 'root-')+Path(existing).stem,prefix,
+                                              include_state=False,include_scenes=False)
+                    path=root/(prefix+'narrative/narrative.json');path.unlink();path.mkdir()
+                    if existing.endswith('.json'):c.atomic_write_json(root/existing,fixture['base'])
+                    else:(root/existing).write_text('',encoding='utf-8')
+                    before=(root/existing).read_bytes()
+                    result=timeline.refresh(root)
+                    self.assertFalse(result['ok'],result)
+                    self.assertEqual(result['message'],'required story input is missing: '+missing)
+                    self.assertEqual((root/existing).read_bytes(),before)
+                    self.assertFalse((root/missing).exists())
+
+    def test_collection_changes_in_either_location_invalidate_the_snapshot(self):
+        for prefix in ('','story/'):
+            for change in ('add','remove','rename'):
+                with self.subTest(prefix=prefix,change=change):
+                    root,_=self.fixture(('nested-' if prefix else 'root-')+change)
+                    path=root/(prefix+'narrative/scenes/material.json')
+                    c.atomic_write_json(path,{'artifact_type':'some-material'})
+                    _,inputs=timeline.build_model(root,root/timeline.OUTPUT)
+                    if change=='add':c.atomic_write_json(path.with_name('added.json'),{'artifact_type':'some-material'})
+                    elif change=='remove':path.unlink()
+                    else:path.rename(path.with_name('renamed.json'))
+                    with self.assertRaisesRegex(ValueError,'collection changed') as caught:inputs.recheck()
+                    self.assertIn(prefix+'narrative/scenes',str(caught.exception))
+
+    def test_two_authored_locations_fail_even_when_one_draft_is_invalid(self):
+        for kind in ('narrative','null','empty-object','malformed','scene-only'):
+            with self.subTest(kind=kind):
+                root,fixture=self.fixture(kind)
+                if kind=='scene-only':
+                    c.atomic_write_json(root/'story/narrative/scenes/gate.json',fixture['scenes'][0])
+                else:
+                    path=root/'story/narrative/narrative.json'
+                    c.atomic_write_json(path,{'narrative':fixture['narrative'],'null':None,
+                                              'empty-object':{},'malformed':{}}[kind])
+                    if kind=='malformed':path.write_text('{',encoding='utf-8')
+                with self.assertRaisesRegex(ValueError,'multiple narrative series') as caught:self.model(root)
+                self.assertIn('narrative/, story/narrative/',str(caught.exception))
+
+    def test_present_invalid_narrative_keeps_source_fact_and_reading_notice(self):
+        cases={'null':None,'empty-object':{},'array':[],'number':0,
+               'text':'unfinished draft','malformed':None}
+        for prefix in ('','story/'):
+            for label,value in cases.items():
+                with self.subTest(prefix=prefix,label=label):
+                    root,_=self.fixture(('nested-' if prefix else 'root-')+label,prefix,
+                                        include_state=False,include_scenes=False)
+                    path=prefix+'narrative/narrative.json';c.atomic_write_json(root/path,value)
+                    if label=='malformed':(root/path).write_text('{',encoding='utf-8')
+                    before=(root/path).read_bytes();data=self.model(root)
+                    report=data['flow']['narrative_report']
+                    if label=='malformed':self.assertIsNone(report)
+                    else:
+                        self.assertFalse(report['ok']);self.assertFalse(report['approved'])
+                    source=data['flow']['narrative_source']
+                    self.assertEqual(source,{'path':path,'href':path,'sha256':c.digest(before)})
+                    code='FLOW_NARRATIVE_UNAVAILABLE' if label=='malformed' else 'FLOW_NARRATIVE_INVALID'
+                    self.assertTrue(any(row['code']==code and row['source_path']==path
+                                        for row in data['flow']['diagnostics']))
+                    self.assertEqual(data['events'],[]);self.assertEqual(data['views'],[])
+                    self.assertEqual((root/path).read_bytes(),before)
+
+    def test_nested_context_uses_declared_series_without_other_root_fallback(self):
+        root,fixture=self.fixture('nested','story/')
+        pointer=fixture['scenes'][0]['setting']['scene_context']
+        c.atomic_write_json(root/pointer,context('SC-other',100,109))
+        gate=next(row for row in self.scenes(self.model(root)) if row['scene_id']=='gate')
+        self.assertEqual(gate['scene_context_id'],'SC-gate')
+        self.assertEqual(gate['scene_record']['setting']['scene_context'],pointer)
+        (root/'story'/pointer).unlink()
+        data=self.model(root);gate=next(row for row in self.scenes(data) if row['scene_id']=='gate')
+        self.assertIsNone(gate['context_source']);self.assertEqual(gate['event_keys'],[])
+        self.assertIn('story/'+pointer,str(data['flow']['diagnostics']))
+        self.assertNotIn(pointer,{row['path'] for row in data['inputs']})
+
+    def test_nested_writes_refresh_their_sources_and_report_actual_notice_paths(self):
+        from state_protocol import write_json
+        from story_timeline_smoke_test import data_from_html
+        root,fixture=self.fixture('nested','story/')
+        timeline.notify_state_write(root/'story/narrative/narrative.json')
+        first=data_from_html(root/timeline.OUTPUT)
+        scene_path=root/'story/narrative/scenes/gate-plot.json'
+        value=fixture['scenes'][0];value['proposition']='A revised author account.'
+        c.atomic_write_json(scene_path,value);timeline.notify_state_write(scene_path)
+        second=data_from_html(root/timeline.OUTPUT)
+        self.assertNotEqual(first['projection_id'],second['projection_id'])
+        write_json(root/'story/state/contexts/gate.json',context('SC-gate',2,9))
+        data=data_from_html(root/timeline.OUTPUT)
+        gate=next(row for row in self.scenes(data) if row['scene_id']=='gate')
+        self.assertEqual(gate['start_order'],2);self.assertEqual(gate['event_keys'],[])
+        scene_path.write_text('{',encoding='utf-8');timeline.notify_state_write(scene_path)
+        data=data_from_html(root/timeline.OUTPUT)
+        notice=next(row for row in data['flow']['diagnostics'] if row['code']=='FLOW_SCENE_REVIEW')
+        self.assertEqual(notice['source_path'],'story/narrative/scenes/gate-plot.json')
+
+    def test_projection_reuses_discovered_scenes_and_shared_context_bytes(self):
+        for prefix in ('','story/'):
+            with self.subTest(prefix=prefix):
+                root,fixture=self.fixture('nested' if prefix else 'root',prefix)
+                value=fixture['scenes'][1]
+                value['setting']['scene_context']=fixture['scenes'][0]['setting']['scene_context']
+                c.atomic_write_json(root/(prefix+'narrative/scenes/routes-plot.json'),value)
+                original=timeline.Inputs.read
+                with patch.object(timeline.Inputs,'read',autospec=True,side_effect=original) as read, \
+                     patch.object(c,'read',wraps=c.read) as disk_read:
+                    self.model(root)
+                counts={}
+                for call in read.call_args_list:
+                    name=call.args[1]
+                    if '/scenes/' in name:counts[name]=counts.get(name,0)+1
+                self.assertEqual(list(counts.values()),[1,1,1])
+                target=root/(prefix+value['setting']['scene_context'])
+                self.assertEqual(sum(Path(call.args[0])==target for call in disk_read.call_args_list),1)
+
+    def test_unsafe_alternative_boundaries_cannot_select_a_readable_series(self):
+        outside=self.directory/'outside';outside.mkdir()
+        sentinel=outside/'source.json';sentinel.write_text('{"sentinel":"outside source"}',encoding='utf-8')
+        for index,location in enumerate(('story','story/narrative','story/narrative/narrative.json',
+                                         'story/narrative/scenes')):
+            with self.subTest(location=location):
+                root,_=self.fixture('boundary-'+str(index))
+                path=root/location;path.parent.mkdir(parents=True,exist_ok=True)
+                target=sentinel if path.suffix=='.json' else outside
+                try:path.symlink_to(target,target_is_directory=target.is_dir())
+                except OSError:self.skipTest('symlinks unavailable')
+                with patch.object(c,'read',wraps=c.read) as read:
+                    self.assertTrue(timeline.configured(root))
+                    with self.assertRaisesRegex(ValueError,'symbolic link'):self.model(root)
+                self.assertFalse(any(Path(call.args[0]).resolve().is_relative_to(outside)
+                                     for call in read.call_args_list))
+
+    def test_unreadable_alternative_collection_is_not_an_empty_scaffold(self):
+        root,_=self.fixture('collection')
+        directory=root/'story/narrative/scenes';directory.mkdir(parents=True)
+        original=timeline.os.walk
+        def denied(path,*args,**kwargs):
+            if Path(path)==directory:
+                if kwargs.get('onerror'):
+                    kwargs['onerror'](PermissionError('synthetic directory enumeration denied'))
+                return iter(())
+            return original(path,*args,**kwargs)
+        with patch.object(timeline.os,'walk',side_effect=denied):
+            with self.assertRaisesRegex(ValueError,'story/narrative/scenes') as caught:self.model(root)
+        self.assertIn('synthetic directory enumeration denied',str(caught.exception))
+
+    def test_nested_child_and_context_symlinks_remain_source_notices_without_target_reads(self):
+        root,_=self.fixture('nested','story/')
+        outside=self.directory/'outside';outside.mkdir()
+        sentinel=outside/'source.json';sentinel.write_text('{"sentinel":"outside source"}',encoding='utf-8')
+        paths=[root/'story/narrative/scenes/link.json',root/'story/narrative/scenes/linked',
+               root/'story/state/contexts/gate.json']
+        paths[-1].unlink()
+        try:
+            for path in paths:
+                target=outside if path.name=='linked' else sentinel
+                path.symlink_to(target,target_is_directory=target.is_dir())
+        except OSError:self.skipTest('symlinks unavailable')
+        with patch.object(c,'read',wraps=c.read) as read:data=self.model(root)
+        self.assertNotIn('outside source',str(data))
+        self.assertFalse(any(Path(call.args[0]).resolve().is_relative_to(outside) for call in read.call_args_list))
+        gate=next(row for row in self.scenes(data) if row['scene_id']=='gate')
+        self.assertEqual(gate['event_keys'],[]);self.assertIsNone(gate['context_source'])
+        notices={row['source_path'] for row in data['flow']['diagnostics']}
+        self.assertTrue({'story/narrative/scenes/link.json','story/narrative/scenes/linked',
+                         'story/narrative/scenes/gate-plot.json'}.issubset(notices))
+        failed={row['path']:row for row in data['inputs'] if row['status']=='failed'}
+        self.assertEqual(set(failed),{path.relative_to(root).as_posix() for path in paths})
+        self.assertTrue(all(row['sha256'] is None and 'bytes' not in row for row in failed.values()))
 
 
 if __name__=='__main__':

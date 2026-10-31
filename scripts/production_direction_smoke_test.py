@@ -195,6 +195,27 @@ class AcceptedVariationTests(unittest.TestCase):
 class EvidenceTests(unittest.TestCase):
     def test_actual_image_is_decoded(self):
         self.assertEqual(media.inspect(png(), 'image')['width'], 24)
+    def test_svg_source_remains_an_image_in_observations_and_export(self):
+        import artifact_review
+        raw = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">'
+               b'<rect width="48" height="32" fill="#5078a0"/></svg>')
+        info = media.inspect(raw, 'image')
+        self.assertEqual((info['width'], info['height'], info['format'], info['bytes']),
+                         (48, 32, 'SVG', len(raw)))
+        self.assertIn('image', media.locator(
+            {'kind': 'image-region', 'x': 0.25, 'y': 0.25, 'width': 0.5, 'height': 0.5}, info, raw))
+        self.assertEqual(artifact_review.attachment(raw), ('.svg', 'image'))
+    def test_svg_evidence_rejects_active_external_and_invalid_content(self):
+        import artifact_review
+        for content in (b'<script>window.alert(1)</script>',
+                        b'<image href="https://example.invalid/image.png"/>',
+                        b'<rect width="20" height="20" onclick="event.stopPropagation()"/>',
+                        b'<path d="M0 0L20 20">'):
+            raw = b'<svg xmlns="http://www.w3.org/2000/svg" width="48" height="32">' + content + b'</svg>'
+            with self.subTest(content=content):
+                with self.assertRaises(ValueError):
+                    media.inspect(raw, 'image')
+                self.assertEqual(artifact_review.attachment(raw), ('.txt', 'text'))
     def test_image_extension_does_not_prove_an_image(self):
         with self.assertRaises(ValueError): media.inspect(b'\x89PNG-not-an-image', 'image')
     def test_json_duplicate_keys(self):

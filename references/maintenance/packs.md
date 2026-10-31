@@ -118,7 +118,7 @@ python scripts/pack_cli.py enable <pack-uuid>
 python scripts/pack_cli.py disable <pack-uuid>
 ```
 
-Without `--state-file`, these commands read and persist the state in the configuration directory described in [Pack State Runtime Quickstart](../runtime/pack-state-quickstart.md). `ready` persists that resolved state file when absent, never rewrites an existing one, and prints the packs in use and each decision the author owes.
+These examples use the configured default runtime. For an explicit runtime, place `--state-file`, `--cache-dir` and `--managed-root` together before the subcommand, as shown in [Pack State Runtime Quickstart](../runtime/pack-state-quickstart.md). The selected state file receives the root registration. A repeated `--pack-root` option adds discovery roots to that invocation; `root-add` persists a root for subsequent invocations. `ready` persists the resolved state file when absent, never rewrites an existing one, and prints the packs in use and each decision the author owes.
 
 Required dependencies must be enabled before activation. Disable dependents first or use the explicit cascade behavior. `root-remove` refuses to orphan an enabled pack. Deleting an enabled directory makes it unavailable immediately and produces a state diagnostic until corrected.
 
@@ -231,7 +231,7 @@ pack_cli.py resources, resource
 }
 ```
 
-`ready` prints plain lines and exits 1 while the author owes a decision. The other commands report JSON and exit 2 on failure, with every failure in the `diagnostics` form shown above. Runtime options such as `--state-file` and repeated `--pack-root` go before the subcommand. An extra root applies to that invocation only. `scripts/pack_selector_smoke_test.py` exercises pack selection.
+`ready` prints plain lines and exits 1 while the author owes a decision. The other commands report JSON and exit 2 on failure, with every failure in the `diagnostics` form shown above. The complete `--state-file`, `--cache-dir` and `--managed-root` selection, with any repeated `--pack-root` options, goes before the subcommand. Omitting the selection uses the configured default runtime. An extra discovery root applies to that invocation only. `scripts/pack_selector_smoke_test.py` exercises pack selection.
 
 ## First-use activation and bundled integrity
 

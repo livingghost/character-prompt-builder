@@ -323,7 +323,7 @@ class PresetMaintenanceTest(unittest.TestCase):
             from PIL import Image
             import numpy  # noqa: F401
         except ImportError:
-            self.skipTest("visual dependency profile is unavailable")
+            self.skipTest("required image-processing packages are unavailable")
         with tempfile.TemporaryDirectory(prefix="cpb-preset-fingerprint-") as temporary:
             root = Path(temporary)
             image = Image.new("RGB", (48, 32), (40, 100, 180))

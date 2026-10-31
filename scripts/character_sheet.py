@@ -96,12 +96,18 @@ def _validate_ready_package(value: Any, *, field: str) -> None:
         )
 
 
-def resolve_sheet_relative(stored: str, *, root: Path, field: str) -> Path:
+def sheet_relative_path(stored: str, *, field: str) -> PurePosixPath:
+    """Validate the authored spelling and retain its normalized relative path."""
     if not isinstance(stored, str) or not stored or "\\" in stored:
         raise ValueError(f"{field} must be a non-empty POSIX path")
     pure = PurePosixPath(stored)
     if pure.is_absolute() or any(part in {"", ".", ".."} for part in pure.parts):
         raise ValueError(f"{field} must be a safe path relative to the sheet folder")
+    return pure
+
+
+def resolve_sheet_relative(stored: str, *, root: Path, field: str) -> Path:
+    pure = sheet_relative_path(stored, field=field)
     base = root.resolve(strict=True)
     candidate = base / Path(stored)
     cursor = base

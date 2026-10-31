@@ -157,7 +157,16 @@ CASES: list[dict[str, Any]] = [
     {"name": "a chapter that says nothing it depicts",
      "value": change(chapters=[{**base()["chapters"][0], "depicts": []},
                                base()["chapters"][1]]),
-     "error": "depicts must name what this chapter presents or holds"},
+     "error": "depicts must be a non-empty array of non-empty strings naming what this chapter presents or holds"},
+    {"name": "one chapter description still needs an array",
+     "value": change(chapters=[{**base()["chapters"][0], "depicts": "The empty room remains dark."},
+                               base()["chapters"][1]]),
+     "error": "chapters[0].depicts must be a non-empty array"},
+    {"name": "long multiline descriptions in any language may repeat",
+     "value": change(chapters=[{**base()["chapters"][0], "depicts": [
+         "  静かな部屋。\n\n" + "The empty room remains dark. " * 80 + "\n  "] * 2},
+                               base()["chapters"][1]]),
+     "error": None},
     {"name": "no timeline", "value": change(timeline_id=None),
      "error": "timeline_id must name the timeline these chapters are ordered on"},
     {"name": "a timeline id that is not an id", "value": change(timeline_id="the main one"),
@@ -298,6 +307,17 @@ CASES: list[dict[str, Any]] = [
                         persona="narrative/personas/c01-after.md"),
      "error": "has no earlier phase to compare against"},
 ]
+
+for description_kind, description in (
+        ("empty text", ""), ("whitespace", " \n\t "), ("null", None),
+        ("number", 0), ("boolean", False), ("object", {}), ("array", [])):
+    CASES.append({
+        "name": f"a chapter depiction item cannot be {description_kind}",
+        "value": change(chapters=[{**base()["chapters"][0],
+                                   "depicts": ["The empty room remains dark.", description]},
+                                  base()["chapters"][1]]),
+        "error": "chapters[0].depicts[1] must be a non-empty string",
+    })
 
 # A promise planted long enough ago with no payoff is reported and is not an
 # error, because a series may hold one deliberately.

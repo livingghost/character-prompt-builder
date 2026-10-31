@@ -15,13 +15,30 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
-from typing import Any, Iterator, Mapping, Sequence
+from types import MethodType
+from typing import Any, Callable, Iterator, Mapping, Sequence
 
 import execution_contract as c
 
 KINDS = frozenset({'generation', 'upscale', 'crop', 'resize', 'composite', 'shared'})
 STORE = '.fills/artifacts'
 APPROVALS = '.fills/approvals'
+SourceReader = Callable[[Path, str, Callable[[], bytes]], bytes]
+
+
+class _ReaderIdentity:
+    """Retain an observer by identity, including repeated bound-method access."""
+    def __init__(self, reader: SourceReader) -> None:
+        self.owner = reader.__self__ if isinstance(reader, MethodType) else reader
+        self.function = reader.__func__ if isinstance(reader, MethodType) else None
+
+    def __hash__(self) -> int:
+        return hash((id(self.owner), id(self.function)))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _ReaderIdentity):
+            return NotImplemented
+        return self.owner is other.owner and self.function is other.function
 
 
 def empty_slot(*, fill_policy: str = 'auto') -> dict:
@@ -94,6 +111,23 @@ def _file(root: Path, relative: str, expected: str | None = None) -> Path:
     if expected is not None and c.sha256_file(path) != expected:
         raise ValueError('sheet artifact hash mismatch: ' + relative)
     return path
+
+
+def _source_bytes(root: Path, relative: str, expected: str | None = None, *,
+                  read_source: SourceReader | None = None) -> bytes:
+    """Read under the sheet boundary before validating the returned content.
+
+    An observer receives the complete access operation, including filesystem
+    refusal before bytes. Invalid path syntax belongs to its authored record.
+    """
+    from character_sheet import resolve_sheet_relative, sheet_relative_path
+    normalized = sheet_relative_path(relative, field='sheet artifact').as_posix()
+    def load() -> bytes:
+        return c.read(resolve_sheet_relative(relative, root=root, field='sheet artifact'))
+    raw = load() if read_source is None else read_source(root, normalized, load)
+    if expected is not None and c.digest(raw) != expected:
+        raise ValueError('sheet artifact hash mismatch: ' + relative)
+    return raw
 
 
 def _safe_directory(root: Path, relative: str) -> Path:
@@ -233,9 +267,14 @@ def publish(sheet_root: Path, image: Path | bytes, *, kind: str, recipe: dict,
 
 
 def verify_artifact(artifact: Any, sheet_root: Path, *, seen: set[str] | None = None,
-                    cache: dict | None = None) -> dict:
+                    cache: dict | None = None, read_source: SourceReader | None = None) -> dict:
     """Verify identity, decoded image, complete attachments and recursive sources."""
-    cache_key = (str(sheet_root.resolve()), c.content_id(artifact))
+    # Observed access resolves inside its loader so refusal is recorded. A
+    # direct verifier retains physical-root cache identity. Keeping the reader
+    # identity in the key scopes hits to its lifetime and dependency collection.
+    scope = sheet_root if read_source is not None else sheet_root.resolve()
+    reader = _ReaderIdentity(read_source) if read_source is not None else None
+    cache_key = (str(scope), reader, c.content_id(artifact))
     if cache is not None and cache_key in cache:
         return cache[cache_key]
     c.exact(artifact, {'artifact_id', 'image', 'provenance'}, 'sheet artifact')
@@ -251,23 +290,26 @@ def verify_artifact(artifact: Any, sheet_root: Path, *, seen: set[str] | None = 
     folder = f'{STORE}/{expected_id}'
     if provenance['path'] != folder + '/provenance.json':
         raise ValueError('provenance is not in its immutable artifact directory')
-    raw = c.read(_file(sheet_root, provenance['path'], provenance['sha256']))
+    raw = _source_bytes(sheet_root, provenance['path'], provenance['sha256'], read_source=read_source)
     value = c.decode(raw)
     c.exact(value, {'artifact_type', 'kind', 'image', 'recipe', 'sources', 'origin', 'files'}, 'sheet provenance record')
     if value['artifact_type'] != 'sheet-fill-provenance' or value['kind'] != provenance['kind']:
         raise ValueError('sheet provenance type differs from its descriptor')
     if not isinstance(value['recipe'], dict) or not isinstance(value['sources'], list) or not isinstance(value['files'], dict):
         raise ValueError('invalid sheet provenance recipe, sources or files')
-    observed = _image_metadata(c.read(_file(sheet_root, image['path'], image['sha256'])))
+    observed = _image_metadata(_source_bytes(sheet_root, image['path'], image['sha256'], read_source=read_source))
     if _descriptor(observed, provenance['sha256'], value['kind']) != artifact or value['image'] != observed:
         raise ValueError('decoded image differs from its committed descriptor')
+    package_raw = None
     for name, sha in value['files'].items():
-        _file(sheet_root / folder, name, c.sha(sha))
+        contents = _source_bytes(sheet_root / folder, name, c.sha(sha), read_source=read_source)
+        if name == 'package.json':
+            package_raw = contents
     if value['kind'] in {'generation', 'upscale'}:
         from character_sheet import _validate_ready_package
         if 'package.json' not in value['files']:
             raise ValueError('generated artwork lacks its package')
-        _validate_ready_package(c.load(sheet_root / folder / 'package.json'), field='sheet artwork')
+        _validate_ready_package(c.decode(package_raw), field='sheet artwork')
     if value['kind'] in {'crop', 'resize', 'composite', 'shared'} and not value['sources']:
         raise ValueError('local artwork lacks its exact source artifacts')
     visited = set() if seen is None else seen
@@ -276,7 +318,7 @@ def verify_artifact(artifact: Any, sheet_root: Path, *, seen: set[str] | None = 
     visited.add(expected_id)
     try:
         for source in value['sources']:
-            verify_artifact(source, sheet_root, seen=visited, cache=cache)
+            verify_artifact(source, sheet_root, seen=visited, cache=cache, read_source=read_source)
     finally:
         visited.remove(expected_id)
     if cache is not None:
@@ -474,15 +516,16 @@ def adopt(sidecar: Path, decision: dict, *, evidence_root: Path) -> dict:
         return {'projection': projection_status, 'adopted': True, 'already_adopted': False, 'current': accepted}
 
 
-def verify_acceptance(accepted: Any, sheet_root: Path, slot_id: str, *, cache: dict | None = None) -> None:
+def verify_acceptance(accepted: Any, sheet_root: Path, slot_id: str, *, cache: dict | None = None,
+                      read_source: SourceReader | None = None) -> None:
     c.exact(accepted, {'artifact', 'approval'}, 'sheet acceptance')
-    verify_artifact(accepted['artifact'], sheet_root, cache=cache)
+    verify_artifact(accepted['artifact'], sheet_root, cache=cache, read_source=read_source)
     approval = accepted['approval']
     c.exact(approval, {'decision_sha256', 'decision_path', 'evidence_path', 'evidence_sha256'}, 'sheet acceptance evidence')
-    decision = c.load(_file(sheet_root, approval['decision_path']))
+    decision = c.decode(_source_bytes(sheet_root, approval['decision_path'], read_source=read_source))
     if c.content_id(decision) != approval['decision_sha256'] or decision.get('artifact_id') != accepted['artifact']['artifact_id'] or decision.get('slot') != slot_id:
         raise ValueError('sheet approval differs from its exact selected artwork')
-    _file(sheet_root, approval['evidence_path'], approval['evidence_sha256'])
+    _source_bytes(sheet_root, approval['evidence_path'], approval['evidence_sha256'], read_source=read_source)
     if decision.get('evidence', {}).get('sha256') != approval['evidence_sha256']:
         raise ValueError('sheet approval differs from the saved author evidence')
 

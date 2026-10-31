@@ -67,7 +67,8 @@ def scene(identifier: str, chapter: str, number: int, proposition: str, beats: l
     return value
 
 
-def setup(root: Path, *, include_state: bool = True, include_scenes: bool = True) -> dict:
+def setup(root: Path, *, include_state: bool = True, include_scenes: bool = True,
+          series_prefix: str = '') -> dict:
     rows=[
         event('E-accusation',1,'suspects Ivo',path='/emotional_state/trust',scene='SC-gate',persistence='persistent-until-superseded'),
         event('E-routes',11,'separate paths',path='/physical_state/location',scene='SC-routes',persistence='persistent-until-superseded'),
@@ -82,17 +83,18 @@ def setup(root: Path, *, include_state: bool = True, include_scenes: bool = True
     data=setup_ledger(root,events=rows,views=[
         {**view('gate',1,scene='SC-gate'),'label':'The accusation'},
         {**view('key',21,scene='SC-key'),'label':'The key changes hands'}])
-    n=narrative();c.atomic_write_json(root/'narrative/narrative.json',n)
+    series=root/series_prefix
+    n=narrative();c.atomic_write_json(series/'narrative/narrative.json',n)
     specs=[
         ('gate','ch1','SC-gate',0,9,notes[0],['A messenger repeats the accusation.','Mara closes her hand around the key.'],'Mara remains suspicious.'),
         ('routes','ch2','SC-routes',10,19,notes[1],['Mara takes the river path.','Ivo crosses the market alone.'],'They reach the tower separately.'),
         ('key','ch3','SC-key',20,29,notes[2],['Mara places the only escape key in Ivo\'s hand.','Ivo leads while Mara follows.'],'Ivo controls their only means of escape.')]
     scenes=[]
     for ident,chapter,cid,start,end,proposition,beats,consequence in specs:
-        path=f'state/contexts/{ident}.json';c.atomic_write_json(root/path,context(cid,start,end))
+        path=f'state/contexts/{ident}.json';c.atomic_write_json(series/path,context(cid,start,end))
         sc=scene(ident,chapter,1,proposition,beats,consequence,n,context_path=path)
         scenes.append(sc)
-        if include_scenes:c.atomic_write_json(root/f'narrative/scenes/{ident}-plot.json',sc)
+        if include_scenes:c.atomic_write_json(series/f'narrative/scenes/{ident}-plot.json',sc)
     if not include_state:
         for name in ['state/timeline-view.json','state/world-state-base.json','state/events.jsonl']:
             (root/name).unlink()

@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from catalog_cli import asset_lookup, configure_pack_runtime
-from check_dependencies import check_profile
+from check_dependencies import check_environment
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 from model_contract import model_reference_limit
 from prepare_generation_references import (
@@ -67,8 +67,8 @@ RELATION_PRIORITY = {
 }
 
 
-class VisualDependencyPreflightError(RuntimeError):
-    """Structured stop condition for a required model-facing Visual profile."""
+class DependencyPreflightError(RuntimeError):
+    """Structured stop before reference image processing in an incomplete environment."""
 
     def __init__(self, report: Mapping[str, Any]):
         self.report = copy.deepcopy(dict(report))
@@ -83,20 +83,20 @@ class VisualDependencyPreflightError(RuntimeError):
             )
         suffix = f" ({'; '.join(detail)})" if detail else ""
         super().__init__(
-            "Visual dependency preflight failed before model-facing reference preparation"
+            "Environment preflight failed before model-facing reference preparation"
             + suffix
             + f". Check with `{self.report['check_command']}`; `{self.report['check_command']} --install` "
             + "installs it once the user confirms."
         )
 
 
-def visual_dependency_requirement(plan: Mapping[str, Any]) -> dict[str, Any]:
-    """Describe whether execution needs the Visual dependency profile."""
+def reference_processing_requirement(plan: Mapping[str, Any]) -> dict[str, Any]:
+    """Describe image processing that requires an environment recheck."""
 
     items = list(plan.get("reference_items") or [])
     mode = str(plan.get("transport_mode") or "")
     if mode not in MODEL_TRANSPORT_MODES or not items:
-        return {"required": False, "profile": None, "reasons": []}
+        return {"required": False, "reasons": []}
     reasons: list[str] = []
     if any(
         isinstance(item, Mapping)
@@ -109,21 +109,20 @@ def visual_dependency_requirement(plan: Mapping[str, Any]) -> dict[str, Any]:
         reasons.append("single-board transport requires raster composition")
     return {
         "required": bool(reasons),
-        "profile": "visual" if reasons else None,
         "reasons": reasons,
     }
 
 
-def preflight_visual_dependencies(plan: Mapping[str, Any]) -> dict[str, Any]:
-    """Check the Visual profile exactly when model-facing preparation needs it."""
+def preflight_dependencies(plan: Mapping[str, Any]) -> dict[str, Any]:
+    """Recheck the complete skill environment before rasterization or composition."""
 
-    requirement = visual_dependency_requirement(plan)
+    requirement = reference_processing_requirement(plan)
     if not requirement["required"]:
         return requirement
-    dependency_report = check_profile("visual")
+    dependency_report = check_environment()
     report = {**requirement, **dependency_report}
     if not report["ok"]:
-        raise VisualDependencyPreflightError(report)
+        raise DependencyPreflightError(report)
     return report
 
 
@@ -655,7 +654,7 @@ def execute_reference_use_plan(
                 "model-facing execution is blocked by unresolved surface-lighting decisions: "
                 + "; ".join(str(value) for value in unresolved)
             )
-        preflight_visual_dependencies(plan)
+        preflight_dependencies(plan)
 
     final_dir = Path(output_dir).resolve()
     preexisted = final_dir.exists()
@@ -930,11 +929,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _write_stdout(prepared)
         return 0
-    except VisualDependencyPreflightError as exc:
+    except DependencyPreflightError as exc:
         _write_stdout(
             {
                 "ok": False,
-                "error_code": "visual-dependency-preflight-failed",
+                "error_code": "dependency-preflight-failed",
                 "errors": [str(exc)],
                 "dependency_preflight": exc.report,
             }

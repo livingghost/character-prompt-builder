@@ -20,7 +20,7 @@ import operation_context as _operation_context
 # The contract this reader answers, over the document with the block that
 # publishes this file's own hash removed. Without that cut the two would
 # each feed the other and neither could be computed.
-CONTRACT_SHA256 = "2ebe3a6b3d059fff0b7cdec9c25e21223587c73bb1b3be43339f8b34bd4896a2"
+CONTRACT_SHA256 = "75527a9b8b3c0615b5d14b444ba38bac91c43c71688d76ce6524eba2621480da"
 
 import argparse
 import hashlib
@@ -388,8 +388,12 @@ def validate_narrative(value: Any) -> dict[str, Any]:
         depicts = chapter.get("depicts")
         if not isinstance(depicts, list) or not depicts:
             errors.append(
-                f"{label}.depicts must name what this chapter presents or holds"
+                f"{label}.depicts must be a non-empty array of non-empty strings naming "
+                "what this chapter presents or holds"
             )
+        else:
+            for position, description in enumerate(depicts):
+                _text(description, f"{label}.depicts[{position}]", errors)
         # A chapter is a unit of telling and story order is a unit of happening.
         # A chapter that names its span makes the difference between them
         # readable: the span of a flashback sits before the chapter before it,

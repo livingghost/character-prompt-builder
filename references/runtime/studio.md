@@ -293,7 +293,10 @@ For a saved deliverable, continue through [Production Execution](production-exec
 
 ## Story timeline projection
 
-When `state/events.jsonl` or `state/timeline-view.json` is present, `studio.py sync`
-also updates [Story Timeline](story-timeline.md). Explicit accepted scene artwork
-uses the same adoption refresh. This story-order view is separate from the
+When state inputs or a narrative series in the Studio or its `story/` subdirectory
+are present, `studio.py sync` also updates [Story Timeline](story-timeline.md).
+The view can read narrative and scene drafts before a state ledger exists.
+Authoring sources must identify one series; empty scaffolds do not select a series, and authored
+sources in both conventional locations produce an explicit selection failure.
+Explicit accepted scene artwork uses the same adoption refresh. This story-order view is separate from the
 recorded-time gallery and operator activity history.

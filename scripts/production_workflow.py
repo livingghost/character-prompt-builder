@@ -1019,15 +1019,120 @@ def settle_external(root: Path, run: str, receipt_file: str) -> dict:
                 'receipt': row, 'external_effect': False, 'execution_records': lifecycle.summary(root, run=run)}
 
 
+def _review_delivered_reference_evidence(directory: Path, run: str, binding: dict | None = None) -> list[dict]:
+    """Expose saved delivery carriers without reopening their original sources."""
+    external = binding.get('external_request') if binding is not None else None
+    prefix = 'production/runs/' + run + '/'
+    if external is not None:
+        prepared = binding.get('prepared_reference_set')
+        origin = prefix + 'consumer.json#/image_input/prepared_reference_set'
+    else:
+        package_file = c.local(directory, 'package.json', exists=False)
+        if not package_file.is_file():
+            return []
+        prepared = c.load(package_file).get('prepared_reference_set')
+        origin = prefix + 'package.json#/prepared_reference_set'
+    if prepared is None:
+        return []
+    from reference_delivery import bindings
+    scopes = bindings(prepared['transport_mode'], prepared['selected_references'], prepared['single_board'])
+    if not scopes:
+        return []
+    paths = {}
+    if external is not None:
+        for reference, scope, field in zip(prepared['selected_references'], scopes,
+                                            external['reference_fields'], strict=True):
+            carrier = prepared['single_board'] if prepared['transport_mode'] == 'single-board' else reference['transport']
+            number = scope['attachment_number']
+            if number not in paths:
+                c.object_read(directory, carrier['sha256'])
+                paths[number] = prefix + 'objects/' + carrier['sha256']
+            scope['request_field'] = list(field['field'])
+    else:
+        from prepare_generation_references import host_reference_transports
+        for number, carrier in enumerate(host_reference_transports(prepared, package_root=directory), 1):
+            relative = Path(carrier['resolved_path']).relative_to(directory).as_posix()
+            if c.digest(c.read(c.local(directory, relative))) != carrier['sha256']:
+                raise ValueError('prepared review carrier checksum mismatch')
+            paths[number] = prefix + relative
+    evidence = []
+    for index, (reference, scope) in enumerate(zip(prepared['selected_references'], scopes, strict=True)):
+        provenance = origin + '/selected_references/' + str(index)
+        evidence.append({'id': 'delivered-reference:' + str(index + 1),
+            'path': paths[scope['attachment_number']], 'kind': 'image',
+            'relation': 'Compare this prepared delivery carrier using its source assignment: '
+                        + json.dumps({'delivery': scope, 'source': reference['source'],
+                                      'derivation': reference['transport']['derivation']},
+                                     ensure_ascii=False, sort_keys=True),
+            'limitations': ['This item preserves prepared delivery pixels, which may be a crop, rasterization or board. '
+                            'Original source and transform: ' + provenance + '. '
+                            'Use recorded submission evidence to establish the actual host call.']})
+    return evidence
+
+
+def _review_reference_evidence(directory: Path, run: str, consumer: dict) -> list[dict]:
+    """Make prepared image references available for comparison at their saved bytes."""
+    binding = consumer.get('image_input')
+    if binding is None:
+        return _review_delivered_reference_evidence(directory, run)
+    from image_input import request_context
+    evidence = []
+    prefix = 'production/runs/' + run + '/'
+    for index, reference in enumerate(request_context(binding)['references']):
+        c.object_read(directory, reference['sha256'])
+        scope = {'role': reference['role'], 'use_for': reference['use_for'],
+                 'do_not_transfer': reference['do_not_transfer'],
+                 'subject_uses': reference.get('subject_uses', [])}
+        if 'subject_id' in reference:
+            scope['subject_id'] = reference['subject_id']
+        if binding['external_request'] is not None:
+            carrier = prefix + 'consumer.json#/image_input/external_request/reference_fields/' + str(index)
+            if binding.get('prepared_reference_set') is not None:
+                carrier += '; prepared media: ' + prefix + 'consumer.json#/image_input/prepared_reference_set'
+        else:
+            carrier = prefix + 'package.json#/prepared_reference_set'
+        evidence.append({'id': 'input-reference:' + reference['id'],
+            'path': prefix + 'objects/' + reference['sha256'],
+            'kind': 'image',
+            'relation': 'Compare this prepared source within its assigned scope: '
+                        + json.dumps(scope, ensure_ascii=False, sort_keys=True),
+            'limitations': ['This item preserves source pixels. Compare delivered media and its assignment at ' + carrier + '.']})
+    evidence.extend(_review_delivered_reference_evidence(directory, run, binding))
+    return evidence
+
+
+def _review_question(task: dict, criterion: dict, craft_questions: list[str]) -> str:
+    """Carry the prepared artifact purpose and realization into an unanswered check."""
+    lines = ['Prepared artifact purpose: ' + task['direction']['purpose'],
+             'Intended effect: ' + task['direction']['intended_effect'],
+             'Assessment question: how does the candidate meet this requirement? ' + criterion['text'],
+             'Assess using ' + criterion['evidence'] + ' evidence; record observations, interpretation and limits.']
+    for decision in task['direction']['decisions']:
+        if criterion['id'] not in decision['criteria']:
+            continue
+        selected = next(option for option in decision['options'] if option['id'] == decision['selected'])
+        lines.extend(['Selected expression (' + decision['id'] + '): ' + selected['expression'],
+                      'Selected realization: ' + selected['realization']['instructions']])
+        if decision['basis']:
+            lines.append('Applied sources in the prepared task: ' + ', '.join(decision['basis']))
+        for variation in decision.get('accepted_variations', []):
+            if criterion['id'] in variation['criteria']:
+                lines.append('Accepted variation: ' + variation['allowance'])
+                if variation['limits']:
+                    lines.append('Variation scope: ' + '; '.join(variation['limits']))
+    lines.extend(craft_questions)
+    return '\n'.join(lines)
+
+
 def draft_review(root: Path, run: str, candidate: str) -> dict:
-    directory, prepared, _, rows = load_run(root, run)
+    directory, prepared, consumer, rows = load_run(root, run)
     find(rows, 'candidate', candidate)
     from craft_consultation import review_questions
     questions = review_questions(root, prepared['task'], directory=directory, dependencies=prepared['dependencies'])
     return {'input_sha256': prepared['input_sha256'], 'candidate': candidate, 'reviewer': '',
-            'evidence': [], 'observations': [],
+            'evidence': _review_reference_evidence(directory, run, consumer), 'observations': [],
             'checks': [{'criterion': x['id'], 'verdict': 'not-assessed', 'observation_indices': [],
-                        'reason': '\n'.join(questions.get(x['id'], []))}
+                        'reason': _review_question(prepared['task'], x, questions.get(x['id'], []))}
                        for x in prepared['task']['criteria']],
             'repairs': [], 'unresolved': [], 'conclusion': ''}
 

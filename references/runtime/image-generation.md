@@ -27,28 +27,30 @@ When accepted characters must share a scene, use [Character Assets and Multi-Cha
 
 ## Activation and dependency preflight
 
-Choose the reference transport before installing anything:
+Use the same locked environment established at the Skill entry for every operation. Run commands through `uv run --project <skill-root> --locked python <skill-root>/scripts/<script>.py`, preserving the Studio working directory and the command's original arguments. The project supplies the complete Python dependency set from `pyproject.toml` and `uv.lock`.
 
-| Operation | Dependencies |
+Choose the reference transport from the selected material and target. It determines the work and verification to perform in that environment:
+
+| Operation | Operation checks |
 | --- | --- |
-| prompt only, no references | Core |
-| `prompt-artifacts` with existing SVG or raster sources | Core |
-| `svg-bundle` | Core |
-| SVG-to-model PNG transport | Visual |
-| raster extraction or fidelity recomputation | Visual |
-| `single-board` construction | Visual |
-| full product publication | Tested |
+| prompt only, no references | prompt, retrieval and request contracts |
+| `prompt-artifacts` with existing SVG or raster sources | source bytes, safety, authority and actual file delivery |
+| `svg-bundle` | source bytes, SVG safety and the bundle manifest |
+| SVG-to-model PNG transport | bounded rasterization and original-source and transport hashes |
+| raster extraction or fidelity recomputation | source decoding, visual derivation and fidelity |
+| `single-board` construction | each source assignment, panel region and actual board bytes |
+| full product publication | the complete [Release Validation](../release/validation.md) gates |
 
-For `multi-image` or `single-board`, determine whether any selected source needs SVG rasterization, then run the check before plan execution:
+Check the complete environment at entry. Model-facing preparation rechecks it before SVG rasterization or board composition:
 
 ```bash
-python scripts/check_dependencies.py --profile visual
+uv run --project <skill-root> --locked python <skill-root>/scripts/check_dependencies.py
 ```
 
-If the check fails:
+The check covers Python packages, native imports, FFmpeg and the sheet fonts. If it fails:
 
-1. Show the user the install commands the check printed, adding `--venv DIR` where its note names PEP 668. Once the user confirms them, rerun the check with `--install --yes`, which runs them and checks again.
-2. When environment mutation is not authorized, report the exact missing package and installation command, then stop.
+1. Apply the check's installation commands within the existing environment-installation authority and rerun the check. Keep the project environment and interpreter identified by the report. `--install --yes` runs the printed package and FFmpeg commands when that action is authorized; the report identifies any additional system-font requirement.
+2. When a required environment change lacks authority, report the exact missing requirement and installation command, then stop.
 3. Never omit a selected reference, send raw SVG to a raster-only endpoint, substitute another artifact, downgrade to text-only, or silently change transport.
 
 Do not begin model-facing materialization until the dependency check passes.
@@ -403,7 +405,7 @@ After generation, review the image against the image intent, Visual State Projec
 
 ## Failure policy
 
-For package dispatch, stop when required Visual dependencies remain unavailable; the target lacks a declared media type or negative mode; selected evidence is missing, unsafe, changed, or ineligible; the Surface and Lighting Plan is unresolved; the reference count exceeds the endpoint; a carrier escapes its companion; a package or hash check fails; or the host cannot receive every committed transport.
+For package dispatch, stop when the required environment remains incomplete; the target lacks a declared media type or negative mode; selected evidence is missing, unsafe, changed, or ineligible; the Surface and Lighting Plan is unresolved; the reference count exceeds the endpoint; a carrier escapes its companion; a package or hash check fails; or the host cannot receive every committed transport.
 
 Do not continue by dropping references, changing modes, rebuilding prompt text from chat, scanning an output directory, or forwarding an unverified path. Revise the reviewed plan and regenerate the prepared set and Generation Package.
 

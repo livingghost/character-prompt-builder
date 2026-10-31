@@ -69,7 +69,7 @@ An existing output directory is preserved; new attempts use a new directory.
 This operation fits boundaries around an annotation supplied by the agent. It
 does not identify characters, discover missing parts or prove garment quality.
 A refinement that follows the wrong visible edge must be corrected with points
-or rejected. It uses the existing visual profile's OpenCV and NumPy dependencies.
+or rejected. It uses the skill environment's OpenCV and NumPy dependencies.
 The request sent to the image model still comes from the normal mask binding.
 
 ## Build and review

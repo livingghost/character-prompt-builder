@@ -1,18 +1,16 @@
 [package]
 name = "character-prompt-builder"
-version = "2026.10.30.1"
+version = "2026.10.31.2"
 version_scheme = "YYYY.MM.DD.N"
 release_timezone = "UTC"
 license = "GPL-3.0-only"
 description = "Turn a short character idea, a detailed production brief, or an approved recurring-character state into a coherent image-generation package: prompts, scoped negative prompts, and canonical reference material; send it to the service the model record names, and keep every generated image in a studio beside the request that produced it."
 
 [dependencies]
-python = ">=3.11"
-core_requirements = "requirements-core.txt"
-visual_requirements = "requirements-visual.txt"
-requirements = "requirements.txt"
-tested_requirements = "requirements-tested.txt"
 pyproject = "pyproject.toml"
+lock = "uv.lock"
+requirements = "requirements.txt"
+python_version = ".python-version"
 
 [documentation]
 readme = "README.md"
@@ -21,7 +19,7 @@ license_file = "LICENSE"
 changelog = "CHANGELOG.md"
 
 [release]
-output = "dist/character-prompt-builder-2026.10.30.1.zip"
+output = "dist/character-prompt-builder-2026.10.31.2.zip"
 include = [
   ".agents",
   ".claude-plugin",
@@ -37,10 +35,9 @@ include = [
   "DEPENDENCIES.md",
   "package-manifest.toml",
   "pyproject.toml",
-  "requirements-core.txt",
-  "requirements-visual.txt",
+  "uv.lock",
   "requirements.txt",
-  "requirements-tested.txt",
+  ".python-version",
   "agents",
   "config",
   "hooks",

@@ -20,6 +20,33 @@ from io_budget import environment_seconds
 KINDS = {'text', 'json', 'image', 'video', 'audio', 'binary'}
 
 
+def _raster_image(raw: bytes) -> dict:
+    from PIL import Image
+    with Image.open(io.BytesIO(raw)) as im:
+        im.verify()
+    with Image.open(io.BytesIO(raw)) as im:
+        im.load()
+        return {'width': im.width, 'height': im.height, 'format': im.format,
+                'frames': getattr(im, 'n_frames', 1)}
+
+
+def _svg_image(raw: bytes) -> dict:
+    from visual_evidence import render_svg, svg_dimensions, validate_svg_for_render
+    with tempfile.TemporaryDirectory(prefix='production-svg-') as temporary:
+        source = Path(temporary) / 'source.svg'
+        raster = Path(temporary) / 'decoded.png'
+        source.write_bytes(raw)
+        errors = validate_svg_for_render(source)
+        if errors:
+            raise ValueError('SVG image requires self-contained inactive content: ' + '; '.join(errors))
+        width, height = svg_dimensions(source)
+        render_svg(source, raster, width=width, height=height)
+        measured = _raster_image(raster.read_bytes())
+        if (measured['width'], measured['height']) != (width, height):
+            raise ValueError('SVG decoded dimensions differ from its viewport')
+        return {**measured, 'format': 'SVG'}
+
+
 def seconds(value: Any) -> Decimal:
     if not isinstance(value, str):
         raise ValueError('time is a finite decimal string in seconds')
@@ -45,17 +72,16 @@ def inspect(raw: bytes, kind: str) -> dict:
         result['lines'] = len(text.splitlines())
     elif kind == 'image':
         try:
-            from PIL import Image
-            with Image.open(io.BytesIO(raw)) as im:
-                im.verify()
-            with Image.open(io.BytesIO(raw)) as im:
-                im.load()
-                result.update(width=im.width, height=im.height, format=im.format,
-                              frames=getattr(im, 'n_frames', 1))
+            from PIL import UnidentifiedImageError
+            try:
+                measured = _raster_image(raw)
+            except UnidentifiedImageError:
+                measured = _svg_image(raw)
+            result.update(measured)
         except ImportError as exc:
-            raise ValueError('image observation requires the declared Pillow dependency') from exc
-        except (OSError, ValueError) as exc:
-            raise ValueError('candidate does not decode as an actual image') from exc
+            raise ValueError('image observation requires the declared project dependencies') from exc
+        except (OSError, ValueError, RuntimeError) as exc:
+            raise ValueError('candidate does not decode as an actual image: ' + str(exc)) from exc
     elif kind in {'video', 'audio'}:
         # Probe the pinned bytes, never an arbitrary URL or user-provided command.
         with tempfile.TemporaryDirectory(prefix='production-probe-') as temporary:

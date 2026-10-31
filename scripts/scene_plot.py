@@ -3,7 +3,9 @@
 
 A scene declares its setting, viewpoint, purpose and beats. Sourced statements
 identify the beats supporting placement, preservation and realization in shots,
-pages or passages. Context-only material cannot silently become visible output.
+pages or passages. Context can support the choice of a depiction while retaining
+its declared visibility. Exchanges, consequences and focal beats require presented
+material; context cannot establish learning or a new event by being referenced.
 
 The scene can have no cast, dialogue, organizing threads or persistent changes.
 A turn and named dramatic structure are optional; a depicted condition can
@@ -180,17 +182,19 @@ def _beats(value: Any, errors: list[str]) -> dict[str, str]:
     return beats
 
 
-def _source(source: Any, beats: dict[str, str], label: str, errors: list[str], referenced: set[str]) -> None:
+def _source(source: Any, beats: dict[str, str], label: str, errors: list[str],
+            referenced: set[str], *, depiction_support: bool = False) -> None:
+    """Resolve support in the scope of its field, preserving the beat's visibility."""
     if not isinstance(source, str) or not source.strip():
         errors.append(f"{label} contains a non-string beat id")
         return
     if source not in beats:
         errors.append(f"{label} names a beat that does not exist: {source!r}")
         return
-    if beats[source] == "context":
+    if beats[source] == "context" and not depiction_support:
         errors.append(
-            f"{label} names {source!r}, a context beat: a beat the scene does not show "
-            "cannot put anything in a frame"
+            f"{label} names {source!r}, a context beat: this field requires a visible beat "
+            "that the scene presents"
         )
         return
     referenced.add(source)
@@ -218,7 +222,11 @@ def _statements(
     errors: list[str],
     referenced: set[str],
 ) -> int:
-    """One list of statements of a single kind, each naming the beats it follows from."""
+    """Depiction choices can draw on presented material and its context.
+
+    References preserve source scope. The author judges whether a choice follows
+    from that material and whether its treatment discloses a contextual fact.
+    """
 
     if not isinstance(value, list) or not value:
         errors.append(
@@ -246,7 +254,8 @@ def _statements(
         # where an id belongs cannot go into a set and the count would raise
         # before the check that refuses it.
         for source in sources:
-            _source(source, beats, f"{entry_label}.from", errors, referenced)
+            _source(source, beats, f"{entry_label}.from", errors, referenced,
+                    depiction_support=True)
         hashable = [source for source in sources if isinstance(source, str)]
         if len(hashable) != len(set(hashable)):
             errors.append(f"{entry_label}.from repeats a beat id")
@@ -335,7 +344,10 @@ def _focalization(value: Any, errors: list[str]) -> dict[str, Any]:
         return found
     spare = sorted(set(value) - {"kind", "through", "note"})
     if spare:
-        errors.append(f"focalization has unknown keys: {spare}")
+        errors.append(
+            f"focalization has unknown keys: {spare}; allowed keys are kind, through, note; "
+            "through is required for internal, optional for external, and zero has no named holder"
+        )
     kind = value.get("kind")
     if kind not in FOCALIZATIONS:
         errors.append(f"focalization.kind must be one of {list(FOCALIZATIONS)}, got {kind!r}")

@@ -154,6 +154,48 @@ class SheetArtifactTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'hash mismatch'):
             fills.verify_artifact(artifact, self.sheet.parent)
 
+    def test_verification_cache_does_not_skip_another_observers_sources(self):
+        from story_timeline import Inputs
+        class Observer:
+            __hash__=None
+            def __init__(self,inputs):self.inputs=inputs
+            def __eq__(self,other):return isinstance(other,Observer)
+            def __call__(self,root,relative,load):return self.inputs.read_sheet(root,relative,load)
+        artifact=make_artifact(self.sheet)
+        first=Inputs(self.root,self.root/'first.html')
+        second=Inputs(self.root,self.root/'second.html')
+        cache={}
+        fills.verify_artifact(artifact,self.sheet.parent,cache=cache,read_source=Observer(first))
+        fills.verify_artifact(artifact,self.sheet.parent,cache=cache,read_source=Observer(second))
+        self.assertEqual(first.facts(),second.facts())
+        self.assertEqual(len(first.facts()),3)
+        package=(self.sheet.parent/artifact['provenance']['path']).parent/'package.json'
+        package.write_bytes(b'{}')
+        third=Inputs(self.root,self.root/'third.html')
+        with self.assertRaisesRegex(ValueError,'hash mismatch'):
+            fills.verify_artifact(artifact,self.sheet.parent,cache=cache,read_source=Observer(third))
+        changed=next(row for row in third.facts() if row['path']==package.relative_to(self.root).as_posix())
+        self.assertEqual(changed['status'],'present');self.assertEqual(changed['sha256'],c.digest(b'{}'))
+        with self.assertRaisesRegex(ValueError,'input changed during projection'):first.recheck()
+
+    def test_observed_artifact_refusal_precedes_bytes_and_remains_sheet_scoped(self):
+        from story_timeline import Inputs
+        artifact=make_artifact(self.sheet)
+        path=self.sheet.parent/artifact['image']['path'];raw=path.read_bytes()
+        target=self.root/'outside.png';target.write_bytes(raw);path.unlink()
+        try:path.symlink_to(target)
+        except (OSError,NotImplementedError):self.skipTest('symbolic links unavailable')
+        inputs=Inputs(self.root,self.root/'timeline.html')
+        with patch.object(c,'read',wraps=c.read) as read:
+            with self.assertRaisesRegex(ValueError,'symbolic link'):
+                fills.verify_artifact(artifact,self.sheet.parent,read_source=inputs.read_sheet)
+            self.assertFalse(any(Path(call.args[0]).resolve()==target for call in read.call_args_list))
+        fact=next(row for row in inputs.facts() if row['path']==path.relative_to(self.root).as_posix())
+        self.assertEqual(fact['status'],'failed');self.assertIsNone(fact['sha256'])
+        self.assertEqual(fact['read_contract']['root'],'first')
+        inputs.recheck();path.unlink();path.write_bytes(raw)
+        with self.assertRaisesRegex(ValueError,'input changed during projection'):inputs.recheck()
+
     def test_artifact_publication_is_immutable_and_idempotent(self):
         first = make_artifact(self.sheet)
         again = make_artifact(self.sheet)

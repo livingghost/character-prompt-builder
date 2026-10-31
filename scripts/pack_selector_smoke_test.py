@@ -56,6 +56,50 @@ class PackSelectorTests(unittest.TestCase):
         self.assertEqual(Path(payload["resolved_root"]), external.resolve())
         self.assertFalse((self.root / "state.json").exists())
 
+    def test_root_add_help_leads_to_a_complete_runtime_registration(self) -> None:
+        outside = self.root / "registered root's $literal"
+        outside.mkdir()
+        external = outside / "alpha"
+        shutil.move(str(self.pack), external)
+        caller = self.root / "caller with spaces"
+        caller.mkdir()
+        environment = {**os.environ, "CPB_HOME": str(self.root / "other home"),
+                       "PATH": "", "PYTHON_COLORS": "0", "NO_COLOR": "1"}
+        base = [sys.executable, str(ROOT / "scripts/pack_cli.py")]
+
+        def execute(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+            return subprocess.run([*base, *arguments], cwd=caller, env=environment,
+                                  capture_output=True, text=True, encoding="utf-8")
+
+        for arguments in (["--help"], ["root-add", "--help"]):
+            with self.subTest(help=arguments):
+                run = execute(arguments)
+                self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+                help_text = " ".join(run.stdout.split())
+                for option in ("--state-file", "--cache-dir", "--managed-root", "--pack-root"):
+                    self.assertIn(option, help_text)
+                self.assertIn("together", help_text)
+                self.assertIn("before the subcommand", help_text)
+
+        # Following the complete prefix succeeds; partial selectors and moving
+        # the global options after root-add both fail before any state is written.
+        for arguments in (["--state-file", str(self.root / "state.json"), "root-add", str(outside)],
+                          ["root-add", str(outside), *self.common]):
+            with self.subTest(incomplete_or_misplaced=arguments):
+                run = execute(arguments)
+                self.assertEqual(run.returncode, 2, run.stdout + run.stderr)
+                self.assertFalse((self.root / "state.json").exists())
+        run = execute([*self.common, "root-add", str(outside)])
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        payload = json.loads(run.stdout)
+        self.assertEqual((payload["ok"], payload["operation"]), (True, "root-add"))
+        state = json.loads((self.root / "state.json").read_text(encoding="utf-8"))
+        self.assertIn(str(outside), state["pack_roots"])
+        found = execute([*self.common, "validate", "--pack", self.manifest["pack_id"], "--released"])
+        self.assertEqual(found.returncode, 0, found.stdout + found.stderr)
+        self.assertEqual(Path(json.loads(found.stdout)["resolved_root"]), external)
+        self.assertFalse((self.root / "other home/pack-state.json").exists())
+
     def test_ready_repairs_run_as_printed_with_multiple_discovery_roots(self) -> None:
         first_root = self.root / "first root's $literal"
         second_root = self.root / "second root & extra"

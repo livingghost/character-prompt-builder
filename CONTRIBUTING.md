@@ -28,9 +28,9 @@ Read the documents relevant to the change:
 - [Reference Corpus Visual Technique Observation](references/reference-corpus-visual-technique-observation.md)
 - [Shared State Protocol](references/state-protocol.md)
 
-Use Python 3.11 or newer. Core scripts use the standard library only. [Release Validation](references/release/validation.md) exclusively owns the exact publication environment and sequence, including the uv commands that create CI's Python 3.12 environment.
+Use the same uv environment for runtime work and repository checks. [`.python-version`](.python-version) selects Python 3.12 by default, and [`pyproject.toml`](pyproject.toml) owns the supported Python minimum and direct package pins. [Dependencies](DEPENDENCIES.md#uv-project-environment) defines execution from the installed skill and from a Studio directory. [Release Validation](references/release/validation.md) exclusively owns the exact publication sequence in that environment.
 
-[`requirements-visual.txt`](requirements-visual.txt) holds each supported version range and [`requirements-tested.txt`](requirements-tested.txt) each release-validation pin; `requirements.txt` and the `pyproject.toml` `visual` extra read the ranges. When a distributed script changes a third-party import, update those two files, `DEPENDENCIES.md` and the checker's import names together. Do not list transitive packages unless package code imports them directly.
+[`uv.lock`](uv.lock) records the complete resolution of the project declarations, including transitive packages. [`requirements.txt`](requirements.txt) is the generated pip export of that lock. When a distributed script changes a third-party import, update `project.dependencies`, `DEPENDENCIES.md` and the checker's import names together, then follow Release Validation to regenerate the lock and its export. A package belongs in `project.dependencies` when project code imports it directly; uv resolves the remaining packages.
 
 ## Repository ownership map
 
@@ -230,10 +230,10 @@ every script entrypoint is named by routed documentation.
 
 ## Required checks
 
-`python scripts/run_checks.py` runs every test suite once, in parallel, the same way CI does. The full run needs the tested dependency pins that CI installs:
+`python scripts/run_checks.py` runs every test suite once, in parallel, the same way CI does. Run the commands with the synchronized environment's Python, or prefix each Python invocation with `uv run --locked`:
 
 ```bash
-python scripts/check_dependencies.py --tested
+python scripts/check_dependencies.py
 python scripts/run_checks.py
 python scripts/run_checks.py --only render_contract
 git diff --check
@@ -350,5 +350,5 @@ output, consumer selections and approval decisions distinct.
 
 Model-interface changes update execution profiles, schemas, request transport, fixtures, and documentation together.
 Run `python scripts/render_contract_smoke_test.py` and `python examples/render-contract/build_example.py --check`.
-Then run model, generation, request, dispatch, and repository checks under the required dependency profile.
+Then run model, generation, request, dispatch, and repository checks in the synchronized environment.
 Rendering presets are subject-neutral choices, not provider effectiveness claims.

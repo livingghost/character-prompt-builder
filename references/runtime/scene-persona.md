@@ -51,6 +51,23 @@ directory of the root, outside `production/`, `runs/`, `characters/`,
 names or IDs and content hashes identify material; extra version or revision
 counters add nothing.
 
+The narrative's `characters[].persona` and `characters[].phases[].persona`
+pointers are relative to the series directory, which contains `narrative/`.
+`draft` selects the applicable phase and expresses that pointer relative to
+`--root` in the plan. For a Persona at
+`STUDIO/story/narrative/personas/c01.md`, the bases and paths are:
+
+| Owner | Path base | Persona path |
+|---|---|---|
+| Narrative current or phase pointer | Series `STUDIO/story` | `narrative/personas/c01.md` |
+| Plan source with `--root STUDIO` | Studio `STUDIO` | `story/narrative/personas/c01.md` |
+| Plan source with the standalone series as root | Series `STUDIO/story` | `narrative/personas/c01.md` |
+
+The same series-relative pointer selects the file in both uses. CLI material
+paths such as `--scene-plot`, `--plan`, `--out` and `--persona` use the supplied
+`--root`. When `draft` cannot read the selected Persona, it reports the owning
+narrative and series base so the author can correct the declared pointer.
+
 A plan uses `schemas/authoring/scene-persona-plan.schema.json`. It names:
 
 - the complete scene source and complete applicable sources, their hashes and

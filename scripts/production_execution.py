@@ -171,7 +171,11 @@ def _credential(transport: Any, service: dict) -> str:
 
 def _journal(root: Path, run: str, data: tuple):
     import dispatch
+    from production_compiler import read_manifest
+    from publication_artifacts import ArtifactSet
     directory, prepared, _, _, package, rendered, plan, target, _ = data
+    manifest=read_manifest(directory,expected=store.registered_run(root,run)['manifest_sha256'])
+    artifacts=ArtifactSet(directory,manifest['files'])
     recording = prepared['task']['recording']
     operation = 'upscale' if package.get('artifact_type')=='upscale-request' else 'generation'
     if operation == 'upscale':
@@ -184,9 +188,9 @@ def _journal(root: Path, run: str, data: tuple):
         production_run=run, expected=plan['quantities']['outputs'], note='Executed from the sealed production input.',
         offering=dispatch.offering_summary(target['offering'], target['model_id'], target['model']), companion=companion)
     for name in ('package.json', 'consumer.json'):
-        journal.keep(directory / name, name)
+        artifacts.copy_file(name, journal.path / name)
     if companion:
-        journal.keep(directory / companion, companion)
+        artifacts.subtree(companion).copy_to(journal.path / companion)
     if operation=='upscale':
         journal.update(upscale={'source':Path(rendered['media'][0]['path']).relative_to(directory).as_posix(),
             'audit_status':'pending' if target['model'].get('upscaler_class') in {'generative','creative'} else 'not-required'})

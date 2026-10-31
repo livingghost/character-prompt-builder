@@ -3,15 +3,15 @@
   "review_requirements": [
     {
       "id": "finished-image",
-      "statement": "Reconstruct the wanted image from the complete input and compare its qualities, degree, relationships and finish with the author anchors. Identify how text and supplied media establish that target beyond satisfying exclusions. Explain how actions, visibility and exclusions coexist within their actual scopes. Missing anchors, weakened intent and unresolved conflicts prevent a satisfied assessment."
+      "statement": "Reconstruct the selected artifact and depicted situation from only the final text, supported controls and actual supplied media. State what they establish about the subjects, present circumstances, action, relationships, intended degree, framing and finish, as applicable. Identify premises that the instructions require but the delivered input leaves unstated. Then compare that reading with the brief and selected production scope. Assess necessary exclusions together with the wanted result. Explain missing meaning, unsupported inferences and instructions that exceed the requested depiction; resolve those differences before a satisfied assessment."
     },
     {
       "id": "supplied-inputs",
-      "statement": "Assess whether instructions use only the supplied media and convey their intended roles, limits and subject assignments."
+      "statement": "Inspect the actual supplied media and assign each relevant subject attribute to its source: retained identity, requested change, pose, clothing, finish or another declared use. Distinguish what the delivered images establish from knowledge available only in source records or prior conversation. Confirm that reference numbers, subject assignments, crops and delivered details match the final instructions. Resolve priorities and scoped exceptions together while preserving every required attribute and its evidence."
     },
     {
       "id": "ownership",
-      "statement": "Assess whether image text contains depiction and necessary input-use directions, while production records and native execution controls retain their own information."
+      "statement": "Explain how each consequential instruction serves the selected artifact, including context that makes its present depiction intelligible and necessary use of supplied inputs. Keep production and story-management decisions outside that depiction in their owning records. Apply ambiguity or narrative outcomes as portrayal choices when the requested artifact includes them. Place production identifiers, provenance, review reasoning and execution values in their records or native controls. Trace the scoped intent through the final wording and any requested translation, including modifiers, degree and necessary exclusions."
     }
   ],
   "execution_policy": {
@@ -3187,7 +3187,7 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
   "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-  "generation_input_sha256": "c4fdc35c5764f560aa436ebffa6e0ccc6e367fd3b56c9fc5809c2e778d4ba1e6",
+  "generation_input_sha256": "9355fd7e75a93573a1bd8a0dfc3a8bc32d9d99c73a89ef8796ce5c0e3207256d",
   "parameters": {
     "height": 1024,
     "safety": {
@@ -3237,7 +3237,7 @@
     "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
     "effective_prompt_sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121",
     "selected_references": [],
-    "generation_input_sha256": "c4fdc35c5764f560aa436ebffa6e0ccc6e367fd3b56c9fc5809c2e778d4ba1e6",
+    "generation_input_sha256": "9355fd7e75a93573a1bd8a0dfc3a8bc32d9d99c73a89ef8796ce5c0e3207256d",
     "prompt_trace": [
       {
         "source_kind": "authored",

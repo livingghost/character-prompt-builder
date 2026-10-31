@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import shutil
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
 
+from check_dependencies import install_command
 from execution_contract import sha256_file
 
 _FORBIDDEN_ACTIVE_TAGS = (
@@ -574,6 +576,36 @@ def validate_bundle(bundle_dir: Path) -> dict[str, Any]:
     }
 
 
+def _numeric_svg_length(value: str) -> float | None:
+    match = re.fullmatch(r"\s*([0-9]+(?:\.[0-9]+)?)\s*(?:px)?\s*", value)
+    if not match:
+        return None
+    number = float(match.group(1))
+    return number if math.isfinite(number) and number > 0 else None
+
+
+def svg_dimensions(path: Path) -> tuple[int, int]:
+    try:
+        root = ElementTree.fromstring(Path(path).read_bytes())
+    except ElementTree.ParseError as exc:
+        raise ValueError(f"SVG XML is invalid: {path}: {exc}") from exc
+    if root.tag.rsplit("}", 1)[-1].lower() != "svg":
+        raise ValueError(f"SVG root element is invalid: {path}")
+    width = _numeric_svg_length(str(root.attrib.get("width") or ""))
+    height = _numeric_svg_length(str(root.attrib.get("height") or ""))
+    if width is None or height is None:
+        parts = str(root.attrib.get("viewBox") or "").replace(",", " ").split()
+        if len(parts) != 4:
+            raise ValueError(f"SVG has no concrete width/height or valid viewBox: {path}")
+        try:
+            _x, _y, width, height = (float(value) for value in parts)
+        except ValueError as exc:
+            raise ValueError(f"SVG viewBox is invalid: {path}") from exc
+        if not all(math.isfinite(value) for value in (width, height)) or width <= 0 or height <= 0:
+            raise ValueError(f"SVG viewBox dimensions are invalid: {path}")
+    return max(1, round(width)), max(1, round(height))
+
+
 _PIXEL_LENGTH_RE = re.compile(r"\s*([0-9]+(?:\.[0-9]+)?)\s*(?:px)?\s*")
 
 
@@ -614,8 +646,10 @@ def render_svg(svg: Path, output: Path, width: int | None = None, height: int | 
     try:
         import resvg_py
     except ImportError as exc:
+        command, note = install_command()
         raise RuntimeError(
-            "resvg-py is required for SVG rasterization; install requirements-visual.txt"
+            "resvg-py is required for SVG rasterization; "
+            f"complete the skill environment: {command or note}"
         ) from exc
     png = resvg_py.svg_to_bytes(svg_string=_svg_markup(svg.read_bytes(), width, height))
     output.parent.mkdir(parents=True, exist_ok=True)

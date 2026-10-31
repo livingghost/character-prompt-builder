@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Sequence
 
-from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
+from pack_runtime_cli import PACK_RUNTIME_SELECTION_HELP, add_pack_runtime_arguments, resolve_pack_runtime
 from production_diagnostics import Diagnostic, from_exception
 
 from pack_cache import (
@@ -396,7 +396,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     root_add_help = (
         "Register either an exact directory containing pack.json or a "
-        "container whose immediate subdirectories are packs."
+        "container whose immediate subdirectories are packs in the selected pack state. "
+        "The registered root is used by subsequent invocations."
     )
     root_add = commands.add_parser(
         "root-add",
@@ -452,6 +453,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Resolve one named resource to the file of the highest-ranked enabled pack that binds it.",
     )
     resource.add_argument("name")
+    parser.epilog = "Place pack runtime options before the subcommand."
+    for name, command_parser in commands.choices.items():
+        arguments = "PACK_OR_CONTAINER" if name in {"root-add", "root-remove"} else "[arguments]"
+        command_parser.formatter_class = argparse.RawDescriptionHelpFormatter
+        command_parser.epilog = (
+            PACK_RUNTIME_SELECTION_HELP + "\n\n"
+            "Place pack runtime options before the subcommand:\n"
+            f"  {parser.prog} --state-file STATE --cache-dir CACHE --managed-root MANAGED {name} {arguments}\n"
+            "Use root-add to persist a discovery root in the selected state."
+        )
     return parser
 
 

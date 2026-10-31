@@ -18,6 +18,7 @@ from scene_plot import validate_scene_plot
 
 NARRATIVE = 'narrative/narrative.json'
 SCENES = 'narrative/scenes'
+SERIES_PREFIXES = ('', 'story/')
 
 
 def rows(value: Any) -> list:
@@ -38,7 +39,7 @@ def identifier(kind: str, source: str) -> str:
 
 def _source(inputs, path: str) -> dict:
     from story_timeline import _href, _path
-    fact = inputs.dependencies.get(path, {})
+    fact = inputs.fact(path)
     return {'path': path, 'sha256': fact.get('sha256'),
             'href': _href(_path(inputs.root, path), inputs.output) if fact.get('status') == 'present' else None}
 
@@ -48,6 +49,68 @@ def _notice(code: str, message: str, *, source: str, node: str | None = None) ->
             **({'flow_node': node} if node else {})}
 
 
+def source_locations() -> tuple[tuple[str, str, str], ...]:
+    """The conventional series prefix, narrative and scene collection in a Studio."""
+    return tuple((prefix, prefix + NARRATIVE, prefix + SCENES) for prefix in SERIES_PREFIXES)
+
+
+def _checked_location(inputs, path: str) -> Path:
+    from story_timeline import _path
+    try:
+        return _path(inputs.root, path, exists=False)
+    except (ValueError, OSError) as exc:
+        raise ValueError('unsafe story source location ' + path + ': ' + str(exc)) from exc
+
+
+def _scene_input(inputs, path: str) -> dict | None:
+    try:
+        value = inputs.json(path)
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        return {'path': path, 'value': None, 'error': str(exc)}
+    if not isinstance(value, dict) or value.get('artifact_type') != 'scene-plot':
+        return None  # Other declared JSON material beside scenes is not a scene plot.
+    return {'path': path, 'value': value, 'error': None}
+
+
+def has_sources(inputs) -> bool:
+    """Activate for authored sources or a source problem, not empty scaffolds."""
+    for _, narrative_path, scenes_path in source_locations():
+        try:
+            if _checked_location(inputs, narrative_path).exists():
+                return True
+            for path in inputs.collection(scenes_path):
+                if _scene_input(inputs, path) is not None:
+                    return True
+        except (ValueError, OSError):
+            return True  # Refresh owns the source diagnostic and failure publication.
+    return False
+
+
+def _discover(inputs) -> dict | None:
+    """Observe both locations and retain parsed sources for one selected series."""
+    candidates = []
+    for prefix, narrative_path, scenes_path in source_locations():
+        _checked_location(inputs, narrative_path)
+        document, error = None, None
+        try:
+            document = inputs.json(narrative_path, optional=True)
+        except (ValueError, OSError, TypeError, KeyError) as exc:
+            error = str(exc)
+        try:
+            paths = inputs.collection(scenes_path)
+        except (ValueError, OSError) as exc:
+            raise ValueError('story scene collection unavailable ' + scenes_path + ': ' + str(exc)) from exc
+        scenes = [record for path in paths if (record := _scene_input(inputs, path)) is not None]
+        if inputs.fact(narrative_path).get('status') == 'present' or error is not None or scenes:
+            candidates.append({'prefix': prefix, 'narrative_path': narrative_path,
+                               'document': document, 'error': error, 'scenes': scenes})
+    if len(candidates) > 1:
+        locations = ', '.join(row['prefix'] + 'narrative/' for row in candidates)
+        raise ValueError('multiple narrative series have authored sources: ' + locations
+                         + '; the story view requires one series, so no series was selected')
+    return candidates[0] if candidates else None
+
+
 def read_sources(inputs) -> dict:
     """Read only conventional authoring locations, each file once.
 
@@ -55,34 +118,34 @@ def read_sources(inputs) -> dict:
     invalidate the publication. A broken draft stays visible without supplying
     a false scene/state association.
     """
+    selected = _discover(inputs)
+    narrative_path = selected['narrative_path'] if selected else NARRATIVE
+    prefix = selected['prefix'] if selected else ''
     notices, scenes = [], []
-    document, narrative_report = None, None
+    document = selected['document'] if selected else None
+    narrative_report = None
     try:
-        document = inputs.json(NARRATIVE, optional=True)
-        if document is not None:
+        if selected and selected['error'] is not None:
+            raise ValueError(selected['error'])
+        if inputs.fact(narrative_path).get('status') == 'present':
             narrative_report = validate_narrative(document)
             if not narrative_report['ok']:
                 notices.append(_notice('FLOW_NARRATIVE_INVALID',
-                    '; '.join(narrative_report['errors']), source=NARRATIVE))
+                    '; '.join(narrative_report['errors']), source=narrative_path))
             if not isinstance(document, dict):
                 document = None
     except (ValueError, OSError, TypeError, KeyError) as exc:
-        notices.append(_notice('FLOW_NARRATIVE_UNAVAILABLE', str(exc), source=NARRATIVE))
+        notices.append(_notice('FLOW_NARRATIVE_UNAVAILABLE', str(exc), source=narrative_path))
     valid_narrative = document is not None and narrative_report is not None and narrative_report['ok']
-    try:
-        scene_paths = inputs.collection(SCENES)
-    except (ValueError, OSError) as exc:
-        scene_paths = []
-        notices.append(_notice('FLOW_SCENE_COLLECTION_UNAVAILABLE', str(exc), source=SCENES))
-    for path in scene_paths:
+    for source in selected['scenes'] if selected else []:
+        path = source['path']
         key = identifier('scene', path)
         entry = {'key': key, 'path': path, 'record': None, 'report': None, 'context': None,
                  'context_source': None, 'messages': [], 'links_usable': False}
         try:
-            value = inputs.json(path)
-            if not isinstance(value, dict) or value.get('artifact_type') != 'scene-plot':
-                # Other declared JSON material beside scenes is not a scene plot.
-                continue
+            if source['error'] is not None:
+                raise ValueError(source['error'])
+            value = source['value']
             entry['record'] = value
             report = validate_scene_plot(value)
             entry['report'] = report
@@ -105,6 +168,8 @@ def read_sources(inputs) -> dict:
                 context = value['setting'].get('scene_context')
                 if context:
                     try:
+                        from story_timeline import _literal_path
+                        context = prefix + _literal_path(context)
                         snapshot = inputs.json(context)
                         context_report = validate_artifact(snapshot)
                         if not context_report['ok'] or snapshot.get('artifact_type') != 'scene-context-snapshot':
@@ -134,7 +199,7 @@ def read_sources(inputs) -> dict:
                 notices.append(_notice('FLOW_SCENE_ID_AMBIGUOUS', message,
                     source=scene['path'], node=scene['key']))
     return {'narrative': document, 'narrative_report': narrative_report,
-            'narrative_source': _source(inputs, NARRATIVE),
+            'narrative_source': _source(inputs, narrative_path),
             'narrative_usable': valid_narrative, 'scenes': scenes, 'diagnostics': notices}
 
 

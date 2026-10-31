@@ -41,7 +41,7 @@ import sys
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from cli_invocation import python_argv, shown
 ROOT = Path(__file__).resolve().parents[1]
@@ -161,10 +161,10 @@ def init(out: Path, studio_id: str, title: str, *, default_render_profile: str =
     return out
 
 
-def manifest(root: Path) -> dict[str, Any]:
+def manifest(root: Path, *, read_bytes: Callable[[str], bytes] | None = None) -> dict[str, Any]:
     path = root / MANIFEST
     try:
-        value = read_json(path)
+        value = read_json(path) if read_bytes is None else json.loads(read_bytes(MANIFEST).decode('utf-8'))
     except json.JSONDecodeError as exc:
         raise ValueError(f"{path} is not JSON ({exc.msg}, line {exc.lineno})") from None
     if not isinstance(value, dict):
@@ -185,14 +185,14 @@ def character_dir(root: Path, character: str) -> Path:
     return root / "characters" / character
 
 
-def listed_characters(root: Path) -> list[str]:
-    return [str(entry.get("id")) for entry in manifest(root).get("characters") or [] if isinstance(entry, dict)]
+def listed_characters(root: Path, *, read_bytes: Callable[[str], bytes] | None = None) -> list[str]:
+    return [str(entry.get("id")) for entry in manifest(root, read_bytes=read_bytes).get("characters") or [] if isinstance(entry, dict)]
 
 
-def character_home(root: Path, character: str) -> Path:
+def character_home(root: Path, character: str, *, read_bytes: Callable[[str], bytes] | None = None) -> Path:
     """The directory of a character the manifest lists; a mistyped id is refused by name."""
     home = character_dir(root, character)
-    if character not in listed_characters(root) or not home.is_dir():
+    if character not in listed_characters(root, read_bytes=read_bytes) or not home.is_dir():
         raise ValueError(f"character {character!r} is not in this studio")
     return home
 

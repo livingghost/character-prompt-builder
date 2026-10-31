@@ -283,7 +283,32 @@ Use ordinary canonical-English aliases that describe the coordinated read. Keep 
 
 ## 8. Prompt projection
 
-The prompt projection contains one dominant performance clause and a small number of supporting clauses.
+Resolve the performance in its present situation: the participants, activity,
+attention targets and relevant physical or relationship conditions. Use
+[Prompt Composition](runtime/prompt-composition.md#carry-scene-intent-into-depiction)
+to select the premises this depiction needs. Establish those premises through
+the actual prompt and supplied media before relying on them to explain a cue.
+A prior event can be necessary context for a present response; identify its
+relevant consequence rather than assuming the model shares the authoring
+conversation. A source record can retain a fuller history than this image needs.
+
+Organize the prompt projection around that situation, the selected performance
+and the cues that make it legible. A dominant read can use one leading
+performance clause with a small set of supporting clauses. Give different
+subjects or local views their own scope when the image requires distinct
+performances. Let readable supplied evidence carry its assigned information;
+add context where the delivered input would otherwise leave the current
+performance unexplained.
+
+Start initial authoring and each repair with the desired performance, its
+intensity and its relation to the current action. Select the gaze target,
+posture, contact, expression or other available channels that carry it from the
+chosen camera. Preserve relevant felt state, displayed state, masking and
+timing as separate decisions. A narrative or emotional phrase can establish
+the situation or intended read; the coordinated cues supply a realization
+grounded in the declared subject and scene. Keep both when their relationship
+guides this depiction. Choose context for that function, so a meaningful cue
+does not depend on an undeclared event, relationship or source interpretation.
 
 A useful clause names visible geometry:
 
@@ -304,6 +329,25 @@ multi-channel set often suffices; one available channel, subtle stillness, inten
 or no expressive display is also valid. Do not invent movement or anatomy to meet a cue quota.
 If the read is underdetermined, retain that limitation or revise the proposed staging explicitly.
 
+Record a newly selected gesture, distance or expression in the current Visual
+State Projection or Production Specification. Structured cues use the existing
+stability values in section 2. Such a staging choice can be made within the
+task's delegated scope and used in the current depiction; stable performance
+vocabulary retains its evidence and adoption requirements. Lasting traits,
+relationship changes and future outcomes continue to be authored at their
+state owners. Keep that authoring decision separate from the performance
+requested of the image. When uncertainty, concealment or multiple readings
+are part of the selected portrayal, define the current cues and contextual
+conditions that support them. An unresolved story decision can remain in the
+story record while the present performance is clear.
+
+When an image misses the requested read, identify the visible cue or relationship
+that needs to change and specify its wanted state and degree. Compare the
+actual source and candidate where those carry the evidence. Keep applicable
+exclusions as boundaries, while restoring the positive performance they are
+meant to protect. Recheck the complete coordinated pattern and its visibility
+after the repair, including intentionally quiet, masked or ambiguous displays.
+
 ## 9. Review checklist
 
 - Is the gaze target identifiable?
@@ -314,9 +358,12 @@ If the read is underdetermined, retain that limitation or revise the proposed st
 - For robots, do optics, sensors, manipulators, actuators, indicators, panels, and ventilation preserve function and clearance?
 - Are felt, intended, displayed and observer-inferred states separated, with uncertainty retained?
 - Is the current instant compatible with active voice/response modes and neighboring beats without forcing all channels to reset together?
-- Are alternate plausible interpretations retained?
+- Are alternate plausible interpretations retained with their source observations, and is any ambiguity requested of the output part of the selected portrayal?
 - Does the selected interpretation match the brief, relationship, scene, state, and content intensity?
 - Does the final prompt describe visible coordinated cues instead of relying on emotion labels alone?
+- Do the actual prompt and supplied images establish the present situation and every premise needed to understand the intended performance, its degree and its visible realization?
+- Can the reviewer reconstruct that performance from the delivered input before comparing it with the richer authoring sources?
+- Does each contextual or interpretive instruction serve the selected depiction, with story-state decisions and observation limits retained at their own owners?
 
 
 ## 10. Reference-corpus cue harvesting

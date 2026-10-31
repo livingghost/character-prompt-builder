@@ -27,6 +27,79 @@ COMMONS = '01a0043b-2250-720d-87b7-f1e6fd7ed230'
 MINIMAL_PACK = ROOT / 'examples' / 'pack-authoring' / 'minimal-pack'
 
 
+class RuntimeMembershipTests(unittest.TestCase):
+    """Small file-only snapshots exercise publication ownership without a DB."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+        self.root = self.base / 'studio'
+
+    def snapshot(self, name: str, *, extra_declared: bool = False):
+        directory = self.base / name
+        files = []
+        contents = {'records/models.json': b'{"model":"synthetic"}\n'}
+        if extra_declared:
+            contents['resources/guide.txt'] = b'Complete declared guide.\n'
+        for relative, raw in contents.items():
+            c.atomic(directory / 'packs' / fixtures.PACK_ID / relative, raw)
+            files.append({'path': relative, 'sha256': c.digest(raw), 'size': len(raw)})
+        payload = {'packs': [{'pack_id': fixtures.PACK_ID, 'files': files}]}
+        c.atomic(directory / 'snapshot.json', c.encoded(payload))
+        return directory, {'sha256': c.content_id(payload), 'settings': {}}
+
+    def test_fresh_publication_keeps_unexpected_staged_bytes_for_inspection(self):
+        directory, descriptor = self.snapshot('staged')
+        extra = directory / 'packs' / fixtures.PACK_ID / 'records' / 'unowned.json'
+        c.atomic(extra, b'unexpected stable bytes')
+        with self.assertRaises(ProductionError) as caught:
+            runtime_snapshot.publish(self.root, directory, descriptor)
+        self.assertEqual(caught.exception.diagnostic.code, 'RUNTIME_SNAPSHOT_CORRUPT')
+        self.assertEqual(caught.exception.diagnostic.details['cause']['code'], 'ARTIFACT_SET_MISMATCH')
+        self.assertEqual(extra.read_bytes(), b'unexpected stable bytes')
+        self.assertFalse(runtime_snapshot.path(self.root, descriptor).exists())
+
+    def test_reuse_checks_staged_and_existing_trees_before_disposal(self):
+        original, descriptor = self.snapshot('first')
+        target = runtime_snapshot.publish(self.root, original, descriptor)
+        for place in ('staged', 'target'):
+            with self.subTest(place=place):
+                staged, _ = self.snapshot('second-' + place)
+                extra = (staged if place == 'staged' else target) / 'unowned.txt'
+                with runtime_snapshot.public_call():
+                    runtime_snapshot.read(staged, descriptor)
+                    runtime_snapshot.read(target, descriptor)
+                    c.atomic(extra, b'preserved')
+                    with self.assertRaises(ProductionError) as caught:
+                        runtime_snapshot.publish(self.root, staged, descriptor)
+                self.assertEqual(caught.exception.diagnostic.code, 'RUNTIME_SNAPSHOT_CORRUPT')
+                self.assertTrue(staged.is_dir())
+                self.assertEqual(extra.read_bytes(), b'preserved')
+
+    def test_force_verification_checks_membership_within_a_cached_call(self):
+        directory, descriptor = self.snapshot('staged')
+        with runtime_snapshot.public_call():
+            runtime_snapshot.read(directory, descriptor)
+            c.atomic(directory / 'additional.txt', b'added after the first read')
+            with self.assertRaises(ProductionError):
+                runtime_snapshot.read(directory, descriptor, force_verify=True)
+        with self.assertRaises(ProductionError):
+            runtime_snapshot.read(directory, descriptor)
+
+    def test_shared_object_reuse_keeps_a_corrupt_staged_view_instead_of_replacing_it(self):
+        first, descriptor = self.snapshot('first')
+        runtime_snapshot.publish(self.root, first, descriptor)
+        staged, changed_descriptor = self.snapshot('second', extra_declared=True)
+        view = staged / 'packs' / fixtures.PACK_ID / 'records/models.json'
+        view.write_bytes(b'changed before storage')
+        with self.assertRaises(ProductionError) as caught:
+            runtime_snapshot.publish(self.root, staged, changed_descriptor)
+        self.assertEqual(caught.exception.diagnostic.code, 'RUNTIME_SNAPSHOT_CORRUPT')
+        self.assertEqual(view.read_bytes(), b'changed before storage')
+        self.assertFalse(runtime_snapshot.path(self.root, changed_descriptor).exists())
+
+
 class RuntimeSnapshotTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

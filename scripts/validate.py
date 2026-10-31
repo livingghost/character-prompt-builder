@@ -37,7 +37,7 @@ from pack_manager import PackSettings, species_scaffold_issues, validate_pack
 from execution_contract import sha256_file
 from validate_state_protocol import template_digest_errors, validate as validate_state_protocol
 from validate_reference_corpus import validate as validate_reference_corpus
-from check_dependencies import TESTED as TESTED_REQUIREMENTS, check as check_dependencies
+from check_dependencies import check as check_dependencies
 from shot_request import validate_request as validate_shot_request
 from build_generation_payload import (
     TRANSPORT_MODES,
@@ -67,10 +67,9 @@ ROOT_REQUIRED = (
     'LICENSE',
     'package-manifest.toml',
     'pyproject.toml',
-    'requirements-core.txt',
-    'requirements-visual.txt',
+    'uv.lock',
     'requirements.txt',
-    'requirements-tested.txt',
+    '.python-version',
     'DEPENDENCIES.md',
     'agents/openai.yaml',
     'scripts/package_metadata.py',
@@ -518,6 +517,7 @@ def check_carried_implementation(root, contract_relative, errors) -> None:
                 "its hash travel together, and an edit to one has to travel with the other"
             )
 FRESH_SESSION_RUNTIME_DOCUMENTS = (
+    "references/runtime/production-workflow.md",
     "references/runtime/prompt-composition.md",
     "references/runtime/sparse-discovery.md",
     "references/runtime/reference-prompt-artifacts.md",
@@ -525,6 +525,7 @@ FRESH_SESSION_RUNTIME_DOCUMENTS = (
 )
 # SKILL.md routes each of these by a link or by naming a route or feature that delivers it.
 SKILL_ROUTED_DOCUMENTS = (
+    "references/runtime/production-workflow.md",
     "references/runtime/narrative-development.md",
     "references/runtime/cast-and-persona-depth.md",
     "references/runtime/prompt-composition.md",
@@ -542,6 +543,7 @@ SKILL_ROUTED_DOCUMENTS = (
 )
 # Prompt work in conversation reads these without a route read, so SKILL.md links each one.
 SKILL_DIRECT_LINKS = (
+    "references/runtime/production-workflow.md",
     "references/runtime/prompt-only-core.md",
     "references/runtime/prompt-composition.md",
     "references/runtime/sparse-discovery.md",
@@ -677,8 +679,6 @@ SKILL_REQUIRED_ROUTER_PHRASES = (
     "creative space",
     "Keep judgment and automation separate.",
     "Use scripts with documented activation, inputs, outputs, failures and tests.",
-    "Inspect every selected canonical record in full.",
-    "resolve the optional `prompt-writing-guide`",
     "Inspect complete records and asset details together with `inspect-many` (or `inspect` plus `asset-lookup`).",
     "A category name proposes; only the author's declaration decides.",
     "Species, domain, and material supply no default.",
@@ -694,6 +694,12 @@ SKILL_FORBIDDEN_DEEP_RUNTIME_TOKENS = (
     "python -m pip install",
 )
 AUTHORITATIVE_DOCUMENT_MARKERS = {
+    "references/runtime/production-workflow.md": (
+        "# Common runtime sequence",
+        "Inspect every selected canonical record in full.",
+        "resolve the optional `prompt-writing-guide`",
+        "read the complete selected guide before final rendition",
+    ),
     "references/runtime/narrative-development.md": (
         "# World-Coherent Creative Development",
         "## Activation and ownership",
@@ -857,7 +863,7 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
     ),
     "references/release/validation.md": (
         "# Release Validation",
-        "Release validation is an exact-profile gate, not an artistic-quality claim.",
+        "Release validation checks the environment and artifact contracts.",
         "Publication checks the installed source, local public contract, declared resources",
         "and executable fixtures.",
     ),
@@ -1241,8 +1247,9 @@ def check_documentation(root: Path, errors: list[str]) -> dict[str, Any]:
     # Authoritative metadata and contributor procedure are validated separately;
     # their existence does not prohibit explaining them here. Keep the links to
     # those authorities instead of enforcing a smaller, link-only README.
-    for required_target in ("CONTRIBUTING.md", "LICENSE", "package-manifest.toml", "requirements-core.txt", "requirements-visual.txt", "requirements.txt", "requirements-tested.txt"):
-        if f"]({required_target})" not in readme:
+    linked_documents = set(_markdown_link_targets(strip_fenced_blocks(readme)))
+    for required_target in ("CONTRIBUTING.md", "LICENSE", "package-manifest.toml", "pyproject.toml", "uv.lock", "requirements.txt", ".python-version"):
+        if required_target not in linked_documents:
             errors.append(f"README must link to {required_target}")
 
     non_code = strip_fenced_blocks(readme)
@@ -1251,9 +1258,10 @@ def check_documentation(root: Path, errors: list[str]) -> dict[str, Any]:
         r"|\b(?:CONTRIBUTING\.md|package-manifest\.toml|SKILL\.md|LICENSE)\b"
     )
     for line_number, line in enumerate(non_code.splitlines(), start=1):
+        linked_paths = {target.rstrip("/") for target in _markdown_link_targets(line)}
         for match in path_pattern.finditer(line):
             raw = match.group(0).rstrip(".,;:")
-            if f"]({raw})" not in line and f"]({raw.rstrip('/')}/)" not in line:
+            if raw.rstrip("/") not in linked_paths:
                 errors.append(
                     f"README local path must be a Markdown link at line {line_number}: {raw}"
                 )
@@ -1820,9 +1828,13 @@ def validate(
             "validated release packs omit default-pack-state activations: "
             + ", ".join(missing_default_pack_ids)
         )
-    dependency_report = check_dependencies(root / TESTED_REQUIREMENTS.name)
+    dependency_report = check_dependencies(root / metadata.pyproject_file)
     if not dependency_report.get("ok"):
-        errors.append("exact tested Python dependency validation failed")
+        errors.append("project Python environment validation failed")
+    from release_contract import check_dependency_artifacts
+    dependency_artifacts = check_dependency_artifacts(root)
+    if not dependency_artifacts["ok"]:
+        errors.extend(dependency_artifacts["errors"])
     try:
         release_files = list(
             iter_release_files(
@@ -2569,13 +2581,14 @@ def validate(
             "default-pack catalog integrity and authoring conformance, direct canonical-ID integrity, "
             "Shared State Protocol schemas and lineage, "
             "shot-request handoff, pack-declared reference-corpus disposition and full declared-bundle validation, "
-            "exact payload transport templates, and exact tested dependencies; "
+            "exact payload transport templates, and the exact project environment; "
             "it runs no test suite, and it does not claim artistic-quality validation"
         ),
         "version_observed": version_observed,
         "documentation_observed": documentation_observed,
         "counts": counts,
         "dependencies": dependency_report,
+        "dependency_artifacts": dependency_artifacts,
         "release_manifest": manifest_verification,
         "release_line_endings": line_ending_verification,
         "species_scaffolds": species_scaffold_report,

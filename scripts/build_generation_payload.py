@@ -23,6 +23,7 @@ import stat
 import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
+from publication_artifacts import ArtifactSet
 
 from catalog_cli import configure_pack_runtime
 from model_contract import (
@@ -878,6 +879,7 @@ def _copy_reference_carrier(
     staging_root: Path,
     companion_name: str,
     relative_destination: Path,
+    artifacts: ArtifactSet | None = None,
 ) -> str:
     source = _resolve_reference_carrier(stored_path, source_root=source_root)
     if sha256_file(source) != expected_sha256:
@@ -897,6 +899,9 @@ def _copy_reference_carrier(
         shutil.copyfileobj(source_stream, destination_stream, length=1024 * 1024)
     if sha256_file(destination) != expected_sha256:
         raise ValueError(f"staged reference carrier hash mismatch: {destination}")
+    if artifacts is not None:
+        artifacts.add_record({'path': (Path(companion_name) / destination_relative).as_posix(),
+                              'sha256': expected_sha256, 'size': destination.stat().st_size})
     return (Path(companion_name) / destination_relative).as_posix()
 
 
@@ -952,6 +957,7 @@ def materialize_cli_reference_bundle(
     source_root: Path,
     staging_root: Path,
     companion_name: str,
+    artifacts: ArtifactSet | None = None,
 ) -> tuple[dict[str, Any], Path | None]:
     """Copy every portable carrier and return a set rebased to the final companion name."""
 
@@ -970,7 +976,10 @@ def materialize_cli_reference_bundle(
     for source in sources:
         if source.get('kind') == 'studio-artifact':
             from studio_reference import archive_source
-            archive_source(source, staging_root / companion_name)
+            archived = archive_source(source, staging_root / companion_name)
+            if artifacts is not None:
+                for item in archived:
+                    artifacts.add_record({**item, 'path': companion_name + '/' + item['path']})
         import execution_contract as execution
         raw = execution.read(Path(source['resolved_path']))
         if execution.digest(raw) != source['sha256']:
@@ -981,6 +990,8 @@ def materialize_cli_reference_bundle(
                 raise ValueError('recorded source collision')
         else:
             execution.atomic(destination, raw)
+        if artifacts is not None:
+            artifacts.add(destination, raw)
     for index, row in enumerate(selected):
         transport = row["transport"]
         transport["resolved_path"] = _copy_reference_carrier(
@@ -992,6 +1003,7 @@ def materialize_cli_reference_bundle(
             companion_name=companion_name,
             relative_destination=Path("model-references")
             / f"{index:03d}-{transport['sha256'][:16]}",
+            artifacts=artifacts,
         )
         carrier_count += 1
     for index, artifact in enumerate(prompt_artifacts):
@@ -1004,6 +1016,7 @@ def materialize_cli_reference_bundle(
             companion_name=companion_name,
             relative_destination=Path("prompt-artifacts")
             / f"{index:03d}-{artifact['delivered_sha256'][:16]}",
+            artifacts=artifacts,
         )
         carrier_count += 1
     if board is not None:
@@ -1016,6 +1029,7 @@ def materialize_cli_reference_bundle(
             companion_name=companion_name,
             relative_destination=Path("board")
             / f"reference-board-{board['sha256'][:16]}",
+            artifacts=artifacts,
         )
         carrier_count += 1
     rebased = build_prepared_reference_set(

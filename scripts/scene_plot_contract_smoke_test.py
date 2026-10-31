@@ -163,6 +163,11 @@ PASSAGES = [
      "covers": [{"statement": "the leaving", "from": ["b4"]}]},
 ]
 
+CONTEXT_PLACEMENT = [
+    {"statement": "he stays by the bench, away from the ladder to the sleeping room",
+     "from": ["b1", "b5"]},
+]
+
 CASES: list[dict[str, Any]] = [
     {"name": "the contract answered", "value": plot(), "error": None},
     {"name": "an unknown key", "value": changed(notes="something"), "error": "unknown keys"},
@@ -207,6 +212,10 @@ CASES: list[dict[str, Any]] = [
     {"name": "a focalization of no known kind",
      "value": changed(focalization={"kind": "limited"}),
      "error": "focalization.kind must be one of"},
+    {"name": "an unknown focalization key names the supported fields",
+     "value": changed(focalization={"kind": "external", "character": "C01"}),
+     "error": "focalization has unknown keys: ['character']; allowed keys are kind, through, note; "
+              "through is required for internal, optional for external, and zero has no named holder"},
     {"name": "internal focalization through nobody",
      "value": changed(focalization={"kind": "internal"}),
      "error": "focalization.through must name the character this scene is restricted to"},
@@ -215,7 +224,13 @@ CASES: list[dict[str, Any]] = [
      "error": "does not belong to zero focalization"},
     {"name": "external focalization staying with somebody",
      "value": changed(focalization={"kind": "external", "through": "C01"}), "error": None},
+    {"name": "external focalization without a holder",
+     "value": changed(focalization={"kind": "external"}), "error": None},
+    {"name": "external focalization with a null holder",
+     "value": changed(focalization={"kind": "external", "through": None}), "error": None},
     {"name": "zero focalization", "value": changed(focalization={"kind": "zero"}), "error": None},
+    {"name": "zero focalization with a null holder",
+     "value": changed(focalization={"kind": "zero", "through": None}), "error": None},
     {"name": "told through somebody the scene does not contain",
      "value": changed(focalization={"kind": "internal", "through": "C09"}),
      "error": "focalization.through names 'C09', who the scene does not say is in it"},
@@ -320,7 +335,12 @@ CASES: list[dict[str, Any]] = [
      "value": changed(exchanges=[{"id": "e1", "between": ["C01", "C02"],
                                   "about": "the second lantern", "achieves": "he is answered",
                                   "from": ["b5"]}]),
-     "error": "cannot put anything in a frame"},
+     "error": "this field requires a visible beat"},
+    {"name": "an exchange cannot add context to its visible event source",
+     "value": changed(exchanges=[{"id": "e1", "between": ["C01", "C02"],
+                                  "about": "the second lantern", "achieves": "he is answered",
+                                  "from": ["b3", "b5"]}]),
+     "error": "this field requires a visible beat"},
     {"name": "a scene where nobody speaks", "value": dropped("exchanges"), "error": None},
     {"name": "an exchange with no id",
      "value": changed(exchanges=[{"between": ["C01", "C02"],
@@ -349,9 +369,23 @@ CASES: list[dict[str, Any]] = [
     {"name": "a statement from a beat that does not exist",
      "value": changed(placement=[{"statement": "he is at the bench", "from": ["b9"]}]),
      "error": "names a beat that does not exist: 'b9'"},
-    {"name": "a statement from a context beat",
-     "value": changed(placement=[{"statement": "he is at the bench", "from": ["b5"]}]),
-     "error": "cannot put anything in a frame"},
+    {"name": "context supports the selected placement",
+     "value": changed(placement=CONTEXT_PLACEMENT), "error": None},
+    {"name": "context supports a preserved exclusion",
+     "value": changed(must_preserve=[{"statement": "keep the sleeping person outside the frame",
+                                      "from": ["b5"]}]), "error": None},
+    {"name": "context supports a shot's visible performance",
+     "value": unit(0, shows=[{"statement": "he steadies the lantern as it leaves the hook",
+                              "from": ["b1", "b5"]}]), "error": None},
+    {"name": "context supports the selected framing",
+     "value": unit(0, composition=[{"statement": "close on the hands and lantern, below the ladder",
+                                    "from": ["b5"]}]), "error": None},
+    {"name": "a contextual statement still resolves every source",
+     "value": changed(placement=[{"statement": "he is at the bench", "from": ["b5", "b9"]}]),
+     "error": "names a beat that does not exist: 'b9'"},
+    {"name": "a contextual statement cannot repeat its source",
+     "value": changed(placement=[{"statement": "he is at the bench", "from": ["b5", "b5"]}]),
+     "error": "repeats a beat id"},
     {"name": "a statement that repeats its source",
      "value": changed(placement=[{"statement": "he is at the bench", "from": ["b1", "b1"]}]),
      "error": "repeats a beat id"},
@@ -372,6 +406,21 @@ CASES: list[dict[str, Any]] = [
     {"name": "a state change whose beat id is not a string",
      "value": changed(state_changes=[{"target": "C01", "change": "it moved", "from": [7]}]),
      "error": "state_changes[0].from contains a non-string beat id"},
+    {"name": "context cannot establish a persistent consequence",
+     "value": changed(state_changes=[{"target": "C02", "change": "wakes up", "from": ["b5"]}]),
+     "error": "state_changes[0].from names 'b5', a context beat"},
+    {"name": "a consequence cannot add context to its visible event source",
+     "value": changed(state_changes=[{"target": "the second lantern", "change": "it is lit",
+                                      "from": ["b3", "b5"]}]),
+     "error": "this field requires a visible beat"},
+    {"name": "context cannot establish a relationship change",
+     "value": changed(relationship_delta=[{"channel": "trust", "between": ["C01", "C02"],
+                                           "change": "they trust one another", "from": ["b5"]}]),
+     "error": "relationship_delta[0].from names 'b5', a context beat"},
+    {"name": "a relationship change cannot add context to its visible event source",
+     "value": changed(relationship_delta=[{"channel": "initiates-contact", "between": ["C01", "C02"],
+                                           "change": "he moves first", "from": ["b3", "b5"]}]),
+     "error": "this field requires a visible beat"},
     {"name": "a relationship move from a beat that does not exist",
      "value": changed(relationship_delta=[{"channel": "eye-contact", "between": ["C01", "C02"],
                                            "change": "it moved", "from": ["b99"]}]),
@@ -416,7 +465,7 @@ CASES: list[dict[str, Any]] = [
     {"name": "a unit carrying a beat that does not exist", "value": unit(0, focal_beat="b9"),
      "error": "names a beat that does not exist: 'b9'"},
     {"name": "a unit carrying a beat the scene does not show",
-     "value": unit(0, focal_beat="b5"), "error": "cannot put anything in a frame"},
+     "value": unit(0, focal_beat="b5"), "error": "this field requires a visible beat"},
     {"name": "a shot that shows nothing", "value": unit(0, shows=[]),
      "error": "realization.units[0].shows must be a non-empty array"},
     {"name": "a shot with no composition", "value": unit(0, composition=[]),
@@ -425,6 +474,10 @@ CASES: list[dict[str, Any]] = [
      "error": "has keys 'shots' does not have: ['panels']"},
 
     {"name": "a scene realized as pages", "value": realized("pages", PAGES), "error": None},
+    {"name": "context supports a page's treatment",
+     "value": realized("pages", [{**PAGES[0], "shows": [
+         {"statement": "close panels follow the steadying hands, leaving the sleeper unseen",
+          "from": ["b1", "b5"]}]}, *PAGES[1:]]), "error": None},
     {"name": "a page with no panel count",
      "value": realized("pages", [{**PAGES[0], "panels": None}, *PAGES[1:]]),
      "error": "panels must be how many panels this page holds, from 1"},
@@ -437,6 +490,10 @@ CASES: list[dict[str, Any]] = [
 
     {"name": "a scene realized as passages", "value": realized("passages", PASSAGES),
      "error": None},
+    {"name": "context supports a passage's treatment",
+     "value": realized("passages", [{**PASSAGES[0], "covers": [
+         {"statement": "follow the careful lowering of the lantern without entering the sleeping room",
+          "from": ["b1", "b5"]}]}, *PASSAGES[1:]]), "error": None},
     {"name": "a passage that does not say whether it is shown or told",
      "value": realized("passages", [{**PASSAGES[0], "mode": None}, *PASSAGES[1:]]),
      "error": "mode must be one of ['scene', 'summary']"},
@@ -444,8 +501,8 @@ CASES: list[dict[str, Any]] = [
      "value": realized("passages", [{**PASSAGES[0], "covers": []}, *PASSAGES[1:]]),
      "error": "realization.units[0].covers must be a non-empty array"},
 
-    {"name": "a visible beat nothing takes anything from",
-     "value": changed(beats=[*plot()["beats"],
+    {"name": "contextual support leaves an uncovered visible beat detectable",
+     "value": changed(placement=CONTEXT_PLACEMENT, beats=[*plot()["beats"],
                              {"id": "b6", "beat": "The radio is on.", "visibility": "visible"}]),
      "error": "is marked visible but nothing takes anything from it"},
 ]
@@ -474,6 +531,15 @@ APPROVAL_CASES: list[dict[str, Any]] = [
                                       "content_sha256": "0" * 64, "scope": "all"}},
      "approved": False, "error": "approved has unknown keys"},
 ]
+
+_context_approval = approve(changed(placement=CONTEXT_PLACEMENT))
+APPROVAL_CASES.append({"name": "an approval covers contextual depiction support",
+                       "value": _context_approval, "approved": True, "error": None})
+_changed_sources = copy.deepcopy(_context_approval)
+_changed_sources["placement"][0]["from"] = ["b1"]
+APPROVAL_CASES.append({"name": "changing contextual support invalidates its approval",
+                       "value": _changed_sources, "approved": False,
+                       "error": "the plot changed after it was approved"})
 
 
 def beat(index: int, **edits: Any) -> dict[str, Any]:

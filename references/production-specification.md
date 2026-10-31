@@ -251,7 +251,9 @@ an instruction about where it leaves the frame.
 
 ## State-aware compilation
 
-Compile only the current visual result, not the full history.
+Compile the selected current depiction from the resolved state and the
+contextual premises needed to interpret it. The complete history remains in
+its owning state and story records.
 
 ```text
 Identity Contract
@@ -307,19 +309,34 @@ Resolve subjects and reference uses within the delivered text and images.
 relationships essential to the result. Scene, subject and camera fields hold
 their realization. Keep consequential assumptions at their existing owner.
 
-A complete state record is not a complete prompt inventory. Carry necessary
-identity, visible state, action, relationship, camera and finish at the
-specificity the image needs. Interpret narrative context into its required
-visible state and performance. Leave incidental deductions and unselected
-alternatives out of the prompt. A desired effect such as a readable interaction
-does not by itself prescribe one camera position.
+A complete state record holds more than the selected image depicts. Carry
+necessary identity, present circumstances, visible state, action, relationship,
+camera and finish at the specificity this artifact needs. Establish the
+contextual premises that make its selected performance or construction
+intelligible in the delivered text and media. Apply
+[depiction scope](runtime/prompt-composition.md#carry-scene-intent-into-depiction)
+when selecting that context: source knowledge about other events, authorial
+decisions and future outcomes retains its own record. A requested narrative
+outcome or ambiguous portrayal is part of the image when the selected artifact
+calls for it. Leave incidental deductions and unselected alternatives at their
+source. A desired effect such as a readable interaction does not by itself
+prescribe one camera position.
 
 Subject IDs, source paths, lineage, decisions and review criteria stay in the
 specification and related production records. Render settings use the exact
 interface's native controls. The prompt carries the depiction and any necessary
 directions for its supplied images, including scoped preservation or exclusions.
 
-After assembly, read the complete prompt with its actual ordered attachments and compare the likely picture with the image intent, Visual State Projection, Asset Render Specification, and current State Snapshot. Declare the reference mode as `prompt-only`, `prompt+1`, or `prompt+N`. For every image source, record its semantic role and decide whether it may govern permanent identity, target scene-conditioned construction, or another narrow visual property. Audit source scene-specific character state and source-render context separately. An identity-only source may not transfer gaze, expression, mouth state, pose, action, contact, support, physiology, surface condition, grooming condition, wardrobe, inventory, relationships, viewer awareness, environment response, current form, camera, crop, light, or finish unless an owning target-state or scene authority explicitly requires that property.
+After assembly, reconstruct the artifact from the complete prompt, actual
+ordered attachments and supported controls. Identify the premises and
+relationships this delivered input establishes, including anything the
+instructions rely on but leave unstated. Then compare that reading with the
+image intent, Visual State Projection, Asset Render Specification and current
+State Snapshot for the selected depiction. Resolve missing premises and
+instructions that exceed its scope under
+[Prompt assembly and review](runtime/prompt-composition.md#prompt-assembly-and-review).
+
+Declare the reference mode as `prompt-only`, `prompt+1`, or `prompt+N`. For every image source, record its semantic role and decide whether it may govern permanent identity, target scene-conditioned construction, or another narrow visual property. Audit source scene-specific character state and source-render context separately. An identity-only source may not transfer gaze, expression, mouth state, pose, action, contact, support, physiology, surface condition, grooming condition, wardrobe, inventory, relationships, viewer awareness, environment response, current form, camera, crop, light, or finish unless an owning target-state or scene authority explicitly requires that property.
 
 Activate every pack-backed reference through one explicit Reference Use Plan. Each plan decision binds an active canonical record to one intended influence, resolves only artifacts linked to that record, assigns narrow authority and exclusions, and commits the resulting order. If a State Protocol Reference Selection is present, reconcile every activated source and intended influence against that state authority. A prepared set without a Reference Use Plan cannot introduce a pack artifact or fabricated pack identity.
 

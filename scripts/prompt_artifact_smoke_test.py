@@ -179,6 +179,42 @@ def check_authored_depictions(root: Path, script: Path) -> list[str]:
             errors.append(f"{name}: final prompt differs from authored depiction")
         if json.loads((out / "prompt-plot.json").read_text(encoding="utf-8")) != plot_value:
             errors.append(f"{name}: plot requirements or open choices were changed")
+
+    # Context can ground performance while a single frame statement carries the
+    # chosen depiction. Packaging retains that context and the authored wording.
+    folder = root / "context-performance"
+    folder.mkdir()
+    text = "A visitor waits beside a busy workbench, following the worker's hands with an attentive gaze.\n"
+    plot_value = {
+        "artifact_type": "prompt-plot",
+        "story": [
+            {"id": "present", "beat": "A visitor waits beside a working craftsperson.", "visibility": "visible"},
+            {"id": "choice", "beat": "The visitor is considering an invitation to join the work.", "visibility": "context"},
+        ],
+        "derived": [{"kind": "shows", "statement": text.strip(), "from": ["present", "choice"]}],
+    }
+    plot_value["approved"] = {"by": "synthetic fixture author", "at": "2026-10-30T00:00:00Z",
+                              "content_sha256": content_sha256(plot_value)}
+    prompt = folder / "prompt.txt"
+    prompt.write_text(text, encoding="utf-8")
+    plot_path = folder / "plot.json"
+    plot_path.write_text(json.dumps(plot_value) + NL, encoding="utf-8")
+    retrieval = {"artifact_type": "prompt-retrieval-record", "elements": [{
+        "element": "performance", "queries": ["visitor attentive gaze shared work"], "inspected_records": [],
+        "outcome": "composed", "composed_wording": text.strip(),
+        "reason": "Synthetic authored performance for an input-retention test.",
+    }]}
+    record = folder / "retrieval.json"
+    record.write_text(json.dumps(settle_retrieval_record(retrieval, prompt=text, plot=plot_value)) + NL,
+                      encoding="utf-8")
+    out = folder / "package"
+    result = run(script, "--prompt", str(prompt), "--plot", str(plot_path),
+                 "--retrieval-record", str(record), "--prepare-for-generation", "--out-dir", str(out))
+    if result.returncode:
+        errors.append("context-performance: package failed: " + result.stdout + result.stderr)
+    elif ((out / "final-prompt.txt").read_bytes() != prompt.read_bytes()
+          or json.loads((out / "prompt-plot.json").read_text(encoding="utf-8")) != plot_value):
+        errors.append("context-performance: packaging changed the selected performance or its story basis")
     return errors
 
 
@@ -243,11 +279,11 @@ def main() -> int:
             "artifact_type": "prompt-plot",
             "story": PLOT["story"],
             "derived": PLOT["derived"][:-1] + [
-                {"kind": "shows", "statement": "a kettle on the bench", "from": ["s2"]},
+                {"kind": "shows", "statement": "a kettle on the bench", "from": ["missing-beat"]},
                 {"kind": "free", "statement": "the backdrop"},
             ],
         }
-        invented["approved"] = APPROVED_PLOT["approved"]
+        invented["approved"] = {**APPROVED_PLOT["approved"], "content_sha256": content_sha256(invented)}
         invented_path = root / "invented-approved.json"
         invented_path.write_text(json.dumps(invented, ensure_ascii=False) + NL, encoding="utf-8")
         invented_run = run(script, "--prompt", str(prompt), "--out-dir", str(root / "invented"),
@@ -406,14 +442,14 @@ def main() -> int:
             "errors": errors,
             "stats": {
                 "files": files,
-                "authored_depiction_cases": 3,
+                "authored_depiction_cases": 4,
                 "invalid_semantic_plan_blocked": blocked.returncode != 0,
                 "declared_camera_bounds_allow_publication": accepted_camera.returncode == 0,
                 "camera_only_violation_blocks_publication": camera_refused,
                 "plot_required": no_plot.returncode != 0,
                 "unapproved_plot_refused": unapproved_package.returncode != 0,
                 "approved_plot_allows_generation": approved_generation.returncode == 0,
-                "context_beat_as_source_refused": invented_run.returncode != 0,
+                "unknown_beat_as_source_refused": invented_run.returncode != 0,
                 "plot_naming_a_target_refused": targeted_run.returncode != 0,
                 "repeated_source_refused": duplicate_run.returncode != 0,
                 "loose_approval_time_refused": loose_time_run.returncode != 0,

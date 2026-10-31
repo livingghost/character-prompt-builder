@@ -9,6 +9,18 @@ Keep purpose, subjects, world and expression coherent. Art-direct the requested 
 
 Use English prompts/retrieval and the user's language. Preserve meaning, modifier scope, relationships, negation and ambiguity without language word lists.
 
+## Mandatory execution environment
+
+Resolve `<skill-root>` to the absolute directory containing this installed `SKILL.md`. Before running a skill script, enter its complete locked environment:
+
+```bash
+uv run --project <skill-root> --locked python <skill-root>/scripts/check_dependencies.py
+```
+
+The first invocation synchronizes all locked Python packages. The check also verifies FFmpeg and sheet-font coverage. Complete any reported environment requirement within the existing authority, then rerun the check; [Dependencies](DEPENDENCIES.md) owns the installation details.
+
+For every documented `python scripts/<name>.py ...` command, run `uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...`. Keep the Studio working directory: `--project` selects this skill's environment while script arguments retain their own path meanings. Execute runtime-provided `argv` as given; it retains the running interpreter and absolute script path. Use this same environment for every route, including prompt, narrative, image, sheet and release work.
+
 ## Core contract
 
 Identify purpose, anchors and creative space. Follow [Production direction](references/runtime/production-direction.md): consult knowledge before choosing the expression and proceed within delegated scope. Include requirements and purposeful art direction; leave incidental details open. Omissions grant no permission or exclusion. Resolve consequential ambiguity before completion.
@@ -23,7 +35,7 @@ Use plain ASCII punctuation in studio documents, prompts, JSON text and packaged
 
 Keep judgment and automation separate. The agent owns meaning, ambiguity, direction, visual authority, composition and review. Scripts own state, retrieval, validation, materialization, dependency checks, verification and dispatch. Do not force unresolved meaning into keywords. Use scripts with documented activation, inputs, outputs, failures and tests. Resolve paths from installed `SKILL.md`.
 
-Model-facing prompts describe the depiction and necessary use of supplied media. Interpret records into relevant appearance, action and performance. Resolve subjects from the actual text and images. Keep internal keys, paths, provenance, decisions and assessment in their records; depicted names and codes remain content.
+Model-facing prompts establish the selected depiction, its necessary premises and supplied-media use. The model receives actual input; source records and conversation are separate knowledge. Keep authoring decisions beyond this artifact's scope, internal keys, paths, provenance and assessment in their records; depicted names and codes remain content.
 
 ## Rendering and model controls
 
@@ -47,7 +59,7 @@ Retrieve image-production knowledge before composition. Synthesize its selected 
 
 ## Mandatory runtime activation gate
 
-Before prompt, reference, sheet, generation or visual-state series work (not persona or story drafting), run `python scripts/pack_cli.py ready`. Put the task's `--state-file`, `--cache-dir`, `--managed-root` and repeated `--pack-root` options before `ready` when supplied. It creates the state on first use, keeps every existing choice, and prints the packs retrieval will use.
+Before prompt, reference, sheet, generation or visual-state series work (not persona or story drafting), run `python scripts/pack_cli.py ready`. For an explicit runtime, supply `--state-file`, `--cache-dir` and `--managed-root` together before `ready`; repeated `--pack-root` options add discovery roots for that invocation. It creates the state on first use, keeps every existing choice, and prints the packs retrieval will use.
 
 - Exit 0: retrieval can proceed. Tell the user each `warning:` line.
 - Exit 1: each `decide:` line is the author's decision and names the command that settles it. Put new or unusable packs to the user before continuing; never continue on bundled commons alone while a discovered pack awaits that decision. Run the command the author chooses, then `ready` again. A pack the author disabled stays disabled and is not asked about again.
@@ -55,7 +67,7 @@ Before prompt, reference, sheet, generation or visual-state series work (not per
 
 ## Artifact-bearing production gate
 
-For saved deliverables, run `python scripts/execution_routes.py read ROUTE --root STUDIO` with applicable `--feature NAME` options. Add `--feature prompt-dialect` with `--model MODEL` for a catalog target or `--dialect ID` for an evidenced family; omit selectors for an unknown target. It prints [Production Execution](references/runtime/production-execution.md), required documents and a reading record. Use `--page-bytes N` and `--continue CURSOR` for long reads. Complete the route; use `status` or `resume` after interruption.
+For saved deliverables, run `python scripts/execution_routes.py read ROUTE --root STUDIO` with applicable `--feature NAME` options. Add `--feature prompt-dialect` with `--model MODEL` for a catalog target or `--dialect ID` for an evidenced family; omit selectors for an unknown target. It prints [Production Execution](references/runtime/production-execution.md), required documents and a reading record. Use `--page-bytes N` for long reads. Execute the complete `continue` action printed in `reading-actions` until `reading-record` appears; `replay` reads a page again. Complete the route; use `status` or `resume` after interruption.
 
 ## Choose a runtime path
 
@@ -73,7 +85,7 @@ Each item names a route or `--feature` whose read prints its documents. A prompt
 - open expressive choices, a sparse brief, or difficult purpose, activity, relationship, or theme retrieval: feature `sparse-retrieval`, [Discovery](references/runtime/sparse-discovery.md);
 - craft knowledge for open axes or an observed failure: feature `craft-consultation`, [Craft consultation](references/runtime/craft-consultation.md);
 - terminology lookup, alternate wording or category browsing: feature `vocabulary`, [Vocabulary](references/runtime/prompt-vocabulary.md);
-- final prompt ordering, weighting, LoRA notation, negative syntax or term comparison: feature `prompt-dialect`, [Writing Guide](references/runtime/prompt-writing-guide.md);
+- final prompt rendition, ordering, weighting, LoRA notation, negative syntax or term comparison: feature `prompt-dialect`, [Writing Guide](references/runtime/prompt-writing-guide.md);
 - linked evidence, or a prompt plus references without generation: route `reference-artifacts` or feature `references`;
 - model-facing reference transports: feature `reference-delivery`;
 - generation or model transport: route `generation` plus the feature for exactly one of `gpt-image`, `midjourney` (and Niji), `sdxl` (and ComfyUI), `novelai`, `grok`, `instruction-edit`, or `unlisted-interface` for any other image interface;
@@ -104,21 +116,7 @@ After story revisions, update Studio sources and run `studio.py sync` for the au
 
 ## Common runtime sequence
 
-For image work, apply the steps needed by the deliverable:
-
-1. Resolve the artifact. For saved work, establish the Studio and read its route.
-2. Separate requirements, open expression and incidental deductions. Consult applicable knowledge before selecting the presentation, hierarchy and necessary visible relationships. For character reuse, resolve reference coverage and stage targets.
-3. Read interface guidance; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Retrieve the chosen construction's visual elements. Inspect every selected canonical record in full. Resolve the dispatcher execution profile.
-4. Compose the wanted artifact or edit: whole-artifact hierarchy and any local views, then identity, state, finish and supplied-reference roles. Establish intended qualities and degree before necessary exclusions; combine sources by meaning.
-5. Read the exact text, negatives, controls and media back as a picture. Could it satisfy every exclusion while losing an anchor or wanted quality? Check compatibility for each subject, part, moment and condition, using only scopes supported by the brief or input. Repair conflicting choices within authority; ask about irreconcilable requirements. Leave unresolved contradictions unfinished. Recheck omissions, emphasis, repetition and leakage after rewriting. Keep review outside the prompt; retain plot approval and settle retrieval against final wording.
-6. Save prompt, settings, evidence and any Studio destination in the task's declared inputs.
-7. `production_workflow.py check --task task.json` reports diagnostics without creating a run. `prepare` publishes request preview, execution plan and any dispatcher Generation Package.
-8. Review the complete prepared request and operation targets, repeating step 5 after transport changes. Dispatcher work follows `draft-execution`, actual decisions and `execute`.
-9. External work follows handoff, exact authorization, `claim-external`, host call, `capture` and `settle-external`. After interruption, `resume` recovers the existing execution.
-10. Compare candidates with requirements; diagnose failures from evidence. Dispatcher trials use `variant`, `repeat` or `retarget`; external trials use new tasks and exact input binding. Edits need semantic plans.
-11. `status` reports runs, next commands and execution records. [Operation logs](references/runtime/operation-logs.md) owns inspection, export and cleanup. Inspect staging before cleanup of its exact owner operation.
-
-Production Execution defines these commands, each with `--root STUDIO`. Prose and conversation-only prompts need no generation workflow.
+Read [Common runtime sequence](references/runtime/production-workflow.md) for every image deliverable and apply the steps required by its scope.
 
 ## Identity and scene-state authority
 
@@ -134,7 +132,7 @@ Use one resolved runtime across retrieval, planning, preparation and verificatio
 
 ## Visual Reference Activation Gate
 
-Create reference artifacts only for selected sources. Declare authority, subject uses and exclusions under [Visual Reference Activation and Transport](references/visual-reference-activation-and-transport.md). Use one ordinary Reference Use Plan for packs and one canonical prepared set for shared image inputs. Sheets supply selected identity scope. Treat every selected SVG as bounded evidence, not as the whole requested image. Before rasterization, run `python scripts/check_dependencies.py --profile visual`; failure blocks preparation.
+Create reference artifacts only for selected sources. Declare authority, subject uses and exclusions under [Visual Reference Activation and Transport](references/visual-reference-activation-and-transport.md). Use one ordinary Reference Use Plan for packs and one canonical prepared set for shared image inputs. Sheets supply selected identity scope. Treat every selected SVG as bounded evidence, not as the whole requested image. Preparation rechecks the same skill environment before rasterization or board composition; failure blocks preparation.
 
 ## Output contract
 

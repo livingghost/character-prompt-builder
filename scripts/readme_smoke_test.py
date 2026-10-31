@@ -23,7 +23,7 @@ import production_fixtures
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 SUITE = Path(__file__).resolve().parents[1]
-EXAMPLES = {"production-lifecycle", "core-check", "public-exchange", "authoring-material"}
+EXAMPLES = {"production-lifecycle", "environment-check", "public-exchange", "authoring-material"}
 SEND_EXAMPLES = {"generation"}
 SEND_SCRIPT = "scripts/production_workflow.py"
 # Each live example prepares its task, drafts the decision file, then executes under that file.

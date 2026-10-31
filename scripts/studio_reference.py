@@ -192,10 +192,12 @@ def _artifact_files(artifact: dict, root: Path, result: dict[str, bytes], seen: 
         _artifact_files(parent, root, result, seen)
 
 
-def archive_source(source: dict, companion: Path) -> None:
+def archive_source(source: dict, companion: Path) -> list[dict]:
     """Copy exact approval and transitive artwork evidence into one portable companion."""
     import sheet_artifacts as fills
     import studio
+    from publication_artifacts import ArtifactSet
+    artifacts = ArtifactSet(companion)
     root = studio.require_studio(Path(source['studio_root']))
     with c.lock(root):
         proof = validate_source(source)
@@ -215,6 +217,7 @@ def archive_source(source: dict, companion: Path) -> None:
                     raise ValueError('Studio reference evidence archive collision')
             else:
                 c.atomic(destination, raw)
+            artifacts.add(destination, raw)
         proof_path = target / 'proof.json'
         raw = c.encoded(proof)
         if proof_path.exists():
@@ -222,7 +225,9 @@ def archive_source(source: dict, companion: Path) -> None:
                 raise ValueError('Studio reference proof archive collision')
         else:
             c.atomic(proof_path, raw)
+        artifacts.add(proof_path, raw)
         validate_source(source, active=False, source_archive=companion / 'sources')
+        return artifacts.files()
 
 
 def identity_source(source: dict, *, root: Path, character_id: str | None) -> dict:

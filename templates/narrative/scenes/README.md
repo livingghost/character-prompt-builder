@@ -11,6 +11,14 @@ explicit themes and arc lists can be empty; no exchange or relationship change i
 An observation or held condition does not need an invented person or reversal to count as a scene.
 Declared references, visible-beat support and source approvals remain enforceable.
 
+Use visible or context beats in `from` when context supports placement, a preserved
+condition or a unit's chosen depiction. An unseen sleeper can explain a quiet hand
+movement or why the framing keeps their room outside view. Keep the contextual fact's
+visibility: the unit still needs its own visible focal beat. Exchanges, learning,
+lasting consequences and relationship changes require the presented support defined
+by [Narrative Protocol](../../../references/narrative-protocol.md). A context link
+alone does not establish them or change the state timeline.
+
 A unit is a shot, a page, or a passage, depending on what the series is made of. The narrative's
 `medium` decides which, and a scene realized in another kind is refused.
 

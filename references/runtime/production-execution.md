@@ -12,6 +12,22 @@ Discussion without an artifact does not require a run.
 
 Use [Craft consultation](craft-consultation.md) while deciding what to write or revise.
 
+### Read the route to completion
+
+Begin with the route, applicable features and the target's model or prompt family. A paged read uses a source-byte budget:
+
+```bash
+python scripts/execution_routes.py read reference-artifacts --root STUDIO --feature sparse-retrieval --page-bytes 16384
+```
+
+Each page prints its source text and a `reading-actions: ` line containing JSON. While source bytes remain, its `continue` action reads the next page. Its `replay` action reads the delivered page again. Each action contains an `argv` argument array, the same invocation quoted as `command`, and its purpose in `reason`. Execute the complete returned `argv`, or the complete `command` string. Continue until the command prints `reading-key` and the final `reading-record` path.
+
+The action retains the selected environment's Python, the installed script, the absolute reading ledger, the Studio when present, the page budget and the snapshot's exact pack runtime, including its additional discovery roots. The cursor supplies the saved route, features and prompt family. `--reading-ledger` locates that existing reading for continuation or replay. The initial read gives an explicit `CPB_READS_LEDGER` location priority; otherwise it uses the specified or current Studio's ledger, then the configured home ledger.
+
+The reader preserves all source bytes across pages and issues the reading key after their complete delivery. The final source check still verifies the snapshot's document and resource hashes. If the source edition changed during reading, begin a new route reading from that edition.
+
+### Apply the completed reading
+
 The route read writes a reading record at the path it prints, with the route, the key and every hash filled.
 The author decides which of the read documents apply to this task, and lists only those.
 Each entry in `applied` names the document's `path`, a `quote` of twelve or more words from one paragraph of it, and `why` it applies.
@@ -34,9 +50,15 @@ Use its task ID in a task that follows `schemas/authoring/production-task.schema
 The task declares its route, direction, full source selectors, criteria and execution kind.
 For dispatcher generation it also declares `generation` and `recording`.
 The prompt file named by `delivery.path` is the single authored prompt.
-The agent composes the complete wanted image from the sources, then refines its
-details and necessary exclusions. Interpret criteria as requirements on that
-depiction; keep their grading language in the task's review records.
+For image work, the agent establishes the selected artifact and present
+situation, including the premises the renderer needs to understand its action,
+performance and reference use. Compose that complete input from the sources,
+then refine details and necessary exclusions under
+[Prompt Composition](prompt-composition.md#carry-scene-intent-into-depiction).
+Define criteria at the task's artifact scope and declared evidence medium;
+keep grading language and wider production or story decisions in their owning
+records. A task can use image, text, motion or other supported evidence as its
+requirements demand.
 The compiler packages the rendition with the selected interface's declared controls.
 
 ```text
@@ -89,7 +111,26 @@ A pinned implementation file that changes later gives `IMPLEMENTATION_CHANGED`; 
 Live creative sources, persona applicability, pack selection and fixed runtime integrity are checked again before execution.
 
 Publication is an atomic, no-replace directory rename.
-Its manifest lists every file by content hash, except the root `manifest.json`, `owner.json` and `failure.json`.
+Each producer declares the exact files it writes. The manifest persists that complete set with each file's content hash and size.
+Before publication, the stage must contain exactly those files and its root lifecycle controls: `manifest.json`, `owner.json`, `failure.json` and the lock file.
+Reference companions retain their complete source proof, delivered media, supplementary masks and nested metadata.
+For example, a companion's `references/manifest.json` is an immutable input even though the root `manifest.json` describes the whole publication.
+An unexpected or missing member gives `ARTIFACT_SET_MISMATCH`; the failed stage keeps its bytes for inspection.
+
+The fixed runtime has its own complete membership in `snapshot.json`.
+Reading, publication and reuse check that membership and the declared file contents.
+Reuse verifies both the staged capture and the existing snapshot before disposing of the duplicate capture.
+An integrity check can be reused within one public operation; the forced check before an external effect reads the contents and membership again.
+After the runtime is published, it belongs to the Studio's runtime snapshot store, independently of the compiled run.
+
+Published inputs stay bound to their manifest through load, recovery and execution.
+Recovery of a published but unregistered run checks complete membership against the same producer declarations and root lifecycle controls before registration.
+An unexpected or missing member makes that publication unrecoverable with `ARTIFACT_SET_MISMATCH`, preserving its files for inspection.
+Execution copies the complete declared reference companion into its journal and verifies the exact copied bytes.
+Later candidates, reviews and execution evidence add content-addressed objects under the existing formal event records.
+Those events own the additional objects; the immutable input manifest remains unchanged.
+Explicit draft output paths can also place separate documents beside the published inputs.
+These later files retain their own purpose and enter the run's evidence only through the corresponding capture or review operation.
 An occupied destination stays untouched and is reported as `OUTPUT_ALREADY_EXISTS`.
 `ARTIFACT_PUBLISH_FAILED` names the staging directory, the destination and the underlying error, and keeps the complete staging.
 Windows handle refusals are retried within a bounded time; no retry replaces an existing destination.
@@ -145,8 +186,15 @@ The draft follows `schemas/authoring/production-execution-decisions.schema.json`
 It contains the run, input digest, request digest and every required authorization.
 Complete its reasons, stop-condition assessments and final-request assessment from actual evidence.
 [Production permissions](production-permissions.md#authorization-and-execution-records) describes each authorization and its `request_decision`.
-Read the sealed prompt fields and actual supplied images together for the
-`rendition_review`; source records alone cannot establish what the model receives.
+For the `rendition_review`, first reconstruct the artifact and depicted
+situation from the sealed prompt fields, supported controls and actual supplied
+images. State which premises and relationships the delivered input establishes.
+Then compare that reading with the brief and selected production scope, using
+[Prompt assembly and review](prompt-composition.md#prompt-assembly-and-review).
+Resolve missing premises and instructions outside the requested depiction in
+their owning authored inputs. Record the correspondence and remaining limits
+in the existing assessment reasons. The request validator checks the identity,
+coverage and author of those assessments; the agent judges their meaning.
 A draft has unanswered judgments and grants no permission.
 A supplied decision file must cover the complete operation set; altering targets does not narrow the prepared requirement.
 With valid exact receipts already recorded, `execute --root STUDIO --run RUN` needs no decision file.
@@ -374,6 +422,7 @@ Exit 2 applies unless a row says otherwise.
 | `ARTIFACT_CORRUPT` | A published file differs from its committed contents, or an upload receipt belongs to another input. |
 | `ARTIFACT_INCOMPLETE` | The publication manifest is not marked complete. |
 | `ARTIFACT_MANIFEST_CORRUPT` | The publication manifest differs from its registered digest or lists a file twice. |
+| `ARTIFACT_SET_MISMATCH` | The stored tree has missing or unexpected members relative to its producers' declared set; the diagnostic lists both. |
 | `EVENT_CHAIN_CORRUPT` | Formal events do not form one chain. |
 | `EVENT_CONFLICT` | Another operation committed first; reload the current state. |
 | `AUTHORITY_STATE_CORRUPT` | The stored authority is not the last committed event or differs from its digest. |
@@ -390,7 +439,7 @@ Exit 2 applies unless a row says otherwise.
 | `PACK_CONTENT_MISMATCH` | Captured bytes differ from the pack lock, or a pack file changed during capture. |
 | `RECORD_NOT_FOUND` | A selected pack root, file or record has vanished. |
 | `PINNED_RESOURCE_MISSING` | A file of the run's fixed runtime snapshot is missing. |
-| `RUNTIME_SNAPSHOT_CORRUPT` | The fixed runtime snapshot differs from its digest. |
+| `RUNTIME_SNAPSHOT_CORRUPT` | The fixed runtime snapshot differs from its digest or complete declared membership; a membership failure retains its cause. |
 | `PACK_NOT_FOUND` | `pack_cli.py` found no pack with that ID or unique name. |
 | `PACK_NAME_AMBIGUOUS` | A `pack_cli.py --pack` name matches several packs; `candidates` lists them. |
 | `PACK_DIRECTORY_NOT_ABSOLUTE` | A `pack_cli.py --directory` path is not absolute. |
@@ -526,11 +575,16 @@ exactly. The binding consumes the existing set; it cannot reclassify canon as
 supplied pixels to replace a state selection or pack Reference Use Plan. Input
 files remain the original images used for the exact external media mapping.
 A dispatcher additionally checks its declared set against `generation.references`.
-External preparation also archives accepted Studio proofs and every transitive
+External preparation saves each actual prepared delivery carrier in the run's
+ordinary content-addressed object store after checking its recorded hash.
+It also archives accepted Studio proofs and every transitive
 artwork, provenance and approval file through the existing Studio reference
 owner. The run stores these under `image-input.references/studio/` and in its
 ordinary snapshot object store. Recorded proof verification needs no live
 adoption after a call; a new send still checks the current accepted source.
+Historical review uses the saved source and carrier bytes even after their
+live files move. Preparation establishes the chosen input; the submission
+records establish the actual call and its transmitted media.
 
 For original supplied files, the common input directly states task-specific
 scope. `prepare_generation_references.py --image-input-plan-file` projects it
@@ -555,8 +609,11 @@ reference ID, exact uploaded value and pinned upload evidence. Every selected
 reference is covered. Each declared media field shape is checked across all
 array positions. For example, `images[*].uri` covers every such URI, including
 inside nested arrays. A mixed content array may retain text-only entries.
-Identical source bytes can bind the same media field when its value also
-matches; their distinct logical scopes remain recorded.
+References with identical prepared carrier hashes and media types can bind
+the same media field when its value also matches. This includes different
+sources assigned to regions of one prepared board. Their distinct logical
+scopes, attachment number and board regions remain recorded. For direct
+inputs without a prepared set, shared fields require identical source bytes.
 
 Inspect the reference mapping before saving the final request:
 
@@ -573,8 +630,9 @@ the binding record.
 
 `check` and `prepare` verify the saved request's exact prompt, ordered media
 mapping and source bytes. The agent completes the existing `rendition_review`
-against that entire input, bound to `image_input.binding_sha256`. Review the
-wanted image, actual reference use and ownership of production information,
+against that entire input, bound to `image_input.binding_sha256`. Apply the
+[prepared-request readback](#execute-the-prepared-request) to its scoped
+depiction, supplied context, actual reference use and production ownership,
 including a text-only request's empty image set. A changed prompt, scope,
 subject assignment, priority or image position requires that meaning review
 again. Dispatcher review uses its compiled request and actual image order or
@@ -593,7 +651,9 @@ An optional `schema: {"path": "inputs/schema.json", "sha256": "...", "pointer": 
 selects an acquired request schema. An empty pointer selects the whole document;
 a nested pointer may select an encoded schema string inside a tool response.
 Validation checks supported structural and numeric constraints, including
-per-image byte size and dimensions from original image bytes. Unsupported
+per-image byte size and dimensions from the actual prepared carrier bytes,
+or from the original image bytes for direct inputs. A shared board is measured
+as the one image bound to its request field. Unsupported
 keywords remain in `schema_validation.unmeasured`. An unavailable schema yields
 `bounded-probe` with `schema-unavailable`; an acquired schema yields
 `target-schema`. Neither state establishes effective reference use or image
@@ -689,6 +749,9 @@ python scripts/production_workflow.py capture --root STUDIO --run RUN --artifact
 
 Capture preserves exact bytes and inspects the declared medium.
 Images must decode, JSON and text must parse, and video or audio needs measured streams from ffprobe.
+SVG image evidence uses the same self-contained, inactive content checks and
+renderer as reference preparation. Its original bytes remain available as an
+image for region observations and the review export.
 A dispatcher capture must match its already recorded downloaded results.
 An external capture cannot exceed the claimed count, and an identical capture creates no second result.
 A media header or probe is a processing check, not evidence of an observed expression or a heard sound.
@@ -709,6 +772,25 @@ python scripts/production_workflow.py candidate-status --root STUDIO --run RUN -
 A review names the actual reviewer, observations, the criteria assessed so far, optional supplemental `evidence`, repairs, unresolved matters and a conclusion.
 Each observation names its `evidence` (`candidate` or a supplemental evidence ID), a locator, the observed fact, its interpretation and limitations.
 Supplemental entries record path, kind, relation and limitations; their bytes are measured and pinned, not trusted from filenames.
+
+For image inputs, the draft includes the original source images and each
+prepared delivery carrier available in the run. Carrier evidence retains
+the source assignment, transformation, attachment position and board region;
+external inputs also retain the exact request field. Several logical
+references may share one saved carrier while keeping their individual
+authority scopes. Compare the candidate against the image and region that
+carry each requested attribute, and use the original source to assess what
+the preparation preserved. Missing or changed saved bytes fail integrity
+validation. The submission evidence separately establishes whether those
+prepared inputs were sent.
+
+The draft carries the prepared artifact purpose and intended effect with each
+criterion, its evidence kind, applicable selected realization and accepted
+variations. Assess the observed candidate against that scope. Source records
+explain what was required; observations establish what the candidate supplies.
+Keep uncertainty about an unsupported judgment in the review's limitations.
+An intentionally ambiguous portrayal is itself assessable when the artifact
+requests it. Changes to a live task leave this prepared review basis unchanged.
 
 Locators are `whole`; `description` with text; one-based inclusive `lines` or `bytes`; `image-region` with normalized x, y, width and height; or `time`.
 A `time` locator names an integer stream index and decimal-string `start_seconds` and `end_seconds` within that measured stream.
@@ -827,8 +909,11 @@ Exported observations never authorize a new action; continue decisions through t
 Use [Scene Persona Material](scene-persona.md) to preserve a full-reading result for one scoped scene.
 Add `scene-persona` to the task features and name local selectors as `scene_materials: [{"plan": "scene-plan.json", "bundle": "scene-material"}]`.
 Preparation checks the complete source files and deterministic documents, stores their dependencies, and includes the document in `consumer.authoring_materials`.
-The agent interprets the material into the visible state, performance and
-relationships needed for the authored depiction.
+The agent interprets the material into the selected depiction's present
+circumstances, visible state, performance and relationships. Supply the
+contextual premises that make those instructions intelligible in the actual
+model input. Complete authoring material remains available to the author;
+its presence in the consumer does not establish what the renderer receives.
 Source definitions, internal keys and review evidence remain in the authoring context.
 Viewpoint limits and exact submitted inputs keep their own boundaries.
 Public material requires an explicit content hash and accepted-by or basis instead of a search for its producer.

@@ -200,6 +200,21 @@ def _mark_verified(directory:Path,descriptor:dict) -> None:
     if scope is not None:scope[('runtime-files',str(directory.resolve()),descriptor['sha256'])]=True
 
 
+def _require_membership(directory: Path, payload: dict) -> None:
+    """The snapshot owns its metadata and the exact declared pack files."""
+    from publication_artifacts import ArtifactSet
+    try:
+        rows = [{**item, 'path': 'packs/' + pack['pack_id'] + '/' + item['path']}
+                for pack in payload['packs'] for item in pack['files']]
+        artifacts = ArtifactSet(directory, rows)
+        artifacts.add('snapshot.json', c.encoded(payload))
+        artifacts.require_membership()
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        details = exc.diagnostic.as_dict() if isinstance(exc, ProductionError) else {'message': str(exc)}
+        raise _broken('RUNTIME_SNAPSHOT_CORRUPT', 'Fixed runtime membership differs from its declared files.',
+                      file=str(directory), cause=details) from exc
+
+
 def read(directory:Path, descriptor:dict, *, verify_files:bool=True, force_verify:bool=False) -> dict:
     """The fixed runtime metadata, checked against its digest, with each pinned pack file checked.
 
@@ -226,6 +241,7 @@ def read(directory:Path, descriptor:dict, *, verify_files:bool=True, force_verif
                 raise _broken('PINNED_RESOURCE_MISSING','A fixed runtime resource is missing.',pack=pack,resource=relative,expected=item['sha256'],file=str(local))
             if c.sha256_file(local)!=item['sha256'] or local.stat().st_size!=item['size']:
                 raise _broken('RUNTIME_SNAPSHOT_CORRUPT','A fixed runtime resource differs from its recorded contents.',pack=pack,resource=relative,expected=item['sha256'],file=str(local))
+        _require_membership(directory, payload)
         _mark_verified(directory,descriptor)
     return payload
 
@@ -268,6 +284,8 @@ def _store_objects(root:Path,staged:Path,payload:dict) -> dict:
                     counts['stored']+=1;continue
             if c.sha256_file(stored)!=item['sha256'] or stored.stat().st_size!=item['size']:
                 raise _broken('RUNTIME_SNAPSHOT_CORRUPT','A stored runtime object differs from its content digest.',pack=pack['pack_id'],resource=item['path'],expected=item['sha256'],file=str(stored))
+            if c.sha256_file(view)!=item['sha256'] or view.stat().st_size!=item['size']:
+                raise _broken('RUNTIME_SNAPSHOT_CORRUPT','A captured runtime file changed before storage.',pack=pack['pack_id'],resource=item['path'],expected=item['sha256'],file=str(view))
             counts['reused']+=1
             if not os.path.samefile(view,stored):_alias(stored,view)
     return counts
@@ -280,15 +298,22 @@ def publish(root:Path, staged:Path, descriptor:dict) -> Path:
     target=path(root,descriptor)
     with c.lock(root):
         if target.exists():
-            read(target,descriptor)
+            # Both trees are independently owned. Validate the staged contents
+            # before disposing of a duplicate, including files that appeared
+            # after a previous read in this operation.
+            read(staged,descriptor,force_verify=True)
+            read(target,descriptor,force_verify=True)
             shutil.rmtree(staged)
             counts={'snapshot_reused':True}
         else:
             payload=read(staged,descriptor,verify_files=False)
+            _require_membership(staged, payload)
             counts=_store_objects(root,staged,payload)
+            _require_membership(staged, payload)
             target.parent.mkdir(parents=True,exist_ok=True)
             c.publish_directory(staged,target)
             c.fsync_dir(target.parent)
+            _require_membership(target, payload)
             # Every view file was hashed as it was stored or matched to an object.
             _mark_verified(target,descriptor)
             counts['snapshot_reused']=False

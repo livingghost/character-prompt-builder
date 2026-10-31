@@ -85,6 +85,32 @@ class ReviewCase(unittest.TestCase):
 
 
 class ReviewTests(ReviewCase):
+    def test_draft_carries_prepared_requirements_and_selected_realization(self):
+        draft = workflow.draft_review(self.root, self.run, self.candidate)
+        task = c.load(self.root / 'task.json')
+        checks = {row['criterion']: row for row in draft['checks']}
+        decision = task['direction']['decisions'][0]
+        selected = next(option for option in decision['options'] if option['id'] == decision['selected'])
+        for criterion in task['criteria']:
+            self.assertIn(task['direction']['purpose'], checks[criterion['id']]['reason'])
+            self.assertIn(task['direction']['intended_effect'], checks[criterion['id']]['reason'])
+            self.assertIn(criterion['text'], checks[criterion['id']]['reason'])
+            self.assertEqual(checks[criterion['id']]['verdict'], 'not-assessed')
+            self.assertEqual(checks[criterion['id']]['observation_indices'], [])
+        self.assertIn(selected['expression'], checks['output']['reason'])
+        self.assertIn(selected['realization']['instructions'], checks['output']['reason'])
+        self.assertNotIn(selected['realization']['instructions'], checks['palette']['reason'])
+        for option in decision['options']:
+            if option['id'] != decision['selected']:
+                self.assertNotIn(option['realization']['instructions'], checks['output']['reason'])
+        self.assertEqual((draft['observations'], draft['conclusion']), ([], ''))
+        task['direction']['purpose'] = 'A later live task serves another artifact.'
+        task['direction']['intended_effect'] = 'A later intended effect is outside this prepared run.'
+        task['criteria'][0]['text'] = 'A later live task has a different criterion.'
+        task['direction']['decisions'][0]['options'][0]['expression'] = 'Changed after preparation.'
+        fixtures.write(self.root / 'task.json', task)
+        self.assertEqual(workflow.draft_review(self.root, self.run, self.candidate), draft)
+
     def test_unreviewed_rejection_is_not_quality_failure(self):
         before = (self.home / 'iterations.jsonl').read_bytes()
         result = studio.reject(self.root, 'robot', self.iteration, 'Another result is preferred.', actor='Synthetic fixture selector')

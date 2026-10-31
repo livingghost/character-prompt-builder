@@ -1,5 +1,57 @@
 # Changelog
 
+## 2026.10.31.2
+
+- Run the Skill, its child commands and validation in one Python 3.12 project environment through uv. Declare every direct dependency in `pyproject.toml`, preserve the complete resolution in `uv.lock`, and derive the single pip requirements export from that lock.
+- Print executable continuation and replay commands for paged reading, retaining the selected Python, reading ledger, Studio and saved pack runtime. Keep the reading snapshot authoritative for its route, features and prompt family.
+- Explain the complete pack-runtime selectors in shared CLI help and pack subcommand help, including the distinction between discovery roots for one invocation and roots registered in state.
+- Verify complete producer-declared membership before recovering an unregistered publication. Preserve rejected publications for inspection and retain event-owned additions to registered runs.
+- Keep a selected narrative's own read-failure diagnostics in narrative-only Studios in both supported layouts, while requiring complete state-ledger pairs when either state file is present.
+- Preserve the original reference images and actual prepared delivery carriers together, and expose both in external and dispatcher candidate-review drafts. Retain carrier hashes, transformations, authority scopes, attachment positions, board regions and exact external fields.
+- Bind several source images to a shared external board by the verified carrier and uploaded value. Keep their individual assignments and reject conflicting carriers at one request field.
+- Check external image size limits against the actual prepared carrier. Preserve self-contained SVG originals as image evidence through input validation, region observations and review export.
+- Compare Story Timeline's portable source paths consistently in its Windows test expectations.
+
+## 2026.10.31.1
+
+- Establish the selected artifact's scope and present situation before constructing its prompt. Supply the contextual premises needed to understand its action, appearance, relationships and reference use in the actual delivered input.
+- Keep complete story and identity sources at their owners while selecting what this depiction communicates. Preserve requested ambiguity, narrative outcomes, emotional context and necessary exclusions within that scope.
+- Review the rendition from the receiving model's available text, controls and media, then compare that reading with the scoped brief. Identify missing premises and instructions that add a task outside the requested artifact.
+- Apply the same construction and review contract to conversation-only prompts, performance, reference use, revisions, interface guidance and both supplied negative policies.
+- Carry the prepared artifact purpose and intended effect into unanswered candidate-review drafts, together with existing criteria, selected realization and immutable input evidence. Later task edits leave those review inputs unchanged.
+
+## 2026.10.30.5
+
+- Record each Story input's observed bytes, absence or access failure under its actual read contract. Apply required-input policy on every call and recheck those observations before publishing or reusing a view.
+- Carry accepted artwork's image, provenance, attachments, recursive sources and approval evidence through the same Story input observations. Keep sheet boundaries and observer caches distinct while preserving the existing artwork verifier's judgments.
+- Preserve the last good Story view when an observed source changes during rendering, and recover through a fresh sync. Explain when a current default receipt supports writer notifications and when an explicit refresh is needed.
+- Build production manifests from the files their producers declare, and compare the complete staging tree with that set before publication. Keep source proof, reference carriers, masks, derived inputs and nested metadata in the same ownership record.
+- Verify the complete declared runtime snapshot during reading, publication and reuse. Keep unexpected staging contents available for inspection, including when an existing snapshot would otherwise be reused.
+- Copy execution companions from their committed manifest entries and verify the copied bytes. Preserve separately authored draft files and later event-owned evidence alongside the immutable preparation inputs.
+
+## 2026.10.30.4
+
+- Make chapter description arrays and focalization fields explicit in the authoring contract, with examples for each supported knowledge-access choice and actionable structural diagnostics.
+- Align the arc authoring guidance with the existing contract: `want` and `need` remain independently optional on any arc, alongside the declared character or theme references its type requires.
+- Validate each chapter description as nonempty text so the narrative reader and Story Flow display agree. Preserve authored language, length, multiline text and repetition.
+- Explain the series-relative Persona pointers and their conversion to Scene Persona plan paths. Identify the owning narrative, selected character and chapter, and path base when a selected Persona cannot be read; retain phase selection and author-controlled pointers.
+- Discover Story Flow sources in the Studio's `narrative/` or `story/narrative/` layout, and resolve scene contexts from the selected series while keeping the state ledger and view settings Studio-relative.
+- Track both conventional source locations when publishing a story view. Report multiple active series or an unreadable source boundary explicitly, and preserve the last good view when publication cannot establish a coherent source snapshot.
+
+## 2026.10.30.3
+
+- Let contextual beats inform scene placement, preserved depiction choices, shot composition, page depictions and prose coverage. Keep each realization unit anchored to a visible focal beat and every visible beat covered.
+- Distinguish support for a depiction from evidence of an exchange, lasting state or relationship change, and acquired knowledge. Preserve explicit event sources, learning declarations and approval hashes across that boundary.
+
+## 2026.10.30.2
+
+- Build initial prompts and revisions around the intended appearance, action, relationships and degree. Select necessary exclusions with their purpose and scope, and retain supported negative channels and explicit user boundaries.
+- Connect scene intent to the chosen visible performance, supplied references and candidate review. Keep current staging choices distinct from adopted identity and story state.
+- Author the frame statements a prompt plot needs while retaining all five statement kinds. Link contextual beats to the visible choices they inform, and keep every visible beat covered.
+- Resolve reference authority by subject and attribute, including complementary sheets, portraits and details. Check the actual delivered regions and preserve required source uses when clarifying exceptions.
+- Carry prepared criteria, selected direction, accepted variations and immutable input evidence into unassessed candidate review drafts. Review actual identity features, performance and coverage through the existing verdicts and observations.
+- Guide the exact-input rendition review through the wanted result, necessary boundaries and supplied-image roles before submission. Use observed failures to repair their responsible depiction, reference or execution choice.
+
 ## 2026.10.30.1
 
 - Keep uncertain and accepted-but-processing generation responses recoverable through the same provider task. Preserve the initial response and subsequent lookup evidence, and capture available partial results without another submission.

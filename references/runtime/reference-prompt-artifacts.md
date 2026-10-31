@@ -12,7 +12,7 @@ The common image input plan binds originals and authority. Canonical sources ret
 - [Technical artifact roles](#technical-artifact-roles)
 - [Prompt-facing transports](#prompt-facing-transports)
 - [Surface and Lighting Plan](#surface-and-lighting-plan)
-- [Dependency activation matrix](#dependency-activation-matrix)
+- [Execution environment and operation checks](#execution-environment-and-operation-checks)
 - [Commands](#commands)
 - [Validation and failure policy](#validation-and-failure-policy)
 
@@ -122,20 +122,20 @@ Visible light is not sufficient for `preserve`. A specular audit remains candida
 
 The plan separately records physical light sources and their apparent size, direction, color, relative intensity, and softness; form, cast, contact, and ambient-occlusion shadows; edge hardness, hue shift, occluders, and receivers; broad sheen, hard speculars, rim light, lobe width, edge character, reflection tint, and protected highlight islands; and per-material roughness, specular strength, highlight shape, wetness, and anisotropy.
 
-## Dependency activation matrix
+## Execution environment and operation checks
 
-Determine dependency need immediately after selecting the transport:
+Use the same locked environment for prompt artifacts, reference materialization and generation. The Skill entry runs `uv run --project <skill-root> --locked python <skill-root>/scripts/check_dependencies.py` to verify the complete Python, native-library, FFmpeg and font environment. Keep that project and interpreter for the commands below.
 
-| Operation | Dependencies | Preflight |
-| --- | --- | --- |
-| prompt only with no references | Core | `python scripts/check_dependencies.py --profile core` |
-| `prompt-artifacts` with existing SVG or raster files | Core | same Core check |
-| `svg-bundle` | Core | same Core check |
-| SVG-to-PNG model transport | Visual | `python scripts/check_dependencies.py --profile visual` |
-| raster extraction or fidelity recomputation | Visual | same Visual check |
-| full release validation | Tested | follow [Release Validation](../release/validation.md) |
+| Operation | Additional operation checks |
+| --- | --- |
+| prompt only with no references | prompt and retrieval contracts |
+| `prompt-artifacts` with existing SVG or raster files | selected source bytes, safety, authority and delivery |
+| `svg-bundle` | SVG safety, selected resources and bundle manifest |
+| SVG-to-PNG model transport | deterministic rasterization and committed source and transport hashes |
+| raster extraction or fidelity recomputation | decoded images, visual derivation and fidelity measurements |
+| full release validation | complete gates in [Release Validation](../release/validation.md) |
 
-Do not install Visual dependencies for prompt-artifacts or svg-bundle. If a later operation needs Visual, follow the conditional permission and stop rules in [Image Generation Runtime](image-generation.md).
+The selected operation determines the transformations and verification performed in this environment. Prompt artifacts and SVG bundles preserve their selected resources; model-facing rasterization prepares the target's declared image medium. Follow [Image Generation Runtime](image-generation.md) when preparing or submitting model-facing material.
 
 ## Commands
 

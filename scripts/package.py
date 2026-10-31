@@ -3,7 +3,7 @@
 
 The packager never zips the working tree. It copies the declared release
 inventory into a fresh stage, rebuilds the stage's metadata, and validates the
-stage once with `validate.py`, which includes the tested dependency profile.
+stage once with `validate.py`, which includes the declared project environment.
 It writes a deterministic ZIP, extracts it, and compares the extracted tree
 with the stage file by file. A short installed smoke then runs a few commands
 from the extracted copy. The packager runs no test suite;
@@ -255,10 +255,19 @@ def stage_report_errors(
     dependencies = validation.get("dependencies")
     if (
         not isinstance(dependencies, Mapping)
-        or dependencies.get("profile") != "tested"
+        or dependencies.get("definition") != "pyproject.toml"
         or dependencies.get("ok") is not True
+        or not isinstance(dependencies.get("ffprobe"), Mapping)
+        or dependencies["ffprobe"].get("runs") is not True
+        or not isinstance(dependencies.get("sheet_fonts"), Mapping)
+        or dependencies["sheet_fonts"].get("ok") is not True
+        or dependencies["sheet_fonts"].get("required") is not True
     ):
-        errors.append("validation did not pass the tested dependency profile")
+        errors.append("validation did not pass the pyproject.toml Python, package, FFmpeg and font environment")
+    artifacts = validation.get("dependency_artifacts")
+    if (not isinstance(artifacts, Mapping) or artifacts.get("ok") is not True
+            or artifacts.get("definition") != "pyproject.toml" or artifacts.get("export_matches") is not True):
+        errors.append("validation did not verify the locked environment artifacts")
     manifest = validation.get("release_manifest")
     if not isinstance(manifest, Mapping) or manifest.get("strict_release_tree") is not strict_release_tree:
         errors.append("validation did not check the release manifest in the requested tree mode")
@@ -274,7 +283,7 @@ def stage_counts(validation: Mapping[str, Any]) -> dict[str, int]:
     return {
         "files": int(validation.get("files") or 0),
         "manifest_files": int(manifest.get("manifest_files") or 0) if isinstance(manifest, Mapping) else 0,
-        "tested_dependencies": len(dependencies.get("dependencies") or []) if isinstance(dependencies, Mapping) else 0,
+        "environment_dependencies": len(dependencies.get("dependencies") or []) if isinstance(dependencies, Mapping) else 0,
         "default_pack_records": sum(
             int(row.get("records") or 0) for row in packs if isinstance(row, Mapping)
         ) if isinstance(packs, list) else 0,
@@ -456,16 +465,15 @@ def validate_stage(
 ) -> dict[str, Any]:
     """Validate one clean stage once with `scripts/validate.py` and return its report.
 
-    The report includes the tested dependency profile. The tested pins lie
-    inside the Visual ranges, and that check refuses a pin outside them, so a
-    pass covers the Visual profile too. Writes `staged-validation.json`. A
+    The report includes the exact project environment. Writes
+    `staged-validation.json`. A
     failed validation raises with its error output, so a CI log alone says why
     the stage was refused.
     """
 
     runtime_root.mkdir(parents=True, exist_ok=False)
     env = isolated_environment(stage_root, runtime_root)
-    progress("staged: tree invariants and tested dependencies")
+    progress("staged: tree invariants and project environment")
     command = [sys.executable, "scripts/validate.py", "."]
     if strict_release_tree:
         command.append("--strict-release-tree")
@@ -1153,7 +1161,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "installed_smoke_read_only": True,
                 "platform": platform.platform(),
                 "python": platform.python_version(),
-                "tested_requirements_sha256": sha256_file(stage / metadata.tested_requirements_file),
+                "environment": {
+                    "definition": metadata.pyproject_file,
+                    "python_requirement": metadata.python_requirement,
+                    "artifacts": {name: sha256_file(stage / name) for name in (
+                        metadata.pyproject_file, metadata.lock_file,
+                        metadata.requirements_file, metadata.python_version_file,
+                    )},
+                },
                 "transport": "synthetic only",
                 "not_run": list(RELEASE_NOT_RUN),
                 "limitations": list(RELEASE_LIMITATIONS),

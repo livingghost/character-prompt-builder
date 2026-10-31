@@ -1455,9 +1455,11 @@ def _visual_dependencies():
         import numpy as np
         from PIL import Image, ImageOps
     except ImportError as exc:
+        from check_dependencies import install_command
+        command, note = install_command()
         raise MaintenanceError(
-            "Visual duplicate scanning requires the visual dependency profile: "
-            "python scripts/check_dependencies.py --profile visual"
+            "Visual duplicate scanning requires NumPy and Pillow; "
+            f"complete the skill environment: {command or note}"
         ) from exc
     return np, Image, ImageOps
 

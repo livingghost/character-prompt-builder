@@ -14,6 +14,7 @@ from typing import Any, TextIO
 
 import execution_contract as c
 import execution_routes
+from cli_invocation import python_argv, shown
 
 ROOT = Path(__file__).resolve().parents[1]
 _NO_MODEL = object()
@@ -127,7 +128,10 @@ def _studio(path: Path | None) -> Path | None:
     return None
 
 
-def ledger_candidates(*, studio: Path | None = None, package_root: Path | None = None) -> list[Path]:
+def ledger_candidates(*, studio: Path | None = None, package_root: Path | None = None,
+                      ledger: Path | None = None) -> list[Path]:
+    if ledger is not None:
+        return [ledger.absolute()]
     explicit = os.environ.get('CPB_READS_LEDGER')
     if explicit is not None:
         if not explicit.strip():
@@ -277,12 +281,23 @@ def _configure_runtime(args: argparse.Namespace, parser: argparse.ArgumentParser
             'managed_root': str(runtime.settings.managed_root), 'extra_roots': [str(p) for p in runtime.pack_roots]}
 
 
+def _runtime_context(runtime: dict | None):
+    """Resolve the exact runtime paths captured with a reading snapshot."""
+    if runtime is None:
+        return None
+    from pack_manager import default_settings
+    from pack_runtime_cli import PackRuntimeContext
+    roots = tuple(Path(p) for p in runtime['extra_roots'])
+    settings = default_settings(state_file=Path(runtime['state_file']), cache_dir=Path(runtime['cache_dir']),
+                                managed_root=Path(runtime['managed_root']), extra_roots=roots)
+    return PackRuntimeContext(settings, roots)
+
+
 def _restore_runtime(runtime: dict | None) -> None:
-    if runtime is not None:
-        from pack_manager import default_settings
+    context = _runtime_context(runtime)
+    if context is not None:
         from catalog_retrieval.runtime import configure_pack_runtime
-        configure_pack_runtime(default_settings(state_file=Path(runtime['state_file']), cache_dir=Path(runtime['cache_dir']),
-            managed_root=Path(runtime['managed_root']), extra_roots=[Path(p) for p in runtime['extra_roots']]))
+        configure_pack_runtime(context.settings)
 
 
 
@@ -671,24 +686,56 @@ def _model_family(model: str) -> str | None:
 
 
 def add_read_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument('route', nargs='?')
-    parser.add_argument('--feature', action='append', default=[])
+    parser.add_argument('route', nargs='?', help='Route to begin; a cursor supplies the saved route for continuation')
+    parser.add_argument('--feature', action='append', default=[], help='Feature to include when beginning a route')
     parser.add_argument('--root', type=Path, help='Studio root for the reading ledger')
     family = parser.add_mutually_exclusive_group()
     family.add_argument('--model', help="Read only the writing guide sections for this model's prompt family")
     family.add_argument('--dialect', metavar='ID',
                         help='Read only the writing guide sections for this prompt family, without a model record')
-    parser.add_argument('--page-bytes', type=int)
+    parser.add_argument('--page-bytes', type=int, help='Maximum source bytes delivered per page')
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--continue', dest='cursor')
-    group.add_argument('--replay', dest='replay')
+    group.add_argument('--continue', dest='cursor',
+                       help='Continue the saved route, features and prompt family using the emitted action')
+    group.add_argument('--replay', dest='replay', metavar='CURSOR',
+                       help='Read the selected snapshot page again using the emitted action')
+    parser.add_argument('--reading-ledger', type=Path,
+                        help='Existing reading ledger selected by a continuation or replay action')
     _add_runtime_arguments(parser)
+
+
+def _reading_actions(result: dict, *, ledger: Path, studio: Path | None, page_bytes: int) -> dict:
+    """Build executable next actions from the delivered snapshot's own context."""
+    _, snapshot, _ = _cursor(ledger, result['cursor'])
+    context = _runtime_context(snapshot['runtime'])
+    base = python_argv(ROOT / 'scripts' / 'execution_routes.py', 'read',
+                       '--reading-ledger', str(ledger.absolute()), '--page-bytes', str(page_bytes))
+    if studio is not None:
+        base.extend(('--root', str(studio.absolute())))
+    if context is not None:
+        base.extend(context.command_arguments())
+
+    def action(option: str, reason: str) -> dict:
+        argv = [*base, option, result['cursor']]
+        return {'argv': argv, 'command': shown(argv), 'reason': reason}
+
+    actions = {}
+    if result['remaining_bytes']:
+        actions['continue'] = action('--continue', f"Read the remaining {result['remaining_bytes']} source bytes.")
+    actions['replay'] = action('--replay', 'Read this delivered page again.')
+    return actions
 
 
 def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
     """Read, then write the draft reading record for the issued key and print its path."""
+    continuation = args.cursor is not None or args.replay is not None
+    if continuation and (args.route is not None or args.feature or args.model is not None or args.dialect is not None):
+        raise ValueError('a cursor fixes its route, features and prompt family; execute its complete reading action')
+    if args.reading_ledger is not None and not continuation:
+        raise ValueError('--reading-ledger locates an existing reading; use it with --continue or --replay')
     runtime = _configure_runtime(args, parser)
-    ledger = ledger_candidates(studio=args.root)[0]
+    ledger = ledger_candidates(studio=args.root, ledger=args.reading_ledger)[0]
+    studio = args.root.absolute() if args.root is not None else (_studio(Path.cwd()) or _studio(ledger.parent))
     dialect = args.dialect
     if args.model is not None:
         dialect = _model_family(args.model)
@@ -698,20 +745,25 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
         offers = selected_model.get('offerings') or []
         cards = [model_card(selected_model, row) for row in offers] if offers else [model_card(selected_model)]
         print('model-guidance: ' + json.dumps(cards, ensure_ascii=False, sort_keys=True), flush=True)
-    if args.cursor or args.replay or args.page_bytes is not None:
-        result = read_page(route=args.route, features=args.feature, cursor=args.cursor or args.replay,
-                           replay=bool(args.replay), page_bytes=16384 if args.page_bytes is None else args.page_bytes,
+    if continuation or args.page_bytes is not None:
+        page_bytes = 16384 if args.page_bytes is None else args.page_bytes
+        cursor = args.cursor if args.cursor is not None else args.replay
+        result = read_page(route=args.route, features=args.feature, cursor=cursor,
+                           replay=args.replay is not None, page_bytes=page_bytes,
                            ledger=ledger, runtime=runtime, dialect=dialect)
         issued = result.get('issued')
+        result['actions'] = _reading_actions(result, ledger=ledger, studio=studio, page_bytes=page_bytes)
+        print('reading-actions: ' + json.dumps(result['actions'], ensure_ascii=False), flush=True)
     elif args.route is None:
         raise ValueError('read requires a route or a continuation cursor')
     else:
         result = issued = issue(args.route, args.feature, ledger=ledger, dialect=dialect)
     if issued is not None:
         path = write_draft(issued, ledger)
-        studio = args.root.absolute() if args.root is not None else None
-        shown = path.relative_to(studio).as_posix() if studio is not None and path.is_relative_to(studio) else str(path)
-        print('reading-record: ' + shown, flush=True)
+        record_studio = args.root.absolute() if args.root is not None else None
+        record_location = (path.relative_to(record_studio).as_posix()
+                           if record_studio is not None and path.is_relative_to(record_studio) else str(path))
+        print('reading-record: ' + record_location, flush=True)
     return result
 
 

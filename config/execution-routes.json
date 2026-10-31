@@ -1,5 +1,6 @@
 {
   "always_read": [
+    "references/runtime/production-workflow.md",
     "references/runtime/production-direction.md",
     "references/runtime/production-permissions.md",
     "references/runtime/production-execution.md"

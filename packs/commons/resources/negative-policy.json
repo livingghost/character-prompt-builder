@@ -1,5 +1,5 @@
 {
-  "principle": "This policy supplies scoped negative sources for the author to assess against the current depiction. Select the constraints the image needs and express them in the target's supported form. A single prose channel may carry direct exclusions or positive construction; polarity alone does not decide meaning.",
+  "principle": "Define the selected picture and its present situation from the brief, adopted design and current direction. Convey the premises needed to understand its appearance, action, relationships and degree through the actual text and supplied references. Assess scoped negative sources for their role in that depiction. Use necessary exclusions as precise image boundaries in the target-supported form; both positive construction and direct exclusion retain their intended meaning.",
   "candidate_sources": {
     "generation_hygiene": {
       "activation": "character-image generation where incidental marks are unrelated to the requested design",
@@ -96,5 +96,20 @@
     "guidance": "A negative names only what an active source guards against, including a drift a reviewed result showed; add other concepts, themes, and presentations only when the user explicitly excludes them."
   },
   "merge_rule": "Assess each source against the complete intended artifact, explicit requirements and applicable evidence. Preserve the source scope in the selected constraint. A whole-image negative must hold throughout the image; another region may intentionally use the treatment excluded locally. If the interface cannot express a needed local exclusion, describe that local construction positively. Select only necessary constraints and consolidate redundant wording within their scopes.",
-  "applicability_rule": "Judge applicability from the intended scene, anatomy, wardrobe, props, camera and finish, including required details the draft has missed. Decide whether a constraint is needed from that full context. An unmentioned structure does not automatically require a negative bundle or an instruction declaring it absent, occluded or out of frame."
+  "applicability_rule": "Judge applicability from the selected depiction: its scene, anatomy, wardrobe, props, camera, finish and necessary interpretive context, including required details the draft has missed. A source requirement may govern authoring or story state while its current consequences guide the picture; keep that governing decision at its owner and express the situation the image needs. Select an exclusion for its contribution to this output, rather than merely because the source contains a restriction. An unmentioned structure does not automatically require a negative bundle or an instruction declaring it absent, occluded or out of frame.",
+  "construction_review": [
+    "Establish the selected result and present situation before choosing exclusions: identify the relevant subject, attribute, action, relationship, degree and reference role. Preserve intentional open choices in the brief.",
+    "Ensure the actual input establishes the premises needed for that result. Use the supplied media where they provide the information and express necessary context in the prompt before relying on it. Keep fuller source history and authoring decisions in their owning records.",
+    "For each selected exclusion, retain its active source, affected subject or region, scope and purpose in the existing production decisions or negative provenance. Identify its role in the selected image or supplied-image use. Relate it to the wanted result when that result is specified; an explicit image boundary can stand on its own.",
+    "Read the complete positive and negative rendition with the actual supplied images as the receiving model's input. Reconstruct the situation and intended result from that input, then compare them with the brief and adopted direction. Repair a missing premise or an instruction outside the selected depiction at its owner.",
+    "Confirm that the wanted qualities and necessary constraints remain jointly expressible, including modifier strength and local exceptions. Distinguish a deliberately selected ambiguous portrayal from an unresolved decision that remains in the authoring record.",
+    "Assess overlap by meaning, scope and role. Preserve required exclusions, source-transfer limits and distinct conditioning clauses; necessity follows the production requirements rather than a term-count target."
+  ],
+  "repair_sequence": [
+    "Locate the mismatch in the actual input or observed result and identify the requirement it affects. Establish whether the needed situation is conveyed and whether the instruction belongs to this depiction.",
+    "Return to the selected depiction, present-scene premises, reference assignment and final rendition. State the corrected appearance, action or relationship at its intended degree and scope.",
+    "Rebuild the affected prompt passage around that result, carrying forward the requirements and necessary premises that still apply. Select a scoped exclusion when it adds necessary image control for the request or observed failure.",
+    "Reconstruct the revised picture from the complete rendition and actual reference set, then compare it with the selected requirements. Keep the cause, change history and decisions outside the depiction in production records.",
+    "Assess the next actual candidate against the same applicable requirements. A repaired input establishes what is requested; candidate observations establish how the result realizes it."
+  ]
 }

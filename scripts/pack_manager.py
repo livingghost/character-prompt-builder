@@ -317,14 +317,10 @@ def _is_link(path: Path) -> bool:
 
     A Windows directory junction is not a symbolic link, so ``is_symlink`` alone
     lets one carry bytes from outside the pack root under a pack-relative name.
-    ``Path.is_junction`` arrived in Python 3.12 and this project supports 3.11,
-    so it is consulted only where the running interpreter provides it.
+    Check both kinds of redirection with the supported Python's path methods.
     """
 
-    if path.is_symlink():
-        return True
-    is_junction = getattr(path, "is_junction", None)
-    return bool(is_junction()) if is_junction is not None else False
+    return path.is_symlink() or path.is_junction()
 
 
 def _relative_path(root: Path, path: Path) -> str:
@@ -2089,8 +2085,7 @@ def _note_secondary_failure(
     operation: str,
     secondary: BaseException,
 ) -> None:
-    if hasattr(original, "add_note"):
-        original.add_note(f"{operation} also failed: {secondary}")
+    original.add_note(f"{operation} also failed: {secondary}")
 
 
 def install_pack(
@@ -2109,9 +2104,7 @@ def install_pack(
                 f"Cannot update pack {report.pack_id}: it is not installed in the managed root."
             )
         settings.managed_root.mkdir(parents=True, exist_ok=True)
-        if target.is_symlink() or (
-            hasattr(target, "is_junction") and target.is_junction()
-        ):
+        if _is_link(target):
             raise PackError(f"Managed pack target must not be a link: {target}")
         if not _within(target, settings.managed_root):
             raise PackError("Resolved installation target escapes the managed pack root.")
@@ -2200,9 +2193,7 @@ def remove_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
     if pack_id in state["enabled_packs"]:
         raise PackError("Disable the pack before removing it.")
     target = settings.managed_root.resolve() / pack_id
-    if target.is_symlink() or (
-        hasattr(target, "is_junction") and target.is_junction()
-    ):
+    if _is_link(target):
         raise PackError(f"Managed pack target must not be a link: {target}")
     if not _within(target, settings.managed_root) or not target.is_dir():
         raise PackError(f"Pack is not installed in the managed root: {pack_id}")

@@ -17,6 +17,7 @@ import tempfile
 from typing import Any, Callable
 
 import execution_contract as c
+from publication_artifacts import ArtifactSet
 
 FORMAT = 'cpb-scene-mask-plan'
 BUNDLE = 'cpb-scene-mask-bundle'
@@ -272,7 +273,8 @@ def check_task(root: Path, task: dict, binding: dict, *, read: Callable) -> dict
     return result
 
 
-def stage_media(verified: dict, checked: dict, offering: dict, directory: Path) -> None:
+def stage_media(verified: dict, checked: dict, offering: dict, directory: Path, *,
+                artifacts: ArtifactSet | None = None) -> None:
     """Use source media for composition and add a mask plus optional guidance."""
     forwarding = verified['host_forwarding']
     if forwarding['reference_media_role'] != 'seed-image':
@@ -308,6 +310,8 @@ def stage_media(verified: dict, checked: dict, offering: dict, directory: Path) 
                 raise ValueError('Native media staging collision.')
         else:
             c.atomic(target, raw)
+        if artifacts is not None:
+            artifacts.add(target, raw)
         media.append({'resolved_path': str(target), 'role': role,
                       'field': field, 'many': role == 'reference images'})
     forwarding['technical_media'] = media

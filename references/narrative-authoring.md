@@ -102,8 +102,13 @@ abbreviated form or version adaptation; studio copies of the forms are reading m
 than alternate creation sources. Other kinds receive prompts appropriate to their responsibility.
 
 Adding a persona leaves the narrative character, phase history and adoption to the author: set the
-narrative's pointers explicitly. Keep phase-specific knowledge and choices in the correct file; a
-current pointer is no permission to use the final persona in an earlier scene.
+narrative's pointers explicitly. The command reports `written` relative to `--series`, the
+directory containing `narrative/`. Use that path in the applicable `characters[].persona` or
+`characters[].phases[].persona` field. For example, a file created at
+`<studio>/story/narrative/personas/c01.md` with `--series <studio>/story` has the pointer
+`narrative/personas/c01.md`. Keep the current pointer on the last declared phase and phase-specific
+knowledge and choices in the correct file; a current pointer is no permission to use the final
+persona in an earlier scene.
 
 A person the agent proposes is a candidate in the design ledger until the author admits it; create
 the persona entity and set the pointers after that decision, once.
@@ -254,12 +259,21 @@ python scripts/scene_plot.py <directory>/narrative/scenes/<scene>.json --content
 ```
 
 The shared contract requires typed arrays even when empty. An explicit character arc needs its
-character references and its `want` and `need`; an explicit thematic arc needs theme references;
-other work may leave those arc types undeclared. Escalation stays optional in the optional arc
+character references; an explicit thematic arc needs theme references. On any arc, `want` and
+`need` are independently optional authored text; preserve each when declared. Other work may
+leave those arc types undeclared. Escalation stays optional in the optional arc
 development sections. Optional scene `turn` may be omitted or describe a held condition;
 `state_changes: []` declares the absence of a persistent consequence. Scene purpose, observed
 beats, setting, viewpoint and supported realization are still checked, and satisfying those links
 needs only declared material rather than an invented person or event.
+
+Context can support the chosen placement, preserved conditions and treatment of a
+shot, page or passage. Keep its `visibility: "context"` when it guides a choice
+without being presented. A unit's focal beat remains visible, and exchanges,
+learning and lasting changes require their own presented support. Apply the
+[Narrative Protocol's field-specific source rules](narrative-protocol.md#scene-plot)
+when authoring these links. A downstream prompt plot can retain context as support
+for its depiction choices and bind the approved scene as its source.
 
 `--content-sha256` hashes the JSON with `approved` removed. Scene and downstream prompt source
 hashes must match the actual approved inputs. JSON hashes exclude linked Markdown: record and
@@ -327,9 +341,10 @@ completeness, and full reading and its scope review remain attributed judgments.
 
 ## Read the developing story
 
-The normal `studio.py sync` automatically projects `narrative/narrative.json`,
-scene-plot files under `narrative/scenes/`, and the state ledger into `timeline.html` at the
-Studio root.
+The normal `studio.py sync` automatically projects `narrative/narrative.json` and
+scene-plot files under `narrative/scenes/` from one series, either at the Studio
+root or in its `story/` subdirectory, into `timeline.html` at the Studio root.
+The view includes the Studio's state ledger when one is authored.
 The page opens on the Graph overview of branches and revisions. The Flow view reads scene purposes, actions, participants and consequences.
 Pin passages for comparison; inspect promises, questions and knowledge across chapters.
 

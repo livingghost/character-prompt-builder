@@ -9428,7 +9428,7 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
   "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-  "generation_input_sha256": "c4fdc35c5764f560aa436ebffa6e0ccc6e367fd3b56c9fc5809c2e778d4ba1e6",
+  "generation_input_sha256": "9355fd7e75a93573a1bd8a0dfc3a8bc32d9d99c73a89ef8796ce5c0e3207256d",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -9579,10 +9579,10 @@
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "state_graphs_sha256": "9639bdbd5f1cb2b3b33f5515b7cbb9c47ac6ee26f7726360e6948c0b75a1d231",
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-    "generation_input_sha256": "c4fdc35c5764f560aa436ebffa6e0ccc6e367fd3b56c9fc5809c2e778d4ba1e6",
+    "generation_input_sha256": "9355fd7e75a93573a1bd8a0dfc3a8bc32d9d99c73a89ef8796ce5c0e3207256d",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "a90880a1354d9275a74032d32f8e30071b0d311d62ab530fdd7611b949c71ed5",
+    "route_reading_sha256": "1a89108a6902a9ea450a5c5d4a3159f917dd5991be4393afa8f1ac25d5c62a35",
     "request_validation_sha256": "5de8d9898aeda400229839220954f022510b0e5dd49053699b8cd88545f0b0b0",
     "input_snapshots_sha256": "7ee45583a03cf068d667bae298f6d04764be16f3bb427ce0503381ab0e25b2ef"
   },
@@ -9606,8 +9606,12 @@
   "route_reading": {
     "documents": [
       {
+        "path": "references/runtime/production-workflow.md",
+        "sha256": "587228fa5a308d3defce89bf0cb7ecf3e28b35079780bb1504734ce64ac35ca4"
+      },
+      {
         "path": "references/runtime/production-direction.md",
-        "sha256": "d9e69bcf8ac6417097ec987efcff7eee1fcc211b8db27fb418e6972edde116e7"
+        "sha256": "74213f08611f23dcafd749dc9c431874d27486ac2d6ff495dd0d7162a7a6cc08"
       },
       {
         "path": "references/runtime/production-permissions.md",
@@ -9615,7 +9619,7 @@
       },
       {
         "path": "references/runtime/production-execution.md",
-        "sha256": "0579e6a1d3454344f5626ba933bf5cec675d72efd289ce6b11243488f16ab312"
+        "sha256": "a838ccfa278b55ca8f921dfc3f1fa807e1e35fd79e36f8181cd20fa3886d9452"
       },
       {
         "path": "references/runtime/state-aware-series.md",
@@ -9623,7 +9627,7 @@
       },
       {
         "path": "references/runtime/story-timeline.md",
-        "sha256": "a53fdb7cab5dd2760fe38319338d0566d4cfb42f4be1d4a1650f00a849e9ef0d"
+        "sha256": "671f398001073113b2a74b6cc7c8602ea8f3bbb2d36c219c7334e17ae234c17f"
       },
       {
         "path": "references/runtime/studio-canon-references.md",
@@ -9631,7 +9635,7 @@
       },
       {
         "path": "references/runtime/prompt-writing-guide.md",
-        "sha256": "f5758fcfec65e1966bfb58e824305b7aa9d9733ed6251ad0cf87fd7e7204ee21"
+        "sha256": "ff3050a8558cec907c9d473ba0f56d7f7bacd75d98dddd5f6b176b05c520256b"
       },
       {
         "path": "references/runtime/prompt-weighting.md",
@@ -9639,7 +9643,7 @@
       },
       {
         "path": "references/runtime/reference-delivery.md",
-        "sha256": "2d921dd730b066f00d555d83ff254bd077f1417b92b29d46b5e1123a501b4b46"
+        "sha256": "9415908f4f632b1269cbe29ba67365e7131ccdf205224583581e7cfc07fe2dd2"
       },
       {
         "path": "references/runtime/render-contract.md",
@@ -9647,7 +9651,7 @@
       },
       {
         "path": "references/runtime/studio.md",
-        "sha256": "82c06d9f56b8eeb6811e6a8b49001bc8f9e62fe077702e9a57a788da64ac0155"
+        "sha256": "7faa992c873c942be99906d7e26ad557e83b6cb064e99d055020475318847bb8"
       },
       {
         "path": "references/runtime/world-realization.md",
@@ -9666,7 +9670,7 @@
         "status": "present",
         "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
         "path": "resources/prompt-writing-guide/guide.json",
-        "sha256": "4ec9149887348cf28ef3a4f9044348476ab4ce2083c8f30f2e40f778937f1ebe",
+        "sha256": "dc894d32c7f037f74a18f4a21bca6f2d5f68baf2662348e01f3fcebacfaf3fe6",
         "dialect": null
       },
       "prompt-dialects": {
@@ -9678,7 +9682,7 @@
       }
     },
     "route": "state-series",
-    "reading_key": "bb897d2e4c57506609f835b85bfd5e61",
+    "reading_key": "9da423b0796a88a0e7446f0eb34cfc3a",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
@@ -9705,7 +9709,7 @@
       }
     ]
   },
-  "route_reading_sha256": "a90880a1354d9275a74032d32f8e30071b0d311d62ab530fdd7611b949c71ed5",
+  "route_reading_sha256": "1a89108a6902a9ea450a5c5d4a3159f917dd5991be4393afa8f1ac25d5c62a35",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",
