@@ -272,7 +272,7 @@ class FormPersonaTests(unittest.TestCase):
                     scene.draft(self.root, 'story/' + self.PLOT, output, 'text', [ident])
                 message = str(failure.exception)
                 for detail in ('story/narrative/narrative.json', f"character {ident!r}",
-                               "chapter 'ch1'", f'series directory {series}',
+                               "chapter 'ch1'", f'series directory {series.resolve()}',
                                f'missing material: story/personas/{ident.lower()}.md'):
                     self.assertIn(detail, message)
                 self.assertTrue((series / f'narrative/personas/{ident.lower()}.md').is_file())

@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 990,
-  "total_bytes_excluding_manifest": 17238847,
+  "total_bytes_excluding_manifest": 17239092,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -3416,8 +3416,8 @@
     },
     {
       "path": "scripts/documentation_contract_smoke_test.py",
-      "bytes": 43836,
-      "sha256": "5353377279a8b7b0b47981d066bc3acd632611a03de5e4c810fd5d9e97f84645"
+      "bytes": 43846,
+      "sha256": "6acf9e3e381b0ad25696ea434c47274941d9ae540bcd5f4b66d36153291a0e3f"
     },
     {
       "path": "scripts/eval_runtime_smoke_test.py",
@@ -3711,8 +3711,8 @@
     },
     {
       "path": "scripts/pack_selector_smoke_test.py",
-      "bytes": 14786,
-      "sha256": "8aa143fb063a6bb8bf75b59fa8aac3308cda4e61d8b8f45fc4cedb0027f468a8"
+      "bytes": 14806,
+      "sha256": "a6fb705d731844ec3122697bc97f71568711f8fa8b55315013b4aca1d9f9fa95"
     },
     {
       "path": "scripts/pack_smoke_test.py",
@@ -4151,8 +4151,8 @@
     },
     {
       "path": "scripts/route_reading_smoke_test.py",
-      "bytes": 36524,
-      "sha256": "e18e487bf98e3a267898d550814aa98a9d364e5a607e3f6adec08ba6ea212822"
+      "bytes": 36667,
+      "sha256": "99c2fddda49ffcf4dad2d07d6a7e8c7333595b5cbd2fbc6fcf19e8f8d721cab1"
     },
     {
       "path": "scripts/run_checks.py",
@@ -4211,8 +4211,8 @@
     },
     {
       "path": "scripts/scene_material_smoke_test.py",
-      "bytes": 34288,
-      "sha256": "f56fb7e44562407a309e6ed8a465200497086f8c090d37b7b51d6791fb34a92b"
+      "bytes": 34298,
+      "sha256": "29685c11eabbd00228e41d10abdf369148b6816400b8e8d465c0937c30c5d05e"
     },
     {
       "path": "scripts/scene_persona.py",
@@ -4436,8 +4436,8 @@
     },
     {
       "path": "scripts/story_flow_smoke_test.py",
-      "bytes": 36668,
-      "sha256": "8bcb411dff41cb92dd65e2f77f9023c5e5a0249192d20e8f2b299a56bf27d1b3"
+      "bytes": 36720,
+      "sha256": "2c711b5da16a6abcdf959043c74ec975fedde10923c6c52224236d7ab88f2854"
     },
     {
       "path": "scripts/story_graph_smoke_test.py",
@@ -4456,8 +4456,8 @@
     },
     {
       "path": "scripts/story_timeline_smoke_test.py",
-      "bytes": 38435,
-      "sha256": "13385d02df2b5ff8f9b5532c09e07eea37e267a370985ff8c55b51bd3baa3229"
+      "bytes": 38445,
+      "sha256": "f018674ae51d257f804fbf391b14066ea55c64c69f1e79150812af03db77383c"
     },
     {
       "path": "scripts/structure_contract.py",

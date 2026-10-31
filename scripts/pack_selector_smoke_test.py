@@ -94,10 +94,10 @@ class PackSelectorTests(unittest.TestCase):
         payload = json.loads(run.stdout)
         self.assertEqual((payload["ok"], payload["operation"]), (True, "root-add"))
         state = json.loads((self.root / "state.json").read_text(encoding="utf-8"))
-        self.assertIn(str(outside), state["pack_roots"])
+        self.assertIn(str(outside.resolve()), state["pack_roots"])
         found = execute([*self.common, "validate", "--pack", self.manifest["pack_id"], "--released"])
         self.assertEqual(found.returncode, 0, found.stdout + found.stderr)
-        self.assertEqual(Path(json.loads(found.stdout)["resolved_root"]), external)
+        self.assertEqual(Path(json.loads(found.stdout)["resolved_root"]), external.resolve())
         self.assertFalse((self.root / "other home/pack-state.json").exists())
 
     def test_ready_repairs_run_as_printed_with_multiple_discovery_roots(self) -> None:

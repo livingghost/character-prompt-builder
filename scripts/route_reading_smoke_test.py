@@ -217,6 +217,8 @@ class ReadingTests(unittest.TestCase):
                        '--cache-dir': str(home / 'cache'),
                        '--managed-root': str(home / 'packs')}
             ledger = studio / 'work/reads.jsonl'
+        runtime = {option: str(Path(value).resolve()) for option, value in runtime.items()}
+        roots = [path.resolve() for path in roots]
         expected = dict(studio=studio, ledger=ledger, runtime=runtime,
                         roots=roots, page_bytes=page_bytes)
         output = self.cli_read(start, cwd=first_cwd, environment=environment)

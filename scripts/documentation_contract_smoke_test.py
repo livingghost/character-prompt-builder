@@ -525,7 +525,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         self.assertEqual(json.loads(run.stdout)["operation"], "root-add")
         state = json.loads((selected / "state.json").read_text(encoding="utf-8"))
-        self.assertIn(str(container), state["pack_roots"])
+        self.assertIn(str(container.resolve()), state["pack_roots"])
         self.assertFalse((self.root / "unselected home/pack-state.json").exists())
 
     def test_prompt_writing_guide_is_an_executed_rendition_stage(self) -> None:

@@ -374,7 +374,7 @@ class SeriesLocationTests(unittest.TestCase):
                     if failure=='directory':path.unlink();path.mkdir()
                     read=c.read
                     def source_read(source,**kwargs):
-                        if failure=='permission' and Path(source)==path:
+                        if failure=='permission' and Path(source).resolve()==path.resolve():
                             raise PermissionError('synthetic narrative access denied')
                         return read(source,**kwargs)
                     with patch.object(c,'read',side_effect=source_read):
@@ -517,7 +517,7 @@ class SeriesLocationTests(unittest.TestCase):
                     name=call.args[1]
                     if '/scenes/' in name:counts[name]=counts.get(name,0)+1
                 self.assertEqual(list(counts.values()),[1,1,1])
-                target=root/(prefix+value['setting']['scene_context'])
+                target=(root/(prefix+value['setting']['scene_context'])).resolve()
                 self.assertEqual(sum(Path(call.args[0])==target for call in disk_read.call_args_list),1)
 
     def test_unsafe_alternative_boundaries_cannot_select_a_readable_series(self):
@@ -542,7 +542,7 @@ class SeriesLocationTests(unittest.TestCase):
         directory=root/'story/narrative/scenes';directory.mkdir(parents=True)
         original=timeline.os.walk
         def denied(path,*args,**kwargs):
-            if Path(path)==directory:
+            if Path(path).resolve()==directory.resolve():
                 if kwargs.get('onerror'):
                     kwargs['onerror'](PermissionError('synthetic directory enumeration denied'))
                 return iter(())

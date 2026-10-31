@@ -515,7 +515,7 @@ class ArtworkTests(unittest.TestCase):
         self.assertTrue(all(facts[name]['read_contract']['kind']=='sheet' for name in expected))
         self.assertEqual(facts['studio.json']['status'],'present')
         self.assertEqual(facts[relative+'sheet-data.json']['status'],'present')
-        reads=Counter(Path(call.args[0]).relative_to(self.root).as_posix() for call in read.call_args_list)
+        reads=Counter(Path(call.args[0]).relative_to(self.root.resolve()).as_posix() for call in read.call_args_list)
         self.assertTrue(all(reads[name]==1 for name in expected|{'studio.json',relative+'sheet-data.json'}))
 
     def test_recursive_artwork_sources_and_early_refusals_are_publication_inputs(self):
