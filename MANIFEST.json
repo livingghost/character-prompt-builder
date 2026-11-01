@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 996,
-  "total_bytes_excluding_manifest": 17473453,
+  "total_bytes_excluding_manifest": 17473487,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -3791,8 +3791,8 @@
     },
     {
       "path": "scripts/production_auth_smoke_test.py",
-      "bytes": 44006,
-      "sha256": "20ad4275d04e657f64e9fecec03d4546b232a24702fe7a7b4710df10f34192f3"
+      "bytes": 44040,
+      "sha256": "5d36ab7aaabab0c4bfe34ada3f052f748beeb65fa86e09d468a84bcd92ddfa48"
     },
     {
       "path": "scripts/production_binding.py",

@@ -152,7 +152,7 @@ class ProductionAuthenticationTests(unittest.TestCase):
         self.assertEqual(state['authentication']['remote_validation'], 'not-performed')
         self.assertEqual(state['next_action']['command'], 'credentials-prepare')
         self.assertEqual(state['next_action']['argv'][2:5], ['credentials', 'prepare', SERVICE])
-        self.assertIn(str(self.root), state['next_action']['argv'])
+        self.assertIn(str(self.root.resolve()), state['next_action']['argv'])
         self.assertFalse(state['next_action']['requires_author_input'])
         self.assertEqual({item['code'] for item in state['readiness_diagnostics']},
                          {'AUTHORIZATION_REQUIRED', 'CREDENTIAL_UNAVAILABLE'})
@@ -178,7 +178,7 @@ class ProductionAuthenticationTests(unittest.TestCase):
         selected = prepared['selection']
         path = Path(prepared['input']['path'])
         self.assertTrue(path.is_absolute())
-        self.assertEqual(path, self.root / service_auth.CONFIG_FILE)
+        self.assertEqual(path, (self.root / service_auth.CONFIG_FILE).resolve())
         self.assertEqual(prepared['input']['json_pointer'], '/' + SERVICE + '/api_key')
         self.assertEqual(self.entered_value(prepared['input']), '')
         pending = self.state()
@@ -627,7 +627,7 @@ class ProductionAuthenticationTests(unittest.TestCase):
         self.assertIn('--stored', action['argv'])
         prepared = service_auth.prepare(self.root, SERVICE, stored=True)
         self.assertEqual(prepared['selection'], selected)
-        self.assertEqual(prepared['input']['path'], str(self.root / service_auth.CONFIG_FILE))
+        self.assertEqual(prepared['input']['path'], str((self.root / service_auth.CONFIG_FILE).resolve()))
         self.assertEqual(prepared['input']['json_pointer'], '/' + SERVICE + '/api_key')
         with self.assertRaises(ProductionError):
             execution.resume(self.root, self.run)
