@@ -101,6 +101,62 @@
         "blocked"
       ]
     },
+    "authentication_identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "authentication_variable": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "authentication_selection": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "source": {"const": "api_key"},
+            "service": {"$ref": "#/$defs/authentication_identifier"}
+          },
+          "required": ["source", "service"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "source": {"const": "api_key_env"},
+            "service": {"$ref": "#/$defs/authentication_identifier"},
+            "variable": {"$ref": "#/$defs/authentication_variable"}
+          },
+          "required": ["source", "service", "variable"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "authentication": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "required": {"type": "boolean"},
+            "available": {"type": ["boolean", "null"]},
+            "selection": {"$ref": "#/$defs/authentication_selection"},
+            "diagnostics": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/diagnostic"}
+            },
+            "remote_validation": {"const": "not-performed"}
+          },
+          "required": ["required", "available", "selection", "diagnostics", "remote_validation"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "submission": {
       "enum": [
         "unclaimed",
@@ -156,6 +212,39 @@
         "message"
       ]
     },
+    "authentication_input": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Absolute path to the owner's credentials.json on the execution host, using POSIX, Windows drive, or UNC syntax.",
+          "type": "string",
+          "pattern": "^(?:/|[A-Za-z]:[/\\\\]|\\\\\\\\).+$"
+        },
+        "format": {
+          "const": "json"
+        },
+        "encoding": {
+          "const": "utf-8"
+        },
+        "json_pointer": {
+          "description": "The service's api_key string to edit, or the empty root pointer when the complete JSON needs repair.",
+          "type": "string",
+          "pattern": "^(?:/[a-z0-9][a-z0-9-]*/api_key)?$"
+        },
+        "instructions": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path",
+        "format",
+        "encoding",
+        "json_pointer",
+        "instructions"
+      ],
+      "additionalProperties": false
+    },
     "next_action": {
       "anyOf": [
         {
@@ -186,6 +275,9 @@
             },
             "requires_author_input": {
               "type": "boolean"
+            },
+            "input": {
+              "$ref": "#/$defs/authentication_input"
             }
           },
           "required": [
@@ -193,7 +285,16 @@
             "argv",
             "reason"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "if": {
+            "required": ["input"]
+          },
+          "then": {
+            "properties": {
+              "requires_author_input": {"const": true}
+            },
+            "required": ["requires_author_input"]
+          }
         }
       ]
     },
@@ -286,6 +387,9 @@
           "items": {
             "$ref": "#/$defs/diagnostic"
           }
+        },
+        "authentication": {
+          "$ref": "#/$defs/authentication"
         },
         "submission": {
           "$ref": "#/$defs/submission"
@@ -396,6 +500,7 @@
         "preparation",
         "readiness",
         "readiness_diagnostics",
+        "authentication",
         "submission",
         "send_started",
         "effects",

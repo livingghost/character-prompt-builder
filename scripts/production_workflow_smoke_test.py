@@ -660,7 +660,7 @@ class PackageIntegrationTests(unittest.TestCase):
         w.handoff(self.root,self.run,plan['handoff']['recipient'],'dispatcher',tokens['direction'],journal=journal.path)
         changed=copy.deepcopy(self.package);changed['input_snapshots'][sorted(snapshots)[0]]['sha256']='a'*64
         with self.assertRaises(ProductionError) as caught:
-            w.claim_dispatch(self.root,self.run,changed,{},journal.path,intent,tokens['submit'],rendered=rendered)
+            w.claim_dispatch(self.root,self.run,changed,{},journal.path,intent,tokens['submit'],rendered=rendered,authentication=None)
         self.assertEqual(caught.exception.diagnostic.pointer,'$.package_sha256')
         self.assertEqual(accounting.all_states(self.root),[])
 
@@ -680,7 +680,7 @@ class PackageIntegrationTests(unittest.TestCase):
         self.assertEqual(len(result['runs'][0]['candidates']),2)
 
     def test_dispatch_then_recording_recovery_is_idempotent_without_resubmission(self):
-        import dispatch,studio,production_execution as execution,transport_synthetic
+        import dispatch,studio,production_execution as execution,transport_synthetic,service_auth
         real=studio.iterate;calls=[]
         def fail_second(*a,**kw):
             calls.append(1)
@@ -691,7 +691,7 @@ class PackageIntegrationTests(unittest.TestCase):
         self.assertEqual(len(result['runs'][0]['candidates']),2)
         (self.root/'prompt.txt').unlink()
         with patch.object(transport_synthetic,'send',side_effect=AssertionError('No resubmission')), \
-             patch.object(dispatch,'api_key',side_effect=AssertionError('Recovery needs no API credential')):
+             patch.object(service_auth,'resolve',side_effect=AssertionError('Recovery needs no API credential')):
             first=execution.resume(self.root,self.run);second=execution.resume(self.root,self.run)
         self.assertTrue(first['execution_completed']);self.assertTrue(second['execution_completed'])
         self.assertEqual(first['runs'][0]['candidates'],second['runs'][0]['candidates'])

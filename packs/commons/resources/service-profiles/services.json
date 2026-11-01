@@ -13,8 +13,7 @@
       "auth": {
         "scheme": "bearer",
         "header": "Authorization",
-        "env_var": "RUNWARE_API_KEY",
-        "note": "The key is read from the environment or a local credential store at run time; it is never written into a record, a spec, or a run file."
+        "note": "Studio authentication selects the private value or explicit environment source by service and authentication profile at execution time. The transport applies the value as a Bearer token in the Authorization header."
       },
       "envelope": {
         "request": "A JSON array of task objects. Each task carries taskType and a client-generated taskUUID, and the task's own parameters at the top level of the object.",

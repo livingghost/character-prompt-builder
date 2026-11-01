@@ -1,5 +1,66 @@
 # Changelog
 
+## 2026.11.01.6
+
+- Read the selected service's JSON or environment string unchanged. Keep whitespace and other string contents exactly as supplied, without shared key-format rules, key-length limits or credential-document size limits.
+- Use ordinary file reads for authentication. File permissions, ownership, links and timestamps impose no additional authentication gate; report operating-system access errors directly and remove the separate permission-repair operation.
+- Resolve each service independently of unrelated configuration entries. Preserve other entries and concurrent-edit checks when updating saved values, and keep authentication values out of diagnostics and production artifacts.
+- Connect required observations to the selected action, spatial construction, presentation and delivered input. Review plausible competing realizations when a meaningful ambiguity exists, preserving valid alternatives and creative latitude.
+- Observe returned artifacts before comparing them with intended criteria. Keep the reviewer's input boundary explicit, retain indeterminate verdicts when evidence is inconclusive, and repair the layer responsible for the observed mismatch.
+
+## 2026.11.01.5
+
+- Read the current service authentication setting on each lookup and accept ordinary saved-key rotation, JSON rewrites and file replacement. Validate the opened file's private access and the read document's structure.
+- Support repeated stored-key reads and updates on Windows, where path and descriptor queries can report different creation or change timestamps for the same file.
+- Keep concurrent-edit protection with credential updates, so saving an entry preserves an owner's intervening edits. Isolate authentication CLI tests with temporary home and configuration directories.
+
+## 2026.11.01.4
+
+- Configure one authentication source per service directly in the Studio's private `credentials.json`: a saved `api_key` string or an `api_key_env` variable name. Models offered by the same service use that entry.
+- Prepare the exact `/SERVICE/api_key` input field before asking the owner to fill it. Keep existing values and source choices during repeated preparation, and report the actual path, availability and next action.
+- Use `prepare --environment` for a live variable, `prepare --stored` for an explicit switch to saved input, and `set` for hidden input, stdin or environment import. Remove a service's complete local entry through `remove` while preserving other services.
+- Record only the service and nonsecret source in an execution claim. Support rotation within that source and require explicit restoration when the source or environment-variable name changes before recovery.
+- Preserve private JSON protection, exact owner handoff, safe diagnostics, concurrent-edit detection and private-path exclusion from production artifacts and Skill packages.
+
+## 2026.11.01.3
+
+- Keep service selections and saved API keys together in each Studio's private `credentials.json`. Prepare service-named input fields so the owner fills a JSON string and saves, while the Agent handles setup, availability checks and continuation.
+- Use the selected credential for each service in ordinary work and select additional accounts explicitly. Preserve runtime environment variables, hidden input, standard input and environment import.
+- Share saved values explicitly by owning Studio and key name. Preserve local and shared key rotation, separate profile removal from value deletion, and retain each claimed execution's original source for recovery.
+- Preserve existing values during repeated preparation, identify pending or malformed values by JSON Pointer, and keep malformed documents intact for correction. Complete Agent edits before the owner edits the credential JSON.
+- Keep private credential paths out of production inputs, evidence, artifact registration and Skill release packages. Prepare Studio Git ignore rules before saving credentials. Local saved keys travel with whole Studio folder copies, while shared sources retain their owner's path.
+
+## 2026.11.01.2
+
+- Prepare ordinary UTF-8 `.txt` files for stored API keys, with text-editor instructions and the actual input path. Keep the empty input state, profile binding, repeat-safe preparation and owner-only access handling together.
+- Present live environment sources and stored text files as the two authentication choices before setup. Follow the existing profile and the owner's selected method; the Agent completes the corresponding binding and verifies availability before continuing production.
+- Distinguish `bind --environment`, which reads the named variable during execution, from `set --from-env`, which copies its current value into a stored text file. Retain terminal entry, standard input and claimed-execution source selection.
+
+## 2026.11.01.1
+
+- Prepare a service profile and its private UTF-8 input file before asking for an API key. The Agent supplies the exact path and writing instructions; the owner pastes the key into that file and saves it, and the Agent checks the selected profile and resumes the prepared work.
+- Store private values as plain text in UUID-named `.key` files. An empty file is a supported input-waiting state. Accept ordinary editor saves, including a UTF-8 BOM and trailing line endings, while keeping invalid values in their selected source for correction.
+- Return executable preparation actions for missing configuration and recorded files, and return the concrete input destination while waiting for the owner. Preserve existing values and references across repeated preparation, keep environment sources explicit, and require account-selection judgment before restoring a changed execution source.
+- Retain a newly prepared input file when its Studio binding cannot be published, and retry with the same reference. Restore owner-only access on a verified private file after an editor changes its POSIX mode; availability inspection remains read-only.
+- Keep direct terminal input, standard input, environment import, profile selection, shared references and claimed-execution recovery available. Exclude private credential directories and their value files from packaged release trees.
+
+## 2026.10.31.4
+
+- Configure authentication by service and optional account profile. Store keys through hidden terminal input or standard input and use them directly during execution. Model and service definitions remain independent of local input variable names.
+- Keep environment import and live environment sources explicit: importing saves a private copy, while binding an environment source reads that named variable at execution. New service profiles can use stored values without any environment variable.
+- Reuse a stored reference through a dedicated binding command. Select an active profile for new executions while recovery retains the service, profile and source recorded by the existing claim. Rotate a key within the same reference when its account relationship remains appropriate.
+- Remove a Studio profile while retaining shared private values, and delete a private value through an explicit reference-targeted command. Removing an active profile leaves remaining accounts available for deliberate selection.
+- Report profile selection and local availability through service-oriented commands and recovery actions. Preserve private-store protections, key-independent preparation and saved-answer recovery, and separate request authority from authentication.
+
+## 2026.10.31.3
+
+- Manage service authentication through Studio commands for hidden input, standard input, environment import, local status, rotation and removal. Keep opaque references with the Studio and private values in the user data home, outside every Studio and Skill directory.
+- Resolve authentication from an explicit Studio selection or the process environment. Bind each dispatch claim to its selected source and reference, preserve that selection during pre-send resume and provider lookup, and support rotating the value in the same slot. Host application configuration remains under its own owner's control.
+- Report local authentication availability and actionable configuration diagnostics in production status while keeping preparation, immutable requests and their input hashes independent of private values. Saved provider answers remain recoverable without a key.
+- Protect the private store with bounded, validated documents, atomic file replacement and owner-only POSIX permissions. Keep Windows access protection explicit as inherited directory ACLs, and report shared-reference effects when rotating or removing a slot.
+- Redact explicitly registered authentication values from operation logs and diagnostics, including short and numeric values. Document the separate handling of private storage, request authorization, external host authentication and preserved provider-response evidence.
+- Guide task planning toward verified Production completion and keep Studio administration's results with its operation records.
+
 ## 2026.10.31.2
 
 - Run the Skill, its child commands and validation in one Python 3.12 project environment through uv. Declare every direct dependency in `pyproject.toml`, preserve the complete resolution in `uv.lock`, and derive the single pip requirements export from that lock.

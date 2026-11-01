@@ -34,9 +34,9 @@ import transport_contract  # noqa: E402
 import transport_runware  # noqa: E402
 from request_contract import MANAGEMENT_VALUE
 
-EXPECTED_CHECKS = 69
+EXPECTED_CHECKS = 67
 
-SERVICE = {"endpoint": {"base_url": "https://example.invalid/v1", "method": "POST"}, "operations": {"imageInference": {}}, "auth": {"env_var": "EXAMPLE_KEY"}}
+SERVICE = {"endpoint": {"base_url": "https://example.invalid/v1", "method": "POST"}, "operations": {"imageInference": {}}, "auth": {"scheme": "bearer", "header": "Authorization"}}
 TEXT_KEYS = {"model": ["model"], "prompt": ["positivePrompt"], "negative prompt": ["negativePrompt"]}
 OFFERING = {
     "service": "svc",
@@ -214,21 +214,6 @@ def isolated_environment(home: Path) -> dict[str, str]:
     return environment
 
 
-def credential(config: Any, variable: str = "EXAMPLE_KEY") -> tuple[str | None, str]:
-    """dispatch.api_key against a synthetic ~/.claude.json in a scratch home: (key or None, everything printed)."""
-    with tempfile.TemporaryDirectory(prefix="cpb-dispatch-home-") as tmp:
-        home = Path(tmp)
-        (home / ".claude.json").write_text(json.dumps(config), encoding="utf-8")
-        output = io.StringIO()
-        environment = {name: value for name, value in os.environ.items() if name != variable}
-        with patch.object(Path, "home", return_value=home), patch.dict(os.environ, environment, clear=True), \
-                contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-            try:
-                return dispatch.api_key({"auth": {"env_var": variable}}), output.getvalue()
-            except ValueError as exc:
-                return None, output.getvalue() + str(exc)
-
-
 def main() -> int:
     results: list[dict[str, Any]] = []
 
@@ -359,23 +344,6 @@ def main() -> int:
           refused(lambda: handler.redirect_request(original, None, 302, "Found", {}, "https://example.invalid/a.png"), "refused to download")
           and handler.redirect_request(original, None, 302, "Found", {}, "https://im.runware.ai/image/b.png").full_url
           == "https://im.runware.ai/image/b.png")
-
-    # The credential comes from the environment, or from an MCP server's env
-    # block in the host configuration, and from nowhere else in that file.
-    top = {"mcpServers": {"runware": {"command": "x", "env": {"EXAMPLE_KEY": "top-level-secret"}}}}
-    project = {"projects": {"C:/work": {"mcpServers": {"runware": {"env": {"EXAMPLE_KEY": "project-secret"}}}}}}
-    stray = {"EXAMPLE_KEY": "stray-secret", "projects": {"C:/work": {"env": {"EXAMPLE_KEY": "stray-secret"}}},
-             "other": {"deep": {"EXAMPLE_KEY": "stray-secret"}}}
-    found = [credential(top), credential(project), credential(stray)]
-    check("the credential is read from a top-level or per-project MCP server env block and nowhere else in the host configuration",
-          found[0][0] == "top-level-secret" and found[1][0] == "project-secret" and found[2][0] is None
-          and "Set EXAMPLE_KEY" in found[2][1], [row[1] for row in found])
-    conflicting = credential({**top, **project})
-    check("MCP servers that give the variable different values are refused, and no value is printed",
-          conflicting[0] is None and "different values" in conflicting[1]
-          and not any(secret in conflicting[1] for secret in ("top-level-secret", "project-secret"))
-          and not any(secret in row[1] for row in found for secret in ("top-level-secret", "project-secret", "stray-secret")),
-          conflicting[1])
 
     # The Runware transport sends the credential only to https on its API host,
     # through the post() of the transport contract.

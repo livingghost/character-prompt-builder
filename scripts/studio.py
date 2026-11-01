@@ -23,6 +23,11 @@ and continues.
     python scripts/studio.py reject --studio DIR --character <id> --iteration <it-id> --reason "..." --actor "..."
     python scripts/studio.py recipe --studio DIR --character <id> --slot <slot> [--iteration <it-id>]
     python scripts/studio.py gallery --studio DIR [--out <file.html>]
+    python scripts/studio.py credentials prepare SERVICE --studio DIR
+        [--environment NAME | --stored]
+    python scripts/studio.py credentials set SERVICE --studio DIR [--stdin | --from-env NAME]
+    python scripts/studio.py credentials status [SERVICE] --studio DIR
+    python scripts/studio.py credentials remove SERVICE --studio DIR
 
 `--studio` names any directory in the studio, before or after the command, and
 defaults to the working directory.
@@ -49,6 +54,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import execution_contract  # noqa: E402
 import work_ledger  # noqa: E402
+from private_state import assert_public_path, assert_public_tree
 # A record is replaced whole: a reader sees the old record or the new one, never a torn one.
 from studio_activity import timestamp as now
 from execution_contract import atomic_write_json as write_json, sha256_file  # noqa: E402
@@ -330,7 +336,9 @@ def _keep(root: Path, home: Path, iteration_id: str, source: Path | None, name: 
     """Copy a file into the iteration's directory and record its hash; None when there is none."""
     if source is None:
         return None
+    assert_public_path(source)
     source = source.resolve()
+    assert_public_path(source)
     if not source.is_file():
         raise ValueError(f"{source} is not a file")
     target = home / "iterations" / iteration_id / f"{name}{source.suffix.lower()}"
@@ -365,6 +373,7 @@ def _keep_companion(home: Path, iteration_id: str, companion: Path) -> Path:
     `<companion>/<file>`: renamed, the package that the iteration holds would no
     longer resolve beside it.
     """
+    assert_public_tree(companion)
     companion = companion.resolve()
     if not companion.is_dir():
         raise ValueError(f"{companion} is not a directory")
@@ -1092,6 +1101,27 @@ def main(argv: list[str] | None = None) -> int:
     init_parser.add_argument("--default-interaction-mode", default="balanced")
     init_parser.add_argument("--default-style-family", help="a style family every request starts from (default: none)")
     commands.add_parser("status", help="the open task, and every character's slots and candidates", parents=[after])
+    auth_parser = commands.add_parser("credentials", help="manage one saved API key or environment source per service", parents=[after])
+    auth_commands = auth_parser.add_subparsers(dest="auth_command", required=True)
+    auth_prepare = auth_commands.add_parser("prepare", parents=[after],
+        help="prepare the service's API-key entry or select its environment variable",
+        description="Prepare one authentication entry for the service in credentials.json. Existing values and environment sources are retained by default. Give the owner the returned file path and JSON Pointer to fill the API-key string and save. Use --environment or --stored to explicitly change the service's source.")
+    auth_prepare.add_argument("service", metavar="SERVICE", help="the service identifier selected by the model offering")
+    auth_source = auth_prepare.add_mutually_exclusive_group()
+    auth_source.add_argument("--environment", metavar="NAME", help="read this process environment variable whenever execution needs authentication")
+    auth_source.add_argument("--stored", action="store_true", help="select the service's api_key string; retain its saved value or prepare an empty string")
+    auth_set = auth_commands.add_parser("set", parents=[after],
+        help="save or rotate a private value for a service; hidden terminal input is the default")
+    auth_set.add_argument("service", metavar="SERVICE", help="the service identifier selected by the model offering")
+    auth_input = auth_set.add_mutually_exclusive_group()
+    auth_input.add_argument("--stdin", action="store_true", help="read the complete value from standard input without trimming whitespace")
+    auth_input.add_argument("--from-env", metavar="NAME", help="import this environment variable's current value into private storage")
+    auth_status = auth_commands.add_parser("status", parents=[after],
+        help="show each service's authentication source and local availability")
+    auth_status.add_argument("service", metavar="SERVICE", nargs="?")
+    auth_remove = auth_commands.add_parser("remove", parents=[after],
+        help="remove the service's saved key or environment reference from this Studio")
+    auth_remove.add_argument("service", metavar="SERVICE")
     character_parser = commands.add_parser("character", help="characters")
     character_commands = character_parser.add_subparsers(dest="character_command", required=True)
     add_parser = character_commands.add_parser("add", help="add a character with a blank sheet", parents=[after])
@@ -1134,6 +1164,20 @@ def main(argv: list[str] | None = None) -> int:
         root = require_studio(args.studio or Path.cwd())
         if args.command == "status":
             print(status(root))
+        elif args.command == "credentials":
+            import service_auth
+            if args.auth_command == "prepare":
+                report = service_auth.prepare(root, args.service,
+                    environment=args.environment, stored=args.stored)
+            elif args.auth_command == "set":
+                report = service_auth.set_from_input(root, args.service,
+                    from_env=args.from_env, stdin=args.stdin)
+            elif args.auth_command == "remove":
+                report = service_auth.remove(root, args.service)
+            else:
+                report = service_auth.status(root, args.service)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0 if report["ok"] else 3
         elif args.command == "character":
             home = add_character(root, args.character, args.profile)
             print(f"added {args.character} at {home}")
@@ -1156,6 +1200,13 @@ def main(argv: list[str] | None = None) -> int:
             html_path, json_path = write_gallery(root, args.out)
             print(f"wrote {html_path} and {json_path}")
     except (ValueError, OSError) as exc:
+        if args.command == "credentials":
+            from production_diagnostics import ProductionError, exit_code, from_exception
+            diagnostic = _operation_context.safe_value(from_exception(exc, phase="credential-management"),
+                secrets=_operation_context.current().secrets if _operation_context.current() else ())
+            print(json.dumps({"ok": False, "diagnostics": [diagnostic]}, ensure_ascii=False, indent=2))
+            print("error: " + diagnostic["message"], file=sys.stderr)
+            return exit_code(diagnostic["code"]) if isinstance(exc, ProductionError) else 2
         print(f"error: {_explain(exc)}", file=sys.stderr)
         return 1
     return 0

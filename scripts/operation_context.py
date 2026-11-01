@@ -20,6 +20,7 @@ import sys
 import time
 import uuid
 from typing import Any, Callable, Iterator, TextIO
+from private_state import assert_public_path
 
 _CURRENT: contextvars.ContextVar['Operation | None'] = contextvars.ContextVar('cpb_operation', default=None)
 # A child process reads its parent operation from this variable.
@@ -466,8 +467,9 @@ class Operation:
         self._write('events.jsonl', json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)+'\n', append=True)
 
     def register_secret(self, value: str) -> None:
+        """Register an observed credential, independently of ambient-value heuristics."""
         values = {value, value.strip()} if isinstance(value, str) else set()
-        added = tuple(v for v in values if _secret_value(v) and v not in self.secrets)
+        added = tuple(v for v in values if v and v not in self.secrets)
         if added:
             self.secrets = _ordered((*self.secrets, *added))
             for writer in self._redactors:
@@ -567,6 +569,7 @@ class Operation:
             self.json('operation.json', self.metadata)
 
     def artifact(self, path: Path, *, content_sha256: str | None = None, size: int | None = None) -> None:
+        assert_public_path(path)
         try:
             path = Path(path)
             if self.path in path.parents or path.is_symlink() or not path.is_file():
@@ -594,6 +597,7 @@ class Operation:
                 target = str(new / Path(entry['path']).relative_to(old))
             except ValueError:
                 target = key
+            assert_public_path(target)
             moved[target] = {**entry, 'path': target}
             if key in self._identities:
                 identities[target] = self._identities[key]
@@ -605,6 +609,7 @@ class Operation:
         withdrawn = []
         for key, entry in list(self.artifacts.items()):
             path = Path(entry['path'])
+            assert_public_path(path)
             try:
                 if path.is_symlink() or not path.is_file():
                     raise FileNotFoundError(key)

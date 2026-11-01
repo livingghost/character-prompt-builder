@@ -5,12 +5,25 @@ imagined observations, retrospective claim of planned intent, required score or 
 adoption. A single image, a passage, an unpeopled work or a nonvisual artifact can use the same
 review.
 
-## Contract and evidence
+## Actual artifact and review boundary
 
 - **review_id_and_scope**:
 - **candidate_file_and_hash**:
 - **actual_inspection_locator**:
   <!-- Page/line, frame/region, time range or another exact inspected span. State uninspected parts. -->
+- **reviewer_and_available_input**:
+  <!-- Name the actual reviewer and what it received. A fresh first observer receives the
+       artifact and access information, not the prompt, criteria, expected portrayal or history. -->
+- **reading_order_and_review_limits**:
+  <!-- Record whether direct observation preceded the criterion context. If the production
+       context also reviews, say author self-review, not independent. No blind-study claim. -->
+- **observed_output_before_comparison**:
+  <!-- Concrete observed words, sound, movement, geometry or omission, with locators.
+       Preserve this first reading before adding criterion-specific interpretation. -->
+- **unobserved_or_inconclusive_properties**:
+
+## Contract comparison
+
 - **plan_bundle_and_source_fingerprints**:
 - **authorial_intent_refs**:
   <!-- Applicable exact local Markdown intent links; n/a with reason when no such entry applies. -->
@@ -19,18 +32,21 @@ review.
 - **reference_role_and_applicability**:
 - **recipient_information_boundary**:
 
-## Finding
-
 - **expected_portrayal**:
   <!-- The requirement and selected effect this span must communicate; cite its source. -->
-- **observed_output**:
-  <!-- Concrete observed words, sound, movement, geometry or omission. Do not substitute inference. -->
+- **criterion_specific_observations**:
+  <!-- If further inspection follows the criteria, mark that reading order and its limits.
+       Do not overwrite the original observation with the expected interpretation. -->
+- **interpretation_and_verdict**:
+  <!-- Link each judgment to observations. Inspected but inconclusive is indeterminate;
+       uninspected is not-assessed. Neither is a pass. -->
 - **difference_and_affected_scope**:
   <!-- Distinguish requirement failure, unobservable property and optional preference.
        A different valid realization is not a defect. -->
 - **evidence_and_uncertainty**:
 - **owning_layer**:
-  <!-- Source interpretation, state, projection, reference, expression, rendering, knowledge,
+  <!-- Source interpretation, observable condition, state, temporal/spatial construction,
+       presentation, projection, reference, expression, rendering, knowledge, execution,
        intentional departure or an explicitly unresolved mixture. Not a hidden-model diagnosis. -->
 - **departure_decision_or_open_issue**:
   <!-- Cite an actual scoped decision; do not claim accidental drift was planned. -->
@@ -38,6 +54,7 @@ review.
 ## Repair and selection
 
 - **smallest_justified_correction**:
+  <!-- Rebuild a wrong construction; use a local edit when the mismatch is local. -->
 - **dimensions_to_preserve**:
 - **upstream_decision_required**:
   <!-- Do not repair a wrong base fact merely by prompting harder. -->

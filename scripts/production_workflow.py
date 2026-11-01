@@ -529,6 +529,16 @@ def validate_run_content(run: str, prepared: dict, consumer: dict, rows: list[di
             raise ProductionError('EVENT_CHAIN_CORRUPT', 'An event belongs to another input or has an undeclared kind.',
                                   phase='integrity', run=run, event=row['sha256'], impact=store.RUN_EVIDENCE_IMPACT,
                                   required_action='Restore the exact committed event from verified evidence; do not recreate approval.')
+        if row['event'] == 'dispatch-claim':
+            import service_auth
+            try:
+                authentication = row['data']['authentication']
+                if authentication is not None:
+                    service_auth.validate_selection(authentication)
+            except (KeyError, ValueError, TypeError) as exc:
+                raise ProductionError('EVENT_CHAIN_CORRUPT', 'The dispatch claim has an invalid authentication declaration.',
+                                      phase='integrity', run=run, event=row['sha256'], impact=store.RUN_EVIDENCE_IMPACT,
+                                      required_action='Restore the complete committed dispatch claim.') from exc
         for item in row['data'].get('files', []) + row['data'].get('evidence', []):
             if known.get(item['sha256']) == item['size']:
                 continue
@@ -1652,8 +1662,19 @@ def submission_intent(package: dict, *, rendered: dict, seed: int | None,
     return intent(package, rendered, seed=seed, count=count, offering=offering, service=service)
 
 
+def validate_dispatch_authentication(value: dict | None, transport: Any, service_id: str) -> dict | None:
+    """Validate the claim's source identity against its sealed service and transport."""
+    import service_auth
+    import transport_contract
+    if transport_contract.credential_free(transport):
+        if value is not None:
+            raise ValueError('A credential-free dispatch claim uses a null authentication selection.')
+        return None
+    return service_auth.validate_selection(value, service=service_id)
+
+
 def claim_dispatch(root: Path, run: str, package: dict, verified: dict, journal: Path,
-                   intent: dict, authorization: str, *, rendered: dict) -> dict:
+                   intent: dict, authorization: str, *, rendered: dict, authentication: dict | None) -> dict:
     with store.transaction(root):
         directory, prepared, _, rows = assert_current(root, run)
         hand = find(rows, 'handoff')
@@ -1667,6 +1688,7 @@ def claim_dispatch(root: Path, run: str, package: dict, verified: dict, journal:
         from production_execution import compiled
         fixed = compiled(root, run)
         fixed_package, fixed_rendered, fixed_plan = fixed[4:7]
+        authentication = validate_dispatch_authentication(authentication, fixed[8], fixed[7]['offering']['service'])
         import request_contract as rc
         compare_exact(c.content_id(fixed_package), c.content_id(package),
                       pointer='$.package_sha256', phase='execution')
@@ -1703,6 +1725,7 @@ def claim_dispatch(root: Path, run: str, package: dict, verified: dict, journal:
                                  if package.get('artifact_type') == 'upscale-request' else
                                  {'effective_prompt_sha256': verified['host_forwarding']['effective_prompt_sha256']}),
                               'journal': relative, 'intent': intent, 'count': request['outputs'],
+                              'authentication': authentication,
                               'authorizations': [authorization], 'execution_id': execution['execution_id']})
 
 

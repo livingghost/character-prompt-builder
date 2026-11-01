@@ -116,8 +116,12 @@ python examples/production-execution/run_example.py --out ../cpb-production-demo
 A live generation needs:
 
 - a service record, and a model record with an offering on that service;
-- the credential in the environment variable the service record names, never in studio files;
+- the service's API key, supplied by its saved value or explicitly named environment variable as [Studio authentication](references/runtime/studio-authentication.md) describes;
 - a prepared run and an approval that covers it.
+
+The Studio's private `credentials.json` contains one entry per service: `api_key` for its saved value, or `api_key_env` for the environment variable that supplies it. The Agent follows the existing configuration and the author's chosen method. For saved entry, it prepares the service's `api_key` field and gives the author the actual path and JSON Pointer. The author fills that string and saves; the Agent pauses its own edits during the handoff, checks the same service and target run's readiness, and continues production. The handoff uses a file the author can open in the execution environment.
+
+An environment source records the variable name and reads its value when execution needs it. Hidden input, stdin and `set --from-env` are ways to fill a saved entry. A whole Studio folder copy includes the private JSON and its saved values. [Studio authentication](references/runtime/studio-authentication.md) defines source selection, input, rotation, removal and the handling of copied Studios.
 
 <!-- readme-send: generation -->
 ```sh
@@ -131,7 +135,7 @@ python scripts/production_workflow.py execute --root STUDIO --run RUN --decision
 - `draft-execution` writes the decision file, which you fill from the actual approval.
 - `execute` sends only what that file covers and records every returned image.
 
-After an interruption, `resume` recovers the same execution from saved evidence and never sends its request twice. `status` names each run's next command and its recorded submissions and images. The included transport is for Runware, and [Image Generation](references/runtime/image-generation.md) shows how another service is added. The [synthetic generation example](examples/generation/README.md) runs the whole path with a local transport that makes no network request.
+After an interruption, `resume` recovers the same execution from saved evidence and never sends its request twice. `status` names each run's next command and its recorded submissions and images. The included Runware transport implements image generation and image upscaling; `dispatch.py` previews the request and `production_workflow.py execute` sends it. [Image Generation](references/runtime/image-generation.md) shows how another service is added. External host tools use their own authentication. The [synthetic generation example](examples/generation/README.md) runs the whole path with a local transport that makes no network request.
 
 ## Where each topic is documented
 

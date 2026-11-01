@@ -91,6 +91,7 @@
           }
         },
         "auth": {
+          "description": "The service's wire authentication requirements. The Studio selects the private value or explicit environment source by service and authentication profile.",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -108,10 +109,6 @@
             },
             "header": {
               "$ref": "#/$defs/text"
-            },
-            "env_var": {
-              "type": "string",
-              "pattern": "^[A-Z][A-Z0-9_]*$"
             },
             "note": {
               "$ref": "#/$defs/text"

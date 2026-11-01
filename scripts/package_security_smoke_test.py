@@ -23,6 +23,7 @@ from package_full import (
     verify_full_manifest,
 )
 from package_metadata import load_package_metadata
+from private_state import PrivateStateError
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -199,6 +200,7 @@ def main() -> int:
             "examples/generation/studio/runtime/snapshots",
             ".venv",
             "scripts/venv",
+            "config/credentials",
         }
         planted_files = {
             "examples/generation/studio/production/records.sqlite3",
@@ -209,6 +211,9 @@ def main() -> int:
             "config/credentials.json",
             "config/credentials.local.json",
             "config/service-credentials.json",
+            "config/credentials/private.json",
+            "examples/generation/studio/credentials.json",
+            "examples/generation/studio/.pending-auth-synthetic",
             "references/.netrc",
         }
         ordinary_files = {
@@ -232,6 +237,47 @@ def main() -> int:
                 f"missed {sorted((planted_directories | planted_files) - found)}, "
                 f"refused {sorted(found - planted_directories - planted_files)}"
             )
+
+        private_source = root / "private-source"
+        private_source.mkdir()
+        (private_source / "packs").mkdir()
+        (private_source / "ordinary.json").write_text('{"synthetic": true}\n', encoding="utf-8")
+        (private_source / "credentials.json").write_text(
+            '{"synthetic-service": {"api_key": "synthetic-private-value"}}\n',
+            encoding="utf-8",
+        )
+        private_stage = root / "private-stage"
+        private_archive = root / "private.zip"
+        for name, operation in (
+            ("runtime copy", lambda: copy_runtime_tree(private_source, private_stage, ["ordinary.json", "credentials.json"])),
+            ("release ZIP", lambda: write_deterministic_zip(private_source, private_archive)),
+            ("full manifest", lambda: build_full_manifest(private_source, "2026.11.01.1", [])),
+        ):
+            try:
+                operation()
+                errors.append(name + " accepted private Studio authentication state")
+            except PrivateStateError:
+                checks += 1
+        if private_stage.exists() or private_archive.exists() or private_archive.with_suffix('.zip.tmp').exists():
+            errors.append("private release input produced a staged or archived copy")
+        else:
+            checks += 1
+
+        # Full packaging uses the same pre-copy boundary as core packaging.
+        private_metadata = SimpleNamespace(name="synthetic-package", version="2026.11.01.1",
+                                           release_include=("credentials.json",), release_exclude_names=())
+        private_full_archive = root / "synthetic-package-2026.11.01.1-full.zip"
+        with mock.patch("package_full.load_package_metadata", return_value=private_metadata):
+            try:
+                package_full_main(["--source", str(private_source), "--out", str(private_full_archive),
+                                   "--reports-dir", str(root / "private-full-reports")])
+                errors.append("full package accepted private Studio authentication state")
+            except PrivateStateError:
+                checks += 1
+        if private_full_archive.exists() or (root / "private-full-reports").exists():
+            errors.append("full package published private state")
+        else:
+            checks += 1
 
         release_input = source / "scripts"
         release_input.mkdir()

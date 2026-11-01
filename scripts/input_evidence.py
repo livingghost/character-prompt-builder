@@ -4,6 +4,7 @@ import base64
 from pathlib import Path
 from typing import Any
 import execution_contract as c
+from private_state import assert_public_path
 
 class InputEvidence:
     """A content verifier uses stored bytes; an execution verifier checks current bytes."""
@@ -13,11 +14,13 @@ class InputEvidence:
         self.read_paths=set();self.locators={}
         for path,item in self.snapshots.items():
             if not isinstance(path,str):raise ValueError('input snapshot path must be a string')
+            assert_public_path(path)
             c.exact(item,{'sha256','size','base64'},'input snapshot')
             raw=self._decode(item)
             if c.digest(raw)!=item['sha256'] or len(raw)!=item['size']:raise ValueError('input snapshot content mismatch')
     def qualify(self,path:str)->str:
         c.text(path,'input path')
+        assert_public_path(path)
         return self.space+'/'+path if self.space and not path.startswith('@') else path
     def resolve(self,path:str)->Path:
         path=self.qualify(path)

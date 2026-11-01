@@ -23,6 +23,7 @@ from package import (
     archive_content_sha256,
     check_installed,
     clean_artifacts,
+    collect_forbidden,
     copy_runtime_tree,
     ensure_output_is_not_release_input,
     publish_validated_outputs,
@@ -415,6 +416,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 exclude_names=metadata.release_exclude_names,
             )
             clean_artifacts(stage)
+            forbidden = collect_forbidden(stage)
+            if forbidden:
+                raise ValueError("full release tree contains local state: " + ", ".join(forbidden))
 
             progress("rebuilding core metadata", started)
             run_json(
@@ -466,6 +470,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise RuntimeError("full manifest validation failed")
             if before_validation != tree_file_hashes(stage):
                 raise RuntimeError("full release validation modified the staged tree")
+            forbidden = collect_forbidden(stage)
+            if forbidden:
+                raise ValueError("full release tree contains local state: " + ", ".join(forbidden))
 
             progress("writing deterministic full ZIP", started)
             write_deterministic_zip(stage, candidate_archive)

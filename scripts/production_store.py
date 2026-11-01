@@ -15,6 +15,7 @@ from typing import Any, Iterator
 
 import execution_contract as c
 from production_diagnostics import ProductionError
+from private_state import assert_public_path
 
 _CONNECTIONS: contextvars.ContextVar[dict[str, sqlite3.Connection]] = contextvars.ContextVar('production_connections', default={})
 _DDL = '''
@@ -247,6 +248,8 @@ def stable_bytes(root: Path, path: str) -> bytes:
 def stable_read(selected: Path, path: str) -> bytes:
     """Read an already resolved regular file as one stable content; `path` names it in diagnostics."""
     try:
+        assert_public_path(selected)
+        assert_public_path(path)
         if selected.is_symlink() or not selected.is_file():
             raise ValueError('not a regular file')
         with selected.open('rb') as stream:
@@ -289,6 +292,7 @@ def evidence_error(code: str, message: str, *, file: str | None, expected: str, 
 def evidence_snapshot(root: Path, path: str, locator: str, *, purpose: str, raw: bytes | None = None) -> dict:
     """Store evidence bytes, read once, with their origin; `raw` keeps bytes another reader already verified."""
     c.text(locator,'evidence locator'); c.text(purpose,'evidence purpose')
+    assert_public_path(path)
     raw = stable_bytes(root,path) if raw is None else raw
     digest = c.object_store(root/'production',raw)
     return {'path':path,'locator':locator,'sha256':digest,'size':len(raw),'captured_at':c.now(),'purpose':purpose}
@@ -303,6 +307,7 @@ def capture_evidence(root: Path, directory: Path, path: str, *, locator: str, pu
     `rows` returns that record, so a repeated request records the same evidence.
     """
     c.text(locator,'evidence locator'); c.text(purpose,'evidence purpose')
+    assert_public_path(path)
     raw = stable_bytes(root,path) if raw is None else raw
     digest = c.object_store(directory,raw)
     for row in rows:
@@ -314,6 +319,7 @@ def capture_evidence(root: Path, directory: Path, path: str, *, locator: str, pu
 
 def verify_evidence(root: Path, snapshot: dict, *, run: str | None = None, event: str | None = None,
                     impact: str = RUN_EVIDENCE_IMPACT) -> bytes:
+    assert_public_path(snapshot['path'])
     key = snapshot['sha256']
     path = c.local(root,'production/objects/'+c.sha(key),exists=False)
     if not path.is_file():

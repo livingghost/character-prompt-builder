@@ -423,6 +423,35 @@ class OperationTests(unittest.TestCase):
         logged = json.loads((self.records()[1]/'stdout.log').read_text(encoding='utf-8'))
         self.assertEqual(logged, {'max_tokens': 4096, 'enabled': 'false', 'count': 1234567890, 'access_token': '[REDACTED]'})
 
+    def test_explicit_short_and_numeric_credentials_are_redacted(self):
+        short, numeric = 'k7!', '440012'
+        def command():
+            ops.register_secret(short)
+            ops.register_secret(numeric)
+            ops.current().event('credential_observation', detail=short + ' ' + numeric)
+            raise ValueError('provider rejected ' + short + ' and ' + numeric)
+        code, stdout, stderr = self.invoke(command)
+        self.assertEqual(code, 2)
+        self.assertNotIn(short, stdout + stderr)
+        self.assertNotIn(numeric, stdout + stderr)
+        _, folder, _ = self.records()
+        logs = every_log_text(folder)
+        self.assertNotIn(short, logs)
+        self.assertNotIn(numeric, logs)
+        self.assertIn('[REDACTED]', logs)
+
+    def test_explicit_credentials_redact_across_stream_boundaries(self):
+        secret = 'q2!'
+        def command():
+            ops.register_secret(secret)
+            for part in ('received q', '2', '! after upload\n'):
+                sys.stdout.write(part)
+        code, _, stderr = self.invoke(command)
+        self.assertEqual((code, stderr), (0, ''))
+        text = (self.records()[1] / 'stdout.log').read_text(encoding='utf-8')
+        self.assertNotIn(secret, text)
+        self.assertIn('received [REDACTED] after upload', text)
+
     def test_work_content_fields_are_omitted(self):
         names = ('terms', 'rendition', 'prompt_expression', 'negative', 'positive', 'lines', 'chunk', 'definition')
         document = {name: 'PRIVATE WORK TEXT' for name in names} | {'code': 'TAG_CHECKED'}

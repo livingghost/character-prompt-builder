@@ -56,7 +56,7 @@ class BoundaryTests(unittest.TestCase):
         journal,rendered,tokens=self.authorized_journal()
         package=copy.deepcopy(self.data[4]);package['composition_prompt']+=' altered'
         with self.assertRaises(ProductionError) as caught:
-            workflow.claim_dispatch(self.root,self.run,package,{},journal.path,self.data[6]['operations'][-1],tokens['submit'],rendered=rendered)
+            workflow.claim_dispatch(self.root,self.run,package,{},journal.path,self.data[6]['operations'][-1],tokens['submit'],rendered=rendered,authentication=None)
         self.assertEqual(caught.exception.diagnostic.pointer,'$.package_sha256')
         self.assertEqual(accounting.all_states(self.root),[])
         self.assertFalse(any(r['event']=='dispatch-claim' for r in store.event_rows(self.root,self.run)))
@@ -70,7 +70,7 @@ class BoundaryTests(unittest.TestCase):
         altered=rc.seal(modified['request'],modified['layout'],modified['media'],modified['sealed']['target'],
             modified['sealed']['execution'],modified['request_trace'],modified['sealed']['bindings'],modified['sealed']['context'])
         with self.assertRaises(ProductionError) as caught:
-            workflow.claim_dispatch(self.root,self.run,self.data[4],{},journal.path,self.data[6]['operations'][-1],tokens['submit'],rendered=altered)
+            workflow.claim_dispatch(self.root,self.run,self.data[4],{},journal.path,self.data[6]['operations'][-1],tokens['submit'],rendered=altered,authentication=None)
         self.assertTrue(caught.exception.diagnostic.pointer.startswith('$.request_contract'))
         self.assertEqual(accounting.all_states(self.root),[])
 

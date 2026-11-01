@@ -21,3 +21,4 @@ preset-authoring-audit.json
 style-family-audit.json
 sparse-discovery-report.json
 /cpb-output/
+.pending-auth-*

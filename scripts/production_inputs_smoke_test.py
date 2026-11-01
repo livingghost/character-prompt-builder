@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import base64
 import io
 import json
 import os
@@ -18,6 +19,116 @@ from input_evidence import InputEvidence
 import production_inputs as tool
 import production_input_adapters as adapters
 import route_reading as reading
+from private_state import PrivateStateError
+
+
+class PrivateAuthenticationInputTests(unittest.TestCase):
+    """Private Studio state stops at each ordinary input publication boundary."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.private = self.root / 'credentials.json'
+        self.raw = c.encoded({'synthetic-service': {'api_key': 'synthetic-private-value'}})
+        self.private.write_bytes(self.raw)
+
+    def test_ordinary_io_preserves_private_file_and_exposes_no_digest(self):
+        calls = (
+            lambda: c.local(self.root, self.private.name),
+            lambda: c.read(self.private),
+            lambda: c.load(self.private),
+            lambda: c.sha256_file(self.private),
+            lambda: c.file_digest(self.root, self.private.name),
+            lambda: c.atomic(self.private, b'ordinary replacement', replace=True),
+        )
+        for call in calls:
+            with self.subTest(operation=call), self.assertRaises(PrivateStateError):
+                call()
+        self.assertEqual(self.private.read_bytes(), self.raw)
+        self.assertEqual([path.name for path in self.root.iterdir()], ['credentials.json'])
+
+    def test_private_temporary_and_case_variants_have_the_same_boundary(self):
+        for name in ('.pending-auth-synthetic', 'CREDENTIALS.JSON', 'credentials.json.',
+                     'credentials.json::$DATA'):
+            with self.subTest(name=name), self.assertRaises(PrivateStateError):
+                c.atomic(self.root / name, self.raw)
+            self.assertEqual({path.name for path in self.root.iterdir()}, {'credentials.json'})
+        ordinary = self.root / 'credentials-guide.json'
+        c.atomic(ordinary, c.encoded({'subject': 'credentials'}))
+        self.assertEqual(c.load(ordinary), {'subject': 'credentials'})
+
+    def test_live_and_named_root_inputs_capture_no_private_bytes(self):
+        readers = (
+            (InputEvidence(self.root), 'credentials.json'),
+            (InputEvidence(None, named_roots={'@skill': self.root}), '@skill/credentials.json'),
+        )
+        for inputs, path in readers:
+            with self.subTest(path=path), self.assertRaises(PrivateStateError):
+                inputs.read({'path': path, 'sha256': c.digest(self.raw)})
+            self.assertEqual(inputs.snapshots, {})
+            self.assertEqual(inputs.read_paths, set())
+
+    def test_captured_input_contract_refuses_private_state(self):
+        snapshots = {'credentials.json': {'sha256': c.digest(self.raw), 'size': len(self.raw),
+                                         'base64': base64.b64encode(self.raw).decode('ascii')}}
+        with self.assertRaises(PrivateStateError):
+            InputEvidence(None, snapshots=snapshots, live=False)
+
+    def test_evidence_read_and_preverified_bytes_publish_no_object(self):
+        import production_store as store
+        from production_diagnostics import ProductionError
+        with self.assertRaises(ProductionError):
+            store.stable_bytes(self.root, 'credentials.json')
+        with self.assertRaises(ProductionError):
+            store.stable_read(self.private, 'selected-input.json')
+        calls = (
+            lambda: store.evidence_snapshot(self.root, 'credentials.json', 'whole', purpose='synthetic', raw=self.raw),
+            lambda: store.capture_evidence(self.root, self.root / 'run', 'credentials.json',
+                                          locator='whole', purpose='synthetic', raw=self.raw),
+        )
+        for call in calls:
+            with self.subTest(operation=call), self.assertRaises(PrivateStateError):
+                call()
+        self.assertFalse((self.root / 'production').exists())
+        self.assertFalse((self.root / 'run').exists())
+
+    def test_iteration_copy_refuses_private_file_and_companion_before_copy(self):
+        import studio
+        home = self.root / 'characters/synthetic'
+        with self.assertRaises(PrivateStateError):
+            studio._keep(self.root, home, 'it-0001', self.private, 'request')
+        companion = self.root / 'source.references'
+        companion.mkdir()
+        (companion / 'ordinary.txt').write_text('Synthetic ordinary input.', encoding='utf-8')
+        (companion / 'credentials.json').write_bytes(self.raw)
+        with self.assertRaises(PrivateStateError):
+            studio._keep_companion(home, 'it-0001', companion)
+        self.assertFalse(home.exists())
+        self.assertEqual(self.private.read_bytes(), self.raw)
+
+    def test_saved_private_source_is_refused_before_review_attachment(self):
+        import artifact_review
+        import production_store as store
+        snapshot = {'path': 'credentials.json', 'sha256': c.digest(self.raw), 'size': len(self.raw)}
+        files = {}
+        with patch.object(c, 'object_read', side_effect=AssertionError('private object read')):
+            with self.assertRaises(PrivateStateError):
+                artifact_review._object_file(self.root, snapshot, files)
+        with self.assertRaises(PrivateStateError):
+            store.verify_evidence(self.root, snapshot)
+        self.assertEqual(files, {})
+
+    def test_operation_artifact_registration_refuses_private_metadata(self):
+        import operation_context as operations
+        with patch.dict(os.environ, {'CPB_HOME': str(self.root / 'private-runtime')}):
+            operation = operations.Operation('synthetic-private-input-check')
+            try:
+                with patch.object(operations.hashlib, 'file_digest', side_effect=AssertionError('private bytes read')):
+                    with self.assertRaises(PrivateStateError):
+                        operation.artifact(self.private)
+                self.assertEqual(operation.artifacts, {})
+            finally:
+                operation.finish(0)
 
 class InputToolsTests(unittest.TestCase):
     def setUp(self):

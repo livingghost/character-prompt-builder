@@ -15,6 +15,7 @@ subjects and relationships the image depends on.
 - [Catalog retrieval and inspection](#catalog-retrieval-and-inspection)
 - [Scene specification](#scene-specification)
 - [Prompt assembly and review](#prompt-assembly-and-review)
+- [Competing-realization test](#competing-realization-test)
 - [Model-specific construction evidence](#model-specific-construction-evidence)
 - [Creative latitude and interaction](#creative-latitude-and-interaction)
 - [Revision contract](#revision-contract)
@@ -426,6 +427,11 @@ Keep the reasoning and any unresolved mismatch in the existing review record.
 For a conversation-only answer, perform the same judgment before delivery
 without inventing a saved review artifact.
 
+When materially different readings could satisfy the delivered input, apply
+the [competing-realization test](#competing-realization-test) before submission
+or delivery. Recheck it after a revision that changes those relationships.
+Routine or fully fixed work needs no manufactured alternatives.
+
 In that comparison:
 
 - Check that text and supplied images establish the wanted qualities and their
@@ -474,11 +480,51 @@ premises and exclusions and check that the intended image still follows. Consoli
 within their actual scopes. Keep judgments and success criteria in review records,
 instead of appending them to image text. Structural checks verify declared
 assignments; the author judges their meaning and agreement with the rendition.
-Compare returned images with the same scoped requirements and supplied context.
-Identify the observed features that support each conclusion; the presence of a
-criterion or a structurally valid input supplies no observation of its success.
-A different valid realization
-is not a defect merely because it was unimagined.
+For returned images, use
+[artifact-first observation](production-execution.md#observe-before-interpreting)
+before comparing with those same scoped requirements and applicable reference
+evidence. The presence of a criterion or a structurally valid input supplies
+no observation of its success. A different valid realization is not a defect
+merely because it was unimagined.
+
+## Competing-realization test
+
+Test what the delivered input permits, not just whether desired terms occur.
+Where an unresolved relationship or other consequential ambiguity could change
+the artifact, reconstruct at least two materially different realizations of
+the exact input. Include a plausible unwanted reading when one exists; do not
+invent a failure or prescribe competing layouts for a fixed, routine request.
+
+Use a separate reviewer context when available. Give that reviewer only:
+
+- the final positive and applicable negative text and supported controls;
+- the actual supplied media and assigned reference roles;
+- the hard observable acceptance conditions, including allowed variation.
+
+Withhold the conversation, production history, preferred composition, selection
+rationale, earlier failures and the author's expected interpretation. Ask which
+distinct depictions the literal delivered input permits, and which supplied
+instruction or media property constrains each relevant relationship. A reviewer
+must be able to say that a proposed alternative does not satisfy the input.
+The packet's criteria guide the question but cannot supply missing model input.
+
+The author compares those reconstructions with the complete artifact contract.
+For each one, distinguish satisfying the literal input from satisfying the
+intended requirement. If the input permits an anchor violation, identify the
+missing premise, relationship or conflicting instruction and repair its owning
+construction before rewriting. A different valid realization remains allowed.
+Rejected alternatives and this reasoning stay out of the model-facing prompt;
+do not turn them into a list of negative terms.
+
+Record the reviewer's actual input boundary and the limitation of the method
+in the existing review notes. A separate input-limited review reduces exposure
+to the author's framing; it does not establish objectivity or a blind study.
+When only the production context is available, perform an author self-review
+and state that it is not independent. Asking that context to forget the intent
+does not change its available information. A conversation-only task needs no
+new record or approval step. See the
+[synthetic review cases](../../examples/production-execution/evidence-review-cases.md)
+for differing realizations and inconclusive evidence.
 
 ## Model-specific construction evidence
 

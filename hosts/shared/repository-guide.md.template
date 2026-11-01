@@ -89,10 +89,24 @@ image. `resume` recovers the same execution, and `status` shows each
 run's next command and actual submission and image records. `variant` prepares changed
 input, and `repeat` prepares another run of the same input. A request is
 checked against the service's own parameter schema, stored in the pack as
-observed, before anything is sent. The credential is read from the
-environment variable the service record names, or from that variable in an MCP
-server's `env` block in the host configuration, and is never written anywhere.
-It is sent only to the host the transport pins.
+observed, before anything is sent. The offering's service ID selects its Studio
+authentication configuration. [Studio authentication](references/runtime/studio-authentication.md)
+owns one entry per service in the Studio's private `credentials.json`:
+`api_key` holds its saved value, or `api_key_env` names its runtime environment
+variable. Follow the existing source and the owner's choice. Prepare the service
+entry before giving the owner the actual file path and JSON Pointer. Pause edits
+while the owner fills the saved string and saves. An environment source reads
+its named variable from the executing process. Once the chosen source is
+available, check that service and the target run's authentication selection and
+readiness, then continue its reported next action. The claim records the service
+and nonsecret source, including the variable name for an environment source.
+Authenticated recovery requires that recorded source; replacing its value
+supports rotation. Saved values remain available independently of environment
+variables. The private JSON is excluded from ordinary production inputs,
+artifact registration and Skill packaging. A whole Studio folder copy includes
+it. The value is supplied separately to the transport and sent only to its
+accepted host. Local key availability and submission authority are separate
+checks.
 
 External host tools use the same `check`, `prepare`, review and capture owners.
 Follow Production Execution's handoff, exact authorization, `claim-external`,

@@ -18,6 +18,7 @@ from typing import Any
 
 import execution_contract as c
 import production_workflow as workflow
+from private_state import assert_public_path
 
 ROOT = Path(__file__).resolve().parents[1]
 from io_budget import optional_count
@@ -65,6 +66,7 @@ def attachment(raw: bytes) -> tuple[str, str]:
 
 def _object_file(directory: Path, item: dict, files: dict[str, bytes], preview_chars: int | None = None) -> dict:
     optional_count(preview_chars, 'preview characters')
+    assert_public_path(item['path'])
     raw = c.object_read(directory, item['sha256'])
     if item.get('size', len(raw)) != len(raw):
         raise ValueError('recorded file size does not match its saved bytes')
@@ -93,6 +95,7 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
             changes.append({'space': dep['space'], 'path': dep['path'], 'reason': 'missing or unreadable'})
     for row in rows:
         for item in row['data'].get('files', []) + row['data'].get('evidence', []):
+            assert_public_path(item['path'])
             # Validate every pinned object even if it is not displayed.
             raw = c.object_read(directory, item['sha256'])
             if len(raw) != item['size']:

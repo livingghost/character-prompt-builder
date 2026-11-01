@@ -264,7 +264,7 @@ def _write_fixture_pack(pack_root: Path) -> Path:
             "label": "Synthetic image interface",
             "transport": "runware",
             "endpoint": {"base_url": "https://example.invalid/synthetic", "method": "POST"},
-            "auth": {"env_var": "SYNTHETIC_PROVIDER_KEY"},
+            "auth": {"scheme": "bearer", "header": "Authorization"},
             "operations": {"imageInference": {}},
         }}},
     )

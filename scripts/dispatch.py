@@ -72,51 +72,6 @@ from upscale_package import build_upscale_package, validate_settings  # noqa: E4
 from verify_generation_payload import verify  # noqa: E402
 
 
-def api_key(service: dict[str, Any]) -> str:
-    """The credential, from the environment or from an MCP server's env block in the host's configuration.
-
-    The running operation redacts the key from every later log write.
-    """
-    from production_diagnostics import ProductionError
-    variable = ((service.get("auth") or {}).get("env_var") or "").strip()
-    if not variable:
-        raise ProductionError("CREDENTIAL_UNAVAILABLE", "the service record names no auth.env_var", phase="before-send",
-                              required_action="Name the credential's environment variable in the service record's auth.env_var.")
-    key = os.environ.get(variable, "").strip() or mcp_server_credential(Path.home() / ".claude.json", variable)
-    if key:
-        _operation_context.register_secret(key)
-        return key
-    raise ProductionError("CREDENTIAL_UNAVAILABLE", f"the credential is not in the environment. Set {variable} and run again.",
-                          phase="before-send", required_action=f"Set {variable} in the environment and run again.")
-
-
-def mcp_server_credential(path: Path, variable: str) -> str | None:
-    """The value MCP server env blocks give the variable, top-level or per project, and nothing else in the file."""
-    try:
-        config = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return None
-    if not isinstance(config, dict):
-        return None
-    blocks = [config.get("mcpServers")]
-    projects = config.get("projects")
-    if isinstance(projects, dict):
-        blocks.extend(project.get("mcpServers") for project in projects.values() if isinstance(project, dict))
-    values = set()
-    for servers in blocks:
-        for server in servers.values() if isinstance(servers, dict) else ():
-            env = server.get("env") if isinstance(server, dict) else None
-            value = env.get(variable) if isinstance(env, dict) else None
-            if isinstance(value, str) and value.strip():
-                values.add(value.strip())
-    if len(values) > 1:
-        from production_diagnostics import ProductionError
-        raise ProductionError("CREDENTIAL_UNAVAILABLE",
-                              f"MCP servers in {path} give {variable} different values. Set {variable} in the environment and run again.",
-                              phase="before-send", required_action=f"Set {variable} in the environment and run again.")
-    return values.pop() if values else None
-
-
 def result_url(url: str, hosts: Iterable[str]) -> str:
     """The URL of a returned image, only where it is https on a host the transport declares."""
     hosts = frozenset(hosts)

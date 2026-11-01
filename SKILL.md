@@ -37,6 +37,8 @@ Keep judgment and automation separate. The agent owns meaning, ambiguity, direct
 
 Model-facing prompts establish the selected depiction, its necessary premises and supplied-media use. The model receives actual input; source records and conversation are separate knowledge. Keep authoring decisions beyond this artifact's scope, internal keys, paths, provenance and assessment in their records; depicted names and codes remain content.
 
+Use the [competing-realization test](references/runtime/prompt-composition.md#competing-realization-test) for consequential ambiguity. [Observe the artifact first](references/runtime/production-execution.md#observe-before-interpreting), then assess its criteria; disclose review limits and keep inconclusive evidence indeterminate.
+
 ## Rendering and model controls
 
 For image work, resolve [Rendering choices and execution controls](references/runtime/render-contract.md), feature `render-contract`.
@@ -109,6 +111,8 @@ Add a specialist feature only for a load-bearing subject: `geometry` for exact m
 ## Mandatory studio gate
 
 Saved deliverables, sheets and recorded generation use [Studio Runtime](references/runtime/studio.md). Conversation-only answers need no Studio. If `python scripts/session_entry_points.py` reports none, run `studio.py init` before authoring.
+
+For dispatcher API keys, follow [Studio authentication](references/runtime/studio-authentication.md). Each service has one entry in the Studio's private `credentials.json`: `api_key` holds its saved value, or `api_key_env` names its runtime environment variable. Follow the existing source and the owner's choice. Use `studio.py credentials prepare SERVICE` for saved entry, or add `--environment NAME` for the chosen variable. Complete setup before giving the owner the returned path and JSON field; pause updates while the owner fills the value and saves. Check that service and the target run's authentication selection and readiness, then continue its next action. Ask about the method only when existing direction leaves it open. Local key availability and submission authority are separate requirements.
 
 Use managed attempts in [Sheet fills](references/runtime/sheet-fill-workflow.md). Apply HTML edits with `sheet_workflow.py apply-edit`. Record answers with `work_ledger.py respond`, reopen the indicated step, and suspend/resume when switching tasks. `studio.py status` or `sync` reconstructs views without repeating generation.
 

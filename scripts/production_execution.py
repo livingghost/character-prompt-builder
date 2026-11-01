@@ -162,11 +162,35 @@ def _evidence(root: Path, run: str, journal, names: list[str]) -> list[dict]:
     return [workflow.file_record(root, directory, base + '/' + name) for name in names if (journal.path / name).is_file()]
 
 
-def _credential(transport: Any, service: dict) -> str:
-    """No key for a transport that declares itself credential-free; the service record's key otherwise."""
-    import dispatch
+def _credential(root: Path, transport: Any, service_id: str, *, expected: dict | None = None):
+    """Resolve the selected Studio's authentication only when the transport needs it."""
+    import service_auth
     import transport_contract
-    return '' if transport_contract.credential_free(transport) else dispatch.api_key(service)
+    return None if transport_contract.credential_free(transport) else service_auth.resolve(root, service_id, expected=expected)
+
+
+def authentication_readiness(root: Path, transport: Any, service_id: str, *,
+                             required: bool = True, expected: dict | None = None) -> dict:
+    """Local availability of the next network step's authentication, without a provider request."""
+    import service_auth
+    import transport_contract
+    required = required and not transport_contract.credential_free(transport)
+    observed = service_auth.inspect(root, service_id, expected=expected) if required else {
+        'available': None, 'selection': expected, 'diagnostics': []}
+    return {'required': required, **observed, 'remote_validation': 'not-performed'}
+
+
+def claim_authentication(claim: dict, transport: Any, service_id: str) -> dict | None:
+    """The claim's non-secret source identity; an absent declaration is an invalid claim."""
+    import production_workflow as workflow
+    if 'authentication' not in claim['data']:
+        raise ProductionError('ARTIFACT_CORRUPT', 'The dispatch claim has no authentication selection.',
+                              phase='integrity', required_action='Restore the complete recorded dispatch claim.')
+    try:
+        return workflow.validate_dispatch_authentication(claim['data']['authentication'], transport, service_id)
+    except ValueError as exc:
+        raise ProductionError('ARTIFACT_CORRUPT', 'The dispatch claim has an invalid authentication selection.',
+                              phase='integrity', required_action='Restore the complete recorded dispatch claim.') from exc
 
 
 def _journal(root: Path, run: str, data: tuple):
@@ -218,7 +242,7 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
             raise ProductionError('DISPATCH_ALREADY_CLAIMED', 'This run already owns an execution.', phase='execution', run=run,
                 required_action='Use resume for this execution, variant for changed input, or repeat for an intentional new run.')
         require_recording(root, prepared)
-        key = _credential(transport, target['service'])
+        credential = _credential(root, transport, target['offering']['service'])
         descriptor = prepared['runtime_snapshot']
         with runtime_snapshot.using(runtime_snapshot.path(root, descriptor), descriptor):
             if package.get('artifact_type')=='upscale-request':
@@ -248,8 +272,10 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
         workflow.handoff(root, run, hand['recipient'], hand['method'], tokens['direction'], journal=journal.path)
         submission = next(item for item in plan['operations'] if item['operation'] == 'submit')
         claim = workflow.claim_dispatch(root, run, package, verified, journal.path, submission,
-                                        tokens['submit'], rendered=saved)
-    return _transmit(root, run, journal, saved, claim, tokens['submit'], target, transport, key)
+                                        tokens['submit'], rendered=saved,
+                                        authentication=credential.selection if credential is not None else None)
+    return _transmit(root, run, journal, saved, claim, tokens['submit'], target, transport,
+                     credential.value if credential is not None else '')
 
 
 def _upload_receipt(root: Path, run: str, journal, rendered: dict, claim: dict,
@@ -604,7 +630,10 @@ def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transpo
     import dispatch
     request = c.load(journal.path / 'request.json')
     # A transport without lookup is asked nothing, so it needs no credential.
-    key = _credential(transport, target['service']) if callable(getattr(transport, 'lookup', None)) else ''
+    selected = claim_authentication(claim, transport, target['offering']['service'])
+    credential = _credential(root, transport, target['offering']['service'], expected=selected) \
+        if callable(getattr(transport, 'lookup', None)) else None
+    key = credential.value if credential is not None else ''
     with stage('provider-lookup'):
         found = transport_contract.lookup_once(transport, request, target['service'], key)
     if found['outcome'] == 'unsupported':
@@ -644,6 +673,12 @@ def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transpo
 
 
 OUTCOME_STATEMENT_FIELDS = {'run', 'claim', 'outcome', 'actor', 'reason', 'evidence'}
+
+
+def _response_observations(directory: Path) -> list[Path]:
+    """Saved provider observations in send and lookup order."""
+    observations = [directory / 'send-observation.json'] if (directory / 'send-observation.json').is_file() else []
+    return observations + sorted(directory.glob('lookup-*-answer.json'), key=lambda path: int(path.name.split('-')[1]))
 
 
 @_public_call
@@ -717,13 +752,13 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
             raise ProductionError('OUTCOME_STATEMENT_NOT_APPLICABLE', 'This run has no claimed execution.', phase='resume', run=run)
         return status(root, run)
     claim = claims[-1]
+    selected = claim_authentication(claim, transport, target['offering']['service'])
     journal = dispatch.RunJournal.open(c.local(root, claim['data']['journal']))
     execution_state = _claim_execution(rows, prepared, run, claim)
     if outcome_file is not None:
         return _record_not_executed(root, run, journal, claim, execution_state, outcome_file)
     send = next((step for step in execution_state['steps'] if step['operation'] == 'send'), None)
-    observations = ([journal.path / 'send-observation.json'] if (journal.path / 'send-observation.json').is_file() else [])
-    observations += sorted(journal.path.glob('lookup-*-answer.json'), key=lambda path: int(path.name.split('-')[1]))
+    observations = _response_observations(journal.path)
     if observations and send is not None:
         observation = observations[-1]
         relative = observation.relative_to(root).as_posix()
@@ -775,12 +810,13 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
         data = compiled(root, run, fresh=True)
         receipts(root, data[1], data[3], plan)
         require_recording(root, prepared)
-        key = _credential(transport, target['service'])
+        credential = _credential(root, transport, target['offering']['service'], expected=selected)
     except BaseException as exc:
         _record_execution_failure(root, run, journal, claim, exc)
         raise
     return _transmit(root, run, journal, c.load(journal.path / 'request-contract.json'), claim,
-                     claim['data']['authorizations'][0], target, transport, key)
+                     claim['data']['authorizations'][0], target, transport,
+                     credential.value if credential is not None else '')
 
 
 def unclaimed_journals(root: Path) -> list[dict]:
@@ -990,8 +1026,6 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
     if mode == 'dispatcher':
         submission = report['submission']
         if submission == 'unclaimed':
-            if report['readiness'] == 'configuration_required':
-                return _action('prepare', root, ['--task', prepared['task_path']], report['readiness_diagnostics'][0]['required_action'])
             if report['readiness'] == 'authorization_required':
                 grants = [item['id'] for item in (authority or {}).get('grants', []) if not item.get('revoked_at')]
                 grant = grants[0] if len(grants) == 1 else '<grant-id>'
@@ -1021,6 +1055,35 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
             'Claim the host tool call under an exact submission authorization from external-intent and authorize.')
     return _action('capture', root, ['--run', run, '--artifact', '<received-file>', '--note', '<provenance>'],
         'Record the actually received result as a candidate.')
+
+
+def _run_authentication(root: Path, directory: Path, prepared: dict, claims: list[dict],
+                         report: dict, execution_state: dict | None) -> dict | None:
+    """Inspect authentication for this run's next provider step, using its recorded source."""
+    import transport_contract
+    if prepared['task']['execution'] != 'dispatcher':
+        return None
+    target = c.load(directory / 'execution-target.json')
+    transport = transport_contract.load(target['service']['transport'])
+    selected = claim_authentication(claims[-1], transport, target['offering']['service']) if claims else None
+    required = False
+    if not transport_contract.credential_free(transport):
+        if not claims:
+            required = report['task_disposition'] == 'open' and report['readiness'] != 'blocked'
+        elif (report['next_action'] or {}).get('command') == 'resume':
+            journal = c.local(root, claims[-1]['data']['journal'])
+            observations = _response_observations(journal)
+            saved_answer = ((journal / 'answer.json').is_file() or bool(observations and
+                transport_contract.complete(transport, c.load(observations[-1]))))
+            if not saved_answer and report['submission'] in {'pending', 'outcome_unknown'}:
+                required = callable(getattr(transport, 'lookup', None))
+            elif not saved_answer and report['submission'] == 'claimed' and report['readiness'] != 'blocked':
+                steps = execution_state['steps'] if execution_state else []
+                required = (not any(item['result'] == 'rejected' for item in report['effects'])
+                    and all(step['operation'] == 'upload' and step['step'].startswith('upload:')
+                            and (journal / f"upload-{int(step['step'].split(':', 1)[1]) + 1:03d}.json").is_file()
+                            for step in steps))
+    return authentication_readiness(root, transport, target['offering']['service'], required=required, expected=selected)
 
 
 def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities: dict) -> dict:
@@ -1100,6 +1163,12 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         'journal': claims[-1]['data']['journal'] if claims else None,
         'logs': logs.get(identifier, [])}
     report['next_action'] = _next_action(root, report, prepared, rows, execution_state=execution_state, authority=authority)
+    authentication = _run_authentication(root, directory, prepared, claims, report, execution_state)
+    report['authentication'] = authentication
+    if authentication and authentication['required'] and not authentication['available']:
+        report['readiness'] = 'configuration_required'
+        report['readiness_diagnostics'] += authentication['diagnostics']
+        report['next_action'] = authentication['diagnostics'][0]['next_action']
     return report
 
 

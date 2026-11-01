@@ -138,6 +138,22 @@ comparison while identifying what this output is responsible for expressing.
 Record consequential limits and unresolved authorial choices at their existing
 owners; those records do not automatically become renderer instructions.
 
+For each hard criterion, establish what observation would support it, what
+would contradict it, the permitted variation and what would leave it undecided.
+Use the existing criterion `text` and `evidence`, with `direction.limitations`
+for relevant boundaries. Derive these conditions from the purpose; no fixed
+inventory of visual properties is required. A requested ambiguity needs its
+permitted readings and limits. Background facts need not all become depicted
+claims, and a still cannot establish an unshown conversation or earlier choice.
+
+Connect each condition to its carrier in the selected text, controls or media
+and to a presentation that can expose the required evidence. Compare what each
+material construction shows, hides or weakens, including useful scale and
+framing. An incompatible crop needs a different construction within authority;
+more wording cannot reveal what the view excludes. Preserve other valid
+realizations and leave incidental details open. The authority for a requirement,
+the selected way to realize it and the returned evidence remain distinct.
+
 Record a consequential branch as `material`, with the considered options,
 tradeoffs, selection and reason; the reader requires at least two options with
 tradeoffs. A fixed instruction or routine choice may have one option (`fixed`
@@ -221,13 +237,22 @@ Leave `action_slice` null when unnecessary; a still request stands apart from
 any video pipeline. Two coherent poses leave the feasibility and timing of the
 motion between them unestablished.
 
+Realize the selected phase through the current actors, action targets and
+relationships that distinguish this instant. A `phase` label alone does not
+establish the event. Identify the visible position, separation, support or
+contact the particular action requires and choose a view that can show it.
+Keep earlier and later conditions outside this instant unless a sequence or
+another presentation is intended. An action word may guide a depiction without
+proving that motion occurred; choose the evidence kind accordingly.
+
 ## Observe and repair
 
 Prepare observable criteria before execution. Each has hard/advisory strength
-and an evidence kind: `artifact`, `text`, `image`, `motion`, or `audio`. Review
-the actual captured artifact with specific observations rather than an overall
-score. Separate observation, interpretation against the purpose, and
-limitations. An unexamined quality stays unexamined, not implicitly passed.
+and an evidence kind: `artifact`, `text`, `image`, `motion`, or `audio`.
+[Observe the captured artifact before interpreting it](production-execution.md#observe-before-interpreting).
+Record specific observations, then their interpretation against the purpose
+and limitations. An unexamined quality stays `not-assessed`; inspected but
+inconclusive evidence is `indeterminate`. Neither supplies a pass.
 
 A repair identifies the relevant observation, decision IDs, operation, changed
 targets and reason in the same review. Reconsider expression, framing, action
@@ -236,6 +261,16 @@ appropriate. The `revision-intent` command compares the complete revised
 preparation with its parent and refuses changes beyond the reviewed targets. It
 binds the exact new input to an `edit` authorization and creates a linked run
 through `revise`; old successful checks and candidate selection do not transfer.
+
+First identify which layer the evidence implicates: the authority premise,
+observable requirement, temporal or spatial construction, view, rendition,
+reference use, model realization or execution record. These are diagnostic
+possibilities, not a required taxonomy or a claim to know a model's internal
+cause. Rebuild a wrong construction instead of patching an incidental detail;
+use a local edit when the mismatch is local. Preserve previous candidates and
+their evidence when a fresh request is needed.
+For source and state drift, follow the existing ownership and writeback rules
+in [State Write-back and Drift Routing](../state-writeback-routing.md).
 
 See [Production execution](production-execution.md) for commands and evidence
 locators, and [Production permissions](production-permissions.md) for the

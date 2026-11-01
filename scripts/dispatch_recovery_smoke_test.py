@@ -29,6 +29,7 @@ import production_fixtures
 import production_workflow as workflow
 import production_store as store
 import production_variation as variation
+import service_auth
 import execution_lifecycle as accounting
 import studio
 import transport_synthetic
@@ -65,7 +66,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.actual_send=transport_synthetic.send
         self.send=self.enterContext(patch.object(transport_synthetic,'send',wraps=self.actual_send))
         self.upload=self.enterContext(patch.object(transport_synthetic,'upload_bytes',wraps=transport_synthetic.upload_bytes))
-        self.key=self.enterContext(patch.object(dispatch,'api_key',side_effect=AssertionError('No real credentials in synthetic execution')))
+        self.key=self.enterContext(patch.object(service_auth,'resolve',side_effect=AssertionError('No real credentials in synthetic execution')))
 
     def call(self):return execution.execute(self.root,self.run,decisions_file=self.decision_file)
     def rows(self):return store.event_rows(self.root,self.run)
@@ -566,14 +567,16 @@ class SecondServiceTests(unittest.TestCase):
         from reading_fixtures import fixture_reading
         import service_profile
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        base=Path(self.temp.name);case=cases.create(base/'studio',base/'runtime');self.root=case['root'];self.case=case
+        base=Path(self.temp.name);self.enterContext(production_fixtures.scratch_home(base/'home'))
+        self.addCleanup(runtime.configure_pack_runtime,None)
+        case=cases.create(base/'studio',base/'runtime');self.root=case['root'];self.case=case
         self.loopback=LoopbackService();self.addCleanup(self.loopback.__exit__)
         module_dir=base/'transport';module_dir.mkdir();(module_dir/'transport_loopback_fixture.py').write_text(SECOND_TRANSPORT,encoding='utf-8')
         sys.path.insert(0,str(module_dir));self.addCleanup(sys.path.remove,str(module_dir));self.addCleanup(sys.modules.pop,'transport_loopback_fixture',None)
         self.transport=importlib.import_module('transport_loopback_fixture')
         service={'label':'Synthetic loopback test interface','transport':'loopback_fixture',
                  'endpoint':{'base_url':self.loopback.url+'/model/text-to-image','method':'POST'},
-                 'auth':{'env_var':'CPB_SECOND_SYNTHETIC_KEY'},'operations':{'text-to-image':{}}}
+                 'auth':{'scheme':'api-key','header':'Authorization'},'operations':{'text-to-image':{}}}
         services=c.load(case['pack']/'resources/services.json');services['services']['second-fixture']=service
         cases.write(case['pack']/'resources/services.json',services)
         records=c.load(case['pack']/'records/models.json');model=records['records'][0]
@@ -592,7 +595,7 @@ class SecondServiceTests(unittest.TestCase):
         cases.write(self.root/'reading.json',fixture_reading(route='generation',studio=self.root,ledger=self.root/'work/reads.jsonl'))
         cases.write(self.root/'task.json',task)
         self.run=workflow.prepare(self.root,'task.json')['run'];self.decisions=decisions(self.root,self.run)
-        self.enterContext(patch.dict(os.environ,{'CPB_SECOND_SYNTHETIC_KEY':'SYNTHETIC-LOOPBACK-KEY'}))
+        service_auth.set_value(self.root, 'second-fixture', 'SYNTHETIC-LOOPBACK-KEY')
         real_connect=socket.create_connection;port=self.loopback.server.server_address[1]
         def loopback_only(address,*args,**kwargs):
             if tuple(address[:2])!=('127.0.0.1',port):raise AssertionError('Test attempted a non-loopback connection')
@@ -617,8 +620,16 @@ class SecondServiceTests(unittest.TestCase):
         self.assertEqual(len(self.loopback.received),1)
         self.assertEqual(json.loads(self.loopback.received[0]['body'])['num_images'],2)
         self.assertEqual(self.loopback.received[0]['headers']['Authorization'],'Key SYNTHETIC-LOOPBACK-KEY')
-        for path in self.root.rglob('*.json'):
-            self.assertNotIn('SYNTHETIC-LOOPBACK-KEY',path.read_text(encoding='utf-8'))
+        private_path=self.root/service_auth.CONFIG_FILE
+        self.assertEqual(json.loads(private_path.read_text(encoding='utf-8')),
+                         {'second-fixture':{'api_key':'SYNTHETIC-LOOPBACK-KEY'}})
+        claim=workflow.find(store.event_rows(self.root,self.run),'dispatch-claim')
+        self.assertEqual(claim['data']['authentication'],
+                         {'service':'second-fixture','source':'api_key'})
+        self.assertNotIn('SYNTHETIC-LOOPBACK-KEY',json.dumps(first)+json.dumps(second))
+        for path in self.root.rglob('*'):
+            if path.is_file() and path!=private_path:
+                self.assertNotIn(b'SYNTHETIC-LOOPBACK-KEY',path.read_bytes(),path.relative_to(self.root).as_posix())
 
     def test_5xx_retains_unknown_outcome_and_never_retries(self):
         self.loopback.reply=(503,{},b'synthetic busy')

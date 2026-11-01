@@ -6,6 +6,7 @@ Activate this document when character work will outlive one session: a character
 
 - [Why a studio](#why-a-studio)
 - [Layout](#layout)
+- [Service authentication](#service-authentication)
 - [The work trail](#the-work-trail)
 - [Every image with what produced it](#every-image-with-what-produced-it)
 - [Failed send recovery](#failed-send-recovery)
@@ -29,6 +30,7 @@ python scripts/studio.py init --out <dir> --studio-id <id> --title "<title>"
 ```text
 <studio>/
   studio.json                 id, title, defaults, when it was created, the characters
+  credentials.json            optional private API key or environment source for each service
   work/current.json           the open task: goal, steps, which are done, what is next, what it is blocked on
   work/ledger.jsonl           task events and actual answers; append only
   work/tasks/<task-id>/       current task snapshot and immutable prior revisions
@@ -58,9 +60,38 @@ python scripts/studio.py init --out <dir> --studio-id <id> --title "<title>"
 
 A narrative series is initialized into its own subdirectory, `python scripts/narrative_init.py --out <studio>/story ...`, and [Narrative Authoring](../narrative-authoring.md) owns its files. The studio manifest lists no series; `validate_studio.py` leaves the subdirectory to the narrative checks. Registering a visual character with `character add` comes when an image is wanted, not before.
 
+## Service authentication
+
+Use [Studio authentication](studio-authentication.md) to configure the service ID selected by the model's offering. The Studio's optional private `credentials.json` has one entry per service. Its `api_key` field holds a saved value, or its `api_key_env` field names a runtime environment variable. Models offered by the same service use that entry. The Agent follows the existing configuration and the credential owner's chosen method.
+
+For a runtime environment source, the Agent configures the intended variable:
+
+```bash
+python scripts/studio.py credentials prepare SERVICE --environment LOCAL_API_TOKEN --studio STUDIO
+```
+
+Execution reads that variable from its own process when it needs authentication. The JSON records only the name. The Agent checks the same service and target run once the value is available. `set --from-env` instead copies the variable's current value into the service's saved `api_key` field.
+
+For a Runware offering, inspect its service selection and prepare the private input file:
+
+```bash
+python scripts/studio.py credentials status runware --studio STUDIO
+python scripts/studio.py credentials prepare runware --studio STUDIO
+```
+
+The Agent prepares the required service entries before handing the JSON to the owner and pauses its own edits until saving is complete. Give the returned `input.path`, the service name and `input.json_pointer`. The owner fills `api_key` directly under that service name and saves valid JSON. An empty string reports input pending; repeated preparation preserves existing values and environment sources. Saving completes the owner's input step.
+
+This handoff requires access to the same file the Agent prepared. After saving, the Agent checks that service and the target run's authentication selection and readiness before continuing its next action. Status keeps the values private while reporting the selected source and availability.
+
+The authentication owner defines source changes, rotation, removal and recovery of an execution's recorded source. An explicit `prepare --environment NAME` selects the live variable; `prepare --stored` prepares a saved field when changing from the environment and retains an existing saved value. Hidden terminal input, stdin and environment import supply saved values through `set`. Each service has one current authentication source.
+
+The private JSON is excluded from ordinary production inputs, artifact registration and Skill packaging. A whole Studio folder copy includes it; copied saved values are independent of the original file, while environment entries read variables from the new process. Follow the authentication document when moving or sharing a Studio. The API key supplies service access, and the run's grants and exact request approval authorize its operation.
+
 ## The work trail
 
-Open a task before any work that takes more than one step, and write the steps down:
+The work ledger follows Production tasks from planning and authoring through verified completion of their deliverables. Studio administration completes through each command's result and [operation record](operation-logs.md), which retain its outcome and diagnostics.
+
+Open a task before production work that takes more than one step, and write the steps down:
 
 ```bash
 python scripts/work_ledger.py begin --studio <dir> --goal "C02 base front" \
@@ -163,7 +194,7 @@ Each send creates a unique `runs/<run-id>/` directory before the first upload.
 `request.json` is written before submission; `answer.json` is written before interpreting or fetching results.
 The package, reference companion, answer, each image's response and completed downloads remain there after later failures.
 Upscales retain the source and each output under `upscale.references/`, with relative paths that also resolve inside the recorded iteration.
-Authentication credentials are not journaled.
+Production records the nonsecret credential selection with the execution claim. The authentication value is supplied separately to the transport and is absent from the authored request and model artifacts by construction. The provider's returned answer remains exact evidence; its arbitrary contents are not universally scrubbed. [Studio authentication](studio-authentication.md#logs-and-saved-evidence) defines the distinction between local secret storage, redacted diagnostics and saved responses.
 
 A failed run is not a reason to resend automatically.
 A failure while `sending` means the service outcome may be unknown.

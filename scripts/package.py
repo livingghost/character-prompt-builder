@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from execution_contract import sha256_file
+from private_state import assert_public_path, assert_public_tree, is_private_path
 from package_metadata import (
     DEVELOPMENT_ARTIFACT_SUFFIXES,
     GENERATED_RELEASE_ARTIFACT_NAMES,
@@ -92,7 +93,8 @@ def _copy_file_writable(
     follow_symlinks: bool = True,
 ) -> str:
     """Copy exact bytes without inheriting source permissions."""
-
+    assert_public_path(source)
+    assert_public_path(destination)
     target = Path(destination)
     shutil.copyfile(source, target, follow_symlinks=follow_symlinks)
     target.chmod(_WRITABLE_FILE_MODE)
@@ -119,13 +121,21 @@ def copy_runtime_tree(
     excluded_subtrees: Sequence[str] = (),
     exclude_names: Sequence[str] = (),
 ) -> None:
-    destination.mkdir(parents=True, exist_ok=False)
-    for child in iter_release_files(
+    children = list(iter_release_files(
         source,
         include,
         exclude_names=exclude_names,
         excluded_subtrees=excluded_subtrees,
-    ):
+    ))
+    # Both core and full releases use this input boundary. Refuse private
+    # state before a copy makes its bytes part of the candidate tree.
+    for child in children:
+        relative = child.relative_to(source)
+        assert_public_path(child)
+        if is_local_state(relative, directory=False):
+            raise ValueError("release input contains local private state: " + relative.as_posix())
+    destination.mkdir(parents=True, exist_ok=False)
+    for child in children:
         relative = child.relative_to(source)
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -299,8 +309,10 @@ def is_local_state(relative: Path, *, directory: bool) -> bool:
     """Whether one tree path is operation logs, production records or staging, a runtime snapshot, a virtual environment or credentials."""
     pair = tuple(part.lower() for part in relative.parts[-2:])
     name = relative.name.lower()
+    if is_private_path(relative):
+        return True
     if directory:
-        return pair in LOCAL_STATE_DIRECTORIES or name in VIRTUAL_ENVIRONMENT_NAMES
+        return pair in LOCAL_STATE_DIRECTORIES or name in VIRTUAL_ENVIRONMENT_NAMES or name == CREDENTIAL_NAME_PART
     return (
         any(len(pair) == 2 and pair[0] == folder and name.startswith(prefix)
             for folder, prefix in LOCAL_STATE_FILE_PREFIXES)
@@ -308,6 +320,7 @@ def is_local_state(relative: Path, *, directory: bool) -> bool:
         or name in CREDENTIAL_FILE_NAMES
         or name.startswith(".env.")
         or CREDENTIAL_NAME_PART in name
+        or any(part.lower() == CREDENTIAL_NAME_PART for part in relative.parts[:-1])
     )
 
 
@@ -358,6 +371,7 @@ def _zip_info(name: str, *, is_directory: bool) -> zipfile.ZipInfo:
 
 
 def write_deterministic_zip(source_root: Path, archive_path: Path) -> None:
+    assert_public_tree(source_root)
     archive_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = archive_path.with_suffix(archive_path.suffix + ".tmp")
     temp_path.unlink(missing_ok=True)

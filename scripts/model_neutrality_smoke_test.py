@@ -102,8 +102,18 @@ SOURCE_EXCERPTS = {'references/adapters/instruction-edit.md': {'Stable Diffusion
                                             'Stable Diffusion parentheses': 1,
                                             'For ComfyUI, identify the loaded model and its exact workflow contract.': 1,
                                             '`"transport": "runware"` selects `scripts/transport_runware.py`': 1,
+                                            'The included Runware transport implements image generation and image upscaling;': 1,
                                             'Gemini or Imagen, Firefly, Ideogram, Recraft, Leonardo, and future design-oriented generators use that unlisted-interface rule. Inspect the exact active interface and model record; never infer media or negative transport from a brand family.': 1,
                                             '[Workflow Walkthrough](workflow-walkthrough.md) takes one idea to a prepared run and its exact request for `grok-imagine-image-2.0` on Runware. It sends nothing and uses no credential. State-aware example commands above name `--plot-file` and `--retrieval-record-file` for a run whose task declares neither; `examples/state-aware-pilot/build_example.py` supplies explicit illustrative lookup data for its generated package.': 1},
+ 'references/runtime/studio-authentication.md': {
+     "For a Runware offering, inspect its service selection and prepare the private input file:": 1,
+     'python scripts/studio.py credentials status runware --studio STUDIO': 1,
+     'python scripts/studio.py credentials prepare runware --studio STUDIO': 1,
+     'The included Runware transport implements image generation and image upscaling.': 1},
+ 'references/runtime/studio.md': {
+     "For a Runware offering, inspect its service selection and prepare the private input file:": 1,
+     'python scripts/studio.py credentials status runware --studio STUDIO': 1,
+     'python scripts/studio.py credentials prepare runware --studio STUDIO': 1},
  'references/runtime/model-evidence.md': {'Provider interfaces expose different signals. OpenAI documents `error.code = moderation_blocked` in its [image-generation guide](https://developers.openai.com/api/docs/guides/image-generation).': 1,
                                           "Google's [Interactions safety guide](https://ai.google.dev/gemini-api/docs/safety-settings) documents structured error codes for blocked requests.": 1,
                                           "xAI's [image guide](https://docs.x.ai/developers/model-capabilities/images/generation) documents the `respect_moderation` response field.": 1,

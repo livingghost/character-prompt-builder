@@ -5,20 +5,20 @@
     "model_identifier": "openai:gpt-image@2.5-flare",
     "operation": "generate"
   },
-  "service_execution_sha256": "b82ad4a4ea40a52bd6f098773c23dbd0b25f00e73a39e9772f051eb50d880af5",
-  "offering_contract_sha256": "2191af2fe1632f4abf68b8b70b6a8bc175af15931b59b968d5ee16ab58b655e0",
+  "service_execution_sha256": "08829db9df2aa81c366d84165680f81a49c84656c05d2430013637fdcff3f9ff",
+  "offering_contract_sha256": "efeba04c87ac61ea6808056a2522354175b30efe76f78382a49ada0da25551c9",
   "transport_sha256": "cf5b6e38c3da1c98c492c991155fec171bdc197140b130b6792f246d060d5fbc",
   "contract": {
-    "path": "synthetic-validation/8670e93963609738/contract.json",
+    "path": "synthetic-validation/1a88f02ddbc061d3/contract.json",
     "sha256": "cdd7df03e86e1987057c723ddd339a0cf6e6399f23d1a4e09c0b82f66e07c2b4"
   },
   "evidence": {
-    "path": "synthetic-validation/8670e93963609738/acquisition.json",
-    "sha256": "5addcf3baf84986817fce3ff87072f2da82dea77da4a0b038ae0f2b3526f8b63"
+    "path": "synthetic-validation/1a88f02ddbc061d3/acquisition.json",
+    "sha256": "4b508cd0060a923c79b0b8679e286eeaf65ee4accd8487ce7c7822983758ba49"
   },
   "execution_policy": {
-    "path": "synthetic-validation/8670e93963609738/policy.json",
-    "sha256": "e4c6ced5482b17eedd0ecd054b0be3921c572d331d95c704df112d96ad71b6a7"
+    "path": "synthetic-validation/1a88f02ddbc061d3/policy.json",
+    "sha256": "18515e6657b6760e408abc14f07dbd6aeae96e7c80c938f9abf8fd68113e8498"
   },
   "unmeasured": []
 }

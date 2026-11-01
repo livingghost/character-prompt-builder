@@ -17,6 +17,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterator
 
 from io_budget import read_stream
+from private_state import assert_public_path
 SHA = re.compile(r"^[0-9a-f]{64}$")
 # The file `lock` holds in the directory it locks.
 LOCK_FILE = ".cpb.lock"
@@ -39,6 +40,9 @@ def digest(raw: bytes) -> str:
 
 def sha256_file(path: Path) -> str:
     """Hash a file to its end, one chunk at a time."""
+    assert_public_path(path)
+    if Path(path).is_symlink():
+        assert_public_path(Path(path).resolve())
     hasher = hashlib.sha256()
     with Path(path).open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -209,10 +213,12 @@ def _located(root: Path, relative: str, exists: bool) -> tuple[Path, os.stat_res
     rel = PurePosixPath(relative)
     if rel.is_absolute() or rel.as_posix() != relative or any(x in {".", ".."} for x in rel.parts):
         raise ValueError("path must remain within the studio")
+    assert_public_path(rel)
     root = root.absolute()
     resolved = _root(root)
     staged = _staged(resolved, rel) if _STAGED.get() else None
     if staged is not None:
+        assert_public_path(staged)
         if exists and not staged.exists():
             raise ValueError(f"missing file: {relative}")
         return staged, None
@@ -245,6 +251,7 @@ def local(root: Path, relative: str, *, exists: bool = True) -> Path:
 
 
 def read(path: Path, maximum: int | None = None) -> bytes:
+    assert_public_path(path)
     if path.is_symlink() or not path.is_file():
         raise ValueError(f"not a regular file: {path.name}")
     with path.open("rb") as stream:
@@ -346,6 +353,7 @@ def atomic(path: Path, raw: bytes, *, replace: bool = False) -> None:
     refuses an existing name. Elsewhere a rename would replace, so the new name
     is created exclusively and written in place.
     """
+    assert_public_path(path)
     if path.is_symlink():
         raise ValueError("cannot write through symbolic link")
     path.parent.mkdir(parents=True, exist_ok=True)

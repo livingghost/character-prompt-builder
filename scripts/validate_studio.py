@@ -6,6 +6,7 @@
 What it refuses:
 
 - a manifest that is not what init writes;
+- malformed optional Studio authentication bindings (private values are local execution configuration);
 - a character the manifest lists without a directory, or a directory it does not list;
 - a character id that ends in a dot or differs from another only by case;
 - an iteration whose files are missing or whose hashes moved;
@@ -179,6 +180,11 @@ def validate(root: Path) -> list[str]:
         errors.append(f"{studio.MANIFEST}: missing {missing}")
     if extra:
         errors.append(f"{studio.MANIFEST}: unexpected {extra}")
+    import service_auth
+    try:
+        service_auth.selections(root)
+    except (ValueError, OSError):
+        errors.append("credentials.json: each service requires one api_key entry or one named api_key_env source")
     if not isinstance(document.get("studio_id"), str) or not studio.STUDIO_ID.match(document.get("studio_id") or ""):
         errors.append(f"{studio.MANIFEST}: studio_id is not a studio id")
     for name in ("default_render_profile", "default_creative_latitude", "default_interaction_mode"):

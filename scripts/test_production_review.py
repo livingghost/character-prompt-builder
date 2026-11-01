@@ -168,6 +168,14 @@ class ReviewTests(ReviewCase):
         with self.assertRaisesRegex(ValueError, 'cite actual observations'):
             workflow.review(self.root, self.run, 'review.json')
 
+    def test_hard_indeterminate_prevents_selection(self):
+        self.record_review([('output','pass'),('palette','indeterminate')])
+        self.assertEqual(self.state()['evaluation'], 'indeterminate')
+        self.assertCode('REVIEW_INCOMPLETE', self.select)
+        state = self.state()
+        self.assertEqual((state['evaluation'], state['disposition']), ('indeterminate', 'pending'))
+        self.assertFalse(any(row['event'] == 'selection' for row in store.event_rows(self.root, self.run)))
+
     def test_review_of_history_does_not_require_live_prompt(self):
         (self.root/'prompt.txt').unlink()
         record = self.record_review([('output','pass')])

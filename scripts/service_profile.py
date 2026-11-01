@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{args.service}: {record.get('label')} (observed {record.get('observed_at')}, read from {path})")
     print(f"  transport  scripts/transport_{record['transport']}.py")
     print(f"  endpoint   {endpoint.get('method', 'POST')} {endpoint.get('base_url')}")
-    print(f"  auth       {auth.get('scheme')} in {auth.get('header')}" + (f", key from {auth['env_var']}" if auth.get("env_var") else ""))
+    print(f"  auth       {auth.get('scheme')} in {auth.get('header')}; value selected by the Studio profile for {args.service}")
     print(f"  request    {(record.get('envelope') or {}).get('request')}")
     print("  operations")
     for name, operation in (record.get("operations") or {}).items():

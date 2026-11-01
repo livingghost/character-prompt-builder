@@ -57,9 +57,10 @@ Inputs, the runtime and artifacts are referenced by path and SHA-256.
 The complete creative sources stay in the formal production artifacts.
 Console output a command prints can still quote work text in `stdout.log` and `stderr.log`.
 
-A credential that `execute` or `resume` reads is redacted from every later write of that operation.
-Values shorter than eight characters, booleans and numbers are never treated as credentials.
+A credential explicitly registered by the authentication owner is redacted from every later log write of that operation, including a short or numeric string. Automatic discovery from ambient environment variables keeps its length and scalar heuristics so ordinary short words, flags and numbers do not redact unrelated diagnostics.
 Unknown secrets embedded in free text cannot be detected with a universal guarantee.
+
+[Studio authentication](studio-authentication.md#logs-and-saved-evidence) owns the Studio's private `credentials.json` and keeps its values out of argument vectors and generated artifact hashes. Credential writes use that private owner; ordinary artifact registration rejects the declared credential file. `logs-export` collects its bounded diagnostic files rather than the Studio's credential JSON. These log rules govern diagnostic records and redacted exit explanations. A command's arbitrary console output and the exact provider response retained as formal evidence have their own contracts; log redaction is not a universal transformation of those bytes. The private-path boundary identifies declared credential state, not arbitrary renamed copies of its contents.
 
 Textual exit diagnostics go to stderr after credential redaction.
 An exception keeps its code and phase in the JSON on stdout, with a short safe explanation on stderr.

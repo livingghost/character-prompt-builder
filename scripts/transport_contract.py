@@ -74,7 +74,8 @@ A transport may also define these names; check() refuses one with the wrong type
     CREDENTIAL_FREE
         True for a transport that reaches no network and reads no credential.
         execute and resume then read no key; every other transport gets the
-        key the service record's auth.env_var names.
+        value selected by the service's Studio authentication entry. Stored
+        values and explicit environment sources share this transport contract.
 
 Every send has one of three outcomes:
 

@@ -207,8 +207,8 @@ A receipt for another request cannot replace that contract, and a mismatch names
 
 1. It loads the sealed package and exact request.
 2. It rechecks the recording destination: the Studio character, the slot, the sheet-panel condition and the subject mapping.
-3. It checks current grants, the credential and exact request approval.
-4. In one transaction, it records the dispatcher handoff, records execution ownership and claims the run.
+3. It resolves the Studio's credential selection and checks current grants and exact request approval.
+4. In one transaction, it records the dispatcher handoff, records execution ownership with the nonsecret credential selection and claims the run.
 5. The transaction commits before network I/O; each upload and the send then gets its own durable start boundary.
 6. It saves the provider answer, downloads every returned image and registers each one as a candidate.
 
@@ -219,6 +219,22 @@ The send boundary records the management identifiers sent with the request.
 Low-level `authorize` and the dispatcher share the same permission and execution-claim implementation.
 A request has one claim even when it returns several images.
 Use `resume` for recovery, `variant` for changed input, and `repeat` for an intentional additional request.
+
+### Authentication at execution
+
+[Studio authentication](studio-authentication.md) owns credential configuration and its CLI. The selected offering's service ID identifies one entry in the Studio's private `credentials.json`. That entry contains a saved `api_key` or an `api_key_env` variable name. Follow the existing configuration and the owner's chosen method. Missing configuration or an unusable source gives a diagnostic and a concrete setup or repair action.
+
+For an environment source, the Agent uses `studio.py credentials prepare SERVICE --environment NAME`. Execution reads that variable from its own process. Check the service and run once the variable is available. When the service has no entry, the general diagnostic proposes saved-entry preparation; follow an existing environment choice by preparing that named source. `set --from-env` instead copies the current variable value into `api_key`.
+
+For saved input, the Agent runs the returned `credentials-prepare` action and finishes the required service entries before handing the owner `input.path` and `input.json_pointer`. The owner fills `api_key` under the selected service name and saves, while the Agent pauses its own edits. The Agent then checks that service and this run's authentication selection and readiness. The handoff requires access to the same file in the execution environment. An empty string is a supported waiting state, with a `credentials-status` action requiring the owner's input. Saved input becomes available to the next authentication resolution; submission remains governed by execution authority.
+
+The claim records the nonsecret service and source, including the variable name for `api_key_env`. Pre-send continuation and provider lookup require that recorded source. A change between saved and environment sources, or a change to the recorded variable name, requires explicit restoration before authenticated continuation. Replacing the value at the same saved field or environment variable supports rotation and preserves the prepared request. For recovery, supply a value belonging to the provider account that owns the pending task; the local source identity does not establish that remote account relationship.
+
+A source-difference diagnostic returns an explicit restoration action with `requires_author_input: true`. Apply the user's existing direction when it settles the intended source, or obtain the owner's decision when that choice remains open. A setup action with `requires_author_input: false` prepares the saved field within the authorized task. The Agent presents any remaining value-entry handoff after setup. Credential JSON stays outside ordinary production inputs and evidence, preserving the run's credential-independent input identity.
+
+A complete saved answer can be downloaded and registered without resolving the API credential. A transport declared credential-free also needs no key. External host tools keep their own authentication; exact handoff and submission authorization still govern their use.
+
+Local availability checks establish readability and format. They make no provider request and grant no submission authority. The value is supplied separately to the transport, outside request and input content hashes.
 
 ## Exit codes
 
@@ -274,6 +290,7 @@ Each run reports these state axes:
 `pending` means the provider accepted the request and still has unfinished outputs; its next action is `resume`.
 `outcome_unknown` means the available evidence does not establish whether the provider carried out the request.
 `readiness` reports current authority, credentials, input and recording diagnostics before any send.
+The live dispatcher status report's `authentication` field distinguishes the required source selection, local availability and configuration diagnostics. `required` identifies whether the next provider step needs the key; `available` is `null` when no credential lookup is necessary. `remote_validation: "not-performed"` means that this check made no provider authentication request. External run status uses `authentication: null`. These are current runtime observations; `check`, `prepare`, the frozen execution plan and prepared input stay credential-independent. A missing or changed pinned selection reports `configuration_required` and names the repair action. After key entry, inspect the intended run with `status --root STUDIO --run RUN_ID` and check its `authentication.selection`, required availability, `readiness` and `next_action`. The command's top-level `ok` reports inspection success, so it alone does not establish that the run can continue. The Agent follows the returned next action to resume the original production task after its requirements are met.
 External tasks with a declared image input require a recorded handoff and a current exact submission authorization before reporting `ready`.
 A complete review is not necessarily a passing one.
 `registration` is `unregistered` with candidates when the recording destination is gone; the run keeps the captured bytes.
@@ -296,6 +313,7 @@ A synthetic prepared run that waits for authority shows (trimmed, the studio pat
 `resume` recovers the same execution from saved evidence and never sends its request again:
 
 - A completed provider answer is registered again without sending. Repeated recovery creates no second candidate, Studio iteration or settlement.
+- Recovery from a complete saved answer needs no API key. Recovery that asks the provider or continues before the first send resolves the claim's pinned credential selection.
 - Every acquired output is kept, including partial or unexpected output counts.
 - A processing response keeps the execution open. Its available outputs become candidates while `resume` asks for the same provider task.
 - The first response stays in `send-observation.json`; each lookup keeps its own receipt and response. Only a completed response becomes `answer.json`.
@@ -457,7 +475,7 @@ A drift diagnostic adds `affected_runs` and `actions`.
 | `GRANT_REVOKED` | Exit 3. The current authority does not contain the grant, or the grant is revoked or expired. |
 | `GRANT_NOT_EFFECTIVE` | Exit 3. The grant is not yet effective. |
 | `EXTERNAL_COST_LIMIT_EXCEEDED` | Exit 3. A reported charge exceeds its effect ceiling; no further effect starts. |
-| `CREDENTIAL_UNAVAILABLE` | Exit 3. The credential variable the service record names is not set. |
+| `CREDENTIAL_UNAVAILABLE` | Exit 3. The selected credential is missing, unusable or differs from the execution's pinned source. Follow the diagnostic's Studio credential repair action; an explicit binding keeps its own failure instead of choosing another source. |
 | `HANDOFF_REQUIRED` | Exit 3. The operation needs a recorded handoff that the run lacks. |
 | `HANDOFF_NOT_PERFORMED` | A low-level dispatcher handoff is refused; `execute` records that handoff. |
 | `TASK_ABANDONED` | The run's work task was abandoned, so no new operation starts. |
@@ -773,6 +791,44 @@ A review names the actual reviewer, observations, the criteria assessed so far, 
 Each observation names its `evidence` (`candidate` or a supplemental evidence ID), a locator, the observed fact, its interpretation and limitations.
 Supplemental entries record path, kind, relation and limitations; their bytes are measured and pinned, not trusted from filenames.
 
+### Observe before interpreting
+
+First inspect the actual candidate and record what it visibly or measurably
+establishes, with locators and limits. When a separate reviewer context is
+available, give it the candidate and only the technical information needed to
+access the relevant file, page, region or stream. Withhold the brief, prompt,
+expected portrayal, earlier failures and production history until that first
+observation is recorded. A review draft already contains purpose and criterion
+context; do not give it to this first observer.
+
+Then compare the observations with the prepared criteria, allowed variation and
+applicable source or reference evidence. Additional inspection may answer a
+criterion-specific question; keep those later observations distinguishable from
+the first reading in their `limitations`. Preserve the direct observation in
+`observation`, its meaning against the criterion in `interpretation`, and the
+unsupported or uninspected scope in `limitations`. Record the actual reviewer
+input boundary and reading order in the review's `conclusion` and relevant
+observation limitations. These existing fields require no new record format.
+
+If the same context produced and reviewed the work, state that this is author
+self-review and not independent. Describe the artifact before applying the
+expected reading, while retaining the limitation that the intent is already
+known. An instruction to forget that intent does not erase it. Input-limited
+review also remains an interpretation, not a controlled blind comparison; the
+[Blind Image Evaluation Protocol](../blind-image-evaluation-protocol.md) owns
+study design and release claims.
+
+A face oriented toward someone does not alone show eye contact; cropped eyes
+can leave it undecided. A still stance does not establish a path of motion, and
+a smile alone need not distinguish the requested emotional state. Assess the
+artifact against what its evidence can establish. Use `indeterminate` for an
+inspected criterion with inconclusive evidence and `not-assessed` for one not
+inspected. Do not infer a pass from the prompt, the intended story or a valid
+request. A valid prompt and a rejected candidate can coexist. A different
+composition may pass when it preserves the same anchors and allowed variation.
+
+### Apply the prepared review basis
+
 For image inputs, the draft includes the original source images and each
 prepared delivery carrier available in the run. Carrier evidence retains
 the source assignment, transformation, attachment position and board region;
@@ -877,6 +933,13 @@ Preparations, generated images, draft reviews or a task with no selected artifac
 ## Review, repair and a new run
 
 The same review carries repairs (`id`, decision IDs, observation indices, operation, changed targets, reason).
+Identify the responsible layer from the observations before choosing the
+operation. [Production direction](production-direction.md#observe-and-repair)
+connects the criterion, construction, presentation and rendition. A wrong
+temporal phase or spatial relationship can require rebuilding the scene; an
+incidental facial or garment edit cannot establish an event the view cannot
+show. Use a local correction when the mismatch is local, and retain uncertainty
+when the evidence does not isolate a cause.
 Author a revised task or input files.
 `revision-intent` compares the whole prepared input, checks the reviewed scope, and returns an exact `edit` payload:
 

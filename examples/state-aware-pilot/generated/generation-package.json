@@ -9428,7 +9428,7 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
   "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-  "generation_input_sha256": "9355fd7e75a93573a1bd8a0dfc3a8bc32d9d99c73a89ef8796ce5c0e3207256d",
+  "generation_input_sha256": "ee1d30300d63ecba521110927087b3ee9a13ae8a1353f50dc91e8b8ca64c4f22",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -9579,12 +9579,12 @@
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "state_graphs_sha256": "9639bdbd5f1cb2b3b33f5515b7cbb9c47ac6ee26f7726360e6948c0b75a1d231",
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-    "generation_input_sha256": "9355fd7e75a93573a1bd8a0dfc3a8bc32d9d99c73a89ef8796ce5c0e3207256d",
+    "generation_input_sha256": "ee1d30300d63ecba521110927087b3ee9a13ae8a1353f50dc91e8b8ca64c4f22",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "1a89108a6902a9ea450a5c5d4a3159f917dd5991be4393afa8f1ac25d5c62a35",
-    "request_validation_sha256": "5de8d9898aeda400229839220954f022510b0e5dd49053699b8cd88545f0b0b0",
-    "input_snapshots_sha256": "7ee45583a03cf068d667bae298f6d04764be16f3bb427ce0503381ab0e25b2ef"
+    "route_reading_sha256": "063ba63d5c3ddf09fc80f5e47ba1ab30fd473cfd56b569b8b9378089788928c1",
+    "request_validation_sha256": "0614a44e67964ea3a30bc6a13f5cfcbb066f43b8fe58030bc92805b48719bb42",
+    "input_snapshots_sha256": "d7a0bb92a15876da3f1d2cc1ee84633e8e658d87c7375fc1498082f2e1a9e376"
   },
   "visual_continuity": {
     "purpose": "image",
@@ -9607,11 +9607,11 @@
     "documents": [
       {
         "path": "references/runtime/production-workflow.md",
-        "sha256": "587228fa5a308d3defce89bf0cb7ecf3e28b35079780bb1504734ce64ac35ca4"
+        "sha256": "b8ac5560e1c342f935c894de6ac4f530d0fd89031fda8ffc10c13d4869523b15"
       },
       {
         "path": "references/runtime/production-direction.md",
-        "sha256": "74213f08611f23dcafd749dc9c431874d27486ac2d6ff495dd0d7162a7a6cc08"
+        "sha256": "649958acebf243fed594afb8c2ad30c09b390ee6a233843c26920293297253a2"
       },
       {
         "path": "references/runtime/production-permissions.md",
@@ -9619,7 +9619,7 @@
       },
       {
         "path": "references/runtime/production-execution.md",
-        "sha256": "a838ccfa278b55ca8f921dfc3f1fa807e1e35fd79e36f8181cd20fa3886d9452"
+        "sha256": "80c053765c4c903e3d6f0d053ae773a394867390e77c447c2b87be97a6d4c70a"
       },
       {
         "path": "references/runtime/state-aware-series.md",
@@ -9651,7 +9651,7 @@
       },
       {
         "path": "references/runtime/studio.md",
-        "sha256": "7faa992c873c942be99906d7e26ad557e83b6cb064e99d055020475318847bb8"
+        "sha256": "6240ed5e3aff292743cb4d829383d6c7982ec785e3a92c3a5a60015fff260f1d"
       },
       {
         "path": "references/runtime/world-realization.md",
@@ -9682,7 +9682,7 @@
       }
     },
     "route": "state-series",
-    "reading_key": "9da423b0796a88a0e7446f0eb34cfc3a",
+    "reading_key": "ecaf143cefcd16623bf94df34373706b",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
@@ -9709,7 +9709,7 @@
       }
     ]
   },
-  "route_reading_sha256": "1a89108a6902a9ea450a5c5d4a3159f917dd5991be4393afa8f1ac25d5c62a35",
+  "route_reading_sha256": "063ba63d5c3ddf09fc80f5e47ba1ab30fd473cfd56b569b8b9378089788928c1",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",
@@ -9718,54 +9718,54 @@
       "model_identifier": "openai:gpt-image@2.5-flare",
       "operation": "generate"
     },
-    "service_execution_sha256": "b82ad4a4ea40a52bd6f098773c23dbd0b25f00e73a39e9772f051eb50d880af5",
-    "offering_contract_sha256": "2191af2fe1632f4abf68b8b70b6a8bc175af15931b59b968d5ee16ab58b655e0",
+    "service_execution_sha256": "08829db9df2aa81c366d84165680f81a49c84656c05d2430013637fdcff3f9ff",
+    "offering_contract_sha256": "efeba04c87ac61ea6808056a2522354175b30efe76f78382a49ada0da25551c9",
     "transport_sha256": "cf5b6e38c3da1c98c492c991155fec171bdc197140b130b6792f246d060d5fbc",
     "contract": {
-      "path": "synthetic-validation/8670e93963609738/contract.json",
+      "path": "synthetic-validation/1a88f02ddbc061d3/contract.json",
       "sha256": "cdd7df03e86e1987057c723ddd339a0cf6e6399f23d1a4e09c0b82f66e07c2b4"
     },
     "evidence": {
-      "path": "synthetic-validation/8670e93963609738/acquisition.json",
-      "sha256": "5addcf3baf84986817fce3ff87072f2da82dea77da4a0b038ae0f2b3526f8b63"
+      "path": "synthetic-validation/1a88f02ddbc061d3/acquisition.json",
+      "sha256": "4b508cd0060a923c79b0b8679e286eeaf65ee4accd8487ce7c7822983758ba49"
     },
     "execution_policy": {
-      "path": "synthetic-validation/8670e93963609738/policy.json",
-      "sha256": "e4c6ced5482b17eedd0ecd054b0be3921c572d331d95c704df112d96ad71b6a7"
+      "path": "synthetic-validation/1a88f02ddbc061d3/policy.json",
+      "sha256": "18515e6657b6760e408abc14f07dbd6aeae96e7c80c938f9abf8fd68113e8498"
     },
     "unmeasured": []
   },
-  "request_validation_sha256": "5de8d9898aeda400229839220954f022510b0e5dd49053699b8cd88545f0b0b0",
+  "request_validation_sha256": "0614a44e67964ea3a30bc6a13f5cfcbb066f43b8fe58030bc92805b48719bb42",
   "input_snapshots": {
-    "synthetic-validation/8670e93963609738/contract.json": {
+    "synthetic-validation/1a88f02ddbc061d3/contract.json": {
       "sha256": "cdd7df03e86e1987057c723ddd339a0cf6e6399f23d1a4e09c0b82f66e07c2b4",
       "size": 304,
       "base64": "eyJhcnRpZmFjdF90eXBlIjoibW9kZWwtc2NoZW1hLWNvbnRyYWN0IiwibG9jYWxfb3ZlcmxheSI6bnVsbCwicmVzcG9uc2VfcG9pbnRlciI6Ii9zY2hlbWEiLCJzY2hlbWEiOnsidHlwZSI6Im9iamVjdCJ9LCJzY2hlbWFfc2hhMjU2IjoiOTA5MWE4MTY0Zjk3ZWFjYTE4MmIzZDA2ZDBlNWE1OWU5MjNjODgwZWJjMDE0ODA1NmM0NTNjNjUxZjViNDZjYiIsInRhcmdldCI6eyJtb2RlbF9pZGVudGlmaWVyIjoib3BlbmFpOmdwdC1pbWFnZUAyLjUtZmxhcmUiLCJvcGVyYXRpb24iOiJnZW5lcmF0ZSIsInNlcnZpY2UiOiJydW53YXJlIn19Cg=="
     },
-    "synthetic-validation/8670e93963609738/acquisition.json": {
-      "sha256": "5addcf3baf84986817fce3ff87072f2da82dea77da4a0b038ae0f2b3526f8b63",
+    "synthetic-validation/1a88f02ddbc061d3/acquisition.json": {
+      "sha256": "4b508cd0060a923c79b0b8679e286eeaf65ee4accd8487ce7c7822983758ba49",
       "size": 474,
-      "base64": "eyJhY3F1aXJlZF9hdCI6IjIwMDAtMDEtMDFUMDA6MDA6MDBaIiwiYXJ0aWZhY3RfdHlwZSI6InNjaGVtYS1hY3F1aXNpdGlvbiIsInJlc3BvbnNlIjp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi84NjcwZTkzOTYzNjA5NzM4L2ludGVyZmFjZS5qc29uIiwic2hhMjU2IjoiN2I1MGYzMGMwOTE5MTJhYTU4YjIxYWJiNDE4YjYzNTJhODE2NGZjNWQxMmQyNzUwN2FiN2IyODE3NGJjY2FlOCJ9LCJzb3VyY2UiOnsiaWRlbnRpZmllciI6IlN5bnRoZXRpYyBpbnRlcmZhY2UgZml4dHVyZSIsImtpbmQiOiJkb2N1bWVudCIsImxvY2F0b3IiOiJzY2hlbWEgbWVtYmVyIn0sInN0YXR1cyI6eyJkb2N1bWVudF9zdGF0dXMiOiJzY2hlbWEtcHJvdmlkZWQifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJvcGVuYWk6Z3B0LWltYWdlQDIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRlIiwic2VydmljZSI6InJ1bndhcmUifX0K"
+      "base64": "eyJhY3F1aXJlZF9hdCI6IjIwMDAtMDEtMDFUMDA6MDA6MDBaIiwiYXJ0aWZhY3RfdHlwZSI6InNjaGVtYS1hY3F1aXNpdGlvbiIsInJlc3BvbnNlIjp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi8xYTg4ZjAyZGRiYzA2MWQzL2ludGVyZmFjZS5qc29uIiwic2hhMjU2IjoiN2I1MGYzMGMwOTE5MTJhYTU4YjIxYWJiNDE4YjYzNTJhODE2NGZjNWQxMmQyNzUwN2FiN2IyODE3NGJjY2FlOCJ9LCJzb3VyY2UiOnsiaWRlbnRpZmllciI6IlN5bnRoZXRpYyBpbnRlcmZhY2UgZml4dHVyZSIsImtpbmQiOiJkb2N1bWVudCIsImxvY2F0b3IiOiJzY2hlbWEgbWVtYmVyIn0sInN0YXR1cyI6eyJkb2N1bWVudF9zdGF0dXMiOiJzY2hlbWEtcHJvdmlkZWQifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJvcGVuYWk6Z3B0LWltYWdlQDIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRlIiwic2VydmljZSI6InJ1bndhcmUifX0K"
     },
-    "synthetic-validation/8670e93963609738/policy.json": {
-      "sha256": "e4c6ced5482b17eedd0ecd054b0be3921c572d331d95c704df112d96ad71b6a7",
+    "synthetic-validation/1a88f02ddbc061d3/policy.json": {
+      "sha256": "18515e6657b6760e408abc14f07dbd6aeae96e7c80c938f9abf8fd68113e8498",
       "size": 549,
-      "base64": "eyJhcnRpZmFjdF90eXBlIjoiZXhlY3V0aW9uLXBvbGljeSIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi84NjcwZTkzOTYzNjA5NzM4L2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwicmVmZXJlbmNlX2luc3RydWN0aW9uX3RyYW5zcG9ydCI6eyJjb250cmFjdCI6eyJwYXRoIjoic3ludGhldGljLXZhbGlkYXRpb24vODY3MGU5Mzk2MzYwOTczOC9yZWZlcmVuY2VzLmpzb24iLCJzaGEyNTYiOiI4NTQ1YmE0N2I1NmZjNDg5ZWJjMTY1N2JiZWY5N2FlNzc2ZDNkZjBiNjA2MjlmNTI4ZGM0MWMxNTlhNTkzYzFmIn0sIm1vZGUiOiJhdXRob3JlZC1yZW5kaXRpb24ifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJvcGVuYWk6Z3B0LWltYWdlQDIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRlIiwic2VydmljZSI6InJ1bndhcmUifSwidGV4dF9kaWFsZWN0Ijoic3ludGhldGljLXByb3NlIn0K"
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoiZXhlY3V0aW9uLXBvbGljeSIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi8xYTg4ZjAyZGRiYzA2MWQzL2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwicmVmZXJlbmNlX2luc3RydWN0aW9uX3RyYW5zcG9ydCI6eyJjb250cmFjdCI6eyJwYXRoIjoic3ludGhldGljLXZhbGlkYXRpb24vMWE4OGYwMmRkYmMwNjFkMy9yZWZlcmVuY2VzLmpzb24iLCJzaGEyNTYiOiJkMGM2OGY3MTFjNjI3N2UyZmE3ZmQ1ZTBkMzhjYzU1OTY0YTRmODdhMGExMDZmM2Q0NmY2NTY1YTY1NDIxODk0In0sIm1vZGUiOiJhdXRob3JlZC1yZW5kaXRpb24ifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJvcGVuYWk6Z3B0LWltYWdlQDIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRlIiwic2VydmljZSI6InJ1bndhcmUifSwidGV4dF9kaWFsZWN0Ijoic3ludGhldGljLXByb3NlIn0K"
     },
-    "synthetic-validation/8670e93963609738/interface.json": {
+    "synthetic-validation/1a88f02ddbc061d3/interface.json": {
       "sha256": "7b50f30c091912aa58b21abb418b6352a8164fc5d12d27507ab7b28174bccae8",
       "size": 46,
       "base64": "eyJzY2hlbWEiOnsidHlwZSI6Im9iamVjdCJ9LCJzeW50aGV0aWMiOnRydWV9Cg=="
     },
-    "synthetic-validation/8670e93963609738/basis.txt": {
+    "synthetic-validation/1a88f02ddbc061d3/basis.txt": {
       "sha256": "424db1c13f6c398026a9d9ae39d4e8f294e1274d4e2d1dec1ab501e7d61e06c5",
       "size": 60,
       "base64": "U3ludGhldGljIGludGVyZmFjZSBkZWNsYXJhdGlvbi4gTm8gcHJvdmlkZXIgd2FzIGNvbnRhY3RlZC4K"
     },
-    "synthetic-validation/8670e93963609738/references.json": {
-      "sha256": "8545ba47b56fc489ebc1657bbef97ae776d3df0b60629f528dc41c159a593c1f",
+    "synthetic-validation/1a88f02ddbc061d3/references.json": {
+      "sha256": "d0c68f711c6277e2fa7fd5e0d38cc55964a4f87a0a106f3d46f6565a65421894",
       "size": 380,
-      "base64": "eyJhcnRpZmFjdF90eXBlIjoicmVmZXJlbmNlLXJlbmRlci1jb250cmFjdCIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi84NjcwZTkzOTYzNjA5NzM4L2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwiZGlhbGVjdHMiOlsic3ludGhldGljLXByb3NlIl0sImZpZWxkcyI6W10sIm1vZGUiOiJhdXRob3JlZC1yZW5kaXRpb24iLCJ0YXJnZXQiOnsibW9kZWxfaWRlbnRpZmllciI6Im9wZW5haTpncHQtaW1hZ2VAMi41LWZsYXJlIiwib3BlcmF0aW9uIjoiZ2VuZXJhdGUiLCJzZXJ2aWNlIjoicnVud2FyZSJ9fQo="
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoicmVmZXJlbmNlLXJlbmRlci1jb250cmFjdCIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi8xYTg4ZjAyZGRiYzA2MWQzL2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwiZGlhbGVjdHMiOlsic3ludGhldGljLXByb3NlIl0sImZpZWxkcyI6W10sIm1vZGUiOiJhdXRob3JlZC1yZW5kaXRpb24iLCJ0YXJnZXQiOnsibW9kZWxfaWRlbnRpZmllciI6Im9wZW5haTpncHQtaW1hZ2VAMi41LWZsYXJlIiwib3BlcmF0aW9uIjoiZ2VuZXJhdGUiLCJzZXJ2aWNlIjoicnVud2FyZSJ9fQo="
     },
     "fixture-visual-basis.txt": {
       "sha256": "8214731768861c3035f864cd014f4f7256ab4f8cfdf94d186935321a01e4d683",
@@ -9773,5 +9773,5 @@
       "base64": "U3ludGhldGljIHZpc3VhbCBkZWNpc2lvbnMgZm9yIG9uZSBkZWNsYXJlZCB0ZXN0IGlucHV0LiBOb3QgYW4gYXV0aG9yIGFwcHJvdmFsLgo="
     }
   },
-  "input_snapshots_sha256": "7ee45583a03cf068d667bae298f6d04764be16f3bb427ce0503381ab0e25b2ef"
+  "input_snapshots_sha256": "d7a0bb92a15876da3f1d2cc1ee84633e8e658d87c7375fc1498082f2e1a9e376"
 }

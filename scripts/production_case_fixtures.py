@@ -84,7 +84,7 @@ def create_pack(path:Path, *, with_alternate:bool=False,with_upscale:bool=False,
     write(path/'records/models.json',{'kind':'model','records':models})
     write(path/'resources/services.json',{'services':{'synthetic':{'label':'Synthetic non-network fixture','transport':'synthetic',
         'endpoint':{'base_url':'http://localhost/cpb-synthetic-no-network','method':'POST'},
-        'operations':{'generate':{},'upscale':{}},'auth':{'env_var':'CPB_SYNTHETIC_UNUSED_CREDENTIAL'}}}})
+        'operations':{'generate':{},'upscale':{}},'auth':{'scheme':'bearer','header':'Authorization'}}}})
     packs.write_lock(path)
     return path
 

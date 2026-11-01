@@ -20,3 +20,8 @@ command invents missing approvals. No network calls, purchased generation, audie
 character performance or finished-artwork quality is claimed. The fixtures test processing,
 operation boundaries and lifecycle connection. They are not a genre template or a prescribed
 way to express a character.
+
+[Evidence review cases](evidence-review-cases.md) give neutral, authored cases
+for competing prompt realizations, artifact-first observation, inconclusive
+evidence and valid alternative compositions. Their hypothetical observations
+illustrate review decisions; they are not generated-image measurements.

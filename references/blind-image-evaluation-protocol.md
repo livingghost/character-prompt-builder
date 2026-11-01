@@ -2,6 +2,22 @@
 
 This protocol evaluates generated images. It is separate from structural validation, search regression, package hashes, and SVG fidelity checks.
 
+## Candidate review and comparison studies
+
+An ordinary production review decides whether one candidate meets its declared
+criteria. Follow
+[Production Execution](runtime/production-execution.md#observe-before-interpreting)
+to record direct artifact observations before applying the intended reading.
+A separate observer can receive only the artifact before seeing its brief;
+record that input boundary and its limits. When the producer reviews in the
+same context, call it author self-review, not independent review.
+
+The [competing-realization test](runtime/prompt-composition.md#competing-realization-test)
+examines what a delivered prompt and its media permit before generation. It is
+also distinct from a study of returned image quality. Neither procedure alone
+supplies anonymous conditions, randomized presentation or comparable trials.
+Use the comparison design below when claiming controlled blind-study evidence.
+
 ## Evidence boundary
 
 A release may claim generated-image evidence only when the evaluated outputs, complete model inputs, target identity, target version, settings, repeat method, and scoring record are preserved together. A structural evaluation case is not an image-quality result. A retrieval pass is not evidence that the generated image is better.

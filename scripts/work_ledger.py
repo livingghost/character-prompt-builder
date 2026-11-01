@@ -8,10 +8,12 @@ A session that starts without memory of what it was doing reads the open task
 and continues from `next`; a session that finds no open task reads the last
 finished ones and asks what to do.
 
-Open a task before work that takes more than one step. Mark each step as it is
-done, not at the end. Finish requires all steps and the current run's verified
-production completion. Otherwise block or abandon it with the reason. A step that is not written down is a step the next session
-does again or skips.
+Use the task ledger to plan and continue multi-step Production work, including
+the drafts and decisions that lead to its run. Mark each step as it is done.
+Finish requires all steps and the current run's verified production completion.
+Otherwise block or abandon it with the reason. Studio administration records
+its results through the commands' operation records. A planned step that is
+not written down is a step the next session does again or skips.
 
     python scripts/work_ledger.py begin --studio DIR --goal "..." --step "..." --step "..."
     python scripts/work_ledger.py step --studio DIR <n> [--note "..."]
@@ -450,7 +452,7 @@ def show(root: Path) -> str:
         lines.append("no task is open; the last recorded:")
         for entry in finished[-3:]:
             lines.append(f"  {entry.get('at')} {entry.get('event')} {entry.get('task_id')}: {entry.get('text')}")
-    lines.append(f"open a task before work that takes more than one step: {begin_command(root)}")
+    lines.append(f"plan the steps of a Production task with: {begin_command(root)}")
     return "\n".join(lines)
 
 
@@ -519,7 +521,7 @@ def main(argv: list[str] | None = None) -> int:
     suspend_parser.add_argument('--reason', required=True)
     resume_parser = commands.add_parser('resume-task', help='restore a suspended task with its questions and exact next step', parents=[after])
     resume_parser.add_argument('--task-id', required=True)
-    commands.add_parser("finish", help="close the open task; every step must be done", parents=[after])
+    commands.add_parser("finish", help="close a task with completed steps and verified Production completion", parents=[after])
     abandon_parser = commands.add_parser("abandon", help="close the open task without finishing it", parents=[after])
     abandon_parser.add_argument("--reason", required=True)
     abandon_parser.add_argument("--actor", help="Who abandons the task; required once it has a prepared production run")
