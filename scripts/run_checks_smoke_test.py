@@ -108,7 +108,7 @@ class Runner(unittest.TestCase):
         self.assertEqual(len(roots), 1)
         copied_root = roots.pop()
         self.assertNotEqual(ROOT, copied_root)
-        self.assertTrue(copied_root.is_relative_to(self.out))
+        self.assertTrue(copied_root.is_relative_to(self.out.resolve()))
 
     def test_nonrelease_pack_inputs_and_owner_home_do_not_reach_commands(self):
         source, pack = self.source_with_nonrelease_pack()

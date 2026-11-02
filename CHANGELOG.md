@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026.11.02.5
+
+- Resolve both sides of the check runner's temporary-source path comparison before
+  checking containment. Windows short directory aliases and their long forms now
+  compare as the same isolated source without changing the release runtime.
+
 ## 2026.11.02.4
 
 - Scope product checks to product-owned files and bundled pack records. Optional
