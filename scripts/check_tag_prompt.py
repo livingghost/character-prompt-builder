@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Inspect final prompt clauses with their explicitly selected weighting syntax.
 
-The model's tag family owns vocabulary and meaning. The request's promptWeighting
-control owns parentheses, suffixes and conditioning expressions. Independent
+The model's tag family owns vocabulary and meaning. The selected interface's
+grammar declaration owns parentheses, suffixes and conditioning expressions. Independent
 Compel clauses are inspected separately and never flattened into one tag list.
 The author reviews dictionary notes and clause interactions; the service computes
 embeddings. This command preserves the supplied text.
@@ -84,16 +84,21 @@ def check(prompt: str, negative: str, vocabulary: dict, record: dict | None,
     return inspect(prompt, negative, vocabulary, record, dialect, syntax=syntax)['findings']
 
 
-def check_request(rendered: dict, record: dict) -> dict:
+def check_request(rendered: dict, record: dict, *, prompt_syntax: dict,
+                  vocabulary_selection: dict | None = None) -> dict:
     """Inspect both final wire channels using the actual sealed weighting control."""
     import execution_contract as c
     import request_contract as rc
     from catalog_retrieval.runtime import load_pack_catalog
     from prompt_dialect import find_dialect
     from production_diagnostics import ProductionError
+    from model_prompt_input import resolve_prompt_input
     rc.validate_seal(rendered)
-    syntax = weighting.wire_selection(rendered)
-    dialect_id = record.get('prompt_dialect')
+    syntax = weighting.wire_selection(rendered, prompt_syntax)
+    contract = resolve_prompt_input(record)
+    if contract['mode'] in {'unresolved', 'none'}:
+        raise ValueError('final prompt inspection requires a resolved text-input model')
+    dialect_id = record.get('prompt_dialect') if contract['mode'] == 'tag-based' else None
     vocabulary = dialect = None
     dictionary_ref = dialect_ref = None
     if dialect_id:
@@ -111,17 +116,37 @@ def check_request(rendered: dict, record: dict) -> dict:
     prompt = rc.get(rendered['request'],layout['primary_text']) if layout['primary_text'] is not None else ''
     negative = rc.get(rendered['request'],layout['negative_text']) if layout['negative_text'] is not None else ''
     report = inspect(prompt, negative, vocabulary, record, dialect, syntax=syntax)
-    return {'state':'checked' if dialect_id else 'syntax-checked','request_sha256':rendered['request_sha256'],
-            'dictionary':dictionary_ref,'dialect':dialect_ref,**report}
+    selection = None
+    if dialect_id and not any(item['severity'] == 'problem' for item in report['findings']):
+        from prompt_vocabulary_selection import search_selection
+        selection = search_selection(prompt=prompt, negative=negative, model_record=record,
+                                     syntax=syntax, previous=vocabulary_selection)
+    return {'state':'vocabulary-searched' if dialect_id else 'syntax-checked',
+            'request_sha256':rendered['request_sha256'], 'prompt_input':contract,
+            'dictionary':dictionary_ref,'dialect':dialect_ref, 'vocabulary':selection, **report}
 
 
-def require_request(rendered: dict, record: dict) -> dict:
+def require_request(rendered: dict, record: dict, *, prompt_syntax: dict,
+                    vocabulary_selection: dict | None = None) -> dict:
     from production_diagnostics import ProductionError
-    report = check_request(rendered, record)
+    report = check_request(rendered, record, prompt_syntax=prompt_syntax, vocabulary_selection=vocabulary_selection)
     if any(item['severity'] == 'problem' for item in report['findings']):
         raise ProductionError('TAG_PROMPT_PROBLEM', 'The final rendition violates its grammar or declared interface constraints.',
             phase='tag-prompt-check', prompt_check=report,
             required_action='Correct the authored text or selected weighting grammar; inspect model recommendations and prepare again.')
+    if report['prompt_input']['mode'] == 'tag-based':
+        import request_contract as rc
+        from prompt_vocabulary_selection import require_final_selection
+        layout = rendered['layout']
+        prompt = rc.get(rendered['request'], layout['primary_text']) if layout['primary_text'] is not None else ''
+        negative = rc.get(rendered['request'], layout['negative_text']) if layout['negative_text'] is not None else ''
+        try:
+            report['vocabulary'] = require_final_selection(vocabulary_selection, prompt=prompt,
+                negative=negative, model_record=record, syntax=report['syntax'])
+        except ValueError as exc:
+            raise ProductionError('PROMPT_VOCABULARY_REQUIRED', str(exc), phase='tag-prompt-check',
+                prompt_check=report, required_action='Search the final wording and select existing terms or explain the needed authored expression.') from exc
+        report['state'] = 'vocabulary-checked'
     return report
 
 def main(argv: list[str] | None = None) -> int:

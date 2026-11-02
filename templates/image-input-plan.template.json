@@ -4,6 +4,20 @@
     "requested": "Example Editor 1",
     "catalog_status": "missing",
     "catalog_model": null,
+    "prompt_input": {
+      "mode": "descriptive",
+      "forms": ["natural-language"],
+      "vocabularies": [],
+      "basis": [
+        {
+          "kind": "synthetic-fixture",
+          "source": "templates/image-input-plan.template.json",
+          "scope": "model",
+          "observed_at": "2000-01-01",
+          "statement": "Fictional example editor accepts descriptive edit instructions. Replace this declaration with evidence for the selected model."
+        }
+      ]
+    },
     "target": {
       "service": "example-host",
       "model_identifier": "vendor:example-editor@1",

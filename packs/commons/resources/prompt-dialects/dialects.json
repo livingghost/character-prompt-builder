@@ -1,19 +1,15 @@
 {
   "format": "character-prompt-builder-prompt-dialects",
   "name": "Image Prompt Dialects",
-  "description": "Family-specific evidence for tag grammar, block order, vocabulary and the supported wording of an authored negative. A model record names its dialect and a guide section names the dialects it applies to. The author selects applicable terms and constraints from their meaning and exact target evidence; family guidance does not declare a universal syntax or semantic verdict.",
+  "description": "Guidance for vocabulary-first tag workflows, including models that also accept natural-language descriptions. Each dialect states lookup sources, spelling and model-control evidence. Lookup scope is not a training-corpus claim or a closed vocabulary; exact model and interface evidence controls use.",
   "dialects": [
     {
       "id": "illustrious-noobai",
       "name": "Illustrious and NoobAI",
-      "description": "The SDXL-lineage checkpoints trained on Danbooru tags, and the NoobAI merges that add the e621 corpus to them. Trained around one megapixel, read as comma-separated tags, and steered by a rating term and a period term.",
-      "corpora": [
-        "danbooru",
-        "e621 on the NoobAI merges"
-      ],
+      "description": "Tag-workflow guidance for Illustrious and NoobAI checkpoints. Exact releases and derivatives retain their own input capabilities, vocabulary behavior and sampling settings. Illustrious XL v1.0 supports descriptions and tags; NoobAI XL 1.0 documents native tag captions from Danbooru and e621.",
       "tag_separator": "a comma followed by one space",
-      "multi_word_tags": "Spaces and underscores read alike, with one exception: write a tag that contains a shorter tag with underscores, so that the whole tag binds and the inner one does not fire on its own.",
-      "artist_tag_form": "the artist tag on its own, with no prefix, and only for an artist with about a hundred posts or more",
+      "multi_word_tags": "Keep the selected vocabulary's canonical spelling and apply the exact model's evidenced rendering convention. Spaces and underscores must not be assumed interchangeable on every derivative. An intact underscore form can be compared when a shorter overlapping tag creates an observed ambiguity.",
+      "artist_tag_form": "Use the bare artist tag when supported by the selected caption convention. Post frequency is a discovery signal, not a minimum admission threshold or a guarantee of learned style.",
       "block_order": [
         "quality, style, and rating",
         "figure count and any interaction between figures",
@@ -51,43 +47,75 @@
         "score_8",
         "score_7"
       ],
-      "negative_form": "The corpus tags that name the failure, in the negative field, each checked against the vocabulary: worst quality and low quality for the quality floor; text, watermark, signature, logo, and translation request for generation hygiene; bad hands, extra digits, and fewer digits for hand integrity; extra arms and extra legs for limb integrity; multiple views, comic, 2koma, and 4koma for a single picture; monochrome and greyscale for a colour medium; the rating terms above the requested one for a content rating. When no corpus tag carries a necessary exclusion, assess model-legible phrasing under the exact interface's evidenced grammar. Preserve the exclusion's meaning and scope in the authored rendition; dictionary membership alone does not decide whether it is needed."
+      "negative_form": "Vocabulary candidates that name a necessary failure, in the negative field, with dictionary search completed for the selected scope: worst quality and low quality for the quality floor; text, watermark, signature, logo, and translation request for generation hygiene; bad hands, extra digits, and fewer digits for hand integrity; extra arms and extra legs for limb integrity; multiple views, comic, 2koma, and 4koma for a single picture; monochrome and greyscale for a colour medium; the rating terms above the requested one for a content rating. When no suitable known tag carries a necessary exclusion, assess model-legible phrasing under the exact interface's evidenced grammar. Preserve the exclusion's meaning and scope in the authored rendition; dictionary membership alone does not decide whether it is needed.",
+      "vocabularies": [
+        "danbooru",
+        "e621"
+      ],
+      "basis": [
+        {
+          "kind": "model-author-documentation",
+          "source": "https://huggingface.co/OnomaAIResearch/Illustrious-XL-v1.0",
+          "scope": "family",
+          "observed_at": "2026-11-02",
+          "statement": "Illustrious XL v1.0 supports plain-English descriptions, Danbooru-style tags and mixtures; derivative behavior requires its own evidence."
+        },
+        {
+          "kind": "model-author-documentation",
+          "source": "https://huggingface.co/Laxhar/noobai-XL-1.0",
+          "scope": "family",
+          "observed_at": "2026-11-02",
+          "statement": "NoobAI XL 1.0 identifies Danbooru and e621 training with native tag captions. Its caption order starts with count, character, series and artist, then special and general tags."
+        },
+        {
+          "kind": "author-direction",
+          "source": "author-selection:tag-vocabulary-lookup",
+          "scope": "author-selection",
+          "observed_at": "2026-11-02",
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Prefer a suitable established near-equivalent; use necessary descriptive extensions when it does not preserve the requested meaning. Dictionary scope does not assert model training provenance."
+        }
+      ],
+      "notes": [
+        "The block order is an authoring baseline. NoobAI caption order and exact checkpoint recommendations may place artist, quality and period terms differently; preserve the selected scene while applying that evidence.",
+        "Rating, quality and period controls are candidates with version-specific meaning. A dialect list does not require one token from every category.",
+        "The lookup includes e621 for useful established terminology even when an Illustrious derivative has no documented e621 training data. Search evidence and observed model behavior answer different questions."
+      ]
     },
     {
       "id": "anima",
       "name": "Anima",
-      "description": "The Anima base models and the checkpoints built on them, which pair a Qwen-series text encoder and VAE with a Danbooru tag vocabulary. Trained around 1280 pixels square, they carry both the booru quality terms and the score bands, take a year term beside the period term, and want a higher explicit weight than the SDXL lineage.",
-      "corpora": [
-        "danbooru"
-      ],
+      "description": "Anima guidance for tag and mixed-language renditions. The family uses a Qwen text encoder and Qwen-Image VAE; the exact base, aesthetic, distilled or derived version determines controls and sampling. Danbooru and e621 are both lookup scopes, without asserting e621 training for the base model.",
       "tag_separator": "a comma followed by one space",
       "multi_word_tags": "Spaces rather than underscores, except the score terms, which keep theirs.",
-      "artist_tag_form": "the artist tag with an at sign in front of it",
+      "artist_tag_form": "Prefix the artist tag with @; the author describes unprefixed effects as weak.",
       "weight_range": [
         1.2,
         1.4
       ],
       "block_order": [
-        "quality, meta, and rating",
-        "figure count and any interaction between figures",
-        "the subject",
-        "body, hair, face, and outfit",
-        "pose and action",
-        "camera and composition",
-        "background and scene",
-        "lighting, depth, and effects",
-        "a plain-language line for what the tags cannot carry"
+        "optional quality, meta, year and safety controls",
+        "figure count and interaction",
+        "character, series and artist",
+        "subject appearance, body, hair, face and outfit",
+        "action, camera, scene, lighting and effects",
+        "natural-language relationships where they best convey the selected image"
       ],
       "quality_terms": [
         "masterpiece",
         "best quality",
+        "good quality",
+        "normal quality",
+        "low quality",
+        "worst quality",
         "score_9",
         "score_8",
         "score_7",
-        "very aesthetic",
-        "highres",
-        "absurdres",
-        "newest"
+        "score_6",
+        "score_5",
+        "score_4",
+        "score_3",
+        "score_2",
+        "score_1"
       ],
       "rating_terms": [
         "safe",
@@ -102,7 +130,170 @@
         "early",
         "old"
       ],
-      "negative_form": "The corpus tags that name the failure, in the negative field with spaces in multi-word tags, each checked against the vocabulary: text, watermark, and signature for generation hygiene; bad hands and extra digits for hand integrity; multiple views and comic for a single picture; monochrome and greyscale for a colour medium; the rating terms above the requested one for a content rating. When no corpus tag carries a necessary exclusion, assess model-legible phrasing under the exact interface's evidenced grammar. Preserve the exclusion's meaning and scope in the authored rendition; dictionary membership alone does not decide whether it is needed."
+      "negative_form": "Vocabulary candidates that name a necessary failure, in the negative field with spaces in multi-word tags, with dictionary search completed for the selected scope: text, watermark, and signature for generation hygiene; bad hands and extra digits for hand integrity; multiple views and comic for a single picture; monochrome and greyscale for a colour medium; the rating terms above the requested one for a content rating. When no suitable known tag carries a necessary exclusion, assess model-legible phrasing under the exact interface's evidenced grammar. Preserve the exclusion's meaning and scope in the authored rendition; dictionary membership alone does not decide whether it is needed.",
+      "vocabularies": [
+        "danbooru",
+        "e621"
+      ],
+      "basis": [
+        {
+          "kind": "model-author-documentation",
+          "source": "https://huggingface.co/circlestone-labs/Anima",
+          "scope": "family",
+          "observed_at": "2026-11-02",
+          "statement": "The author documents tag, natural-language and mixed prompts; lowercase space-separated tags, Gelbooru spelling where it differs, @ artist prefixes, and variant-specific quality guidance."
+        },
+        {
+          "kind": "author-direction",
+          "source": "author-selection:tag-vocabulary-lookup",
+          "scope": "author-selection",
+          "observed_at": "2026-11-02",
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Prefer a suitable established near-equivalent; use necessary descriptive extensions when it does not preserve the requested meaning. Dictionary scope does not assert model training provenance."
+        }
+      ],
+      "meta_terms": [
+        "highres",
+        "absurdres",
+        "anime screenshot",
+        "jpeg artifacts",
+        "official art"
+      ],
+      "notes": [
+        "Anima-Aesthetic guidance advises against score tags in both channels. Base quality groups are alternatives or optional combinations, not one required stack.",
+        "Natural language can carry the scene directly or combine with tags; it is not restricted to a final fallback line.",
+        "The weight range is an author-selected trial band for a compatible interface, not a universal Anima optimum. Exact model and parser evidence may require a different value.",
+        "This dialect supplies guidance only. It does not establish an executable Anima offering."
+      ]
+    },
+    {
+      "id": "novelai",
+      "name": "NovelAI",
+      "description": "Provider-specific tag and mixed-language guidance. Resolve the exact model version and anime or furry mode before applying native controls, parser syntax, limits or reference transport.",
+      "vocabularies": [
+        "danbooru",
+        "e621"
+      ],
+      "tag_separator": "a comma followed by one space",
+      "multi_word_tags": "Use the selected NovelAI model's native tag suggestions and provider spelling, including renamed tags. Consult public dictionaries for useful candidates without treating either as a complete provider vocabulary.",
+      "artist_tag_form": "Use only the artist form evidenced for the selected model and version.",
+      "block_order": [
+        "version-supported dataset control when selected",
+        "count, character and series where applicable",
+        "scene, action, relationships and appearance in tags or natural language",
+        "optional quality and style controls under exact version guidance"
+      ],
+      "quality_terms": [
+        "best quality",
+        "amazing quality",
+        "great quality",
+        "normal quality",
+        "bad quality",
+        "worst quality",
+        "masterpiece",
+        "top aesthetic",
+        "very aesthetic",
+        "aesthetic",
+        "displeasing",
+        "very displeasing"
+      ],
+      "dataset_terms": [
+        "fur dataset",
+        "background dataset"
+      ],
+      "meta_terms": [
+        "low complexity",
+        "medium complexity",
+        "high complexity",
+        "ultra complexity"
+      ],
+      "negative_form": "Use the active interface's undesired-content field and its native parser. Search necessary negative tag concepts, select suitable established terms and preserve required meaning with descriptive wording when no suitable tag exists.",
+      "basis": [
+        {
+          "kind": "provider-documentation",
+          "source": "https://docs.novelai.net/en/image/tags/",
+          "scope": "family",
+          "observed_at": "2026-11-02",
+          "statement": "Native suggestions, optional known tags, ordering and special controls vary by model and dataset mode."
+        },
+        {
+          "kind": "provider-documentation",
+          "source": "https://docs.novelai.net/en/image/models/",
+          "scope": "family",
+          "observed_at": "2026-11-02",
+          "statement": "Anime V3 and Furry V3 have different tag vocabularies. V4 and later document natural-language support and dataset modes."
+        },
+        {
+          "kind": "author-direction",
+          "source": "author-selection:tag-vocabulary-lookup",
+          "scope": "author-selection",
+          "observed_at": "2026-11-02",
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Prefer a suitable established near-equivalent; use necessary descriptive extensions when it does not preserve the requested meaning. Dictionary scope does not assert model training provenance."
+        }
+      ],
+      "notes": [
+        "The family name does not choose Anime V3, Furry V3, a Full or Curated release, or a dataset mode. Preserve that exact choice in the active target.",
+        "fur dataset is documented for V4 and later; background dataset for V4.5 and later. Furry mode also changes the native suggestions.",
+        "masterpiece is documented for V4.5 and later, top aesthetic for V4 and later, and complexity controls for V5. Do not transfer these controls to earlier models.",
+        "Danbooru and e621 are supplementary lookup scopes. The provider documentation cited here does not establish them as complete training corpora."
+      ]
+    },
+    {
+      "id": "pony-v6-xl",
+      "name": "Pony Diffusion V6 XL",
+      "description": "Guidance for the author's V6 XL checkpoint, which accepts both natural-language descriptions and tags. This exact revision's native controls do not define all Pony releases or derivatives.",
+      "vocabularies": [
+        "danbooru",
+        "e621"
+      ],
+      "tag_separator": "a comma followed by one space",
+      "multi_word_tags": "Preserve native source, score and rating tokens with underscores. Apply evidenced vocabulary spelling to content tags; natural-language scene descriptions are also supported.",
+      "artist_tag_form": "The V6 XL author states that artist names were removed from training captions; do not assume bare artist tags have a documented learned role.",
+      "block_order": [
+        "optional native score controls",
+        "description of the requested image",
+        "content tags and optional dataset or rating controls"
+      ],
+      "quality_terms": [
+        "score_9",
+        "score_8_up",
+        "score_7_up",
+        "score_6_up",
+        "score_5_up",
+        "score_4_up"
+      ],
+      "rating_terms": [
+        "rating_safe",
+        "rating_questionable",
+        "rating_explicit"
+      ],
+      "dataset_terms": [
+        "source_pony",
+        "source_furry",
+        "source_cartoon",
+        "source_anime"
+      ],
+      "negative_form": "The author does not require a generic negative stack. Select exclusions from the actual image request and observed failure, search their tag vocabulary, and use the active interface's evidenced negative field.",
+      "basis": [
+        {
+          "kind": "model-author-documentation",
+          "source": "https://civitai.com/models/257749/pony-diffusion-v6-xl?modelVersionId=290640",
+          "scope": "model",
+          "observed_at": "2026-11-02",
+          "statement": "The V6 XL author documents natural-language and tag training, native score/source/rating controls and an optional recommended score prefix."
+        },
+        {
+          "kind": "author-direction",
+          "source": "author-selection:tag-vocabulary-lookup",
+          "scope": "author-selection",
+          "observed_at": "2026-11-02",
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Prefer a suitable established near-equivalent; use necessary descriptive extensions when it does not preserve the requested meaning. Dictionary scope does not assert model training provenance."
+        }
+      ],
+      "notes": [
+        "This is guidance only; no executable model or offering follows from it.",
+        "Danbooru and e621 lookup complements the author's native controls. The linked card does not identify every tag database; older Pony Derpibooru evidence must not be applied to V6 XL as an exact corpus claim.",
+        "Use the active derivative's evidence if it changes quality terms, artists, captions or parser behavior."
+      ]
     }
   ]
 }

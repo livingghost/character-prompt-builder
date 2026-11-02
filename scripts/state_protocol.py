@@ -41,6 +41,7 @@ ARTIFACT_SCHEMA_FILES = {
     "observed-parameter-schema": "observed-parameter-schema.schema.json",
     "prompt-plot": "prompt-plot.schema.json",
     "prompt-retrieval-record": "prompt-retrieval-record.schema.json",
+    "prompt-vocabulary-selection": "prompt-vocabulary-selection.schema.json",
     "reference-corpus-manifest": "reference-corpus-manifest.schema.json",
     "upscale-package": "upscale-package.schema.json",
     "reference-semantic-region-map": "reference-semantic-region-map.schema.json",

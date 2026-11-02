@@ -49,8 +49,8 @@ The declared dependency versions apply to every operation. Each of these blocks 
 
 Each test suite runs once per change, in one place:
 
-- `python scripts/run_checks.py` runs every test suite and check command once, in parallel, with `CPB_HOME` at one scratch configuration directory whose pack state enables the shipped packs alone. It exits 1 when any command fails. CI runs it once per operating system.
-- `python scripts/validate.py .` checks the invariants of the tree: structure, manifests, metadata, contracts, documentation and content conformance. It runs no test suite.
+- `python scripts/run_checks.py` runs every test suite and check command once, in parallel, from a temporary copy of the declared product files. Source-owned CI and source-control settings are included when present. Independently authored packs are outside that tree. `CPB_HOME` points to one scratch configuration directory whose pack state enables the shipped packs alone. The runner exits 1 when any command fails. CI runs it once per operating system.
+- `python scripts/validate.py .` checks the invariants of the tree: structure, manifests, metadata, contracts, documentation and content conformance. Its catalog audit uses the configured release-pack runtime. It runs no test suite.
 - `python scripts/package.py` builds the release and validates the stage once with `validate.py`. It checks the extracted copy by inventory and file hashes, then runs a short installed smoke.
 
 A suite passes by exiting 0 after running at least one test, with none skipped. Run one suite directly for a targeted diagnosis, for example `python scripts/pack_smoke_test.py`. These check commands are not suites, and a person runs them directly too:

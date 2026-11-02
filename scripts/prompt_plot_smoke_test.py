@@ -225,6 +225,14 @@ def drop(index: int, key: str) -> dict[str, Any]:
     return value
 
 
+def unused_record(**edits: Any) -> dict[str, Any]:
+    """A synthetic investigation that supplied no final prompt wording."""
+    entry = {"element": "presentation", "queries": ["separate detail view"],
+             "outcome": "unused", "reason": "The supplied layout already gives the detail enough space."}
+    entry.update(edits)
+    return {"artifact_type": "prompt-retrieval-record", "elements": [entry]}
+
+
 RECORD_CASES: list[dict[str, Any]] = [
     {"name": "the contract answered", "value": record(), "error": None},
     {"name": "the wrong artifact type",
@@ -232,14 +240,26 @@ RECORD_CASES: list[dict[str, Any]] = [
      "error": "artifact_type must be 'prompt-retrieval-record'"},
     {"name": "an empty pack state", "value": {**record(), "pack_state": "  "},
      "error": "pack_state must be a non-empty string when present"},
-    {"name": "no elements", "value": {**record(), "elements": []},
-     "error": "elements must be a non-empty array"},
+    {"name": "source-sufficient work needs no investigation",
+     "value": {"artifact_type": "prompt-retrieval-record", "elements": []},
+     "error": None, "schema": True},
+    {"name": "a record still declares its investigations",
+     "value": {"artifact_type": "prompt-retrieval-record"},
+     "error": "elements must be an array", "schema": True},
     {"name": "an element with an unknown key", "value": element(0, tier="curated"),
      "error": "has unknown keys"},
     {"name": "two elements with one name", "value": element(1, element="pose"),
      "error": "repeats 'pose'"},
-    {"name": "an element that searched for nothing", "value": element(0, queries=[]),
-     "error": "element 'pose': queries must not be empty"},
+    {"name": "direct full inspection needs no search", "value": element(0, queries=[]),
+     "error": None, "schema": True},
+    {"name": "direct full inspection may omit queries", "value": drop(0, "queries"),
+     "error": None, "schema": True},
+    {"name": "authored wording can adapt inspected knowledge",
+     "value": element(1, queries=[], inspected_records=["light/window-falloff"],
+                      reason="The inspected falloff is adapted to this room's proportions."),
+     "error": None, "schema": True},
+    {"name": "an unresolved investigation has no evidence", "value": element(1, queries=[]),
+     "error": "an investigation requires a query or an inspected record", "schema": True},
     {"name": "an element with no outcome", "value": drop(0, "outcome"),
      "error": "element 'pose' has no outcome; mark it with --adopted ID"},
     {"name": "an adopted element naming no record", "value": drop(0, "adopted_records"),
@@ -260,6 +280,17 @@ RECORD_CASES: list[dict[str, Any]] = [
     {"name": "an adopted record that was never inspected",
      "value": element(0, adopted_records=["pose/standing-at-work-surface", "pose/leaning"]),
      "error": "element 'pose': adopted records were not inspected: ['pose/leaning']"},
+    {"name": "search results alone do not support adoption",
+     "value": element(0, inspected_records=[]),
+     "error": "adopted records were not inspected", "schema": True},
+    {"name": "unused investigation records its reason without prompt wording",
+     "value": unused_record(), "error": None, "schema": True},
+    {"name": "unused investigation needs a reason",
+     "value": unused_record(reason=""),
+     "error": "reason is required when outcome is 'unused'", "schema": True},
+    {"name": "unused investigation does not claim authored wording",
+     "value": unused_record(composed_wording="A large inset."),
+     "error": "composed_wording does not belong to an unused outcome", "schema": True},
 ]
 
 
@@ -353,12 +384,20 @@ def main() -> int:
     for case in RECORD_CASES:
         report = validate_prompt_retrieval_record(case["value"])
         results.append(check(f"retrieval: {case['name']}", report, case["error"], failures))
+        if case.get("schema"):
+            from state_protocol import validate_against_schema
+            schema = json.loads((ROOT / "schemas/prompt-retrieval-record.schema.json").read_text(encoding="utf-8"))
+            errors = validate_against_schema(case["value"], schema)
+            if bool(errors) != (case["error"] is not None):
+                failures.append(f"retrieval schema: {case['name']}: unexpected errors {errors}")
 
-    report = validate_prompt_retrieval_record(record())
+    counted_record = record()
+    counted_record["elements"].extend(unused_record()["elements"])
+    report = validate_prompt_retrieval_record(counted_record)
     counted = {"elements": report["elements"], "adopted": report["adopted"],
-               "composed": report["composed"]}
+               "composed": report["composed"], "unused": report["unused"]}
     results.append({"case": "retrieval: what the report counts", **counted})
-    if counted != {"elements": 2, "adopted": 1, "composed": 1}:
+    if counted != {"elements": 3, "adopted": 1, "composed": 1, "unused": 1}:
         failures.append(f"retrieval: what the report counts: got {counted}")
 
     print(json.dumps({

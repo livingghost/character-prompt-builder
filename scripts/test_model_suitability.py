@@ -43,7 +43,9 @@ def preferences(decision='discourage'):
 
 
 def model():
-    return {'id': 'synthetic-portrait', 'operation_kind': 'generation'}
+    from model_prompt_input_fixtures import prompt_input
+    return {'id': 'synthetic-portrait', 'operation_kind': 'generation',
+            'prompt_input': prompt_input('descriptive')}
 
 
 def offering():
@@ -115,8 +117,10 @@ class SuitabilityTests(unittest.TestCase):
         self.assertEqual(self.assess(use_case='product-still-life')['selection_status'], 'candidate')
 
     def test_family_label_and_aliases_do_not_expand_an_explicit_model_selector(self):
+        from model_prompt_input_fixtures import prompt_input
         record = {'id': 'synthetic-general-adapter', 'label': 'Synthetic family',
-                  'aliases': ['synthetic-portrait', 'synthetic:portrait@1'], 'offerings': []}
+                  'aliases': ['synthetic-portrait', 'synthetic:portrait@1'], 'offerings': [],
+                  'prompt_input': prompt_input('unresolved')}
         prefs = preferences()
         prefs['entries'][0]['selector'].update(service=None, operations=['generation', 'instruction-edit'],
             model_patterns=[{'field': 'model-id', 'pattern': 'synthetic-portrait'}])
@@ -132,8 +136,8 @@ class SuitabilityTests(unittest.TestCase):
 
     def test_explicit_catalog_and_interface_patterns_select_their_own_targets(self):
         exact_offering = {'service': 'synthetic-service', 'model_identifier': 'synthetic:portrait@1'}
-        targets = [({'id': 'synthetic-portrait'}, exact_offering),
-                   ({'id': 'synthetic-portrait', 'offerings': []}, None), ({}, exact_offering)]
+        targets = [(model(), exact_offering),
+                   ({**model(), 'offerings': []}, None), ({}, exact_offering)]
         prefs = preferences()
         prefs['entries'][0]['selector'].update(service=None, operations=['generation', 'instruction-edit'],
             model_patterns=[{'field': 'model-id', 'pattern': 'synthetic-portrait'},

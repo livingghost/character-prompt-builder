@@ -130,13 +130,13 @@ def _add_record_arguments(parser: argparse.ArgumentParser, *, element: str | Non
         ),
     )
     if element == "one":
-        parser.add_argument("--element", help="Visual element this lookup serves, such as pose or lighting")
+        parser.add_argument("--element", help="Construction or wording question this lookup serves")
     elif element == "each":
         parser.add_argument(
             "--element",
             action="append",
             default=[],
-            help="Visual element: give one for every ID, or one per ID in order",
+            help="Investigated question: give one for all IDs, or one per ID in order",
         )
 
 
@@ -340,12 +340,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.command == "batch"
             else None
         )
-        started = time.perf_counter()
-        catalog = begin_catalog_request()
-        runtime_seconds = time.perf_counter() - started
         record = getattr(args, "record", None)
         if record is not None:
+            prompt_retrieval.check_recordable(record, None)
+            elements = ([item["request_id"] for item in batch_requests] if batch_requests is not None
+                        else args.element if args.command == "inspect-many" else [args.element])
+        started = time.perf_counter()
+        try:
+            catalog = begin_catalog_request()
+        except Exception:
+            if record is not None:
+                # The question was requested, but no catalog or lookup evidence
+                # became available. Keep it pending without claiming either.
+                prompt_retrieval.begin_lookups(record, elements)
+            raise
+        runtime_seconds = time.perf_counter() - started
+        if record is not None:
             prompt_retrieval.check_recordable(record, catalog.fingerprint)
+            prompt_retrieval.begin_lookups(record, elements, pack_state=catalog.fingerprint)
         entries = load_entries()
         request = None
         if args.command == "stats":

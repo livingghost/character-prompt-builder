@@ -558,6 +558,7 @@ def _write_state_reference_pack(pack_root: Path) -> Path:
         },
     )
     from render_contract_fixtures import decorate
+    from model_prompt_input_fixtures import prompt_input
     atomic_write_json(
         pack_root / "records" / "models.json",
         {
@@ -568,6 +569,7 @@ def _write_state_reference_pack(pack_root: Path) -> Path:
                     "label": "State smoke image model",
                     "aliases": [STATE_REFERENCE_MODEL],
                     "operation_kind": "generation",
+                    "prompt_input": prompt_input("descriptive"),
                     "offerings": [],
                     "supports_negative_prompt": False,
                     "prompt_style": "Clear natural-language art direction with exact state constraints.",

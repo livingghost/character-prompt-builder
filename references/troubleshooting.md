@@ -4,7 +4,9 @@
 
 Every correction route in this document is semantic rather than a promise that one particular record ID exists. Search the currently active catalog by the diagnosed symptom, inspect the exact returned record before use, and proceed without record support when no matching record resolves. Never substitute an unrelated record or copy an optional-pack ID into core logic.
 
-Find the symptom, jump to the destination. Consult this file during the step-8 art-direction review and again after any failed generation.
+Use [Production direction](runtime/production-direction.md#observe-and-repair)
+to establish the mismatch and the construction question. This index supplies
+knowledge for that question during review or after a failed generation.
 
 ## Growth policy
 
@@ -33,9 +35,9 @@ This file stays small. It holds a routing index and **process-level** failures: 
 | A failure a record predicted still happened | section: A predicted misreading appears in the output |
 | A long-patched prompt underperforms its shorter draft | section: Prompt economy preserves canonical records in `references/prompt-composition-geometry.md` |
 | Output overshoots to the opposite pole after a scaffold swap | section: Prompt economy preserves canonical records in `references/prompt-composition-geometry.md` |
-| Crossed limbs swap which one lies in front between generations | section: Spatial relations use three independent codes in `references/prompt-composition-geometry.md` |
+| Crossed limbs swap which one lies in front between generations | section: Spatial relations carry the event in `references/prompt-composition-geometry.md` |
 | Repeated elements render uniform, or their positions break when the pose changes | section: Organic variation is a distribution in `references/prompt-composition-geometry.md` |
-| A stated mood flattens into an average face | sections: Universal observation pass in `references/performance-language-specification.md` and Reference attribute audit in `references/preset-authoring-standard.md`; records: the geometry-annotated expression records |
+| A stated mood loses the intended act or reaction | sections: Prompt projection and Source observation questions in `references/performance-language-specification.md`; source-record calibration also uses Reference attribute audit in `references/preset-authoring-standard.md` |
 | A stated camera move leaves the frame unchanged | section: Camera terms become visible consequences in `references/prompt-composition-geometry.md` |
 | Feline reference is described as canine, or canine reference as feline | search active corrections for feline/canine face-scaffold drift; section: Reference-based feline and canine disambiguation in `references/species-architecture.md` |
 
@@ -60,14 +62,13 @@ different treatments used elsewhere in the image.
 
 ## Gaze, gesture, or interaction is wrong
 
-State explicitly:
-
-- who acts
-- what they act on or attend to
-- where the viewer is
-- how the head, eyes, hands, or body carry the action
-
-Avoid relying on a short directional tag when the relationship is central to the image.
+Recover the intended act and what it addresses. Compare that relationship with
+the delivered input and observed result. A missing actor, action target or
+attention target can require a clearer account of the interaction. The viewer's
+position or a distinction between head and eye direction matters when it
+changes that read. Use head, eyes, hands or body detail to resolve the actual
+distinction, while preserving an ordinary action that already carries it. A
+short directional tag alone may leave a central relationship unspecified.
 
 ## Fur becomes too fluffy
 
@@ -93,27 +94,43 @@ Separate near-black materials by undertone and highlight behavior:
 
 ## A hand and prop merge
 
-Describe the contact path, grip point, visible fingers, and where the prop continues after the hand. Keep the interaction simple enough for the chosen crop.
+Inspect the intended grip and the merged region. Contact path, grip point,
+visible fingers and the prop's continuation can distinguish the structures
+when the action alone has not resolved that boundary. Preserve the required
+interaction and choose a view or local repair that can show it within the
+authorized scope.
 
 ## The image is technically correct but emotionally flat
 
-The prompt likely contains attributes without performance. Add a visible decision: posture under tension, a withheld reaction, an environmental interaction, or a viewer relationship that expresses the image intent.
+Compare the proposed act or reaction with the intended effect. An attribute
+inventory can omit what the participant is doing, responding to or withholding,
+even when every named property is present. Restore that meaningful performance
+in its circumstances. Posture under tension, a withheld reaction, an
+environmental interaction or a viewer relationship can realize it when that
+choice serves the brief. Quiet stillness or a direct performance phrase may
+already carry the intended result; extra gestures are not an automatic repair.
 
 ## A predicted misreading appears in the output
 
-Compare the observed failure with the selected record's diagnostic knowledge. Re-run Prompt assembly and review in `references/runtime/prompt-composition.md` and decide which construction or exclusion the current image needs. Diagnostics inform that decision; they do not all become prompt clauses. Use the target's supported channel and preserve the intended depiction when adding a scoped correction.
+Compare the observed failure with the selected record's diagnostic knowledge.
+Production direction owns the decision about which construction or exclusion
+the current image needs. Diagnostics inform that decision; they do not all
+become prompt clauses. Use the target's supported channel and preserve the
+intended depiction when adding a scoped correction.
 
 ## Revisions converge on the agent's first inventions
 
 This is a process failure. Symptom: across several revisions for the same brief, wardrobe category, palette, staging, props, and camera repeat, even though the user never specified them. Mechanism: the first retrieval seeds the choices (a query word such as muscular surfaces athletic records, and the agent adopts their wardrobe and staging), and the agent then freezes its own inventions across revisions, often under the reasonable-sounding rule of changing one variable at a time. The freeze itself was never requested.
 
-Use the [Revision Contract](runtime/revision-contract.md) to distinguish a local
-edit from exploration. A local edit preserves the current baseline outside the
-requested change. When the author asks for alternatives or rejects repetitive
-directions, use `explore` to reconsider unlocked choices across wardrobe,
-staging, camera, lighting and performance. Diagnose whether repeated choices
-serve the brief or merely came from incidental retrieval matches. Retaining a
-draft choice during an edit does not make it permanent identity.
+Establish the requested scope through Production direction before projecting
+the change into the [Revision Contract](runtime/revision-contract.md). A local
+edit preserves the baseline outside the requested change and its necessary
+consequences. A request to reconsider the depiction can reopen selected means;
+requested alternatives use `explore` within the remaining fixed requirements.
+Judge whether the repeated construction serves the brief or merely preserves
+incidental retrieval choices. Rebuild the affected act, relationship or visual
+organization before choosing new wardrobe, camera or gesture details. Retaining
+a draft choice during an edit does not make it permanent identity.
 
 Narrative development can converge when available cast, locations and motifs determine each
 proposal before its intended function is considered. Reuse can support a new causal mechanism,
@@ -128,18 +145,45 @@ a new mechanism, and a request for alternatives does not release adopted constra
 
 This is a process failure. Symptom: a surface the target style deliberately leaves undrawn (fur, pores, fabric weave, panel seams) keeps reappearing in the output, and every attempted fix adds more language about that surface: shorter fur, sparser texture, an in-world reason the surface looks smooth. Mechanism: a completeness reflex treats an unmentioned surface as unspecified, so the agent describes a minimal version of it; under the emphasis budget every mention is a vote to render it, and diegetic justifications (fur so short it looks like skin) reintroduce the omitted concept as a property of the subject. The reference model is stylistic omission: the subject still has the surface; the artist declines to draw it, exactly as anime skin omits pores.
 
-Repair, three rules. Describe the drawing's content, not the subject's covering: an omitted surface needs silence plus affirmative plain-field language for those regions, never an in-world explanation. Match the inventory: mention only the surface elements the reference or chosen direction actually contains, once each, with their silhouette character and nothing about their internal structure. Repair over-description by deletion: when the surface reappears, remove sentences about it rather than adding compensating ones, and compare the prompt's word count on that surface against the reference's actual visual inventory.
+Repair the selected representation of the surface. If the intended finish uses
+plain uninterrupted fields, describe that result and remove incidental wording
+that calls for internal texture. Retain required silhouette features and the
+subject's actual covering at their respective scopes; inventing an in-world
+reason for a graphic omission can instead change the design. Source observation
+establishes which marks and surface distinctions the finish uses. The relevant
+comparison is their visual contribution, not a quota of mentions or the word
+count devoted to the surface.
 
 ## A reference is mined for one axis only
 
-This is a process failure. Symptom: the user supplies a reference image with a one-word scope (finish, style, vibe), the agent repairs that axis, and the user returns saying the build, face, camera, palette, or wardrobe are still wrong. Mechanism: the user's naming of one axis was treated as excluding the others, when it was only the axis they had words for.
+This process failure occurs when the assigned contribution of a reference is
+misunderstood. A user may name finish, style or vibe while referring to a broader
+design; another request may deliberately isolate that one property. Interpret
+the source's role from the complete request and applicable approvals.
 
-Repair: when a reference arrives during revision, inventory its differences from the last output across all eight art-direction axes plus identity construction before writing anything: build proportions in landmark ratios (shoulder span in head-widths, limb girth against the head), head and muzzle or face construction (length, width, cheek mass), camera distance and crop (which body landmarks touch the frame edges), palette and value range, wardrobe, staging, finish. Report the divergent axes, but apply only the user's requested scope during a local edit. Do not infer permission to replace other baseline choices from visual differences alone. Request broader scope only when necessary; alternative exploration requires an explicit explore operation. Reference authority and identity ownership still apply. See [Revision Contract](runtime/revision-contract.md).
+Read the assigned design or treatment together, then compare its contribution
+with the current depiction. A complete-design assignment can depend on build,
+face, camera, palette, wardrobe, staging and finish together. Landmark ratios
+such as shoulder span in head-widths, limb girth against the head, muzzle
+length and width, cheek mass or crop boundaries help when those distinctions
+are needed to reconstruct the assigned design. They are not mandatory outputs
+of every reference comparison. A local finish assignment uses the source's
+finish and its dependencies without adopting unrelated identity or scene
+differences. Resolve a consequential uncertainty about that assignment through
+Production direction, then apply the authorized change under the
+[Revision Contract](runtime/revision-contract.md).
 
 
 ## Calibration feedback gets minimal deltas
 
-When the user adjusts a single axis, too long, too short, too bright, move that one axis by one step and change nothing else. Adding compensating clauses, restructured sentences, or rebalanced exclusions alongside the requested step reintroduces rejected constructions from the other direction and reads as regression. The paired-bound principle governs the record's specification; the turn-by-turn adjustment moves one bound at a time.
+For a scoped calibration such as too long, too short or too bright, determine
+the wanted remaining property and degree from the request and source evidence.
+Change that property and any dependent construction needed to keep the result
+coherent. Paired bounds can preserve the design's intended range when the
+calibration depends on a range; the feedback alone does not specify an arbitrary
+numeric step. Remove counter-text whose cause has changed instead of adding an
+opposing correction. Compare the resulting design with the requested adjustment
+and preserved requirements.
 
 
 ## A stack of diminishing words deletes the feature
@@ -211,7 +255,13 @@ camera issue until the muzzle, shadow, nose, ear, cheek, and jaw evidence are co
 together.
 ## Camera distance or coverage drifts
 
-Search the active correction catalog for a camera-distance and coverage-drift repair, then inspect the resolved record. Reassert subject-relative distance, shot scale, camera height, pitch, lens range, frame occupancy, crop landmarks, nearest form, and required visible elements. Diagnose whether the model changed the camera or changed the subject proportions.
+Diagnose whether the result changed the camera relationship or the subject's
+proportions. Subject-relative distance, shot scale, camera height, pitch, lens
+range, frame occupancy, crop landmarks, nearest form and required visible
+elements provide evidence for that distinction. Use the measurements or visible
+consequences needed to restore the selected frame, preserving the act it must
+show. A focused search for camera-distance or coverage-drift knowledge can
+support that question; inspect a matching correction before applying it.
 
 ## Deep armholes close into a standard tank
 

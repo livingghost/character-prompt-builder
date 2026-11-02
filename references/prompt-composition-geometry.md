@@ -4,19 +4,34 @@
 
 Every literal catalog ID in this document is actionable only when its owning pack is present, enabled by the selected state, and the exact ID resolves in the active catalog. If an example ID is absent, apply the complete geometry rule directly, search enabled records for genuinely matching knowledge, or proceed without record support. Never substitute an unrelated ID or assume that an external-pack example belongs to the default pack.
 
-This reference belongs to the normal runtime workflow. It applies whenever the agent composes or revises a model-facing prompt, not only when contributors author catalog records. It preserves the full production knowledge behind prompt economy, overlap order, organic distributions, camera consequences, species authority, and related-variant ownership.
+Use this reference when [Production direction](runtime/production-direction.md)
+identifies a consequential spatial question or a problem with a model's prior
+for the selected subject. It supplies geometry and scoped repair knowledge for
+that question, including overlap, organic distributions, camera consequences,
+species authority and related-variant ownership. The depiction determines
+which relationships need construction; ordinary acts can carry natural support,
+contact and pose without specifying every coordinate.
 
 ## 1. Prompt economy preserves canonical records
 
-Select instructions for requirements, necessary meaning and purposeful art direction under [Prompt Composition](runtime/prompt-composition.md#select-the-depiction). Incidental deductions can narrow a valid scene without helping its purpose. Prompt economy is relevance, not a word-count target.
+The depiction selected through [Production direction](runtime/production-direction.md)
+determines the contribution this geometry must make. Incidental deductions can
+narrow a valid scene without helping its purpose. Prompt economy is relevance,
+not a word-count target.
 
-Prompt economy applies to the emitted model-facing projection:
+Prompt economy concerns the emitted model-facing projection. Preserve the act,
+state or relationship and the design distinctions it needs. A known failure
+mechanism supplies diagnostic knowledge; an observed mismatch or required
+boundary determines whether the current depiction needs a guard.
 
-- retain the clauses needed for the current depiction; a known failure mechanism alone does not require a guard
-- remove a counterweight after its cause has been removed
-- repeat only instructions observed as fragile within the documented evidence scope, near the clauses they control
-- when a removed axis regresses, restore that one clause instead of the whole previous prompt
-- after changing a species, build, style, or camera scaffold, remove counter-text that existed only to fight the old scaffold
+For a local wording repair, evidence can justify repeating an instruction near
+the relationship it controls when that instruction has proved fragile in the
+documented scope. If an omitted instruction's particular requirement regresses,
+restoring that requirement can be sufficient without restoring the whole previous
+prompt. A changed species, build, style or camera can instead remove the cause
+for a counterweight; retaining that counterweight can introduce a new error.
+Production direction chooses whether the responsible change is local wording or
+a different construction.
 
 Prompt economy does not authorize summary damage to the catalog. Canonical curated records retain their complete image intent, structured geometry, invariants, adaptation rules, evidence scope, diagnostics, and failure knowledge. A shorter emitted prompt is a projection of that complete record, never a replacement for it.
 
@@ -24,19 +39,42 @@ Prompt economy does not authorize summary damage to the catalog. Canonical curat
 
 Counter-text calibrated against the wrong prior becomes over-correction under the right one. A phrase that held a canine scaffold at a short deep muzzle can push a feline scaffold into a round bear-like face after the species prior changes.
 
-After changing a scaffold:
-
-1. list the clauses that existed to counter the previous prior
-2. remove those clauses from the next candidate prompt
-3. retain only the smallest affirmative floor still required by the target design (for example, a clear forward projection)
-4. compare the new output before adding further repair language
+When a repair changes that scaffold, identify the design property that the old
+counter-text was meant to preserve and whether the new scaffold already carries
+it. Remove language whose only function was to fight the previous prior. Keep
+the target's actual distinguishing geometry, such as required forward
+projection, at the precision needed by that design. Compare the resulting
+depiction and returned output before introducing another correction. This
+procedure addresses evidence of a scaffold problem; it does not make clause
+preservation the starting point for a new depiction.
 
 ## 3. Spatial relations carry the event
 
 State the relations that distinguish the intended action: who acts on what,
 which subjects share or separate their working space, and where meaningful
-support, contact or overlap occurs. The need to show these relations guides
-the camera rather than imposing the same depth arrangement on every scene.
+support, contact or overlap occurs. Construct the relevant positions,
+orientations and connections together, then consider the available view. Keep
+one shared arrangement while tracing a dependency from its cause to its visible
+consequences. A contact, opening, path or facing direction can change what is
+reachable, occluded or exposed elsewhere in that arrangement.
+
+Distinguish directions in the depicted space from directions on the image.
+An object pointing left on the page does not by itself establish which
+spatial target it addresses. Likewise, the surface visible to the observer
+depends on both the object's orientation and the observer's position. Project
+those relationships together; do not choose an independently favorable view
+for each part of a continuous scene. The artifact's declared grammar governs:
+a multi-view diagram, collage or intentional spatial distortion can use other
+constructions when the request permits them.
+
+When a chosen view defeats a required relationship, inspect the authority for
+both. Rebuild an agent-selected view or arrangement within scope. Preserve an
+explicit camera or layout requirement and use the remaining creative space;
+if fixed conditions themselves conflict, explain the specific dependency that
+needs a decision. Keep a workable unfamiliar construction when it satisfies
+the same requirements. Difficulty imagining a view is not evidence that none
+exists. Use a small sketch, coordinates or projection calculation when it
+resolves the actual uncertainty, without making them routine deliverables.
 
 For a reconstruction-critical overlap, combine side and occlusion wording when
 one alone is ambiguous. An existing visible marker can identify the relevant
@@ -48,7 +86,9 @@ part of the requested construction, not as a routine pose requirement.
 
 ## 4. Organic variation is a distribution
 
-Write organic variety as a distribution instead of a list of fixed coordinates. A robust distribution contains:
+When a design depends on a reconstructible organic distribution, describe the
+distribution through its relevant relationships. These dimensions make it
+possible to preserve variation across poses:
 
 - a count or count range
 - a size anchored to a local landmark
@@ -65,18 +105,35 @@ Example for mane lobes:
 - nothing is combed into one shared direction
 - overlaps occur at irregular intervals
 
-This survives pose changes. Enumerated screen positions invite uniform repetition and break when the camera or body turns.
+These relationships survive pose changes. Enumerated screen positions invite
+uniform repetition and break when the camera or body turns. A count, size or
+spacing rule belongs in the prompt when it distinguishes the required design;
+ordinary organic variety needs no invented numeric specification.
 
 ## 5. Camera terms become visible consequences
 
-A camera label alone often fails to move the frame. State the move as visible evidence:
+A camera choice has consequences throughout the established construction.
+Follow a change of view through exposed surfaces, overlap, apparent scale and
+the information the artifact needs. Source design remains intact through
+ordinary foreshortening and occlusion; showing more of that design is not an
+independent goal unless the brief makes it one. Do not change the requested
+event merely to preserve a preferred subject presentation.
+
+A camera label can leave its intended effect unresolved, or a returned image
+can fail to realize it. The relevant visible consequences can clarify that
+particular framing question:
 
 - give a magnitude or bounded range when useful
 - name the environmental lines or scale relationships that change
 - name the subject geometry that stays stable
 - keep the consequence coherent through foreground, middle ground, and background
 
-For a Dutch angle, state the roll through the floor line, horizon, window frames, door frames, shelves, or other architectural verticals, so those lines run visibly diagonal and the figure occupies a diagonal frame. Keep the subject spine, stance, and local anatomy coherent inside the rolled frame. In short: consequence, magnitude, subject lock.
+For a Dutch angle, the roll can be expressed through the floor line, horizon,
+window frames, door frames, shelves or other architectural verticals: those
+lines run visibly diagonal and the figure occupies a diagonal frame. The
+subject's spine, stance and local anatomy remain coherent inside the rolled
+frame. Use the consequential lines and magnitude needed to distinguish the
+selected camera effect; the frame need not contain every listed structure.
 
 ## 6. Species identity outranks scaffold heuristics
 
@@ -102,13 +159,13 @@ For a rolled-camera family, discovery may return an umbrella vocabulary record p
 
 The final model-facing prompt adopts one resolved magnitude-specific camera record, so the roll instruction appears once.
 
-## 8. Review checklist
+## 8. Return the spatial answer to the depiction
 
-Before returning the final prompt, verify:
-
-- repeated clauses were merged while their canonical source detail remains intact
-- meaning-bearing overlaps and contacts are unambiguous without invented identifying features
-- reconstruction-critical organic groups have the distribution detail their design needs
-- camera labels have visible consequences and stable subject geometry
-- user species identity remains unchanged unless a disclosed modification was approved
-- each discovery group contributes one production owner for each non-additive axis
+Use the resolved relationship and its consequences in the construction owned by
+[Production direction](runtime/production-direction.md#observe-and-repair).
+A possible arrangement answers a feasibility question. Its effect on the
+requested act, visual hierarchy or readable design determines whether it is a
+useful realization. Keep exact geometry where the requirement depends on it;
+an ordinary connection can remain expressed by the act that establishes it.
+Canonical source detail and alternative valid constructions retain their own
+scope when the prompt carries only the selected relationship.

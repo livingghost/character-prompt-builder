@@ -593,7 +593,8 @@
                 "required": [
                   "media",
                   "controls",
-                  "parameter_schema"
+                  "parameter_schema",
+                  "prompt_syntax"
                 ],
                 "properties": {
                   "media": {
@@ -653,6 +654,9 @@
                   },
                   "parameter_schema": {
                     "type": "object"
+                  },
+                  "prompt_syntax": {
+                    "$ref": "prompt-syntax.schema.json"
                   }
                 },
                 "additionalProperties": false
@@ -1390,6 +1394,9 @@
           "$ref": "#/$defs/common"
         },
         {
+          "$ref": "model-prompt-input.schema.json#/$defs/model-record"
+        },
+        {
           "required": [
             "aliases",
             "operation_kind",
@@ -1411,12 +1418,6 @@
             },
             "prompt_style": {
               "$ref": "#/$defs/non-empty-string"
-            },
-            "prompt_dialect": {
-              "type": "string",
-              "minLength": 1,
-              "pattern": "^[a-z0-9][a-z0-9-]*$",
-              "description": "The family whose prompt grammar and vocabulary this model reads, by its id in the prompt-dialects resource. A record without one is not read as a tag target."
             },
             "supports_negative_prompt": {
               "oneOf": [
@@ -1709,7 +1710,8 @@
                     "required": [
                       "media",
                       "controls",
-                      "parameter_schema"
+                      "parameter_schema",
+                      "prompt_syntax"
                     ],
                     "properties": {
                       "media": {
@@ -1769,6 +1771,9 @@
                       },
                       "parameter_schema": {
                         "type": "object"
+                      },
+                      "prompt_syntax": {
+                        "$ref": "prompt-syntax.schema.json"
                       }
                     },
                     "additionalProperties": false

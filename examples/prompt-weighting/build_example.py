@@ -15,7 +15,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import prompt_weighting
-import transport_runware
+import transport_synthetic
 from model_contract import apply_prompt_recommendations
 
 POSITIVE = '("solo, (blue eyes)1.2, long hair+", "forest, soft lighting").and(1, 0.8)'
@@ -23,18 +23,21 @@ NEGATIVE = '("lettering+, watermark", "signature").blend(1, 0.5)'
 
 
 def outputs() -> dict[str, bytes]:
-    parameters = {'width': 1024, 'height': 1024, 'steps': 30, 'promptWeighting': 'compel'}
-    inspection = prompt_weighting.require_pair(POSITIVE, NEGATIVE, 'compel')
-    offering = {'service': 'runware', 'model_identifier': 'synthetic:not-a-deployable-model',
-                'request_keys': {'prompt': ['positivePrompt'], 'negative prompt': ['negativePrompt']}}
+    parameters = {'width': 1024, 'height': 1024, 'steps': 30, 'controls': {'parser': 'clauses'}}
+    declaration = {'default': 'literal', 'control': {'field': ['controls', 'parser'],
+        'values': [{'value': 'clauses', 'syntax': 'compel'}]}}
+    inspection = prompt_weighting.require_pair(POSITIVE, NEGATIVE, prompt_weighting.selected(parameters, declaration))
+    offering = {'service': 'synthetic', 'model_identifier': 'synthetic:syntax-preview',
+                'request_keys': {'model': ['model'], 'prompt': ['prompt'], 'negative prompt': ['negative_prompt']}}
     forwarding = {'effective_prompt': POSITIVE, 'selected_transport': {'mode': 'separate-field', 'rendition': {'negative': NEGATIVE}},
                   'parameters': parameters}
-    with patch.object(transport_runware.uuid, 'uuid4', return_value='00000000-0000-4000-8000-000000000001'):
-        request = transport_runware.compile_request({'host_forwarding': forwarding}, offering, {'operations': {'imageInference': {}}})
+    with patch.object(transport_synthetic.uuid, 'uuid4', return_value='00000000-0000-4000-8000-000000000001'):
+        request = transport_synthetic.compile_request({'host_forwarding': forwarding}, offering, {'operations': {'generate': {}}})
+    prompt_weighting.wire_selection(request, declaration)
     _, _, recommendations = apply_prompt_recommendations({'recommendation_merge_mode': 'tag-list', 'recommended_positive_prompt': 'masterpiece'},
         prompt=POSITIVE, negative_prompt=NEGATIVE, weighting='compel')
     value = {'purpose': 'Synthetic syntax and wire-layout demonstration; not executable provider capability or author approval.',
-             'inspection': inspection, 'recommendation_audit': recommendations, 'native_preview': request,
+             'prompt_syntax': declaration, 'inspection': inspection, 'recommendation_audit': recommendations, 'native_preview': request,
              'sdembeds_comparison': prompt_weighting.require_pair('solo, (blue eyes:1.2), [long hair]', '(lettering:1.2), watermark', 'sdEmbeds')}
     data = {'inspection.json': value, 'parameters.json': parameters}
     result = {key: (json.dumps(item, ensure_ascii=False, sort_keys=True, indent=2) + '\n').encode('utf-8') for key, item in data.items()}

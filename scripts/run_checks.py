@@ -14,10 +14,11 @@ The commands are:
 - every ``examples/*/build_example.py`` that offers ``--check``;
 - the validators in ``VALIDATORS`` and the audit of the shipped packs.
 
-Each command runs from the repository root with ``CPB_HOME`` at ``<out>/home``,
-one scratch configuration directory whose pack state is
-``config/default-pack-state.json``. The pack state of the person running the
-checks therefore never reaches a command. Each command writes its output to
+Each command runs from a temporary copy of the declared core release files,
+with the source-control checks retained when present. Only the release packs
+are copied, so discovery cannot read an owner's other packs. ``CPB_HOME`` is
+``<out>/home``, one scratch configuration directory whose pack state is
+``config/default-pack-state.json``. Each command writes its output to
 ``<out>/<index>.log``. The runner prints one line per finished
 command, then the slowest ten and the log tail of every failure:
 
@@ -47,10 +48,14 @@ import time
 from pathlib import Path
 from typing import Any, Sequence
 
+from package import copy_runtime_tree
+from package_metadata import load_package_metadata
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 DEFAULT_PACK_STATE = ROOT / "config" / "default-pack-state.json"
 COMMONS_PACK = ROOT / "packs" / "commons" / "pack.json"
+SOURCE_CHECK_INPUTS = (".github", ".gitattributes", ".gitignore")
 
 # An argument holding this token names the commons-only pack runtime of the run.
 # The first command naming it prepares that runtime before the other commands
@@ -150,9 +155,10 @@ def commands() -> list[tuple[str, list[str]]]:
     return [preparation, *listed]
 
 
-def working_directory(argv: Sequence[str]) -> Path:
-    """A unittest module runs from scripts/; every other command runs from the repository root."""
-    return SCRIPTS if list(argv[1:3]) == ["-m", "unittest"] else ROOT
+def working_directory(argv: Sequence[str], root: Path | None = None) -> Path:
+    """A unittest module runs from scripts/; every other command runs from the selected core root."""
+    root = ROOT if root is None else root
+    return root / "scripts" if list(argv[1:3]) == ["-m", "unittest"] else root
 
 
 def display(argv: Sequence[str]) -> str:
@@ -184,7 +190,29 @@ def scratch_home(out: Path) -> Path:
     return home
 
 
-def run_one(index: int, label: str, argv: Sequence[str], out: Path) -> dict[str, Any]:
+def copy_check_tree(source: Path, destination: Path) -> Path:
+    """Copy product-owned inputs, retaining source checks and the authored release inventory.
+
+    The release allowlist is also the test source boundary. Source-control
+    settings remain available to their own checks, and the existing manifest
+    is copied unchanged so checks can detect stale generated metadata.
+    """
+    metadata = load_package_metadata(source)
+    source_checks = tuple(name for name in SOURCE_CHECK_INPUTS
+                          if (source / name).exists() or (source / name).is_symlink())
+    copy_runtime_tree(
+        source, destination, (*metadata.release_include, *source_checks),
+        exclude_names=tuple(name for name in metadata.release_exclude_names if name not in SOURCE_CHECK_INPUTS),
+    )
+    manifest = source / "MANIFEST.json"
+    if manifest.is_symlink():
+        raise ValueError(f"symbolic links are forbidden in check inputs: {manifest}")
+    if manifest.is_file():
+        shutil.copyfile(manifest, destination / manifest.name)
+    return destination.resolve()
+
+
+def run_one(index: int, label: str, argv: Sequence[str], out: Path, root: Path) -> dict[str, Any]:
     """Run one command with CPB_HOME at the scratch home and record its exit status, time and log."""
     runtime = str(out / "pack-runtime")
     resolved = [argument.replace(PACK_RUNTIME, runtime) for argument in argv]
@@ -193,7 +221,7 @@ def run_one(index: int, label: str, argv: Sequence[str], out: Path) -> dict[str,
     started = time.monotonic()
     with log.open("wb") as handle:
         try:
-            code = subprocess.run(resolved, cwd=working_directory(argv), env=environment, stdin=subprocess.DEVNULL,
+            code = subprocess.run(resolved, cwd=working_directory(argv, root), env=environment, stdin=subprocess.DEVNULL,
                                   stdout=handle, stderr=subprocess.STDOUT, check=False).returncode
         except OSError as exc:
             handle.write(f"the command did not start: {exc}\n".encode("utf-8"))
@@ -215,9 +243,16 @@ def tail(path: str, count: int = TAIL_LINES) -> list[str]:
 
 
 def run(selected: Sequence[tuple[str, list[str]]], *, jobs: int, out: Path) -> int:
-    """Run the commands with ``jobs`` workers, print each result and the summary, and return the exit status."""
+    """Run the commands against one product-owned source copy and scratch home."""
     out.mkdir(parents=True, exist_ok=True)
     scratch_home(out)
+    with tempfile.TemporaryDirectory(prefix="source-", dir=out) as temporary:
+        root = copy_check_tree(ROOT, Path(temporary) / ROOT.name)
+        return _run(selected, jobs=jobs, out=out, root=root)
+
+
+def _run(selected: Sequence[tuple[str, list[str]]], *, jobs: int, out: Path, root: Path) -> int:
+    """Run each command once, print every result and the summary, and return the exit status."""
     total = len(selected)
     results: list[dict[str, Any]] = []
     lock = threading.Lock()
@@ -234,7 +269,7 @@ def run(selected: Sequence[tuple[str, list[str]]], *, jobs: int, out: Path) -> i
     pending = numbered
     if preparation is not None:
         index, (label, argv) = preparation
-        first = run_one(index, label, argv, out)
+        first = run_one(index, label, argv, out, root)
         report(first)
         pending = [entry for entry in numbered if entry[0] != index]
         if first["exit"] != 0:
@@ -243,7 +278,7 @@ def run(selected: Sequence[tuple[str, list[str]]], *, jobs: int, out: Path) -> i
                 report(refused(index, label, argv, out, reason))
             pending = [entry for entry in pending if not needs_runtime(entry[1][1])]
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
-        futures = [pool.submit(run_one, index, label, argv, out) for index, (label, argv) in pending]
+        futures = [pool.submit(run_one, index, label, argv, out, root) for index, (label, argv) in pending]
         try:
             for future in concurrent.futures.as_completed(futures):
                 report(future.result())

@@ -21,6 +21,7 @@ from model_contract import (
 )
 from render_contract_lib import resolve_parameters
 from render_contract_fixtures import profile, control
+from model_prompt_input_fixtures import prompt_input
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -49,6 +50,7 @@ def fixture_models() -> dict[str, dict[str, Any]]:
     return {
         "fixture-separate-edit": {
             "id": "fixture-separate-edit",
+            "prompt_input": prompt_input("descriptive"),
             "offerings": [],
             "operation_kind": "instruction-edit",
             "supports_negative_prompt": True,
@@ -59,6 +61,7 @@ def fixture_models() -> dict[str, dict[str, Any]]:
         },
         "fixture-integrated-edit": {
             "id": "fixture-integrated-edit",
+            "prompt_input": prompt_input("descriptive"),
             "offerings": [],
             "operation_kind": "instruction-edit",
             "supports_negative_prompt": False,
@@ -68,6 +71,7 @@ def fixture_models() -> dict[str, dict[str, Any]]:
         },
         "fixture-output-limited-edit": {
             "id": "fixture-output-limited-edit",
+            "prompt_input": prompt_input("descriptive"),
             "offerings": [],
             "operation_kind": "instruction-edit",
             "supports_negative_prompt": False,
@@ -77,6 +81,7 @@ def fixture_models() -> dict[str, dict[str, Any]]:
         },
         "fixture-restorative-upscaler": {
             "id": "fixture-restorative-upscaler",
+            "prompt_input": prompt_input("none"),
             "offerings": [],
             "operation_kind": "upscale",
             "upscaler_class": "restorative",
@@ -87,6 +92,7 @@ def fixture_models() -> dict[str, dict[str, Any]]:
         },
         "fixture-creative-upscaler": {
             "id": "fixture-creative-upscaler",
+            "prompt_input": prompt_input("descriptive"),
             "offerings": [],
             "operation_kind": "upscale",
             "upscaler_class": "creative",
@@ -101,6 +107,7 @@ def fixture_models() -> dict[str, dict[str, Any]]:
         },
         "fixture-generative-upscaler": {
             "id": "fixture-generative-upscaler",
+            "prompt_input": prompt_input("none"),
             "offerings": [],
             "operation_kind": "upscale",
             "upscaler_class": "generative",
@@ -111,6 +118,8 @@ def fixture_models() -> dict[str, dict[str, Any]]:
         },
         "fixture-tag-list-generator": {
             "id": "fixture-tag-list-generator",
+            "prompt_input": prompt_input("tag-based", vocabularies=("synthetic",)),
+            "prompt_dialect": "synthetic-tags",
             "offerings": [],
             "operation_kind": "generation",
             "supports_negative_prompt": True,
@@ -121,6 +130,8 @@ def fixture_models() -> dict[str, dict[str, Any]]:
         },
         "fixture-advisory-generator": {
             "id": "fixture-advisory-generator",
+            "prompt_input": prompt_input("tag-based", vocabularies=("synthetic",)),
+            "prompt_dialect": "synthetic-tags",
             "offerings": [],
             "operation_kind": "generation",
             "supports_negative_prompt": True,

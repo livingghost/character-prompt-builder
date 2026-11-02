@@ -63,6 +63,7 @@ GENERATION_PACKAGE_FIELDS = {
     "model",
     "source_brief",
     "composition_prompt",
+    "composition_negative",
     "retrieval_record",
     "creative_intent",
     "production_spec",
@@ -382,8 +383,8 @@ def _verify(
             "generation_payload.prompt_recommendations.integrated",
         )
     from model_contract import validate_recommendation_audit
-    from prompt_weighting import selected as selected_weighting, require_pair
-    weighting_syntax = selected_weighting(payload.get('parameters'))
+    from prompt_weighting import selected as selected_weighting, from_contract, require_pair
+    weighting_syntax = selected_weighting(payload.get('parameters'), from_contract(data['render_contract']))
     validate_recommendation_audit(recommendation_audit['positive'],payload['prompt'],weighting=weighting_syntax)
     validate_recommendation_audit(recommendation_audit['negative'],payload['negative_prompt'],weighting=weighting_syntax)
     if integrated_audit is not None:
@@ -535,11 +536,24 @@ def _verify(
             "the package plot is not approved: "
             + ("; ".join(plot_report["approval_errors"]) or "it carries no approved block")
         )
-    from prompt_retrieval import require_generation_retrieval
+    from prompt_retrieval import require_generation_retrieval, require_settled_retrieval
     composition_prompt = data.get("composition_prompt")
     if not isinstance(composition_prompt, str) or not composition_prompt.strip():
         raise ValueError("composition_prompt must contain the original authored prompt")
-    require_generation_retrieval(data.get("retrieval_record"), prompt=composition_prompt, plot=plot)
+    composition_negative = data.get('composition_negative')
+    if not isinstance(composition_negative, str):
+        raise ValueError('composition_negative must contain the original authored negative text')
+    if live:
+        require_generation_retrieval(data.get('retrieval_record'), prompt=composition_prompt, plot=plot,
+            model_record=model_record, negative=composition_negative, syntax=weighting_syntax)
+        from model_prompt_input import resolve_prompt_input
+        if resolve_prompt_input(model_record)['mode'] == 'tag-based':
+            from prompt_vocabulary_selection import require_final_selection
+            require_final_selection(data['retrieval_record'].get('vocabulary'),
+                prompt=selected_prompt, negative=selected_negative,
+                model_record=model_record, syntax=weighting_syntax)
+    else:
+        require_settled_retrieval(data.get('retrieval_record'), prompt=composition_prompt, plot=plot)
     retrieval_hash = sha256_json(data["retrieval_record"])
     for location, value in (
         ("retrieval_record_sha256", data.get("retrieval_record_sha256")),

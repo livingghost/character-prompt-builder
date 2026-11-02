@@ -23,7 +23,7 @@ def profile(*, seed: bool = False, required: dict | None = None) -> dict:
     controls={k:control(schema=s) for k,s in {
         'width':integer,'height':integer,'size':string,'quality':string,'steps':integer,
         'CFGScale':number,'cfg':number,'guidance':number,'scheduler':string,'sampler':string,
-        'promptWeighting':string,'settings':{'type':'object'},'hiresFix':{'type':'object'},
+        'settings':{'type':'object'},'hiresFix':{'type':'object'},
         'clipSkip':integer,'outputFormat':string,'outputType':string,
     }.items()}
     controls['seed']=control('required' if seed else 'backend-managed',schema={'type':'integer','minimum':0,'maximum':4294967295},binding='dispatch-seed')
@@ -39,7 +39,8 @@ def profile(*, seed: bool = False, required: dict | None = None) -> dict:
         rules=copy.deepcopy(controls)
         if mode=='image-to-image':
             rules['strength']=control('optional',schema={'type':'number','minimum':0,'maximum':1},reason='Synthetic source-image transformation control.')
-        p['modes'][mode]={'media':media,'controls':rules,'parameter_schema':{}}
+        p['modes'][mode]={'media':media,'controls':rules,'parameter_schema':{},
+                         'prompt_syntax':{'default':'literal','control':None}}
     return p
 
 

@@ -57,13 +57,27 @@ Do not begin model-facing materialization until the dependency check passes.
 
 ## Prompt rendition gate
 
-Finish and review the complete wanted image before applying target syntax. Establish its overall depiction before refining details and necessary exclusions. Select the exact model record and adapter, then follow [Prompt Writing Guide Runtime](prompt-writing-guide.md). When the active pack state selects a `prompt-writing-guide` provider, resolve and read the complete guide before final rendition. Apply only the ordering, separators, weights, LoRA or embedding notation, negative handling, and other rules supported by the exact active interface.
+Use [Production direction](production-direction.md#choose-the-expression) for
+the depiction being commissioned and
+[Prompt Writing Guide Runtime](prompt-writing-guide.md) for its interface
+rendition. Select the exact model record and adapter. When the active pack state
+selects a `prompt-writing-guide` provider, resolve and read the complete guide before final rendition.
+Apply only the ordering, separators, weights, LoRA or embedding notation,
+negative handling, and other rules supported by the exact active interface.
 
 If the parser is unknown, keep portable semantic text instead of guessing Stable Diffusion parentheses, square brackets, LoRA calls, embedding tokens, or platform parameters. Recheck the target rendition against the master prompt so syntax changes emphasis without changing subject identity, count, anatomy, relationships, camera, medium, or state.
 
 When the final rendition is shown to the user for a decision, show it twice: the exact text as it would be sent, which is the only copy that travels, and a literal rendering in the user's language beside it, term by term and field by field, the negative field included. A model-facing text is written in the language the checkpoint was trained on, and a person cannot approve a defect they cannot read; the rendering is a reading aid and is never sent, never a summary, and never shortened where the text repeats. A term with no ordinary equivalent is carried across as it stands, with a line on what it draws.
 
-Generation builders commit the supplied final rendition and the verified media. Review the whole image those actual inputs describe, including each subject and reference use, before submission. Record that judgment in the existing `rendition_review` under [Production permissions](production-permissions.md#authorization-and-execution-records). Builders preserve the authored language and apply only the selected interface's declared transport controls.
+Generation builders commit the supplied final rendition and the verified media.
+Before submission, use
+[Production direction's judgment](production-direction.md#observe-and-repair)
+to assess the picture those actual inputs request against the commission,
+including each subject and reference use. Record that judgment in the existing
+`rendition_review` under
+[Production permissions](production-permissions.md#authorization-and-execution-records).
+Builders preserve the authored language and apply only the selected interface's
+declared transport controls.
 
 ## Model and negative transport
 
@@ -94,7 +108,7 @@ Select exclusions for the current image from the applicable policy, explicit req
 Three records change at different times, so they are three records.
 
 - A **service record** says how a service is called: the transport module that sends to it, endpoint, authentication shape, request envelope, operations, delivery and polling, error shape, and limits, with one `observed_at` and one `source` for the whole record. It is the `service-profiles` resource of the active pack runtime. `python scripts/service_profile.py <service-id>` prints it; print it beside anything sent, so an ageing record is seen before it fails. Nothing in this repository carries an endpoint of its own.
-- A **model record** says how a model behaves: prompt style, ordering, negative transport, accepted reference media, limits, notes. Nothing in it names an endpoint.
+- A **model record** says how a model behaves: its evidenced `prompt_input` mode, supported forms and vocabulary scope, prompt style, ordering, negative transport, accepted reference media, limits and notes. An unresolved input mode remains unresolved until its target evidence is established. Nothing in it names an endpoint.
 - An **offering** inside the model record says how one service exposes that model: `service` (the key it has in the service record), `model_identifier` (its identifier there), `request_keys` (the request key each input occupies: `model` where the request body names the model, `prompt`, `negative prompt` where the target has a negative field, `reference images`, `seed image`, `mask image`, `input image`, on an upscaler that takes one, `guidance prompt`, and for the image size either `width` and `height` or one `size` key), `size_format` with a `size` key (how its text is written, such as `{width}x{height}` or `{ratio_width}:{ratio_height}`), `constraints` (the limits that service enforces, in words), `observed_at`, optionally `schema_snapshot`, `parameter_keys` (the request key each of the record's `recommended_parameters` occupies on this service), and for an upscaler `setting_keys` (the request key each setting the record declares occupies on this service). A record's `recommended_parameters` are the sampling values its author recommends, by service-neutral name (`sampler`, `steps`, `guidance`, `clip_skip`, and the `hires_` values). When a package leaves a *required* control unset, resolution takes the single recommended value the execution profile ties to it. The package then commits exactly what is sent. An *optional* control stays unset, and a two-number range is never filled; [Rendering choices and execution controls](render-contract.md) owns those statuses. Every model record carries `offerings`; an empty array says no service here exposes the model, which is the state of a record used through a first-party interface or a local host.
 
 `schema_snapshot` points at the model's attributed parameter schema in its selected pack. The [model evidence workflow](model-evidence.md) imports acquired schemas, preserves reference sources, and attaches existing trial records. The `schema`, `reference`, and `attach-probe` operations publish a validated new local pack for explicit activation.
@@ -170,7 +184,7 @@ The task names its input files, all authored before `prepare`. `execute` sends o
 Before preparing:
 
 1. Save the final prompt and the approved plot as UTF-8 files, and draft the Production Specification with `python scripts/production_spec.py draft` as [Production Specification](../production-specification.md#stateless) shows. Add the portable negative and the image intent when they exist, and the negative provenance whenever a negative source is active. Stateless work names no state lineage.
-2. Run each catalog and vocabulary search with `--record lookups.json --element NAME`, and mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID` (or `--composed TEXT --reason TEXT`). Then run `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file prompt.txt --plot-file plot.json --out retrieval.json`. Unavailable or unsettled retrieval blocks packaging. Approval to prepare is not approval to send.
+2. Record investigated construction questions with `--record lookups.json --element NAME` and resolve their adopted, composed or unused outcome under [Prompt-only Core](prompt-only-core.md#saved-prompt-artifacts). For a tag-based target, run its mandatory vocabulary search on the actual prompt channels and resolve the returned wording choices in that same record. Settle with the selected `--model MODEL_ID`, prompt, negative when used, weighting parser and plot. Source-sufficient descriptive work may have no construction questions; missing tag-search evidence cannot use that path. Unavailable or unsettled required retrieval blocks packaging. Approval to prepare is not approval to send.
 3. Name the canonical prepared-reference-set in the task's `generation.references` when references are selected. Do not author another source list.
 
 Parameter objects are UTF-8 JSON files, for example `parameters.json` containing `{"width":832,"height":1248}`. Do not normalize prompt text as part of parameter loading.
@@ -368,7 +382,17 @@ A send a loopback service answered 503, as the run journal keeps it in `indeterm
 
 ## The model's family
 
-A model record names the family whose prompt grammar it reads in `prompt_dialect`, and `scripts/prompt_dialect.py --model <model-id>` returns that family's grammar, blocks, and vocabulary together with the rules that apply to it. Compose for the family the record names, and never carry a quality block, a rating term, a period term, or a weight from another family into it. [Prompt Writing Guide Runtime](prompt-writing-guide.md) owns the sequence.
+A model record declares its input workflow in `prompt_input`.
+`scripts/prompt_dialect.py --model <model-id>` returns that exact declaration,
+its evidence and vocabulary-search requirement. Tag-based records name their
+owning family in `prompt_dialect`; the report includes its grammar, blocks and
+scoped terms. Search the actual tag rendition under
+[Vocabulary](prompt-vocabulary.md#select-wording-for-a-tag-based-model), including
+models that also accept prose. Compose from the selected input contract and
+family evidence without importing another family's controls. Descriptive input
+uses its declared forms; unresolved input does not become descriptive merely
+because a family field is absent. [Prompt Writing Guide Runtime](prompt-writing-guide.md)
+owns the interface rendition.
 
 ## Delivery geometry
 
@@ -405,7 +429,15 @@ After the service answers, `execute` builds an Upscale Package from the source a
 
 For `multi-image`, selected references are the committed independent transports in plan order. For `single-board`, the array contains only the committed board. Do not reconstruct from chat. Do not append, paraphrase, reorder, substitute, omit, add, rescope, re-rasterize, scan directories, or resolve carrier paths outside the verifier.
 
-After generation, review the image against the image intent, Visual State Projection, and reference-scope boundary. Diagnose identity drift separately from source-state leakage. When continuity matters, save an Observed Render State. A render is noncanonical until explicitly accepted; route defects to the correct owner rather than editing stable identity to compensate for a scene or model failure.
+After generation, apply
+[Production direction's judgment](production-direction.md#observe-and-repair)
+to the image and the commission, using the image intent, Visual State Projection
+and reference-scope boundary at their declared authority. A render can follow
+the prompt while the prompt's choices fail the commission. Diagnose identity
+drift separately from source-state leakage. When continuity matters, save an
+Observed Render State. A render is noncanonical until explicitly accepted;
+route defects to the correct owner rather than editing stable identity to
+compensate for a scene or model failure.
 
 ## Failure policy
 
@@ -424,7 +456,7 @@ When the user requests several images at once, across different models or as con
 
 ## Executable walkthrough
 
-[Workflow Walkthrough](workflow-walkthrough.md) takes one idea to a prepared run and its exact request for `grok-imagine-image-2.0` on Runware. It sends nothing and uses no credential. State-aware example commands above name `--plot-file` and `--retrieval-record-file` for a run whose task declares neither; `examples/state-aware-pilot/build_example.py` supplies explicit illustrative lookup data for its generated package.
+[Workflow Walkthrough](workflow-walkthrough.md) takes one idea to a prepared run and its exact request through a declared synthetic interface. It sends nothing and uses no credential. State-aware example commands above name `--plot-file` and `--retrieval-record-file` for a run whose task declares neither; `examples/state-aware-pilot/build_example.py` supplies explicit illustrative lookup data for its generated package.
 
 
 ## Artifact evidence and completion

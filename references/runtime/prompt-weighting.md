@@ -1,7 +1,7 @@
 # Explicit prompt weighting
 
 Use this alongside the [Prompt Writing Guide](prompt-writing-guide.md) when a target
-exposes `promptWeighting`. A model's learned family (`prompt_dialect`) chooses its
+uses an explicit weighting grammar. A model's learned family (`prompt_dialect`) chooses its
 vocabulary and writing conventions. The selected service, offering and execution
 mode choose the weighting parser. A family name never authorizes a native control.
 
@@ -14,24 +14,43 @@ python scripts/prompt_dialect.py --model MODEL_ID --service SERVICE --mode text-
 python scripts/prompt_dialect.py --weighting compel
 ```
 
-The first command reports the family and the exact control schema from that
+The first command reports the family and the grammar declaration from that
 model/offering/mode, and fails when it does not allow the requested grammar. The
 second describes grammar only. The selected model's control schema decides which
 parser can be sent. Generic explanatory text mentioning several parsers is not a
 substitute for that schema.
 
-Write the native choice in the existing generation parameter file:
+Each execution mode owns `prompt_syntax`, defined by
+[the prompt syntax schema](../../schemas/prompt-syntax.schema.json). Its `default`
+names the grammar when no optional control is selected. `control: null` declares
+a fixed grammar; a control declares its request field path and maps each native
+value to a grammar. The mapping is interface evidence, not a guess from a field's
+name, a model family or the prompt's punctuation.
+
+For example, a synthetic interface may declare:
 
 ```json
-{"width": 1024, "height": 1024, "steps": 30, "promptWeighting": "compel"}
+{
+  "default": "literal",
+  "control": {
+    "field": ["controls", "parser"],
+    "values": [{"value": "clauses", "syntax": "compel"}]
+  }
+}
+```
+
+For that interface, write the native choice in the existing generation parameter file:
+
+```json
+{"width": 1024, "height": 1024, "steps": 30, "controls": {"parser": "clauses"}}
 ```
 
 These numbers illustrate file shape, not defaults. The model's geometry and
 control schema must accept the actual values. Pass that file as the usual
 `generation.parameters` task input or the builder's `--parameters` file. There
 is no model ID suffix, a second service adapter, or a new weighting service.
-Without a selected native control, CPB uses `literal` inspection: it neither
-inserts `promptWeighting` nor guesses Compel from punctuation. A required control
+Without a selected native control, CPB uses the declaration's `default` grammar.
+It does not insert a control or infer another grammar from punctuation. A required control
 may resolve an explicit record recommendation through normal parameter handling;
 an optional control is not automatically activated by a recommendation.
 
@@ -88,10 +107,10 @@ python scripts/check_tag_prompt.py --dictionary DICTIONARY_JSON --model MODEL_ID
 Resolve `DICTIONARY_JSON` with `pack_cli.py resource prompt-vocabulary`; the
 standalone checker takes that file explicitly. Normal Production preparation
 resolves the active dictionary automatically. The standalone `--weighting` must
-match the planned native parameter; inspection alone does not authorize a request.
+match the interface's resolved grammar; inspection alone does not authorize a request.
 
-During normal `prepare`, the syntax comes from the resolved parameter and the
-actual wire layout. Both positive and negative fields are parsed after model
+During normal `prepare`, the syntax comes from the selected mode's declaration,
+the resolved parameter and the actual wire layout. Both positive and negative fields are parsed after model
 recommendations, negative-channel selection and reference instructions. Mixed
 syntax, broken delimiters, ignored trailing text, non-finite weights or invalid
 clause arity stop preparation. The final request bytes are not rewritten by the
@@ -137,7 +156,7 @@ check to send a textually different prompt.
 
 ## Approval, recording and recovery
 
-Changing `promptWeighting`, clause text, coefficient or the final negative channel
+Changing the grammar control, clause text, coefficient or the final negative channel
 changes the sealed request. The normal complete-request approval, current input
 checks and one-send execution claim apply. Recorded response recovery uses the
 fixed package, grammar choice and text; it does not convert an old request into a
@@ -152,7 +171,7 @@ upstream parser extension or a prediction of provider image behavior.
 ## Example and verification
 
 [The synthetic example](../../examples/prompt-weighting/README.md) generates a
-reproducible inspection report and a native Runware-shaped request without network
+reproducible inspection report and a declared synthetic request without network
 I/O or approval. Tests are `prompt_weighting_smoke_test.py` and
 `prompt_weighting_execution_smoke_test.py`, plus existing generation, state-aware,
 transport and recommendation regressions. They use synthetic models and fixtures,

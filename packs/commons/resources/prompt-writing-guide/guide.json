@@ -13,16 +13,16 @@
         "In a revision, state the corrected result at its intended scope and rebuild the affected passage with its necessary premises while preserving other requirements. Select direct exclusions when they add necessary image boundaries for the request, supplied-image use or observed failure; polarity and negative-term count are not quality scores.",
         "Read the final positive and negative channels with the actual supplied media as the receiving model's input. Reconstruct the present situation and intended picture using only that input, then compare them with the brief and selected direction. Check both missing premises and instructions outside the depiction. Preserve the same meaning, scope and available context in any translated readback.",
         "When a term has weak effect, first test a clearer model-legible phrase and its placement. Consider a different model only when the requested concept remains intact and the current model lacks the needed vocabulary or behavior.",
-        "Vocabulary lookup supplies options. The agent chooses, combines, rewrites, weights, or ignores them according to the request and active interface.",
-        "For a tag-oriented checkpoint with documented public training corpora, use their tag databases to check membership, canonical spelling and frequency. Frequency is weak evidence of model behavior: a rare distinctive term may work while a common term fails to express a subtle relation. Database membership does not establish behavior for another checkpoint or a prose interface.",
-        "Check candidate tags against the documented public corpora used by the selected checkpoint. Corpora can disagree about aliases and membership, so one database's absence does not settle the others. Do not infer undisclosed training corpora or require tag-database membership for a natural-language rendition.",
-        "When a tag underperforms and its documented corpus publishes a canonical alias, compare the two spellings on the selected checkpoint before abandoning it. Record the observed result rather than assuming both spellings work across models.",
+        "For a tag-based target, actually search the active dictionary and selected dialect controls before finalizing its rendition. The lookup supplies candidates; the agent chooses, combines, rewrites, weights or rejects them according to the requested image and exact interface. Reading lookup code or assuming a familiar word is known does not perform this search.",
+        "Use the selected target's declared vocabulary scopes to check canonical spelling, meanings and available frequency evidence. A lookup source need not be a certified training corpus. Frequency is weak model-behavior evidence: a rare distinctive term may work while a common term may fail to convey a subtle relation.",
+        "Prefer a suitable established tag over an invented near-synonym when it preserves the requested meaning. Search the applicable sources, since their aliases and coverage can differ. If none supplies a suitable term, retain necessary model-legible wording; do not distort the image to fit a dictionary. A descriptive target has no tag-dictionary requirement solely because some words resemble tags.",
+        "When a tag underperforms and its selected vocabulary publishes a canonical alias, compare the spellings on the exact checkpoint before abandoning the concept. Record observed behavior rather than assuming aliases have identical effects across models.",
         "In a tag-oriented rendition, word adjacency alone does not establish per-subject role control. Inspect whether each figure keeps its assigned identity and role. If the active setup fails that check, consider staging, separate generations or regional conditioning supported by the selected interface.",
-        "A vocabulary resource legitimately mixes two registers: canonical tags the corpora carry, and descriptive phrasing the text encoder understands as language. Absence from a tag database is not evidence that a descriptive phrase is broken, so do not prune vocabulary on that basis alone.",
-        "Use multiple tag dialects only when the active checkpoint has evidence for them. Compare count-plus-anthro, male-plus-furry and kemono forms for subject correctness and styling separately. An observed shift toward rounder, flatter faces is specific to the tested checkpoint and settings; it does not establish interchangeability across models.",
+        "A vocabulary resource can contain canonical database tags, model-specific control tokens and authored descriptive extensions. Keep their source and use distinct. Absence from a tag database does not show that a descriptive phrase is broken, and a known tag does not establish that it conveys the intended relationship.",
+        "Treat vocabulary, model controls and parser grammar separately. Search across the target's declared vocabulary sources without assuming that every term has a learned native effect; apply another dialect's controls only with target evidence. Compare count-plus-anthro, male-plus-furry and kemono forms for subject correctness and styling separately. A measured shift toward rounder, flatter faces belongs to that checkpoint and setup.",
         "Treat a checkpoint version change as a target change. Sibling releases may differ at the same seed in default build mass, negative adherence, and prop or scenery conventions. Reassess the exact version and record the target change instead of assuming identical family behavior.",
         "Preserve explicit parameter choices and validate them against the selected interface. Use the active record's recommendations as evidence-scoped starting points for unresolved choices, before a matching dialect baseline.",
-        "The preparation checker inspects the exact final positive and negative channels after model recommendations and transport selection. Grammar, declared limits and channel violations block preparation; complete dictionary and dialect evidence remains available for the existing author rendition review.",
+        "The preparation checker inspects the exact positive and negative channels after model recommendations and transport selection. Grammar, declared limits and channel violations block preparation. Tag renditions also carry the required dictionary-search evidence; the existing author review decides whether the retrieved words and any extensions preserve the selected image.",
         "Vocabulary membership does not establish intended meaning. Read definitions for ambiguous anatomy or garment words. Assess an unlisted close-up phrase or speech verb from its meaning and target evidence rather than treating absence as proof of failure.",
         "Check whether a requested local color or close-up actually remains local in the candidate. Keep target-specific spillover observations in the active model record, rather than turning one campaign into a universal vocabulary prohibition."
       ]
@@ -45,26 +45,30 @@
       ],
       "dialects": [
         "illustrious-noobai",
-        "anima"
+        "anima",
+        "novelai",
+        "pony-v6-xl"
       ]
     },
     {
       "id": "tag-grammar",
       "title": "Tag prompt grammar",
       "rules": [
-        "On a checkpoint trained on booru tags, write tags in lowercase unless the tag itself carries capitals. How a tag of more than one word is spelled is the family's own convention, which the prompt-dialects resource states per family: read it rather than assuming one form.",
+        "For a tag rendition, use the selected model's evidenced casing and multi-word spelling, with canonical dictionary tags as the lookup form. A family can support natural-language descriptions as well; tag spelling rules do not turn every sentence into a database tag.",
         "Separate intended tags with commas in a tag rendition. For example, sleeveless, striped shirt, collared shirt makes the chosen tag units explicit. Whether an unseparated descriptive phrase also works depends on the exact text encoder.",
         "Escape literal syntax delimiters for the explicitly selected parser. In Compel, parentheses group a phrase and suffixes apply weights; in sdEmbeds, parentheses, square brackets and a trailing colon weight have different meanings. A learned tag family does not select the service parser.",
         "Within one conditioning clause, prefer one explicit weight to repeated tags. Repetition across independent Compel clauses has a different scope; do not flatten clauses or silently deduplicate the author's combined expression.",
         "On a checkpoint where detailed modifiers have a measured effect, compare detailed eyes, detailed fluffy fur or detailed background only for the elements that need that attention. Repeating the modifier everywhere does not establish a useful priority.",
-        "Weighted syntax is an interface parser feature, not inferred from a model family. Select the native promptWeighting control only when the chosen offering and execution mode expose it; otherwise treat punctuation literally rather than assuming a backend parser.",
+        "Weighted syntax is an interface parser feature, not inferred from a model family. Read prompt_syntax from the chosen offering and execution mode: its default names the fixed or unselected grammar, and its control mapping identifies any native field and value that selects another grammar.",
         "Take block order from the active family. For a supported multi-figure tag workflow, keep interaction terms with the count block and give each figure its own identity and pose scope. Separate chunks may restate the relevant count, but chunking itself does not assign spatial regions or guarantee identity separation.",
         "Take rating and period terms from the active dialect and select a consistent intended register. A single term from each set is a useful baseline; the author evaluates a deliberate combination within its clause scope. Do not assume another family learned the same tokens.",
-        "The dialect identifies vocabulary with limited or unsupported effect on that family. Consult its corpus and model evidence before selecting those terms. Missing membership alone cannot establish that a descriptive phrase has no useful meaning."
+        "The dialect distinguishes native controls and cautionary vocabulary guidance. Consult its evidence before selecting model-control tokens. Missing dictionary membership cannot establish that descriptive wording has no useful meaning."
       ],
       "dialects": [
         "illustrious-noobai",
-        "anima"
+        "anima",
+        "novelai",
+        "pony-v6-xl"
       ]
     },
     {
@@ -74,14 +78,14 @@
         "illustrious-noobai"
       ],
       "rules": [
-        "Illustrious is trained on Danbooru tags alone. The e621 dialect (muscular_anthro, the e621 body-build and species terms) acts only on NoobAI-family checkpoints that add that corpus.",
-        "Rating tags act on Illustrious and NoobAI checkpoints: general, sensitive, questionable, and explicit steer the register of the whole image. Use one per prompt, in the quality block.",
-        "The rating general was introduced in 2022 and matches a thin slice of the corpus. For an all-ages image it is usually better left out than forced; sensitive, questionable, and explicit carry their full weight.",
+        "The early Illustrious author card identifies Danbooru training; NoobAI XL 1.0 explicitly adds native Danbooru and e621 tag captions. These facts do not settle every derivative's vocabulary. Search both declared lookup sources, including body-build and species terms, and distinguish their dictionary meanings from exact checkpoint behavior.",
+        "Rating controls vary by exact model. general, sensitive, questionable and explicit are candidate booru forms; NoobAI XL 1.0 also shows safe in its recommended prefix. Select a consistent register from the active model evidence rather than requiring one family-wide token.",
+        "A database's rating history can affect coverage, but does not by itself prove the strength of a rating token on an exact checkpoint. Include or omit a rating control according to the selected image and applicable evidence; do not replace the requested content with assumptions from its label.",
         "Period tags act on Illustrious and NoobAI checkpoints: newest, recent, mid, early, and old bias the render toward the drawing conventions of a slice of the training corpus by upload year (NoobAI documents them as 2021 to 2024, 2018 to 2020, 2014 to 2017, 2011 to 2014, and 2005 to 2010). newest is the usual choice for a current look, old is a deliberate retro finish, and the other period words in a negative push the render away from those slices. Because old is a period term here, write an elderly figure's tag whole, as old_man or old_woman.",
-        "Score-band tags such as score_9 belong to Pony-family checkpoints and are literal noise on Illustrious and NoobAI. Use the family's own quality block instead.",
+        "Score-band controls such as score_9 are documented for specific Pony and Anima versions. Their presence there does not establish a native quality role on an Illustrious or NoobAI derivative. Consult the active target instead of copying another family's quality stack or declaring the words universally inert.",
         "On these tag-trained checkpoints, 4k, 8k, hdr, high quality and detailed on its own are not established quality controls. A rare tag with fewer than about 100 corpus posts is weak evidence of a learned tag effect, not proof of incapability. A character with several historical designs may follow its dominant corpus design; verify the requested construction on the exact checkpoint.",
         "Resolution marks describe the corpus post's pixel size, not render quality: highres is 1600x1200 and up, absurdres 3200x2400 and up, incredibly absurdres above 10000 pixels. Their only pull is toward large finished uploads, so use at most one, or none.",
-        "The family's documented order is count, character name, rating, general tags, artist, quality, period. Use the exact model's evidenced order when it differs, and hold that order fixed during a controlled comparison so a placement change is not confused with a content change.",
+        "NoobAI XL 1.0 documents count, character, series and artist followed by special, general and other tags. A selected target may have a different evidenced recommendation, including a quality prefix. Hold order fixed during a controlled comparison so placement and content changes are not confused.",
         "For these checkpoints, an artist with about 100 or more corpus posts is a stronger candidate for a learned artist-tag effect than a rare one. In a compatible sdEmbeds-style parser, a reduced value such as (artist:0.5) or (traditional media:0.5) is a trial of influence, not a guaranteed partial style. Use the selected parser's own syntax and inspect the result."
       ]
     },
@@ -92,26 +96,50 @@
         "anima"
       ],
       "rules": [
-        "Anima pairs a Qwen-series text encoder and VAE with a Danbooru tag vocabulary, so the tag register is the booru one while the sampling behaviour is not the SDXL lineage's. Use the Qwen VAE the family names; another VAE shifts colour and detail.",
-        "Anima carries both registers at once: the booru quality terms and the Pony score bands act together, and the working block is masterpiece, best quality, score_9, score_8, score_7, very aesthetic, highres, absurdres, newest. Both corpus size marks are used here rather than at most one.",
-        "Write a multi-word tag with spaces on Anima, not underscores. The score terms keep their underscores.",
-        "An artist tag needs an at sign in front of it on Anima. Without it the tag does not bind.",
-        "An explicit weight wants a higher value on Anima than on the SDXL lineage, about 1.2 to 1.4. Raise only the tags that carry the request; a high weight on everything flattens the difference it was meant to make.",
+        "Anima uses a Qwen-series text encoder and Qwen-Image VAE, and accepts tags, natural-language descriptions and mixtures. Use the exact workflow's named files; model-family identification alone does not establish execution readiness. Danbooru and e621 are both search scopes here, while e621 base-training provenance remains unestablished by the cited author card.",
+        "The base model permits human-quality terms, score bands, both or neither. Anima-Aesthetic advises against score tags in both channels. Select quality and metadata controls for the exact variant; masterpiece, best quality, score_9, score_8, score_7, highres, absurdres and newest are not one required stack. Treat additional aesthetic wording as content or a target-specific trial rather than a certified control.",
+        "Use lowercase, space-separated tags except underscore score tokens. Where the author specifies a Gelbooru spelling that differs from Danbooru, preserve that exact model convention after dictionary lookup.",
+        "Prefix artist tags with @. The author describes unprefixed effects as weak; it is not an all-or-nothing binding guarantee.",
+        "Prompt weighting requires a compatible active parser. A 1.2 to 1.4 range is an author-selected trial band, not a universal Anima optimum; the author's examples also use stronger values. Raise only concepts that need more influence, and preserve the rest of the scene.",
         "Anima takes a year term beside the period term, written as year 2025 or year 2024, which narrows the period further than newest alone.",
         "Anima's rating terms are safe, sensitive, nsfw, and explicit. The Danbooru set that the Illustrious family uses does not apply here.",
-        "Anima's block order ends with a plain-language line for what the tags cannot carry. Use it for a relation or a staging the tag vocabulary has no term for, and keep the tags carrying everything they can."
+        "Natural language may express the scene directly or combine with tags in a useful order. Use it where it conveys the requested relationship or action; it is not restricted to a final line after every possible tag has been exhausted."
+      ]
+    },
+    {
+      "id": "novelai-dialect",
+      "title": "The NovelAI dialect",
+      "dialects": [
+        "novelai"
+      ],
+      "rules": [
+        "Resolve the exact model and anime or furry mode before rendition. Native suggestions, special controls and parser behavior vary by version; the generic provider name cannot select them.",
+        "Search the declared shared vocabulary, then consult provider-native suggestions for the selected version and mode when available. A public dictionary is supplementary evidence; neither a missing tag nor lack of a corpus claim prohibits necessary wording.",
+        "Use the dialect's version notes for native dataset, quality and complexity controls. Modern versions support natural-language relationships as well as tags. Keep character prompts and base-scene prompts in the exact interface scopes rather than flattening them by assumption."
+      ]
+    },
+    {
+      "id": "pony-v6-xl-dialect",
+      "title": "The Pony Diffusion V6 XL dialect",
+      "dialects": [
+        "pony-v6-xl"
+      ],
+      "rules": [
+        "The author documents both natural-language descriptions and tags. Search the configured vocabulary while preserving the requested scene in whichever supported form conveys it.",
+        "The native score_N_up, source_* and rating_* controls belong to this V6 XL author card. The dialect lists their exact forms; do not substitute Anima score bands or another family's rating syntax.",
+        "The author's quality prefix is optional guidance, and generic negative or quality stacks are not mandatory. Derivatives and other Pony versions require their own control and parser evidence."
       ]
     },
     {
       "id": "illustrious-noobai-sampling",
       "title": "Sampling baseline for the Illustrious and NoobAI dialect",
       "rules": [
-        "Start from Euler a. The DPM++ family tends to leave residual noise on these checkpoints at ordinary step counts.",
-        "Keep guidance between 3 and 5, with 4.5 as the working point; above 6 the colors saturate and the prompt becomes hard to steer. A distilled or LCM variant wants 4 to 8, with 6 as the working point.",
-        "About 20 steps is the working point. Raise it only when a LoRA's own page asks for it.",
-        "Generate at a trained bucket: 1024x1024, 1024x1536, 832x1216, or 768x1344. Reach a larger delivery size with a second pass, either hires fix at 1.5x with denoise 0.4 to 0.5 over a plain nearest-exact resample of the first pass (about 16 hires steps in a ComfyUI-style graph, about 40 in a Diffusers pipeline), or an upscaler pass on the accepted image. A hires factor of 2 and above breaks composition on these checkpoints.",
+        "The exact checkpoint and interface own sampling settings. An authored epsilon-prediction trial baseline starts with Euler a; residual noise observed with DPM++ at ordinary step counts is specific to the tested setup, not a family-wide incompatibility.",
+        "For an applicable authored trial baseline, guidance 3 to 5 with 4.5 as a starting point may be useful; saturation above 6 is an observation to assess on the target. Distilled and LCM variants require their own recommendations; a 4 to 8 trial band with 6 as a starting point applies only when selected for that variant.",
+        "About 20 steps is an authored trial baseline where the selected record supplies none. Exact author recommendations take priority, including NoobAI XL 1.0's 25 to 30 steps; a LoRA may also require a different setting.",
+        "Choose a resolution supported by the exact checkpoint. Early SDXL-derived working sizes include 1024x1024, 1024x1536, 832x1216 and 768x1344; newer variants can have different native sizes. For a second pass, an authored trial is hires fix at 1.5x and denoise 0.4 to 0.5 over a nearest-exact resample, about 16 hires steps in a ComfyUI-style graph or 40 in a Diffusers pipeline, or an upscaler on the accepted image. Treat composition loss at factors of 2 or above as a target-specific risk to inspect, not a universal limit.",
         "SDXL-lineage sizes: keep about one megapixel with both sides multiples of 8, and prefer the trained buckets, which are multiples of 64: 1024x1024, 896x1152, 1152x896, 832x1216, 1216x832, 768x1344, 1344x768, 640x1536, 1536x640. For another ratio, width is 1024 times the square root of the ratio and height is 1048576 divided by the width, both rounded down to a multiple of 8 (2:3 gives 832x1248, 16:9 gives 1360x768).",
-        "A v-prediction checkpoint needs a pipeline that supports v-prediction; Automatic1111 does not, so run the eps variant there."
+        "A v-prediction checkpoint needs a compatible prediction pipeline. Verify the selected application version and workflow, including Automatic1111 if used, rather than inferring support or lack of support from the application name. Use an epsilon variant when the actual pipeline supports only epsilon prediction."
       ],
       "dialects": [
         "illustrious-noobai"
@@ -124,9 +152,9 @@
         "anima"
       ],
       "rules": [
-        "Start from Euler a, with er_sde as the other choice the family names, and the normal scheduler.",
-        "About 30 steps is the working point, and guidance between 4 and 6 with 5 as the working point.",
-        "Generate around 1280 pixels square, which is the size this family was trained at, and take another ratio at that same pixel count rather than at the SDXL lineage's one megapixel."
+        "Resolve Base, Aesthetic, Turbo or a derivative before sampling. The author lists er_sde, Euler a, dpmpp_2m_sde_gpu and Euler with different visual behavior; use the exact workflow's scheduler.",
+        "The current base guidance is 30 to 50 steps at CFG 4 to 5; Turbo uses CFG 1 and 8 to 12 steps. An authored trial does not replace the selected variant's recommendations.",
+        "The author documents an operating range of about 512 square to 1536 square. A 1280-square working canvas is a possible choice, not a proven universal training resolution; use the exact model's supported aspect and size."
       ]
     },
     {
@@ -313,7 +341,7 @@
       "id": "controlled-term-comparison",
       "title": "Controlled term comparison",
       "rules": [
-        "When evaluating one term, hold the checkpoint or model, LoRA set and weights, seed, sampler, scheduler, steps, guidance value, dimensions, base prompt, negative transport, and references constant. Keep the native promptWeighting parser selection constant too; a grammar switch is a separate experimental change.",
+        "When evaluating one term, hold the checkpoint or model, LoRA set and weights, seed, sampler, scheduler, steps, guidance value, dimensions, base prompt, negative transport, and references constant. Keep the interface grammar selection constant too; a grammar switch is a separate experimental change.",
         "Change one term, one weight, or one placement at a time so the observed difference has a clear cause.",
         "When placement sensitivity is under review, compare the same term near the beginning and near the end without changing any other condition.",
         "A controlled comparison measures one active setup. Do not promote a single result into a universal model rule.",
@@ -332,7 +360,7 @@
       "id": "service-weighting-grammar",
       "title": "Select service weighting separately from learned vocabulary",
       "rules": [
-        "Resolve the exact native promptWeighting control for the model, service and execution mode. A service-wide explanation mentioning Compel and sdEmbeds is not evidence every model accepts both.",
+        "Resolve the prompt_syntax declaration for the model, service and execution mode, including its native control mapping when present. A service-wide explanation mentioning several grammars is not evidence every model accepts them.",
         "Compel + is 1.1 per suffix and - is 0.9 per suffix; an unweighted parenthesized group has no implicit boost. Do not substitute sdEmbeds brackets or multiply their defaults as though the embeddings were equivalent.",
         "The final prepared request is the source of syntax selection. Review parsed positive and negative clauses, original text, dictionary notes and model recommendations together before approval.",
         "For compound conditioning expressions, keep automatic recommendations as visible advice until the author places them in the intended clauses. Never prepend a global fragment that breaks expression scope.",

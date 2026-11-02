@@ -28,8 +28,9 @@ def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,
         authored_source={'kind':'generation-rendition','sha256':c.digest(original.encode('utf-8'))},bindings=rows,
         reference_policy=policy.get('reference_instruction_transport'),
         reader=local,target=expected,dialect=policy.get('text_dialect') or (model or {}).get('prompt_dialect'))
-    from prompt_weighting import selected as selected_weighting, require_pair
-    require_pair(result['text'], rendition.get('negative') or '', selected_weighting(package['render_contract']['parameters']))
+    from prompt_weighting import selected as selected_weighting, from_contract, require_pair
+    require_pair(result['text'], rendition.get('negative') or '',
+                 selected_weighting(package['render_contract']['parameters'], from_contract(package['render_contract'])))
     for limit,field in (((model or {}).get('max_positive_prompt_chars'),result['text']),):
         if type(limit) is int and len(field)>limit:raise ValueError('final prompt exceeds the selected model character limit')
     forwarding=copy.deepcopy(verified['host_forwarding']);forwarding.update(effective_prompt=result['text'],
@@ -53,10 +54,11 @@ def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,
     verified['host_forwarding']['reference_media_role']=profile['modes'][intent['execution_mode']]['media']
     compiled=transport.compile_request(verified,offering,service,{},seed,count)
     rendering.check_wire(package['render_contract'], compiled['request'], compiled['layout'], seed=seed, count=count)
-    from prompt_weighting import wire_selection, require_pair
+    from prompt_weighting import wire_selection, from_contract, require_pair
     layout = compiled['layout']
     require_pair(rc.get(compiled['request'], layout['primary_text']),
-        rc.get(compiled['request'], layout['negative_text']) if layout['negative_text'] is not None else '', wire_selection(compiled))
+        rc.get(compiled['request'], layout['negative_text']) if layout['negative_text'] is not None else '',
+        wire_selection(compiled, from_contract(contract)))
     rows=verified['bindings'];media=[]
     for i,item in enumerate(verified['host_forwarding']['selected_references']):
         item=rc.media_metadata(Path(item['resolved_path']),role=item['role'],

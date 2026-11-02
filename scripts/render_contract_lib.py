@@ -206,7 +206,9 @@ def validate_profile(profile: Any) -> None:
     for name, mode in profile['modes'].items():
         if name not in MODES:
             raise ValueError('unsupported execution mode: ' + name)
-        exact(mode, {'media', 'controls', 'parameter_schema'}, 'execution mode ' + name)
+        exact(mode, {'media', 'controls', 'parameter_schema', 'prompt_syntax'}, 'execution mode ' + name)
+        from prompt_weighting import validate_declaration
+        validate_declaration(mode['prompt_syntax'])
         if not isinstance(mode['parameter_schema'], dict):
             raise ValueError('mode parameter_schema must be an object')
         _supported_schema(mode['parameter_schema'], 'mode ' + name)
@@ -252,6 +254,20 @@ def validate_profile(profile: Any) -> None:
         for key in controls:
             if any(other.startswith(key + '.') for other in controls):
                 raise ValueError('control paths overlap: ' + key)
+        grammar = mode['prompt_syntax']['control']
+        if grammar is not None:
+            path = grammar['field']
+            if any(not isinstance(part, str) for part in path):
+                raise ValueError('mode prompt syntax control must name an object parameter path')
+            owners = [key for key in controls if key.split('.') == path[:len(key.split('.'))]]
+            if len(owners) != 1:
+                raise ValueError('mode prompt syntax control needs one declared parameter owner')
+            rule = controls[owners[0]]
+            if rule['binding'] != 'package' or rule['status'] not in {'optional', 'required'}:
+                raise ValueError('mode prompt syntax control must be an exposed package parameter')
+            if owners[0].split('.') == path:
+                for row in grammar['values']:
+                    _schema(row['value'], rule['schema'], 'prompt syntax native value')
 
 
 def selected_profile(record: Mapping, offering: Mapping | None) -> dict:
@@ -283,9 +299,11 @@ def _execution_card(record: Mapping, offering: Mapping | None = None) -> dict:
 
 
 def model_card(record: Mapping, offering: Mapping | None = None) -> dict:
-    """Show interface controls beside current author preferences for model selection."""
+    """Show prompt input, interface controls, and author preferences together."""
+    from model_prompt_input import prompt_input_card
     from model_suitability import guidance_card
-    return {**_execution_card(record, offering), 'use_case_suitability': guidance_card(record, offering)}
+    return {**_execution_card(record, offering), **prompt_input_card(record),
+            'use_case_suitability': guidance_card(record, offering)}
 
 
 def _get(tree: dict, path: str) -> tuple[bool, Any]:
@@ -438,7 +456,7 @@ def compile_contract(record: Mapping, offering: Mapping | None, intent: dict,
     mode = intent['execution_mode']
     effective, decisions = resolve_parameters(record, profile, mode, parameters)
     from prompt_weighting import selected
-    selected(effective)
+    selected(effective, profile['modes'][mode]['prompt_syntax'])
     media_check(profile, mode, reference_count=reference_count, offering=offering)
     card = _execution_card(record, offering)
     return {'artifact_type': 'render-contract', 'intent': copy.deepcopy(intent), 'model_card': card,

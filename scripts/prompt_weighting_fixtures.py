@@ -7,10 +7,12 @@ import execution_contract as c
 import pack_manager as packs
 import production_case_fixtures as base
 from catalog_retrieval import runtime
+from model_prompt_input_fixtures import prompt_input
 
 MODEL = base.MODEL_ID
 PROMPT = '("solo, (blue eyes)1.2, long hair+", "forest, soft lighting").and(1, 0.8)'
 NEGATIVE = '("lettering+, watermark", "signature").blend(1, 0.5)'
+NATIVE_VALUES = {'compel': 'clauses', 'sdEmbeds': 'emphasis'}
 
 
 def refresh(case: dict) -> None:
@@ -19,15 +21,29 @@ def refresh(case: dict) -> None:
     from prepare_generation_references import resolve_model_record
     from request_validation_fixtures import fixture_validation
     from reading_fixtures import fixture_reading
+    from prompt_vocabulary_selection import search_selection
+    import prompt_weighting
     root = case['root']
     packs.write_lock(case['pack'])
     runtime.configure_pack_runtime(case['settings'])
     retrieval = c.load(root / 'retrieval.json')
     retrieval['pack_state'] = runtime.load_pack_catalog().fingerprint
     text = (root / 'prompt.txt').read_text(encoding='utf-8')
+    model = resolve_model_record(MODEL)[1]
+    task = c.load(root / 'task.json')
+    negative_file = task['generation'].get('negative')
+    negative = (root / negative_file).read_text(encoding='utf-8') if negative_file else ''
+    parameters = c.load(root / 'parameters.json')
+    from render_contract_lib import resolve_parameters
+    mode = c.load(root / 'spec.json')['render_intent']['execution_mode']
+    profile = model['offerings'][0]['execution_profile']
+    parameters, _ = resolve_parameters(model, profile, mode, parameters)
+    if model['prompt_input']['mode'] == 'tag-based':
+        retrieval['vocabulary'] = search_selection(prompt=text, negative=negative, model_record=model,
+            syntax=prompt_weighting.selected(parameters, profile['modes'][mode]['prompt_syntax']), previous=retrieval.get('vocabulary'))
     base.write(root / 'retrieval.json', settle_retrieval_record(retrieval, prompt=text, plot=c.load(root / 'plot.json')))
     base.write(root / 'validation.json', fixture_validation(root, MODEL, reference_mode='authored-rendition', service='synthetic'))
-    dialect = resolve_model_record(MODEL)[1].get('prompt_dialect')
+    dialect = model.get('prompt_dialect')
     base.write(root / 'reading.json', fixture_reading(route='generation', studio=root,
                ledger=root / 'work/reads.jsonl', dialect=dialect))
 
@@ -43,14 +59,20 @@ def create(root: Path, runtime_root: Path, *, prompt: str = PROMPT, negative: st
     models = c.load(pack / 'records/models.json')
     record = models['records'][0]
     if default is not None:
-        record['recommended_parameters'] = {'weighting': default}
+        record['recommended_parameters'] = {'weighting': NATIVE_VALUES[default]}
     if family:
         record['prompt_dialect'] = 'synthetic-tags'
+        record['prompt_input'] = prompt_input('tag-based', vocabularies=('synthetic',))
     if recommended_negative is not None:
         record.update(recommended_negative_prompt=recommended_negative, recommendation_merge_mode='tag-list')
     for profile in (record['execution_profile'], record['offerings'][0]['execution_profile']):
         for mode in profile['modes'].values():
-            mode['controls']['promptWeighting'] = control('required' if default else 'optional', schema={'type': 'string', 'enum': list(supported)}, recommendation='weighting' if default else None)
+            mode['controls']['controls.parser'] = control('required' if default else 'optional',
+                schema={'type': 'string', 'enum': [NATIVE_VALUES[item] for item in supported]},
+                recommendation='weighting' if default else None)
+            mode['prompt_syntax'] = {'default': 'literal', 'control': {
+                'field': ['controls', 'parser'],
+                'values': [{'value': NATIVE_VALUES[item], 'syntax': item} for item in supported]}}
     base.write(pack / 'records/models.json', models)
     manifest = c.load(pack / 'pack.json')
     manifest['content']['resource_bindings'].update({'prompt-vocabulary': 'resources/dictionary.json', 'prompt-dialects': 'resources/dialects.json'})
@@ -65,6 +87,7 @@ def create(root: Path, runtime_root: Path, *, prompt: str = PROMPT, negative: st
         'format': 'character-prompt-builder-prompt-dialects', 'name': 'Synthetic learned families',
         'description': 'Learned terms and the weighting parser are different declarations.',
         'dialects': [{'id': 'synthetic-tags', 'name': 'Fixture family', 'description': 'No real model claim.',
+                      'vocabularies': ['synthetic'],
                       'tag_separator': 'comma', 'block_order': ['subject', 'environment']}]})
     task = c.load(root / 'task.json')
     if negative:
@@ -74,7 +97,7 @@ def create(root: Path, runtime_root: Path, *, prompt: str = PROMPT, negative: st
     base.write(root / 'task.json', task)
     parameters = c.load(root / 'parameters.json')
     if syntax is not None:
-        parameters['promptWeighting'] = syntax
+        parameters['controls'] = {'parser': NATIVE_VALUES[syntax]}
     base.write(root / 'parameters.json', parameters)
     refresh(case)
     return case

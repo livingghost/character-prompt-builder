@@ -22,8 +22,10 @@ apply to it, and the record's own recommended text, parameters, and sizes. A
 section belonging to another family is left out rather than filtered by the
 reader.
 
-A record that names no dialect is not a tag target. That is reported as such, and
-the universal rules are still returned.
+The model's explicit prompt_input contract identifies tag-based, descriptive,
+unresolved, or absent prompt input and retains the evidence for that decision.
+A tag-based record names its owning dialect and requires vocabulary search.
+Family-only inspection explains that family's grammar without resolving a model.
 
 Output is JSON on stdout.
 """
@@ -42,6 +44,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from pack_cache import load_runtime_catalog  # noqa: E402
 from pack_manager import PackError, PackSettings  # noqa: E402
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime  # noqa: E402
+from model_prompt_input import prompt_input_card  # noqa: E402
 
 DIALECTS = "prompt-dialects"
 GUIDE = "prompt-writing-guide"
@@ -152,11 +155,13 @@ def render_report(args: argparse.Namespace, settings: PackSettings) -> int:
     """Print guidance from one resolved runtime, including external model packs."""
     record: dict[str, Any] | None = None
     model_id = None
+    input_card: dict[str, Any] | None = None
     if args.model:
         from prepare_generation_references import resolve_model_record
 
         model_id, record = resolve_model_record(args.model)
-        dialect_id = record.get("prompt_dialect")
+        input_card = prompt_input_card(record)
+        dialect_id = input_card["prompt_dialect"]
     else:
         dialect_id = args.dialect
     path = resolve_resource(DIALECTS, args.dialects, settings=settings,
@@ -172,7 +177,11 @@ def render_report(args: argparse.Namespace, settings: PackSettings) -> int:
         "weighting": prompt_weighting.guide(args.weighting or "literal"),
         "model": model_id,
         "dialect": dialect,
-        "reads_tags": dialect_id is not None,
+        **(input_card if input_card is not None else {
+            "prompt_input": None,
+            "prompt_dialect": dialect_id,
+            "requires_vocabulary_search": None,
+        }),
         "guide": applicable_sections(guide_path, dialect_id),
     }
     if record is not None:
@@ -188,20 +197,23 @@ def render_report(args: argparse.Namespace, settings: PackSettings) -> int:
             if not isinstance(profile, dict) or not profile.get('modes'):
                 if args.mode or (args.weighting and args.weighting != 'literal'):
                     raise PackError('the selected model has no executable weighting capability profile')
-                capabilities.append({'service': row.get('service'), 'mode': None, 'control': None})
+                capabilities.append({'service': row.get('service'), 'mode': None, 'prompt_syntax': None})
                 continue
             if args.mode and args.mode not in profile['modes']:
                 raise PackError('the selected offering does not expose execution mode ' + args.mode)
             for mode, value in profile['modes'].items():
                 if args.mode and args.mode != mode: continue
-                control = value['controls'].get('promptWeighting')
-                capabilities.append({'service': row.get('service'), 'mode': mode, 'control': control})
-                if args.weighting and args.weighting != 'literal':
-                    if control is None or control['status'] not in {'optional','required'}:
-                        raise PackError('the selected offering/mode does not expose promptWeighting: ' + mode)
-                    from state_protocol import validate_against_schema
-                    if validate_against_schema(args.weighting, control['schema']):
-                        raise PackError('the selected offering/mode does not allow ' + args.weighting + ': ' + mode)
+                declaration = value['prompt_syntax']
+                control = declaration['control']
+                capabilities.append({'service': row.get('service'), 'mode': mode, 'prompt_syntax': declaration})
+                supported = {item['syntax'] for item in control['values']} if control else set()
+                # A required native value always selects a mapped grammar. Its
+                # omission grammar is not an available parameter choice.
+                rule = value['controls'].get('.'.join(control['field'])) if control else None
+                if rule is None or rule['status'] != 'required':
+                    supported.add(declaration['default'])
+                if args.weighting and args.weighting not in supported:
+                    raise PackError('the selected offering/mode does not allow ' + args.weighting + ': ' + mode)
         report['weighting_capabilities'] = capabilities
         report["record"] = {
             "prompt_style": record.get("prompt_style"),
@@ -217,11 +229,11 @@ def render_report(args: argparse.Namespace, settings: PackSettings) -> int:
                            "parameter_keys": row.get("parameter_keys"), "observed_at": row.get("observed_at")}
                           for row in record.get("offerings") or []],
         }
-        if dialect_id is None:
-            report["note"] = (
-                f"model record {model_id!r} names no dialect, so it is not read as a tag target; "
-                "compose from the record's own prompt_style and ordering"
-            )
+    else:
+        report["note"] = (
+            "This report inspects family or weighting guidance only. Select a model "
+            "to resolve its prompt-input workflow and vocabulary-search requirement."
+        )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 

@@ -1,8 +1,8 @@
 """Read explicitly selected prompt syntax without rewriting the transmitted text.
 
-A model's learned tag family and a service's weighting grammar are independent.
-The native promptWeighting control selects compel or sdEmbeds. Without that
-control, CPB treats punctuation literally rather than guessing a backend parser.
+A model's learned tag family and an interface's weighting grammar are independent.
+The selected interface declares its fixed grammar or maps one request control's
+values to grammars. Field names and native values carry no implicit meaning.
 This module inspects text and clause boundaries; the service builds embeddings.
 """
 from __future__ import annotations
@@ -29,16 +29,54 @@ class SyntaxError(ValueError):
                 'terms': [], 'channel': channel, 'range': {'start': self.start, 'end': self.end}}
 
 
-def selected(parameters: Mapping[str, Any]) -> str:
-    """Read the resolved native control; offering/mode schemas authorize its use."""
+def validate_declaration(value: Any) -> None:
+    """Validate one interface's fixed grammar or explicit native-value mapping."""
+    import execution_contract as c
+    import request_contract as rc
+    c.exact(value, {'default', 'control'}, 'prompt syntax declaration')
+    if value['default'] not in SYNTAXES:
+        raise ValueError('prompt syntax default must name a supported grammar')
+    control = value['control']
+    if control is None:
+        return
+    c.exact(control, {'field', 'values'}, 'prompt syntax control')
+    rc._path(control['field'])
+    if not isinstance(control['values'], list) or not control['values']:
+        raise ValueError('prompt syntax control needs native-value mappings')
+    seen = set()
+    for row in control['values']:
+        c.exact(row, {'value', 'syntax'}, 'prompt syntax native value')
+        if row['syntax'] not in SYNTAXES or isinstance(row['value'], (dict, list)):
+            raise ValueError('prompt syntax mappings need a JSON scalar and a supported grammar')
+        identity = c.encoded(row['value'])
+        if identity in seen:
+            raise ValueError('prompt syntax native value repeats')
+        seen.add(identity)
+
+
+def selected(parameters: Mapping[str, Any], declaration: dict) -> str:
+    """Resolve grammar from the interface declaration and actual control value."""
+    import execution_contract as c
+    import request_contract as rc
     if not isinstance(parameters, Mapping):
         raise ValueError('weighting selection requires resolved parameter values')
-    if 'promptWeighting' not in parameters:
-        return 'literal'
-    value = parameters['promptWeighting']
-    if value not in ('compel', 'sdEmbeds'):
-        raise ValueError('promptWeighting must name a supported grammar: compel or sdEmbeds')
-    return value
+    validate_declaration(declaration)
+    control = declaration['control']
+    if control is None or not rc.present(parameters, control['field']):
+        return declaration['default']
+    value = c.encoded(rc.get(parameters, control['field']))
+    for row in control['values']:
+        if c.encoded(row['value']) == value:
+            return row['syntax']
+    raise ValueError('selected prompt syntax control value has no declared grammar')
+
+
+def from_contract(contract: Mapping[str, Any]) -> dict:
+    """Read the grammar declaration from the package's pinned execution mode."""
+    profile = contract['model_card']['execution_profile']
+    declaration = profile['modes'][contract['intent']['execution_mode']]['prompt_syntax']
+    validate_declaration(declaration)
+    return declaration
 
 
 def _number(text: str, offset: int) -> float:
@@ -340,21 +378,24 @@ def require_pair(prompt: str, negative: str, syntax: str) -> dict:
     return result
 
 
-def wire_selection(rendered: dict) -> str:
-    """Use the actual native field and its declared parameter layout, not prompt guessing."""
+def wire_selection(rendered: dict, declaration: dict) -> str:
+    """Resolve the declared grammar from its exact field in the wire layout."""
     import request_contract as rc
     request, layout = rendered['request'], rendered['layout']
-    declared = [row for row in layout['fields'] if row['field'] == ['promptWeighting']]
-    if 'promptWeighting' not in request: return 'literal'
-    if len(declared) != 1 or declared[0]['kind'] != 'parameter':
-        raise ValueError('promptWeighting must be an explicitly declared parameter in the sealed wire layout')
-    return selected({'promptWeighting': rc.get(request, ['promptWeighting'])})
+    validate_declaration(declaration)
+    control = declaration['control']
+    if control is not None and rc.present(request, control['field']):
+        declared = [row for row in layout['fields'] if row['kind'] == 'parameter'
+                    and row['field'] == control['field'][:len(row['field'])]]
+        if len(declared) != 1:
+            raise ValueError('prompt syntax control must belong to one declared wire parameter')
+    return selected(request, declaration)
 
 
 def guide(syntax: str) -> dict:
     if syntax not in SYNTAXES: raise ValueError('unknown prompt syntax')
-    return {'syntax': syntax, 'control': None if syntax == 'literal' else {'promptWeighting': syntax},
-        'meaning': {'literal': 'No native weighting control is selected; CPB does not infer punctuation semantics.',
+    return {'syntax': syntax,
+        'meaning': {'literal': 'The selected interface treats punctuation literally.',
                     'sdEmbeds': 'Parenthesized or bracketed emphasis, with explicit (term:weight).',
                     'compel': 'Suffix weights and independent .blend() or .and() conditioning clauses.'}[syntax],
         'examples': {'literal': ['blue eyes, long hair'],

@@ -377,36 +377,22 @@ def carried_implementation_hashes(document: str) -> dict[str, str]:
 
 
 def run_preset_quality_audit(root: Path, errors: list[str]) -> None:
-    """The authoring conformance of what this project ships, on its own content.
-
-    Listing this among the required files checked that the file exists, which is
-    not what it is for. It reads the pack state, so it runs against a state made
-    here rather than the one the person running it happens to have enabled: the
-    question is whether the shipped content conforms, and a pack somebody
-    installed is not shipped content.
-    """
+    """Audit authoring conformance within validate()'s exact release-pack runtime."""
 
     script = root / "scripts/audit_preset_quality.py"
     if not script.is_file():
         return
-    with tempfile.TemporaryDirectory(prefix="preset-audit-") as temporary:
-        area = Path(temporary)
-        # This gate audits core release content, not the user's newly all-on packs.
-        shutil.copyfile(root / "config/default-pack-state.json", area / "pack-state.json")
-        done = subprocess.run(
-            [sys.executable, str(script), str(root),
-             "--state-file", str(area / "pack-state.json"),
-             "--cache-dir", str(area / "cache"),
-             "--managed-root", str(area / "managed")],
-            cwd=root, text=True, encoding="utf-8", check=False,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-        )
-    if done.returncode == 0:
+    # validate() already owns an exact release-pack runtime. A child CLI would
+    # recreate ordinary discovery and read other packs beside the release ones.
+    from audit_preset_quality import audit
+    try:
+        report = audit(root, write_report=False)
+    except (Exception, SystemExit) as exc:  # noqa: BLE001 - a failed audit is a validation finding
+        errors.append(f"audit_preset_quality.py refused the shipped catalog: {exc}"[:700])
         return
-    detail = done.stdout.strip().splitlines()[-6:]
-    errors.append("audit_preset_quality.py refused the shipped catalog: "
-                  + " ".join(line.strip() for line in detail)[:600])
+    if not report["ok"]:
+        detail = "; ".join(str(item) for item in report["errors"])
+        errors.append("audit_preset_quality.py refused the shipped catalog: " + detail[:600])
 
 
 def is_test_module(name: str) -> bool:
@@ -425,10 +411,20 @@ def check_model_record_keys(root, errors) -> None:
     import model_contract as _model_contract
 
     schema = json.loads((root / "schemas/pack-record-file.schema.json").read_text(encoding="utf-8"))
-    definitions = schema["$defs"]
-    declared = set(definitions["common"]["properties"])
-    for part in definitions["model"]["allOf"]:
-        declared.update(part.get("properties") or {})
+    from state_protocol import _resolve_ref
+
+    documents = {}
+
+    def property_names(part, document):
+        names = set(part.get("properties") or {})
+        if "$ref" in part:
+            referenced, owner = _resolve_ref(part["$ref"], document, documents)
+            names.update(property_names(referenced, owner))
+        for branch in part.get("allOf", []):
+            names.update(property_names(branch, document))
+        return names
+
+    declared = property_names(schema["$defs"]["model"], schema)
     if declared != set(_model_contract.MODEL_RECORD_KEYS):
         only_schema = sorted(declared - set(_model_contract.MODEL_RECORD_KEYS))
         only_contract = sorted(set(_model_contract.MODEL_RECORD_KEYS) - declared)
@@ -675,16 +671,15 @@ SKILL_REQUIRED_ROUTER_PHRASES = (
     "## Visual Reference Activation Gate",
     "## Output contract",
     "## Maintenance and release",
-    "anchors and creative space",
-    "creative space",
     "Keep judgment and automation separate.",
     "Use scripts with documented activation, inputs, outputs, failures and tests.",
-    "Inspect complete records and asset details together with `inspect-many` (or `inspect` plus `asset-lookup`).",
+    "inspect complete selected records",
+    "Read records/assets with `inspect-many` or `inspect` plus `asset-lookup`.",
     "A category name proposes; only the author's declaration decides.",
     "Species, domain, and material supply no default.",
-    "growth, grooming, hair, fur, feathers, quills, bristles, spun fiber, molded strands, nails, claws, talons, hooves, digit plates",
+    "garment construction, growth, grooming and localized identity",
     "Scene-specific character state is an open class",
-    "Do not start several catalog CLI processes in parallel.",
+    "Run catalog CLI calls sequentially.",
     "A file path or hash is not delivery.",
     "Treat every selected SVG as bounded evidence, not as the whole requested image.",
 )
@@ -696,7 +691,7 @@ SKILL_FORBIDDEN_DEEP_RUNTIME_TOKENS = (
 AUTHORITATIVE_DOCUMENT_MARKERS = {
     "references/runtime/production-workflow.md": (
         "# Common runtime sequence",
-        "Inspect every selected canonical record in full.",
+        "Inspect complete selected knowledge records.",
         "resolve the optional `prompt-writing-guide`",
         "read the complete selected guide before final rendition",
     ),
@@ -729,12 +724,11 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "## Catalog retrieval and inspection",
         "## Prompt assembly and review",
         "## Negative output",
-        "Search is discovery, not authority.",
         "When the user specifies anime, produce anime. When the user specifies photorealism, produce photorealism.",
         "nose thickness and placement, ear construction",
         "load both [Morphology and Species Contracts]",
-        "For a character design, use `search --kind archetype`",
-        "Run full `asset-lookup` for each record",
+        "`search --kind archetype`",
+        "whose visual evidence is under consideration",
         "A new studio takes `profile-clear-2d-illustration`",
         "Read `query_token_count`, `axis_coverage`, and any `retrieval_note`",
     ),
@@ -754,7 +748,7 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "# Prompt Writing Guide Runtime",
         "## Activation",
         "## Resolve the active guide",
-        "## Application sequence",
+        "## Interface rendition",
         "## Weighting and prompt pressure",
         "## Controlled comparison",
         "## Failure policy",
@@ -771,7 +765,7 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "## Commands",
         "## Validation and failure policy",
         "A path or hash in prose is not file delivery.",
-        "Full `asset-lookup` and review are mandatory for every selected record",
+        "Inspect full assets before adopting a visual contribution.",
     ),
     "references/runtime/image-generation.md": (
         "# Image Generation Runtime",
@@ -843,7 +837,7 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
     ),
     "references/adapters/novelai.md": (
         "# NovelAI Adapter",
-        "Send the verified negative prompt to undesired content.",
+        "## Negative transport",
     ),
     "references/adapters/unlisted-interface.md": (
         "# Unlisted Image Interface Adapter",

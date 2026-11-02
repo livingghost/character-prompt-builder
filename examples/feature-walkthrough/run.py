@@ -3,8 +3,8 @@
 
 Run: python examples/feature-walkthrough/run.py --out NEW_DIRECTORY
 
-The bundled commons model is used for a no-network preview only. The synthetic
-example author records explicit choices after catalog lookups and inspections.
+An explicitly synthetic model is used for a no-network preview. The example
+author records choices after actual commons catalog lookups and inspections.
 The task has no execution authority and no confirmed cost. It is not sent.
 
 Inputs are authored before production_workflow.py prepare. Preparation produces
@@ -32,7 +32,11 @@ import pack_manager as pm
 import studio
 from prompt_plot import content_sha256
 
-MODEL = 'grok-imagine-image-2.0'
+MODEL = 'walkthrough-synthetic-image'
+SERVICE = 'walkthrough-service'
+MODEL_IDENTIFIER = 'synthetic:preview'
+PACK_ID = '019a0290-2345-789a-8123-0123456789ab'
+SCHEMA_PATH = 'resources/preview-schema.json'
 COMMONS = c.load(ROOT / 'packs/commons/pack.json')['pack_id']
 SYNTHETIC = 'SYNTHETIC WALKTHROUGH FIXTURE - NOT REAL USER CONSENT'
 BRIEF = 'A woman waits at a bus stop in light rain.'
@@ -56,6 +60,56 @@ def write(path: Path, value) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, indent=2) + '\n'
     path.write_text(text, encoding='utf-8', newline='\n')
+    return path
+
+
+def fixture_pack(path: Path) -> Path:
+    """Declare the local preview interface; no live provider capability is claimed."""
+    from model_prompt_input_fixtures import prompt_input
+    from production_case_fixtures import synthetic_profile
+    from transport_synthetic import ENDPOINT
+
+    profile = synthetic_profile()
+    profile['modes'] = {'text-to-image': profile['modes']['text-to-image']}
+    write(path/'pack.json', {
+        'pack_id': PACK_ID, 'name': 'Workflow Preview Fixture',
+        'description': 'Local synthetic request-preview interface.', 'release': '2026.01.01.1',
+        'content': {'record_globs': ['records/**/*.json'], 'resource_globs': ['resources/**/*'],
+                    'resource_bindings': {'service-profiles': 'resources/services.json'}},
+        'capabilities': ['model-adapters'], 'dependencies': [], 'optional_dependencies': [],
+        'replaces': [], 'license': 'GPL-3.0-only'})
+    write(path/'records/models.json', {'kind': 'model', 'records': [{
+        'id': MODEL, 'label': 'Synthetic workflow preview', 'aliases': ['synthetic workflow preview'],
+        'operation_kind': 'generation', 'prompt_input': prompt_input('descriptive'),
+        'supports_negative_prompt': True, 'negative_transport_mode': 'separate-field',
+        'negative_transport_notes': 'The synthetic interface declares its own negative field.',
+        'prompt_style': 'Authored natural-language image direction.',
+        'ordering': ['rendering', 'subject', 'composition', 'environment'],
+        'execution_profile': profile,
+        'search_terms': [{'phrase': 'synthetic workflow preview', 'facet': 'model', 'weight': 1.0, 'source': 'author'}],
+        'offerings': [{'service': SERVICE, 'model_identifier': MODEL_IDENTIFIER,
+            'request_keys': {'model': ['model'], 'prompt': ['prompt'], 'negative prompt': ['negative_prompt']},
+            'execution_profile': profile, 'constraints': {}, 'observed_at': '2000-01-01',
+            'schema_snapshot': SCHEMA_PATH}]}]})
+    write(path/'resources/services.json', {'services': {SERVICE: {
+        'label': 'Local synthetic preview', 'transport': 'synthetic',
+        'endpoint': {'base_url': ENDPOINT, 'method': 'POST'}, 'auth': {'scheme': 'none'},
+        'operations': {'generate': {}}}}})
+    write(path/SCHEMA_PATH, {
+        'artifact_type': 'observed-parameter-schema', 'model_id': MODEL, 'service': SERVICE,
+        'model_identifier': MODEL_IDENTIFIER, 'observed_at': '2000-01-01',
+        'source': 'Synthetic fixture interface declaration; no provider observation.',
+        'schema': {'type': 'object', 'properties': {
+            'model': {'type': 'string', 'const': MODEL_IDENTIFIER},
+            'prompt': {'type': 'string', 'minLength': 1},
+            'negative_prompt': {'type': 'string', 'minLength': 1},
+            'count': {'type': 'integer', 'minimum': 1, 'maximum': 20},
+            'width': {'type': 'integer', 'minimum': 1, 'maximum': 2048},
+            'height': {'type': 'integer', 'minimum': 1, 'maximum': 2048},
+            'settings': {'type': 'object', 'properties': {'quality': {'enum': ['draft', 'medium', 'high']}},
+                         'additionalProperties': False}},
+            'required': ['model', 'prompt', 'width', 'height'], 'additionalProperties': False}})
+    pm.write_lock(path)
     return path
 
 
@@ -116,10 +170,12 @@ def run(out: Path) -> dict:
     out=out.resolve()
     if out.exists():raise ValueError('walkthrough output already exists; choose a new directory')
     out.mkdir(parents=True)
+    pack=fixture_pack(out/'fixture-pack')
     state=out/'pack-state.json'
-    pm.save_state(state,{'pack_roots':[],'enabled_packs':[COMMONS]})
-    runtime=['--state-file',str(state),'--cache-dir',str(out/'cache'),'--managed-root',str(out/'managed')]
-    settings=pm.default_settings(state_file=state,cache_dir=out/'cache',managed_root=out/'managed')
+    pm.save_state(state,{'pack_roots':[],'enabled_packs':[PACK_ID,COMMONS],'pack_order':[PACK_ID,COMMONS]})
+    runtime=['--state-file',str(state),'--cache-dir',str(out/'cache'),
+             '--managed-root',str(out/'managed'),'--pack-root',str(pack)]
+    settings=pm.default_settings(extra_roots=(pack,),state_file=state,cache_dir=out/'cache',managed_root=out/'managed')
     catalog_cli.configure_pack_runtime(settings)
     attempts=[]
     def refuse(*args,**kwargs):
@@ -135,7 +191,7 @@ def run(out: Path) -> dict:
             task_id=c.load(root/'work/current.json')['task_id']
             walk.run('execution_routes','read','generation','--root',str(root),'--model',MODEL,*runtime,
                      result=lambda text:f'{len(text)} characters read; '+text.strip().splitlines()[-1])
-            walk.run('render_contract','model','--model',MODEL,'--service','runware',*runtime)
+            walk.run('render_contract','model','--model',MODEL,'--service',SERVICE,*runtime)
             elements={
                 'subject':'woman portrait','wardrobe':'green raincoat','setting':'bus stop shelter',
                 'weather':'light rain','framing':'waist-up portrait','camera':'eye level',
@@ -176,7 +232,7 @@ def run(out: Path) -> dict:
                 'direction':{'purpose':'Preview the request for one one-off portrait.','intended_effect':'A quiet readable rainy-day portrait.',
                              'basis':[],'decisions':[],'action_slice':None,'limitations':[SYNTHETIC]},
                 'generation':{'parameters':'parameters.json','production_spec':'production-spec.json','plot':'plot.json','retrieval_record':'retrieval.json',
-                              'creative_intent':'creative-intent.json','service':'runware','count':1,'seed':None,'continuity':{'C01':'one-off'}},
+                              'creative_intent':'creative-intent.json','service':SERVICE,'count':1,'seed':None,'continuity':{'C01':'one-off'}},
                 'recording':{'character':'C01','slot':'explore','subject_map':{},'sheet_panel':False,'role':'walkthrough-preview'}}
             write(root/'task.json',task)
             prepared=json.loads(walk.run('production_workflow','prepare','--root',str(root),'--task','task.json',*runtime))

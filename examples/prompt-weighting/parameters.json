@@ -1,6 +1,8 @@
 {
+  "controls": {
+    "parser": "clauses"
+  },
   "height": 1024,
-  "promptWeighting": "compel",
   "steps": 30,
   "width": 1024
 }

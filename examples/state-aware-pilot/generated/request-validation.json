@@ -6,19 +6,19 @@
     "operation": "generate"
   },
   "service_execution_sha256": "08829db9df2aa81c366d84165680f81a49c84656c05d2430013637fdcff3f9ff",
-  "offering_contract_sha256": "efeba04c87ac61ea6808056a2522354175b30efe76f78382a49ada0da25551c9",
+  "offering_contract_sha256": "1f20981624b5a5e167c193687d55a964c51255c2afb7b7f709ffa6fed4b551ef",
   "transport_sha256": "cf5b6e38c3da1c98c492c991155fec171bdc197140b130b6792f246d060d5fbc",
   "contract": {
-    "path": "synthetic-validation/1a88f02ddbc061d3/contract.json",
+    "path": "synthetic-validation/7ddc0ed27f8047e5/contract.json",
     "sha256": "cdd7df03e86e1987057c723ddd339a0cf6e6399f23d1a4e09c0b82f66e07c2b4"
   },
   "evidence": {
-    "path": "synthetic-validation/1a88f02ddbc061d3/acquisition.json",
-    "sha256": "4b508cd0060a923c79b0b8679e286eeaf65ee4accd8487ce7c7822983758ba49"
+    "path": "synthetic-validation/7ddc0ed27f8047e5/acquisition.json",
+    "sha256": "b31749297b16adf2528329246b52171cd8ff6d1450093d8737f563611d1ebe47"
   },
   "execution_policy": {
-    "path": "synthetic-validation/1a88f02ddbc061d3/policy.json",
-    "sha256": "18515e6657b6760e408abc14f07dbd6aeae96e7c80c938f9abf8fd68113e8498"
+    "path": "synthetic-validation/7ddc0ed27f8047e5/policy.json",
+    "sha256": "36464f4c5ea241e9c2e4ce9ecbe6b17332b31f6c04fb458cc566053a4144fecb"
   },
   "unmeasured": []
 }

@@ -205,11 +205,11 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual((self.send.call_count,len(self.candidates())),(1,2))
 
     def test_unreadable_success_keeps_unknown_outcome_and_recovers_by_lookup(self):
-        import transport_runware
+        from transport_contract import Indeterminate
         body=b'<html>incomplete successful response</html>'
         def answer(*args):
             self.actual_send(*args)
-            return transport_runware._answer(200,body)
+            raise Indeterminate('Synthetic unreadable successful response',status=200,body=body)
         self.send.side_effect=answer
         first=self.call();journal=self.journal()
         self.assertEqual(first['runs'][0]['submission'],'outcome_unknown')
@@ -336,7 +336,6 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual(self.send.call_count,1)
 
     def test_missing_or_repeated_output_ids_use_media_identity_when_lookup_reorders(self):
-        import transport_runware
         for identifier in (None,'repeated-output-id'):
             with self.subTest(identifier=identifier):
                 self.root=cases.copy_studio(self.origin,self.base/('no-id' if identifier is None else 'shared-id'))
@@ -344,15 +343,12 @@ class DispatchRecoveryTests(unittest.TestCase):
                 def provider(*args):
                     nonlocal complete
                     answer=self.actual_send(*args)
-                    entries=[{'taskUUID':args[0]['request_id'],'imageBase64Data':entry['data'],'cost':'0',
-                              **({'imageUUID':identifier} if identifier is not None else {})} for entry in answer['data']]
-                    complete={'data':list(reversed(entries))}
-                    return {'data':[entries[0],{'taskUUID':args[0]['request_id'],'status':'processing'}]}
+                    entries=[{**{key:value for key,value in entry.items() if key!='id'},
+                              **({'id':identifier} if identifier is not None else {})} for entry in answer['data']]
+                    complete={**answer,'data':list(reversed(entries))}
+                    return {**answer,'data':[entries[0],{'id':'unfinished-output','pending':True}]}
                 self.send.side_effect=provider
-                with patch.object(transport_synthetic,'results',side_effect=transport_runware.results), \
-                        patch.object(transport_synthetic,'observation_outcome',side_effect=transport_runware.observation_outcome), \
-                        patch.object(transport_synthetic,'usage',side_effect=transport_runware.usage), \
-                        patch.object(transport_synthetic,'lookup',side_effect=lambda *args:complete) as lookup:
+                with patch.object(transport_synthetic,'lookup',side_effect=lambda *args:complete) as lookup:
                     self.call();first=self.candidates()[0]['data']['files'][0]['sha256']
                     self.assertTrue(execution.resume(self.root,self.run)['execution_completed'])
                     execution.resume(self.root,self.run)
@@ -361,7 +357,6 @@ class DispatchRecoveryTests(unittest.TestCase):
                 self.assertEqual([row['data']['provider_output_id'] for row in self.candidates()],[identifier,identifier])
 
     def test_incremental_charge_stays_provisional_and_cumulative_charge_is_counted_once(self):
-        import transport_runware
         for cumulative in (False,True):
             with self.subTest(cumulative=cumulative):
                 self.root=cases.copy_studio(self.origin,self.base/('cumulative-cost' if cumulative else 'incremental-cost'))
@@ -369,16 +364,13 @@ class DispatchRecoveryTests(unittest.TestCase):
                 def provider(*args):
                     nonlocal complete
                     answer=self.actual_send(*args)
-                    entries=[{'taskUUID':args[0]['request_id'],'imageUUID':entry['id'],
-                              'imageBase64Data':entry['data'],'cost':cost}
-                             for entry,cost in zip(answer['data'],('0.11','0.13'))]
-                    complete={'data':entries if cumulative else entries[1:]}
-                    return {'data':[entries[0],{'taskUUID':args[0]['request_id'],'status':'processing'}]}
+                    entries=answer['data']
+                    complete={**answer,'data':entries if cumulative else entries[1:],
+                              'usage':{'currency':'USD','amount':'0.24' if cumulative else '0.13','final':True}}
+                    return {**answer,'data':[entries[0],{'id':'unfinished-output','pending':True}],
+                            'usage':{'currency':'USD','amount':'0.11','final':False}}
                 self.send.side_effect=provider
-                with patch.object(transport_synthetic,'results',side_effect=transport_runware.results), \
-                        patch.object(transport_synthetic,'observation_outcome',side_effect=transport_runware.observation_outcome), \
-                        patch.object(transport_synthetic,'usage',side_effect=transport_runware.usage), \
-                        patch.object(transport_synthetic,'lookup',side_effect=lambda *args:complete):
+                with patch.object(transport_synthetic,'lookup',side_effect=lambda *args:complete):
                     self.call()
                     self.assertTrue(execution.resume(self.root,self.run)['execution_completed'])
                     recorded=accounting.summary(self.root)

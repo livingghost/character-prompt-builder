@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "character-prompt-builder-prompt-dialects.schema.json",
   "title": "Character Prompt Builder Prompt Dialects",
-  "description": "How one family of models reads a prompt: its tag grammar, the blocks it expects and in what order, and the vocabulary that acts on it. A model record names the dialect it belongs to, and a guide rule names the dialects it applies to, so knowledge from one family never reaches another.",
+  "description": "Evidence-scoped guidance for a selected tag workflow: spelling, useful block order, model controls and vocabulary sources to consult. A model record selects its dialect and lookup scope; a dialect is not an execution binding or a claim about every derivative's training data.",
   "type": "object",
   "required": [
     "format",
@@ -38,6 +38,7 @@
         "id",
         "name",
         "description",
+        "vocabularies",
         "tag_separator",
         "block_order"
       ],
@@ -56,14 +57,24 @@
           "type": "string",
           "minLength": 1
         },
-        "corpora": {
+        "vocabularies": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "description": "The tag corpora this family was trained on, so a term can be checked against the right one.",
+          "description": "Vocabulary IDs used for dictionary lookup in this dialect. These are lookup and usage scopes, not assertions that every model was trained on those corpora or that unlisted wording is forbidden.",
           "items": {
             "$ref": "#/$defs/short-string"
           }
+        },
+        "basis": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/basis"
+          }
+        },
+        "notes": {
+          "$ref": "#/$defs/term-array"
         },
         "tag_separator": {
           "$ref": "#/$defs/short-string",
@@ -81,7 +92,7 @@
           "type": "array",
           "minItems": 2,
           "maxItems": 2,
-          "description": "The working range for an explicit numeric weight on this family, low then high. Omit where the family's own material states none.",
+          "description": "An authored trial range for explicit numeric weights, low then high. The selected interface must support the syntax, and exact model evidence determines whether this range is appropriate.",
           "items": {
             "type": "number",
             "exclusiveMinimum": 0
@@ -91,14 +102,14 @@
           "type": "array",
           "minItems": 2,
           "uniqueItems": true,
-          "description": "The blocks a rendition is built from, in the order this family expects them.",
+          "description": "A useful rendition order under the stated evidence. Exact model and interface guidance may supersede the family baseline; this order is not a semantic completeness test.",
           "items": {
             "$ref": "#/$defs/short-string"
           }
         },
         "quality_terms": {
           "$ref": "#/$defs/term-array",
-          "description": "The family's own quality block."
+          "description": "Quality-control candidates under the stated model or version scope. This list is not a mandatory positive prefix."
         },
         "rating_terms": {
           "$ref": "#/$defs/term-array",
@@ -108,14 +119,38 @@
           "$ref": "#/$defs/term-array",
           "description": "The family's terms for a slice of the corpus by date, retained as authored model guidance."
         },
+        "meta_terms": {
+          "$ref": "#/$defs/term-array",
+          "description": "Other documented model controls, such as image metadata tags, under the evidence and version scope in this dialect."
+        },
+        "dataset_terms": {
+          "$ref": "#/$defs/term-array",
+          "description": "Documented dataset or source-selection controls. These are model tokens, not vocabulary resource IDs."
+        },
         "inert_terms": {
           "$ref": "#/$defs/term-array",
-          "description": "Terms the family's evidence describes as inert. The author evaluates this guidance for the selected target."
+          "description": "Terms without an established role as controls in the stated family evidence. This is caution metadata, not a claim that the text has no possible effect or a prohibition on descriptive use."
         },
         "negative_form": {
           "$ref": "#/$defs/non-empty-string",
           "description": "How this family writes a source the negative-policy resource activates."
         }
+      }
+    },
+    "basis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source", "scope", "observed_at", "statement"],
+      "properties": {
+        "kind": {
+          "enum": ["provider-documentation", "model-author-documentation", "author-direction", "synthetic-fixture"]
+        },
+        "source": {"$ref": "#/$defs/non-empty-string"},
+        "scope": {
+          "enum": ["model", "family", "adapter", "operation", "author-selection"]
+        },
+        "observed_at": {"type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"},
+        "statement": {"$ref": "#/$defs/non-empty-string"}
       }
     },
     "term-array": {

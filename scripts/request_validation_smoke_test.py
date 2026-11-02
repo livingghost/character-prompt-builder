@@ -8,6 +8,7 @@ import request_validation as rv
 import request_scope as scope
 from input_evidence import InputEvidence
 import request_contract_smoke_test as fixture
+from model_prompt_input_fixtures import prompt_input
 
 
 class ValidationTests(unittest.TestCase):
@@ -118,7 +119,8 @@ class ObservedSchemaTests(unittest.TestCase):
         self.snapshot={'artifact_type':'observed-parameter-schema','model_id':'synthetic-model','service':'synthetic',
             'model_identifier':'synthetic:model','observed_at':'2026-01-01','source':'Synthetic observation','schema':self.schema}
         self.offering={'service':'synthetic','model_identifier':'synthetic:model','observed_at':'2026-01-01','schema_snapshot':'schema.json'}
-        self.model={'id':'synthetic-model','operation_kind':'generation'}
+        self.model={'id':'synthetic-model','operation_kind':'generation',
+                    'prompt_input':prompt_input('descriptive')}
         self.snapshot_original=dict(self.snapshot)
         self.write()
         (self.root/'transport.py').write_text('# synthetic transport\n',encoding='utf-8');self.envelope=[*self.layout['management'],self.layout['operation']]

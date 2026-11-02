@@ -18,13 +18,13 @@
     "artifact_type": "execution-policy",
     "basis": {
       "locator": "whole",
-      "path": "synthetic-validation/1a88f02ddbc061d3/basis.txt",
+      "path": "synthetic-validation/7ddc0ed27f8047e5/basis.txt",
       "sha256": "424db1c13f6c398026a9d9ae39d4e8f294e1274d4e2d1dec1ab501e7d61e06c5"
     },
     "reference_instruction_transport": {
       "contract": {
-        "path": "synthetic-validation/1a88f02ddbc061d3/references.json",
-        "sha256": "d0c68f711c6277e2fa7fd5e0d38cc55964a4f87a0a106f3d46f6565a65421894"
+        "path": "synthetic-validation/7ddc0ed27f8047e5/references.json",
+        "sha256": "a09cce2900c30f702a4994f3e21c12a51fb5498f776f1e74eb58e5142033fbad"
       },
       "mode": "authored-rendition"
     },
@@ -220,7 +220,11 @@
               }
             },
             "media": "references",
-            "parameter_schema": {}
+            "parameter_schema": {},
+            "prompt_syntax": {
+              "control": null,
+              "default": "literal"
+            }
           },
           "text-to-image": {
             "controls": {
@@ -358,7 +362,11 @@
               }
             },
             "media": "none",
-            "parameter_schema": {}
+            "parameter_schema": {},
+            "prompt_syntax": {
+              "control": null,
+              "default": "literal"
+            }
           }
         },
         "prompt_recipe": {
@@ -395,7 +403,7 @@
       },
       "note": "Recommendations are starting points. Interface validity and observed image quality are separate evidence."
     },
-    "profile_sha256": "35f37938fe6a3bec575f982ea893225faeff848253a3688624d1b42ec00ccbbb",
+    "profile_sha256": "12fadbf95031dd5e27ae78af7af7618dedd24c420296ff73c6e4de5758c7e1d7",
     "authored_parameters": {
       "width": 1024,
       "height": 1024,
@@ -3187,7 +3195,7 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
   "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-  "generation_input_sha256": "ee1d30300d63ecba521110927087b3ee9a13ae8a1353f50dc91e8b8ca64c4f22",
+  "generation_input_sha256": "3b11d3f89c5b6e689df1115053ac4e68809eacbb8f51e274b9eafd8f02f7c97e",
   "parameters": {
     "height": 1024,
     "safety": {
@@ -3237,7 +3245,7 @@
     "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
     "effective_prompt_sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121",
     "selected_references": [],
-    "generation_input_sha256": "ee1d30300d63ecba521110927087b3ee9a13ae8a1353f50dc91e8b8ca64c4f22",
+    "generation_input_sha256": "3b11d3f89c5b6e689df1115053ac4e68809eacbb8f51e274b9eafd8f02f7c97e",
     "prompt_trace": [
       {
         "source_kind": "authored",

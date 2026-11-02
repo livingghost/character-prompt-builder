@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prompt-syntax.schema.json",
+  "title": "Interface prompt grammar and native control mapping",
+  "type": "object",
+  "required": ["default", "control"],
+  "properties": {
+    "default": {"enum": ["literal", "sdEmbeds", "compel"]},
+    "control": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["field", "values"],
+          "properties": {
+            "field": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "oneOf": [
+                  {"type": "string", "minLength": 1},
+                  {"type": "integer", "minimum": 0}
+                ]
+              }
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["value", "syntax"],
+                "properties": {
+                  "value": {"type": ["string", "number", "boolean", "null"]},
+                  "syntax": {"enum": ["literal", "sdEmbeds", "compel"]}
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

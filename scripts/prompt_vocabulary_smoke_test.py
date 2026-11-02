@@ -194,9 +194,22 @@ def main() -> int:
             code == 0 and kept == ["low angle", "close-up"]
             and report["marked"]["adopted_records"] == ["low angle", "close-up"], report)
         add("remaining work names the element rather than its position",
-            report["remaining"] == ["element 'lighting' has no outcome; mark it with --adopted ID (repeat for each"
-                                    " record the wording uses), or with --composed TEXT and --reason TEXT"],
+            len(report["remaining"]) == 1
+            and "element 'lighting' has no outcome" in report["remaining"][0]
+            and "--unused REASON" in report["remaining"][0],
             report["remaining"])
+
+        failed_record = Path(temp) / "failed-lookup.json"
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = search_main(["local construction", "--dictionary", str(Path(temp) / "missing-dictionary.json"),
+                                "--record", str(failed_record), "--element", "construction"])
+        failed_value = json.loads(failed_record.read_text(encoding="utf-8"))
+        failed_report = validate_prompt_retrieval_record(failed_value)
+        add("a failed needed vocabulary lookup remains an unfinished investigation",
+            code == 2 and failed_value["elements"] == [
+                {"element": "construction", "queries": [], "inspected_records": []}]
+            and not failed_report["ok"]
+            and any("has no outcome" in error for error in failed_report["errors"]), failed_report)
 
     ranking = ranking_fixture()
     knit = search_vocabularies([ranking], "cable knit")

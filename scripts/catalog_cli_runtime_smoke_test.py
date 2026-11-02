@@ -2070,6 +2070,70 @@ class RetrievalRecordingTests(unittest.TestCase):
                                                         "arms folded", "--reason", "No inspected pose fits."]), 0)
             report = prompt_retrieval.validate_prompt_retrieval_record(json.loads(record.read_text(encoding="utf-8")))
             self.assertEqual((report["ok"], report["adopted"], report["composed"]), (True, 1, 1))
+            reason = "The supplied pose already serves the selected depiction."
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(prompt_retrieval.main([str(record), "--element", "pose", "--unused", reason]), 0)
+            value = json.loads(record.read_text(encoding="utf-8"))
+            self.assertEqual(value["elements"][1], {
+                "element": "pose", "queries": ["fixture one"], "inspected_records": ["fixture-one"],
+                "outcome": "unused", "reason": reason,
+            })
+            report = prompt_retrieval.validate_prompt_retrieval_record(value)
+            self.assertEqual((report["ok"], report["adopted"], report["composed"], report["unused"]),
+                             (True, 1, 0, 1))
+
+    def test_direct_inspection_supports_selected_and_authored_knowledge(self) -> None:
+        import prompt_retrieval
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            CatalogRuntimeTest._install_fixture_catalog(self, root)
+            self.catalog = catalog_cli.load_pack_catalog()
+            record = root / "direct-inspection.json"
+            code, output = self.run_cli(root, "inspect-many", "fixture-zero", "fixture-one", "--record", str(record),
+                                        "--element", "construction", "--element", "treatment")
+            self.assertEqual(code, 0, output)
+            value = json.loads(record.read_text(encoding="utf-8"))
+            self.assertEqual([entry["queries"] for entry in value["elements"]], [[], []])
+            self.assertEqual(value["pack_state"], "fixture-catalog")
+            prompt_retrieval.mark_outcome(value, "construction", adopted="fixture-zero")
+            prompt_retrieval.mark_outcome(value, "treatment", composed="A quieter treatment around the focal shape.",
+                                          reason="Adapt the inspected treatment to this artifact's hierarchy.")
+            report = prompt_retrieval.validate_prompt_retrieval_record(value)
+            self.assertTrue(report["ok"], report["errors"])
+            self.assertEqual(value["elements"][1]["inspected_records"], ["fixture-one"])
+
+    def test_failed_questions_remain_incomplete_and_can_be_resolved(self) -> None:
+        import prompt_retrieval
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            CatalogRuntimeTest._install_fixture_catalog(self, root)
+            self.catalog = catalog_cli.load_pack_catalog()
+            record = root / "needed-investigation.json"
+            prompt_retrieval.initialize_record(record)
+            batch = json.dumps([{"request_id": "lighting", "command": "search",
+                                 "canonical_query": "fixture light", "limit": 0}])
+            code, output = self.run_cli(root, "batch", "--input", batch, "--record", str(record))
+            self.assertEqual(code, 0, output)
+            self.assertEqual(json.loads(output)["error_count"], 1)
+            value = json.loads(record.read_text(encoding="utf-8"))
+            self.assertEqual(value["elements"], [{"element": "lighting", "queries": [], "inspected_records": []}])
+            report = prompt_retrieval.validate_prompt_retrieval_record(value)
+            self.assertFalse(report["ok"])
+            self.assertTrue(any("has no outcome" in error for error in report["errors"]))
+
+            self.assertEqual(self.run_cli(root, "search", "fixture zero", "--record", str(record),
+                                          "--element", "lighting")[0], 0)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(prompt_retrieval.main([str(record), "--element", "lighting", "--unused",
+                                                        "The supplied lighting already resolves the depiction."]), 0)
+            value = json.loads(record.read_text(encoding="utf-8"))
+            self.assertTrue(prompt_retrieval.validate_prompt_retrieval_record(value)["ok"])
+            self.assertEqual(value["elements"][0]["queries"], ["fixture zero"])
+
+            self.run_cli(root, "batch", "--input", batch, "--record", str(record))
+            reopened = json.loads(record.read_text(encoding="utf-8"))
+            self.assertNotIn("outcome", reopened["elements"][0])
+            self.assertFalse(prompt_retrieval.validate_prompt_retrieval_record(reopened)["ok"])
 
     def test_changed_runtime_and_missing_element_are_refused(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2086,6 +2150,56 @@ class RetrievalRecordingTests(unittest.TestCase):
                                         "--element", "identity")
             self.assertEqual((code, output), (2, ""))
             self.assertEqual(json.loads(record.read_text(encoding="utf-8")), earlier)
+
+    def test_catalog_startup_failure_keeps_requested_questions_pending(self) -> None:
+        import prompt_retrieval
+        from pack_manager import PackError
+
+        empty = {"artifact_type": "prompt-retrieval-record", "elements": []}
+        previous = {
+            "artifact_type": "prompt-retrieval-record", "pack_state": "known-runtime",
+            "elements": [{"element": "construction", "queries": ["earlier construction question"],
+                          "inspected_records": ["fixture-zero"], "outcome": "adopted",
+                          "adopted_records": ["fixture-zero"]}],
+        }
+        plot = {"artifact_type": "prompt-plot",
+                "story": [{"id": "s1", "beat": "A figure waits.", "visibility": "visible"}],
+                "derived": [{"kind": "shows", "statement": "A waiting figure.", "from": ["s1"]}]}
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record = root / "lookups.json"
+            arguments = ["--state-file", str(root / "state.json"), "--cache-dir", str(root / "cache"),
+                         "--managed-root", str(root / "managed"), "search", "new construction question",
+                         "--record", str(record), "--element", "construction"]
+            for name, initial in (("empty", empty), ("previously resolved", previous)):
+                with self.subTest(record=name):
+                    record.write_text(json.dumps(initial), encoding="utf-8")
+                    failure = PackError("catalog startup unavailable")
+                    with mock.patch.object(catalog_cli, "begin_catalog_request", side_effect=failure):
+                        with self.assertRaises(PackError) as raised:
+                            catalog_cli.main(arguments)
+                    self.assertIs(raised.exception, failure)
+                    value = json.loads(record.read_text(encoding="utf-8"))
+                    expected = {"element": "construction", "queries": [], "inspected_records": []}
+                    if initial["elements"]:
+                        expected["queries"] = initial["elements"][0]["queries"]
+                        expected["inspected_records"] = initial["elements"][0]["inspected_records"]
+                    self.assertEqual(value["elements"], [expected])
+                    self.assertEqual({key: value[key] for key in value if key != "elements"},
+                                     {key: initial[key] for key in initial if key != "elements"})
+                    self.assertFalse(prompt_retrieval.validate_prompt_retrieval_record(value)["ok"])
+                    with self.assertRaisesRegex(ValueError, "invalid retrieval record"):
+                        prompt_retrieval.settle_retrieval_record(value, prompt="A waiting figure.", plot=plot)
+
+            settled = prompt_retrieval.settle_retrieval_record(empty, prompt="A waiting figure.", plot=plot)
+            record.write_text(json.dumps(settled), encoding="utf-8")
+            before = record.read_bytes()
+            with mock.patch.object(catalog_cli, "begin_catalog_request", side_effect=PackError("unavailable")) as load:
+                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as refused:
+                    catalog_cli.main(arguments)
+            self.assertEqual(refused.exception.code, 2)
+            load.assert_not_called()
+            self.assertEqual(record.read_bytes(), before)
 
 
 class LeftOutPackWarningTests(unittest.TestCase):
@@ -2111,11 +2225,15 @@ class LeftOutPackWarningTests(unittest.TestCase):
 
     def _run(self, folder: Path, enabled: list[str], *command: str) -> subprocess.CompletedProcess[str]:
         from pack_manager import save_state
+        from run_checks import copy_check_tree
 
+        core = folder / "core"
+        if not core.exists():
+            copy_check_tree(Path(catalog_cli.__file__).resolve().parents[1], core)
         save_state(folder / "state.json", {"pack_roots": [str(folder / "packs")],
                                            "enabled_packs": enabled})
         return subprocess.run(
-            [sys.executable, str(Path(catalog_cli.__file__)), "--state-file", str(folder / "state.json"),
+            [sys.executable, str(core / "scripts/catalog_cli.py"), "--state-file", str(folder / "state.json"),
              "--cache-dir", str(folder / "cache"), "--managed-root", str(folder / "managed"), *command],
             capture_output=True, text=True, encoding="utf-8", timeout=600,
             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", **UNPAINTED},
@@ -2127,10 +2245,10 @@ class LeftOutPackWarningTests(unittest.TestCase):
             kept = self._pack(folder / "packs" / "kept-shelf", broken=False)
             broken = self._pack(folder / "packs" / "broken-shelf", broken=True)
             command_argv = [
-                os.path.abspath(sys.executable), str(Path(catalog_cli.__file__).resolve().with_name("pack_cli.py")),
+                os.path.abspath(sys.executable), str(folder / "core/scripts/pack_cli.py"),
                 "--state-file", str(folder / "state.json"), "--cache-dir", str(folder / "cache"),
                 "--managed-root", str(folder / "managed"),
-                "--pack-root", str(Path(catalog_cli.__file__).resolve().parents[1] / "packs"),
+                "--pack-root", str(folder / "core/packs"),
                 "--pack-root", str(folder / "managed"), "disable", broken,
             ]
             shown_command = subprocess.list2cmdline(command_argv) if os.name == "nt" else shlex.join(command_argv)

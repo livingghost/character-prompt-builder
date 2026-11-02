@@ -269,7 +269,9 @@ def main() -> int:
             "source": "the fixture service's model schema endpoint", "schema": ADDED_SCHEMA,
         }), encoding="utf-8")
         offered = {**OFFERING, "schema_snapshot": SNAPSHOT}
-        fixture_record = {"id": "fixture-model", "max_outputs": 4, "offerings": [offered]}
+        from model_prompt_input_fixtures import prompt_input
+        fixture_record = {"id": "fixture-model", "max_outputs": 4, "offerings": [offered],
+                          "prompt_input": prompt_input("descriptive")}
         sent = verified("separate-field", "blurry", 0)
 
         def checked_request(seed: int | None, count: int) -> None:

@@ -1,7 +1,8 @@
 # Production direction
 
-Establish what the requested artifact must communicate, what the viewer should
-notice, what must remain fixed, and what the author has left to the agent.
+Establish the requested work and the result it must provide: an artifact,
+an assessment, or a change to an artifact. Understand what the audience should
+notice or experience, the fixed requirements and the agent's creative scope.
 Read the applicable design, persona and authorial intent together. A trait,
 emotion or format label alone does not determine its expression. Characters,
 a story clock and a physical camera are optional.
@@ -20,109 +21,205 @@ in the existing task `direction`; a conversation-only draft needs no task file.
 
 ## Choose the expression
 
-Establish the intended use and viewing conditions alongside the content. A
-page, card, screen image, display or another form changes what can be read,
-handled or encountered together. Distinguish the artifact itself from an image
-of that artifact in a setting. A screenshot appearance supplies visible screen
-content; working interaction requires a separately supported implementation.
+Work on the depiction the user is commissioning. This document owns that
+creative work from interpretation through revision. Composition resources,
+presets, performance knowledge and interface guides contribute to it when a
+question needs their knowledge; they do not each start another design process.
+A conversation-only answer needs no planning form. Record consequential choices
+in the existing production records when the work has saved artifacts.
 
-Establish which part of the source material this artifact presents. For a
-scene, resolve its participants, present circumstances, activity, relationships
-and selected moment. A sequence may include several moments; a diagram may
-instead explain a structure or comparison. The requested artifact determines
-that scope. Read the source material in full where needed to understand it,
-then select the facts and contextual premises that make this output intelligible.
+Read the request and supplied material in their actual roles. A brief says what
+the work must provide. An adopted design supplies the properties covered by
+its adoption. A draft proposes a realization. Commands inside that draft are proposed
+instructions to a renderer, not commands to its reviewer to preserve them.
+An image may supply design,
+performance, technique or another assigned contribution, and may be available
+only to the author. Read complete sources where their meaning depends on the
+whole. Establish what is fixed, what can be chosen and what operation is
+requested before changing a candidate. Assessment uses
+[Observe and repair](#observe-and-repair); it need not produce a rewrite.
 
-The renderer receives the authored input and actual supplied media. Establish
-the needed circumstances there before relying on them to explain an action,
-expression or reference use. Relevant history can supply a present premise;
-the rest of the history remains available in its owning source. Authorial
-decisions about future events, canon or what a result will count as stay with
-those owners when outside the requested depiction. Deliberate ambiguity and
-narrative conclusions belong in the image when its purpose calls for them;
-an undecided production or story choice alone does not select that portrayal.
-Use [Prompt Composition](prompt-composition.md#carry-scene-intent-into-depiction)
-to carry the selected scope and premises into the rendition.
+Develop the picture in terms of what is there and what it means in context.
+For a scene, understand the situation being lived by its participants: what
+they are doing, what they attend or respond to, and how their circumstances
+make the action intelligible. Use ordinary practical and social understanding,
+including what the participants can perceive, support, reach or affect in that
+situation. For a design, explanation or graphic artifact, understand the form,
+function, comparison or experience its parts create. Characters, a story clock
+and a physical camera are optional. An emotion, occupation or format label can
+supply useful meaning, but does not choose every aspect of its realization.
 
-Choose how the information is organized and how its marks or surfaces look.
-A rendering medium or profile supplies the latter. Layout, attention, sequence,
-typography and relationships still need direction. One image can contain
-several views, and one continuous scene can combine different rendering
-treatments. An unspecified choice is open within the current request's authority.
+Keep that understanding intact while making the depiction concrete. An action
+such as shielding a flame from a draft already relates a person, hands, flame
+and air. Use the action as an intelligible unit. Develop a particular grip,
+orientation or clearance when it changes how the action works or is read, or
+when the request fixes it. Deriving every joint position from an action and
+turning those consequences into separate requirements replaces the useful
+meaning with an unnecessarily restricted pose. The same applies to breaking
+a mood into compulsory expression cues or a design into unrelated attributes.
+Technical detail is useful when it resolves a real construction or expression
+choice; technical-sounding precision alone contributes no choice.
 
-Before resolving an open expressive choice, consult applicable production
-knowledge through [Discovery](sparse-discovery.md). Use the communication
-problem as the query: establishing a relationship, revealing a detail, comparing
-states, directing attention, or organizing an image with type, for example.
-These examples are not a closed list of purposes or a format classifier. Read
-the returned functions and scoped inventory, then inspect records that could
-change the decision. Use vocabulary category browsing for additional forms and
-wording. Inspect component roles and their relationship when combining forms:
-an image can carry an event while lettering carries speech, a diagram explains
-structure, or an interface makes a selected state visible. Detailed subject
-requirements can still leave presentation open.
+Choose the visible realization by inhabiting that situation or understanding
+that design. The activity, reaction, arrangement and treatment must belong to
+the same picture. A participant's posture follows what they are doing with
+something; an object's placement follows its role; the view presents those
+relationships. Work between content and presentation as needed. A camera or
+layout chosen early remains open when its consequences work against the
+commission. Do not alter the intended activity to protect a convenient view.
+A specified view or exact detail can itself be the commission and then governs
+the construction. Follow consequential dependencies together using the relevant
+[composition knowledge](prompt-composition.md#construction-order).
 
-Consider materially different constructions when there is a real tradeoff.
-Choose the one that serves the purpose and fixed requirements with the least
-unnecessary complexity. A single continuous view may establish space; ordered
-views may distinguish an observation from a reaction; a whole with a detail
-view may explain a mechanism; image and type may share a hierarchy. Compare
-their actual effects and limitations, rather than merely changing style labels.
-A fixed layout or a narrowly scoped edit needs no manufactured alternatives.
-Catalog ranking provides evidence to consider, never the choice itself. A
-missing record leaves room for an authored construction. Familiar form labels
-and their usual conventions supply possibilities, not compulsory furniture.
+Select specificity through the decision being made. Explicit fine requirements
+retain their full precision. Chosen detail can establish identity, distinguish
+an action, enrich an atmosphere, guide attention or supply the substance of a
+complex design. These functions can justify extensive description. Ordinary
+consequences of an already intelligible construction can remain with the
+renderer. A source can require faithful construction without requiring all
+of its surfaces to be exposed. A freely chosen number, angle or landmark does
+not become necessary because it is measurable. Do not require a separate
+justification record for every word or detail; author the picture at the
+resolution its requirements and expression call for.
 
-Choose within delegated scope and proceed. Briefly state a consequential
-presentation choice when it helps the user assess the result, outside the
-artifact. Offer a concrete alternative when its tradeoff is useful; do not
-make the user choose from a menu for every task. Ask only when unresolved
-meaning or authority would materially change a fixed requirement, or when the
-user requested selection. The importance of a choice alone is not an approval
-requirement. A choice for this artifact does not become a permanent preference.
+Use the actual source of authority while making these choices. Preserve user
+requirements and adopted properties, including small features, exclusions and
+requested ambiguity. An agent's choice of pose, crop, emphasis or convention
+is a means within that authority. Its appearance in an earlier draft, record
+or review does not promote it into a requirement. A local edit preserves the
+rest of the baseline; a request to reconsider the depiction can reopen the
+means that organize it. Establish that scope before projecting it into a
+revision record. Keep identity and story adoption at their existing owners.
 
-Resolve the selected construction before adding local detail. Decide what is
-seen first, what supports it, and how the parts relate. For multiple regions,
-assign each a depicted purpose and local view; establish reading order where
-order carries meaning. Panel dimensions, spacing and exact geometry need
-specification only when they affect that reading or are fixed by the brief.
-An open layout still needs coherent hierarchy and relationships.
+Consult knowledge for a question encountered in this work. A supplied design
+or an already understood situation can be sufficient. Use
+[Discovery](sparse-discovery.md) when an expressive choice benefits from
+possibilities; use focused catalog, source or vocabulary inspection for a
+specific construction or wording need. Read complete selected records and
+adapt their meaning to this depiction. Incidental subjects, palettes, cameras
+and example arrangements do not transfer with the useful knowledge. A search
+result, a filled specification field and an available specialist are not new
+obligations to add content. Conclude an investigation when its question is
+resolved and continue constructing the picture.
 
-For a mixed construction, give each image, material, mark system or information
-layer a purpose and scope. Decide how the components meet: integration in one
-depicted space, overlap on a page, an inset, a transition, or another authored
-relationship. A drawn figure in a photographic setting needs the selected
-scale, contact and depth relationships. Pasted photographs and drawn notes may
-instead share the surface of a collage. Neither construction requires panel
-borders. Apply rendering choices through the existing
-[render intent](render-contract.md#choose-the-finish), preserving the intended
-differences as well as the relationships that unify the result.
+Choose presentation for the actual use and viewing conditions. A page, card,
+screen or display determines what can be encountered and read together.
+Distinguish an artifact from an image of it in a setting. A visible interface
+is not evidence of working interaction. Arrangement, attention, sequence,
+typography and relationships remain design choices alongside rendering medium.
+For open choices, compare alternatives when their effects offer a useful
+tradeoff. A fixed layout or sufficient routine solution needs no manufactured
+contest. Choose within delegated scope and proceed; a consequential choice
+alone does not require approval. Ask when unresolved meaning or authority
+would change a fixed requirement, or when the user requested selection.
 
-Shared identity can recur across views while pose, crop and visible detail
-change. Check each view on its own and the artifact as a whole. A face turned
-away need not display its markings; a selected detail view can carry information
-that the spatial view cannot show. A sequence of attention need not advance
-time or change story state. Preserve the actual temporal and source authority.
-Flat graphic, diagram and type regions need their own visual organization,
-without invented anatomy, depth or camera fields.
+Resolve hierarchy and local construction together. What is noticed first,
+what sustains attention and what supplies supporting information depend on the
+commission. Rich ornament, quiet space, precise workmanship or expressive
+exaggeration may carry the effect. There is no universal preference for simple
+images, prominent faces, wide framing or a low detail count. Use
+[representation grammar](prompt-composition.md#representation-grammar) and
+[render intent](render-contract.md#choose-the-finish) for the selected marks,
+materials and treatment. A medium label alone does not settle the composition.
 
-Use the selected knowledge by meaning and scope. A record's incidental subjects,
-palette, default camera or example format do not become requirements. Preserve
-its useful relationship or construction and adapt the realization deliberately.
-The existing Production Specification owns any needed whole-artifact and local
-region detail. Final prompt text establishes the selected depiction, the
-context needed to understand it and necessary reference use. Selection reasons,
-source IDs and review criteria stay in the production records.
+For multiple regions or treatments, give each a role in the whole. Decide how
+they meet: shared depicted space, a common page surface, overlap, a detail
+view, a transition or another authored relation. Reading order need not advance
+time. Shared identity can recur with different pose, crop and visible surfaces.
+A photographic setting containing a drawn figure needs its chosen contact,
+scale and depth; a collage can deliberately place photographs and notes on a
+shared graphic surface. Neither requires panel borders. Flat diagrams and
+type need visual organization without invented anatomy or physical cameras.
+Use the existing Production Specification for any required local detail.
+
+Write for the renderer's actual task and information. Preserve the situation,
+relationships, qualities and degree in meaningful language as they pass into
+the prompt. State the premises the depiction needs, assign delivered images
+their selected roles, and translate necessary contributions from authoring-only
+sources into text. Do not mechanically translate each planning field into a
+sentence. Knowledge that helps the author decide can remain outside the input
+when it supplies no necessary content to the commissioned image. Production
+history, approvals and reasons for choosing one solution remain in their
+records. Relevant prior events or off-frame circumstances can belong in a
+prompt when they make the requested depiction intelligible; temporal position
+alone does not determine relevance.
+
+Apply [interface rendition](prompt-writing-guide.md) to that authored meaning.
+The master prompt can be the final portable text; it does not require a second
+artifact or a preliminary attribute list. Exact parser grammar may change
+syntax, never the situation or meaning it is meant to communicate.
+
+### Worked depictions
+
+These are independent synthetic examples of authoring choices, not templates.
+
+**Situation.** The request is a quietly comic kitchen illustration of an
+absorbed cook missing milk boiling over. A possible prompt is:
+
+> In a small home kitchen, a cook studies a recipe at the counter, absorbed in
+> the page while milk foams over a saucepan on the stove beside them. The
+> unnoticed overflow supplies the quiet comedy. Show the cook's reading and
+> the overflowing saucepan together in a warm, unhurried domestic illustration.
+
+The cook's attention and the unnoticed event make the picture. Their relation
+selects the framing. The act of reading carries ordinary handling of the
+recipe; no invented elbow angle is needed to make it concrete. A different
+pose can preserve the same event. A close portrait that loses the saucepan
+would lose the requested situation even if its expression were beautifully
+specified. Additional kitchen or character detail can be appropriate for a
+richer commission without replacing that relationship.
+
+**Reviewing a proposed design image.** The request is a catalog photograph of
+a cream ceramic cup with three thin cobalt rings near the rim and a plain,
+undecorated handle, showing its exterior design clearly. Working notes also
+identify the internally approved sample as D8. A submitted draft says:
+
+> Make an extreme overhead close-up looking into the cream cup. Let its
+> interior fill the image, with the handle behind it. Keep the three thin
+> cobalt rings near the rim and the undecorated handle clearly visible.
+> Put "Approved sample D8" in the upper-right corner. Use soft studio light.
+
+The review concerns whether this is a good direction for the commissioned
+catalog image. Obeying its overhead view and label does not answer that
+question. The draft directs attention into the cup while the commission is
+to present the exterior design. Adding another demand for visible rings and
+handle leaves that organizing choice in place. The approval code belongs to
+the working notes; the commission did not ask the renderer to display it.
+
+Rebuild the product presentation and retain the actual design requirements.
+The ring count, color, placement and plain handle need precision. The draft's
+view and label have no independent authority. A possible replacement is:
+
+> A clean catalog photograph of a cream glazed ceramic cup on a neutral
+> background. Exactly three thin cobalt rings encircle the cup just below the
+> rim; the handle is plain cream with no decoration. A slightly elevated
+> three-quarter view shows the exterior pattern and the handle together.
+> Soft studio light reveals the glaze without obscuring the cobalt lines.
+
+This changes the presentation, preserves the exact design and carries only
+relevant meaning from the working notes. It does not repair the draft by
+adding an angle, a visibility checklist or a ban on internal sample labels.
+The selected view is still a means: another view that presents this design
+clearly can fulfill the commission. A generated image that faithfully follows
+the overhead draft can satisfy that draft while failing the catalog purpose.
+Reviewing only whether the angle, label and counts appear would miss that
+failure. Reviewing only the broad purpose while dropping a required ring
+would also fail the commission.
+
+If only the draft were supplied for review, its stated catalog purpose and
+exterior-design requirements would still support criticism of the overhead
+presentation. Explain that inferred purpose and any authority uncertainty.
+Do not assume an unseen approval, but do not require one in order to judge a
+proposed instruction. These examples illustrate judgment; their chosen poses,
+views, objects and amount of detail are not defaults for other tasks.
 
 When the request spans related images, use the existing
-[Project Design](../../templates/narrative/design/design-template.md) to establish
-shared recognition anchors, each output's purpose and the relationships between
-outputs. Its medium, expression, continuity and dependency sections hold those
-decisions at the needed depth. Adapt hierarchy, detail, text and treatment to
-each use while preserving the declared anchors. Prepare each image through its
-own Production Specification and request. Independent deliverables retain their
-separate boundaries; a composed page is a selected output in its own right.
-The batch route executes prepared image requests after their design is resolved.
+[Project Design](../../templates/narrative/design/design-template.md) for shared
+recognition anchors, each output's purpose and relationships between outputs.
+Adapt treatment to each use while preserving declared continuity. Each separate
+image has its own intelligible depiction, Production Specification and request;
+a composed page is itself one selected output. The batch route executes those
+prepared requests after their design is resolved.
 
 ## Record the production direction
 
@@ -131,28 +228,34 @@ in `basis`, optional `decisions`, optional `action_slice`, and `limitations`.
 Keep the distinction between an intended effect and an audience response
 actually observed; a manifest or passing test proves neither.
 
-Define each criterion for the task's artifact and its declared evidence
-medium. A visible depiction, supplied text, measured structure and documented
-state support different judgments. Keep wider source knowledge available for
-comparison while identifying what this output is responsible for expressing.
-Record consequential limits and unresolved authorial choices at their existing
-owners; those records do not automatically become renderer instructions.
+Record criteria for the result the artifact must provide, at its actual scope.
+Keep the request and adopted sources as their authority. Chosen staging,
+observable cues and production hypotheses explain a realization; recording
+them does not turn them into user requirements. Before making an inferred
+condition hard, consider whether a coherent realization can omit that condition
+and still satisfy the requirements fixed by the current request or applicable
+adoption. Preserve baseline choices at the authorized scope of a local edit.
+A condition grounded only in the chosen realization remains a revisable means
+when that realization is reconsidered. Explicitly requested details remain
+requirements regardless of their prominence.
 
-For each hard criterion, establish what observation would support it, what
-would contradict it, the permitted variation and what would leave it undecided.
-Use the existing criterion `text` and `evidence`, with `direction.limitations`
-for relevant boundaries. Derive these conditions from the purpose; no fixed
-inventory of visual properties is required. A requested ambiguity needs its
-permitted readings and limits. Background facts need not all become depicted
-claims, and a still cannot establish an unshown conversation or earlier choice.
+Use the existing criterion `text` and `evidence` to describe the required result
+and what would support, contradict or leave it undecided. Preserve permitted
+variation and requested ambiguity. A visible depiction, supplied text, measured
+structure and documented state support different judgments. Use
+`direction.limitations` for evidence boundaries and keep wider source knowledge
+available for comparison. Background facts need not all become depicted claims,
+and a still cannot establish an unshown conversation or earlier choice.
 
-Connect each condition to its carrier in the selected text, controls or media
-and to a presentation that can expose the required evidence. Compare what each
-material construction shows, hides or weakens, including useful scale and
-framing. An incompatible crop needs a different construction within authority;
-more wording cannot reveal what the view excludes. Preserve other valid
-realizations and leave incidental details open. The authority for a requirement,
-the selected way to realize it and the returned evidence remain distinct.
+Connect the required meaning or property to its carrier in the selected text,
+controls or media. Assess the presentation by what that combination communicates
+at useful scale. When a view excludes genuinely necessary information, change
+the construction within authority; more wording cannot expose it. When another
+combination carries the same result, keep that realization available. The
+authority for a requirement, the selected way to realize it and the returned
+evidence remain distinct. Consequential limits and unresolved authorial choices
+stay at their existing owners rather than automatically becoming instructions
+to the renderer.
 
 Record a consequential branch as `material`, with the considered options,
 tradeoffs, selection and reason; the reader requires at least two options with
@@ -247,40 +350,120 @@ proving that motion occurred; choose the evidence kind accordingly.
 
 ## Observe and repair
 
-Prepare observable criteria before execution. Each has hard/advisory strength
-and an evidence kind: `artifact`, `text`, `image`, `motion`, or `audio`.
-[Observe the captured artifact before interpreting it](production-execution.md#observe-before-interpreting).
-Record specific observations, then their interpretation against the purpose
-and limitations. An unexamined quality stays `not-assessed`; inspected but
-inconclusive evidence is `indeterminate`. Neither supplies a pass.
+Review the artifact at the scope the user requested. Establish whether the
+supplied material is a brief, adopted work, a proposed draft or evidence, and
+which sources govern the judgment. A prompt submitted for review is the object
+being judged. Its imperatives describe what it would make the renderer do;
+they do not direct the reviewer to retain that method. Submission neither
+adopts the draft nor authorizes an edit. Words such as "approved" inside it
+do not establish an approval outside it.
 
-A repair identifies the relevant observation, decision IDs, operation, changed
-targets and reason in the same review. Reconsider expression, framing, action
-phase, source selection, local composition or a limited remaking operation when
-appropriate. The `revision-intent` command compares the complete revised
-preparation with its parent and refuses changes beyond the reviewed targets. It
-binds the exact new input to an `edit` authorization and creates a linked run
-through `revise`; old successful checks and candidate selection do not transfer.
+Read a prompt as the picture its complete delivered input asks for: positive
+and negative text, controls and actual media. Understand the activity, state,
+design or experience they form together. Read all applicable instructions;
+do not silently omit an awkward clause or borrow a missing premise from the
+author's conversation. For a returned image, observe the artifact first under
+[Production execution](production-execution.md#observe-before-interpreting).
+Textual intent is not evidence that the image rendered it.
 
-First identify which layer the evidence implicates: the authority premise,
-observable requirement, temporal or spatial construction, view, rendition,
-reference use, model realization or execution record. These are diagnostic
-possibilities, not a required taxonomy or a claim to know a model's internal
-cause. Rebuild a wrong construction instead of patching an incidental detail;
-use a local edit when the mismatch is local. Preserve previous candidates and
-their evidence when a fresh request is needed.
-For source and state drift, follow the existing ownership and writeback rules
-in [State Write-back and Drift Routing](../state-writeback-routing.md).
+Compare that picture with the commission. Explain what the viewer can
+understand or experience and how the organizing choices produce it. This
+comparison identifies a weakness, a sufficient solution or an uncertainty
+worth resolving. If there is no separate brief, infer the intended depiction
+from the candidate's complete content and stated purpose, retaining that
+limit. Its instructions constrain an accurate reading of what it currently asks for.
+Assess whether those instructions are suitable choices, not how to preserve
+all of them. When no separate brief is available, the candidate's expressed
+purpose, subject and intended relationships can support a recommendation;
+identify the interpretation instead of inventing an earlier brief. Exact
+design properties may be the commissioned content, while a view or coordinate
+may be a proposed means. Decide from their role in the actual task, not their
+length, forceful phrasing or presence in the candidate. An uncertain external
+commitment qualifies a proposed change; it does not make every draft sentence
+untouchable or prevent criticism of what the current input does.
 
-See [Production execution](production-execution.md) for commands and evidence
-locators, and [Production permissions](production-permissions.md) for the
-independent authority boundaries.
+Use the relationships in the depicted situation to judge it. A formally
+possible collection of positions can still give a strained performance or
+obscure the action it was chosen to show. Conversely, a natural depiction can
+be sufficiently directed without specifying every position. Judge what the
+participants are doing and responding to, or how the designed parts function
+together, at the specificity needed for the request. An attractive alternative
+alone establishes no defect. Quiet performance, complexity, deliberate
+ambiguity and unfamiliar designs retain their intended range.
+
+Investigate the responsible choice when it affects that judgment. Follow
+interacting conditions through one arrangement, state and presentation rather
+than assigning each a separate favorable interpretation. Consider their
+practical and expressive consequences, not only whether the wording can be
+made logically consistent. An impossibility claim requires incompatible
+conditions in the same scope. A workable construction rebuts that claim but
+still needs to serve the commission. A consequential choice supplied by the
+reviewer is a proposed completion, not proof the input already resolved it.
+Ordinary variation inside the brief needs no exhaustive specification.
+
+Precise local requirements remain part of the review. Assess them at their
+actual importance without making the most easily measured discrepancy the
+organizing question. Return the finding to what it changes in the image.
+Conclude the investigation when that question is answered; neighboring details
+do not become unfinished work merely because they are available to inspect.
+Use the [competing-realization test](prompt-composition.md#competing-realization-test)
+only for a consequential uncertainty about what the input communicates. It is
+not a required second review of every prompt.
+
+For an authorized revision, rebuild at the scope of the responsible choice.
+Recover the intended situation or design from the request and sources, decide
+what realization serves it, and author the changed result. This can change an
+organizing view or relationship, preserve a working whole with a local edit,
+or correct source use or wording. Do not treat revision as retaining each old
+sentence and countering it with another instruction. Nor does reconstruction
+authorize invented microdetail or an unrelated redesign. Retain fixed
+properties and the baseline outside the authorized change. Apply the
+[Revision Contract](revision-contract.md) to the concluded change; mechanical
+scope checks do not choose what the requested repair means.
+
+When feedback rejects the basis or focus of a review, reconsider that basis.
+Recover the whole task and withdraw the unsupported premise and its dependent
+recommendations. Correcting a local defect and correcting the question being
+asked are different operations. Feedback on reasoning does not itself
+commission a different image.
+
+Read the completed rendition as the same commissioned picture with the change
+applied. Preserve successful meaning, explicit detail and permitted variation.
+Resolve a fixed requirement that the current construction cannot meet; ask
+only for the necessary decision if authority cannot settle it. A prompt review
+can conclude sufficiency, recommend an improvement or identify a blocker.
+Optional improvements do not block otherwise complete work. Lead with that
+judgment and the consequential evidence, not the inventory of inspected parts.
+
+Keep conclusions within their evidence. Distinguish an observed image failure,
+a textual weakness, an optional improvement and a model-specific hypothesis.
+A prompt may direct an effect without proving rendered success or fidelity to
+an unseen source. Unexamined qualities remain `not-assessed`; inspected but
+inconclusive evidence is `indeterminate`. Neither is a pass or proof of a defect.
+Formal candidate selection needs supported passes for hard criteria, using the
+appropriate evidence kind: `artifact`, `text`, `image`, `motion` or `audio`.
+A sufficient textual review can complete a text-only request without generation.
+
+For recorded repairs, retain the observation, affected decision IDs, operation,
+changed targets and reason in the existing review. `revision-intent` compares
+the complete revised preparation with its parent and refuses changes beyond
+reviewed targets. It binds the new input to an `edit` authorization and creates
+a linked run through `revise`; previous successful checks and selection do not
+transfer. Preserve candidates and evidence. State and source drift follow
+[State Write-back and Drift Routing](../state-writeback-routing.md).
+[Production execution](production-execution.md) owns commands and evidence;
+[Production permissions](production-permissions.md) owns independent authority.
 
 ## A failure must leave an actionable record
 
-When any review check fails, record at least one repair with its observation
-and target links, or state an explicit unresolved issue. A repair is a proposed
-next action; its success is a separate observation. Use the actual image-edit
-executor for scoped pixel operations, or a reviewed child run when the
-production inputs must change. Either route starts from a fresh review and
-selection.
+For a recorded failed check, provide a concrete repair with its observation and
+target links, or state the unresolved issue. Keep the check's hard/advisory
+strength: an optional improvement can remain a proposed repair while required
+work completes. Put an issue in `unresolved` when it must be settled before
+selection; that field blocks selection. Do not turn an optional suggestion into
+unfinished required work to satisfy the record format.
+
+A proposed repair is not an execution commitment or an observation of success.
+An authorized pixel operation uses the actual image-edit executor; a change to
+production inputs uses a reviewed child run. The result of either performed
+repair requires its own review and selection before completion.

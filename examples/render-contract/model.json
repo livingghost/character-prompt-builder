@@ -130,16 +130,6 @@
             "recommendation": null,
             "reason": "Synthetic interface choice."
           },
-          "promptWeighting": {
-            "status": "optional",
-            "binding": "package",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "recommendation": null,
-            "reason": "Synthetic interface choice."
-          },
           "settings": {
             "status": "optional",
             "binding": "package",
@@ -218,7 +208,11 @@
             "reason": "This text-only synthetic operation has no denoising input."
           }
         },
-        "parameter_schema": {}
+        "parameter_schema": {},
+        "prompt_syntax": {
+          "default": "literal",
+          "control": null
+        }
       },
       "image-to-image": {
         "media": "seed-image",
@@ -325,16 +319,6 @@
             "recommendation": null,
             "reason": "Synthetic interface choice."
           },
-          "promptWeighting": {
-            "status": "optional",
-            "binding": "package",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "recommendation": null,
-            "reason": "Synthetic interface choice."
-          },
           "settings": {
             "status": "optional",
             "binding": "package",
@@ -417,7 +401,11 @@
             "reason": "Synthetic source-image transformation control."
           }
         },
-        "parameter_schema": {}
+        "parameter_schema": {},
+        "prompt_syntax": {
+          "default": "literal",
+          "control": null
+        }
       },
       "reference-guided": {
         "media": "references",
@@ -524,16 +512,6 @@
             "recommendation": null,
             "reason": "Synthetic interface choice."
           },
-          "promptWeighting": {
-            "status": "optional",
-            "binding": "package",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "recommendation": null,
-            "reason": "Synthetic interface choice."
-          },
           "settings": {
             "status": "optional",
             "binding": "package",
@@ -612,7 +590,11 @@
             "reason": "This text-only synthetic operation has no denoising input."
           }
         },
-        "parameter_schema": {}
+        "parameter_schema": {},
+        "prompt_syntax": {
+          "default": "literal",
+          "control": null
+        }
       },
       "instruction-edit": {
         "media": "references",
@@ -719,16 +701,6 @@
             "recommendation": null,
             "reason": "Synthetic interface choice."
           },
-          "promptWeighting": {
-            "status": "optional",
-            "binding": "package",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "recommendation": null,
-            "reason": "Synthetic interface choice."
-          },
           "settings": {
             "status": "optional",
             "binding": "package",
@@ -807,7 +779,11 @@
             "reason": "This text-only synthetic operation has no denoising input."
           }
         },
-        "parameter_schema": {}
+        "parameter_schema": {},
+        "prompt_syntax": {
+          "default": "literal",
+          "control": null
+        }
       }
     }
   },

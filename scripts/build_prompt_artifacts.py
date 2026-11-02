@@ -56,6 +56,7 @@ def resolved_inputs(args: argparse.Namespace) -> dict[str, Path]:
         "--revision-contract": args.revision_contract,
         "--retrieval-record": args.retrieval_record,
         "--plot": args.plot,
+        "--model-file": args.model_file,
     }
     inputs: dict[str, Path] = {}
     for flag, value in named.items():
@@ -88,15 +89,42 @@ def main() -> int:
     parser.add_argument("--revision-contract", type=Path, help="Explicit edit/explore/retarget baseline and candidate semantics")
     parser.add_argument("--require-semantic-plan", action="store_true", help="Fail when no semantic plan is supplied")
     parser.add_argument("--prepare-for-generation", action="store_true")
+    target = parser.add_mutually_exclusive_group()
+    target.add_argument("--model", help="Selected catalog model whose input contract applies to this prompt")
+    target.add_argument("--model-file", type=Path,
+                        help="Acquired external input record with id, prompt_input and any owning prompt_dialect; does not override catalog execution")
+    parser.add_argument("--weighting", choices=["literal", "sdEmbeds", "compel"], default="literal",
+                        help="The explicitly selected text grammar for this rendition")
     parser.add_argument("--retrieval-record", type=Path, help="Record of the catalog and prompt-vocabulary lookups behind this prompt")
     parser.add_argument("--retrieval-unavailable", help="Reason retrieval could not be run; refuses --prepare-for-generation")
     parser.add_argument("--plot", type=Path, help="Optional for drafts; an approved plot is required for generation-ready packaging")
     parser.add_argument("--overwrite", action="store_true", help="Replace a non-empty output directory that already exists")
+    from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
+    add_pack_runtime_arguments(parser)
     args = parser.parse_args()
 
     out = args.out_dir.resolve()
     inputs = resolved_inputs(args)
     check_no_input_under_output(inputs, out)
+    from catalog_cli import configure_pack_runtime
+    configure_pack_runtime(resolve_pack_runtime(parser, args).settings)
+    from prompt_retrieval import resolve_selected_model
+    from model_prompt_input import resolve_prompt_input
+    model_record = resolve_selected_model(args.model, args.model_file)
+    if args.prepare_for_generation and model_record is None:
+        raise ValueError("generation-ready packaging requires --model or --model-file")
+    prompt_text = args.prompt.read_text(encoding="utf-8")
+    negative_text = args.negative.read_text(encoding="utf-8") if args.negative else ""
+    target_contract = None
+    if model_record is not None:
+        target_contract = {"id": model_record["id"], "prompt_input": resolve_prompt_input(model_record),
+                           "weighting": args.weighting}
+        if model_record.get("prompt_dialect"):
+            target_contract["prompt_dialect"] = model_record["prompt_dialect"]
+        target_contract["source"] = ({"kind": "acquired-external-record", "path": "model-input.json",
+                                      "sha256": sha256_file(args.model_file)} if args.model_file else
+                                     {"kind": "catalog-record", "requested": args.model})
+    input_validation = {"state": "unverified-draft", "vocabulary_searched": False}
 
     plot_value = json.loads(args.plot.read_text(encoding="utf-8")) if args.plot else None
     plot_report = load_prompt_plot(args.plot) if args.plot else None
@@ -111,17 +139,21 @@ def main() -> int:
     if args.retrieval_record and args.retrieval_unavailable:
         raise ValueError("--retrieval-record and --retrieval-unavailable are exclusive")
     retrieval: dict[str, Any]
+    record_value = None
     if args.retrieval_record:
         report = load_prompt_retrieval_record(args.retrieval_record)
         record_value = json.loads(args.retrieval_record.read_text(encoding="utf-8"))
         if args.prepare_for_generation:
             from prompt_retrieval import require_generation_retrieval
-            require_generation_retrieval(record_value, prompt=args.prompt.read_text(encoding="utf-8"), plot=plot_value)
+            checked = require_generation_retrieval(record_value, prompt=prompt_text, plot=plot_value,
+                model_record=model_record, negative=negative_text, syntax=args.weighting)
+            input_validation.update(state="model-input-checked", vocabulary_searched=checked["vocabulary_searched"])
         retrieval = {
             "settled": record_value.get("settled") is True,
             "elements": report["elements"],
             "adopted": report["adopted"],
             "composed": report["composed"],
+            "unused": report["unused"],
         }
     elif args.retrieval_unavailable:
         reason = args.retrieval_unavailable.strip()
@@ -135,9 +167,16 @@ def main() -> int:
             )
     else:
         raise ValueError(
-            "prompt wording requires a retrieval record: pass --retrieval-record, "
-            "or state why retrieval could not be run with --retrieval-unavailable"
+            "prompt packaging requires a retrieval record: pass --retrieval-record "
+            "(an empty initialized record is valid when no lookup was needed), "
+            "or state why needed retrieval could not run with --retrieval-unavailable"
         )
+
+    if model_record is not None and not args.prepare_for_generation:
+        from prompt_vocabulary_selection import require_for_model
+        selection = require_for_model(record_value or {}, prompt=prompt_text, negative=negative_text,
+                                      model_record=model_record, syntax=args.weighting)
+        input_validation.update(state="model-input-checked", vocabulary_searched=selection is not None)
 
     revision_report = None
     if args.revision_contract:
@@ -179,6 +218,8 @@ def main() -> int:
         included: list[dict[str, Any]] = []
         omitted: list[dict[str, str]] = []
         included.append(copy_artifact(args.prompt, staging / "final-prompt.txt"))
+        if args.model_file:
+            included.append(copy_artifact(args.model_file, staging / "model-input.json"))
         if args.negative:
             included.append(copy_artifact(args.negative, staging / "final-negative.txt"))
         if semantic_report is not None:
@@ -223,6 +264,8 @@ def main() -> int:
             "approval_scope": "preparation-only" if args.prepare_for_generation else "draft-unapproved",
             "execution_authorized": False,
             "canonical_update_authorized": False,
+            "target": target_contract,
+            "input_validation": input_validation,
             "selected_reference_count": ref_count,
             "plot": plot,
             "retrieval": retrieval,

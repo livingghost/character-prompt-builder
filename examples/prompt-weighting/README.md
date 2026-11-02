@@ -13,13 +13,13 @@ python scripts/prompt_dialect.py --weighting compel
 
 `positive.txt` uses Compel nested/suffix weights and independent `.and()` chunks.
 `negative.txt` uses `.blend()` in the separately declared negative channel.
-`parameters.json` shows the native parser field; its geometry/steps are examples,
+`parameters.json` shows a synthetic interface's nested parser field; its geometry/steps are examples,
 not recommended settings. A real chosen model and mode must allow every value.
 
 `inspection.json` retains exact input strings, clauses, numeric coefficients,
-character ranges and an advisory recommendation audit. Its native request uses
-Runware field names but an intentionally nonexistent model identifier and fixed
-task UUID. Do not send this preview as an API request. The sdEmbeds section shows
+character ranges and an advisory recommendation audit. Its grammar declaration
+maps the synthetic control value `clauses` to Compel. The native request uses
+the local synthetic transport and a fixed request identifier. The sdEmbeds section shows
 its different grammar without claiming equivalent embeddings or images.
 
 For normal task files, author the selected parameters in `generation.parameters`

@@ -20,7 +20,18 @@ A case describes what the host receives and which deliverables must be present w
 | `expected_outputs` | Required relative file paths under the trial's output directory. An empty list is appropriate only for a case that requires no output files. |
 | `criteria` | Authored review criteria retained for later judgment, not automatically graded by the runner. |
 
+Define whether the case requests creation, critique or revision, and what result
+would complete that request. A critique can conclude that its supplied draft is
+sufficient; it need not produce a replacement file. Author independent, neutral
+tasks across different purposes and subject domains. Keep the worked teaching
+examples separate from the inputs used to measure agent behavior.
+
 The trial uses the verified input copy as its prompt; a later edit to the original leaves the approved prompt as it was. Other input files and an optional skill copy are checked against the inspected plan before copying.
+
+For a live interaction study, select a host that retains the actual turns and
+provide them as execution evidence. A prior transcript authored into a task is
+a supplied-context case, not a measurement of a live continuation. The runner
+records the configured host; it does not supply a conversation controller.
 
 For a trial of unprompted creative depth, cast admission or persistence, the prompt carries no reminder to add an origin, to consider the surroundings, to save, or to ask before naming a person. The author's answer to an admission request the agent raises correctly is a scripted response among the case inputs, not a correction. The worked example of [Cast Admission and Persona Depth](cast-and-persona-depth.md) lists cases of this kind.
 
@@ -108,15 +119,29 @@ A command that exits with zero but omits a required deliverable therefore fails 
 
 ## Interpret the result
 
-Judge each of these separately:
+Judge the observed work against the current case's purpose and requirements.
+Use [Observe and repair](production-direction.md#observe-and-repair) and the
+[Creative Evaluation Rubric](../evaluation-rubric.md) to assess the answer the
+case requested. Distinguish these aspects:
 
 - triggering;
 - procedural compliance;
 - source understanding;
+- selection of useful questions and sufficient evidence;
 - expression;
 - task completion.
 
-File existence says nothing about meaningful content, and host-reported completion is a claim rather than an independent quality assessment.
+Inspect what the agent establishes, preserves, investigates or changes and how
+those actions contribute to the requested result. A correct small requirement
+and an incidental variation can demand different amounts of work. Evaluate a
+proposed repair by the issue it resolves, and a completed review by whether its
+conclusion is supported. Look for the effect of whole-artifact understanding
+on those choices. A sound explanation of the purpose followed by unrelated
+local checking does not show that the understanding guided the work. Judge the
+requirements the agent inferred against the actual brief, not merely against
+its own acceptance conditions. File existence says nothing about meaningful
+content, and host-reported completion is a claim rather than an independent
+assessment.
 
 For scene Persona work, include:
 
@@ -128,21 +153,59 @@ For scene Persona work, include:
 - scope expansion;
 - work without human characters.
 
-Evaluate the total actual work and the resulting expression; a shorter entrance document earns nothing for its brevity alone.
+Evaluate the total actual work and the resulting expression. Reading fewer
+words, producing more findings or adding more detail earns nothing by itself.
 
 ### Prompt meaning
 
-Give each fresh agent a brief and its actual sources without the expected
-interpretation. Judge the resulting prompt or necessary clarification against
-the brief. Include these complementary cases:
+Give each fresh agent the task and its actual sources, including their declared
+uses. Keep expected interpretations, assessor notes, repairs and teaching
+answers out of that input. Judge the resulting prompt, critique or necessary
+clarification against the brief. Use complementary cases; one case need not
+exercise every dimension:
 
+- A completed draft already communicates its purpose and satisfies its fixed
+  requirements. Assess the review's conclusion and the value of any proposed
+  further work. Include interacting instructions and several successful
+  realizations, not only short or fully fixed drafts. For a study of compound
+  construction, include a workable combination of orientation, connections,
+  state, viewing conditions or information layout that a superficial check
+  might reject. Assess the construction that supports acceptance.
+- A candidate's conditions can coexist, but the review question concerns how
+  its chosen organization, performance or emphasis serves a stated purpose.
+  Assess the consequences the agent identifies and the support for its
+  conclusion, including sufficiency when justified. Pair this with detailed
+  work whose construction effectively serves its purpose, so simplification
+  or compulsory criticism cannot substitute for judgment. Include reviews
+  with an independent brief and reviews where intended purpose must be
+  inferred from the candidate. Keep assessment, adoption and editing distinct.
+- A fine distinction is incidental to one artifact but central to a different
+  task. Assess the precision each purpose requires, including explicit small
+  requirements that remain fixed in either setting.
+- Feedback changes the question being reviewed or the scope of a requested
+  revision. Assess whether the next action addresses that scope and retains
+  requirements the author has not changed. An acknowledged correction followed
+  by continued work on the same unsupported premise is not recovery. Include
+  tasks completed without corrective feedback as well.
 - Opposing properties belong to different subjects, regions or supported
   moments. The result should preserve their scopes and complete the depiction.
 - Paraphrased requirements demand incompatible states of the same subject and
   region at the same moment. Fixed anchors need a decision; a conflicting draft
-  choice should be repaired within the agent's authority.
+  choice should be repaired within the agent's authority. Include cases whose
+  conflict emerges only when several individually plausible conditions share
+  one arrangement, rather than only directly opposing property words. Require
+  the assessor to follow the relevant dependency and the repair's consequences.
+  Vary which source fixes a camera, layout, mechanism or precise visible detail,
+  so a generic preference to change one kind of condition cannot pass.
 - A reference supplies identity while its pose differs from the requested
   action. The source's unassigned state must not displace the target state.
+- A source is available only during authoring. Assess how its assigned
+  contribution reaches the delivered input, and whether observed properties
+  remain distinct from inferred construction. Include actually delivered media
+  with different declared roles in other cases.
+- Some source evidence is unavailable for the requested assessment. Judge
+  affirmative and negative claims by their actual support, and distinguish a
+  limited conclusion from a defect or a required change to uninspected work.
 - A crop, action or exclusion changes the intended event despite valid syntax.
   Assess fidelity to the event, not just the presence of its objects.
 - A prompt satisfies every exclusion while omitting a wanted quality, degree,
@@ -157,10 +220,39 @@ the brief. Include these complementary cases:
   those inputs; a prompt must not become a copy of its preparation records.
 
 Inspect the complete positive and negative text, media and native controls.
-Test the actual transport when it changes scope or emphasis. Record authored
-reasons and outputs as evidence; neither a schema-valid plan nor a satisfied
-review field demonstrates successful semantic reasoning. Judge useful repairs,
-unnecessary refusals and silent loss of anchors separately.
+Test the actual transport when it changes scope or emphasis. For visual
+observation, provide the actual image and inspect what the host perceived.
+A stipulated description tests reasoning from that description, not image
+perception. Record the actual input boundary and available evidence.
+
+Distinguish what result the agent understood, whether the conditions can
+coexist, how the proposed construction serves that result, and what an actual
+output demonstrates. These are judgments to substantiate, not required report
+headings. A fluent restatement does not establish joint feasibility; a possible
+construction does not by itself establish effective expression. Nor does
+finding a different attractive treatment establish a defect. Evaluate how the
+agent prioritizes consequences, including exact small requirements, rather than
+rewarding easily demonstrated discrepancies or a predetermined verdict. A
+repaired prompt must preserve the fixed request and support the revised
+construction; detecting a conflict alone does not demonstrate a successful
+repair. Allow successful unfamiliar solutions, retained sufficient drafts and
+appropriately bounded uncertainty.
+
+Use the [worked construction cases](../../examples/production-execution/evidence-review-cases.md#8-a-working-transmission-and-a-conflicting-design-choice)
+to understand these distinctions. The separate
+[synthetic task set](../../examples/production-execution/compound-construction/README.md)
+provides execution inputs and assessor notes in other domains. Give each task
+without its assessor notes, and build fresh tasks when studying generalization
+beyond these examples. Do not reuse a user's scene or a renamed version as a
+test of generalization. Judge the observed responses themselves; adding cases
+to documentation supplies no behavioral result.
+
+Record reasons and outputs, then judge meaningful completion, useful repairs,
+unnecessary work, refusals and loss of anchors separately. A schema-valid plan
+or a satisfied review field does not demonstrate successful semantic reasoning.
+Evaluate prompt quality and generated-image quality from their respective
+artifacts. Teaching examples and deterministic fixtures establish neither a
+real host's judgment nor the quality of an uninspected image.
 
 ## Operational limits
 

@@ -158,6 +158,7 @@
   "state_lineage_sha256": "",
   "generation_input_sha256": "",
   "composition_prompt": "",
+  "composition_negative": "",
   "retrieval_record": {},
   "retrieval_record_sha256": "",
   "production_binding": null,

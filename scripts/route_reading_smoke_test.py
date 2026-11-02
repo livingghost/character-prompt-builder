@@ -326,6 +326,7 @@ class ReadingTests(unittest.TestCase):
             {'id':'first','title':'First family','dialects':['family-a'],'rules':[rule.format('the first family')]},
             {'id':'second','title':'Second family','dialects':['family-b'],'rules':[rule.format('the second family')]}]}
         family=lambda name:{'id':name,'name':name,'description':'Synthetic family.','tag_separator':', ',
+                            'vocabularies':['synthetic'],
                             'block_order':['subject','scene']}
         dialects={'format':'character-prompt-builder-prompt-dialects','name':'Synthetic dialects',
                   'description':'Synthetic fixture.','dialects':[family('family-a'),family('family-b')]}
@@ -398,7 +399,9 @@ class ReadingTests(unittest.TestCase):
                                 '--state-file',str(state/'state.json'),'--cache-dir',str(state/'cache'),
                                 '--managed-root',str(state/'managed')])
         out=io.StringIO()
-        record=('synthetic-model',{'prompt_dialect':'family-b'})
+        from model_prompt_input_fixtures import prompt_input
+        record=('synthetic-model',{'prompt_dialect':'family-b',
+                'prompt_input':prompt_input('tag-based',vocabularies=('synthetic',))})
         with (catalog,patch.object(prepare_generation_references,'resolve_model_record',return_value=record),
               patch.dict(os.environ),contextlib.redirect_stdout(out)):
             os.environ.pop('CPB_READS_LEDGER',None)

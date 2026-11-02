@@ -461,7 +461,15 @@ Vocabulary records are compact by design. They provide names and model-legible p
 
 ## Converting new material into the catalog
 
-When reference material is supplied, `reference-corpus-visual-technique-observation.md` is a required companion to this standard. Complete its whole-image inventory before naming a style, scene, or module. When visible emotion, social intent, viewer relationship, physiology, appendage behavior, or mechanical acting contributes to the image, also complete `performance-language-specification.md` before selecting the performance meaning.
+For reference material being converted into canonical production knowledge,
+`reference-corpus-visual-technique-observation.md` is a required companion to
+this standard. Complete its whole-image inventory before naming a style, scene
+or module. When visible emotion, social intent, viewer relationship, physiology,
+appendage behavior or mechanical acting contributes to the source, use the
+source observation and interpretation sections of
+`performance-language-specification.md` before selecting the performance
+meaning. This conversion preserves source knowledge; applying a record to a
+new depiction is a separate decision owned by Production direction.
 
 ### Required visual-technique observation pass
 
@@ -625,48 +633,83 @@ misreadings_to_avoid
 Before authoring from images, use `references/reference-corpus-detail-observation.md` to separate stable identity evidence from expression, moisture, light, perspective, and style artifacts. Use subject-relative left and right. Express size against a local landmark rather than pixels. Separate physical depth from color, and separate broad surface or coat patterns from localized distinctive features. Positive prompt fields describe the visible target affirmatively; adaptation limits and misreadings remain diagnostic metadata.
 ## Reference attribute audit
 
-Before authoring or calibrating any record against a reference image, build
-an attribute ledger and keep it beside the work: the count of every discrete
-element (earrings, chains, tags, straps), the anatomical left or right each
-one belongs to, the stacking order of every overlap (which limb or layer
-lies in front and which behind, stated from both sides), each element's size
-anchored to a nearby landmark, and its color. Every spatial relation is
-written from both sides: when the left forearm crosses in front, the record
-also states that the right forearm passes behind. Expressions are audited as geometry too: the lid line and its corner tilt, the brow angle, height, and gap, the openness band, gaze target, mouth and tongue shape, jaw tension, cheek color, breath, head angle, shoulders, hands, feet, distance, contact, species appendages, and mechanical signals. A mood label alone flattens into an average face. Use `performance-language-specification.md` to separate observation, interpretation candidates, selected meaning, and prompt projection. Inherited draft values count for nothing
-until the attribute ledger confirms them. The six geometry-annotated
-expression records, challenging-smirk, calm-serious, warm-open-smile,
-cold-detached, angry-snarl, and quiet-melancholy, are the authoring
-models for writing any further mood.
+For canonical record extraction or calibration against a reference, establish
+which source design or reusable construction the record owns. Keep the complete
+source evidence for that scope beside the work. A full-design extraction needs
+the count of every discrete element, such as earrings, chains, tags and straps;
+the anatomical left or right each belongs to; each overlap's front-to-back
+order; landmark-relative sizes; and colors. A scoped construction record needs
+the same precision for its participating structures and dependencies. A
+separately commissioned whole-image inventory remains complete even when only
+one of its findings is used in the current record.
+
+Resolve spatial ownership in one source frame. Where an overlap could be
+misassigned, record the relation from both directions: a left forearm in front
+means the right forearm passes behind in that same crossing. Existing visible
+markers can distinguish otherwise ambiguous elements; an absent marker is not
+permission to add one. Keep observed occlusion separate from an inferred hidden
+connection.
+
+Performance calibration retains the visible distinctions needed to recover the
+source's actual expression: lid line and corner tilt, brow angle, height and
+gap, openness band, gaze target, mouth and tongue shape, jaw tension, cheek
+color, breath, head angle, shoulders, hands, feet, distance, contact, declared
+appendages and mechanical signals. Use the source observation questions in
+`performance-language-specification.md` to keep observations, interpretation
+candidates, chosen meaning and prompt projection separate. Inherited draft
+values require confirmation from the actual source before they count as
+calibration evidence.
+
+When they resolve in the selected pack, the geometry-annotated records
+challenging-smirk, calm-serious, warm-open-smile, cold-detached, angry-snarl and
+quiet-melancholy provide worked examples of expression construction. Their
+anatomy and coordinated cues belong to their own portrayals. A new mood or act
+does not inherit those cues, and an ordinary complete performance direction can
+remain useful without a geometric expansion.
+
+The ledger preserves reconstructible knowledge. A later prompt uses the part
+that contributes to its authored act, state or relationship; full evidence
+coverage does not require emitting every observed attribute.
 
 ## Prompt economy
 
-Every sentence in a model-facing prompt is a vote, and patch accretion
-weakens each one. The full grammar, the canonical-record preservation
-boundary, the counter-text cut after a scaffold change, and the scoped
-consolidation evidence live in `references/prompt-composition-geometry.md`
-(sections 1 and 2); they apply verbatim when authoring the model-facing
-prompt text inside records.
+Prompt-facing record fields preserve the reusable construction at the
+specificity it needs. The canonical record retains complete relationships,
+adaptation rules and diagnostic knowledge, while a current depiction selects
+its applicable contribution through Production direction. Scoped evidence for
+local wording repairs and counter-text cleanup after a scaffold change lives
+in `references/prompt-composition-geometry.md` (sections 1 and 2). Apply those
+operations to the problem they diagnose; brevity alone establishes neither a
+better prompt nor a complete record.
 
-## Spatial relations take three codes
+## Spatial relations and source ownership
 
-State every critical overlap in three codes at once: the side from both
-directions, a unique visible marker on the front element, and occlusion
-verbs. The full grammar and examples live in
-`references/prompt-composition-geometry.md` (section 3); the reference
-attribute audit above supplies the sides and markers.
+Name the participating structures, their owners and the relevant frame before
+resolving a critical overlap. Side and occlusion wording can clarify the
+relationship together; reciprocal descriptions can confirm its consistency.
+Use an existing visible marker only when it resolves an actual identification
+problem. Do not invent a marker or add all three descriptions to an already
+clear relation. The geometry and examples live in
+`references/prompt-composition-geometry.md` (section 3); the reference audit
+retains the complete observed relationship at its source.
 
 ## Distributions over instances
 
-Write organic variety as a distribution: count, landmark-anchored size,
-a local direction rule, irregularity, and spacing. The full grammar and
-the mane-lobe example live in `references/prompt-composition-geometry.md`
-(section 4).
+For a record whose design depends on an organic distribution, preserve the
+supported count, landmark-anchored size, local direction, irregularity and
+spacing relationships. These define variation across poses without fixing
+screen coordinates. The full grammar and mane-lobe example live in
+`references/prompt-composition-geometry.md` (section 4). Source measurements
+support precision; a generic organic surface does not supply invented numbers.
 
 ## Camera moves as visible consequences
 
-State a camera move as what the picture shows: magnitude, the lines that
-change, and the subject geometry that stays put. The full grammar and
-evidence live in `references/prompt-composition-geometry.md` (section 5).
+When a reusable framing decision depends on a camera move, preserve its visible
+consequences: the meaningful magnitude, the lines or scale relationships that
+change, and the subject geometry that stays stable. The full grammar and
+evidence live in `references/prompt-composition-geometry.md` (section 5). A
+later depiction selects the camera relationship its purpose needs rather than
+copying every measurement from the record.
 
 ## Species geometry duty
 

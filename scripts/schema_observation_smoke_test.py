@@ -79,16 +79,18 @@ class PackImportTests(AcquisitionTests):
         import pack_manager as pm
         self.pack=self.root/'pack';fixtures._write_fixture_pack(self.pack);pm.write_lock(self.pack)
         from observe_model_schema import _selection
-        _,self.document,i,j=_selection(self.pack,fixtures.OFFERED_MODEL_ID,'runware')
+        _,self.document,i,j=_selection(self.pack,fixtures.OFFERED_MODEL_ID,fixtures.SERVICE_ID)
         offering=self.document['records'][i]['offerings'][j]
-        self.target={'service':'runware','model_identifier':offering['model_identifier'],'operation':'imageInference'}
+        self.target={'service':fixtures.SERVICE_ID,'model_identifier':offering['model_identifier'],
+                     'operation':fixtures.SERVICE_OPERATION}
         self.schema=c.load(self.pack/offering['schema_snapshot'])['schema']
         self.raw=c.encoded({'schema':self.schema,'notes':'Synthetic source matching the fixture offering.'})
         (self.root/'response.json').write_bytes(self.raw)
         self.acquisition['response']['sha256']=c.digest(self.raw)
         self.acquisition['target']=self.target;self.save()
         self.args=SimpleNamespace(command='schema',root=self.root,pack=self.pack,out_pack=self.root/'published',
-            release='2026.09.22.1',model=fixtures.OFFERED_MODEL_ID,service='runware',operation='imageInference',entry='trial',
+            release='2026.09.22.1',model=fixtures.OFFERED_MODEL_ID,service=fixtures.SERVICE_ID,
+            operation=fixtures.SERVICE_OPERATION,entry='trial',
             acquisition='acquisition.json',pointer='/schema',overlay=None)
     def test_schema_command_rebuilds_full_pack_lock(self):
         import observe_model_schema as cli,pack_manager as pm
@@ -96,17 +98,18 @@ class PackImportTests(AcquisitionTests):
         result=cli.publish(self.args)
         self.assertTrue(result['ok']);self.assertEqual(c.read(self.pack/'records/models.json'),before)
         self.assertTrue(pm.validate_pack(self.args.out_pack,require_lock=True,verify_lock=True).valid)
-        _,document,i,j=cli._selection(self.args.out_pack,self.args.model,'runware')
+        _,document,i,j=cli._selection(self.args.out_pack,self.args.model,self.args.service)
         offering=document['records'][i]['offerings'][j]
         self.assertTrue((self.args.out_pack/offering['schema_contract']['path']).is_file())
         # The published file meets the contract every reader applies, and a request validation record builds from it.
         import model_contract
         self.assertEqual(model_contract.offering_schema(offering,self.args.out_pack,self.args.model)['schema'],self.schema)
-        transport=SimpleNamespace(OPERATIONS={'generation':'imageInference'},__file__=__file__)
+        import transport_synthetic as transport
         reader=InputEvidence(self.root,named_roots={'@pack/published':self.args.out_pack})
         offering={k:v for k,v in offering.items() if k not in {'reference_instruction_transport'}}
         with patch('runtime_evidence.model_space',return_value='@pack/published'):
-            record=rv.from_offering(self.args.model,document['records'][i],offering,{'id':'runware'},transport,reader)
+            record=rv.from_offering(self.args.model,document['records'][i],offering,
+                                    {'id':self.args.service},transport,reader)
         self.assertEqual(record['contract']['path'],'@pack/published/'+offering['schema_snapshot'])
     def test_schema_error_does_not_publish_partial_pack(self):
         import observe_model_schema as cli

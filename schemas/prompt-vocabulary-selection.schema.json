@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prompt-vocabulary-selection.schema.json",
+  "title": "Model-bound vocabulary selection",
+  "description": "Actual dictionary searches and author choices for one tag rendition. Prefer existing wording that preserves the intended meaning; authored extensions remain available after comparison.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_type": {
+      "const": "prompt-vocabulary-selection"
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt_input_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dialect": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dictionary_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dialect_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "prompt_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "negative_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "syntax": {
+          "enum": [
+            "literal",
+            "sdEmbeds",
+            "compel"
+          ]
+        }
+      },
+      "required": [
+        "model",
+        "prompt_input_sha256",
+        "dialect",
+        "dictionary_sha256",
+        "dialect_sha256",
+        "prompt_sha256",
+        "negative_sha256",
+        "syntax"
+      ]
+    },
+    "vocabularies": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "dialect_guidance": {
+      "type": "object"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "channel": {
+            "enum": [
+              "positive",
+              "negative"
+            ]
+          },
+          "clause": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "term": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additional_queries": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "searches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "candidates": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "term",
+                      "category_id",
+                      "category",
+                      "score",
+                      "definitions"
+                    ],
+                    "properties": {
+                      "term": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "category_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "category": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "score": {
+                        "type": "integer"
+                      },
+                      "definitions": {
+                        "type": "array",
+                        "items": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "required": [
+                "query",
+                "candidates"
+              ]
+            },
+            "minItems": 1
+          },
+          "choice": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "dictionary"
+                  },
+                  "definitions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "definitions"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "authored"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "reason"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "channel",
+          "clause",
+          "term",
+          "additional_queries",
+          "searches",
+          "choice"
+        ]
+      },
+      "minItems": 1
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "artifact_type",
+    "context",
+    "vocabularies",
+    "dialect_guidance",
+    "entries",
+    "unresolved"
+  ]
+}

@@ -618,6 +618,11 @@ present, selected target and saved lookup evidence. A missing catalog record
 is recorded explicitly and can proceed as an external trial. It is not a
 catalog capability or a proven rendering result. `target.operation` comes
 from the selected interface's wire contract, not the render execution mode.
+`model.prompt_input` states the evidenced input mode and forms. A tag-based
+target also names its `prompt_dialect`. A known service/model offering retains
+its catalog input contract even when an authored plan labels it missing;
+an external declaration cannot reclassify that offering to skip vocabulary
+search. Resolve an unknown checkpoint's input contract before finalizing text.
 
 Save one exact request JSON. `external_request` names its relative file and
 field paths as arrays of keys and array indices. It declares `prompt_field`,
@@ -632,6 +637,29 @@ the same media field when its value also matches. This includes different
 sources assigned to regions of one prepared board. Their distinct logical
 scopes, attachment number and board regions remain recorded. For direct
 inputs without a prepared set, shared fields require identical source bytes.
+
+For tag-based input, also declare `negative_field` (null when absent), the
+interface's `prompt_syntax`, and `vocabulary_record` with `path`, `sha256` and
+`locator` selecting the ordinary prompt retrieval record. Search that exact
+prompt and negative text with `prompt_retrieval.py --search-vocabulary` using
+the catalog `--model`, or an acquired `--model-file` for an external target.
+`prompt_syntax` declares a default grammar and either `control: null` for a
+fixed grammar or a control's exact field path and native-value mapping. For
+example, a synthetic interface can map `controls.text_mode: "weighted"` to
+`compel`; the request field name itself has no grammar meaning. Use the grammar
+selected by the actual request when searching its vocabulary.
+When the catalog offering has an execution profile, the applied render intent's
+mode determines its grammar. Preparation checks the external request's grammar
+against that mode; a native operation name does not select a rendering mode.
+Preparation repeats the dictionary search and checks the selected terms against
+the actual request fields. Existing wording is preferred when it preserves the
+intended meaning; a needed authored expression retains its comparison reason.
+No plot is required solely to use the external vocabulary record. A descriptive
+target does not acquire a tag-search obligation from this binding.
+The saved binding retains the inspection and the model constraints it used.
+Reading that binding inspects its exact text again with the pinned grammar and
+limits, rejects recorded problems, and requires the saved inspection to match.
+It does not read a mutable model catalog to reinterpret a saved request.
 
 Inspect the reference mapping before saving the final request:
 
@@ -801,8 +829,9 @@ expected portrayal, earlier failures and production history until that first
 observation is recorded. A review draft already contains purpose and criterion
 context; do not give it to this first observer.
 
-Then compare the observations with the prepared criteria, allowed variation and
-applicable source or reference evidence. Additional inspection may answer a
+Then compare the observed depiction with the commissioned result and applicable
+source or reference evidence. Use the prepared criteria and allowed variation
+within that authority. Additional inspection may answer a
 criterion-specific question; keep those later observations distinguishable from
 the first reading in their `limitations`. Preserve the direct observation in
 `observation`, its meaning against the criterion in `interpretation`, and the
@@ -842,8 +871,13 @@ prepared inputs were sent.
 
 The draft carries the prepared artifact purpose and intended effect with each
 criterion, its evidence kind, applicable selected realization and accepted
-variations. Assess the observed candidate against that scope. Source records
-explain what was required; observations establish what the candidate supplies.
+variations. Source records establish what was commissioned; observations
+establish what the candidate supplies. The chosen realization is itself open
+to judgment against that commission. A renderer can obey a prompt whose
+choices miss the request. Do not infer success solely from agreement with
+self-authored means, or silently treat those means as user requirements.
+Review the basis of a mistaken criterion in the same assessment and revise
+the responsible task through its existing authority before formal selection.
 Keep uncertainty about an unsupported judgment in the review's limitations.
 An intentionally ambiguous portrayal is itself assessable when the artifact
 requests it. Changes to a live task leave this prepared review basis unchanged.
@@ -870,6 +904,12 @@ The candidate's latest review sets its evaluation, by the first row that applies
 | any `indeterminate`, or an unresolved issue listed | `indeterminate` |
 | some criteria not assessed | `partially_reviewed` |
 | every criterion `pass` or `not-applicable` | `conforming` |
+
+These labels summarize all recorded criteria, including advisory ones. They
+do not decide selection eligibility. An advisory failure or an inconclusive
+advisory observation can coexist with supported passes on every hard criterion.
+Keep the limitation and any optional repair visible rather than changing its
+verdict to obtain a preferred aggregate label.
 
 Disposition is a separate axis: `pending`, `not_selected`, or `selected`, from the candidate's latest decision event.
 A disposition file allows `pending` and `not_selected`; only `select` establishes `selected`.
@@ -903,7 +943,13 @@ python scripts/production_workflow.py complete --root STUDIO --run RUN
 Fill the selector and reason, then authorize the printed `select` intent as [Production permissions](production-permissions.md) describes.
 Put the authorization event digest in `selection.authorization` before `select`.
 A selection binds the candidate, its latest review and every selection field.
-Every hard criterion needs a supported `pass` first; advisory criteria may stay unassessed with reasons.
+Every hard criterion needs a supported `pass` first, and `unresolved` must be
+empty. Advisory criteria may remain unassessed, indeterminate or failed with
+their actual evidence and reasons. A recorded failure still needs a repair or
+an unresolved issue; retain a nonblocking improvement as a proposed repair,
+without making its execution a condition of selection. Use the run's actual
+eligibility and next action, not an all-criteria aggregate label, to determine
+whether required work is complete.
 A `delivery-only` selection does not change canon.
 
 Adoption follows this order:

@@ -19,13 +19,32 @@ def terms(parsed, clause=0):
 class SyntaxTests(unittest.TestCase):
     def test_literal_never_infers_weighting(self):
         self.assertEqual(terms(w.parse('(grey fur)1.2, [yellow eyes]')), ['(grey fur)1.2', '[yellow eyes]'])
-        self.assertEqual(w.selected({}), 'literal')
+        self.assertEqual(w.selected({}, {'default': 'literal', 'control': None}), 'literal')
 
     def test_explicit_native_selection(self):
-        for syntax in ('sdEmbeds','compel'):
-            self.assertEqual(w.selected({'promptWeighting':syntax}),syntax)
-        for value in (None,True,'COMPEL','literal','automatic'):
-            with self.subTest(value=value),self.assertRaises(ValueError):w.selected({'promptWeighting':value})
+        declaration = {'default': 'literal', 'control': {'field': ['options', 'grammar'], 'values': [
+            {'value': 'emphasis', 'syntax': 'sdEmbeds'}, {'value': 'clauses', 'syntax': 'compel'}]}}
+        for value, syntax in [('emphasis', 'sdEmbeds'), ('clauses', 'compel')]:
+            self.assertEqual(w.selected({'options': {'grammar': value}}, declaration), syntax)
+        self.assertEqual(w.selected({}, declaration), 'literal')
+        for value in (None, True, 'COMPEL', 'literal', 'automatic'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                w.selected({'options': {'grammar': value}}, declaration)
+
+    def test_fixed_interface_grammar_needs_no_request_control(self):
+        self.assertEqual(w.selected({}, {'default': 'compel', 'control': None}), 'compel')
+
+    def test_wire_grammar_uses_its_declared_parameter_path(self):
+        declaration = {'default': 'literal', 'control': {'field': ['options', 'grammar'], 'values': [
+            {'value': True, 'syntax': 'compel'}, {'value': 1, 'syntax': 'sdEmbeds'}]}}
+        wire = {'request': {'options': {'grammar': True}}, 'layout': {'fields': [
+            {'field': ['options'], 'kind': 'parameter'}]}}
+        self.assertEqual(w.wire_selection(wire, declaration), 'compel')
+        wire['request']['options']['grammar'] = 1
+        self.assertEqual(w.wire_selection(wire, declaration), 'sdEmbeds')
+        wire['layout']['fields'][0]['kind'] = 'content'
+        with self.assertRaisesRegex(ValueError, 'wire parameter'):
+            w.wire_selection(wire, declaration)
 
     def test_plus_minus_word_weights(self):
         value=w.parse('cat++, dog--','compel')

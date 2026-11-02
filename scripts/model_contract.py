@@ -26,7 +26,7 @@ MODEL_RECORD_KEYS = frozenset(
         "input_image_count", "max_negative_prompt_chars", "max_outputs",
         "max_positive_prompt_chars", "max_reference_images", "negative_transport_mode",
         "negative_transport_notes", "offerings", "operation_kind", "ordering", "output_limits",
-        "prompt_dialect", "prompt_style", "recommendation_merge_mode", "recommended_parameters",
+        "prompt_dialect", "prompt_input", "prompt_style", "recommendation_merge_mode", "recommended_parameters",
         "recommended_negative_preset", "recommended_negative_prompt",
         "recommended_positive_prompt", "recommended_uses", "reference_input_media_types",
         "size_hints", "supported_aspect_ratios", "supported_resolutions",
@@ -229,6 +229,11 @@ def validate_model_record(record: Mapping[str, Any]) -> list[str]:
     unknown = sorted(set(record) - MODEL_RECORD_KEYS)
     if unknown:
         errors.append(f"unknown keys {unknown}")
+    from model_prompt_input import resolve_prompt_input
+    try:
+        resolve_prompt_input(record)
+    except ValueError as exc:
+        errors.append(str(exc))
     if "offerings" not in record:
         errors.append(
             "offerings is required: one entry per service that exposes the model here, "

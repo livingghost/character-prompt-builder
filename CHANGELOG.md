@@ -1,5 +1,48 @@
 # Changelog
 
+## 2026.11.02.4
+
+- Scope product checks to product-owned files and bundled pack records. Optional
+  pack content and manifest diagnostics remain outside product test inputs;
+  synthetic fixtures exercise the contracts for independently authored packs.
+
+## 2026.11.02.3
+
+- Resolve prompt grammar from the selected interface and execution mode. A fixed
+  grammar or declared field/value mapping works across services; native controls
+  remain in their owning definitions and adapter tests.
+- Inspect external text during preparation and saved-binding validation using
+  the same grammar and pinned model constraints. Reject recorded problems,
+  missing inspections and results that disagree with the actual saved text.
+  Vocabulary search remains required for tag input and independent of grammar.
+- Exercise common payload, schema import, workflow preview, recovery and cost
+  accounting contracts with synthetic services and their own request/response
+  shapes. Keep service-specific protocol coverage scoped to its adapter.
+
+## 2026.11.02.2
+
+- Keep replaceable model capabilities and version-specific guidance in the model,
+  dialect and scoped guide definitions. Runtime and adapter instructions read
+  those definitions; pack authoring policy describes input types without copying
+  the current model inventory or its native controls.
+
+## 2026.11.02.1
+
+- Give every model an evidenced prompt-input contract: tag-based, descriptive,
+  unresolved, or no text input. Keep accepted forms and selected vocabulary
+  sources explicit instead of inferring the workflow from missing family data.
+- Search the active dictionary and selected family terms when composing and
+  finalizing tag-based text. Bind actual search results to the selected model,
+  grammar and positive/negative text; retain needed authored expressions after
+  comparing available wording. Read descriptive prompts without imposing a tag
+  vocabulary search on them.
+- Apply the same input contract to dispatcher and externally supplied requests.
+  Check final transmitted wording after recommendation processing, and preserve
+  past artifact validation independently of a new execution's current resources.
+- Update Anima vocabulary guidance and add NovelAI and Pony family guidance
+  from model-specific documentation. Distinguish permitted vocabulary sources
+  from claims about a model's training data or executable service support.
+
 ## 2026.11.01.6
 
 - Read the selected service's JSON or environment string unchanged. Keep whitespace and other string contents exactly as supplied, without shared key-format rules, key-length limits or credential-document size limits.

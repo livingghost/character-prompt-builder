@@ -14,14 +14,14 @@ Use it when the job is more than finding a pleasing string of tags:
 - an artist developing a design that must stay recognizable from image to image;
 - a production team revisiting one subject across scenes, sessions and models.
 
-The subject can be a person, an animal, an anthropomorphic character, a creature, a machine or a scene with no cast. A short request stays short, and a long project follows the same path with more records.
+The subject can be a person, an animal, an anthropomorphic character, a creature, a machine or a scene with no cast. The same direction process serves a standalone prompt and a continuing project; introduce the production records the work needs.
 
 ## Core production chain
 
 Saved production records the inputs and decisions needed by later steps.
 
-1. **Settle the purpose and scope.** Identify what the artifact must communicate and which requirements stay fixed. See [Production direction](references/runtime/production-direction.md).
-2. **Discover and choose the expression.** Consult relevant knowledge before resolving open presentation choices. The agent chooses within delegated scope, using a scene, ordered views, graphic hierarchy or another suitable construction. Read each selected record in full. See [Knowledge discovery](references/runtime/sparse-discovery.md) and the [Preset System Contract](references/preset-system-contract.md).
+1. **Author the commissioned depiction.** Use [Production direction](references/runtime/production-direction.md) to understand the situation or design and choose how the picture presents it. Preserve exact requirements and purposeful detail; keep activities and relationships meaningful through wording. Judge chosen means against the commission.
+2. **Consult knowledge where it helps.** Resolve construction or wording questions with relevant sources. Read selected records in full and apply their contribution to the same depiction. Source-sufficient work needs no invented search. See [Knowledge discovery](references/runtime/sparse-discovery.md) and the [Preset System Contract](references/preset-system-contract.md).
 3. **Resolve the subject.** For a recurring character, its character profile, design and current story state say what stays fixed and what may vary. See [State-Aware Series](references/runtime/state-aware-series.md).
 4. **Choose the finish and the model controls.** Record the rendering intent, read the selected model's guidance and resolve each control it requires. See [Rendering choices and execution controls](references/runtime/render-contract.md).
 5. **Write the prompt and seal the request.** The prompt, the scoped negative, the settings and the ordered references are checked and bound to their files. See [Image Generation](references/runtime/image-generation.md).

@@ -80,9 +80,11 @@ The returned task continues through the existing input builders, preparation, pr
 The command keeps the original task, authority, and specification unchanged.
 Its output is authoring evidence, not a generated candidate or an adopted identity.
 
-The existing retrieval record identifies prompt-wording provenance.
+The retrieval record captures questions actually investigated and their use.
 The application source identifies craft adaptation, including combinations of several records.
-Use the existing retrieval gate for final wording and inspect actual assets before transferring their visual authority.
+Settle the recorded investigations for final wording under Prompt-only Core;
+source-sufficient work needs no invented lookup. Inspect actual assets before
+transferring their visual authority.
 
 ## Review and return to the packs
 

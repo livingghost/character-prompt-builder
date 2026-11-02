@@ -35,8 +35,10 @@ python scripts/render_contract.py intent --preset flat-graphic --mode text-to-im
 python scripts/render_contract.py validate-intent render-intent.json --draft
 ```
 
-The draft has no invented prompt words. Retrieve wording under the skill's retrieval gate first.
-Then fill `prompt_expression` with the exact authored span that describes the visible finish.
+The draft leaves the prompt wording to the author. Resolve the selected model's
+input workflow below, then fill `prompt_expression` with the exact authored span
+that describes the visible finish. A tag-based rendition searches its vocabulary;
+a descriptive rendition can use sufficient supplied knowledge directly.
 Include every regional expression in the final prompt as well.
 Preset names, choice reasons and provenance stay in the intent record.
 `validate-intent` without `--draft` requires that wording.
@@ -65,6 +67,8 @@ The prompt-dialect command resolves the model, dialect, and writing guide in tha
 The prompt-dialect report and route reading with `--model` include the same cards.
 They expose recommended positive and negative text, merge mode, parameter recommendations,
 size choices, prompt slot order, evidence basis, limitations, and every mode's controls.
+The card also exposes the exact `prompt_input` declaration, its owning
+`prompt_dialect` where applicable, and `requires_vocabulary_search`.
 Read this output before preparing model-specific wording or values.
 A model change means a new card, prompt review, parameter resolution, and authorization scope review.
 Never swap the selected provider or model for another image tool merely because it is available.
@@ -74,6 +78,32 @@ Recommendations live in the model's existing `recommended_parameters`,
 `execution_profile` belongs to the exact offering, or to a host-only model with no offering.
 Its controls point to recommendation names; they do not duplicate the values.
 One interface never inherits another interface's capabilities implicitly.
+
+### Prompt input
+
+The required `prompt_input` contract distinguishes these workflows:
+
+| Mode | Input and authoring consequence |
+| --- | --- |
+| `tag-based` | The selected workflow uses tags and named vocabularies. Search existing wording before finalizing the rendition, even if the model also accepts prose. |
+| `descriptive` | Use the declared natural-language or structured-caption form. Investigate construction and wording questions as needed. |
+| `unresolved` | The actual model, version or input behavior is not established. Retain a portable depiction and resolve the evidence before target-specific finalization. |
+| `none` | The selected operation has no text prompt surface. Supply its evidenced media and controls. |
+
+`forms`, `vocabularies`, and nonempty `basis` are present for every mode.
+Unresolved and no-prompt records keep both arrays empty. Descriptive records
+have no tag vocabulary scope. Tag-based records include `tags` in `forms`,
+name their vocabulary IDs and declare `prompt_dialect` as the owning family.
+Other modes omit `prompt_dialect`. These declarations are independent of the
+service's weighting parser and of whether an execution offering is configured.
+
+Read each basis statement at its stated model, family, adapter, operation or
+author-selection scope. An adapter that routes among several models does not
+establish the eventual model's input. A family may accept more than one form;
+this does not remove a selected tag workflow's search requirement. See
+[Model request evidence](model-evidence.md#prompt-input-evidence) for authoring
+the contract and [Vocabulary](prompt-vocabulary.md#select-wording-for-a-tag-based-model)
+for the existing retrieval and settlement flow.
 
 A card may report `ready_for_parameter_resolution: false` for an unconfigured model.
 Its catalog entry remains readable, but Generation Package dispatch requires an authored execution profile.
@@ -172,6 +202,11 @@ Parameter contracts keep their own immutable interface controls; preference chan
 
 Every mode names its media semantics and its controls using exact request paths.
 Nested controls use dotted paths in the execution profile and nested JSON objects in authored parameters.
+Its `prompt_syntax` declares the grammar used for prompt inspection: a fixed/default
+grammar and, where exposed, the native control path and value-to-grammar mapping.
+The mapping belongs to this mode's interface evidence. A field's spelling never
+selects a parser by itself. See [Explicit prompt weighting](prompt-weighting.md)
+for the shared declaration and a synthetic nested-control example.
 Every mode states a seed and output-count disposition, including interfaces that expose neither.
 
 | Status | Behavior |

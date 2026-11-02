@@ -14,7 +14,13 @@ class RenderContractTests(unittest.TestCase):
             'steps':control('required',schema={'type':'integer','minimum':1,'maximum':60},recommendation='steps'),
             'CFGScale':control('required',schema={'type':'number','minimum':0,'maximum':20},recommendation='guidance')})
         self.model={'id':'synthetic-image-model','execution_profile':self.p,
-                    'recommended_parameters':{'steps':24,'guidance':5.5}}
+                    'recommended_parameters':{'steps':24,'guidance':5.5},
+                    'prompt_input': {
+                        'mode': 'descriptive', 'forms': ['natural-language'], 'vocabularies': [],
+                        'basis': [{'kind': 'synthetic-fixture', 'source': 'Synthetic render contract fixture.',
+                                   'scope': 'model', 'observed_at': '2026-01-01',
+                                   'statement': 'The synthetic interface uses descriptive text.'}],
+                    }}
         self.prompt='Flat graphic illustration of an observatory.'
         self.intent=intent(self.prompt)
 
@@ -306,6 +312,12 @@ class ExternalPackGuidanceTests(unittest.TestCase):
             'aliases': [cls.alias], 'operation_kind': 'generation',
             'prompt_style': 'Explicitly synthetic instruction text.',
             'prompt_dialect': 'external-family',
+            'prompt_input': {
+                'mode': 'tag-based', 'forms': ['tags'], 'vocabularies': ['external-vocabulary'],
+                'basis': [{'kind': 'synthetic-fixture', 'source': 'Synthetic external model fixture.',
+                           'scope': 'model', 'observed_at': '2026-01-01',
+                           'statement': 'The synthetic model selects the external-family vocabulary workflow.'}],
+            },
             'ordering': ['rendering', 'subject', 'composition'],
             'supports_negative_prompt': True, 'negative_transport_mode': 'separate-field',
             'negative_transport_notes': 'Synthetic independent negative channel.',
@@ -351,6 +363,7 @@ class ExternalPackGuidanceTests(unittest.TestCase):
             'format': 'character-prompt-builder-prompt-dialects', 'name':'External fixture family',
             'description':'Synthetic wording family.',
             'dialects':[{'id':'external-family', 'name':'External family', 'description':'Synthetic grammar.',
+                         'vocabularies': ['external-vocabulary'],
                          'tag_separator': ', ', 'block_order':['rendering','subject']}],
         })
         cls.write(cls.pack / 'resources/guide.json', {

@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 
 import generation_geometry as geometry  # noqa: E402
+from model_prompt_input_fixtures import prompt_input
 
 EXPECTED_CHECKS = 32
 
@@ -96,6 +97,7 @@ BUCKET_SCHEMA = {
 def fixture_record(offerings: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     return {
         "id": "fixture-model",
+        "prompt_input": prompt_input("descriptive"),
         "size_hints": {
             "1:1": "1024x1024",
             "2:3": "832x1216",
@@ -132,6 +134,7 @@ def runtime_pack(folder: Path) -> list[str]:
 
     models = json.loads((ROOT / "packs/commons/records/models.json").read_text(encoding="utf-8"))
     record = {**models["records"][0], "id": "fixture-runtime-model", "aliases": ["fixture runtime model"],
+              "prompt_input": prompt_input("descriptive"),
               "offerings": [ratio_offering()], "size_hints": {"1:1": "1024x1024", "2:3": "832x1216", "16:9": "1360x768"}}
     manifest = initialize_pack(folder / "packs" / "fixture", name="Geometry Runtime Fixture")
     manifest["content"]["resource_globs"] = ["resources/**/*"]

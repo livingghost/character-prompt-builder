@@ -3,16 +3,26 @@
 ## Activation
 
 Use this runtime to discover expressive forms through category browsing or to
-find English wording for a selected construction. Discovery can precede the
+find English wording for a selected construction. It also owns the required
+dictionary search for every selected `tag-based` model rendition. Discovery can precede the
 direction choice; compact terms alone do not explain a form's purpose or make
 it appropriate. Inspect applicable production records and use
 [Production direction](production-direction.md#choose-the-expression) to choose.
-During prompt assembly, run one vocabulary search per distinct visual element
-before wording is final. Prefer a fitting term for a compact tag and keep
-authored wording wherever no term fits or prose carries the meaning (see
+During prompt assembly, use the
+[selected construction and wording questions](prompt-composition.md#catalog-retrieval-and-inspection)
+as retrieval elements. Search their meanings together where a relationship or
+modifier determines the wording. Prefer a fitting term for a compact tag and
+keep authored wording wherever no term fits or prose carries the meaning (see
 [Prompt Composition Runtime](prompt-composition.md), Prompt assembly and review).
 
-A prompt-vocabulary resource is ordinary pack-owned knowledge. It does not decide which entries are appropriate, label entries for exclusion, or inject search results automatically. The Skill-using agent selects, combines, rewrites, or ignores results according to the request and active image interface. After term selection, use the [Prompt Writing Guide Runtime](prompt-writing-guide.md) for final ordering, supported weighting syntax, and model-facing rendition.
+A prompt-vocabulary resource is ordinary pack-owned knowledge. It can contain
+corpus vocabulary, aliases and authored descriptive wording. Dictionary
+membership does not certify a term as a Danbooru or e621 tag, establish training
+membership or promise a learned visual effect. The selected model's vocabulary
+IDs and family evidence supply the lookup and usage scope. The agent selects,
+combines or rewrites candidates according to their meaning in the commissioned
+depiction. After selection, use the [Prompt Writing Guide Runtime](prompt-writing-guide.md)
+for ordering, supported weighting syntax and model-facing rendition.
 
 ## Resolve the active dictionary
 
@@ -22,7 +32,69 @@ Resolve the logical resource from the same explicit pack state used by the task:
 python scripts/pack_cli.py resource prompt-vocabulary
 ```
 
-Pass the resolved file to the search command. When no enabled provider supplies the optional resource, continue without it.
+Pass the resolved file to the search command. A tag-based rendition requires
+the active dictionary and owning dialect resources. If they are unavailable,
+resolve that resource need before completing its model-specific wording.
+Descriptive and portable work can proceed from sufficient sources without a
+dictionary; a missing resource never changes the target's input mode.
+
+## Select wording for a tag-based model
+
+Read the selected model's `prompt_input` and its basis first. The tag-based
+workflow requires real searches even when the author knows the terms or the
+model also supports natural language. Use the existing draft retrieval record;
+initialize it with `python scripts/prompt_retrieval.py lookups.json --init` when
+needed. A conversation-only prompt can use temporary files without creating a
+Studio.
+
+```bash
+python scripts/prompt_retrieval.py lookups.json --search-vocabulary \
+  --model MODEL_ID --prompt-file prompt.txt --negative-file negative.txt \
+  --weighting literal
+```
+
+Omit `--negative-file` when there is no negative channel. Select the actual
+weighting parser rather than copying the example's `literal`. An unlisted
+target uses `--model-file MODEL_JSON` instead of `--model`; the file supplies
+its exact identity and evidenced `prompt_input`, plus `prompt_dialect` for a
+tag-based workflow.
+
+The command searches every parsed term in the positive and negative clauses.
+It records returned candidates, complete matching definitions, the model's
+input contract, parser and resource hashes. Exact terms and aliases receive
+dictionary choices automatically. That is lexical resolution; the author still
+chooses the applicable sense and judges whether it serves the depiction.
+
+For unresolved expressions, prefer an existing term or close synonym when it
+preserves meaning, scope and degree. Revise the text and search the rendition
+again. When available vocabulary does not carry the required distinction,
+retain the authored expression with its reason:
+
+```bash
+python scripts/prompt_retrieval.py lookups.json --retain-wording "AUTHORED_PHRASE" \
+  --reason "WHY_AVAILABLE_WORDING_CHANGES_THE_REQUIRED_MEANING" \
+  --query "RELATED_CONCEPT" --model MODEL_ID --prompt-file prompt.txt \
+  --negative-file negative.txt --weighting literal
+```
+
+`--query` is repeatable and optional; use it for a useful conceptual or synonym
+search. Retaining wording executes the searches again and keeps the candidate
+evidence beside the author's reason. An empty result does not forbid the
+expression, and a similar-looking result does not make it appropriate. Preserve
+necessary specificity instead of narrowing the picture to the dictionary.
+
+For a conversation-only prompt, complete the searched choices and read back the
+rendition; no plot, approval or settlement artifact is needed. For saved
+generation, settle the record under
+[Prompt-only Core](prompt-only-core.md#saved-prompt-artifacts). Vocabulary choices
+bind the prompt channels, input contract, parser and resource content.
+Preparation re-runs the search and verifies that binding; an empty construction
+list cannot bypass it. The existing rendition review assesses meaning;
+dictionary membership adds no semantic approval or image-quality verdict.
+
+`scripts/prompt_vocabulary_selection.py` owns this selection and its
+verification. The command, package preparation and external image-input
+preparation share its model-bound search behavior.
 
 ## Search
 
@@ -33,7 +105,7 @@ python scripts/search_prompt_vocabulary.py "low angle" \
 
 `--record` appends the query and its returned terms to the retrieval record under that element.
 
-Run the searches for every element in one process with `--queries`, which takes a JSON object literally, from a file, or from `-` for stdin:
+Batch the selected questions in one process with `--queries`, which takes a JSON object literally, from a file, or from `-` for stdin:
 
 ```bash
 python scripts/search_prompt_vocabulary.py --dictionary DICTIONARY_JSON --record lookups.json \

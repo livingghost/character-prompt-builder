@@ -12,6 +12,7 @@ import production_case_fixtures as fixture
 import production_workflow as workflow
 import prompt_retrieval
 from catalog_retrieval import runtime
+from model_prompt_input_fixtures import prompt_input
 
 
 class TagPreparationTests(unittest.TestCase):
@@ -36,18 +37,37 @@ class TagPreparationTests(unittest.TestCase):
             'format': 'character-prompt-builder-prompt-dialects', 'name': 'Synthetic dialects',
             'description': 'A test-only tag grammar.', 'dialects': [{'id': 'synthetic-tags',
                 'name': 'Synthetic tags', 'description': 'No external checkpoint claims.',
+                'vocabularies': ['synthetic'],
                 'tag_separator': 'comma', 'block_order': ['subject', 'environment']}]})
         models = c.load(self.pack / 'records/models.json')
         models['records'][0]['prompt_dialect'] = 'synthetic-tags'
+        models['records'][0]['prompt_input'] = prompt_input('tag-based', vocabularies=('synthetic',))
         fixture.write(self.pack / 'records/models.json', models)
         self.refresh()
 
-    def refresh(self):
+    def refresh(self, *, authored: dict[str, str] | None = None):
+        from prepare_generation_references import resolve_model_record
+        from prompt_vocabulary_selection import search_selection, resolve_authored
+        import prompt_weighting
         packs.write_lock(self.pack)
         runtime.configure_pack_runtime(self.case['settings'])
         record = c.load(self.root / 'retrieval.json')
         record['pack_state'] = runtime.load_pack_catalog().fingerprint
         prompt = (self.root / 'prompt.txt').read_text(encoding='utf-8')
+        model = resolve_model_record(fixture.MODEL_ID)[1]
+        task = c.load(self.root / 'task.json')
+        negative_file = task['generation'].get('negative')
+        negative = (self.root / negative_file).read_text(encoding='utf-8') if negative_file else ''
+        specification = c.load(self.root / 'spec.json')
+        profile = model['offerings'][0]['execution_profile']
+        syntax = prompt_weighting.selected(c.load(self.root / 'parameters.json'),
+            profile['modes'][specification['render_intent']['execution_mode']]['prompt_syntax'])
+        selection = search_selection(prompt=prompt, negative=negative, model_record=model, syntax=syntax,
+                                     previous=record.get('vocabulary'))
+        for term, reason in (authored or {}).items():
+            selection = resolve_authored(selection, term, reason)
+        record['vocabulary'] = search_selection(prompt=prompt, negative=negative, model_record=model,
+                                               syntax=syntax, previous=selection)
         record = prompt_retrieval.settle_retrieval_record(record, prompt=prompt, plot=c.load(self.root / 'plot.json'))
         fixture.write(self.root / 'retrieval.json', record)
         from request_validation_fixtures import fixture_validation
@@ -59,17 +79,54 @@ class TagPreparationTests(unittest.TestCase):
     def test_final_request_has_dictionary_meaning_and_resource_hashes(self):
         result = workflow.prepare(self.root, 'task.json')
         report = result['execution_plan']['prompt_check']
-        self.assertEqual(report['state'], 'checked')
+        self.assertEqual(report['state'], 'vocabulary-checked')
         self.assertEqual(report['request_sha256'], result['execution_plan']['request_sha256'])
         meanings = {row['authored_term']: row for row in report['meanings']}
         self.assertIn('garment', meanings['collar']['description'])
         self.assertEqual(len(report['dictionary']['sha256']), 64)
         self.assertEqual(meanings['collar']['usage_notes'], ['Inspect the intended garment meaning.'])
 
+        import runtime_snapshot
+        from prepare_generation_references import resolve_model_record
+        from prompt_vocabulary_selection import search_selection
+        directory, prepared, _, _ = workflow.load_run(self.root, result['run'])
+        descriptor = prepared['runtime_snapshot']
+        snapshot = runtime_snapshot.path(self.root, descriptor)
+        resources = {row['name']: row for row in descriptor['binding']['resources']}
+        for name, relative in (('prompt-vocabulary', 'resources/dictionary.json'),
+                               ('prompt-dialects', 'resources/dialects.json')):
+            with self.subTest(resource=name):
+                bound = resources[name]
+                self.assertEqual(bound['path'], relative)
+                pinned = snapshot / 'packs' / bound['pack'] / relative
+                self.assertEqual(pinned.read_bytes(), (self.pack / relative).read_bytes())
+                self.assertEqual(c.sha256_file(pinned), bound['sha256'])
+
+        package = c.load(directory / 'package.json')
+        selection = package['retrieval_record']['vocabulary']
+        dictionary = c.load(self.pack / 'resources/dictionary.json')
+        dictionary['categories'][0]['entries'][1]['description'] = 'A later active vocabulary definition.'
+        fixture.write(self.pack / 'resources/dictionary.json', dictionary)
+        dialects = c.load(self.pack / 'resources/dialects.json')
+        dialects['dialects'][0]['tag_separator'] = 'A later active grammar description.'
+        fixture.write(self.pack / 'resources/dialects.json', dialects)
+        with runtime_snapshot.using(snapshot, descriptor):
+            catalog = runtime.load_pack_catalog()
+            for name in ('prompt-vocabulary', 'prompt-dialects'):
+                self.assertTrue(Path(catalog.resources[name].path).is_relative_to(snapshot))
+            replayed = search_selection(prompt=package['composition_prompt'], negative='',
+                model_record=resolve_model_record(fixture.MODEL_ID)[1], previous=selection)
+        self.assertEqual(replayed, selection)
+
     def test_unlisted_term_is_visible_but_does_not_block_preparation(self):
         data = c.load(self.pack / 'resources/dictionary.json')
         data['categories'][0]['entries'].pop()
-        fixture.write(self.pack / 'resources/dictionary.json', data); self.refresh()
+        fixture.write(self.pack / 'resources/dictionary.json', data)
+        self.refresh(authored={'collar': 'The remaining synthetic vocabulary describes a backdrop and supplies no equivalent for a garment around the neck. Retain collar for that distinct fixture meaning.'})
+        selection = c.load(self.root / 'retrieval.json')['vocabulary']
+        collar = next(row for row in selection['entries'] if row['term'] == 'collar')
+        self.assertTrue(collar['searches'])
+        self.assertEqual(collar['choice']['kind'], 'authored')
         result = workflow.prepare(self.root, 'task.json')
         report = result['execution_plan']['prompt_check']
         self.assertIn({'channel': 'positive', 'clause': 0, 'term': 'collar'}, report['unmatched_terms'])

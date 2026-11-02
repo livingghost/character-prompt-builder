@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from prompt_plot import content_sha256
 from prompt_retrieval import settle_retrieval_record
+from model_prompt_input_fixtures import prompt_input
 
 NL = chr(10)
 
@@ -93,7 +94,7 @@ def run(script: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def check_authored_depictions(root: Path, script: Path) -> list[str]:
+def check_authored_depictions(root: Path, script: Path, model_file: Path) -> list[str]:
     """Exercise exact text/plot transport for purpose-specific synthetic briefs.
 
     These checks verify packaging, not the author's semantic judgment or any
@@ -171,7 +172,8 @@ def check_authored_depictions(root: Path, script: Path) -> list[str]:
                           encoding="utf-8")
         out = folder / "package"
         result = run(script, "--prompt", str(prompt), "--plot", str(plot_path),
-                     "--retrieval-record", str(record), "--prepare-for-generation", "--out-dir", str(out))
+                     "--retrieval-record", str(record), "--prepare-for-generation", "--out-dir", str(out),
+                     "--model-file", str(model_file))
         if result.returncode:
             errors.append(f"{name}: package failed: {result.stderr}")
             continue
@@ -209,7 +211,8 @@ def check_authored_depictions(root: Path, script: Path) -> list[str]:
                       encoding="utf-8")
     out = folder / "package"
     result = run(script, "--prompt", str(prompt), "--plot", str(plot_path),
-                 "--retrieval-record", str(record), "--prepare-for-generation", "--out-dir", str(out))
+                 "--retrieval-record", str(record), "--prepare-for-generation", "--out-dir", str(out),
+                 "--model-file", str(model_file))
     if result.returncode:
         errors.append("context-performance: package failed: " + result.stdout + result.stderr)
     elif ((out / "final-prompt.txt").read_bytes() != prompt.read_bytes()
@@ -218,10 +221,141 @@ def check_authored_depictions(root: Path, script: Path) -> list[str]:
     return errors
 
 
+def check_source_sufficient_package(root: Path, script: Path, prompt: Path, plot: Path, model_file: Path) -> list[str]:
+    """Exercise empty initialization, exact settlement and the real packaging gate."""
+    errors = []
+    retrieval_script = script.with_name("prompt_retrieval.py")
+    record = root / "source-sufficient.json"
+    initialized = run(retrieval_script, str(record), "--init")
+    expected = {"artifact_type": "prompt-retrieval-record", "elements": []}
+    if initialized.returncode or not record.is_file() or json.loads(record.read_text(encoding="utf-8")) != expected:
+        return ["source-sufficient initialization failed: " + initialized.stdout + initialized.stderr]
+    original = record.read_bytes()
+    repeated = run(retrieval_script, str(record), "--init")
+    if repeated.returncode == 0 or record.read_bytes() != original:
+        errors.append("retrieval initialization did not preserve an existing record")
+
+    settled = root / "source-sufficient-settled.json"
+    resolution = run(retrieval_script, str(record), "--settle", "--prompt-file", str(prompt),
+                     "--plot-file", str(plot), "--out", str(settled), "--model-file", str(model_file))
+    if resolution.returncode:
+        return errors + ["empty retrieval settlement failed: " + resolution.stdout + resolution.stderr]
+    out = root / "source-sufficient-package"
+    package = run(script, "--prompt", str(prompt), "--plot", str(plot),
+                  "--retrieval-record", str(settled), "--prepare-for-generation", "--out-dir", str(out),
+                  "--model-file", str(model_file))
+    if package.returncode:
+        errors.append("source-sufficient generation preparation failed: " + package.stdout + package.stderr)
+    else:
+        manifest = json.loads(package.stdout)["manifest"]
+        if manifest["retrieval"] != {"settled": True, "elements": 0, "adopted": 0, "composed": 0, "unused": 0}:
+            errors.append("source-sufficient preparation invented retrieval activity")
+        if (out / "prompt-retrieval-record.json").read_bytes() != settled.read_bytes():
+            errors.append("source-sufficient preparation changed its retrieval record")
+
+    changed_prompt = root / "changed-source-sufficient-prompt.txt"
+    changed_prompt.write_text("A different authored depiction.\n", encoding="utf-8")
+    changed_out = root / "changed-source-sufficient-package"
+    changed = run(script, "--prompt", str(changed_prompt), "--plot", str(plot),
+                  "--retrieval-record", str(settled), "--prepare-for-generation", "--out-dir", str(changed_out),
+                  "--model-file", str(model_file))
+    if changed.returncode == 0 or changed_out.exists() or "different prompt or plot" not in changed.stdout + changed.stderr:
+        errors.append("an empty retrieval record lost its exact prompt binding")
+
+    pending = root / "pending-question.json"
+    pending.write_text(json.dumps({"artifact_type": "prompt-retrieval-record", "elements": [
+        {"element": "support", "queries": ["shared support surface"], "inspected_records": []}
+    ]}) + NL, encoding="utf-8")
+    pending_out = root / "pending-settled.json"
+    unresolved = run(retrieval_script, str(pending), "--settle", "--prompt-file", str(prompt),
+                     "--plot-file", str(plot), "--out", str(pending_out))
+    if unresolved.returncode == 0 or pending_out.exists() or "has no outcome" not in unresolved.stdout + unresolved.stderr:
+        errors.append("an actual unfinished investigation was accepted as settled")
+    return errors
+
+
+def check_tag_input_binding(root: Path, script: Path) -> list[str]:
+    """Exercise real lookup and exact input binding on both target selectors."""
+    import production_case_fixtures as fixture
+    import pack_manager as packs
+    errors = []
+    folder = root / "tag-input"
+    pack = fixture.create_pack(folder / "pack")
+    manifest = json.loads((pack / "pack.json").read_text(encoding="utf-8"))
+    manifest["content"]["resource_bindings"].update({
+        "prompt-vocabulary": "resources/dictionary.json", "prompt-dialects": "resources/dialects.json"})
+    fixture.write(pack / "pack.json", manifest)
+    fixture.write(pack / "resources/dictionary.json", {
+        "format": "character-prompt-builder-prompt-vocabulary", "name": "Synthetic artifact wording",
+        "description": "Fictional lookup terms for artifact input tests.",
+        "categories": [{"id": "synthetic", "name": "Synthetic terms", "description": "Authored fixture terms.",
+                        "entries": [{"term": term} for term in ("blue triangle", "plain backdrop", "lettering")]}]})
+    fixture.write(pack / "resources/dialects.json", {
+        "format": "character-prompt-builder-prompt-dialects", "name": "Synthetic artifact dialect",
+        "description": "Fictional tag input contract, not a model claim.",
+        "dialects": [{"id": "synthetic-tags", "name": "Synthetic tags", "description": "Test-only family.",
+                      "vocabularies": ["synthetic"], "tag_separator": ", ", "block_order": ["subject", "environment"]}]})
+    models = json.loads((pack / "records/models.json").read_text(encoding="utf-8"))
+    model = models["records"][0]
+    model.update(prompt_input=prompt_input("tag-based", vocabularies=("synthetic",)), prompt_dialect="synthetic-tags")
+    fixture.write(pack / "records/models.json", models)
+    packs.write_lock(pack)
+    packs.save_state(folder / "state.json", {"pack_roots": [], "enabled_packs": [fixture.PACK_ID]})
+    runtime_args = ["--state-file", str(folder / "state.json"), "--cache-dir", str(folder / "cache"),
+                    "--managed-root", str(folder / "managed"), "--pack-root", str(pack)]
+    model_file = folder / "model-input.json"
+    fixture.write(model_file, {key: model[key] for key in ("id", "prompt_input", "prompt_dialect")})
+    prompt, negative, retrieval, plot = (folder / name for name in ("prompt.txt", "negative.txt", "retrieval.json", "plot.json"))
+    fixture.write(prompt, "blue triangle, (plain backdrop:1.2)")
+    fixture.write(negative, "(lettering:1.1)")
+    fixture.write(retrieval, {"artifact_type": "prompt-retrieval-record", "elements": []})
+    plot_value = {"artifact_type": "prompt-plot", "story": [
+        {"id": "shape", "beat": "A blue triangle appears against a plain backdrop.", "visibility": "visible"}],
+        "derived": [{"kind": "shows", "statement": "one blue triangle on a plain backdrop", "from": ["shape"]}]}
+    plot_value["approved"] = {"by": "Synthetic fixture author", "at": "2000-01-01T00:00:00Z",
+                               "content_sha256": content_sha256(plot_value)}
+    fixture.write(plot, plot_value)
+    package_args = ["--prompt", str(prompt), "--negative", str(negative), "--weighting", "sdEmbeds",
+                    "--retrieval-record", str(retrieval), "--plot", str(plot), *runtime_args]
+    blocked_dir = folder / "unsearched"
+    blocked = run(script, *package_args, "--model-file", str(model_file), "--out-dir", str(blocked_dir))
+    if blocked.returncode == 0 or blocked_dir.exists() or "searched vocabulary selection" not in blocked.stdout + blocked.stderr:
+        errors.append("a model-bound tag prompt was not refused before its dictionary search")
+    retrieval_script = script.with_name("prompt_retrieval.py")
+    searched = run(retrieval_script, str(retrieval), "--search-vocabulary", "--model-file", str(model_file),
+                   "--prompt-file", str(prompt), "--negative-file", str(negative), "--weighting", "sdEmbeds", *runtime_args)
+    if searched.returncode:
+        return errors + ["tag vocabulary search failed: " + searched.stdout + searched.stderr]
+    settled = run(retrieval_script, str(retrieval), "--settle", "--model-file", str(model_file),
+                  "--prompt-file", str(prompt), "--negative-file", str(negative), "--weighting", "sdEmbeds",
+                  "--plot-file", str(plot), "--out", str(retrieval), *runtime_args)
+    if settled.returncode:
+        return errors + ["tag vocabulary settlement failed: " + settled.stdout + settled.stderr]
+    for label, selector in (("acquired", ["--model-file", str(model_file)]),
+                            ("catalog", ["--model", fixture.MODEL_ID, "--prepare-for-generation"])):
+        published = run(script, *package_args, *selector, "--out-dir", str(folder / label))
+        if published.returncode:
+            errors.append(label + " searched tag publication failed: " + published.stdout + published.stderr)
+            continue
+        result = json.loads(published.stdout)["manifest"]
+        if (result["input_validation"] != {"state": "model-input-checked", "vocabulary_searched": True}
+                or result["target"]["prompt_input"] != model["prompt_input"] or result["target"]["weighting"] != "sdEmbeds"):
+            errors.append(label + " package lost the searched model input contract")
+    fixture.write(negative, "(lettering:1.3)")
+    changed_dir = folder / "changed-negative"
+    changed = run(script, *package_args, "--model-file", str(model_file), "--out-dir", str(changed_dir))
+    if changed.returncode == 0 or changed_dir.exists() or "different text" not in changed.stdout + changed.stderr:
+        errors.append("a tag vocabulary selection was reused for changed negative text")
+    return errors
+
+
 def main() -> int:
     script = Path(__file__).with_name("build_prompt_artifacts.py")
     with tempfile.TemporaryDirectory(prefix="cpb-prompt-artifacts-") as temp:
         root = Path(temp)
+        model_file = root / "synthetic-model.json"
+        model_file.write_text(json.dumps({"id": "synthetic-prompt-editor",
+                              "prompt_input": prompt_input("descriptive")}) + NL, encoding="utf-8")
         prompt = root / "prompt.txt"
         prompt.write_text("A coherent prompt." + NL, encoding="utf-8")
         record = root / "retrieval-record.json"
@@ -238,6 +372,9 @@ def main() -> int:
         files = sorted(path.name for path in out.iterdir()) if out.is_dir() else []
         expected = ["final-prompt.txt", "prompt-artifact-manifest.json", "prompt-plot.json", "prompt-retrieval-record.json"]
         minimal_ok = proc.returncode == 0 and files == expected
+        neutral_manifest = json.loads(proc.stdout)["manifest"] if proc.returncode == 0 else {}
+        neutral_unverified = (neutral_manifest.get("target") is None and neutral_manifest.get("input_validation") ==
+                              {"state": "unverified-draft", "vocabulary_searched": False})
 
         invalid = root / "invalid-semantic.json"
         invalid.write_text(json.dumps(INVALID_SEMANTIC_PLAN, ensure_ascii=False, indent=2) + NL, encoding="utf-8")
@@ -273,8 +410,13 @@ def main() -> int:
         )
         approved_generation = run(
             script, "--prompt", str(prompt), "--out-dir", str(root / "approved-gen"), *answered,
-            "--prepare-for-generation",
+            "--prepare-for-generation", "--model-file", str(model_file),
         )
+        no_target_dir = root / "generation-without-target"
+        no_target = run(script, "--prompt", str(prompt), "--out-dir", str(no_target_dir), *answered,
+                        "--prepare-for-generation")
+        target_required = (no_target.returncode != 0 and not no_target_dir.exists()
+                           and "requires --model or --model-file" in no_target.stdout + no_target.stderr)
         invented = {
             "artifact_type": "prompt-plot",
             "story": PLOT["story"],
@@ -328,6 +470,7 @@ def main() -> int:
         unavailable_generation = run(
             script, "--prompt", str(prompt), "--out-dir", str(root / "unavailable-gen"),
             "--retrieval-unavailable", UNAVAILABLE, "--plot", str(approved_plot), "--prepare-for-generation",
+            "--model-file", str(model_file),
         )
         both = run(
             script, "--prompt", str(prompt), "--out-dir", str(root / "both"), *answered,
@@ -350,7 +493,7 @@ def main() -> int:
             and unavailable_generation.returncode != 0
             and both.returncode != 0
             and malformed_run.returncode != 0
-            and counted_retrieval == {"settled": True, "elements": 2, "adopted": 1, "composed": 1}
+            and counted_retrieval == {"settled": True, "elements": 2, "adopted": 1, "composed": 1, "unused": 0}
         )
 
         # A rejected run leaves the previous package and the inputs alone.
@@ -400,7 +543,11 @@ def main() -> int:
         )
         references_ok = counted == 2 and carried and unknown_run.returncode != 0
 
-        errors: list[str] = check_authored_depictions(root, script)
+        errors: list[str] = check_authored_depictions(root, script, model_file)
+        errors.extend(check_source_sufficient_package(root, script, prompt, approved_plot, model_file))
+        errors.extend(check_tag_input_binding(root, script))
+        if not neutral_unverified or not target_required:
+            errors.append("model selection was not distinguished from an unverified portable draft")
         if not minimal_ok:
             errors.append(f"unexpected minimal prompt-only package: return={proc.returncode}, files={files}, stderr={proc.stderr}")
         if blocked.returncode == 0:
@@ -449,6 +596,8 @@ def main() -> int:
                 "plot_required": no_plot.returncode != 0,
                 "unapproved_plot_refused": unapproved_package.returncode != 0,
                 "approved_plot_allows_generation": approved_generation.returncode == 0,
+                "generation_target_required": target_required,
+                "neutral_draft_explicitly_unverified": neutral_unverified,
                 "unknown_beat_as_source_refused": invented_run.returncode != 0,
                 "plot_naming_a_target_refused": targeted_run.returncode != 0,
                 "repeated_source_refused": duplicate_run.returncode != 0,

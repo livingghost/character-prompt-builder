@@ -84,6 +84,8 @@ def build_errors(argv) -> list[str]:
 
 PACK_ID = "0198b360-1234-7abc-8def-0123456789ab"
 SPOOFED_PACK_ID = "0198b360-5678-7abc-8def-0123456789ab"
+SERVICE_ID = "fixture-service"
+SERVICE_OPERATION = "generate"
 MODEL_ID = "fixture-image-model"
 INTEGRATED_MODEL_ID = "fixture-integrated-image-model"
 NATIVE_MODEL_ID = "fixture-native-negative-model"
@@ -95,18 +97,19 @@ OFFERED_SCHEMA = {
     "type": "object",
     "properties": {
         "model": {"type": "string", "const": "vendor:offered@1"},
-        "positivePrompt": {"type": "string", "minLength": 1},
-        "negativePrompt": {"type": "string", "minLength": 1},
+        "prompt": {"type": "string", "minLength": 1},
+        "negative_prompt": {"type": "string", "minLength": 1},
+        "count": {"type": "integer", "minimum": 1, "maximum": 20},
         "width": {"type": "integer"},
         "height": {"type": "integer"},
         "steps": {"type": "integer", "minimum": 1, "maximum": 50},
-        "inputs": {
+        "media": {
             "type": "object",
-            "properties": {"referenceImages": {"type": "array", "minItems": 1, "maxItems": 1}},
+            "properties": {"references": {"type": "array", "minItems": 1, "maxItems": 1}},
             "additionalProperties": False,
         },
     },
-    "required": ["model", "positivePrompt", "width", "height"],
+    "required": ["model", "prompt", "width", "height"],
     "allOf": [
         {"dependentRequired": {"width": ["height"], "height": ["width"]}},
         {"oneOf": [{"title": "1K (1:1)", "properties": {"width": {"const": 1024}, "height": {"const": 1024}}}]},
@@ -121,13 +124,18 @@ SEED_SCHEMA = {
     "type": "object",
     "properties": {
         "model": {"type": "string", "const": "vendor:seeded@1"},
-        "positivePrompt": {"type": "string", "minLength": 1},
-        "negativePrompt": {"type": "string", "minLength": 1},
+        "prompt": {"type": "string", "minLength": 1},
+        "negative_prompt": {"type": "string", "minLength": 1},
+        "count": {"type": "integer", "minimum": 1, "maximum": 20},
         "width": {"type": "integer"},
         "height": {"type": "integer"},
-        "seedImage": {"type": "string", "minLength": 1},
+        "media": {
+            "type": "object",
+            "properties": {"seed": {"type": "string", "minLength": 1}},
+            "additionalProperties": False,
+        },
     },
-    "required": ["model", "positivePrompt", "width", "height"],
+    "required": ["model", "prompt", "width", "height"],
     "allOf": [
         {"dependentRequired": {"width": ["height"], "height": ["width"]}},
         {"oneOf": [{"title": "1K (1:1)", "properties": {"width": {"const": 1024}, "height": {"const": 1024}}}]},
@@ -208,11 +216,13 @@ def _model_record(
     *,
     negative_transport_mode: str = "separate-field",
 ) -> dict[str, Any]:
+    from model_prompt_input_fixtures import prompt_input
     record: dict[str, Any] = {
         "id": model_id,
         "label": label,
         "aliases": [model_id.replace("-", " ")],
         "operation_kind": "generation",
+        "prompt_input": prompt_input("descriptive"),
         "offerings": [],
         "supports_negative_prompt": negative_transport_mode != "integrated-critical",
         "prompt_style": "Clear natural-language art direction with explicit constraints.",
@@ -237,6 +247,9 @@ def _model_record(
 
 
 def _write_fixture_pack(pack_root: Path) -> Path:
+    """Build the local synthetic service used by generic package workflows."""
+    from transport_synthetic import ENDPOINT
+
     (pack_root / "records").mkdir(parents=True)
     (pack_root / "resources").mkdir()
     atomic_write_json(
@@ -260,12 +273,12 @@ def _write_fixture_pack(pack_root: Path) -> Path:
     )
     atomic_write_json(
         pack_root / "resources" / "service-profiles.json",
-        {"services": {"runware": {
+        {"services": {SERVICE_ID: {
             "label": "Synthetic image interface",
-            "transport": "runware",
-            "endpoint": {"base_url": "https://example.invalid/synthetic", "method": "POST"},
-            "auth": {"scheme": "bearer", "header": "Authorization"},
-            "operations": {"imageInference": {}},
+            "transport": "synthetic",
+            "endpoint": {"base_url": ENDPOINT, "method": "POST"},
+            "auth": {"scheme": "none"},
+            "operations": {SERVICE_OPERATION: {}},
         }}},
     )
     atomic_write_json(
@@ -360,11 +373,11 @@ def _write_fixture_pack(pack_root: Path) -> Path:
                     "recommended_parameters": {"steps": 20, "guidance": [3, 5]},
                     "offerings": [
                         {
-                            "service": "runware",
+                            "service": SERVICE_ID,
                             "model_identifier": "vendor:offered@1",
-                            "request_keys": {"model": ["model"], "prompt": ["positivePrompt"],
-                                             "negative prompt": ["negativePrompt"],
-                                             "reference images": ["inputs.referenceImages"]},
+                            "request_keys": {"model": ["model"], "prompt": ["prompt"],
+                                             "negative prompt": ["negative_prompt"],
+                                             "reference images": ["media.references"]},
                             "parameter_keys": {"steps": "steps"},
                             "constraints": {"reference_images": {"max": 1}, "geometry": "1024x1024 only"},
                             "observed_at": "2026-09-13",
@@ -380,10 +393,10 @@ def _write_fixture_pack(pack_root: Path) -> Path:
                     ),
                     "offerings": [
                         {
-                            "service": "runware",
+                            "service": SERVICE_ID,
                             "model_identifier": "vendor:seeded@1",
-                            "request_keys": {"model": ["model"], "prompt": ["positivePrompt"],
-                                             "negative prompt": ["negativePrompt"], "seed image": ["seedImage"]},
+                            "request_keys": {"model": ["model"], "prompt": ["prompt"],
+                                             "negative prompt": ["negative_prompt"], "seed image": ["media.seed"]},
                             "constraints": {"reference_images": {"max": 1}, "geometry": "1024x1024 only"},
                             "observed_at": "2026-09-13",
                             "schema_snapshot": SEED_SNAPSHOT,
@@ -397,13 +410,19 @@ def _write_fixture_pack(pack_root: Path) -> Path:
     fixture_models_path = pack_root / "records" / "models.json"
     fixture_models = json.loads(fixture_models_path.read_text(encoding="utf-8"))
     fixture_models["records"] = [decorate(row) for row in fixture_models["records"]]
+    for row in fixture_models["records"]:
+        for offering in row["offerings"]:
+            for mode in offering["execution_profile"]["modes"].values():
+                count_key = next(key for key, rule in mode["controls"].items()
+                                 if rule["binding"] == "dispatch-count")
+                mode["controls"]["count"] = mode["controls"].pop(count_key)
     atomic_write_json(fixture_models_path, fixture_models)
     atomic_write_json(
         pack_root / OFFERED_SNAPSHOT,
         {
             "artifact_type": "observed-parameter-schema",
             "model_id": OFFERED_MODEL_ID,
-            "service": "runware",
+            "service": SERVICE_ID,
             "model_identifier": "vendor:offered@1",
             "observed_at": "2026-09-13",
             "source": "the fixture service's model schema endpoint",
@@ -415,7 +434,7 @@ def _write_fixture_pack(pack_root: Path) -> Path:
         {
             "artifact_type": "observed-parameter-schema",
             "model_id": SEED_MODEL_ID,
-            "service": "runware",
+            "service": SERVICE_ID,
             "model_identifier": "vendor:seeded@1",
             "observed_at": "2026-09-13",
             "source": "the fixture service's model schema endpoint",
@@ -556,6 +575,7 @@ def _package(
     production_spec_override: Any = _UNSET,
     prepared_reference_root: Path | None = None,
     negative_provenance: dict[str, Any] | None = None,
+    retrieval_record: Any = _UNSET,
 ) -> dict[str, Any]:
     production_spec = (
         _production_spec(production_target_model or model)
@@ -572,7 +592,7 @@ def _package(
     validation = fixture_validation(fixture_root(), model, reference_mode='authored-rendition')
 
     return build_payload(request_validation=validation, input_root=fixture_root(), visual_continuity=fixture_visual(production_spec), visual_root=fixture_root(), route_reading=fixture_reading(route='generation'), 
-        retrieval_record=fixture_retrieval(prompt, APPROVED_PLOT),
+        retrieval_record=(fixture_retrieval(prompt, APPROVED_PLOT) if retrieval_record is _UNSET else retrieval_record),
         plot=copy.deepcopy(APPROVED_PLOT),
         model=model,
         prompt=prompt,
@@ -1419,7 +1439,7 @@ def run() -> dict[str, Any]:
             checked(
                 offered_package["generation_payload"]["service"]
                 == {
-                    "id": "runware",
+                    "id": SERVICE_ID,
                     "model_identifier": "vendor:offered@1",
                     "observed_at": "2026-09-13",
                     "schema_snapshot": OFFERED_SNAPSHOT,
@@ -3120,23 +3140,27 @@ def run_derived_inputs() -> dict[str, Any]:
     import runtime_evidence
     import service_profile
     import studio
-    import transport_runware
-    from catalog_retrieval.runtime import load_pack_catalog
+    import transport_synthetic
+    from catalog_retrieval.runtime import load_pack_catalog, using_pack_runtime
     from prepare_generation_references import resolve_model_record
     from verify_generation_payload import verify as verify_live
     from visual_continuity import file_ref
 
     checked = CheckCounter()
-    model = "grok-imagine-image-2.0"
-    commons = json.loads((Path(__file__).resolve().parents[1] / "packs/commons/pack.json").read_text(encoding="utf-8"))["pack_id"]
-    schema_path = "@pack/" + commons + "/resources/observed-schemas/grok-imagine-image-2.0.runware.json"
+    model = OFFERED_MODEL_ID
+    schema_path = "@pack/" + PACK_ID + "/" + OFFERED_SNAPSHOT
     try:
         with tempfile.TemporaryDirectory(prefix="cpb-derived-") as temporary:
             base = Path(temporary).resolve()
+            pack_root = base / "pack"
+            _write_fixture_pack(pack_root)
             state = base / "pack-state.json"
-            save_state(state, {"pack_roots": [], "enabled_packs": [commons]})
-            runtime = ["--state-file", str(state), "--cache-dir", str(base / "cache"), "--managed-root", str(base / "managed")]
-            configure_pack_runtime(default_settings(state_file=state, cache_dir=base / "cache", managed_root=base / "managed"))
+            save_state(state, {"pack_roots": [], "enabled_packs": [PACK_ID]})
+            runtime = ["--state-file", str(state), "--cache-dir", str(base / "cache"),
+                       "--managed-root", str(base / "managed"), "--pack-root", str(pack_root)]
+            settings = default_settings(extra_roots=(pack_root,), state_file=state,
+                cache_dir=base / "cache", managed_root=base / "managed", default_enabled_packs=())
+            configure_pack_runtime(settings)
             root = studio.init(base / "studio", "derived-inputs", "Derived input checks")
             run_id = production_fixtures.prepare_external_delivery(root, PROMPT + "\n")
             (base / "prompt.txt").write_text(PROMPT + "\n", encoding="utf-8")
@@ -3178,20 +3202,20 @@ def run_derived_inputs() -> dict[str, Any]:
                 checked(production_spec.main([*draft_relative, "--root", str(base)]) == 0
                         and json.loads((base / "drafts/spec.json").read_text(encoding="utf-8")) == lean,
                         "a draft relative to --root differs from the absolute draft")
-            atomic_write_json(base / "parameters.json", {"width": 832, "height": 1248})
+            atomic_write_json(base / "parameters.json", {"width": 1024, "height": 1024})
             # The prompt is the run's delivery, so the builder takes no prompt file.
             common = ["--model", model, "--plot-file", str(base / "plot.json"),
                       "--retrieval-record-file", str(base / "retrieval.json"), "--production-spec-file", str(base / "spec.json"),
                       "--parameters-file", str(base / "parameters.json"), "--production-root", str(root), *runtime]
 
             def build(name: str, *extra: str) -> dict[str, Any]:
-                with contextlib.redirect_stdout(io.StringIO()):
+                with using_pack_runtime(settings), contextlib.redirect_stdout(io.StringIO()):
                     checked(_build_main([*common, "--out", str(base / name), *extra]) == 0, name + " was refused")
                 return json.loads((base / name).read_text(encoding="utf-8"))
 
             def refusal(*extra: str) -> list[str]:
                 stdout = io.StringIO()
-                with contextlib.redirect_stdout(stdout):
+                with using_pack_runtime(settings), contextlib.redirect_stdout(stdout):
                     if _build_main([*common, "--out", str(base / "refused.json"), *extra]) == 0:
                         raise SmokeFailure("builder accepted " + " ".join(extra))
                 refusal.codes = [row["code"] for row in json.loads(stdout.getvalue())["diagnostics"]]
@@ -3214,12 +3238,13 @@ def run_derived_inputs() -> dict[str, Any]:
             # The same records written by hand give the identical generation input.
             model_id, model_record = resolve_model_record(model)
             offering = model_record["offerings"][0]
-            service = service_profile.load_service("runware", Path(load_pack_catalog().resources["service-profiles"].path))
+            service = service_profile.load_service(SERVICE_ID, Path(load_pack_catalog().resources["service-profiles"].path))
             hand_validation = request_validation.build_record(
                 {"mode": "target-schema", "contract": schema_path, "evidence": schema_path, "execution_policy": None},
                 runtime_evidence.reader(root),
-                expected_target={"service": "runware", "model_identifier": "xai:grok-imagine@image-2.0", "operation": "imageInference"},
-                execution=request_contract.execution_hashes(service, offering, Path(transport_runware.__file__), model=model_record, policy=None))
+                expected_target={"service": SERVICE_ID, "model_identifier": offering["model_identifier"],
+                                 "operation": SERVICE_OPERATION},
+                execution=request_contract.execution_hashes(service, offering, Path(transport_synthetic.__file__), model=model_record, policy=None))
             basis = derived["visual_continuity"]["basis"]["path"]
             hand_visual = {"purpose": "image", "basis": file_ref(root, basis, locator="whole"), "subjects": {
                 "C01": {"continuity": "one-off", "character_id": None, "studio_character": None, "identity_refs": []}}}
@@ -3255,7 +3280,7 @@ def run_derived_inputs() -> dict[str, Any]:
             tampered_spec["production_spec"] = broken
             atomic_write_json(base / "broken-package.json", tampered_spec)
             verified_out = io.StringIO()
-            with contextlib.redirect_stdout(verified_out):
+            with using_pack_runtime(settings), contextlib.redirect_stdout(verified_out):
                 verify_exit = _verify_main([str(base / "broken-package.json"), "--studio-root", str(root), *runtime])
             checked(verify_exit == 2 and diagnostic_messages(verified_out.getvalue()) == errors,
                     "verifier specification errors differ from the builder's")

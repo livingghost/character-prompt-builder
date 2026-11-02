@@ -122,6 +122,32 @@
         "evidence"
       ],
       "additionalProperties": false
+    },
+    "field-path": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "integer",
+            "minimum": 0
+          }
+        ]
+      },
+      "minItems": 1
+    },
+    "nullable-field-path": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/field-path"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "properties": {
@@ -157,6 +183,14 @@
         },
         "evidence": {
           "$ref": "#/$defs/evidence"
+        },
+        "prompt_input": {
+          "$ref": "model-prompt-input.schema.json"
+        },
+        "prompt_dialect": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
         }
       },
       "required": [
@@ -164,9 +198,15 @@
         "catalog_status",
         "catalog_model",
         "target",
-        "evidence"
+        "evidence",
+        "prompt_input"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "$ref": "model-prompt-input.schema.json#/$defs/model-record"
+        }
+      ]
     },
     "references": {
       "type": "array",
@@ -371,6 +411,18 @@
                   "type": "null"
                 }
               ]
+            },
+            "negative_field": {
+              "$ref": "#/$defs/nullable-field-path",
+              "description": "The acquired interface's exact negative-text field, or null when this request has no negative text. Required for tag-based input."
+            },
+            "vocabulary_record": {
+              "$ref": "#/$defs/evidence",
+              "description": "A prompt-retrieval-record whose vocabulary member records actual model-bound searches and resolved choices for these exact text channels."
+            },
+            "prompt_syntax": {
+              "$ref": "prompt-syntax.schema.json",
+              "description": "The acquired interface's fixed grammar or explicit request-control mapping. Tag input must declare it; request values select the actual parser."
             }
           },
           "required": [
@@ -453,6 +505,37 @@
                 "maxItems": 0
               }
             }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "model": {
+            "properties": {
+              "prompt_input": {
+                "properties": {
+                  "mode": {
+                    "const": "tag-based"
+                  }
+                }
+              }
+            }
+          },
+          "external_request": {
+            "type": "object"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "external_request": {
+            "required": [
+              "negative_field",
+              "prompt_syntax",
+              "vocabulary_record"
+            ]
           }
         }
       }

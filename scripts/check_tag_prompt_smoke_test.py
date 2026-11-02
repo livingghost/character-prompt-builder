@@ -26,12 +26,14 @@ DIALECTS = {
     "dialects": [
         {
             "id": "family-a", "name": "Family A", "description": "The first fixture family.",
+            "vocabularies": ["synthetic"],
             "tag_separator": "a comma followed by one space", "block_order": ["quality", "subject"],
             "quality_terms": ["masterpiece"], "rating_terms": ["general", "explicit"],
             "period_terms": ["newest", "old"],
         },
         {
             "id": "family-b", "name": "Family B", "description": "The second fixture family.",
+            "vocabularies": ["synthetic"],
             "tag_separator": "a comma followed by one space", "block_order": ["quality", "subject"],
         },
     ],
@@ -206,11 +208,25 @@ def main() -> int:
     rows = checker.check("masterpiece, best quality, newest, 1boy, solo, old man, grey hair", "", commons_vocabulary,
                          None, commons_dialects["illustrious-noobai"])
     check("the commons family guidance leaves multiword meaning to the author", rows == [], rows)
-    missing = {family_id: sorted(term for field in ("rating_terms", "period_terms", "quality_terms")
-                                 for term in row.get(field) or []
-                                 if checker.normalize(term) not in commons_vocabulary["meanings"])
-               for family_id, row in commons_dialects.items()}
-    check("every rating, period, and quality term of a commons family is carried by the commons vocabulary",
+    from model_prompt_input_fixtures import prompt_input
+    from prompt_vocabulary_selection import search_selection, word_key
+    missing = {}
+    for family_id, row in commons_dialects.items():
+        # These are discovery queries, not a claim that all controls belong in one image.
+        terms = list(dict.fromkeys(term for field in (
+            "rating_terms", "period_terms", "quality_terms", "dataset_terms", "meta_terms")
+            for term in row.get(field) or []))
+        model = {"id": "synthetic-lookup-" + family_id, "prompt_dialect": family_id,
+                 "prompt_input": prompt_input("tag-based", vocabularies=tuple(row["vocabularies"]))}
+        selection = search_selection(prompt=", ".join(terms), negative="", model_record=model,
+            dictionary_path=COMMONS / "prompt-vocabulary" / "dictionary.json",
+            dialect_path=COMMONS / "prompt-dialects" / "dialects.json")
+        entries = {entry["term"]: entry for entry in selection["entries"]}
+        missing[family_id] = [term for term in terms if not (
+            (entries.get(word_key(term), {}).get("choice") or {}).get("kind") == "dictionary"
+            and any(word_key(candidate["term"]) == word_key(term)
+                    for search in entries[word_key(term)]["searches"] for candidate in search["candidates"]))]
+    check("every native family control is searchable in its effective dictionary and family vocabulary",
           not any(missing.values()), missing)
     rows = checker.check("masterpiece, newest, year 2025, 1girl, solo", "", commons_vocabulary, None,
                          commons_dialects["anima"])

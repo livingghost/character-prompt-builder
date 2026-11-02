@@ -378,9 +378,6 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         if errors or not result['approved']: raise ValueError('; '.join(errors) or 'plot approval is required')
         return doc('plot')
     checks.check('plot',plot,requires=[dependency('$.generation.plot')],file=selected.get('plot'))
-    from prompt_retrieval import require_generation_retrieval
-    checks.check('retrieval',lambda:require_generation_retrieval(doc('retrieval_record'),prompt=text('prompt'),plot=doc('plot')),
-        requires=[dependency('$.generation.retrieval_record'),'plot','delivery-content'],file=selected.get('retrieval_record'))
     from revision_contract import require_intent_revision
     def creative():
         value=doc('creative_intent')
@@ -445,9 +442,23 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
             integrated_prompt=text('integrated_prompt'),native_negative=text('native_negative'),
             negative_transport=selected.get('negative_transport','auto'),
             critical_avoidance_integrated=selected.get('critical_avoidance_integrated',False),
-            weighting_syntax=selected_weighting(effective))
+            weighting_syntax=selected_weighting(effective, profile['modes'][doc('production_spec')['render_intent']['execution_mode']]['prompt_syntax']))
     requirements=['delivery-content','execution-controls']+[dependency('$.generation.'+f) for f in ['negative','integrated_prompt','native_negative'] if selected.get(f)]
     checks.check('negative-transport',channels,requires=requirements,file=selected.get('negative') or task_path)
+    from model_prompt_input import resolve_prompt_input
+    tag_input = resolved is not None and resolve_prompt_input(resolved[1])['mode'] == 'tag-based'
+    def retrieval():
+        from prompt_retrieval import require_generation_retrieval
+        from prompt_weighting import selected as selected_weighting
+        syntax = selected_weighting(checks.values['execution-controls'][0],
+            profile['modes'][doc('production_spec')['render_intent']['execution_mode']]['prompt_syntax']) if tag_input else 'literal'
+        return require_generation_retrieval(doc('retrieval_record'), prompt=text('prompt'), plot=doc('plot'),
+            model_record=resolved[1], negative=text('negative') if tag_input else '', syntax=syntax)
+    checks.check('retrieval', retrieval,
+        requires=[dependency('$.generation.retrieval_record'), 'plot', 'delivery-content', 'target-contract',
+                  *(['execution-controls'] if tag_input else []),
+                  *([dependency('$.generation.negative')] if tag_input and selected.get('negative') else [])],
+        file=selected.get('retrieval_record'))
 
 
 def validate_recording(root: Path, task: dict, specification: dict, visual: dict | None = None) -> None:
@@ -633,7 +644,10 @@ def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict
     from model_rendition import review_requirements
     effects = _external_effects(rendered, count)
     from check_tag_prompt import require_request
-    prompt_check = require_request(rendered, model_record) if package.get('artifact_type') != 'upscale-request' else {
+    from prompt_weighting import from_contract
+    prompt_check = require_request(rendered, model_record,
+        prompt_syntax=from_contract(package['render_contract']),
+        vocabulary_selection=package['retrieval_record'].get('vocabulary')) if package.get('artifact_type') != 'upscale-request' else {
         'state': 'not-applicable', 'request_sha256': rendered['request_sha256'], 'findings': []}
     # This is the verified package's audit, not newly inferred guidance or text.
     # In particular a compound expression may preserve recommendations as advice.
@@ -942,6 +956,8 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                                           validation=external['schema_validation'],
                                           review_requirements=review_requirements(),
                                           quantities={'submissions': 1, 'outputs': external['count']})
+                    if external.get('prompt_check') is not None:
+                        execution_plan['prompt_check'] = external['prompt_check']
                 validate_document(execution_plan,PLAN_SCHEMA,'execution plan')
             for name in STAGES[1:]:
                 checks.record(name,'passed' if package is not None or name=='execution-plan' else 'not-applicable')

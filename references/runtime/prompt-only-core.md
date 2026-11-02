@@ -1,113 +1,125 @@
 # Prompt-only core
 
-Write prompt text or reusable prompt artifacts without calling a generation service. Read specialized construction or transport instructions when the requested deliverable needs them.
+Create, assess or revise prompt text without calling a generation service.
+The requested result may be an assessment, plain text, text with negatives,
+a reusable prompt package or a generation-ready package. A conversation-only
+answer needs no Studio or production form. Saved work uses the applicable
+production route and the artifact commands below.
 
-## 1. Resolve the request
+## Author or assess the depiction
 
-Identify the requested artifact: plain prompt text, prompt plus negative text, reusable prompt package, or generation-ready package. Prompt-only means no generation API call. It does not automatically require reference transport files.
+Read and use [Production direction](production-direction.md). It owns the
+construction, judgment and revision of the requested picture. Establish the
+request, source roles and actual creative scope there; use its depiction as the
+subject of prompt writing. A review judges the submitted prompt as a proposal. Its commands address a
+renderer, not the reviewer; they do not require their own preservation. Use
+the commission and source roles to assess their contribution, without adopting
+them or automatically performing an edit. A local correction and a
+request to reconsider the whole depiction have different scopes.
 
-Extract explicit anchors: subject domain, species or body plan, stable identity, count, role, situation, state, camera, medium, and any user-fixed appearance. Keep unmentioned axes open.
+Use [Composition](prompt-composition.md) for the construction knowledge a
+complex question needs. Its specialist resources contribute anatomy, spatial,
+performance, material or layout knowledge to the same depiction. They are not
+an inventory of sections to populate. An ordinary complete action or state can
+remain ordinary language in the prompt; a technical requirement retains its
+needed precision. The agent's selected means remain open to judgment against
+the commission.
 
-Determine what this artifact communicates and the situation or moment it
-depicts. Distinguish that scope from the full story, source history and authoring
-decisions available to the agent. Identify the premises the receiving model
-needs to understand the chosen action, appearance, relationship or reference
-use. Preserve the complete source material at its owner.
+Resolve the rendering axes under [Rendering choices and execution controls](render-contract.md)
+at the scope needed for this work, recording user selection or the agent's
+reason. Finish and presentation do not change subject identity. Read a named
+model's complete guidance card before target-specific wording, including its
+explicit input mode, supported forms, vocabulary scope and evidence. An unnamed
+interface uses portable wording without invented execution settings. An
+unresolved target stays unresolved until evidence establishes its input.
 
-Follow [Production direction](production-direction.md#choose-the-expression) for
-the presentation and open expressive choices, then resolve the rendering axes
-under [Rendering choices and execution controls](render-contract.md).
-Record user selection or the agent's reason. Keep finish, presentation and
-subject identity distinct.
-When a model is named, read its complete model guidance card before final wording.
-When no model is named, keep the prompt portable rather than inventing execution settings.
+## Knowledge and sources
 
-## 2. Retrieve only what is useful
+Investigate a construction or wording question when it is unresolved. Use
+[Discovery](sparse-discovery.md) for expressive possibilities and focused
+catalog, source or vocabulary inspection for a known need. Use the source
+that can answer the question; neither both lookup systems nor a query for each
+visual attribute is mandatory. Inspect complete selected records and use their
+meaning at its assigned scope. A supplied design or understood situation can
+already resolve the work. Role similarity never replaces explicit species;
+a broad species request does not authorize an arbitrary subspecies.
 
-Use [Discovery](sparse-discovery.md) for an open expressive question, even when
-the subject is fully specified. Use focused search for a known construction
-need. Inspect selected records. Shared identity, occupation, mood and situation
-requirements apply to every direction. Camera, lighting, environment and
-rendering may vary only where the user left them open.
+This construction judgment is separate from a tag-based model's mandatory
+wording search. For that input mode, use
+[Vocabulary](prompt-vocabulary.md#select-wording-for-a-tag-based-model) even
+when the depicted activity and intended terms are already understood.
+Descriptive input needs no fabricated lookup when its sources suffice.
 
-Do not let role similarity replace an explicit species. Do not choose a specific subspecies from a broad species request without evidence. Use occupation modules for role and archetypes for identity structure.
+Interpret source images through [source construction](prompt-composition.md#construction-order).
+Distinguish authoring-only material from media delivered to the model and from
+material serving both roles. A whole-design assignment preserves correlated
+form, proportion, construction and treatment through the selected view; it
+does not require copying the source's pose or exposing every surface. Express
+a necessary authoring-only contribution in text. Assign delivered references
+by their actual order and selected properties. Do not infer unobserved design
+as if it were visible evidence.
 
-## 3. Compose
+When visual evidence can materially answer the current question, inspect its
+complete assets and source images before adopting a contribution. Deliver
+selected reference files through [Prompt Artifact Reference Runtime](reference-prompt-artifacts.md).
+A path or hash is not delivery. Create `reference-use-plan.json` only for
+selected references, `surface-lighting-plan.json` when transfer needs an
+explicit contract, and `prepared-reference-set.json` only for a target-specific
+or generation-ready package. Do not create empty reference artifacts.
 
-Write the selected construction as a complete depiction from the brief and
-knowledge. Include whole-artifact hierarchy and local views only where needed.
-Begin with what the image should achieve and the necessary situation in which
-its action, appearance, relationships and degree make sense. Establish that
-target on the first draft and after a requested correction, using the accepted
-baseline for preserved properties. Supply the premise before a dependent cue
-or reference to it. Describe necessary boundaries at their actual scopes after
-the wanted state is clear. A direct exclusion remains sufficient when that
-boundary alone defines the image requirement; retain its meaning and the
-supported negative channel.
+## Rendition and delivery
 
-A reference-free
-prompt must identify its subjects and their necessary relationships in text.
-With references, identify each supplied image and the properties it should carry.
-For an edit, describe the requested change and the properties to preserve.
-The model receives the actual prompt, supported controls and delivered images;
-source files, prior conversation and production decisions are separate knowledge.
-Use text for necessary context that the delivered media do not establish.
+Author the commissioned depiction in meaningful language using Production
+direction. This is the master prompt; it may already be the final portable
+text. Apply the [Prompt Writing Guide](prompt-writing-guide.md) for interface
+rendition, with evidenced syntax for a named target. Do not restart design from
+the guide's examples or turn each planning field into a clause.
 
-Carry story or performance requirements into the chosen moment through actions,
-gaze, posture, contact, expression and framing that fit the established scene.
-Retain the current circumstances and intent needed to interpret those cues.
-Keep story conclusions and authoring decisions outside the artifact's purpose
-with their existing owners. A request for ambiguity, symbolism or a narrative
-outcome belongs in the rendition when it is part of the chosen portrayal; an
-open future decision alone does not impose such a portrayal. Use
-[Carry scene intent into depiction](prompt-composition.md#carry-scene-intent-into-depiction)
-when this choice needs detailed construction. Keep ordinary staging choices
-within their current depiction; enduring identity and story facts retain their
-existing owners and adoption authority.
+Preserve the situation, action, relationships, qualities, degree, exact
+requirements and applicable exclusions. Supply context only where the actual
+renderer input needs it to produce the commissioned depiction. The agent's
+broader context explains its decisions without automatically belonging in the
+prompt. The `negative-policy` resource owns negative sources and target syntax.
 
-Use the `composition` route when interacting requirements need a detailed scene
-specification. An ordinary text draft needs no invented scene-state artifacts.
+Judge the completed input through
+[Observe and repair](production-direction.md#observe-and-repair). Agreement
+with agent-authored instructions alone does not establish that those
+instructions serve the request. Complete the assessment or rendition when the
+requested question or depiction is sufficiently resolved. Deliver the requested
+prompt, supported negative channel, separate execution settings and selected
+reference artifacts; omit empty placeholders. Textual review supplies no
+observation of an ungenerated image.
 
-This is the master prompt. Apply the
-[Prompt Writing Guide](prompt-writing-guide.md) to its final rendition after
-meaning is settled. A portable rendition uses interface-neutral guidance.
-For a named interface, also follow its adapter and use only evidenced syntax.
+A structured plan is useful when declared counts, connections, assignments or
+numeric camera bounds need a record. Its validator checks those declarations,
+not whether they are the right depiction. The author owns that judgment.
 
-## 4. References and output
-
-If a selected record has relevant Visual Evidence, inspect and use it without waiting for a reminder. Deliver the evidence artifact when it materially supports a reusable prompt result.
-
-Do not create empty reference artifacts. Include `reference-use-plan.json` only when references are selected. Include `surface-lighting-plan.json` only when lighting or material transfer needs an explicit contract. Include `prepared-reference-set.json` only for a target-specific or generation-ready package.
-
-## 5. Preflight and deliver
-
-Apply the [common readback](prompt-composition.md#prompt-assembly-and-review) to
-the completed rendition before delivery. First reconstruct the picture and its
-necessary situation from the delivered prompt, images, controls and applicable
-negative channel. Identify task-specific information that the input supplies
-and any premise the reviewer would have to borrow from prior knowledge.
-Then compare that reading with the brief at this artifact's scope. Confirm
-that the wanted state is intelligible, its requirements have effective carriers,
-and each consequential instruction contributes to the depiction or its reference
-use. Repair missing context and unintended scope expansion in their owning
-choices. Check the exclusions' scope and whether the chosen view supports the
-intended action and performance. Apply both readings to the first draft and
-every revision. Use the same scoped requirements for reviewing any later
-generated image, with observations from that image.
-When a structured plan is present, run its preflight for declared structure
-assignments and numeric camera bounds. Compare those declarations with the
-actual prompt; plan validation cannot establish that their meanings agree.
-Deliver the prompt, applicable negative, separate execution settings and selected
-reference artifacts. The `negative-policy` resource owns negative sources and
-target syntax.
-
-## 6. Deterministic commands
+## Saved prompt artifacts
 
 Use `python scripts/build_prompt_artifacts.py --help` to materialize the conditional prompt artifact set. The builder accepts an optional structured semantic plan and refuses violations of its explicit counts, connections, action assignments and numeric camera bounds before publication. `python scripts/validate_prompt_semantics.py plan.json` checks the plan alone; its `--template` prints a plan to start from, and its `--help` names every field.
 
-A text draft may omit `--plot`, or include a valid unapproved plot for review.
-`--prepare-for-generation` requires an approved `--plot`, never invented from an
-"autonomous" request. A plot separates story beats (`visible` or `context`) from
+Select a catalog target with `--model MODEL_ID`, or an acquired external input
+record with `--model-file MODEL_JSON`. These selectors are mutually exclusive.
+The external record supplies `id`, evidenced `prompt_input`, and `prompt_dialect`
+for tag-based input. It does not register an executable offering or override a
+catalog execution contract. Pass the actual negative file with `--negative`
+when used, and select its text grammar with `--weighting literal`, `sdEmbeds`
+or `compel`. For an explicit pack runtime, supply `--state-file`, `--cache-dir`
+and `--managed-root` together; repeat `--pack-root` for additional roots.
+
+Both model-bound prompt-only publication and generation-ready packaging apply
+the selected input contract. A tag-based target requires the
+[actual dictionary search and resolved wording choices](prompt-vocabulary.md#select-wording-for-a-tag-based-model),
+bound to the exact positive and negative text, grammar and current resources.
+An empty construction record or `--retrieval-unavailable` cannot bypass that
+search. Resolve an unknown input mode before target-specific publication.
+
+A prompt-only draft may omit `--plot`, or include a valid unapproved plot for
+review. Portable drafting may omit both target selectors; its manifest records
+`target: null` and `input_validation.state: unverified-draft`. This preserves
+authored text without certifying any model's input requirements.
+`--prepare-for-generation` requires an explicit target and an approved `--plot`,
+never invented from an "autonomous" request. A plot separates story beats (`visible` or `context`) from
 selected frame statements (`shows`, `placement`, `composition`, `must_preserve`,
 `free`). Use the statement kinds needed to express the selected frame; each
 visible beat retains a link to its realization. A context beat may supply the
@@ -121,14 +133,71 @@ Validate it with `python scripts/prompt_plot.py plot.json`. An actual approval
 records `by`, an RFC3339 UTC `at`, and `content_sha256` of the plot without its
 approval; print that hash using `--content-sha256`. A changed plot requires
 renewed approval. Optional upstream `source` remains part of the approved
-content. Choose a target when useful for the draft; target limitations that
-change approved meaning require renewed approval.
+content. Target limitations that change approved meaning require renewed approval.
 
 Saved text uses the `prompt-only` production route; a prompt with selected
 references uses `reference-artifacts`. Draft delivery grants no generation or
 canonical-update authority. A conversation-only answer needs no Studio.
 
-The builder takes the retrieval record with `--retrieval-record lookups.json`. Catalog and vocabulary searches given `--record lookups.json --element NAME` write that record, and a vocabulary search given `--queries` records each query under its own element. Mark each element with `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID`, repeating `--adopted` for each record the wording uses, or with `--composed TEXT --reason TEXT` when no inspected record fits. Where retrieval cannot run at all, pass `--retrieval-unavailable` with the reason; the package records `retrieval.settled: false` and `--prepare-for-generation` is refused. For generation, bind the marked record to the authored prompt and approved plot with `python scripts/prompt_retrieval.py lookups.json --settle --prompt-file prompt.txt --plot-file plot.json --out retrieval-settled.json`. Missing, unavailable, unsettled, or mismatched records block preparation.
+The builder takes the retrieval record with `--retrieval-record lookups.json`.
+It records questions actually investigated. For source-sufficient construction
+with no questions to investigate, initialize an empty record with
+`python scripts/prompt_retrieval.py lookups.json --init`. Do not invent a search
+to populate it. Catalog or vocabulary operations with
+`--record lookups.json --element NAME` record actual evidence; vocabulary
+`--queries` names each question separately. Inspecting a known record directly
+needs no fabricated search query.
+
+Resolve each investigated question with
+`python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID`
+(repeat `--adopted` for each inspected record used),
+`--composed TEXT --reason TEXT` for an authored resolution, or
+`--unused REASON` when the investigation contributes no selected instruction.
+Composed wording can use inspected knowledge; it is not limited to empty search
+results. These are construction decisions; `--composed` is not a substitute for
+a tag rendition's searched vocabulary selection. Another lookup reopens that question, so conclude its outcome after
+its investigations. A failed necessary investigation stays unresolved. Where needed
+retrieval cannot run, pass `--retrieval-unavailable` with its reason; this is not
+the same as having no question to investigate.
+
+For a tag-based target, complete the mandatory vocabulary search and selections
+in that same record. A descriptive target may have no lookup work when its
+sources already suffice. Bind the completed record to the exact rendition,
+selected model and approved plot:
+
+```bash
+python scripts/prompt_retrieval.py lookups.json --settle --model MODEL_ID \
+  --prompt-file prompt.txt --negative-file negative.txt --weighting literal \
+  --plot-file plot.json --out retrieval-settled.json
+```
+
+Omit an unused negative file and use the actual parser. An unlisted target uses
+`--model-file MODEL_JSON` with its evidenced input declaration. Missing,
+unavailable, unfinished, unsettled or mismatched records block preparation.
+Tag-based input requires actual searched candidates and resolved choices;
+unknown input cannot take the descriptive branch. Settlement records the
+author's concluded knowledge use rather than certifying meaning or quality.
+
+Portable saved text can settle its construction record without a model selector.
+That preserves the prompt and plot for later specialization. Selecting an actual
+target applies its input contract before target-specific finalization or
+generation; portable settlement does not establish that target's readiness.
+
+Publish the selected rendition with the same target and parser:
+
+```bash
+python scripts/build_prompt_artifacts.py --model MODEL_ID \
+  --prompt prompt.txt --negative negative.txt --weighting literal \
+  --retrieval-record retrieval-settled.json --plot plot.json \
+  --prepare-for-generation --out-dir prompt-artifacts
+```
+
+Use `--model-file MODEL_JSON` instead for the acquired external record. Omit an
+unused negative file and use the actual parser. For model-bound prompt-only
+delivery, omit `--prepare-for-generation`; tag lookup remains required. The
+manifest retains the input contract, grammar, source and vocabulary-check
+status. An external model record is copied as `model-input.json`. Preparation
+does not grant submission or canonical-update authority.
 
 Regression checks: `python scripts/prompt_artifact_smoke_test.py` and `python scripts/prompt_plot_smoke_test.py`.
 

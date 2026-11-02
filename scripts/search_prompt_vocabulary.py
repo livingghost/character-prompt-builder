@@ -421,7 +421,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--negative", type=Path, help="A file holding the negative text, read beside --read")
     parser.add_argument("--record", type=Path, metavar="PATH",
                         help="Append this search and the terms it returned to a prompt retrieval record")
-    parser.add_argument("--element", help="Visual element this search serves, such as pose or lighting")
+    parser.add_argument("--element", help="Construction or wording question this search serves")
     return parser
 
 
@@ -442,6 +442,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             from prompt_retrieval import check_recordable
             check_recordable(args.record, None)
         searches = load_queries(args.queries) if args.queries is not None else None
+        if args.record is not None and (searches is not None or args.query is not None):
+            from prompt_retrieval import begin_lookups
+            elements = [element for element, _ in searches] if searches is not None else [args.element]
+            begin_lookups(args.record, elements)
         vocabularies = [load_vocabulary(path) for path in args.dictionary]
         if searches is not None:
             index = VocabularyIndex(vocabularies)

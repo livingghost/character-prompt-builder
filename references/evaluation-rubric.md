@@ -2,23 +2,47 @@
 
 Automated tests can verify package structure, retrieval contracts, data roles, and exact payload transport. They cannot prove that a prompt or image is artistically successful.
 
-Use the brief, adopted design and selected art direction as the criteria.
-Distinguish a requirement failure from an unobservable property or optional
-preference. A valid composition need not match the evaluator's imagined frame.
-Inspect the purpose-bearing information first: narrative action for a scene,
-construction for a reference sheet, or product features for a product image.
+Understand the result the request calls for and read the supplied artifact as
+a whole. Follow [Observe and repair](runtime/production-direction.md#observe-and-repair)
+to establish the roles of supplied materials and compare the meaning or effect
+the artifact establishes with its intended result. A submitted candidate is
+evidence of its proposed depiction, not approval of every choice. When no
+separate brief is available, distinguish candidate-derived intent from
+independently fixed requirements. Use remaining questions to select from the
+diagnostic knowledge below; the headings are not a sequence every review must
+traverse. The brief and adopted design retain authority over inferred criteria.
+
+Examine the details that settle those questions and the user's explicit
+requirements. A small fixed feature still needs to be correct; an absent
+subject, material or technique creates no evaluation or depiction obligation.
+Explain what the combined artifact establishes, which changes affect the
+requested result and what the evidence cannot decide. Distinguish a failure
+from a preference or unverified risk. Other successful compositions remain
+valid even when the evaluator imagined a different one.
+
+Evaluate the agent's judgment as well as its artifact. Look at whether its
+understanding governed what it inspected, preserved, changed or concluded;
+an accurate opening summary alone does not demonstrate that use. Feasibility
+and service to the purpose are distinct: a possible construction may serve the
+purpose well or require a consequential change in expression. A review can
+complete with a supported finding of sufficiency. Assess investigation, explanation and
+revision by their contribution to the requested result; counts of findings,
+clauses or iterations do not establish their value.
 
 For an evaluation study, compare skill-assisted work with an appropriate
 baseline and, where useful, alternate retrieval strategies.
 
 ## 1. Intent fidelity
 
+- Does the work answer the requested creation, review or revision at its intended scope?
 - Does the result preserve the user's explicit requirements?
 - Does it understand the whole phrase rather than translating fragments literally?
 - Are gaze, action, relationship, and framing the intended concepts?
 - Does it avoid replacing the brief with a nearby record's story?
-- Does each inferred instruction preserve meaning or serve a purposeful choice?
+- Does each inferred instruction have an adequate basis and preserve meaning or serve a purposeful choice?
 - Could a detail vary without changing success, and has it been left open where appropriate?
+- Does the judgment recognize meaning already established by the complete input?
+- After feedback, does the work resolve the author's actual question or change?
 
 ## 2. Image intent
 
@@ -59,7 +83,8 @@ When a universal aesthetic core is selected:
 
 ## 7. Performance and relationship
 
-- Do gaze, lids, brows, mouth, tongue, cheek color, physiology, head angle, body orientation, hands, feet, gesture, distance, contact, appendages, and timing tell the same story?
+- Does the combined performance convey the intended action, response and relationship in its circumstances?
+- Do the relevant expressive channels and their timing support that read? Use [Performance Language](performance-language-specification.md) for the detailed channels when their construction needs inspection.
 - Are felt emotion, displayed emotion, and masked or conflicted emotion separated when the scene needs that distinction?
 - Does the viewer or partner relationship match the brief?
 - Are alternate plausible interpretations retained until scene and relationship context select one?
@@ -71,6 +96,11 @@ When a universal aesthetic core is selected:
 
 ## 8. Composition and construction
 
+- Do the interacting conditions coexist in one arrangement, state and view or layout, supported by their relevant consequences rather than a restatement of the demand?
+- How do the consequences of that construction carry or weaken the intended meaning, effect or use?
+- Does a proposed solution follow the candidate's direction, or supply a consequential decision whose effect still needs assessment?
+- Does a conflict judgment identify incompatible consequences, while distinguishing an unresolved construction from an impossible one?
+- Does a repair change an obstructing choice within the agent's authority and preserve the requested event, fixed presentation and precise properties?
 - Is the silhouette readable?
 - Are depth, support, weight, and crop coherent?
 - Are hands, paws, manipulators, mouths, props, furniture, clothing, casing, and effects constructed clearly?
@@ -87,9 +117,12 @@ When a universal aesthetic core is selected:
 
 ## 10. Creative value
 
-- Did the skill contribute useful visual decisions the user did not have to specify?
-- Do invented details strengthen the image intent?
-- Is the result more compelling and specific than a direct expansion of the input?
+- For creation, do the chosen relationships and treatment produce the intended effect, with useful specificity where the brief needs development?
+- For assessment, does the judgment help the user understand what succeeds, what matters to change and what remains unverified?
+- For revision, does the change achieve the requested result while preserving the required properties?
+- Do additions, removals or retained choices earn their place through their contribution, including a decision to leave sufficient work intact?
+- Did further investigation or revision resolve an issue that affected the requested result, rather than create another task?
+- Was the work completed when the requested result or judgment was sufficiently established?
 - Would an evaluator prefer to use this result?
 
 ## 11. Record contribution
@@ -98,6 +131,7 @@ When a universal aesthetic core is selected:
 - Did vocabulary records remain lexical aids?
 - Did retrieval broaden useful choices without introducing unrelated content?
 - Did the final prompt integrate knowledge rather than concatenate records?
+- Were source contributions assigned to the text or media the model actually receives, including material used only during authoring?
 
 ## 12. Negative-prompt discipline
 

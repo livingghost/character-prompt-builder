@@ -15,6 +15,7 @@ import execution_contract as c
 import pack_manager as packs
 from render_contract_fixtures import profile,intent
 from production_fixtures import ACTOR
+from model_prompt_input_fixtures import prompt_input
 
 ROOT=Path(__file__).resolve().parents[1]
 PACK_ID='019a0290-1234-789a-8123-0123456789ab'
@@ -43,6 +44,7 @@ def create_pack(path:Path, *, with_alternate:bool=False,with_upscale:bool=False,
            'resource_bindings':{'service-profiles':'resources/services.json'}},
          'capabilities':['model-adapters'],'dependencies':[],'optional_dependencies':[],'replaces':[], 'license':'GPL-3.0-only'})
     model={'id':MODEL_ID,'label':'Local synthetic image fixture','aliases':['synthetic robot fixture'],'operation_kind':'generation',
+        'prompt_input':prompt_input('descriptive'),
         'supports_negative_prompt':True,'prompt_style':'Authored synthetic prose.','negative_transport_mode':'separate-field',
         'negative_transport_notes':'Synthetic interface transports the declared negative field without a quality claim.',
         'ordering':['rendering','subject','composition','environment'],'reference_input_media_types':['image/png','image/jpeg','image/webp'],
@@ -64,11 +66,13 @@ def create_pack(path:Path, *, with_alternate:bool=False,with_upscale:bool=False,
     if with_upscale:
         from render_contract_fixtures import control
         scaling=profile();scaling['id']='synthetic-upscale-interface'
-        scaling['modes']={'upscale':{'media':'input-image','parameter_schema':{},'controls':{
+        scaling['modes']={'upscale':{'media':'input-image','parameter_schema':{},
+            'prompt_syntax':{'default':'literal','control':None},'controls':{
             'scale':control('required',schema={'type':'number','enum':[2,4]}),
             'count':control('not-applicable',binding='dispatch-count'),
             'seed':control('backend-managed',binding='dispatch-seed')}}}
         upscale={'id':UPSCALE_MODEL_ID,'label':'Local synthetic upscale fixture','aliases':['synthetic upscale fixture'],
+            'prompt_input':prompt_input('none'),
             'operation_kind':'upscale','search_terms':[{'phrase':'synthetic upscale fixture','facet':'model','weight':1.0,'source':'author'}],'upscaler_class':'restorative','supported_scale_factors':[2,4],
             'input_image_count':1,'supports_guidance_prompt':False,'upscale_settings':{},
             'prompt_style':'Explicit image input and scale','ordering':['input-image','scale-parameters'],

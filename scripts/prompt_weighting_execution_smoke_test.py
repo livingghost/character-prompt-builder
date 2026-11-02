@@ -39,7 +39,7 @@ class PreparationTests(unittest.TestCase):
         wire = execution.compiled(self.root, prepared['run'])[5]
         self.assertEqual(wire['request']['prompt'], fixture.PROMPT)
         self.assertEqual(wire['request']['negative_prompt'], fixture.NEGATIVE)
-        self.assertEqual(wire['request']['promptWeighting'], 'compel')
+        self.assertEqual(wire['request']['controls']['parser'], 'clauses')
         rc.validate_seal(wire)
         report = prepared['execution_plan']['prompt_check']
         self.assertEqual(report['syntax'], 'compel')
@@ -55,16 +55,20 @@ class PreparationTests(unittest.TestCase):
         self.assertTrue(any(item['check'] == 'conditioning clauses' for item in findings), findings)
 
     def test_bad_negative_grammar_fails_without_any_send_or_formal_run(self):
-        self.create(negative='(lettering:1.2)')
+        self.create()
+        base.write(self.root / 'negative.txt', '(lettering:1.2)')
         with patch.object(transport_synthetic, 'send', side_effect=AssertionError('must not send')), self.assertRaises(ValueError):
             self.prepare()
         self.assertEqual(workflow.run_ids(self.root), [])
 
     def test_unsupported_native_control_is_a_model_capability_failure(self):
-        self.create(supported=('sdEmbeds',))
+        self.create()
+        parameters = c.load(self.root / 'parameters.json')
+        parameters['controls']['parser'] = 'unsupported-parser'
+        base.write(self.root / 'parameters.json', parameters)
         with self.assertRaises(ValueError) as caught:
             self.prepare()
-        self.assertIn('compel', str(getattr(caught.exception, 'report', caught.exception)))
+        self.assertIn('unsupported-parser', str(getattr(caught.exception, 'report', caught.exception)))
         self.assertEqual(workflow.run_ids(self.root), [])
 
     def test_no_tag_family_still_inspects_weighting(self):
@@ -81,7 +85,7 @@ class PreparationTests(unittest.TestCase):
         self.create(syntax=None, default='compel', recommended_negative='blurry')
         result = self.prepare()
         package = c.load(workflow.run_dir(self.root, result['run']) / 'package.json')
-        self.assertEqual(package['render_contract']['parameters']['promptWeighting'], 'compel')
+        self.assertEqual(package['render_contract']['parameters']['controls']['parser'], 'clauses')
         audit = package['generation_payload']['prompt_recommendations']['negative']
         self.assertEqual(audit['weighting'], 'compel')
         self.assertFalse(audit['applied'])
@@ -115,7 +119,7 @@ class PreparationTests(unittest.TestCase):
     def test_native_syntax_change_invalidates_current_preparation(self):
         self.create()
         result = self.prepare()
-        parameters = c.load(self.root / 'parameters.json'); parameters['promptWeighting'] = 'sdEmbeds'
+        parameters = c.load(self.root / 'parameters.json'); parameters['controls']['parser'] = 'emphasis'
         base.write(self.root / 'parameters.json', parameters)
         with self.assertRaises(ValueError):
             execution.execute(self.root, result['run'], decisions_file=base.fill_decisions(self.root, result['run'], 'approval.json'))
@@ -136,7 +140,7 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(len(captured), 1)
         self.assertEqual(captured[0]['prompt'], fixture.PROMPT)
         self.assertEqual(captured[0]['negative_prompt'], fixture.NEGATIVE)
-        self.assertEqual(captured[0]['promptWeighting'], 'compel')
+        self.assertEqual(captured[0]['controls']['parser'], 'clauses')
         base.write(self.root / 'prompt.txt', 'A changed draft after the original send.')
         with patch.object(transport_synthetic, 'send', side_effect=AssertionError('resume must not resend')):
             self.assertTrue(execution.resume(self.root, run)['execution_completed'])
@@ -160,15 +164,28 @@ class PreparationTests(unittest.TestCase):
         result = json.loads(captured.getvalue())
         self.assertEqual(result['dialect']['id'], 'synthetic-tags')
         self.assertEqual(result['weighting']['syntax'], 'compel')
-        self.assertEqual(result['weighting_capabilities'][0]['control']['schema']['enum'], ['compel','sdEmbeds'])
+        declaration = result['weighting_capabilities'][0]['prompt_syntax']
+        self.assertEqual(declaration['control']['field'], ['controls', 'parser'])
+        self.assertEqual(declaration['control']['values'], [
+            {'value': 'clauses', 'syntax': 'compel'}, {'value': 'emphasis', 'syntax': 'sdEmbeds'}])
 
     def test_guidance_refuses_unexposed_grammar(self):
-        case = self.create(supported=('sdEmbeds',))
+        case = self.create(supported=('sdEmbeds',), syntax='sdEmbeds',
+                           prompt='solo, (blue eyes:1.2)', negative='lettering')
         import prompt_dialect
         args = __import__('argparse').Namespace(model=fixture.MODEL, dialect=None, dialects=None, guide=None, list=False,
             weighting='compel', service='synthetic', mode='text-to-image')
         from pack_manager import PackError
         with self.assertRaisesRegex(PackError, 'does not allow compel'):
+            prompt_dialect.render_report(args, case['settings'])
+
+    def test_required_parser_does_not_offer_its_omission_grammar(self):
+        case = self.create(syntax=None, default='compel', supported=('compel',))
+        import prompt_dialect
+        args = __import__('argparse').Namespace(model=fixture.MODEL, dialect=None, dialects=None, guide=None, list=False,
+            weighting='literal', service='synthetic', mode='text-to-image')
+        from pack_manager import PackError
+        with self.assertRaisesRegex(PackError, 'does not allow literal'):
             prompt_dialect.render_report(args, case['settings'])
 
 
@@ -186,7 +203,9 @@ class RunwareWireTests(unittest.TestCase):
         self.assertEqual(wire['request']['positivePrompt'], fixture.PROMPT)
         self.assertEqual(wire['request']['negativePrompt'], fixture.NEGATIVE)
         self.assertEqual(wire['request']['promptWeighting'], 'compel')
-        self.assertEqual(prompt_weighting.wire_selection(wire), 'compel')
+        declaration = {'default': 'literal', 'control': {'field': ['promptWeighting'],
+            'values': [{'value': 'compel', 'syntax': 'compel'}, {'value': 'sdEmbeds', 'syntax': 'sdEmbeds'}]}}
+        self.assertEqual(prompt_weighting.wire_selection(wire, declaration), 'compel')
         self.assertEqual(prompt_weighting.require_pair(wire['request']['positivePrompt'],wire['request']['negativePrompt'],'compel')['channels']['positive']['operator'],'and')
 
 

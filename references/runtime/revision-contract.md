@@ -4,6 +4,24 @@ Activate this route for a local fix, a requested alternative, a model/interface 
 
 ## Operation and authority
 
+This contract governs changes to an identified baseline. An assessment or a
+repair recommendation alone is not an edit instruction. Use
+[Observe and repair](production-direction.md#observe-and-repair) to establish
+the intended result, the material the request authorizes changing and the
+requirements it preserves before projecting changes into paths.
+
+The baseline records the depiction being changed; its presence does not make
+every choice permanent or approved. A local property edit preserves surrounding
+choices because the requested operation is local. A correction to the event,
+function or overall effect can require coordinated construction changes within
+that correction. A request to reconsider the construction can reopen selected
+means while preserving explicit requirements and adopted design. Derive that
+scope from the request and applicable approvals. Follow a changed choice's
+consequences through the same construction. Preserve genuinely frozen choices;
+ask for the smallest necessary decision when those conflict. Feedback that
+redirects the review calls for reassessment; it does not itself specify an
+image edit.
+
 `edit` is the default. Preserve the current baseline except the requested paths and necessary consistency repairs, each with a disclosed reason. "Change the eyes to blue" does not reopen clothing, lighting or camera. `explore` may change non-frozen axes only when alternatives were requested. `retarget` keeps structured semantics exactly equal and changes wording/target settings separately. Any target limitation that changes meaning must return for approval as an edit, not be hidden in retargeting.
 
 Temporary clothing belongs to `/scene/outfit`. Explicitly fixed wardrobe belongs under `/identity/fixed_wardrobe`. Preserve `/identity` and `/identity_slots` during scene work; an outfit-only edit must not regenerate the approved identity images. A model-specific outfit reference can be added under outfit authority without making it identity. These namespaces are the canonical revision projection; include all meaningful baseline decisions, including source hashes, and never omit an inconvenient decision to evade the diff.
@@ -30,31 +48,26 @@ python scripts/revision_contract.py revision.json --out revision-report.json
 
 Use `--help` for the CLI. `requested_paths` and `frozen_paths` are non-root RFC6901 JSON pointers. Each optional `consistency_changes` entry has exactly `path` and a nonempty `reason`. Objects are compared recursively; arrays are atomic so reordering cannot hide a change. Replacing an ancestor does not count as a permitted child edit. Output includes `ok`, `operation`, `scope`, exact `changed_paths`, both hashes, disclosed consistency changes and errors. Invalid input or an out-of-scope change returns nonzero.
 
-Select the revised depiction from its current approved requirements and present
-situation. Describe the corrected appearance, action, relationship or degree,
-then rebuild the affected passage with the premises needed to understand it.
-Preserve required identity detail, useful context and scoped exclusions. The
-baseline owns the intended meaning and choices; assess an earlier prompt's
-wording against that meaning when it contains a missing premise or an
-instruction outside the selected depiction. Record affected semantic changes
-and necessary consistency repairs through the existing revision contract.
-Use a direct exclusion when it supplies a necessary image boundary; retain its
-subject, region, time and modifier scope. Keep the observed problem, change
-history, story-management decisions and reasons in their owning records.
-During a local edit, preserve the working requirements outside the actual change.
-An exploratory prompt may reconsider incidental choices within its delegated
-scope. Omitted instructions need no replacement permission or contrary statement.
+Build the candidate from the intended result through
+[Select the depiction](prompt-composition.md#select-the-depiction). Describe the
+corrected appearance, action, relationship or degree and its necessary premises.
+The baseline supplies the meaning and selected properties the change preserves;
+evaluate its wording against those requirements. Preserve required identity,
+useful context and exclusions at their subject, region, time and modifier scope.
+A direct exclusion can supply a complete boundary. An exploratory prompt may
+reconsider incidental choices within its delegated scope. Removing an
+instruction needs no replacement permission or contrary statement.
 
-Trace a failed result to the selected realization, reference assignment,
-wording, actual supplied image or output execution before selecting a repair.
-Use [Prompt Composition](prompt-composition.md#select-the-depiction) to restore
-the intended result and [Reference Delivery](reference-delivery.md) to resolve
-source roles. Read the complete revised prompt and its supplied images as the
-receiving model's input, then compare the resulting situation and performance
-with the approved revision. Restore a necessary premise when the revised action
-depends on it; retain contextual instructions for their role in the current
-depiction. Carry the same applicable requirements into the next candidate
-review. This sequence applies to a first correction and to later retries alike.
+Interpret image sources for their assigned contribution through
+[Construction order](prompt-composition.md#construction-order) and bind the
+actual delivered media under [Reference Delivery](reference-delivery.md).
+Rebuild the affected passage, then apply the
+[complete-input readback](prompt-composition.md#prompt-assembly-and-review).
+Judge the whole result against the current request and the requirements the
+change must preserve. Carry those requirements into candidate review and
+complete a satisfied repair. Record semantic changes and necessary consistency
+repairs through this contract. Observations, change history, story-management
+decisions and reasons stay in their owning records.
 
 When materializing a revision, pass `--revision-contract revision.json` to `build_prompt_artifacts.py`. For a Generation Package include the same object as `creative_intent.revision_contract`; both builder and verifier validate it. Render the final prompt from the approved candidate semantics and preserve all actual reference commitments. Source-preservation or change instructions concern the images actually supplied. Structured validation does not prove that an independently written prompt faithfully describes the candidate; the executing agent must compare them.
 

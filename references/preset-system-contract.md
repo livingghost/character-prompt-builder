@@ -6,35 +6,37 @@ This contract defines the authority, purpose, and runtime use of Character Promp
 
 A record is reusable visual production knowledge. It is not a replacement for language understanding, image intent, or art direction.
 
-The authority order is:
+Interpret source roles under
+[Production direction](runtime/production-direction.md#choose-the-expression).
+For applying pack knowledge, the authority order is:
 
 ```text
 1. explicit user intent
 2. meaning of the user's whole brief
-3. chosen image intent and art direction
-4. series identity locks, when any
+3. applicable series identity locks, when any
+4. chosen image intent and art direction
 5. selected pack records
 6. pack-defaults
 ```
 
-A lower layer cannot silently override a higher one.
+A lower layer cannot silently override a higher one. An agent-authored choice
+guides the current realization within that authority; recording it does not
+turn it into a requirement of the commission.
 
 ## Art direction and sparse exploration
 
-A well-specified brief establishes these decisions before focused record retrieval:
+[Production direction](runtime/production-direction.md#choose-the-expression)
+owns the construction and reconsideration of the depiction. Consult pack
+knowledge for a question encountered in that work, whether the brief is sparse
+or detailed. A record can contribute an expressive possibility, a construction
+relationship, a technique or fitting wording to the same ongoing judgment.
 
-- center of appeal
-- subject relationship
-- composition and focal hierarchy
-- medium family
-- shape rhythm and proportion emphasis
-- surface and tactile character
-- color and lighting logic
-- detail hierarchy
-
-Focused retrieval then sharpens, implements, or repairs the chosen direction. It does not decide what the image should be.
-
-A sparse identity brief is a controlled exception. After the image intent and explicit anchors are understood, `recommend` may retrieve several materially different outcome directions for still-open axes. Recommendation adopts no preset, does not override anchors, and does not replace art-directorial judgment. One direction must still be selected before canonical records are adopted and assembled.
+Use `recommend` when an open choice benefits from candidate knowledge and the
+active catalog's scope. Its possibilities can inform materially different
+treatments. Use `search` or `inspire` for a focused craft need during creation,
+assessment or authorized repair. Recommendation adopts no preset and cannot
+override fixed anchors or select the direction. Inspect the complete records
+and decide how their knowledge serves the commission before applying it.
 
 ## Record roles
 
@@ -70,11 +72,11 @@ One cross-domain appeal and visual-taste system. It may define:
 - color-light taste
 - finish and detail hierarchy
 
-A universal core uses `domains: ["shared"]`. It contains no domain anatomy, locomotion, facial organ, or material assumptions. Use zero or one core when it contributes useful production knowledge to the already chosen art direction.
+A universal core uses `domains: ["shared"]`. It contains no domain anatomy, locomotion, facial organ, or material assumptions. Use zero or one core when it contributes useful production knowledge to the direction being developed.
 
 ### Concrete style family
 
-One concrete finish language binding line hierarchy, form abstraction, value and shadow design, highlight placement, color behavior, surface grouping, background treatment, detail hierarchy, and subject-domain overlays. Use zero or one family after the art direction is chosen.
+One concrete finish language binding line hierarchy, form abstraction, value and shadow design, highlight placement, color behavior, surface grouping, background treatment, detail hierarchy, and subject-domain overlays. Use zero or one family where that drawing grammar serves the direction.
 
 The selected family is the primary positive grammar. Its linked render profile supplies the medium envelope and scoped negative boundary. The two full grammars are not concatenated. Aesthetic touches remain subordinate to the family's compatibility policy.
 
@@ -181,7 +183,7 @@ Do not concatenate these records blindly. Adapt each according to its function.
 
 ## Composition rules
 
-- The art direction remains authoritative.
+- Apply knowledge within the selected art direction and the source authority above.
 - Use zero or one universal core.
 - Use one matching realization per represented subject domain.
 - Use zero or one compatible render profile.

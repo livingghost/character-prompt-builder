@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "prompt-retrieval-record.schema.json",
   "title": "Prompt Retrieval Record",
-  "description": "States, for every distinct visual element in one prompt, which catalog and prompt-vocabulary lookups were run and whether the wording was adopted from a record or composed.",
+  "description": "Construction investigations and model-bound vocabulary choices. Descriptive work may have no construction inquiries. Tag-based input requires searched and resolved vocabulary for the actual model, text, syntax and dictionary.",
   "type": "object",
   "required": [
     "artifact_type",
@@ -14,32 +14,30 @@
     },
     "pack_state": {
       "type": "string",
+      "minLength": 1,
       "description": "Identifier of the resolved pack runtime the lookups ran against."
     },
     "elements": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
         "required": [
           "element",
-          "queries",
           "outcome"
         ],
         "properties": {
           "element": {
             "type": "string",
             "minLength": 1,
-            "description": "The visual element this entry covers, such as pose, action, expression, camera, lighting, wardrobe, body feature, or effect."
+            "description": "The construction or wording question this investigation serves. Related details may belong to one question."
           },
           "queries": {
             "type": "array",
-            "minItems": 1,
             "items": {
               "type": "string",
               "minLength": 1
             },
-            "description": "Search strings run against the catalog or the prompt vocabulary for this element."
+            "description": "Search strings actually run against the catalog or prompt vocabulary. Empty or absent for direct inspection without search."
           },
           "inspected_records": {
             "type": "array",
@@ -47,14 +45,15 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "Record identifiers opened with inspect, or vocabulary terms read, while resolving this element."
+            "description": "Record identifiers opened in full, or vocabulary terms read, while resolving this question. A search result alone is not full record inspection."
           },
           "outcome": {
             "enum": [
               "adopted",
-              "composed"
+              "composed",
+              "unused"
             ],
-            "description": "adopted: the wording comes from a retrieved record or vocabulary term. composed: retrieval returned nothing suitable and the wording was written for this prompt."
+            "description": "adopted: selected knowledge or wording comes from inspected records. composed: the author resolves the question in wording, which may adapt inspected knowledge. unused: the investigation is not used in the final prompt."
           },
           "adopted_records": {
             "type": "array",
@@ -64,19 +63,111 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "Required when outcome is adopted: every record identifier or vocabulary term the wording came from."
+            "description": "Required when outcome is adopted: the selected record identifiers or vocabulary terms. Each must also occur in inspected_records."
           },
           "composed_wording": {
             "type": "string",
             "minLength": 1,
-            "description": "Required when outcome is composed: the wording written for this element."
+            "description": "Required when outcome is composed: the authored wording that resolves this question."
           },
           "reason": {
             "type": "string",
             "minLength": 1,
-            "description": "Required when outcome is composed: why no retrieved record or term fits."
+            "description": "Required when outcome is composed or unused: why the authored wording resolves the question, or why the investigation is not used."
           }
         },
+        "anyOf": [
+          {
+            "required": [
+              "queries"
+            ],
+            "properties": {
+              "queries": {
+                "minItems": 1
+              }
+            }
+          },
+          {
+            "required": [
+              "inspected_records"
+            ],
+            "properties": {
+              "inspected_records": {
+                "minItems": 1
+              }
+            }
+          }
+        ],
+        "oneOf": [
+          {
+            "properties": {
+              "outcome": {
+                "const": "adopted"
+              },
+              "inspected_records": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "adopted_records",
+              "inspected_records"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "composed_wording"
+                  ]
+                },
+                {
+                  "required": [
+                    "reason"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "properties": {
+              "outcome": {
+                "const": "composed"
+              }
+            },
+            "required": [
+              "composed_wording",
+              "reason"
+            ],
+            "not": {
+              "required": [
+                "adopted_records"
+              ]
+            }
+          },
+          {
+            "properties": {
+              "outcome": {
+                "const": "unused"
+              }
+            },
+            "required": [
+              "reason"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "adopted_records"
+                  ]
+                },
+                {
+                  "required": [
+                    "composed_wording"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
         "additionalProperties": false
       }
     },
@@ -100,7 +191,29 @@
         }
       },
       "additionalProperties": false
+    },
+    "vocabulary": {
+      "$ref": "prompt-vocabulary-selection.schema.json"
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "settled": {
+            "const": true
+          }
+        },
+        "required": [
+          "settled"
+        ]
+      },
+      "then": {
+        "required": [
+          "context"
+        ]
+      }
+    }
+  ]
 }

@@ -88,6 +88,8 @@ def _builder_fingerprint() -> str:
         ROOT / "schemas" / "pack.schema.json",
         ROOT / "schemas" / "pack-lock.schema.json",
         ROOT / "schemas" / "pack-record-file.schema.json",
+        ROOT / "schemas" / "model-prompt-input.schema.json",
+        ROOT / "schemas" / "prompt-syntax.schema.json",
         ROOT / "schemas" / "pack-state.schema.json",
     )
     payload = [

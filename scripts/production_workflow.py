@@ -1112,10 +1112,12 @@ def _review_reference_evidence(directory: Path, run: str, consumer: dict) -> lis
 
 
 def _review_question(task: dict, criterion: dict, craft_questions: list[str]) -> str:
-    """Carry the prepared artifact purpose and realization into an unanswered check."""
+    """Keep the commission and the authored means distinguishable in a review question."""
     lines = ['Prepared artifact purpose: ' + task['direction']['purpose'],
              'Intended effect: ' + task['direction']['intended_effect'],
-             'Assessment question: how does the candidate meet this requirement? ' + criterion['text'],
+             'Recorded criterion: ' + criterion['text'],
+             'Judge the depicted result against the request and applicable sources. '
+             'The authored realization is a means to assess, not independent authority for this criterion.',
              'Assess using ' + criterion['evidence'] + ' evidence; record observations, interpretation and limits.']
     for decision in task['direction']['decisions']:
         if criterion['id'] not in decision['criteria']:

@@ -26,10 +26,11 @@ def build():
         import pack_manager as pm
         import observe_model_schema as observer
         pack=root/'source-pack';fixture._write_fixture_pack(pack);pm.write_lock(pack)
-        _,document,i,j=observer._selection(pack,fixture.OFFERED_MODEL_ID,'runware')
+        _,document,i,j=observer._selection(pack,fixture.OFFERED_MODEL_ID,fixture.SERVICE_ID)
         offering=document['records'][i]['offerings'][j]
         schema=c.load(pack/offering['schema_snapshot'])['schema']
-        target={'service':'runware','model_identifier':offering['model_identifier'],'operation':'imageInference'}
+        target={'service':fixture.SERVICE_ID,'model_identifier':offering['model_identifier'],
+                'operation':fixture.SERVICE_OPERATION}
         before=c.read(pack/'records/models.json')
         raw=b'{ "schema" : '+json.dumps(schema).encode()+b' }\n'
         (root/'response.json').write_bytes(raw)
@@ -40,10 +41,11 @@ def build():
         (root/'acquisition.json').write_bytes(c.encoded(acquisition))
         result=execute([str(ROOT/'scripts/observe_model_schema.py'),'schema','--root',str(root),
             '--pack',str(pack),'--out-pack',str(root/'observed-pack'),'--release','2026.09.22.1',
-            '--model',fixture.OFFERED_MODEL_ID,'--service','runware','--operation','imageInference',
+            '--model',fixture.OFFERED_MODEL_ID,'--service',fixture.SERVICE_ID,
+            '--operation',fixture.SERVICE_OPERATION,
             '--entry','synthetic-source','--acquisition','acquisition.json','--pointer','/schema'])
         target_pack=root/'observed-pack'
-        _,updated,i,j=observer._selection(target_pack,fixture.OFFERED_MODEL_ID,'runware')
+        _,updated,i,j=observer._selection(target_pack,fixture.OFFERED_MODEL_ID,fixture.SERVICE_ID)
         observed=updated['records'][i]['offerings'][j]
         contract=c.load(target_pack/observed['schema_contract']['path'])
         same_raw=c.read(target_pack/'resources/model-evidence/synthetic-source/response.json')==raw

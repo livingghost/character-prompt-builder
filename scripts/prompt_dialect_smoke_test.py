@@ -25,6 +25,7 @@ SOUND = {
     "dialects": [
         {
             "id": "family-one", "name": "Family One", "description": "The first fixture family.",
+            "vocabularies": ["fixture-vocabulary-one"],
             "tag_separator": "a comma followed by one space",
             "block_order": ["quality", "subject", "camera"],
             "rating_terms": ["general", "explicit"],
@@ -33,6 +34,7 @@ SOUND = {
         },
         {
             "id": "family-two", "name": "Family Two", "description": "The second fixture family.",
+            "vocabularies": ["fixture-vocabulary-two"],
             "tag_separator": "a comma followed by one space",
             "block_order": ["quality", "subject"],
             "weight_range": [1.2, 1.4],

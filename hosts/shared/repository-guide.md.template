@@ -172,9 +172,10 @@ python scripts/validate.py .         the repository-wide diagnostic
 python scripts/package.py            build the release and check the extracted copy
 ```
 
-The product's own tests and release checks run on a commons-only pack state
-(`pack_cli.py ready --only <commons-id>`), so a personal pack never changes
-their result.
+The product's own tests run from a temporary copy of its declared files, with
+source-owned CI and source-control settings when present. The checks enable the
+shipped packs alone. Release catalog validation uses those pack roots directly;
+independently authored packs have their own release gates.
 
 `.claude-plugin/`, `.codex-plugin/`, `.agents/`, `hooks/`, `MANIFEST.json` and
 `config/integration-capabilities.json` are generated from `[package]` in

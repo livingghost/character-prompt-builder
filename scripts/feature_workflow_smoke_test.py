@@ -29,7 +29,7 @@ import dispatch
 import pack_manager as pm
 import studio
 from generation_payload_smoke_test import _write_fixture_pack, _package, PACK_ID, MODEL_ID, APPROVED_PLOT, PROMPT
-from prepare_generation_references import empty_stateless_reference_set
+from prepare_generation_references import empty_stateless_reference_set, resolve_model_record
 from prompt_retrieval import require_generation_retrieval, settle_retrieval_record
 from revision_contract import validate_revision, digest
 from smoke_fixtures import fixture_retrieval
@@ -49,6 +49,7 @@ class FeatureWorkflowTests(unittest.TestCase):
             default_enabled_packs=(PACK_ID,))
         pm.save_state(cls.settings.state_file, {'pack_roots': [], 'enabled_packs': [PACK_ID]})
         catalog_cli.configure_pack_runtime(cls.settings)
+        cls.model_record = resolve_model_record(MODEL_ID)[1]
         cls.package = _package(empty_stateless_reference_set())
         cls.package_path = cls.base/'package.json'; pm.atomic_write_json(cls.package_path, cls.package)
 
@@ -111,24 +112,34 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertEqual(self.package['composition_prompt'], PROMPT)
         self.assertEqual(self.package['retrieval_record_sha256'], digest(self.package['retrieval_record']))
 
+    def test_source_sufficient_record_reaches_builder_and_verifier(self):
+        record = settle_retrieval_record({'artifact_type': 'prompt-retrieval-record', 'elements': []},
+                                         prompt=PROMPT, plot=APPROVED_PLOT)
+        package = _package(empty_stateless_reference_set(), retrieval_record=record)
+        self.assertEqual(package['retrieval_record'], record)
+        self.assertEqual(package['retrieval_record_sha256'], digest(record))
+        self.assertTrue(verify(package, studio=self.root)['verified'])
+
     def test_02_missing_unsettled_and_unavailable_retrieval_rejected(self):
         for value in (None, {}, {'unavailable': 'test lookup unavailable'}, {'artifact_type': 'prompt-retrieval-record', 'elements': []}):
             with self.subTest(value=value), self.assertRaises(ValueError):
-                require_generation_retrieval(value, prompt=PROMPT, plot=APPROVED_PLOT)
+                require_generation_retrieval(value, prompt=PROMPT, plot=APPROVED_PLOT, model_record=self.model_record)
         value = fixture_retrieval(PROMPT, APPROVED_PLOT); value['settled'] = False
         with self.assertRaisesRegex(ValueError, 'settled'):
-            require_generation_retrieval(value, prompt=PROMPT, plot=APPROVED_PLOT)
+            require_generation_retrieval(value, prompt=PROMPT, plot=APPROVED_PLOT, model_record=self.model_record)
 
     def test_03_retrieval_cannot_be_reused_for_other_prompt(self):
         with self.assertRaisesRegex(ValueError, 'different prompt|context'):
-            require_generation_retrieval(fixture_retrieval(PROMPT, APPROVED_PLOT), prompt=PROMPT+' extra', plot=APPROVED_PLOT)
+            require_generation_retrieval(fixture_retrieval(PROMPT, APPROVED_PLOT), prompt=PROMPT+' extra', plot=APPROVED_PLOT,
+                                         model_record=self.model_record)
 
     def test_04_retrieval_cannot_be_reused_for_other_plot(self):
         value = copy.deepcopy(APPROVED_PLOT); value.pop('approved'); value['story'][0]['beat'] += ' changed'
         from prompt_plot import content_sha256
         value['approved'] = {**APPROVED_PLOT['approved'], 'content_sha256': content_sha256(value)}
         with self.assertRaises(ValueError):
-            require_generation_retrieval(fixture_retrieval(PROMPT, APPROVED_PLOT), prompt=PROMPT, plot=value)
+            require_generation_retrieval(fixture_retrieval(PROMPT, APPROVED_PLOT), prompt=PROMPT, plot=value,
+                                         model_record=self.model_record)
 
     def test_05_verifier_rejects_removal_tampering_and_record_switch(self):
         for key in ('retrieval_record', 'retrieval_record_sha256', 'composition_prompt'):
@@ -351,17 +362,17 @@ class FeatureWorkflowTests(unittest.TestCase):
         result=module.run(self.work/'walkthrough output')
         self.assertEqual(result['external_requests'],0);self.assertFalse(result['sent']);self.assertEqual(result['iterations'],0)
         self.assertEqual(result['package_run'],result['production_run'])
-        self.assertEqual(result['request']['model'],'xai:grok-imagine@image-2.0')
+        self.assertEqual(result['request']['model'],module.MODEL_IDENTIFIER)
         self.assertEqual((result['request']['width'],result['request']['height']),(832,1248))
         self.assertEqual(result['validation']['checked'],['target-schema'])
         self.assertEqual(result['request']['settings']['quality'],'medium')
         rendering=pm.load_json(self.work/'walkthrough output'/'studio'/'render-intent.json')
         self.assertEqual(rendering['selection']['chosen_by'],'agent')
         self.assertEqual(rendering['preset'],'photographic')
-        self.assertTrue(result['request']['positivePrompt'].startswith(rendering['prompt_expression']))
-        self.assertTrue(result['request_validation']['contract'].startswith('@pack/'))
+        self.assertTrue(result['request']['prompt'].startswith(rendering['prompt_expression']))
+        self.assertEqual(result['request_validation']['contract'],'@pack/'+module.PACK_ID+'/'+module.SCHEMA_PATH)
         args=pm.load_json(self.work/'walkthrough output'/'prepare-arguments.json')
-        for flag in ('--root','--task','--state-file','--cache-dir','--managed-root'):self.assertIn(flag,args)
+        for flag in ('--root','--task','--state-file','--cache-dir','--managed-root','--pack-root'):self.assertIn(flag,args)
         self.assertEqual(result['readiness']['state'],'authorization_required')
         self.assertTrue({'AUTHORIZATION_REQUIRED'}.issubset(
             {item['code'] for item in result['readiness']['diagnostics']}))

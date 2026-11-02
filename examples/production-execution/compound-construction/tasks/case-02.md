@@ -1,0 +1,7 @@
+Please write an image-generation prompt for a single image to use on a science museum display panel. It should look like a photograph of a real model, viewed directly from above, on a horizontal air-cushion experiment table.
+
+Exactly one red disk-shaped puck has been moving clockwise, as seen from above, along the inside of a blue circular guide. The guide covers three quarters of a circle, running from the 6 o'clock position in the image through 9 o'clock and 12 o'clock to 3 o'clock, where it ends. Depict the moment just after the puck has left this end at 3 o'clock. After it leaves the end, assume that no horizontal force acts on the puck.
+
+Show just one puck, sharply defined. Ahead of it, place exactly three small white dots at equal intervals to indicate its path. Inside the guide, include just one short white curved arrow showing the clockwise motion before the puck left the guide. Do not add any other arrows, motion afterimages, text, or numbers. The entire guide and all three dots must fit within the frame.
+
+Your first rough composition was: "Place the circular guide on the left of a wide image, with the puck and white dotted path extending straight to the right from it, creating a sense of horizontal motion." The 16:9 landscape frame, the directly overhead view, and the shape and orientation of the guide are fixed. Refine the remaining placement and presentation so that the actual motion is communicated correctly, and produce the final prompt.

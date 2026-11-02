@@ -187,13 +187,13 @@
       "content": [
         {
           "field": [
-            "positivePrompt"
+            "prompt"
           ],
           "id": "prompt"
         },
         {
           "field": [
-            "negativePrompt"
+            "negative_prompt"
           ],
           "id": "negative"
         }
@@ -201,7 +201,7 @@
       "fields": [
         {
           "field": [
-            "positivePrompt"
+            "prompt"
           ],
           "id": "prompt",
           "kind": "content"
@@ -215,37 +215,37 @@
         },
         {
           "field": [
-            "taskType"
+            "operation"
           ],
           "id": "operation",
           "kind": "fixed"
         },
         {
           "field": [
-            "numberResults"
+            "count"
           ],
           "id": "count",
           "kind": "parameter"
         },
         {
           "field": [
-            "negativePrompt"
+            "negative_prompt"
           ],
           "id": "negative",
           "kind": "content"
         },
         {
           "field": [
-            "height"
+            "controls"
           ],
-          "id": "parameter:height",
+          "id": "parameter:controls",
           "kind": "parameter"
         },
         {
           "field": [
-            "promptWeighting"
+            "height"
           ],
-          "id": "parameter:promptWeighting",
+          "id": "parameter:height",
           "kind": "parameter"
         },
         {
@@ -266,7 +266,7 @@
       "fixed_output_count": null,
       "management": [
         [
-          "taskUUID"
+          "request_id"
         ]
       ],
       "media": [],
@@ -274,29 +274,31 @@
         "model"
       ],
       "negative_text": [
-        "negativePrompt"
+        "negative_prompt"
       ],
       "operation": [
-        "taskType"
+        "operation"
       ],
       "output_count": [
-        "numberResults"
+        "count"
       ],
       "primary_text": [
-        "positivePrompt"
+        "prompt"
       ],
       "seed": null
     },
     "request": {
+      "controls": {
+        "parser": "clauses"
+      },
+      "count": 1,
       "height": 1024,
-      "model": "synthetic:not-a-deployable-model",
-      "negativePrompt": "(\"lettering+, watermark\", \"signature\").blend(1, 0.5)",
-      "numberResults": 1,
-      "positivePrompt": "(\"solo, (blue eyes)1.2, long hair+\", \"forest, soft lighting\").and(1, 0.8)",
-      "promptWeighting": "compel",
+      "model": "synthetic:syntax-preview",
+      "negative_prompt": "(\"lettering+, watermark\", \"signature\").blend(1, 0.5)",
+      "operation": "generate",
+      "prompt": "(\"solo, (blue eyes)1.2, long hair+\", \"forest, soft lighting\").and(1, 0.8)",
+      "request_id": "00000000-0000-4000-8000-000000000001",
       "steps": 30,
-      "taskType": "imageInference",
-      "taskUUID": "00000000-0000-4000-8000-000000000001",
       "width": 1024
     },
     "request_trace": [
@@ -306,15 +308,15 @@
         "source_refs": [
           {
             "kind": "offering",
-            "model_identifier": "synthetic:not-a-deployable-model",
-            "service": "runware"
+            "model_identifier": "synthetic:syntax-preview",
+            "service": "synthetic"
           }
         ],
         "target_field": [
-          "taskType"
+          "operation"
         ],
         "target_range": {
-          "end": 14,
+          "end": 8,
           "start": 0
         },
         "transform_id": "operation"
@@ -325,12 +327,12 @@
         "source_refs": [
           {
             "kind": "offering",
-            "model_identifier": "synthetic:not-a-deployable-model",
-            "service": "runware"
+            "model_identifier": "synthetic:syntax-preview",
+            "service": "synthetic"
           }
         ],
         "target_field": [
-          "taskUUID"
+          "request_id"
         ],
         "target_range": {
           "end": 36,
@@ -344,15 +346,15 @@
         "source_refs": [
           {
             "kind": "offering",
-            "model_identifier": "synthetic:not-a-deployable-model",
-            "service": "runware"
+            "model_identifier": "synthetic:syntax-preview",
+            "service": "synthetic"
           }
         ],
         "target_field": [
           "model"
         ],
         "target_range": {
-          "end": 32,
+          "end": 24,
           "start": 0
         },
         "transform_id": "model-identifier"
@@ -363,12 +365,12 @@
         "source_refs": [
           {
             "kind": "offering",
-            "model_identifier": "synthetic:not-a-deployable-model",
-            "service": "runware"
+            "model_identifier": "synthetic:syntax-preview",
+            "service": "synthetic"
           }
         ],
         "target_field": [
-          "positivePrompt"
+          "prompt"
         ],
         "target_range": {
           "end": 73,
@@ -382,12 +384,12 @@
         "source_refs": [
           {
             "kind": "offering",
-            "model_identifier": "synthetic:not-a-deployable-model",
-            "service": "runware"
+            "model_identifier": "synthetic:syntax-preview",
+            "service": "synthetic"
           }
         ],
         "target_field": [
-          "negativePrompt"
+          "negative_prompt"
         ],
         "target_range": {
           "end": 52,
@@ -401,8 +403,28 @@
         "source_refs": [
           {
             "kind": "offering",
-            "model_identifier": "synthetic:not-a-deployable-model",
-            "service": "runware"
+            "model_identifier": "synthetic:syntax-preview",
+            "service": "synthetic"
+          }
+        ],
+        "target_field": [
+          "controls",
+          "parser"
+        ],
+        "target_range": {
+          "end": 7,
+          "start": 0
+        },
+        "transform_id": "selected-parameter"
+      },
+      {
+        "binding_ids": [],
+        "source_kind": "model-setting",
+        "source_refs": [
+          {
+            "kind": "offering",
+            "model_identifier": "synthetic:syntax-preview",
+            "service": "synthetic"
           }
         ],
         "target_field": [
@@ -417,27 +439,8 @@
         "source_refs": [
           {
             "kind": "offering",
-            "model_identifier": "synthetic:not-a-deployable-model",
-            "service": "runware"
-          }
-        ],
-        "target_field": [
-          "promptWeighting"
-        ],
-        "target_range": {
-          "end": 6,
-          "start": 0
-        },
-        "transform_id": "selected-parameter"
-      },
-      {
-        "binding_ids": [],
-        "source_kind": "model-setting",
-        "source_refs": [
-          {
-            "kind": "offering",
-            "model_identifier": "synthetic:not-a-deployable-model",
-            "service": "runware"
+            "model_identifier": "synthetic:syntax-preview",
+            "service": "synthetic"
           }
         ],
         "target_field": [
@@ -452,8 +455,8 @@
         "source_refs": [
           {
             "kind": "offering",
-            "model_identifier": "synthetic:not-a-deployable-model",
-            "service": "runware"
+            "model_identifier": "synthetic:syntax-preview",
+            "service": "synthetic"
           }
         ],
         "target_field": [
@@ -468,17 +471,32 @@
         "source_refs": [
           {
             "kind": "offering",
-            "model_identifier": "synthetic:not-a-deployable-model",
-            "service": "runware"
+            "model_identifier": "synthetic:syntax-preview",
+            "service": "synthetic"
           }
         ],
         "target_field": [
-          "numberResults"
+          "count"
         ],
         "target_range": null,
         "transform_id": "explicit-output-count"
       }
     ]
+  },
+  "prompt_syntax": {
+    "control": {
+      "field": [
+        "controls",
+        "parser"
+      ],
+      "values": [
+        {
+          "syntax": "compel",
+          "value": "clauses"
+        }
+      ]
+    },
+    "default": "literal"
   },
   "purpose": "Synthetic syntax and wire-layout demonstration; not executable provider capability or author approval.",
   "recommendation_audit": {

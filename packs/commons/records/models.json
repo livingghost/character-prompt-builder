@@ -12,6 +12,36 @@
       ],
       "supports_negative_prompt": false,
       "prompt_style": "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
+      "prompt_input": {
+        "mode": "descriptive",
+        "forms": [
+          "natural-language"
+        ],
+        "vocabularies": [],
+        "basis": [
+          {
+            "kind": "model-author-documentation",
+            "source": "https://developers.openai.com/api/docs/models/gpt-image-2.5-flare",
+            "scope": "model",
+            "observed_at": "2026-11-02",
+            "statement": "Official exact-model identity and image-generation/editing model entry."
+          },
+          {
+            "kind": "model-author-documentation",
+            "source": "https://developers.openai.com/api/docs/guides/image-prompting",
+            "scope": "model",
+            "observed_at": "2026-11-02",
+            "statement": "The official guide identifies both 2.5 variants and uses natural-language descriptions and edit instructions, with API parameters kept separate from prompt text."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/openai-gpt-image-2-5-flare/guides/prompting",
+            "scope": "model",
+            "observed_at": "2026-11-02",
+            "statement": "Exact service identifier is used in requests containing a natural-language image brief."
+          }
+        ]
+      },
       "negative_transport_mode": "integrated-critical",
       "negative_transport_notes": "Integrate critical exclusions into the reviewed natural-language prompt and retain the portable negative prompt for traceability; this adapter does not declare a separate negative-prompt channel.",
       "reference_input_media_types": [
@@ -269,7 +299,11 @@
                     "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
                   }
                 },
-                "parameter_schema": {}
+                "parameter_schema": {},
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
+                }
               },
               "reference-guided": {
                 "media": "references",
@@ -407,7 +441,11 @@
                     "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
                   }
                 },
-                "parameter_schema": {}
+                "parameter_schema": {},
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
+                }
               }
             }
           }
@@ -495,7 +533,11 @@
                 "reason": "No denoising control is declared; reference input is not an img2img strength setting."
               }
             },
-            "parameter_schema": {}
+            "parameter_schema": {},
+            "prompt_syntax": {
+              "default": "literal",
+              "control": null
+            }
           },
           "reference-guided": {
             "media": "references",
@@ -556,7 +598,11 @@
                 "reason": "No denoising control is declared; reference input is not an img2img strength setting."
               }
             },
-            "parameter_schema": {}
+            "parameter_schema": {},
+            "prompt_syntax": {
+              "default": "literal",
+              "control": null
+            }
           },
           "instruction-edit": {
             "media": "references",
@@ -617,7 +663,11 @@
                 "reason": "No denoising control is declared; reference input is not an img2img strength setting."
               }
             },
-            "parameter_schema": {}
+            "parameter_schema": {},
+            "prompt_syntax": {
+              "default": "literal",
+              "control": null
+            }
           }
         }
       },
@@ -635,6 +685,29 @@
       ],
       "supports_negative_prompt": false,
       "prompt_style": "natural-language direction for one still frame with explicit edit targets, reference roles and preserved scene geometry",
+      "prompt_input": {
+        "mode": "descriptive",
+        "forms": [
+          "natural-language"
+        ],
+        "vocabularies": [],
+        "basis": [
+          {
+            "kind": "model-author-documentation",
+            "source": "https://docs.x.ai/developers/model-capabilities/images/prompting-guide",
+            "scope": "model",
+            "observed_at": "2026-11-02",
+            "statement": "The guide explicitly covers Image 2.0 still generation and editing, asks for sentences/prose describing a single image, and supplies scoped edit instructions. The page was last updated October 8, 2026."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/xai-grok-imagine-image-2-0/guides/prompting",
+            "scope": "model",
+            "observed_at": "2026-11-02",
+            "statement": "Exact Runware identifier is used with prose scene descriptions in positivePrompt."
+          }
+        ]
+      },
       "negative_transport_mode": "integrated-critical",
       "negative_transport_notes": "The observed image-inference schema for this model exposes positivePrompt only; critical exclusions have to be carried inside the positive prose.",
       "reference_input_media_types": [
@@ -1323,6 +1396,10 @@
                       ]
                     }
                   ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
                 }
               },
               "reference-guided": {
@@ -1865,6 +1942,10 @@
                       }
                     }
                   ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
                 }
               },
               "instruction-edit": {
@@ -2407,6 +2488,10 @@
                       }
                     }
                   ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
                 }
               }
             }
@@ -2426,6 +2511,36 @@
       ],
       "supports_negative_prompt": false,
       "prompt_style": "clear natural-language image direction with explicit identity invariants, spatial relationships, and scene constraints",
+      "prompt_input": {
+        "mode": "descriptive",
+        "forms": [
+          "natural-language"
+        ],
+        "vocabularies": [],
+        "basis": [
+          {
+            "kind": "model-author-documentation",
+            "source": "https://developers.openai.com/api/docs/models/gpt-image-2.5-sunburst",
+            "scope": "model",
+            "observed_at": "2026-11-02",
+            "statement": "Official exact-model entry states image generation and editing from text and image input."
+          },
+          {
+            "kind": "model-author-documentation",
+            "source": "https://developers.openai.com/api/docs/guides/image-prompting",
+            "scope": "model",
+            "observed_at": "2026-11-02",
+            "statement": "The official guide identifies both 2.5 variants and uses natural-language descriptions and edit instructions, with API parameters kept separate from prompt text."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/openai-gpt-image-2-5-sunburst",
+            "scope": "model",
+            "observed_at": "2026-11-02",
+            "statement": "Exact service identifier is mapped to GPT-Image-2.5 Sunburst generation and editing."
+          }
+        ]
+      },
       "negative_transport_mode": "integrated-critical",
       "negative_transport_notes": "Integrate critical exclusions into the reviewed natural-language prompt and retain the portable negative prompt for traceability; this adapter does not declare a separate negative-prompt channel.",
       "reference_input_media_types": [
@@ -2683,7 +2798,11 @@
                     "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
                   }
                 },
-                "parameter_schema": {}
+                "parameter_schema": {},
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
+                }
               },
               "reference-guided": {
                 "media": "references",
@@ -2821,7 +2940,11 @@
                     "reason": "Default off: content judgment stays with the creator's own review of each candidate. Re-enable per task when a deliverable requires it."
                   }
                 },
-                "parameter_schema": {}
+                "parameter_schema": {},
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
+                }
               }
             }
           }
@@ -2909,7 +3032,11 @@
                 "reason": "No denoising control is declared; reference input is not an img2img strength setting."
               }
             },
-            "parameter_schema": {}
+            "parameter_schema": {},
+            "prompt_syntax": {
+              "default": "literal",
+              "control": null
+            }
           },
           "reference-guided": {
             "media": "references",
@@ -2970,7 +3097,11 @@
                 "reason": "No denoising control is declared; reference input is not an img2img strength setting."
               }
             },
-            "parameter_schema": {}
+            "parameter_schema": {},
+            "prompt_syntax": {
+              "default": "literal",
+              "control": null
+            }
           },
           "instruction-edit": {
             "media": "references",
@@ -3031,7 +3162,11 @@
                 "reason": "No denoising control is declared; reference input is not an img2img strength setting."
               }
             },
-            "parameter_schema": {}
+            "parameter_schema": {},
+            "prompt_syntax": {
+              "default": "literal",
+              "control": null
+            }
           }
         }
       },
@@ -3054,6 +3189,29 @@
       "negative_transport_mode": "integrated-critical",
       "negative_transport_notes": "This interface has positivePrompt only. Write critical exclusions in the positive prose and retain any portable negative in package records without sending a negativePrompt field.",
       "prompt_style": "natural-language image direction with explicit per-reference identity, pose, wardrobe, spatial relationship and preservation clauses",
+      "prompt_input": {
+        "mode": "descriptive",
+        "forms": [
+          "natural-language"
+        ],
+        "vocabularies": [],
+        "basis": [
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/bytedance-seedream-5-0-pro/guides/prompting",
+            "scope": "model",
+            "observed_at": "2026-11-02",
+            "statement": "The model-specific guide uses descriptive clauses for subject, composition, lighting, style, constraints and image-reference instructions."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://docs.byteplus.com/en/docs/ModelArk/image-generation-api",
+            "scope": "model",
+            "observed_at": "2026-11-02",
+            "statement": "The provider defines prompt as text describing image content or a requested image operation and documents natural-language input languages."
+          }
+        ]
+      },
       "reference_input_media_types": [
         "image/jpeg",
         "image/png",
@@ -3422,6 +3580,10 @@
                       "maximum": 16
                     }
                   ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
                 }
               },
               "reference-guided": {
@@ -3642,6 +3804,10 @@
                       "maximum": 16
                     }
                   ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
                 }
               }
             }
@@ -3659,6 +3825,29 @@
       ],
       "supports_negative_prompt": false,
       "prompt_style": "concise natural-language image directions with explicit edit targets, reference roles and preservation constraints",
+      "prompt_input": {
+        "mode": "descriptive",
+        "forms": [
+          "natural-language"
+        ],
+        "vocabularies": [],
+        "basis": [
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/alibaba-qwen-image-2-1-pro/guides/prompting",
+            "scope": "model",
+            "observed_at": "2026-11-02",
+            "statement": "Exact-model guide builds a scene description with composition and quoted image text; it distinguishes the authored prose from optional prompt rewriting."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://www.alibabacloud.com/help/en/model-studio/text-to-image",
+            "scope": "family",
+            "observed_at": "2026-11-02",
+            "statement": "Official API documentation describes generating images from text descriptions and explains optional prompt rewriting for both series."
+          }
+        ]
+      },
       "negative_transport_mode": "integrated-critical",
       "negative_transport_notes": "The observed interface exposes positivePrompt only. Put critical exclusions in the authored instruction.",
       "reference_input_media_types": [
@@ -4052,6 +4241,10 @@
                       }
                     }
                   ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
                 }
               },
               "reference-guided": {
@@ -4313,6 +4506,10 @@
                       }
                     }
                   ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
                 }
               },
               "instruction-edit": {
@@ -4574,6 +4771,10 @@
                       }
                     }
                   ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
                 }
               }
             }

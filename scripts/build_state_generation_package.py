@@ -62,8 +62,8 @@ def build_package(
     production_root: Path | None = None,
     production_run: str | None = None,
 ) -> dict[str, Any]:
-    from prompt_retrieval import require_generation_retrieval
-    require_generation_retrieval(retrieval_record, prompt=prompt, plot=plot)
+    from prompt_retrieval import require_settled_retrieval
+    require_settled_retrieval(retrieval_record, prompt=prompt, plot=plot)
     if production_spec.get("target_model") != model:
         raise ValueError("package model differs from production specification target_model")
     if prepared_reference_set is None:

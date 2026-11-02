@@ -1,8 +1,17 @@
 # Performance Language Specification
 
-Performance language records how a character communicates emotion, intent, attention, relationship, and bodily state through visible coordinated signals. It applies to humans, anthropomorphic animals, ordinary animals, creatures, hybrids, robots, and androids.
+Performance language connects a character's act or reaction with the emotion,
+intent, attention, relationship and bodily state it communicates. It applies
+to humans, anthropomorphic animals, ordinary animals, creatures, hybrids,
+robots and androids. [Production direction](runtime/production-direction.md)
+owns the selected depiction and any reconsideration of it. This specification
+supplies knowledge about expressive channels, source observation and the
+evidence needed to resolve a performance question.
 
-A performance record is not an emotion label. It is an evidence-backed account of what each visible channel is doing, how the channels combine, which interpretations remain plausible, and which interpretation the current image intent selects.
+A structured performance record connects relevant observations or selected
+cues, their combined read, the interpretations still supported and the meaning
+chosen for this image. It can preserve detailed evidence without turning every
+observed channel into an instruction for the new depiction.
 
 For person-specific authoring, first use [Character Performance](runtime/character-performance.md)
 and [Authorial Intent](runtime/authorial-intent.md), then the applicable persona section 2 and its
@@ -73,7 +82,12 @@ ambiguity_notes
 prompt_projection
 ```
 
-Existing plain-text `performance` values remain valid. Use the structured form when a scene depends on several coordinated cues, when source images are being analyzed, when interpretations are ambiguous, or when continuity across a series matters.
+An ordinary depiction can express its performance in the prompt without a
+separate structured record. Use this object when the construction question
+needs the relationships among several cues, source observations, alternative
+interpretations or continuity across a series. Its fields preserve that
+reasoning and evidence; prompt projection carries the selected act or reaction
+and the distinctions it needs.
 
 ### Channel cue fields
 
@@ -94,15 +108,23 @@ stability
 notes
 ```
 
-`observation` records what the source or approved state shows. `visual_instruction` converts that fact into affirmative drawable geometry or material behavior. They are separate because an observation may remain ambiguous while the current image still needs one selected rendering instruction.
+`observation` records what the source or approved state shows.
+`visual_instruction` records the selected visible behavior for this cue, using
+geometry or material behavior where that distinction matters. They remain
+separate because observed evidence can support several interpretations, while
+the new depiction has its own selected performance and source authority.
 
-## 4. Universal observation pass
+## 4. Source observation questions
 
-Before interpreting the emotion, inspect every visible channel that matters.
+Use this repertoire when interpreting a source image, diagnosing a returned
+performance or harvesting reference evidence. The question and the source's
+assigned scope determine which observations matter. Read their relationships
+before attributing emotion or intent. These observations describe evidence;
+they are not a sequence of cues to add while authoring a prompt.
 
 ### 4.1 Target and relationship
 
-Record:
+Target and relationship evidence includes:
 
 - who or what the subject watches
 - whether the target is the viewer, another character, a prop, a threat, a task, or the environment
@@ -113,7 +135,7 @@ A side-eye has little meaning until its target and relationship are known.
 
 ### 4.2 Eyes, lids, brows, and optics
 
-Record:
+Eye, brow and optic evidence includes:
 
 - visible pupil or optic direction
 - upper and lower lid height
@@ -126,7 +148,7 @@ Separate visible eye direction from inferred attention. A visor, brim, hair mass
 
 ### 4.3 Mouth, jaw, tongue, beak, muzzle, and faceplate
 
-Record:
+Mouth and faceplate evidence includes:
 
 - open or closed mouth band
 - corner height and asymmetry
@@ -140,7 +162,7 @@ Describe a tongue display as geometry first. Select playfulness, exertion, appet
 
 ### 4.4 Cheeks, skin, fur, feathers, surface color, and physiology
 
-Record:
+Surface and physiological evidence includes:
 
 - blush location, laterality, hue, edge, area, and intensity
 - heat, cold, exertion, illness, anger, fear, arousal, or environmental color response
@@ -151,7 +173,7 @@ Distinguish localized physiological color from global lighting. Blush normally f
 
 ### 4.5 Head, neck, shoulders, spine, torso, and center of gravity
 
-Record:
+Posture and support evidence includes:
 
 - head pitch, yaw, roll, and distance toward the target
 - neck extension or withdrawal
@@ -165,7 +187,7 @@ A forward head and shoulder lean can turn a smile into invitation, challenge, co
 
 ### 4.6 Arms, hands, paws, claws, manipulators, legs, and feet
 
-Record:
+Limb and manipulator evidence includes:
 
 - open, closed, curled, clenched, gripping, braced, pointing, hiding, or self-touching hand shape
 - finger or claw tension
@@ -181,7 +203,7 @@ Check the actual task, bodily constraints, individual rule and viewpoint before 
 
 ### 4.7 Distance and contact
 
-Record:
+Distance and contact evidence includes:
 
 - interpersonal distance
 - contact point, pressure, support, and ownership
@@ -192,7 +214,7 @@ Do not infer relationship from touch alone. Contact geometry, gaze, body tension
 
 ### 4.8 Rhythm and phase
 
-Record the performance phase:
+A performance's timing can be described through:
 
 - anticipation
 - onset
@@ -206,10 +228,11 @@ at different times, remain unchanged, stay concealed or retain residue. The end 
 not require instant recovery. Relate the current instant to adjacent scene beats where continuity
 matters; one structured visual record does not serialize every transition or every spoken mode.
 
-Also record motion rhythm where supported: still, hesitant, pulsing, repeated, sudden, heavy,
-buoyant, trembling, delayed or mechanically stepped. Select one actual moment for a still image;
-use declared channels, displaced materials or staging to imply duration without asserting that
-the entire temporal sequence is simultaneously visible.
+Motion rhythm, where supported, can be still, hesitant, pulsing, repeated,
+sudden, heavy, buoyant, trembling, delayed or mechanically stepped. A still
+presents one selected moment. Declared channels, displaced materials or staging
+can imply duration without making the entire temporal sequence simultaneously
+visible.
 
 ## 5. Declared channels and subject-specific interpretation
 
@@ -241,7 +264,8 @@ Non-facial and non-vocal subjects do not need substitute human features to compl
 
 ## 6. Interpretation discipline
 
-For each plausible interpretation:
+When the question is how to interpret source evidence, connect each plausible
+reading to its support:
 
 1. name the meaning;
 2. list the cue IDs that support it;
@@ -283,34 +307,39 @@ Use ordinary canonical-English aliases that describe the coordinated read. Keep 
 
 ## 8. Prompt projection
 
-Resolve the performance in its present situation: the participants, activity,
-attention targets and relevant physical or relationship conditions. Use
-[Prompt Composition](runtime/prompt-composition.md#carry-scene-intent-into-depiction)
-to select the premises this depiction needs. Establish those premises through
-the actual prompt and supplied media before relying on them to explain a cue.
-A prior event can be necessary context for a present response; identify its
-relevant consequence rather than assuming the model shares the authoring
-conversation. A source record can retain a fuller history than this image needs.
+Author the act or reaction selected through
+[Production direction](runtime/production-direction.md): what the participant
+is doing or responding to, in which circumstances, and how that response
+contributes to this depiction. Preserve the relationship between that act,
+its intended emotional read and its degree. An ordinary complete action or
+performance phrase can carry natural gaze, posture and expression without a
+separate instruction for each channel.
 
-Organize the prompt projection around that situation, the selected performance
-and the cues that make it legible. A dominant read can use one leading
-performance clause with a small set of supporting clauses. Give different
-subjects or local views their own scope when the image requires distinct
-performances. Let readable supplied evidence carry its assigned information;
-add context where the delivered input would otherwise leave the current
-performance unexplained.
+Use channel knowledge when a fixed design, a consequential ambiguity or an
+observed mismatch needs a more specific distinction. A gaze target can clarify
+whom a response addresses; a held posture can distinguish restraint from an
+interruption; local facial or material behavior can establish an expressly
+requested cue. Choose the detail for that work. A position or measurement that
+merely describes one imagined realization need not narrow the authored act.
 
-Start initial authoring and each repair with the desired performance, its
-intensity and its relation to the current action. Select the gaze target,
-posture, contact, expression or other available channels that carry it from the
-chosen camera. Preserve relevant felt state, displayed state, masking and
-timing as separate decisions. A narrative or emotional phrase can establish
-the situation or intended read; the coordinated cues supply a realization
-grounded in the declared subject and scene. Keep both when their relationship
-guides this depiction. Choose context for that function, so a meaningful cue
-does not depend on an undeclared event, relationship or source interpretation.
+Felt state, intended display, masking and timing remain separate decisions.
+The selected channels can reinforce, contradict or lag each other, stay quiet,
+or withhold a response. Coordinated performance means that their relationship
+serves the chosen portrayal, including a requested ambiguity or contrast.
+It does not require agreement among every signal. Use the individual's
+declared channels, actual bodily or mechanical constraints and selected view.
 
-A useful clause names visible geometry:
+The actual prompt and supplied media must establish the present circumstances
+needed to understand the performance. A prior event can supply a necessary
+premise for a reaction; retain that premise before a dependent cue. A source
+record can hold fuller history and unselected interpretations. The model does
+not share the authoring conversation. Readable supplied evidence carries its
+assigned contribution, while text establishes the current act and any missing
+context. Different participants or local views retain their own performance
+scope.
+
+For a portrayal whose selected construction depends on these cues, a detailed
+realization could read:
 
 ```text
 playful flustered teasing carried by a small tongue display, bilateral cheek blush,
@@ -318,16 +347,19 @@ softened half-lidded viewer-directed eyes, a slight forward head lean, relaxed e
 and one stable cup-holding hand
 ```
 
-A weak clause contains only the label:
+A compact direction could instead read:
 
 ```text
 playful and flirty
 ```
 
-Select only the supported cues needed for the requested read and visible framing. A small
-multi-channel set often suffices; one available channel, subtle stillness, intentional ambiguity
-or no expressive display is also valid. Do not invent movement or anatomy to meet a cue quota.
-If the read is underdetermined, retain that limitation or revise the proposed staging explicitly.
+Neither form establishes its own suitability. The current act, context,
+character and available source evidence determine whether the compact direction
+already carries the result or a particular cue must be resolved. A small
+multi-channel set, one channel, subtle stillness, intentional ambiguity or no
+expressive display can each be appropriate. If the actual construction remains
+underdetermined in a consequential way, return that question to Production
+direction rather than expanding all channels or inventing anatomy.
 
 Record a newly selected gesture, distance or expression in the current Visual
 State Projection or Production Specification. Structured cues use the existing
@@ -341,34 +373,49 @@ are part of the selected portrayal, define the current cues and contextual
 conditions that support them. An unresolved story decision can remain in the
 story record while the present performance is clear.
 
-When an image misses the requested read, identify the visible cue or relationship
-that needs to change and specify its wanted state and degree. Compare the
-actual source and candidate where those carry the evidence. Keep applicable
-exclusions as boundaries, while restoring the positive performance they are
-meant to protect. Recheck the complete coordinated pattern and its visibility
-after the repair, including intentionally quiet, masked or ambiguous displays.
+When a returned image misses the requested read, compare the actual act or
+reaction with the requested result under Production direction's repair process.
+The cause can lie in the situation, relationship, chosen instant, source use or
+a local cue. A local defect can be repaired by specifying its wanted state and
+degree; a mistaken act or reaction requires rebuilding that construction.
+Keep applicable exclusions as boundaries and assess the resulting performance
+together, including its quiet, masked or ambiguous components.
 
-## 9. Review checklist
+## 9. Evidence for a performance judgment
 
-- Is the gaze target identifiable?
-- Do the available channels support the selected read or the intended ambiguity, contrast or lag?
-- Are body, distance and contact cues scoped to task, context and the individual, without assuming hidden states must leak visibly?
-- Are blush, sweat, tears, heat, glow, and other physiological or mechanical signals localized and causally readable?
-- Do used channels exist in the declaration and follow its mechanics, individual rules and relevant world conventions?
-- For robots, do optics, sensors, manipulators, actuators, indicators, panels, and ventilation preserve function and clearance?
-- Are felt, intended, displayed and observer-inferred states separated, with uncertainty retained?
-- Is the current instant compatible with active voice/response modes and neighboring beats without forcing all channels to reset together?
-- Are alternate plausible interpretations retained with their source observations, and is any ambiguity requested of the output part of the selected portrayal?
-- Does the selected interpretation match the brief, relationship, scene, state, and content intensity?
-- Does the final prompt describe visible coordinated cues instead of relying on emotion labels alone?
-- Do the actual prompt and supplied images establish the present situation and every premise needed to understand the intended performance, its degree and its visible realization?
-- Can the reviewer reconstruct that performance from the delivered input before comparing it with the richer authoring sources?
-- Does each contextual or interpretive instruction serve the selected depiction, with story-state decisions and observation limits retained at their own owners?
+[Production direction](runtime/production-direction.md#observe-and-repair)
+owns the judgment against the requested result. Performance evidence helps
+answer the particular question it identifies. A gaze target, body orientation,
+distance or contact can distinguish an addressed response from another
+activity. Their meaning depends on the task, context and individual; hidden
+states need not leak visibly.
+
+Where physiological or mechanical signals affect the interpretation, distinguish
+local blush, sweat, tears, heat or glow from lighting and other environmental
+causes. Declared channels retain their mechanics and relevant world conventions.
+For a robot, expressive optics, sensors, manipulators, actuators, indicators,
+panels or ventilation still need their functional clearance and operation.
+
+Keep felt, intended, displayed and observer-inferred states distinct, with
+uncertainty attached to the evidence that creates it. Continuity can depend on
+an active voice or response mode and neighboring beats without requiring every
+channel to reset together. Plausible source interpretations remain with their
+observations; ambiguity requested of the output belongs to the selected
+portrayal and its relationship, scene, state and content intensity.
+
+Assess what the delivered prompt and media establish about the present act,
+its circumstances, its degree and any consequential local cue. Compare that
+performance with the richer authoring sources under their assigned authority.
+Contextual and interpretive instructions must contribute to the selected
+depiction; story-state decisions and observation limits retain their own owners.
 
 
 ## 10. Reference-corpus cue harvesting
 
-When a user supplies a new image batch or the active sandbox contains prior reference images that may improve the catalog, treat the corpus as evidence for coordinated performance grammar rather than as a queue of one-image labels.
+For an authorized reference-corpus analysis or cue-harvesting task, treat the
+selected images as evidence for coordinated performance grammar rather than as
+a queue of one-image labels. The observation scope can require complete channel
+coverage; it does not prescribe the detail of a later prompt projection.
 
 1. Inventory the visible observation channels before naming emotion: eyes, lids, brows, mouth, tongue, jaw, cheek color, breath, sweat, tears, head, shoulders, spine, hands, feet, distance, contact, species appendages, and mechanical signals.
 2. Preserve cue ownership and geometry. Record which subject owns each hand, paw, tail, wing, manipulator, tool, contact, support surface, and gaze target.

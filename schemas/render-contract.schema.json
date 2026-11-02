@@ -306,7 +306,8 @@
                 "required": [
                   "media",
                   "controls",
-                  "parameter_schema"
+                  "parameter_schema",
+                  "prompt_syntax"
                 ],
                 "properties": {
                   "media": {
@@ -366,6 +367,9 @@
                   },
                   "parameter_schema": {
                     "type": "object"
+                  },
+                  "prompt_syntax": {
+                    "$ref": "prompt-syntax.schema.json"
                   }
                 },
                 "additionalProperties": false

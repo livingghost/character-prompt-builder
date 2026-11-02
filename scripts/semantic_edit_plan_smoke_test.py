@@ -12,6 +12,7 @@ from unittest.mock import patch
 import execution_contract as c
 import semantic_edit_plan as edits
 import image_input as inputs
+from model_prompt_input_fixtures import prompt_input
 
 PROMPT = ('Edit the first image. Change the wall color behind the vase and preserve the cafe interior. '
           'Use the second image for the vase geometry only; keep the first image camera framing, '
@@ -61,6 +62,7 @@ def setup_plan(root):
             'edit': {'target': 'wall behind the vase', 'change': 'replace the wall color',
                      'preserve': ['vase geometry', 'camera framing'], 'required_reference_roles': ['scene', 'geometry']},
             'model': {'requested': 'Example Editor 1', 'catalog_status': 'missing', 'catalog_model': None,
+                      'prompt_input': prompt_input('descriptive'),
                       'target': copy.deepcopy(TARGET), 'evidence': {'path': 'model-evidence.json',
                       'sha256': c.sha256_file(root / 'model-evidence.json'), 'locator': 'whole synthetic lookup'}},
             'references': [
@@ -100,6 +102,7 @@ def setup_text_only_plan(root):
     write(root, 'prompt.txt', prompt.encode('utf-8'))
     plan = {'artifact_type': 'image-input-plan',
         'model': {'requested': 'Example Generator 1', 'catalog_status': 'missing', 'catalog_model': None,
+            'prompt_input': prompt_input('descriptive'),
             'target': target, 'evidence': {'path': 'model-evidence.json',
                 'sha256': c.sha256_file(root / 'model-evidence.json'), 'locator': 'whole synthetic target'}},
         'references': [], 'external_request': {'file': 'request.json',
@@ -111,11 +114,26 @@ def setup_text_only_plan(root):
     return plan
 
 
+def synthetic_external_record(plan, model_id='example-editor'):
+    """An explicit catalog target for binding tests, not provider evidence."""
+    model = plan['model']
+    return {'id': model_id, 'prompt_input': copy.deepcopy(model['prompt_input']),
+            **({'prompt_dialect': model['prompt_dialect']} if 'prompt_dialect' in model else {}),
+            'supports_negative_prompt': True,
+            'offerings': [{**{key: model['target'][key] for key in ('service', 'model_identifier')},
+                'request_keys': {'prompt': ['prompt'], 'negative prompt': ['negative_text']}}]}
+
+
 class SemanticEditPlanTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        from production_fixtures import scratch_home
+        from catalog_retrieval.runtime import configure_pack_runtime
+        self.enterContext(scratch_home(self.root / 'home'))
+        configure_pack_runtime(None)
+        self.addCleanup(configure_pack_runtime, None)
         self.plan = setup_plan(self.root)
 
     def validate(self):
@@ -421,7 +439,9 @@ class SemanticEditPlanTests(unittest.TestCase):
     def test_dispatch_reference_binding_rejects_reorder_scope_loss_and_target_change(self):
         self.plan['external_request'] = None
         self.plan['model'].update(catalog_status='defined', catalog_model='example-editor')
-        binding = self.validate()
+        record = synthetic_external_record(self.plan)
+        with patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+            binding = self.validate()
         prepared = {'transport_mode': 'multi-image', 'selected_references': [
             {'source': {'sha256': row['sha256']}, 'role': row['role'],
              'authority': {'controls': row['use_for'], 'must_not_control': row['do_not_transfer']}}
@@ -542,7 +562,9 @@ class SemanticEditPlanTests(unittest.TestCase):
         self.plan['external_request'] = None
         self.plan['model'].update(catalog_status='defined', catalog_model='example-editor')
         self.plan['references'][0]['subject_uses'] = [{'subject_id': 'a', 'use': 'identity', 'priority': 0}]
-        binding = self.validate()
+        record = synthetic_external_record(self.plan)
+        with patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+            binding = self.validate()
         prepared = {'transport_mode': 'multi-image', 'selected_references': [
             {'source': {'sha256': row['sha256']}, 'role': row['role'],
              'authority': {'controls': row['use_for'], 'must_not_control': row['do_not_transfer']},
@@ -590,6 +612,370 @@ class SemanticEditPlanTests(unittest.TestCase):
         selector['sha256'] = c.sha256_file(self.root / 'host-call.json')
         with self.assertRaisesRegex(ValueError, 'endpoint or tool differs'):
             inputs.submission_evidence(binding, selector, read)
+
+
+class ExternalPromptInputTests(unittest.TestCase):
+    def setUp(self):
+        from production_fixtures import scratch_home
+        from catalog_retrieval.runtime import configure_pack_runtime
+        import production_case_fixtures as cases
+        import pack_manager as packs
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.enterContext(scratch_home(self.root / 'home'))
+        pack = cases.create_pack(self.root / 'pack')
+        manifest = c.load(pack / 'pack.json')
+        manifest['content']['resource_bindings'].update({
+            'prompt-vocabulary': 'resources/vocabulary.json',
+            'prompt-dialects': 'resources/dialects.json'})
+        write(pack, 'pack.json', manifest)
+        write(pack, 'resources/vocabulary.json', {
+            'format': 'character-prompt-builder-prompt-vocabulary',
+            'name': 'Synthetic external vocabulary',
+            'description': 'Fictional local terms for exact external input tests.',
+            'categories': [{'id': 'depiction', 'name': 'Depiction',
+                            'description': 'Materials and markings used by this fixture.',
+                            'entries': [{'term': term} for term in
+                                        ('ribbed glass', 'striped fabric', 'lettering', 'watermark')]}]})
+        write(pack, 'resources/dialects.json', {
+            'format': 'character-prompt-builder-prompt-dialects',
+            'name': 'Synthetic external dialects',
+            'description': 'A fictional external input grammar and vocabulary family.',
+            'dialects': [{'id': 'fixture-external', 'name': 'External fixture',
+                          'description': 'A fictional tag input for binding tests.',
+                          'vocabularies': ['fixture-vocabulary'],
+                          'tag_separator': 'comma and space',
+                          'block_order': ['content', 'optional controls']}]})
+        packs.write_lock(pack)
+        settings = packs.default_settings(extra_roots=[pack], state_file=self.root / 'state.json',
+            cache_dir=self.root / 'cache', managed_root=self.root / 'managed')
+        packs.save_state(settings.state_file, {'pack_roots': [], 'enabled_packs': [cases.PACK_ID]})
+        configure_pack_runtime(settings)
+        self.addCleanup(configure_pack_runtime, None)
+        self.plan = setup_text_only_plan(self.root)
+
+    def request(self, value):
+        write(self.root, 'request.json', value)
+        self.plan['external_request']['sha256'] = c.sha256_file(self.root / 'request.json')
+
+    def receipt(self, value):
+        write(self.root, 'retrieval.json', value)
+        self.plan['external_request']['vocabulary_record'] = {
+            'path': 'retrieval.json', 'sha256': c.sha256_file(self.root / 'retrieval.json'),
+            'locator': 'vocabulary for the exact synthetic external request'}
+
+    def tag_plan(self, *, text='ribbed glass, striped fabric', negative='lettering',
+                 model_id=None, syntax='literal'):
+        from prompt_vocabulary_selection import search_selection
+        model = self.plan['model']
+        model['prompt_input'] = prompt_input('tag-based', vocabularies=('fixture-vocabulary',),
+                                             forms=('tags', 'natural-language'))
+        model['prompt_dialect'] = 'fixture-external'
+        external = self.plan['external_request']
+        external.update(negative_field=['negative_text'],
+                        prompt_syntax={'default': syntax, 'control': None})
+        request = c.load(self.root / 'request.json')
+        request.update(prompt=text, negative_text=negative)
+        self.request(request)
+        schema = c.load(self.root / 'request-schema.json')
+        schema['properties']['negative_text'] = {'type': 'string'}
+        write(self.root, 'request-schema.json', schema)
+        external['schema']['sha256'] = c.sha256_file(self.root / 'request-schema.json')
+        record = {'id': model_id or model['target']['model_identifier'],
+                  'prompt_input': model['prompt_input'], 'prompt_dialect': model['prompt_dialect']}
+        selection = search_selection(prompt=text, negative=negative, model_record=record, syntax=syntax)
+        receipt = {'artifact_type': 'prompt-retrieval-record', 'elements': [], 'vocabulary': selection}
+        self.receipt(receipt)
+        return record, receipt
+
+    def test_tag_request_reruns_search_and_captures_receipt_without_a_plot(self):
+        from prompt_vocabulary_selection import search_selection
+        _record, receipt = self.tag_plan()
+        self.assertEqual(receipt['vocabulary']['unresolved'], [])
+        read_paths = []
+        def read(path):
+            read_paths.append(path)
+            return (self.root / path).read_bytes()
+        with patch('prompt_vocabulary_selection.search_selection', wraps=search_selection) as search:
+            bound = inputs.validate(self.plan, self.root, read=read)
+        self.assertEqual(search.call_count, 1)
+        self.assertEqual(read_paths.count('retrieval.json'), 1)
+        check = bound['external_request']['prompt_check']
+        self.assertEqual(check['state'], 'vocabulary-checked')
+        self.assertEqual(check['vocabulary'], receipt['vocabulary'])
+        with patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('mutable source')):
+            inputs.validate_binding(bound)
+
+    def test_authored_expression_remains_available_after_actual_search(self):
+        from prompt_vocabulary_selection import resolve_authored
+        _record, receipt = self.tag_plan(text='ribbed glass, three translucent cobalt prisms')
+        self.assertTrue(receipt['vocabulary']['unresolved'])
+        with self.assertRaisesRegex(ValueError, 'choose an existing term'):
+            inputs.validate(self.plan, self.root)
+        receipt['vocabulary'] = resolve_authored(receipt['vocabulary'], 'three translucent cobalt prisms',
+            'The retrieved shape and color tags do not preserve this exact material, color and count together.')
+        self.receipt(receipt)
+        bound = inputs.validate(self.plan, self.root)
+        selected = bound['external_request']['prompt_check']['vocabulary']['entries']
+        self.assertTrue(any(row['choice']['kind'] == 'authored' for row in selected))
+
+    def test_missing_search_and_changed_negative_cannot_prepare(self):
+        _record, receipt = self.tag_plan()
+        self.receipt({'artifact_type': 'prompt-retrieval-record', 'elements': []})
+        with self.assertRaisesRegex(ValueError, 'searched vocabulary selection'):
+            inputs.validate(self.plan, self.root)
+        self.receipt(receipt)
+        request = c.load(self.root / 'request.json')
+        request['negative_text'] = 'watermark'
+        self.request(request)
+        with self.assertRaisesRegex(ValueError, 'different text, model, syntax or dictionary'):
+            inputs.validate(self.plan, self.root)
+
+    def test_actual_negative_and_grammar_follow_the_declared_fields(self):
+        from prompt_vocabulary_selection import search_selection
+        record, receipt = self.tag_plan()
+        request = c.load(self.root / 'request.json')
+        request['negative_text'] = 7
+        self.request(request)
+        with self.assertRaisesRegex(ValueError, 'negative prompt must be text'):
+            inputs.validate(self.plan, self.root)
+        request.update(negative_text='lettering', controls={'text_mode': 'weighted'})
+        self.request(request)
+        external = self.plan['external_request']
+        external['prompt_syntax'] = {'default': 'literal', 'control': {
+            'field': ['controls', 'text_mode'],
+            'values': [{'value': 'weighted', 'syntax': 'compel'}]}}
+        schema = c.load(self.root / 'request-schema.json')
+        schema['properties']['controls'] = {'type': 'object', 'properties': {
+            'text_mode': {'type': 'string'}}}
+        write(self.root, 'request-schema.json', schema)
+        external['schema']['sha256'] = c.sha256_file(self.root / 'request-schema.json')
+        with self.assertRaisesRegex(ValueError, 'different text, model, syntax or dictionary'):
+            inputs.validate(self.plan, self.root)
+        receipt['vocabulary'] = search_selection(prompt=request['prompt'],
+            negative=request['negative_text'], model_record=record, syntax='compel')
+        self.receipt(receipt)
+        bound = inputs.validate(self.plan, self.root)
+        self.assertEqual(bound['external_request']['prompt_check']['syntax'], 'compel')
+        request['controls']['text_mode'] = 'unknown'
+        self.request(request)
+        with self.assertRaisesRegex(ValueError, 'no declared grammar'):
+            inputs.validate(self.plan, self.root)
+        self.plan['external_request']['negative_field'] = ['prompt']
+        with self.assertRaisesRegex(ValueError, 'fields overlap'):
+            inputs.validate(self.plan, self.root)
+
+    def test_custom_nested_fields_follow_the_acquired_schema(self):
+        self.tag_plan()
+        request = c.load(self.root / 'request.json')
+        request['instructions'] = {'paint': request.pop('prompt')}
+        request['controls'] = {'avoid': request.pop('negative_text')}
+        self.request(request)
+        external = self.plan['external_request']
+        external.update(prompt_field=['instructions', 'paint'], negative_field=['controls', 'avoid'])
+        schema = c.load(self.root / 'request-schema.json')
+        schema['required'].remove('prompt')
+        schema['properties'].pop('prompt')
+        schema['properties'].pop('negative_text')
+        schema['properties']['instructions'] = {'type': 'object', 'required': ['paint'],
+                                                'properties': {'paint': {'type': 'string'}}}
+        schema['properties']['controls'] = {'type': 'object', 'required': ['avoid'],
+                                           'properties': {'avoid': {'type': 'string'}}}
+        write(self.root, 'request-schema.json', schema)
+        external['schema']['sha256'] = c.sha256_file(self.root / 'request-schema.json')
+        bound = inputs.validate(self.plan, self.root)
+        self.assertEqual(bound['external_request']['schema_validation']['mode'], 'target-schema')
+        channels = bound['external_request']['prompt_check']['vocabulary']['entries']
+        self.assertTrue(any(row['channel'] == 'negative' and row['term'] == 'lettering' for row in channels))
+
+    def test_unresolved_and_absent_text_surfaces_cannot_accept_instruction_requests(self):
+        for mode in ('unresolved', 'none'):
+            with self.subTest(mode=mode):
+                self.plan['model']['prompt_input'] = prompt_input(mode)
+                with self.assertRaisesRegex(ValueError, 'prompt input|prompt surface'):
+                    inputs.validate(self.plan, self.root)
+
+    def test_descriptive_input_inspects_declared_grammar_without_a_dictionary(self):
+        external = self.plan['external_request']
+        external.update(prompt_syntax={'default': 'compel', 'control': None},
+                        negative_field=['negative_text'])
+        request = c.load(self.root / 'request.json')
+        request.update(prompt='(ribbed glass)1.2', negative_text='lettering')
+        self.request(request)
+        schema = c.load(self.root / 'request-schema.json')
+        schema['properties']['negative_text'] = {'type': 'string'}
+        write(self.root, 'request-schema.json', schema)
+        external['schema']['sha256'] = c.sha256_file(self.root / 'request-schema.json')
+        with patch('prompt_vocabulary_selection.search_selection', side_effect=AssertionError('not a tag input')):
+            bound = inputs.validate(self.plan, self.root)
+            self.assertEqual(bound['external_request']['prompt_check']['state'], 'syntax-checked')
+            self.assertIsNone(bound['external_request']['prompt_check']['vocabulary'])
+            inputs.validate_binding(bound)
+            for field in ('prompt', 'negative_text'):
+                malformed = copy.deepcopy(request)
+                malformed[field] = '(ribbed glass:1.2)'
+                self.request(malformed)
+                with self.subTest(channel=field), self.assertRaisesRegex(ValueError, 'violates its declared target'):
+                    inputs.validate(self.plan, self.root)
+                altered = copy.deepcopy(bound)
+                altered['external_request']['request'] = malformed
+                altered['external_request']['sha256'] = c.content_id(malformed)
+                altered['binding_sha256'] = c.content_id({key: value for key, value in altered.items()
+                                                         if key != 'binding_sha256'})
+                with self.subTest(saved_channel=field), self.assertRaisesRegex(ValueError, 'violates its declared target'):
+                    inputs.validate_binding(altered)
+            bound['external_request'].pop('prompt_check')
+            bound['binding_sha256'] = c.content_id({key: value for key, value in bound.items()
+                                                   if key != 'binding_sha256'})
+            with self.assertRaisesRegex(ValueError, 'requires its prompt check'):
+                inputs.validate_binding(bound)
+
+    def test_defined_catalog_input_and_exact_offering_are_authoritative(self):
+        self.tag_plan(model_id='synthetic-tag-external')
+        self.plan['model'].update(catalog_status='defined', catalog_model='synthetic-tag-external')
+        record = synthetic_external_record(self.plan, 'synthetic-tag-external')
+        with patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+            bound = inputs.validate(self.plan, self.root)
+            self.assertEqual(bound['external_request']['prompt_check']['model'], record['id'])
+            changed = copy.deepcopy(self.plan)
+            changed['model']['prompt_input'] = prompt_input('descriptive')
+            changed['model'].pop('prompt_dialect')
+            changed['external_request'].pop('vocabulary_record')
+            with self.assertRaisesRegex(ValueError, 'contract differs'):
+                inputs.validate(changed, self.root)
+            changed = copy.deepcopy(self.plan)
+            changed['model']['target']['model_identifier'] = 'synthetic:another-version'
+            with self.assertRaisesRegex(ValueError, 'selected catalog offering'):
+                inputs.validate(changed, self.root)
+            changed = copy.deepcopy(self.plan)
+            changed['external_request']['negative_field'] = None
+            with self.assertRaisesRegex(ValueError, 'unbound negative'):
+                inputs.validate(changed, self.root)
+
+    def test_known_exact_target_cannot_be_relabelled_as_missing_descriptive(self):
+        from catalog_retrieval.runtime import load_pack_catalog
+        from types import SimpleNamespace
+        original = load_pack_catalog()
+        self.tag_plan(model_id='synthetic-tag-external')
+        record = synthetic_external_record(self.plan, 'synthetic-tag-external')
+        catalog = SimpleNamespace(entries=[SimpleNamespace(kind='model', record=record)],
+                                  resources=original.resources)
+        with patch('catalog_retrieval.runtime.load_pack_catalog', return_value=catalog):
+            bound = inputs.validate(self.plan, self.root)
+            self.assertEqual(bound['model']['catalog_status'], 'defined')
+            self.assertEqual(bound['model']['catalog_model'], record['id'])
+            changed = copy.deepcopy(self.plan)
+            changed['model']['prompt_input'] = prompt_input('descriptive')
+            changed['model'].pop('prompt_dialect')
+            changed['external_request'].pop('vocabulary_record')
+            with self.assertRaisesRegex(ValueError, 'contract differs'):
+                inputs.validate(changed, self.root)
+
+    def test_catalog_grammar_uses_the_applied_render_mode(self):
+        from render_contract_fixtures import intent, profile
+        self.tag_plan(model_id='synthetic-tag-external', syntax='compel')
+        self.plan['model'].update(catalog_status='defined', catalog_model='synthetic-tag-external')
+        record = synthetic_external_record(self.plan, 'synthetic-tag-external')
+        interface = profile()
+        interface['modes']['text-to-image']['prompt_syntax'] = {'default': 'compel', 'control': None}
+        record['offerings'][0]['execution_profile'] = interface
+        prompt = c.load(self.root / 'request.json')['prompt']
+        write(self.root, 'prompt.txt', prompt.encode())
+        task = {'execution': 'external', 'artifact': 'image', 'delivery': {'path': 'prompt.txt'},
+                'sources': [{'path': 'render-intent.json', 'role': 'render-intent', 'disposition': 'applied'}]}
+        read = lambda base, path: (base / path).read_bytes()
+        with patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+            bound = inputs.validate(self.plan, self.root)
+            write(self.root, 'render-intent.json', intent(prompt))
+            inputs.external_documents(self.root, task, read, inputs=bound)
+            write(self.root, 'render-intent.json', intent(prompt, mode='reference-guided'))
+            with self.assertRaisesRegex(ValueError, 'grammar differs.*render mode'):
+                inputs.external_documents(self.root, task, read, inputs=bound)
+
+    def test_bound_check_is_required_and_matches_the_immutable_request(self):
+        self.tag_plan()
+        bound = inputs.validate(self.plan, self.root)
+        for change in ('missing', 'negative'):
+            altered = copy.deepcopy(bound)
+            if change == 'missing':
+                altered['external_request'].pop('prompt_check')
+            else:
+                altered['external_request']['request']['negative_text'] = 'watermark'
+            altered['binding_sha256'] = c.content_id({key: value for key, value in altered.items()
+                                                     if key != 'binding_sha256'})
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'vocabulary check'):
+                inputs.validate_binding(altered)
+
+    def test_bound_prompt_problem_is_rejected_after_integrity_is_recomputed(self):
+        self.tag_plan()
+        bound = inputs.validate(self.plan, self.root)
+        bound['external_request']['prompt_check']['findings'].append({
+            'severity': 'problem', 'check': 'synthetic-review-probe',
+            'message': 'A grammar failure was recorded but must not be accepted.', 'terms': []})
+        bound['binding_sha256'] = c.content_id({key: value for key, value in bound.items()
+                                               if key != 'binding_sha256'})
+        with self.assertRaisesRegex(ValueError, 'grammar failure was recorded'):
+            inputs.validate_binding(bound)
+
+    def test_bound_prompt_inspection_requires_findings_and_matches_its_parsed_text(self):
+        self.tag_plan()
+        bound = inputs.validate(self.plan, self.root)
+        for change in ('missing-findings', 'missing-constraints', 'changed-channels'):
+            altered = copy.deepcopy(bound)
+            report = altered['external_request']['prompt_check']
+            if change == 'missing-findings':
+                report.pop('findings')
+            elif change == 'missing-constraints':
+                report.pop('model_constraints')
+            else:
+                report['channels']['positive'] = None
+            altered['binding_sha256'] = c.content_id({key: value for key, value in altered.items()
+                                                     if key != 'binding_sha256'})
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'external prompt check'):
+                inputs.validate_binding(altered)
+
+    def test_bound_prompt_reparses_both_channels_with_clean_recorded_findings(self):
+        self.tag_plan(syntax='sdEmbeds')
+        bound = inputs.validate(self.plan, self.root)
+        for channel, field in (('prompt', 'prompt'), ('negative', 'negative_text')):
+            altered = copy.deepcopy(bound)
+            external = altered['external_request']
+            malformed = '(ribbed glass'
+            external['request'][field] = malformed
+            external['prompt_check']['vocabulary']['context'][channel + '_sha256'] = c.digest(malformed.encode())
+            external['sha256'] = c.content_id(external['request'])
+            self.assertEqual(external['prompt_check']['findings'], [])
+            altered['binding_sha256'] = c.content_id({key: value for key, value in altered.items()
+                                                     if key != 'binding_sha256'})
+            with self.subTest(channel=channel), self.assertRaisesRegex(ValueError, 'unclosed group'):
+                inputs.validate_binding(altered)
+
+    def test_bound_prompt_rechecks_pinned_model_limits_without_a_live_catalog(self):
+        self.tag_plan(model_id='synthetic-tag-external')
+        self.plan['model'].update(catalog_status='defined', catalog_model='synthetic-tag-external')
+        record = synthetic_external_record(self.plan, 'synthetic-tag-external')
+        record.update(max_positive_prompt_chars=100, max_negative_prompt_chars=80)
+        with patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+            bound = inputs.validate(self.plan, self.root)
+        self.assertEqual(bound['external_request']['prompt_check']['model_constraints'], {
+            'max_positive_prompt_chars': 100, 'max_negative_prompt_chars': 80,
+            'supports_negative_prompt': True})
+        with patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('mutable source')):
+            inputs.validate_binding(bound)
+            bound['external_request']['prompt_check']['model_constraints']['max_positive_prompt_chars'] = 3
+            bound['binding_sha256'] = c.content_id({key: value for key, value in bound.items()
+                                                   if key != 'binding_sha256'})
+            with self.assertRaisesRegex(ValueError, 'limit is 3'):
+                inputs.validate_binding(bound)
+
+    def test_bound_valid_conditioning_notes_remain_usable_without_a_live_catalog(self):
+        self.tag_plan(text='("ribbed glass", "striped fabric").and()', syntax='compel')
+        bound = inputs.validate(self.plan, self.root)
+        self.assertTrue(any(row['severity'] == 'note'
+                            for row in bound['external_request']['prompt_check']['findings']))
+        with patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('mutable source')):
+            inputs.validate_binding(bound)
 
 
 class SemanticEditSuppliedDispatchTests(unittest.TestCase):
@@ -986,7 +1372,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'differs from the image input plan'):
             self.prepare(model='grok-imagine-image-2.0')
         self.plan['model']['target']['model_identifier'] = 'synthetic:other-model'
-        with self.assertRaisesRegex(ValueError, 'active model offering'):
+        with self.assertRaisesRegex(ValueError, 'offering'):
             self.prepare()
         self.plan['model']['target']['model_identifier'] = 'synthetic:robot'
         self.plan['model']['target']['operation'] = 'instruction-edit'
@@ -1001,7 +1387,13 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
             self.refs.validate_prepared_references([], model=self.model,
                 image_input_binding=bound, reference_use_plan={})
         external = setup_plan(self.root)
-        external['model'].update(catalog_status='defined', catalog_model=self.model)
+        external['model'] = copy.deepcopy(self.plan['model'])
+        write(self.root, 'model-evidence.json', {'synthetic': True, 'offered_target': external['model']['target']})
+        external['model']['evidence']['sha256'] = c.sha256_file(self.root / 'model-evidence.json')
+        request = c.load(self.root / 'request.json')
+        request.update(model=external['model']['target']['model_identifier'],
+                       operation=external['model']['target']['operation'])
+        write(self.root, 'request.json', request)
         with self.assertRaisesRegex(ValueError, 'external_request null'):
             self.refs.prepare_image_input_references(external, studio=self.root, output_dir=self.base / 'external')
 

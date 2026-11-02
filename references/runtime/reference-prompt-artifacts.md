@@ -29,10 +29,10 @@ Within this preparation path, the prepared-reference-set is the sole prepared-re
 
 ## Activation gate
 
-Before final prompt delivery:
+When a visual contribution is being considered:
 
-1. Inspect every selected canonical record in full.
-2. Run full `asset-lookup` for every selected record. Review complete active-pack ownership, resource metadata and source bytes, artifact paths and hashes, linked-record context, and technical roles before deciding whether evidence is adopted.
+1. Inspect each relevant canonical record in full.
+2. Run full `asset-lookup` for each record whose visual evidence is under consideration. Review complete active-pack ownership, resource metadata and source bytes, artifact paths and hashes, linked-record context, and technical roles before deciding whether evidence is adopted.
 3. For an adopted visual contribution, declare `RECORD_ID=INTENDED_INFLUENCE`. The influence is exactly one of `identity`, `pose-camera`, `outfit`, `surface-finish`, `lighting`, `environment`, `prop-accessory`, or `local-color`.
 4. Build one Reference Use Plan from the declarations.
 5. Review every selected item's subject uses, semantic and technical roles, authority, exclusions, and precedence.
@@ -40,7 +40,7 @@ Before final prompt delivery:
 7. Execute the plan transactionally as `prompt-artifacts` or, for an explicitly SVG-consuming downstream tool, `svg-bundle`.
 8. Validate the prepared-reference-set against its package root, the current active pack declarations, and current source bytes.
 
-`asset-lookup --summary` is an optional preview only. It omits complete active-pack ownership, resource metadata, paths, hashes, linked-record context, and source bytes, so it cannot satisfy the gate or support an adoption decision. Full `asset-lookup` and review are mandatory for every selected record whether or not its evidence is ultimately used.
+`asset-lookup --summary` is an optional preview only. It omits complete active-pack ownership, resource metadata, paths, hashes, linked-record context, and source bytes, so it cannot satisfy the gate or support an adoption decision. Inspect full assets before adopting a visual contribution. A textual knowledge use with no relevant visual question does not require asset investigation. When evidence is considered and then declined, retain the actual reason at its existing owner.
 
 When an adopted target-finish canonical record has linked visual evidence and the downstream interface accepts image input, declare that record as `surface-finish` and transport the resulting plan-scoped artifact instead of relying on prose to carry the finish. The selected record's `style_reference_guidance` defines exactly which qualities the reference governs. Prose translation of a finish is lossy in both directions. The selected source remains part of the canonical plan; failed preparation blocks execution rather than reopening an undeclared text-only path.
 
@@ -96,7 +96,7 @@ prepared-reference-set.json
 reference-artifacts/*
 ```
 
-`prompt-only` is an interaction and user-facing reference result: no image-generation API is called and zero references are selected. It does not mean that visual-reference discovery was skipped. The canonical reference-free prepared set has `transport_mode: none` and a structured `zero_reference_reason`; `none` is prepared transport terminology, not a user-facing reference mode. When prompt delivery includes selected artifacts, materialize `prompt-artifacts` and report `prompt+1` for one or `prompt+N` for two or more, even though no generator is called. Deliver the exact source files with the prompt, negative prompt, Reference Use Plan, Surface and Lighting Plan, and prepared-reference-set. Never report a prompt package with selected references as `prompt-only` or `none`.
+`prompt-only` is an interaction and user-facing reference result: no image-generation API is called and zero references are selected. Visual-reference investigation is selected by the actual construction question; this delivery label does not claim that assets were inspected. The canonical reference-free prepared set has `transport_mode: none` and a structured `zero_reference_reason`; `none` is prepared transport terminology, not a user-facing reference mode. When prompt delivery includes selected artifacts, materialize `prompt-artifacts` and report `prompt+1` for one or `prompt+N` for two or more, even though no generator is called. Deliver the exact source files with the prompt, negative prompt, Reference Use Plan, Surface and Lighting Plan, and prepared-reference-set. Never report a prompt package with selected references as `prompt-only` or `none`.
 
 The executor copies every selected source artifact byte-for-byte. Each prepared row records source identity and SHA-256, package-relative delivered path, media type, and delivered SHA-256. Source and delivered hashes must match. A path or hash in prose is not file delivery. Do not substitute one faithful, structural, palette, saturation, specular, or mask artifact for another.
 

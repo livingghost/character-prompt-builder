@@ -271,7 +271,7 @@ Each focused query must express one coherent unresolved craft question for ident
 python scripts/catalog_cli.py inspect <record-id>
 ```
 
-`inspect` returns the complete canonical record and a compact linked-asset activation summary. It does not return complete asset resources. Run full `asset-lookup` for every selected record before final prompt delivery or image-generation packaging, even when the compact activation summary reports no link and even when the evidence is not ultimately adopted. `asset-lookup --summary` is an optional technical-role preview only and cannot satisfy that gate.
+`inspect` returns the complete canonical record and a compact linked-asset activation summary. It does not return complete asset resources. Use the summary to locate potentially relevant evidence. Run full `asset-lookup` and inspect the source before adopting a visual contribution. Text-only knowledge use with no unresolved visual question needs no unrelated asset investigation. `asset-lookup --summary` is an optional technical-role preview only and cannot satisfy that gate.
 Use `inspect <record-id> --out <path>` when the complete record should go to UTF-8 JSON instead of stdout.
 
 ## Runtime failure rules

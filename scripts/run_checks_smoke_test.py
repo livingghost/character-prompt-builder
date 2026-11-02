@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""The check runner runs commands in parallel with one scratch configuration directory, and reports every failure."""
+"""Product checks use isolated core sources and state, run in parallel, and report every failure."""
 from __future__ import annotations
 
 import contextlib
 import io
 import json
+import os
 import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -44,6 +46,17 @@ print("last line of the failing command")
 raise SystemExit(3)
 """
 
+CATALOG = """
+import json, pathlib, sys
+root = pathlib.Path.cwd()
+sys.path.insert(0, str(root / "scripts"))
+from pack_cache import load_runtime_catalog
+catalog = load_runtime_catalog(quiet=True)
+print(json.dumps({"packs": sorted(path.name for path in (root / "packs").iterdir()),
+                  "source_packs": sorted(catalog.pack_roots), "diagnostics": catalog.diagnostics}))
+raise SystemExit(1 if catalog.diagnostics else 0)
+"""
+
 
 class Runner(unittest.TestCase):
     def setUp(self):
@@ -62,6 +75,14 @@ class Runner(unittest.TestCase):
             code = run_checks.run(selected, jobs=jobs, out=self.out)
         return code, printed.getvalue()
 
+    def source_with_nonrelease_pack(self):
+        source = run_checks.copy_check_tree(ROOT, self.work / "source")
+        pack = source / "packs" / "nonrelease-fixture"
+        (pack / "records").mkdir(parents=True)
+        (pack / "pack.json").write_text("{broken synthetic manifest", encoding="utf-8")
+        (pack / "records" / "record.json").write_text("{broken synthetic record", encoding="utf-8")
+        return source, pack
+
     def test_commands_run_at_the_same_time(self):
         folder = self.work / "barrier"
         folder.mkdir()
@@ -77,12 +98,87 @@ class Runner(unittest.TestCase):
         code, printed = self.run_quietly(selected, jobs=2)
         self.assertEqual(0, code, printed)
         default = json.loads((ROOT / "config/default-pack-state.json").read_text(encoding="utf-8"))
+        roots = set()
         for index in (1, 2):
             observed = json.loads((self.out / f"{index:03d}.log").read_text(encoding="utf-8"))
             self.assertEqual(self.out / "home", Path(observed["home"]))
             self.assertEqual(default, observed["state"])
             self.assertEqual("1", observed["bytecode"])
-            self.assertEqual(ROOT, Path(observed["cwd"]).resolve())
+            roots.add(Path(observed["cwd"]).resolve())
+        self.assertEqual(len(roots), 1)
+        copied_root = roots.pop()
+        self.assertNotEqual(ROOT, copied_root)
+        self.assertTrue(copied_root.is_relative_to(self.out))
+
+    def test_nonrelease_pack_inputs_and_owner_home_do_not_reach_commands(self):
+        source, pack = self.source_with_nonrelease_pack()
+        owner_home = self.work / "owner-home"
+        owner_home.mkdir()
+        owner_state = owner_home / "pack-state.json"
+        owner_state.write_text("{unreadable synthetic owner state", encoding="utf-8")
+        original = {path: path.read_bytes() for path in (owner_state, pack / "pack.json", pack / "records/record.json")}
+        probe = self.program("catalog", CATALOG)
+        with mock.patch.object(run_checks, "ROOT", source), mock.patch.dict(os.environ, {"CPB_HOME": str(owner_home)}):
+            code, printed = self.run_quietly([("catalog", [sys.executable, probe])], jobs=1)
+        self.assertEqual(code, 0, printed)
+        observed = json.loads((self.out / "001.log").read_text(encoding="utf-8"))
+        metadata = run_checks.load_package_metadata(source)
+        self.assertEqual(observed["packs"], [Path(relative).name for relative in metadata.release_pack_dirs])
+        self.assertEqual(observed["source_packs"], sorted(metadata.default_pack_ids))
+        self.assertEqual(observed["diagnostics"], [])
+        self.assertEqual(original, {path: path.read_bytes() for path in original})
+
+    def test_source_checks_and_existing_manifest_keep_their_exact_bytes(self):
+        copied = run_checks.copy_check_tree(ROOT, self.work / "core")
+        for name in (*run_checks.SOURCE_CHECK_INPUTS, "MANIFEST.json"):
+            source = ROOT / name
+            paths = source.rglob("*") if source.is_dir() else [source]
+            for path in paths:
+                if path.is_file():
+                    with self.subTest(path=str(path.relative_to(ROOT))):
+                        self.assertEqual(path.read_bytes(), (copied / path.relative_to(ROOT)).read_bytes())
+
+    def test_core_content_checks_keep_the_selected_release_runtime(self):
+        from catalog_retrieval.runtime import using_pack_runtime
+        from pack_manager import PackSettings
+        import structure_neutrality_smoke_test as structures
+        from validate import run_preset_quality_audit
+
+        source, _ = self.source_with_nonrelease_pack()
+        metadata = run_checks.load_package_metadata(source)
+        runtime = self.work / "runtime"
+        settings = PackSettings(
+            roots=tuple(source / relative for relative in metadata.release_pack_dirs),
+            state_file=runtime / "state.json", cache_dir=runtime / "cache",
+            managed_root=runtime / "managed", quarantine_root=runtime / "quarantine",
+            default_enabled_packs=metadata.default_pack_ids,
+        )
+        errors = []
+        with using_pack_runtime(settings):
+            run_preset_quality_audit(source, errors)
+        self.assertEqual(errors, [])
+        with mock.patch.object(structures, "ROOT", source):
+            structures.StructureNeutralityTests().test_authored_geometry_in_templates_examples_and_pack_records()
+
+    def test_core_audit_reports_a_missing_required_resource_without_exiting(self):
+        from catalog_retrieval.runtime import using_pack_runtime
+        from pack_manager import PackSettings, initialize_pack
+        from validate import run_preset_quality_audit
+
+        pack = self.work / "missing-policy-fixture"
+        manifest = initialize_pack(pack, name="Synthetic pack without policy bindings")
+        runtime = self.work / "runtime"
+        settings = PackSettings(
+            roots=(pack,), state_file=runtime / "state.json", cache_dir=runtime / "cache",
+            managed_root=runtime / "managed", quarantine_root=runtime / "quarantine",
+            default_enabled_packs=(manifest["pack_id"],),
+        )
+        errors = []
+        with using_pack_runtime(settings):
+            run_preset_quality_audit(ROOT, errors)
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("audit_preset_quality.py refused the shipped catalog", errors[0])
+        self.assertIn("archetype-policy", errors[0])
 
     def test_a_failure_is_summarized_with_its_log_tail_and_exits_1(self):
         failing = self.program("failing", FAILING)

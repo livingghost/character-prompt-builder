@@ -12,11 +12,15 @@ from typing import Any
 
 import execution_contract as c
 import request_contract as rc
+import prompt_weighting
+from model_prompt_input import resolve_prompt_input
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / 'schemas/authoring/image-input-plan.schema.json'
 DERIVED = {'plan_sha256', 'binding_sha256', 'status', 'prepared_reference_set',
            'prepared_references_sha256'}
+PROMPT_CONSTRAINTS = ('max_positive_prompt_chars', 'max_negative_prompt_chars',
+                      'supports_negative_prompt')
 
 
 def _structure(plan: Any) -> None:
@@ -25,6 +29,7 @@ def _structure(plan: Any) -> None:
     if errors:
         raise ValueError('image input plan: ' + '; '.join(errors))
     model = plan['model']
+    contract = resolve_prompt_input(model)
     if (model['catalog_status'] == 'defined') != (model['catalog_model'] is not None):
         raise ValueError('defined models name their catalog record; missing models record null')
     ids = [row['id'] for row in plan['references']]
@@ -39,8 +44,15 @@ def _structure(plan: Any) -> None:
         return
     if [row['reference'] for row in external['reference_fields']] != ids:
         raise ValueError('external reference fields must cover every selected reference in order')
-    paths = [external[key] for key in ('model_field', 'prompt_field', 'count_field', 'operation_field')
-             if external[key] is not None]
+    if contract['mode'] != 'tag-based' and 'vocabulary_record' in external:
+        raise ValueError('a vocabulary record belongs to a tag-based external input')
+    paths = [external[key] for key in ('model_field', 'prompt_field', 'negative_field', 'count_field', 'operation_field')
+             if external.get(key) is not None]
+    declaration = external.get('prompt_syntax')
+    if declaration is not None:
+        prompt_weighting.validate_declaration(declaration)
+        if declaration['control'] is not None:
+            paths.append(declaration['control']['field'])
     for index, path in enumerate(paths):
         if any(rc.overlaps(path, other) for other in paths[:index]):
             raise ValueError('external request fields overlap')
@@ -125,6 +137,16 @@ def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = N
         raise ValueError('external request operation differs from the selected target')
     actual_prompt = rc.get(request, external['prompt_field'])
     c.text(actual_prompt, 'external instruction prompt')
+    mode = resolve_prompt_input(plan['model'])['mode']
+    if mode == 'unresolved':
+        raise ValueError('resolve the external model prompt input before preparing its request')
+    if mode == 'none':
+        raise ValueError('the selected model has no instruction prompt surface')
+    if external.get('negative_field') is not None:
+        if not isinstance(rc.get(request, external['negative_field']), str):
+            raise ValueError('external negative prompt must be text')
+    if 'prompt_syntax' in external:
+        prompt_weighting.selected(request, external['prompt_syntax'])
     if prompt is not None and actual_prompt != prompt:
         raise ValueError('external request prompt differs from the production delivery')
     if external['count_field'] is not None:
@@ -141,6 +163,150 @@ def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = N
     for pattern in patterns:
         if any(path not in fields for path in _matching_media_paths(request, pattern)):
             raise ValueError('external media array contains an undeclared or missing reference')
+
+
+def _model_contract(model: dict) -> tuple[dict, dict | None]:
+    """Resolve catalog identities exactly; external evidence never overrides one."""
+    from catalog_retrieval.runtime import load_pack_catalog
+    from model_contract import select_offering
+    from prepare_generation_references import resolve_model_record
+
+    declared = resolve_prompt_input(model)
+    target = model['target']
+    if model['catalog_status'] == 'defined':
+        model_id, record = resolve_model_record(model['catalog_model'])
+        offering = select_offering(record, target['service'])
+        if offering is None or offering['model_identifier'] != target['model_identifier']:
+            raise ValueError('image input target differs from the selected catalog offering')
+    else:
+        matches = [(entry.record['id'], entry.record, offering)
+                   for entry in load_pack_catalog().entries if entry.kind == 'model'
+                   for offering in entry.record.get('offerings', [])
+                   if offering['service'] == target['service']
+                   and offering['model_identifier'] == target['model_identifier']]
+        if not matches:
+            return {'id': target['model_identifier'],
+                    'prompt_input': copy.deepcopy(declared),
+                    **({'prompt_dialect': model['prompt_dialect']}
+                       if 'prompt_dialect' in model else {})}, None
+        if len(matches) != 1:
+            raise ValueError('the external target matches several catalog records; select its canonical model')
+        model_id, record, offering = matches[0]
+    if declared != resolve_prompt_input(record) or model.get('prompt_dialect') != record.get('prompt_dialect'):
+        raise ValueError('image input prompt contract differs from the resolved catalog model')
+    model.update(catalog_status='defined', catalog_model=model_id)
+    return record, offering
+
+
+def _offering_text_fields(external: dict, request: dict, offering: dict | None) -> None:
+    """Use declared provider role paths, not guesses based on field wording."""
+    if offering is None:
+        return
+    roles = offering.get('request_keys', {})
+    prompts = [rc.path_parts(key) for key in roles.get('prompt', [])]
+    if prompts and external['prompt_field'] not in prompts:
+        raise ValueError('external prompt field differs from the selected offering')
+    if 'negative_field' in external:
+        negatives = [rc.path_parts(key) for key in roles.get('negative prompt', [])]
+        selected = external['negative_field']
+        if selected is not None and selected not in negatives:
+            raise ValueError('external negative field differs from the selected offering')
+        if any(rc.present(request, path) and path != selected for path in negatives):
+            raise ValueError('external request contains an unbound negative prompt field')
+
+
+def _require_prompt_findings(report: dict) -> None:
+    findings = report.get('findings')
+    if not isinstance(findings, list) or any(not isinstance(row, dict) for row in findings):
+        raise ValueError('external prompt check requires its recorded findings')
+    problems = [row.get('message', row.get('check', 'unspecified prompt problem'))
+                for row in findings if row.get('severity') == 'problem']
+    if problems:
+        raise ValueError('external prompt violates its declared target: ' + '; '.join(map(str, problems)))
+
+
+def _inspect_prompt(prompt: str, negative: str, syntax: str, constraints: dict,
+                    dialect: dict | None) -> dict:
+    """Use the same grammar and declared limits for preparation and saved inputs."""
+    from check_tag_prompt import inspect
+    report = inspect(prompt, negative, None, constraints, dialect, syntax=syntax)
+    _require_prompt_findings(report)
+    return report
+
+
+def _prompt_check(external: dict, request: dict, model_record: dict, file) -> dict:
+    """Inspect actual external text; tag input also searches its vocabulary."""
+    prompt = rc.get(request, external['prompt_field'])
+    negative = rc.get(request, external['negative_field']) if external.get('negative_field') is not None else ''
+    declaration = external.get('prompt_syntax', {'default': 'literal', 'control': None})
+    grammar = prompt_weighting.selected(request, declaration)
+    selection = None
+    if resolve_prompt_input(model_record)['mode'] == 'tag-based':
+        from prompt_vocabulary_selection import require_for_model
+        from state_protocol import validate_against_schema
+        selector = external['vocabulary_record']
+        receipt = c.decode(file(selector['path'], selector['sha256']))
+        errors = validate_against_schema(receipt, c.load(ROOT / 'schemas/prompt-retrieval-record.schema.json'))
+        if errors:
+            raise ValueError('external vocabulary record: ' + '; '.join(errors))
+        selection = require_for_model(receipt, prompt=prompt, negative=negative,
+                                      model_record=model_record, syntax=grammar)
+    constraints = {key: copy.deepcopy(model_record[key]) for key in PROMPT_CONSTRAINTS
+                   if key in model_record}
+    inspection = _inspect_prompt(prompt, negative, grammar, constraints,
+                                  selection['dialect_guidance'] if selection is not None else None)
+    return {'state': 'vocabulary-checked' if selection is not None else 'syntax-checked',
+            'model': model_record['id'], 'model_constraints': constraints,
+            'vocabulary': selection, **inspection}
+
+
+def _bound_prompt_check(plan: dict, external: dict, request: dict, report: Any) -> None:
+    """Check a saved report against immutable inputs; live preparation re-searches."""
+    from state_protocol import validate_against_schema
+    model = plan['model']
+    contract = resolve_prompt_input(model)
+    tagged = contract['mode'] == 'tag-based'
+    expected_state = 'vocabulary-checked' if tagged else 'syntax-checked'
+    if not isinstance(report, dict) or report.get('state') != expected_state:
+        raise ValueError('external binding requires its ' + ('vocabulary check' if tagged else 'prompt check'))
+    _require_prompt_findings(report)
+    selection = report.get('vocabulary')
+    model_id = model['catalog_model'] if model['catalog_status'] == 'defined' else model['target']['model_identifier']
+    if report.get('model') != model_id:
+        raise ValueError('external prompt check differs from its bound model')
+    prompt = rc.get(request, external['prompt_field'])
+    negative = rc.get(request, external['negative_field']) if external.get('negative_field') is not None else ''
+    declaration = external.get('prompt_syntax', {'default': 'literal', 'control': None})
+    grammar = prompt_weighting.selected(request, declaration)
+    if tagged:
+        errors = validate_against_schema(selection, c.load(ROOT / 'schemas/prompt-vocabulary-selection.schema.json'))
+        if errors:
+            raise ValueError('external vocabulary check: ' + '; '.join(errors))
+        context = selection['context']
+        expected = {'model': model_id,
+                    'prompt_input_sha256': c.digest(c.encoded(contract).rstrip(b'\n')),
+                    'dialect': model['prompt_dialect'],
+                    'prompt_sha256': c.digest(prompt.encode('utf-8')),
+                    'negative_sha256': c.digest(negative.encode('utf-8')),
+                    'syntax': grammar}
+        if (any(context[key] != value for key, value in expected.items())
+                or selection['vocabularies'] != contract['vocabularies']
+                or selection['unresolved'] or any(row['choice'] is None for row in selection['entries'])):
+            raise ValueError('external vocabulary check differs from its bound text, model or selections')
+    elif selection is not None:
+        raise ValueError('external vocabulary check requires tag-based input')
+    constraints = report.get('model_constraints')
+    if not isinstance(constraints, dict) or set(constraints) - set(PROMPT_CONSTRAINTS):
+        raise ValueError('external prompt check requires its bound model constraints')
+    for key, value in constraints.items():
+        valid = value is None or (type(value) is bool if key == 'supports_negative_prompt'
+                                  else type(value) is int and value >= 0)
+        if not valid:
+            raise ValueError('invalid bound prompt constraint: ' + key)
+    checked = _inspect_prompt(prompt, negative, grammar, constraints,
+                              selection['dialect_guidance'] if selection is not None else None)
+    if any(report.get(key) != value for key, value in checked.items()):
+        raise ValueError('external prompt check differs from inspection of its bound input')
 
 
 def _reference_rows(binding: dict, prepared: dict, *, require_hash: bool = True) -> None:
@@ -218,6 +384,7 @@ def validate(plan: dict, base: Path, *, read=None) -> dict:
         file(value['path'], value['sha256'])
 
     evidence(result['model']['evidence'])
+    model_record, offering = _model_contract(result['model'])
     from production_evidence import inspect
     image_metadata = {}
     for row in result['references']:
@@ -239,6 +406,7 @@ def validate(plan: dict, base: Path, *, read=None) -> dict:
         raw = file(external['file'], external.get('sha256'))
         request = c.decode(raw)
         _request(result, external, request)
+        _offering_text_fields(external, request, offering)
         if external.get('model_identity') is not None:
             evidence(external['model_identity']['evidence'])
         for row in external['reference_fields']:
@@ -269,7 +437,9 @@ def validate(plan: dict, base: Path, *, read=None) -> dict:
                 raise ValueError('external request violates acquired schema: ' + '; '.join(errors))
             validation = {'mode': 'target-schema',
                           'unmeasured': unsupported_schema_keywords(schema, value=request, media=metadata)}
-        external.update(sha256=c.digest(raw), request=request, schema_validation=validation)
+        prompt_check = _prompt_check(external, request, model_record, file)
+        external.update(sha256=c.digest(raw), request=request, schema_validation=validation,
+                        prompt_check=prompt_check)
     result.update(artifact_type='image-input-binding', plan_sha256=c.content_id(plan), status='prepared-not-generated')
     result['binding_sha256'] = c.content_id(result)
     validate_binding(result)
@@ -291,6 +461,7 @@ def validate_binding(binding: Any) -> None:
     external = plan.get('external_request')
     request = external.pop('request', None) if external is not None else None
     validation = external.pop('schema_validation', None) if external is not None else None
+    prompt_check = external.pop('prompt_check', None) if external is not None else None
     _structure(plan)
     for row in plan['references']:
         c.sha(row.get('sha256'))
@@ -302,6 +473,7 @@ def validate_binding(binding: Any) -> None:
     if external is not None:
         c.sha(external.get('sha256'))
         _request(binding, external, request)
+        _bound_prompt_check(binding, external, request, prompt_check)
         c.exact(validation, {'mode', 'unmeasured'}, 'external schema validation')
         if validation['mode'] != ('target-schema' if external.get('schema') else 'bounded-probe'):
             raise ValueError('external schema validation mode differs from its evidence')
@@ -374,6 +546,22 @@ def external_documents(root: Path, task: dict, add, *, inputs: dict | None = Non
         raise ValueError('subject-assigned external references require an applied Production Specification')
     if graphs is not None and not specs:
         raise ValueError('external state graphs require their Production Specification')
+    chosen_intent = specs[0]['render_intent'] if specs else intents[0] if intents else None
+    if (inputs is not None and chosen_intent is not None
+            and inputs['model']['catalog_status'] == 'defined'):
+        record, offering = _model_contract(copy.deepcopy(inputs['model']))
+        if offering is not None and offering.get('execution_profile') is not None:
+            from render_contract_lib import selected_profile
+            profile = selected_profile(record, offering)
+            mode = profile['modes'].get(chosen_intent['execution_mode'])
+            if mode is None:
+                raise ValueError('external render mode is not exposed by the selected offering')
+            external = inputs['external_request']
+            declared = external.get('prompt_syntax', {'default': 'literal', 'control': None})
+            actual = prompt_weighting.selected(external['request'], declared)
+            expected = prompt_weighting.selected(external['request'], mode['prompt_syntax'])
+            if actual != expected:
+                raise ValueError('external prompt grammar differs from the selected offering and render mode')
     return {'production_specifications': specs, 'render_intents': intents}
 
 

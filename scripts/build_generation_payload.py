@@ -218,6 +218,7 @@ def generation_commitment_projection(data: dict[str, Any]) -> dict[str, Any]:
         "state_graphs_sha256": data.get("state_graphs_sha256"),
         "plot_sha256": data.get("plot_sha256"),
         "composition_prompt": data.get("composition_prompt"),
+        "composition_negative": data.get("composition_negative"),
         "retrieval_record_sha256": data.get("retrieval_record_sha256"),
     }
 
@@ -531,6 +532,7 @@ def build_payload(
     if not isinstance(integrated_prompt, str) or not isinstance(native_negative, str):
         raise ValueError("integrated and native negative prompts must be strings")
     composition_prompt = prompt
+    composition_negative = negative_prompt
     provenance = normalize_negative_provenance(negative_provenance)
     if not isinstance(parameters, dict):
         raise ValueError("parameters must be an object")
@@ -546,7 +548,7 @@ def build_payload(
         if negative_transport == "auto":
             raise
     from prompt_weighting import selected as selected_weighting
-    weighting_syntax = selected_weighting(parameters)
+    weighting_syntax = 'literal'
     if model_record is not None:
         if model_record.get('operation_kind') == 'upscale':
             raise ValueError(f'model record {model_id!r} is an upscaler; use build_upscale_package.py')
@@ -559,7 +561,7 @@ def build_payload(
         current_offering = select_offering(model_record, service)
         current_profile = selected_profile(model_record, current_offering)
         effective_parameters, _ = resolve_parameters(model_record, current_profile, mode, parameters)
-        weighting_syntax = selected_weighting(effective_parameters)
+        weighting_syntax = selected_weighting(effective_parameters, current_profile['modes'][mode]['prompt_syntax'])
     text_payload = prepare_text_transports(
         model_id=model_id, model_record=model_record, prompt=prompt,
         negative_prompt=negative_prompt, integrated_prompt=integrated_prompt,
@@ -738,7 +740,8 @@ def build_payload(
             + ("; ".join(plot_report["approval_errors"]) or "the plot carries no approved block")
         )
     from prompt_retrieval import require_generation_retrieval
-    require_generation_retrieval(retrieval_record, prompt=composition_prompt, plot=plot)
+    require_generation_retrieval(retrieval_record, prompt=composition_prompt, plot=plot,
+        model_record=model_record, negative=composition_negative, syntax=weighting_syntax)
     retrieval_hash = sha256_json(retrieval_record)
     plot_hash = sha256_json(plot)
 
@@ -773,6 +776,7 @@ def build_payload(
         "production_spec": production_spec,
         "production_spec_sha256": production_spec_hash,
         "composition_prompt": composition_prompt,
+        "composition_negative": composition_negative,
         "retrieval_record": retrieval_record,
         "retrieval_record_sha256": retrieval_hash,
         "plot": plot,

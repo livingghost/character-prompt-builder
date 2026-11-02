@@ -9,7 +9,7 @@
     "optional hidden or competing state"
   ],
   "intent": [
-    "what the subject is trying to communicate or do"
+    "the selected act or reaction and what the subject is trying to do or communicate"
   ],
   "viewer_or_partner_relationship": [
     "target and relationship context"
@@ -19,22 +19,22 @@
   "channel_cues": [
     {
       "cue_id": "cue-01",
-      "channel": "eyes-lids-brows",
-      "observation": "Describe the visible channel state from the source or brief.",
-      "visual_instruction": "Describe the affirmative geometry or material change to render.",
-      "laterality": "bilateral",
+      "channel": "other",
+      "observation": "Record the source evidence or brief requirement relevant to this performance question.",
+      "visual_instruction": "Describe the selected visible behavior; use local geometry only for the distinction this cue must establish.",
+      "laterality": "not-applicable",
       "intensity": "moderate",
       "direction_or_target": "viewer, partner, prop, horizon, or other target",
       "visibility": "visible",
       "evidence_status": "observed",
       "confidence": "high",
       "stability": "transient-action",
-      "notes": "Optional evidence or interpretation note."
+      "notes": "Replace the sample channel and status values with the actual declared channel and evidence. A cue may reinforce, oppose, lag or withhold another response."
     }
   ],
   "interpretation_candidates": [
     {
-      "meaning": "one plausible coordinated performance reading",
+      "meaning": "one plausible reading of the act or reaction in its current circumstances",
       "supported_by": [
         "cue-01"
       ],
@@ -45,7 +45,7 @@
     }
   ],
   "selected_interpretation": {
-    "meaning": "the reading selected for the current image intent",
+    "meaning": "the act or reaction and intended read selected through Production direction",
     "supported_by": [
       "cue-01"
     ],
@@ -58,15 +58,13 @@
     "Record cue meanings that change with context or intensity."
   ],
   "prompt_projection": {
-    "primary_clause": "One concise clause combining the dominant coordinated cues.",
-    "supporting_clauses": [
-      "Supporting cues from other channels."
-    ],
+    "primary_clause": "Describe the selected act or reaction in context, with its intended read and degree.",
+    "supporting_clauses": [],
     "search_facets": [
       "ordinary canonical-English performance terms"
     ],
     "review_checks": [
-      "Confirm that all selected channels tell the same story."
+      "Assess whether the delivered input carries the intended act or reaction, including any selected ambiguity, contradiction, lag, restraint or absence of display."
     ]
   }
 }

@@ -1,17 +1,40 @@
 # Preset Workflow
 
-This workflow combines discovery and focused lookup. Preserve the user's fixed
-anchors while consulting knowledge to develop open choices. Follow
-[Production direction](runtime/production-direction.md#choose-the-expression)
-for selection and interaction, and [Craft consultation](runtime/craft-consultation.md)
-to connect applied knowledge to a saved specification and its review.
+Use this workflow to retrieve, inspect and apply knowledge for the depiction
+being developed under
+[Production direction](runtime/production-direction.md#choose-the-expression).
+That owner governs creative choices, interaction and
+[whole-depiction judgment](runtime/production-direction.md#observe-and-repair).
+[Craft consultation](runtime/craft-consultation.md) connects selected knowledge
+to a saved specification and its review.
 
-## 1. Choose the retrieval path
+## Contents
+
+- [Choose the retrieval path](#choose-the-retrieval-path)
+- [Express the craft question](#express-the-craft-question)
+- [Read layered inspiration results](#read-layered-inspiration-results)
+- [Apply record roles correctly](#apply-record-roles-correctly)
+- [Inspect every selected ID](#inspect-every-selected-id)
+- [Adapt by function](#adapt-by-function)
+- [Record and use the contribution](#record-and-use-the-contribution)
+- [Assemble scoped negatives](#assemble-scoped-negatives)
+- [Multiple subject domains](#multiple-subject-domains)
+- [Empty results](#empty-results)
+- [Localized identity details](#localized-identity-details)
+
+## Choose the retrieval path
 
 Discover knowledge before choosing an unresolved presentation or expressive
 relationship. Detailed subject requirements can leave those choices open.
 Use focused lookup for a known craft need. Neither path requires known record
 names or IDs.
+
+Let the current depiction and its unresolved question determine what knowledge
+to seek. Search a relationship or technique where that is the need; separate
+features only when their distinction matters. An intelligible activity, state
+or relationship can remain expressed at that level. Retrieved knowledge can
+develop an open choice or reveal a reason to reconsider it within the same
+production direction.
 
 ```bash
 python scripts/catalog_cli.py recommend \
@@ -28,24 +51,7 @@ Read `references/runtime/sparse-discovery.md` for discovery and modifier scope.
 Read `references/maintenance/search-discovery.md` for index authoring, grouping
 and retrieval evaluation.
 
-## 2. Develop the direction with focused retrieval
-
-Use the brief and complete inspected records to establish:
-
-- image intent
-- center of appeal
-- subject relationship
-- whole-artifact hierarchy and any reading relationships
-- local composition and visibility where applicable
-- medium family
-- shape and rhythm
-- surface and tactile character
-- color and light
-- detail hierarchy
-
-The agent selects a coherent treatment, preserves the fixed anchors, and records the relationships borrowed from inspected knowledge.
-
-## 3. Describe the chosen direction for focused lookup
+## Express the craft question
 
 Use concise canonical English for deterministic retrieval. The calling agent translates the complete user brief semantically, preserving relationships and modifier scope, then searches with the unresolved craft question it wants the catalog to solve. The catalog maintains no per-language word lists. Use `--query-json` when the original brief and language need to remain attached as opaque audit metadata.
 
@@ -71,7 +77,7 @@ warm window light interior
 open sheltering arm
 ```
 
-## 4. Run layered inspiration retrieval
+## Read layered inspiration results
 
 ```bash
 python scripts/catalog_cli.py inspire \
@@ -117,7 +123,7 @@ needs no invented scene requirement. Normal `search` output groups related
 variants under one representative. Use `--ungrouped` for exact inventory or
 deliberate variant comparison.
 
-## 5. Apply record roles correctly
+## Apply record roles correctly
 
 ### Curated
 
@@ -129,7 +135,7 @@ Use for names and model-legible phrasing. Supply staging, light, interaction, an
 
 Use `--tier curated` only when the unresolved question requires a complete blueprint. Use `--tier vocabulary` only for a naming or option question.
 
-## 6. Inspect every selected ID
+## Inspect every selected ID
 
 Recommendation and search output are discovery excerpts. User-facing discovery does not require IDs, but every internally selected record must be inspected before adoption.
 
@@ -153,7 +159,7 @@ python scripts/catalog_cli.py inspect <record-id-from-current-results>
 
 Do not copy optional-pack IDs into core documentation or tests as permanent examples. Read the complete canonical record before prompt assembly.
 
-## 7. Adapt by function
+## Adapt by function
 
 ### Universal aesthetic core
 
@@ -179,50 +185,32 @@ Use only the visual decision it solves. Do not import unrelated scene or identit
 
 Consult scene and recipe candidates while developing the staging or a repeatable production method. Choose a fitting record within the user's anchors, then inspect and adapt its complete relationships.
 
-## 8. Build the modular production specification
+## Record and use the contribution
 
-For a simple brief, keep the specification compact. For interacting requirements,
-record the necessary shared subjects, whole-artifact arrangement and local
-depictions, with geometry, camera and lighting where relevant. The optional
-`layout` owns distinct regions and their reading relationships. Read
-`references/production-specification.md`.
+Preserve the relationships borrowed from inspected knowledge and their useful
+application in the existing
+[Production Specification](production-specification.md). Its shared subjects,
+whole-artifact arrangement and local depictions hold the required construction;
+the optional `layout` owns distinct regions and their reading relationships.
+Geometry, camera and lighting belong where the depiction needs them. Modules
+are optional and chainable in function; use the precision needed by the
+selected relationship and explicit requirements.
 
-The modules are optional and chainable in function. Include only the controls required by the image, then translate the reviewed specification into one coherent natural-language prompt.
+Integrate the contribution into the authored depiction. An inspected record
+can supply a complete technique, one relevant relationship or fitting wording;
+its fields and examples do not each require an emitted clause. Use the
+[Prompt Writing Guide](runtime/prompt-writing-guide.md) to carry that meaning
+into the actual interface. Retain the user's fixed anchors and the complete
+identity and construction detail needed by the image.
 
-## 9. Assemble one prompt
+Apply [Production direction's judgment](runtime/production-direction.md#observe-and-repair)
+to the contribution in the whole depiction. Its intended use and actual effect
+can differ. Keep the record's adaptation rules and diagnostics available for
+the question being assessed, including any unrelated identity, setting or
+narrative imported with its useful technique. A successful lookup alone
+establishes neither a successful application nor an observed image result.
 
-A useful order is:
-
-```text
-artifact and visual focus
--> whole-artifact organization and necessary local views
--> subjects, performance and relationships
--> construction, environment and light where relevant
--> medium, shape, surface, color and finish
--> necessary scoped constraints
-```
-
-Do not paste every retrieved record. Integrate selected knowledge into one coherent art brief.
-
-## 10. Review the likely picture
-
-Check:
-
-- user anchors
-- image intent
-- center of appeal
-- subject-domain validity
-- gaze and relationship
-- anatomy or body-plan coherence
-- support and contact
-- whole-artifact hierarchy, reading relationships and local visibility
-- medium integrity
-- surface and material logic
-- color and light
-- detail hierarchy
-- accidental narrative from a record
-
-## 11. Assemble scoped negatives
+## Assemble scoped negatives
 
 Follow `cpb-resource:negative-policy`.
 

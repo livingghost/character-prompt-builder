@@ -27,6 +27,7 @@ from validate_prompt_semantics import validate_plan
 from search_discovery import SearchIndex, analyze_query
 from growth_resolution_smoke_test import graph_fixture, relink
 import production_spec
+from package_metadata import load_package_metadata
 
 
 def fixture(name):
@@ -60,8 +61,8 @@ class StructureNeutralityTests(unittest.TestCase):
     def test_authored_geometry_in_templates_examples_and_pack_records(self):
         paths = (list((ROOT / "templates").rglob("*.json")) + list((ROOT / "protocols").glob("*/templates/*.json"))
                  + list((ROOT / "examples").rglob("*.json")))
-        for records in (ROOT / "packs").glob("*/records"):
-            paths.extend(records.rglob("*.json"))
+        for relative in load_package_metadata(ROOT).release_pack_dirs:
+            paths.extend((ROOT / relative / "records").rglob("*.json"))
         checked = 0
 
         def walk(value, path, pointer=""):

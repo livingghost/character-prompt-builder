@@ -14,6 +14,7 @@ from catalog_cli import configure_pack_runtime
 from pack_manager import default_settings, write_lock
 from state_protocol import finalize_artifact
 from upscale_package import build_upscale_package, verify_upscale_package
+from model_prompt_input_fixtures import prompt_input
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +50,7 @@ def model_rows() -> list[dict[str, Any]]:
     return [
         {
             "id": "fixture-restorative-upscaler",
+            "prompt_input": prompt_input("none"),
             "label": "Restorative upscaler fixture",
             "aliases": ["restorative fixture"],
             "operation_kind": "upscale",
@@ -66,6 +68,7 @@ def model_rows() -> list[dict[str, Any]]:
         },
         {
             "id": "fixture-creative-upscaler",
+            "prompt_input": prompt_input("descriptive"),
             "label": "Creative upscaler fixture",
             "aliases": ["creative fixture"],
             "operation_kind": "upscale",
@@ -90,6 +93,7 @@ def model_rows() -> list[dict[str, Any]]:
         },
         {
             "id": "fixture-generative-upscaler",
+            "prompt_input": prompt_input("none"),
             "label": "Generative upscaler fixture",
             "aliases": ["generative fixture"],
             "operation_kind": "upscale",

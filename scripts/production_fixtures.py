@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 import execution_contract as c
 from pack_manager import generate_uuid7
+from model_prompt_input_fixtures import prompt_input
 
 ACTOR = 'SYNTHETIC FIXTURE OPERATOR - NOT USER CONSENT'
 
@@ -82,10 +83,12 @@ def external_image_input(root: Path, spec: dict, *, count: int = 1) -> str:
     (root / evidence_file).write_text('Synthetic external request contract; no real provider claim.\n', encoding='utf-8')
     value = {'artifact_type': 'image-input-plan',
              'model': {'requested': model, 'catalog_status': 'missing', 'catalog_model': None,
+                       'prompt_input': prompt_input('descriptive'),
                        'target': {'service': 'synthetic', 'model_identifier': model, 'operation': 'generation'},
                        'evidence': {'path': evidence_file, 'sha256': c.sha256_file(root / evidence_file), 'locator': 'whole'}},
              'references': [],
              'external_request': {'file': request_file, 'model_field': ['model'], 'prompt_field': ['prompt'],
+                                  'prompt_syntax': {'default': 'literal', 'control': None},
                                   'count_field': ['count'], 'operation_field': None, 'count': count, 'reference_fields': []}}
     (root / input_file).write_bytes(c.encoded(value))
     spec['image_input'] = input_file

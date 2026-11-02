@@ -225,12 +225,12 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             any("Keep judgment and automation separate." in error for error in self._errors())
         )
 
-    def test_authoritative_marker_is_enforced(self) -> None:
+    def test_authoritative_section_is_required(self) -> None:
         relative = "references/runtime/prompt-composition.md"
         path = self.root / relative
         text = path.read_text(encoding="utf-8").replace(
-            "Search is discovery, not authority.",
-            "Search can be used as authority.",
+            "## Catalog retrieval and inspection",
+            "",
         )
         self._write(relative, text)
         self.assertTrue(
@@ -364,8 +364,12 @@ class DocumentationContractSmokeTest(unittest.TestCase):
 
     def test_retrieval_recording_is_routed_and_accepted(self) -> None:
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("--record lookups.json --element NAME", skill)
-        self.assertIn("prompt_retrieval.py lookups.json --element NAME --adopted ID", skill)
+        owner = "references/runtime/prompt-only-core.md"
+        self.assertIn(f"]({owner}#saved-prompt-artifacts)", skill)
+        core = (ROOT / owner).read_text(encoding="utf-8")
+        saved = core.partition("## Saved prompt artifacts")[2].partition("\n## ")[0]
+        self.assertIn("--record lookups.json --element NAME", saved)
+        self.assertIn("prompt_retrieval.py lookups.json --element NAME --adopted ID", saved)
         for command in ("search", "inspect", "inspect-many", "batch"):
             result = run_cli(command, "--help")
             self.assertEqual(0, result.returncode, result.stderr)
@@ -478,8 +482,9 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn(f"]({owner})", sequence)
         self.assertIn("for every image deliverable", sequence)
         workflow = (ROOT / owner).read_text(encoding="utf-8")
-        first = next(line for line in workflow.splitlines() if line.startswith("1. "))
-        self.assertIn("For saved work", first)
+        self.assertIn("Conversation-only text needs no generation workflow.", workflow)
+        handoff = workflow.partition("## Authoring and handoff\n")[2].partition("\n## ")[0].strip()
+        self.assertTrue(handoff.startswith("Establish the Studio and read the applicable route for saved work."))
 
     def test_paged_reading_guidance_matches_the_continuation_cli(self) -> None:
         document = (ROOT / "references/runtime/production-execution.md").read_text(encoding="utf-8")

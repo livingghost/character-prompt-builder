@@ -3,6 +3,56 @@
 The operator chooses the target, the source documents, the settings to try and the trial scope.
 The tools keep what was acquired, sent and returned, and refuse evidence recorded for another target.
 
+## Prompt input evidence
+
+Search the model author's or provider's documentation for each exact model
+and version before assigning its input workflow. Retain the source and what
+it establishes. Family instructions can support a family-scoped statement;
+they do not establish an undocumented version or an execution offering.
+A platform with automatic backend selection remains unresolved until the
+selected model is known. A restoration interface can have no text input.
+Comma-separated ordinary phrases alone do not establish a tag vocabulary.
+
+Every model record declares `prompt_input` under
+[`model-prompt-input.schema.json`](../../schemas/model-prompt-input.schema.json).
+The [model guidance card](render-contract.md#prompt-input) explains its four
+modes. Keep model- and version-specific input facts in that record, its declared
+dialect and its scoped writing guidance. Common runtime and adapter procedures
+read those definitions rather than maintain another named-model capability list.
+The contract carries:
+
+- `mode`, supported `forms`, and the `vocabularies` selected for lookup;
+- `basis` statements with `kind`, `source`, `scope`, `observed_at` and `statement`;
+- optional `notes` for relevant limits or interpretation.
+
+Use `provider-documentation` or `model-author-documentation` for acquired
+facts and `author-direction` for an author's selected workflow. Keep
+`synthetic-fixture` for test data. Each statement names its actual scope:
+`model`, `family`, `adapter`, `operation` or `author-selection`. A declaration
+may combine model evidence and author selection without merging their claims.
+Its date records when the evidence was checked; it is not a release date.
+
+For an unlisted target, the same explicit input contract belongs to the
+image-input plan's model description and to the model file used by retrieval.
+`prompt_retrieval.py --model-file MODEL_JSON` accepts its exact identity and
+input declaration without inventing an offering. A catalog-backed plan must
+agree with the selected catalog record. Input evidence, executable request
+schema and an observed successful image answer different questions.
+
+For tag-based input, `prompt_dialect` names the owning family. Its vocabulary
+IDs select a lookup scope rather than asserting that every dictionary entry
+was present in a model's training data. Search the actual rendition using
+[Vocabulary](prompt-vocabulary.md#select-wording-for-a-tag-based-model).
+External tag requests retain that selection through their `vocabulary_record`
+file reference, selected negative field and weighting syntax. Provider sources,
+lookup evidence and authoring reasons stay in these records, outside the image
+prompt.
+
+`scripts/model_prompt_input.py` validates the declaration and its owning family
+without inferring an input mode from missing metadata. Model cards and pack
+validation use this same contract; `scripts/model_prompt_input_smoke_test.py`
+exercises its explicit modes and reports with synthetic evidence.
+
 ## Validation modes
 
 | Mode | Required basis | Not established by that basis |
@@ -89,7 +139,9 @@ Replace the uppercase values and hash placeholders before use.
 
 Use the validation record's exact target in both files, including the selected
 service's wire operation. `text_dialect` matches the model record's
-`prompt_dialect`, and the contract's `dialects` includes that value. Select the
+`prompt_dialect` for a tag-based model, and the contract's `dialects` includes
+that value. For descriptive input, retain the acquired text transport's own
+identifier without adding a tag family to the model record. Select the
 transport using the applicable model and service guidance; retain its source
 bytes and identify the relevant section in each `basis`. The two bases may
 share a source when it supports both choices. Studio paths inside these files
