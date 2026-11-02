@@ -35,7 +35,7 @@ from pack_manager import (
     resolve_enabled,
     validate_pack,
 )
-from pack_cache import load_runtime_catalog
+from pack_cache import RuntimePackCatalog, load_runtime_catalog
 
 
 _CATALOG_THUMBNAIL_CACHE: dict[tuple[str, str], dict[str, ResourceView]] = {}
@@ -422,6 +422,26 @@ def _active_pack_views(
         # collect before Windows removes the ephemeral database directory.
         gc.collect()
 
+    return _resolved_pack_views(inspected, runtime)
+
+
+def load_runtime_views(runtime: RuntimePackCatalog) -> list[InspectedPack]:
+    """Project one resolved snapshot without rediscovery or another cache build.
+
+    Validation supplies the declared resource boundary needed by the exporter.
+    Only active roots are inspected; records retain the runtime's replacement,
+    precedence and dependency decisions.
+    """
+    inspected = _deduplicate_packs([
+        _load_validated_pack(root, require_lock=False)
+        for _, root in sorted(runtime.pack_roots.items())
+    ])
+    return _resolved_pack_views(inspected, runtime)
+
+
+def _resolved_pack_views(
+    inspected: Sequence[InspectedPack], runtime: RuntimePackCatalog,
+) -> list[InspectedPack]:
     authored: dict[tuple[str, str], PackRecord] = {}
     inspected_by_id = {pack.pack_id: pack for pack in inspected}
     for pack in inspected:
@@ -1996,6 +2016,7 @@ def _home_html(
     asset_count: int,
     linked_record_count: int,
     kind_counts: Mapping[str, int],
+    notices: Sequence[str] = (),
 ) -> str:
     pack_cards = "".join(
         '<a class="home-card" href="'
@@ -2023,7 +2044,9 @@ def _home_html(
         + str(asset_count)
         + ' | Records with linked Visual Evidence: '
         + str(linked_record_count)
-        + '</p></header><main><section class="home-grid">'
+        + '</p>'
+        + ''.join('<p class="summary">' + _escape(note) + '</p>' for note in notices)
+        + '</header><main><section class="home-grid">'
         + '<a class="home-card" href="visual-evidence/index.html"><span class="home-count">'
         + str(asset_count)
         + '</span><h2>Browse Visual Evidence</h2><p>Start with preview thumbnails, then open a Visual Evidence record or linked record.</p></a>'
@@ -2118,6 +2141,8 @@ def write_catalog_directory(
     title: str = "Character Prompt Builder Pack Catalog",
     overwrite: bool = False,
     copy_assets: bool = False,
+    runtime_projection: Mapping[str, Any] | None = None,
+    notices: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Write a direct-open landing page, search page, galleries, and record pages."""
 
@@ -2330,11 +2355,6 @@ def write_catalog_directory(
             "resource_mode": "copied" if copy_assets else "relative-to-source-pack",
             "pack_discovery": "all explicitly selected or discovered validated packs; no pack ID is hard-coded by the exporter",
         }
-        (temporary / "catalog-manifest.json").write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
         (temporary / "index.html").write_text(
             _home_html(
                 title,
@@ -2343,6 +2363,7 @@ def write_catalog_directory(
                 asset_count=len(assets),
                 linked_record_count=linked_record_count,
                 kind_counts=kind_counts,
+                notices=notices,
             ),
             encoding="utf-8",
             newline="\n",
@@ -2355,6 +2376,18 @@ def write_catalog_directory(
                 asset_count=len(assets),
                 multiple_link_count=multiple_link_count,
             ),
+            encoding="utf-8",
+            newline="\n",
+        )
+        if runtime_projection is not None:
+            manifest["runtime_projection"] = dict(runtime_projection)
+            manifest["pack_discovery"] = "resolved active records from the selected enabled-pack runtime"
+        manifest["generated_files"] = sorted([
+            path.relative_to(temporary).as_posix()
+            for path in temporary.rglob("*") if path.is_file()
+        ] + ["catalog-manifest.json"])
+        (temporary / "catalog-manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
             newline="\n",
         )

@@ -79,6 +79,8 @@ When neither rule orders two packs that bind one name with different files, that
 
 Catalog commands reuse a derived SQLite cache until state or enabled-pack inventory changes; edits, additions, deletions, disabled packs, and missing packs invalidate it at the next boundary. Do not refresh per invocation. Use `cache-status` for diagnosis and `cache-refresh` only for maintenance or recovery. Cache data is never canonical or distributable.
 
+`ready` also maintains the selected runtime's browser catalog and prints `catalog: PATH/index.html`. Pack-changing commands maintain it automatically. Open that entry directly to browse records, packs and visual evidence. Unchanged content reuses the generated files; missing pages or changed content are repaired at the next readiness or maintenance boundary. Ordinary retrieval and image operations do not export the site. Browser output is separated by runtime context even when contexts share one cache directory, and display failures are warnings rather than new readiness decisions. See [Catalog export](../maintenance/catalog-export.md) for the enabled-runtime view and explicit distribution exports.
+
 ## Use one context everywhere
 
 Place invocation context before the catalog subcommand:

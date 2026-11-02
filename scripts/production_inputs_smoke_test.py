@@ -196,11 +196,11 @@ class InputToolsTests(unittest.TestCase):
     def test_draft_keeps_judgments_unanswered(self):
         result = tool.draft_inputs(self.root, 'task.json', 'draft')
         draft = c.load(self.root / result['choices_file'])
-        self.assertIsNone(draft['choices']['reading']['reading_key'])
-        self.assertIsNone(draft['choices']['visual'])
-        self.assertIsNone(draft['choices']['validation'])
-        self.assertTrue(draft['unresolved'])
-        self.assertNotIn('clear', json.dumps(draft['choices']))
+        self.assertIsNone(draft['reading']['reading_key'])
+        self.assertIsNone(draft['visual'])
+        self.assertIsNone(draft['validation'])
+        self.assertTrue(result['unresolved'])
+        self.assertNotIn('clear', json.dumps(draft))
 
     def test_missing_choices_publish_nothing(self):
         self.choices = tool.draft_choices(self.task)
@@ -289,8 +289,8 @@ class InputToolsTests(unittest.TestCase):
         self.assertFalse((self.root / 'built').exists())
         self.assertFalse(list(self.root.glob('.production-inputs-*')))
 
-    def test_source_run_requires_matching_explicit_selector(self):
-        self.choices['source_run'] = '01900000-0000-7000-8000-000000000001'
+    def test_task_choices_cannot_replace_authority(self):
+        self.choices['task_changes'] = {'authority': 'fabricated-authority.json'}
         self.save_choices()
         with self.assertRaises(ValueError):
             self.build()
@@ -323,20 +323,22 @@ class InputToolsTests(unittest.TestCase):
         reading.issue('development', studio=self.root, ledger=self.ledger, stream=io.StringIO(), key='3' * 32)
         self.assertTrue(self.build()['ok'])
 
-    def test_draft_report_cannot_clear_unresolved_choices(self):
+    def test_context_does_not_fill_unanswered_choices(self):
         draft = tool.draft_inputs(self.root, 'task.json', 'draft')
-        raw = c.load(self.root / draft['choices_file'])
-        raw['unresolved'] = []
-        (self.root / 'choices.json').write_bytes(c.encoded(raw))
-        result = self.build()
+        context = c.load(self.root / draft['context_file'])
+        context['unresolved'] = []
+        (self.root / draft['context_file']).write_bytes(c.encoded(context))
+        result = tool.build_inputs(self.root, 'task.json', draft['choices_file'], 'built')
         self.assertFalse(result['ok'])
         self.assertTrue(result['unresolved'])
 
-    def test_complete_edited_draft_uses_same_builder(self):
-        document = {'state': 'draft', 'choices': self.choices, 'unresolved': [],
-                    'derived_from': {}, 'external_effect': False}
-        (self.root / 'choices.json').write_bytes(c.encoded(document))
-        self.assertTrue(self.build()['ok'])
+    def test_edit_file_contains_choices_and_context_is_separate(self):
+        draft = tool.draft_inputs(self.root, 'task.json', 'draft')
+        document = c.load(self.root / draft['choices_file'])
+        self.assertEqual(set(document), {'reading', 'visual', 'validation', 'task_changes', 'external'})
+        self.assertEqual(c.load(self.root / draft['context_file'])['task_content'], self.task)
+        (self.root / draft['choices_file']).write_bytes(c.encoded(self.choices))
+        self.assertTrue(tool.build_inputs(self.root, 'task.json', draft['choices_file'], 'built')['ok'])
 
     def test_output_path_cannot_escape_studio(self):
         with self.assertRaises(ValueError):
@@ -391,9 +393,9 @@ class InputToolsTests(unittest.TestCase):
     def test_saved_reading_is_copied_with_provenance_not_reissued(self):
         run = self.prepared_source()
         before = self.ledger.read_bytes()
-        result = tool.draft_inputs(self.root, 'task.json', 'saved-draft', from_run=run)
+        result = tool.draft_inputs(self.root, None, 'saved-draft', from_run=run)
         saved = result['derived_from']['source_run']
-        self.assertEqual(result['choices']['source_run'], run)
+        self.assertEqual(saved['run'], run)
         self.assertEqual(result['choices']['reading']['reading_key'], saved['route_reading']['reading_key'])
         self.assertEqual(result['choices']['reading']['applied'], saved['route_reading']['applied'])
         self.assertTrue(saved['assessment_required'])
@@ -403,7 +405,7 @@ class InputToolsTests(unittest.TestCase):
         run = self.prepared_source()
         (self.root / 'delivery.txt').write_text('Changed synthetic delivery for a separate assessment.', encoding='utf-8')
         before = self.files()
-        result = tool.inspect_inputs(self.root, 'task.json', from_run=run)
+        result = tool.inspect_inputs(self.root, from_run=run)
         fresh = result['source_run']['freshness']
         self.assertFalse(fresh['current'])
         self.assertTrue(any(item['code'] == 'SOURCE_CHANGED' and item['file'] == 'delivery.txt' for item in fresh['diagnostics']), fresh)
@@ -411,17 +413,111 @@ class InputToolsTests(unittest.TestCase):
 
     def test_edited_saved_draft_builds_without_reusing_authority(self):
         run = self.prepared_source()
-        result = tool.draft_inputs(self.root, 'task.json', 'saved-draft', from_run=run)
+        result = tool.draft_inputs(self.root, None, 'saved-draft', from_run=run)
         document = c.load(self.root / result['choices_file'])
-        document['choices']['visual'] = self.choices['visual']
-        document['choices']['validation'] = self.choices['validation']
+        document['visual'] = self.choices['visual']
+        document['validation'] = self.choices['validation']
         (self.root / result['choices_file']).write_bytes(c.encoded(document))
         import production_workflow
         before = copy.deepcopy(production_workflow.load_run(self.root, run)[3])
-        built = tool.build_inputs(self.root, 'task.json', result['choices_file'], 'built', from_run=run)
+        built = tool.build_inputs(self.root, None, result['choices_file'], 'built', from_run=run)
         self.assertTrue(built['ok'])
         self.assertFalse(built['execution_ready'])
         self.assertEqual(before, production_workflow.load_run(self.root, run)[3])
+
+    def test_saved_run_supplies_task_and_exact_delivery_without_original_files(self):
+        run = self.prepared_source()
+        delivery = (self.root / self.task['delivery']['path']).read_bytes()
+        (self.root / 'task.json').unlink()
+        (self.root / self.task['delivery']['path']).write_text('Later unrelated edit.', encoding='utf-8')
+        draft = tool.draft_inputs(self.root, None, 'saved-draft', from_run=run)
+        built = tool.build_inputs(self.root, None, draft['choices_file'], 'built', from_run=run)
+        task = c.load(self.root / built['inputs']['production-task']['path'])
+        self.assertEqual((self.root / task['delivery']['path']).read_bytes(), delivery)
+        self.assertEqual(task['criteria'], self.task['criteria'])
+        self.assertEqual(task['authority'], self.task['authority'])
+        self.assertFalse(built['execution_ready'])
+
+    def external_choice(self, *, with_reference=False):
+        import production_fixtures
+        from reading_fixtures import fixture_reading
+        run = self.prepared_source()
+        source = copy.deepcopy(self.task)
+        plan_path = production_fixtures.external_image_input(self.root, source, count=1)
+        plan = c.load(self.root / plan_path)
+        plan['model']['evidence'].pop('sha256')
+        request = {'controls': {'quality': 'fine', 'seed': 37}, 'palette': ['amber', 'slate']}
+        if with_reference:
+            from PIL import Image
+            Image.new('RGB', (12, 8), (34, 56, 78)).save(self.root / 'sample.png')
+            plan['references'] = [{'id': 'surface-sample', 'role': 'surface finish', 'file': 'sample.png',
+                'use_for': ['surface finish'], 'do_not_transfer': ['composition']}]
+            evidence = copy.deepcopy(plan['model']['evidence'])
+            plan['external_request']['reference_fields'] = [
+                {'reference': 'surface-sample', 'field': ['media', 0], 'value': 'synthetic-media-token',
+                 'evidence': evidence}]
+            request['media'] = [None]
+        (self.root / plan['external_request']['file']).write_bytes(c.encoded(request))
+        (self.root / plan_path).write_bytes(c.encoded(plan))
+        draft = tool.draft_inputs(self.root, None, 'external-draft', from_run=run)
+        choices = c.load(self.root / draft['choices_file'])
+        record = fixture_reading(route='generation', features=['unlisted-interface'], studio=self.root,
+                                 ledger=self.ledger)
+        choices['reading'] = {key: record[key] for key in ('reading_key', 'applied', 'resource_applied')}
+        choices['reading']['snapshot_id'] = None
+        choices['task_changes'] = {'route': 'generation', 'features': ['unlisted-interface']}
+        choices['external'] = {'image_input': plan_path}
+        (self.root / draft['choices_file']).write_bytes(c.encoded(choices))
+        return run, draft, plan_path, plan
+
+    def test_external_promotion_materializes_input_without_changing_sources_or_grants(self):
+        import production_workflow as workflow
+        run, draft, plan_path, plan = self.external_choice(with_reference=True)
+        source_plan = (self.root / plan_path).read_bytes()
+        source_request = (self.root / plan['external_request']['file']).read_bytes()
+        original_rows = copy.deepcopy(workflow.load_run(self.root, run)[3])
+        built = tool.build_inputs(self.root, None, draft['choices_file'], 'external-built', from_run=run)
+        task = c.load(self.root / built['inputs']['production-task']['path'])
+        request = c.load(self.root / built['inputs']['external-request']['path'])
+        self.assertEqual(request['prompt'].encode('utf-8'), (self.root / task['delivery']['path']).read_bytes())
+        self.assertEqual(request['model'], plan['model']['target']['model_identifier'])
+        self.assertEqual(request['count'], 1)
+        self.assertEqual(request['controls'], {'quality': 'fine', 'seed': 37})
+        self.assertEqual(request['palette'], ['amber', 'slate'])
+        self.assertEqual(request['media'], ['synthetic-media-token'])
+        self.assertEqual(task['criteria'], self.task['criteria'])
+        self.assertEqual(task['authority'], self.task['authority'])
+        self.assertEqual((self.root / plan_path).read_bytes(), source_plan)
+        self.assertEqual((self.root / plan['external_request']['file']).read_bytes(), source_request)
+        self.assertEqual(workflow.load_run(self.root, run)[3], original_rows)
+        import image_input
+        binding = image_input.validate(c.load(self.root / task['image_input']), self.root)
+        self.assertEqual(binding['references'][0]['sha256'], c.sha256_file(self.root / 'sample.png'))
+        self.assertEqual(binding['references'][0]['do_not_transfer'], ['composition'])
+        self.assertEqual(built['external_input']['request'], request)
+        self.assertEqual(built['request_state'], 'materialized')
+        self.assertFalse(built['execution_ready'])
+        prepared = workflow.prepare(self.root, built['inputs']['production-task']['path'])
+        rows = workflow.load_run(self.root, prepared['run'])[3]
+        self.assertFalse(any(row['event'] in {'authorization', 'handoff', 'external-claim'} for row in rows))
+
+    def test_external_builder_checks_existing_evidence_hashes(self):
+        run, draft, plan_path, plan = self.external_choice()
+        plan['model']['evidence']['sha256'] = 'f' * 64
+        (self.root / plan_path).write_bytes(c.encoded(plan))
+        with self.assertRaisesRegex(ValueError, 'evidence changed'):
+            tool.build_inputs(self.root, None, draft['choices_file'], 'external-built', from_run=run)
+        self.assertFalse((self.root / 'external-built').exists())
+
+    def test_external_tag_input_keeps_required_dictionary_evidence(self):
+        from model_prompt_input_fixtures import prompt_input
+        run, draft, plan_path, plan = self.external_choice()
+        plan['model']['prompt_input'] = prompt_input('tag-based', vocabularies=('synthetic-tags',))
+        plan['model']['prompt_dialect'] = 'synthetic-tags'
+        (self.root / plan_path).write_bytes(c.encoded(plan))
+        with self.assertRaisesRegex(ValueError, 'vocabulary_record'):
+            tool.build_inputs(self.root, None, draft['choices_file'], 'external-built', from_run=run)
+        self.assertFalse((self.root / 'external-built').exists())
 
     def test_cli_help_documents_no_side_effect_build(self):
         run = subprocess.run([sys.executable, str(tool.ROOT / 'scripts/production_workflow.py'),

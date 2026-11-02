@@ -1,12 +1,24 @@
 # Catalog export
 
-The exporter writes a directory rather than one document containing every record. Open `catalog/index.html` directly. That file is a small, script-free landing page; it does not load the compact search index or create thousands of DOM nodes. Search, visual browsing, complete records, and Visual Evidence are split into separate pages.
+The browser catalog uses a small, script-free landing page, separate record pages, paged visual galleries and a search page. Its landing page does not load the search index or create thousands of DOM nodes.
+
+## Current enabled-pack catalog
+
+`pack_cli.py ready` maintains the browser catalog for the selected pack runtime and prints its `catalog:` entry point. Pack creation, activation, root changes, installation, update, removal, lock publication and explicit cache refresh maintain the same view. No separate export command or authored catalog file is required. Lock publication, installation, update and removal maintain an already selected state; they do not discover or activate a runtime for the display when no state file exists. In that case the operation reports an unselected browser view, and `ready` establishes the runtime.
+
+The view lives at `CACHE/browser-catalog/CONTEXT/index.html`. `CONTEXT` identifies the selected state-file path, discovery-root selection and managed root. Runtimes sharing one cache directory therefore keep separate browser views. A changed enabled set updates the same context's view; it does not create another historical export.
+
+The source fingerprint comes from the already resolved runtime catalog. The view also records its renderer fingerprint and generated-file inventory. Unchanged sources, rendering code and complete output reuse the existing files without rewriting them. A changed record, resource, activation or rendering implementation, or a missing generated page, rebuilds the derived view. Direct pack edits reach this view at the next `ready` or pack-maintenance boundary; ordinary catalog reads and image operations do not export the site.
+
+Only resolved active records appear, after dependency, precedence and replacement rules. An empty or invalid active selection replaces previously displayed records with the current empty view and its diagnostics. A display failure reports a bounded warning and marks the managed landing page unavailable; it neither undoes the pack operation nor adds a readiness decision. `cache-status` includes this browser view's freshness and entry point.
+
+The view links to declared pack resources and does not modify or duplicate the source corpus. Personal and third-party packs participate through the same activation and resource contracts.
 
 ## Catalog terminology
 
 The catalog uses **Visual Evidence** as the product-facing name for the feature and its authored record relationship. An individual original file is an **evidence artifact**. A display-only WebP sidecar is a **preview thumbnail**. `SVG` appears only where the file format itself is relevant, such as a filename, MIME type, download target, safety validator, or rasterization operation.
 
-## Generate every pack below an explicit tree
+## Export every pack below an explicit tree
 
 ```bash
 python scripts/catalog_html.py \
@@ -15,7 +27,7 @@ python scripts/catalog_html.py \
   --output catalog
 ```
 
-`--pack-tree` recursively discovers every `pack.json` below the explicit directory. Each discovered pack is validated and sorted deterministically. Adding another pack later beneath `packs/` therefore requires no change to the command, exporter, home page, filters, or full-release builder. The exporter never scans ambient user directories unless they are explicitly supplied.
+`--pack-tree` is an explicit inspection or distribution scope, independent of the enabled-runtime view. It recursively discovers every `pack.json` below the explicit directory. Each discovered pack is validated and sorted deterministically. Adding another pack later beneath `packs/` therefore requires no change to the command, exporter, home page, filters, or full-release builder. The exporter never scans ambient user directories unless they are explicitly supplied.
 
 Use repeated `--pack` for a deliberately fixed subset. Use `--state` or `--settings` when enabled-pack state, rather than every pack in a tree, should define the catalog.
 

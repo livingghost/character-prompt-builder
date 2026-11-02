@@ -12,13 +12,19 @@ from typing import Any, Sequence
 from pack_runtime_cli import PACK_RUNTIME_SELECTION_HELP, add_pack_runtime_arguments, resolve_pack_runtime
 from production_diagnostics import Diagnostic, from_exception
 
+from browser_catalog import (
+    catalog_status as browser_catalog_status,
+    maintain_catalog,
+    unselected_catalog,
+)
+
 from pack_cache import (
     CONFLICT_KEY,
     RuntimePackResource,
     cache_status,
     load_runtime_catalog,
     pack_warnings,
-    refresh_cache,
+    refresh_runtime_catalog,
 )
 from pack_manager import (
     PackError,
@@ -95,13 +101,19 @@ def _mutate_enabled_state(args: argparse.Namespace, operation) -> dict[str, Any]
     with state_lock(settings):
         state = operation(settings)
     try:
-        cache = refresh_cache(settings, force=True)
+        views = _refresh_views(settings)
     except Exception as exc:
         raise PackError(
             "Pack state was committed, but the derived cache could not be refreshed; "
             f"the stale cache will not be used: {exc}"
         ) from exc
-    return {"ok": True, "state": state, "cache": cache}
+    return {"ok": True, "state": state, **views}
+
+
+def _refresh_views(settings: PackSettings, *, force: bool = False) -> dict[str, Any]:
+    """Refresh and read once, then maintain the browser projection of that snapshot."""
+    cache, catalog = refresh_runtime_catalog(settings, force=force, quiet=True)
+    return {"cache": cache, "visual_catalog": maintain_catalog(settings, catalog)}
 
 
 def _init_pack(settings: PackSettings, path: Path, options: dict[str, Any]) -> dict[str, Any]:
@@ -165,6 +177,7 @@ def ready(
     discovered, _ = discover_packs(settings, state)
     catalog = load_runtime_catalog(settings, quiet=True)
     problems = pack_warnings(catalog.diagnostics, settings)
+    visual_catalog = maintain_catalog(settings, catalog)
     command = pack_cli_command(settings)
     decide: list[str] = []
     notes: list[str] = []
@@ -199,6 +212,10 @@ def ready(
     )
     lines.extend(notes)
     lines.append(f"state: {settings.state_file}" + (" (created now)" if created else ""))
+    if visual_catalog["ok"]:
+        lines.append(f"catalog: {visual_catalog['index']}")
+    else:
+        lines.append(f"warning: browser catalog unavailable: {visual_catalog['error']}")
     return not decide, lines
 
 
@@ -541,21 +558,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = install_pack(settings, Path(args.source), update=False)
         elif args.command == "update":
             result = install_pack(settings, Path(args.source), update=True)
-            state = load_effective_state(settings)
-            if result["pack_id"] in state["enabled_packs"]:
-                result["cache"] = refresh_cache(settings, force=True)
         elif args.command == "remove":
             result = remove_pack(settings, args.pack_id)
         elif args.command == "cache-status":
             result = cache_status(settings)
+            result["visual_catalog"] = browser_catalog_status(settings, result["expected_fingerprint"])
         elif args.command == "cache-refresh":
-            result = refresh_cache(settings, force=args.force)
+            views = _refresh_views(settings, force=args.force)
+            result = {**views["cache"], "visual_catalog": views["visual_catalog"]}
         elif args.command == "resources":
             result = _list_resources(args)
         elif args.command == "resource":
             result = _resolve_resource(args)
         else:
             raise PackError(f"Unsupported command: {args.command}")
+        if args.command in {"init", "build-lock", "install", "update", "remove"}:
+            if settings.state_file.is_file():
+                result.update(_refresh_views(settings))
+            else:
+                result["visual_catalog"] = unselected_catalog(settings)
     except (PackError, OSError, ValueError) as exc:
         _print(_failure(exc, args.command))
         return 2

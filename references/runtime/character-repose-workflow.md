@@ -212,11 +212,7 @@ Start from the existing candidate review draft:
 python scripts/production_workflow.py draft-review --root STUDIO --run RUN --candidate CANDIDATE --out review.json
 ```
 
-The draft carries the prepared criteria, relevant direction decisions and
-reference-use guidance into questions for inspection. Its checks begin as
-`not-assessed` and its observations are empty. Use those questions to locate
-the evidence in the actual candidate, then write the observations and reasons
-that support each verdict in the ordinary review record.
+The draft keeps observations and judgment reasons empty, with checks marked `not-assessed`. First inspect the candidate through `workspace --phase observe --candidate CANDIDATE`. Then use `workspace --phase review --candidate CANDIDATE` for the prepared criteria, selected direction and reference-use scope. Write the observations and reasons supporting each verdict in the compact review record; the runtime resolves its prepared reference evidence.
 
 Inspect each actual candidate beside its assigned sources. Review the whole
 scene and the relevant face, garment, hand, foot and contact regions.

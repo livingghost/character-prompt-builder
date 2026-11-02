@@ -160,7 +160,11 @@ The next request needs current validation and authorization; a retained recipe r
 
 The default order is newest **recorded/received or published time** first, normalized to absolute time with a deterministic tie break. Acceptance time and filesystem modification time never reorder creation history. A service's exact response is retained, but its internal generation timestamp is not invented. The page header's build time describes the view, not when every image was generated.
 
-The page provides oldest/newest order, character/slot/prompt search, current/candidate/not-selected/history/unavailable filters, UTC-date filtering and 40-entry pages with lazy images. The browser remembers filters in session storage and, while visible with automatic refresh enabled, reloads every 30 seconds. That refresh only reloads a file already written by a command; it is not a hidden generator, watcher, network service or background job. The JSON inventory remains complete.
+The page provides oldest/newest order, full recorded-detail search, current/candidate/not-selected/history/unavailable filters, UTC-date filtering and 40-entry pages with lazy images. Only the current page's cards enter the browser document. The small HTML shell loads compact card metadata from its companion directory; complete prompts, negative prompts, settings, media values, decisions and acceptance history live on each entry's **Full details and recorded evidence** page. Those pages link to the exact recorded request, response, package and artifact provenance when present. The complete JSON inventory retains every projected field.
+
+Opening the gallery reads the compact index, not every full detail. Text search reads each entry's complete searchable text through local scripts, including entries outside the displayed page, and releases that text after matching. It reports progress and unreadable or changed entry files; incomplete search is never reported as a complete negative result. Changing the query cancels the previous scan. Order, state and date filters apply across the complete matching set. The HTML, detail pages, images and scripts work when opened directly from the filesystem; they require no server or fetch API.
+
+The browser remembers filters in session storage and, while visible with automatic refresh enabled, reloads every 30 seconds except during an active search. That refresh only reloads files already written by a command; it is not a hidden generator, watcher, network service or background job. Global search still has to examine the complete searchable history. A larger history therefore increases search work and the compact index, while the landing HTML and active card count remain bounded.
 
 Views update after iteration recording, formal Production decisions, sheet candidate registration/adoption and local edits. Author questions and revisions also update the activity views. `studio.py status` and `studio.py sync` repair missing or stale generated views from source records:
 
@@ -172,7 +176,11 @@ python scripts/studio.py gallery --studio STUDIO
 
 A display failure does not roll back a committed image or decision. A warning and `work/activity/projections-pending.json` mark repair work; inspect saved results and run `sync`, never resubmit to fix a gallery. A broken historical image, request or run is visibly unavailable on its entry rather than hiding other images. Actual use of a selected source still requires its exact hashes and approval. `validate_studio.py` remains a whole-studio audit, distinct from a scoped production operation.
 
-The primary gallery in the Studio root is the auto-updated view. `gallery --out PATH` is an explicit additional snapshot with links rebased to the Studio; it is not a second subscribed view. Do not hand-edit the primary gallery, `latest.json`, or activity timeline. Keep author inputs, immutable evidence, per-attempt exports and generated displays in their declared folders; no automatic cleanup deletes formal images, requests, answers, approvals or history.
+The primary gallery in the Studio root is the auto-updated view. Its `gallery.assets/` directory contains the compact index, shared runtime and styles, and stable per-entry detail and search files. The generated ownership record identifies that directory as part of this view. A status or review change replaces the affected entry's generated files; it does not create successive unreachable page versions. Files whose content is unchanged keep their bytes and modification times, and an unchanged gallery keeps its original build timestamp. Source records are still checked to build the complete inventory. A changed inventory rewrites `gallery.json` and the compact index as needed.
+
+`gallery --out PATH` is an explicit additional snapshot with its own companion directory and links rebased to the Studio; it is not a second subscribed view. Updating the primary view leaves that snapshot's pages and data unchanged. For example, a synthetic Studio containing `subject/it-0001` and `subject/it-0002` displays two compact cards and two linked detail pages; changing the second entry's disposition updates its detail and the current inventory while the first detail is reused. Both entries and their original evidence remain available.
+
+Do not hand-edit generated gallery files, `latest.json`, or the activity timeline. Keep author inputs, immutable evidence, per-attempt exports and generated displays in their declared folders; no automatic cleanup deletes formal images, requests, answers, approvals or history.
 
 ## Failed send recovery
 
@@ -320,7 +328,7 @@ For a saved deliverable, continue through [Production Execution](production-exec
 
 ## Iteration infrastructure
 
-`studio_gallery.py` builds a chronological index and browser controls from existing owners. `studio_activity.py` appends redacted operator transitions and rebuilds the timeline; neither owns image acceptance or external execution. Public commands are `studio.py status`, `sync`, `gallery` and the task commands in `work_ledger.py --help`. Synthetic regression coverage is in `studio_smoke_test.py`, `sheet_attempts_smoke_test.py` and `iterative_workflow_smoke_test.py`.
+`studio_gallery.py` builds the complete chronological inventory, publishes the small gallery shell and per-entry detail/search assets, and reuses unchanged generated files. `templates/studio-gallery.js` owns local-script search, filters and the bounded card document; `templates/studio-gallery.css` owns the shared presentation. `studio_activity.py` appends redacted operator transitions and rebuilds the timeline; neither owns image acceptance or external execution. Public commands are `studio.py status`, `sync`, `gallery` and the task commands in `work_ledger.py --help`. Synthetic regression coverage is in `studio_smoke_test.py`, `studio_gallery_smoke_test.py`, `sheet_attempts_smoke_test.py` and `iterative_workflow_smoke_test.py`.
 
 ## Story timeline projection
 

@@ -135,6 +135,21 @@ def draft_external_decision(binding: dict, *, actor: str | None) -> dict:
     return {'rendition_review': review}
 
 
+def external_intent(consumer: dict, recipient: str) -> dict:
+    """Derive the exact external image operation before its handoff is performed."""
+    import image_input
+    c.text(recipient, 'external recipient')
+    binding = consumer['image_input']
+    image_input.validate_binding(binding)
+    external = binding['external_request']
+    if external is None:
+        raise ValueError('external image execution requires the exact request binding')
+    return {'operation': 'submit', 'targets': ['delivery'], 'payload': {
+        'consumer_sha256': c.content_id(consumer), 'recipient': recipient,
+        'count': external['count'], 'image_input_sha256': binding['binding_sha256'],
+        'external_request_sha256': external['sha256'], 'target': binding['model']['target']}}
+
+
 def check_external_authorization(consumer: dict, request: dict, grant: dict) -> None:
     """Check the actor's whole-input review under the existing exact-operation authority."""
     import image_input

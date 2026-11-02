@@ -948,9 +948,21 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                 external = (consumer.get('image_input') or {}).get('external_request')
                 if external is not None:
                     from model_rendition import review_requirements
+                    from production_request import external_intent
+                    from production_plan import direction_targets
                     target = consumer['image_input']['model']['target']
+                    handoff = {'recipient': target['service'], 'method': 'manual',
+                               'consumer_sha256': c.content_id(consumer), 'targets': direction_targets(task)}
+                    operations = [
+                        {'operation': 'direction', 'targets': handoff['targets'],
+                         'payload': {key: handoff[key] for key in ('recipient', 'method', 'consumer_sha256')}},
+                        external_intent(consumer, handoff['recipient'])]
                     execution_plan.update(request=external['request'], service=target['service'],
                                           model=target['model_identifier'],
+                                          request_sha256=consumer['image_input']['binding_sha256'],
+                                          handoff=handoff, operations=operations,
+                                          external_effects=[{'operation': 'send', 'count': 1, 'outputs': external['count']}],
+                                          readiness=execution_readiness(prepared, operations=operations),
                                           prepared_request_sha256=external['sha256'],
                                           model_identity=external.get('model_identity'),
                                           validation=external['schema_validation'],

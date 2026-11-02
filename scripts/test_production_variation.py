@@ -295,7 +295,7 @@ class VariationTests(unittest.TestCase):
                 prepared = c.load(directory / 'package.json')['prepared_reference_set']
                 shutil.rmtree(folder)
                 draft = workflow.draft_review(self.root, run, candidate)
-                evidence = draft['evidence']
+                evidence = workflow.review_basis(self.root, run, candidate)['evidence']
                 self.assertEqual([item['id'] for item in evidence], ['delivered-reference:1', 'delivered-reference:2'])
                 self.assertEqual(len({item['path'] for item in evidence}), 1)
                 self.assertEqual(draft['observations'], [])

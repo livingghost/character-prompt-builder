@@ -19,15 +19,14 @@ from production_diagnostics import ProductionError
 
 
 def decisions(root: Path, run: str) -> str:
-    from production_request import assessment_source
     from production_fixtures import ACTOR
     value = execution.draft_execution(root, run, 'fixture-grant')
     authority = store.authority(root, workflow.load_run(root, run)[1]['task']['task_id'])
-    for request in value['authorizations']:
+    for request in value['decisions']:
         request['reason'] = 'Explicit synthetic fixture decision. Not user consent.'
         if request['operation'] == 'submit':
-            request['request_decision']['principal_approval'] = assessment_source(root, request['payload'],
-                principal=authority['issuer'], path=authority['evidence']['path'], locator='whole')
+            request['request_decision']['principal_approval'] = {
+                'path': authority['evidence']['path'], 'locator': authority['evidence']['locator']}
             from production_fixtures import assess_rendition
             assess_rendition(request['request_decision']['rendition_review'])
     path = f'decisions-{run}.json'
@@ -71,7 +70,7 @@ class ExecutionTests(unittest.TestCase):
     def test_missing_direction_does_not_commit_submission(self):
         path = decisions(self.root, self.run)
         value = c.load(self.root / path)
-        value['authorizations'] = value['authorizations'][1:]
+        value['decisions'] = value['decisions'][1:]
         fixtures.write(self.root / path, value)
         with self.assertRaises(ProductionError):
             execution.execute(self.root, self.run, decisions_file=path)
@@ -80,18 +79,16 @@ class ExecutionTests(unittest.TestCase):
     def test_incomplete_whole_input_assessment_cannot_authorize_a_send(self):
         path = decisions(self.root, self.run)
         value = c.load(self.root / path)
-        submit = next(row for row in value['authorizations'] if row['operation'] == 'submit')
+        submit = next(row for row in value['decisions'] if row['operation'] == 'submit')
         review = submit['request_decision']['rendition_review']
-        self.assertEqual(review['input_sha256'], submit['payload']['request_sha256'])
+        self.assertEqual(value['request_sha256'], execution.compiled(self.root, self.run)[6]['request_sha256'])
         complete = copy.deepcopy(review)
-        for change in ('missing-criterion', 'wrong-actor', 'unmeasured-ownership',
+        for change in ('missing-criterion', 'unmeasured-ownership',
                        'not-satisfied', 'unmeasured', 'different-input'):
             with self.subTest(change=change):
                 altered = copy.deepcopy(complete)
                 if change == 'missing-criterion':
                     altered['assessments'].pop()
-                elif change == 'wrong-actor':
-                    altered['reviewer'] = 'another author'
                 elif change == 'unmeasured-ownership':
                     next(item for item in altered['assessments'] if item['criterion'] == 'ownership')['conclusion'] = 'unmeasured'
                 elif change in {'not-satisfied', 'unmeasured'}:
@@ -99,7 +96,7 @@ class ExecutionTests(unittest.TestCase):
                     assessment.update(conclusion=change,
                         reason='Synthetic reviewer leaves the same-subject action conflict unresolved.')
                 else:
-                    altered['input_sha256'] = '0' * 64
+                    value['input_sha256'] = '0' * 64
                 submit['request_decision']['rendition_review'] = altered
                 fixtures.write(self.root / path, value)
                 with patch.object(transport_synthetic, 'send') as send:

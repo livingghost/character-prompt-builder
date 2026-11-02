@@ -183,7 +183,7 @@ class BoundaryTests(unittest.TestCase):
             return original_current(*args, **kwargs)
         with patch.object(runtime_snapshot, 'require_current', side_effect=compare):
             drafted = execution.draft_execution(self.root, self.run, 'fixture-grant')
-        self.assertEqual(len(drafted['authorizations']), len(self.data[6]['operations']))
+        self.assertEqual(len(drafted['decisions']), len(self.data[6]['operations']))
         self.assertEqual(full, [False])
 
     def test_pinned_source_edited_after_claim_blocks_the_send(self):

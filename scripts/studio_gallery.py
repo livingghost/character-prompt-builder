@@ -5,8 +5,13 @@ Only records are enumerated; filesystem modification times and guessed filenames
 never determine chronology or acceptance.
 """
 from __future__ import annotations
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import Any
+from html.parser import HTMLParser
+from urllib.parse import quote
 import copy
+import json
+import os
 import re
 
 import execution_contract as c
@@ -67,7 +72,9 @@ def build_index(root: Path) -> dict:
                      'superseded_by': row.get('superseded_by'), 'service': row.get('service'), 'seed': row.get('seed'),
                      **studio.sent_text(sent, row.get('request_layout')),
                      'result': (row.get('result') or {}).get('path'), 'result_sha256': (row.get('result') or {}).get('sha256'),
-                     'package': (row.get('package') or {}).get('path'), 'note': row.get('note'), 'reason': row.get('reason'),
+                     'package': (row.get('package') or {}).get('path'),
+                     'request': (row.get('request') or {}).get('path'), 'response': (row.get('response') or {}).get('path'),
+                     'note': row.get('note'), 'reason': row.get('reason'),
                      'decision_kind': row.get('decision_kind') if row.get('production') else ('rejection' if row.get('status') == 'rejected' else None),
                      'diagnostics': errors, 'sheet_state': None, 'artifact_id': None}
             _availability(root, entry)
@@ -129,41 +136,350 @@ def _availability(root: Path, entry: dict) -> None:
         entry['availability'] = 'unavailable'
 
 
-CONTROLS = '''<nav class="gallery-controls" aria-label="Gallery filters">
-<label>Order <select id="gallery-order"><option value="newest">Newest recorded first</option><option value="oldest">Oldest recorded first</option></select></label>
-<label>Character / slot / prompt <input id="gallery-query" type="search" placeholder="Filter this gallery"></label>
-<label>State <select id="gallery-state"><option value="">All</option><option value="accepted">Current accepted</option><option value="candidate">Candidates</option><option value="not_selected">Not selected</option><option value="superseded">History</option><option value="unavailable">Unavailable</option></select></label>
-<label>From <input id="gallery-from" type="date"></label><label>To <input id="gallery-to" type="date"></label>
-<label><input id="gallery-auto" type="checkbox" checked> Refresh every 30 seconds</label>
-<button id="gallery-prev" type="button">Previous</button><span id="gallery-count" aria-live="polite"></span><button id="gallery-next" type="button">Next</button>
-</nav>'''
+def _escape(value: Any) -> str:
+    text = "" if value is None else str(value)
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
-SCRIPT = r'''<script>
-(() => {
-  const root=document.getElementById('gallery-entries');
-  const all=[...root.querySelectorAll('section.iteration')];
-  const ids=['gallery-order','gallery-query','gallery-state','gallery-from','gallery-to','gallery-auto'];
-  const storage='cpb-gallery:'+document.body.dataset.studio;
-  let page=0;const pageSize=40;
-  try{const saved=JSON.parse(sessionStorage.getItem(storage)||'null');if(saved){page=saved.page||0;for(const id of ids){const el=document.getElementById(id);if(id==='gallery-auto')el.checked=saved[id]!==false;else if(saved[id]!==undefined)el.value=saved[id]}}}catch(e){}
-  function remember(){try{const saved={page};for(const id of ids){const el=document.getElementById(id);saved[id]=id==='gallery-auto'?el.checked:el.value}sessionStorage.setItem(storage,JSON.stringify(saved))}catch(e){}}
-  function render(){
-    const query=document.getElementById('gallery-query').value.toLowerCase();const state=document.getElementById('gallery-state').value;
-    const from=document.getElementById('gallery-from').value, to=document.getElementById('gallery-to').value;
-    let rows=all.filter(el=>(!query||el.textContent.toLowerCase().includes(query))&&(!state||el.dataset.state===state||el.dataset.disposition===state||el.dataset.availability===state)&&(!from||el.dataset.day>=from)&&(!to||el.dataset.day<=to));
-    if(document.getElementById('gallery-order').value==='oldest')rows.reverse();
-    const pages=Math.max(1,Math.ceil(rows.length/pageSize));page=Math.max(0,Math.min(page,pages-1));
-    for(const el of all)el.hidden=true;
-    for(const el of rows.slice(page*pageSize,(page+1)*pageSize)){el.hidden=false;root.appendChild(el)}
-    document.getElementById('gallery-count').textContent=rows.length+' results / page '+(page+1)+' of '+pages;
-    document.getElementById('gallery-prev').disabled=page===0;document.getElementById('gallery-next').disabled=page+1>=pages;
-    remember();
-  }
-  for(const id of ids)document.getElementById(id).addEventListener('input',()=>{page=0;render()});
-  document.getElementById('gallery-prev').onclick=()=>{page--;render()};document.getElementById('gallery-next').onclick=()=>{page++;render()};
-  render();
-  // Reload the self-contained HTML even under file://; no local JSON fetch or
-  // disabled browser security is required. Filters and page survive refresh.
-  setInterval(()=>{if(document.getElementById('gallery-auto').checked&&!document.hidden){remember();location.reload()}},30000);
-})();
-</script>'''
+
+def _fact(label: str, value: Any, missing: str | None = "not recorded") -> str:
+    if value is None or value == "":
+        return "" if missing is None else f"<b>{label}</b> {missing}"
+    return f"<b>{label}</b> {_escape(value)}"
+
+
+def _recorded_href(value: str | None) -> str:
+    """A recorded local path cannot turn into an executable or remote URL."""
+    if not isinstance(value, str) or not value or '\\' in value:
+        return ''
+    path = PurePosixPath(value)
+    if path.is_absolute() or '..' in path.parts:
+        return ''
+    return './' + quote(value, safe='/')
+
+
+def _relative_href(path: Path, root: Path) -> str:
+    """Projection paths may be outside the Studio for an explicit snapshot."""
+    return quote(os.path.relpath(path, root).replace(os.sep, '/'), safe='/')
+
+
+def _text_block(entry: dict) -> str:
+    if not entry.get("request_recorded"):
+        return "<p><b>request</b> not recorded</p>"
+    if not entry.get("prompt_fields_known"):
+        return "<p><b>request</b> every field as sent is listed below; the record does not say which field held the prompt</p>"
+    parts = []
+    for label, key in (("prompt", "prompt"), ("negative", "negative_prompt")):
+        if entry.get(key) is None:
+            parts.append(f"<p><b>{label}</b> none sent</p>")
+        else:
+            parts.append(f"<p><b>{label}</b></p><pre>{_escape(entry[key])}</pre>")
+    return "\n".join(parts)
+
+
+def _history(entry: dict) -> str:
+    parts = [f"received / published {_escape(entry.get('at'))}"]
+    for acceptance in entry.get("acceptances") or []:
+        replaced = acceptance.get("supersedes") if isinstance(acceptance, dict) else None
+        parts.append(f"accepted {_escape((acceptance or {}).get('at'))}" + (f" in place of {_escape(replaced)}" if replaced else ""))
+    if entry.get("superseded_by"):
+        parts.append(f"superseded by {_escape(entry['superseded_by'])}")
+    return "; ".join(parts)
+
+
+DECISION_LABELS = {"selection": "selection reason", "disposition": "disposition reason", "rejection": "rejection reason"}
+
+
+def render_entry(entry: dict) -> str:
+    """One complete detail, including its recorded values and original evidence links."""
+    settings = "".join(
+        f"<tr><th>{_escape(key)}</th><td>{_escape(json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value)}</td></tr>"
+        for key, value in sorted((entry.get("settings") or {}).items()))
+    media = "".join(
+        f"<tr><th>{_escape(key)}</th><td>{_escape(json.dumps(value, ensure_ascii=False))}</td></tr>"
+        for key, value in sorted((entry.get("media") or {}).items()))
+    service = entry.get("service") or {}
+    result = _recorded_href(entry.get('result'))
+    image = (f'<a href="{_escape(result)}"><img loading="lazy" decoding="async" src="{_escape(result)}" alt="{_escape(entry.get("iteration_id"))}"></a>'
+             if result else '<div class="none">no local result file</div>')
+    origin = " ".join(fact for fact in (
+        _fact("model", service.get("model_identifier")),
+        _fact("service", service.get("id"), None),
+        _fact("parameter schema dated", service.get("observed_at"), None),
+    ) if fact)
+    record = " ".join(fact for fact in (
+        _fact("model record", entry.get("model_record")),
+        _fact("family", entry.get("dialect"), None),
+        _fact("seed", entry.get("seed")),
+    ) if fact)
+    judged = " ".join(fact for fact in (
+        _fact("evaluation", entry.get("evaluation"), None),
+        _fact("disposition", entry.get("disposition"), None),
+        _fact("unassessed", ", ".join(entry.get("unassessed_criteria") or []), None),
+    ) if fact)
+    diagnostics = "".join(
+        f'<p class="diagnostic">{_escape(item.get("code"))}: {_escape(item.get("message"))}</p>'
+        for item in [entry.get("production_diagnostic"), *(entry.get("selection_diagnostics") or []), *(entry.get("diagnostics") or [])] if item)
+    reason = (f'<p class="note">{_escape(DECISION_LABELS.get(entry.get("decision_kind"), "reason"))}: '
+              f'{_escape(entry.get("reason"))}</p>') if entry.get("reason") else ""
+    links = []
+    for label, key in (('Recorded request', 'request'), ('Recorded response', 'response'),
+                       ('Generation package', 'package'), ('Artifact provenance', 'provenance')):
+        href = _recorded_href(entry.get(key))
+        if href:
+            links.append(f'<a href="{_escape(href)}">{label}</a>')
+    return f"""
+<section class="iteration {_escape(entry.get('status'))}" data-state="{_escape(entry.get('status'))}" data-disposition="{_escape(entry.get('disposition'))}" data-availability="{_escape(entry.get('availability'))}" data-day="{_escape(utc_day(entry.get('at')))}" data-entry="{_escape(entry.get('entry_id'))}">
+  <div class="image">{image}</div>
+  <div class="facts">
+    <h2>{_escape(entry.get('character'))} / {_escape(entry.get('slot'))} / {_escape(entry.get('iteration_id'))} <span class="status">{_escape(entry.get('status'))}</span></h2>
+    <p class="when">{_history(entry)}</p>
+    <p>{origin}</p><p>{record}</p>
+    {('<p>' + judged + '</p>') if judged else ''}
+    {diagnostics}
+    {_text_block(entry)}
+    <table>{settings}{media}</table>
+    {('<p class="note">' + _escape(entry.get('note')) + '</p>') if entry.get('note') else ''}
+    {reason}
+    <p class="hash">{_escape(entry.get('result_sha256'))}</p>
+    <nav class="evidence">{' | '.join(links)}</nav>
+  </div>
+</section>"""
+
+
+class _SearchText(HTMLParser):
+    """The complete detail's text, including collapsed values, without HTML markup."""
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+
+def search_text(detail: str) -> str:
+    parser = _SearchText()
+    parser.feed(detail)
+    parser.close()
+    return ''.join(parser.parts)
+
+
+def asset_dir(html_path: Path) -> Path:
+    return html_path.with_suffix('.assets')
+
+
+def entry_key(entry_id: str) -> str:
+    return c.digest(entry_id.encode('utf-8'))
+
+
+def detail_file(html_path: Path, entry_id: str) -> Path:
+    return asset_dir(html_path) / 'entries' / (entry_key(entry_id) + '.html')
+
+
+def _json_bytes(value: Any) -> bytes:
+    return (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + '\n').encode('utf-8')
+
+
+def _script_json(value: Any) -> str:
+    # These files are external scripts; escaping also makes accidental inline use inert.
+    return json.dumps(value, ensure_ascii=False, separators=(',', ':'), allow_nan=False).replace('<', '\\u003c').replace('\u2028', '\\u2028').replace('\u2029', '\\u2029')
+
+
+def _write_changed(path: Path, raw: bytes) -> dict:
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise ValueError(f'gallery output is not a regular file: {path}')
+    if not path.is_file() or c.read(path) != raw:
+        c.atomic(path, raw, replace=True)
+    return {'sha256': c.digest(raw), 'size': len(raw)}
+
+
+def _matches(directory: Path, relative: str, expected: dict) -> bool:
+    try:
+        digest, size = c.file_digest(directory, relative)
+        return digest == expected['sha256'] and size == expected['size']
+    except (ValueError, OSError, KeyError, TypeError):
+        return False
+
+
+def _template(name: str) -> bytes:
+    return (Path(__file__).resolve().parent.parent / 'templates' / name).read_bytes()
+
+
+def _renderer_revision() -> str:
+    return c.content_id({'owner': c.sha256_file(Path(__file__)),
+                         'runtime': c.digest(_template('studio-gallery.js')),
+                         'style': c.digest(_template('studio-gallery.css'))})
+
+
+CONTROLS = """
+<div class="gallery-controls">
+<label>Order <select id="gallery-order"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
+<label>Search all recorded details <input id="gallery-query" type="search" autocomplete="off"></label>
+<label>State <select id="gallery-state"><option value="">All</option><option value="accepted">Accepted / current</option><option value="candidate">Candidate</option><option value="not_selected">Not selected</option><option value="superseded">History</option><option value="unavailable">Unavailable</option></select></label>
+<label>From (UTC) <input id="gallery-from" type="date"></label>
+<label>To (UTC) <input id="gallery-to" type="date"></label>
+<label><input id="gallery-auto" type="checkbox" checked>Refresh while visible</label>
+<button id="gallery-prev" type="button">Previous</button><span id="gallery-count"></span><button id="gallery-next" type="button">Next</button>
+</div>
+<p id="gallery-progress" role="status" aria-live="polite"></p>
+"""
+
+
+def _shell(index: dict, root: Path, html_path: Path) -> str:
+    assets = asset_dir(html_path)
+    prefix = _relative_href(assets, root)
+    base = _relative_href(root, html_path.parent).rstrip('/') + '/'
+    diagnostics = ('<a href="' + _escape(prefix + '/diagnostics.html') + '">Index diagnostics</a> | ') if index.get('diagnostics') else ''
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="cpb-gallery-revision" content="{_escape(index['revision'])}"><base href="{_escape(base)}"><title>{_escape(index.get('title'))}</title>
+<link rel="stylesheet" href="{_escape(prefix)}/style.css">
+<script defer src="{_escape(prefix)}/runtime.js"></script><script defer src="{_escape(prefix)}/index.js?revision={_escape(index['revision'])}"></script></head>
+<body data-studio="{_escape(index.get('studio_id'))}" data-revision="{_escape(index['revision'])}">
+<h1>{_escape(index.get('title'))} ({_escape(index.get('studio_id'))})</h1>
+<p id="gallery-summary">Opening recorded artwork...</p>
+<p>Newest received or published artwork first. Acceptance does not change its creation order. Display rebuilt at {_escape(index.get('generated_at'))}.</p>
+<nav><a href="work/activity/timeline.md">Activity log</a> | <a href="work/activity/timeline.jsonl">Machine-readable log</a> | {diagnostics}<a href="{_escape(_relative_href(html_path.with_suffix('.json'), root))}">Complete gallery JSON</a></nav>
+{CONTROLS}
+<main id="gallery-entries" aria-live="polite"></main>
+<noscript>This gallery uses local JavaScript files for paging and search. Every record remains in the complete gallery JSON and its linked source files.</noscript>
+</body></html>
+"""
+
+
+def _detail_page(entry: dict, rendered: str, root: Path, html_path: Path) -> str:
+    target = detail_file(html_path, entry['entry_id'])
+    base = _relative_href(root, target.parent).rstrip('/') + '/'
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="{_escape(base)}"><title>{_escape(entry['entry_id'])}</title><link rel="stylesheet" href="{_escape(_relative_href(asset_dir(html_path) / 'style.css', root))}"></head>
+<body><nav><a href="{_escape(_relative_href(html_path, root))}">Back to gallery</a> | <a href="{_escape(_relative_href(html_path.with_suffix('.json'), root))}">Complete gallery JSON</a></nav>
+{rendered}
+</body></html>
+"""
+
+
+def _card(entry: dict, root: Path, html_path: Path) -> dict:
+    """Only fields needed to browse, order and filter; full text stays in entry assets."""
+    key = entry_key(entry['entry_id'])
+    prefix = _relative_href(asset_dir(html_path) / 'entries' / key, root)
+    service = entry.get('service') or {}
+    return {
+        'key': key, 'revision': c.content_id(entry), 'entry_id': entry['entry_id'],
+        **{field: entry.get(field) for field in ('character', 'iteration_id', 'slot', 'at', 'status', 'disposition', 'availability', 'evaluation', 'seed')},
+        'day': utc_day(entry.get('at')), 'model': service.get('model_identifier') or entry.get('model_record'),
+        'result': _recorded_href(entry.get('result')), 'detail': prefix + '.html', 'search': prefix + '.search.js',
+        'diagnostic_count': len(entry.get('diagnostics') or []) + len(entry.get('selection_diagnostics') or []) + bool(entry.get('production_diagnostic')),
+    }
+
+
+def publish(root: Path, index: dict, out: Path | None = None) -> tuple[Path, Path]:
+    """Publish an offline view, replacing only changed generated bytes.
+
+    Stable filenames belong to entries, not to their successive status revisions.
+    Formal artwork and evidence are read-only. Each explicit output has its own
+    assets, so another view's update never changes a saved snapshot.
+    """
+    root = c._root(root)
+    html_path = Path(out or root / 'gallery.html').absolute()
+    c._root(html_path.parent)
+    json_path, assets = html_path.with_suffix('.json'), asset_dir(html_path)
+    if json_path == html_path:
+        raise ValueError('gallery HTML and JSON need distinct output paths')
+    if assets.is_symlink() or (assets.exists() and not assets.is_dir()):
+        raise ValueError(f'gallery assets are not a regular directory: {assets}')
+    owner = {'kind': 'studio-gallery-projection', 'studio_id': index.get('studio_id'), 'view': html_path.name}
+    owner_path = assets / 'owner.json'
+    if owner_path.exists():
+        if c.load(owner_path) != owner:
+            raise ValueError(f'gallery assets belong to another output: {assets}')
+    elif assets.exists() and any(assets.iterdir()):
+        raise ValueError(f'gallery assets directory has no generated ownership record: {assets}')
+    assets.mkdir(parents=True, exist_ok=True)
+    _write_changed(owner_path, _json_bytes(owner))
+    previous = {}
+    manifest_path = assets / 'manifest.json'
+    if manifest_path.is_file():
+        try:
+            previous = c.load(manifest_path)
+            if (not isinstance(previous, dict) or not isinstance(previous.get('files'), dict)
+                    or not isinstance(previous.get('entries'), dict)):
+                previous = {}
+        except (ValueError, OSError):
+            previous = {}
+    index = copy.deepcopy(index)
+    if json_path.is_file():
+        try:
+            held = c.load(json_path)
+            if isinstance(held, dict) and held.get('revision') == index['revision'] and held.get('generated_at'):
+                index['generated_at'] = held['generated_at']
+        except (ValueError, OSError):
+            pass
+    layout_revision = c.content_id({'renderer': _renderer_revision(), 'title': index.get('title'),
+                                   'studio_id': index.get('studio_id'), 'view': _relative_href(html_path, root)})
+    manifest = {'kind': owner['kind'], 'revision': index['revision'], 'layout_revision': layout_revision,
+                'files': {}, 'entries': {}}
+    def emit(relative: str, raw: bytes) -> None:
+        path = c.local(assets, relative, exists=False)
+        manifest['files'][relative] = _write_changed(path, raw)
+    emit('runtime.js', _template('studio-gallery.js'))
+    emit('style.css', _template('studio-gallery.css'))
+    cards = []
+    for entry in index['entries']:
+        card = _card(entry, root, html_path)
+        cards.append(card)
+        key, revision = card['key'], card['revision']
+        paths = [f'entries/{key}.html', f'entries/{key}.search.js']
+        held_entry = (previous.get('entries') or {}).get(key) or {}
+        held_files = previous.get('files') or {}
+        reusable = (previous.get('layout_revision') == layout_revision and held_entry.get('revision') == revision
+                    and all(isinstance(held_files.get(path), dict) and _matches(assets, path, held_files[path]) for path in paths))
+        if reusable:
+            for path in paths:
+                manifest['files'][path] = held_files[path]
+        else:
+            rendered = render_entry(entry)
+            emit(paths[0], _detail_page(entry, rendered, root, html_path).encode('utf-8'))
+            emit(paths[1], ('CPBGallery.searchDocument(' + ','.join(_script_json(value) for value in
+                             (key, revision, search_text(rendered))) + ');\n').encode('utf-8'))
+        manifest['entries'][key] = {'entry_id': entry['entry_id'], 'revision': revision}
+    emit('diagnostics.html', (f'<!DOCTYPE html><html lang="en"><meta charset="utf-8"><title>Gallery diagnostics</title>'
+                              f'<pre>{_escape(json.dumps(index.get("diagnostics") or [], ensure_ascii=False, indent=2))}</pre></html>').encode('utf-8'))
+    emit('index.js', ('CPBGallery.start(' + _script_json({'revision': index['revision'], 'cards': cards}) + ');\n').encode('utf-8'))
+    _write_changed(json_path, _json_bytes(index))
+    _write_changed(html_path, _shell(index, root, html_path).encode('utf-8'))
+    _write_changed(manifest_path, _json_bytes(manifest))
+    return html_path, json_path
+
+
+def stale(root: Path) -> str | None:
+    """Check the complete projection and its owned assets against recorded artwork."""
+    json_path, html_path = root / 'gallery.json', root / 'gallery.html'
+    if not json_path.is_file() or not html_path.is_file():
+        return 'gallery.json or gallery.html is missing'
+    try:
+        held, expected = c.load(json_path), build_index(root)
+        if (not isinstance(held, dict) or {key: value for key, value in held.items() if key != 'generated_at'}
+                != {key: value for key, value in expected.items() if key != 'generated_at'}):
+            return 'gallery.json does not list what the artwork records hold'
+        marker = '<meta name="cpb-gallery-revision" content="' + expected['revision'] + '">'
+        if marker not in c.read(html_path).decode('utf-8'):
+            return 'gallery.html does not match the recorded gallery revision; run studio.py sync'
+        assets = asset_dir(html_path)
+        owner = {'kind': 'studio-gallery-projection', 'studio_id': expected.get('studio_id'), 'view': html_path.name}
+        if c.load(c.local(assets, 'owner.json')) != owner:
+            return 'gallery assets have an incorrect ownership record'
+        manifest = c.load(c.local(assets, 'manifest.json'))
+        if not isinstance(manifest, dict):
+            return 'gallery assets manifest is not an object; run studio.py sync'
+        layout_revision = c.content_id({'renderer': _renderer_revision(), 'title': expected.get('title'),
+                                       'studio_id': expected.get('studio_id'), 'view': _relative_href(html_path, root)})
+        keys = {entry_key(entry['entry_id']): {'entry_id': entry['entry_id'], 'revision': c.content_id(entry)} for entry in expected['entries']}
+        if (manifest.get('revision') != expected['revision'] or manifest.get('layout_revision') != layout_revision
+                or manifest.get('entries') != keys):
+            return 'gallery assets do not match the recorded gallery revision; run studio.py sync'
+        files = manifest.get('files') or {}
+        required = {'runtime.js', 'style.css', 'index.js', 'diagnostics.html'}
+        required.update(f'entries/{key}{suffix}' for key in keys for suffix in ('.html', '.search.js'))
+        if set(files) != required or any(not _matches(assets, path, files[path]) for path in required):
+            return 'gallery assets are missing or changed; run studio.py sync'
+    except (ValueError, OSError, TypeError, KeyError) as exc:
+        return f'gallery projection cannot be read: {exc}'
+    return None

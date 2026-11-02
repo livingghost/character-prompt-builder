@@ -141,7 +141,7 @@ Remove accepts only lowercase UUIDv7, applies only to a disabled managed pack, a
 
 ## Cache and catalog operations
 
-The catalog cache is derived. State and file inventories determine freshness, direct edits are detected at the next boundary, and managed mutations refresh immediately.
+The search cache and browser catalog are derived from the selected enabled-pack runtime. State and file contents determine freshness. `ready` and public pack-changing operations maintain the browser catalog automatically and report its entry point; they reuse unchanged output. Direct edits reach the search cache at the next catalog read and the browser view at the next `ready` or pack-maintenance boundary.
 
 ```bash
 python scripts/pack_cli.py cache-status
@@ -152,7 +152,9 @@ Do not distribute the cache as authored content. See [Catalog Cache Lifecycle](.
 
 Use `inspect` for the complete canonical record plus compact asset activation summary. Use `asset-lookup --summary` for asset IDs and technical roles. Use full `asset-lookup` only when reference planning requires complete artifact paths, roles, media, hashes, and ownership. Reference activation and transport belong to [Prompt Artifact Reference Runtime](../runtime/reference-prompt-artifacts.md) and [Image Generation Runtime](../runtime/image-generation.md), not pack lifecycle.
 
-Export a visual catalog from an explicit pack tree:
+The automatic browser view is scoped by the selected state-file path, discovery roots and managed root, beneath `CACHE/browser-catalog/CONTEXT/`. Shared cache directories keep distinct runtime views separate. Display failures are reported without reversing successful pack operations or adding readiness decisions. Lock publication, installation, update and removal leave an absent state unselected; display maintenance never initializes activation.
+
+For a separate inspection or distribution that includes every pack in a chosen tree, export explicitly:
 
 ```bash
 python scripts/catalog_html.py \

@@ -127,7 +127,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.no_effect()
 
     def test_incomplete_permission_rolls_back_before_claim(self):
-        value=c.load(self.root/self.decision_file);value['authorizations']=value['authorizations'][:1]
+        value=c.load(self.root/self.decision_file);value['decisions']=value['decisions'][:1]
         cases.write(self.root/self.decision_file,value)
         with self.assertRaises(ValueError):self.call()
         self.no_effect();self.assertEqual(self.rows(),[])

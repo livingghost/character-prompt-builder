@@ -2,6 +2,7 @@
 """Production-loop regressions on real bytes and explicit synthetic decisions."""
 from __future__ import annotations
 
+import base64
 import copy
 import io
 import json
@@ -382,23 +383,134 @@ class LifecycleTests(unittest.TestCase):
         a=self.authority();a['grants'][0]['targets']=['delivery'];self.write('fixture-authority.json',a)
         run=self.prepare()
         with self.assertRaises(ValueError):fixture.grant(self.root,run,w.handoff_intent(self.root,run,'author','manual'))
-    def external_case(self):
+    def external_case(self, count=1):
+        self.task['execution'] = 'external'
+        fixture.external_image_input(self.root, self.task, count=count)
+        self.write('task.json', self.task)
+        run = self.prepare(); fixture.handoff(self.root, run, 'synthetic external host', 'manual')
+        token = fixture.grant(self.root, run, w.external_intent(self.root, run, count))
+        claim = w.claim_external(self.root, run, count, token)
+        return run, token, claim
+
+    def external_response(self, *, amount='0', inline=False):
+        response = {'synthetic': True, 'status': 'received',
+                    'cost': None if amount is None else {'currency': 'USD', 'amount': amount}}
+        if inline:
+            response['result'] = {'image': 'data:image/png;base64,' + base64.b64encode(png()).decode('ascii')}
+        self.write('host-response.json', response)
+        return response
+
+    def receive(self, run, *, artifacts=None, image_pointers=None, final=True):
+        return w.receive_external(self.root, run, response_file='host-response.json',
+            artifacts=artifacts, image_pointers=image_pointers, final=final, cost_pointer=['cost'],
+            reason='Synthetic returned files; no real provider, billing or artwork-quality claim.')
+
+    def prepared_external_case(self):
         self.task['execution'] = 'external'
         fixture.external_image_input(self.root, self.task)
         self.write('task.json', self.task)
-        run = self.prepare(); fixture.handoff(self.root, run, 'synthetic external host', 'manual')
-        token = fixture.grant(self.root, run, w.external_intent(self.root, run, 1))
-        claim = w.claim_external(self.root, run, 1, token)
-        return run, token, claim
+        return self.prepare()
 
-    def external_receipt(self, run, claim, *, amount='0', final=True, filename='external-receipt.json'):
-        self.write('host-response.json', {'synthetic': True, 'claim': claim['sha256'], 'outputs': 1, 'cost': amount})
-        receipt = {'claim': claim['sha256'], 'actor': fixture.ACTOR, 'outputs': 1,
-                   'cost': None if amount is None else {'currency': 'USD', 'amount': amount}, 'final': final,
-                   'response': {'path': 'host-response.json', 'sha256': c.digest(c.read(self.root/'host-response.json')), 'locator': 'whole'},
-                   'reason': 'Synthetic receipt of local fixture bytes; no real provider or billing.'}
-        self.write(filename, receipt)
-        return receipt
+    def test_unified_external_execution_receives_and_reviews_one_claimed_request(self):
+        import execution_lifecycle as life
+        import production_case_fixtures as cases
+        import production_execution as execution
+        import production_workspace
+        from production_diagnostics import ProductionError
+        run = self.prepared_external_case()
+        input_view = production_workspace.workspace(self.root, run, phase='input')
+        decisions_file = cases.fill_decisions(self.root, run, 'execution-decisions.json')
+        choices = c.load(self.root / decisions_file)
+        direction, submit = choices['decisions']
+        direction['reason'] = 'Synthetic direction decision for the declared abstract-field depiction.'
+        submit['reason'] = 'Synthetic submission decision for one exact host request.'
+        self.write(decisions_file, choices)
+        result = execution.execute(self.root, run, decisions_file=decisions_file)
+        self.assertEqual(result['state'], 'host-call-required')
+        self.assertFalse(result['external_effect'])
+        call = result['host_request']
+        self.write('prepared-host-instruction.json', result)
+        from image_input import submission_evidence
+        instruction = {'path': 'prepared-host-instruction.json',
+            'sha256': c.sha256_file(self.root / 'prepared-host-instruction.json'),
+            'locator': 'generated instruction', 'request_pointer': ['host_request', 'request'],
+            'model_identity_pointer': None}
+        with self.assertRaisesRegex(ValueError, 'prepared host instruction'):
+            submission_evidence(w.load_run(self.root, run)[2]['image_input'], instruction,
+                                lambda path: (self.root / path).read_bytes())
+        self.assertEqual(call['request'], input_view['prepared_input']['request'])
+        rows = w.load_run(self.root, run)[3]
+        authorizations = [row for row in rows if row['event'] == 'authorization']
+        self.assertEqual([row['data']['request']['operation'] for row in authorizations], ['direction', 'submit'])
+        self.assertEqual([row['data']['request']['reason'] for row in authorizations],
+                         [direction['reason'], submit['reason']])
+        self.assertEqual([row['data']['request']['actor'] for row in authorizations], [fixture.ACTOR] * 2)
+        for row in authorizations:
+            self.assertIn(c.sha256_file(self.root / decisions_file),
+                          [item['sha256'] for item in row['data']['files']])
+        handoff = w.find(rows, 'handoff')
+        claim = w.find(rows, 'external-claim')
+        self.assertEqual(handoff['data']['authorizations'], [authorizations[0]['sha256']])
+        self.assertEqual(claim['data']['authorizations'], [authorizations[1]['sha256']])
+        self.assertEqual(claim['sha256'], call['claim'])
+        self.assertLess(rows.index(handoff), rows.index(claim))
+        self.assertEqual(life.summary(self.root, run=run)['submissions'], 1)
+        before_repeat = copy.deepcopy(rows)
+        with self.assertRaises(ProductionError) as caught:
+            execution.execute(self.root, run, decisions_file=decisions_file)
+        self.assertEqual(caught.exception.diagnostic.code, 'DISPATCH_ALREADY_CLAIMED')
+        self.assertEqual(w.load_run(self.root, run)[3], before_repeat)
+        status = execution.status(self.root, run)['runs'][0]
+        self.assertEqual(status['next_action']['command'], 'receive-external')
+
+        # This local synthetic host observation is distinct from the prepared handoff.
+        self.write('observed-host-call.json', {'synthetic': True, 'call_id': 'local-fixture-call',
+                                             'arguments': copy.deepcopy(call['request'])})
+        self.external_response(inline=True)
+        received = w.receive_external(self.root, run, response_file='host-response.json',
+            image_pointers=[['result', 'image']], submission_file='observed-host-call.json',
+            request_pointer=['arguments'], final=True,
+            reason='Synthetic host observation returned the local constant-field PNG.')
+        self.assertTrue(received['execution_completed'])
+        self.assertEqual(received['request_evidence']['status'], 'matched-recorded-call')
+        self.assertEqual(life.summary(self.root, run=run)['submissions'], 1)
+        candidate = received['candidates'][0]
+        observed = production_workspace.workspace(self.root, run, phase='observe', candidate=candidate)
+        self.assertEqual(set(observed), {'phase', 'run', 'candidate', 'instruction'})
+        saved = Path(observed['candidate']['files'][0]['path'])
+        self.assertEqual(saved.read_bytes(), png())
+        review_view = production_workspace.workspace(self.root, run, phase='review', candidate=candidate)
+        self.assertEqual(review_view['candidate'], observed['candidate'])
+        self.assertEqual(review_view['prepared_input'], input_view['prepared_input'])
+        self.assertEqual(review_view['basis']['criteria'][0]['id'], 'read')
+        rows = w.load_run(self.root, run)[3]
+        self.assertFalse(any(row['event'] == 'review' for row in rows))
+        draft = w.draft_review(self.root, run, candidate)
+        self.assertEqual(draft['observations'], [])
+        self.assertEqual(draft['checks'][0]['verdict'], 'not-assessed')
+        recorded = self.record_review(run, w.find(rows, 'candidate', candidate))
+        self.assertEqual(recorded['data']['review']['checks'][0]['verdict'], 'pass')
+
+    def test_unified_external_decisions_are_atomic_when_meaning_or_direction_is_unresolved(self):
+        import production_case_fixtures as cases
+        import production_execution as execution
+        import execution_lifecycle as life
+        run = self.prepared_external_case()
+        path = cases.fill_decisions(self.root, run, 'execution-decisions.json')
+        complete = c.load(self.root / path)
+        for defect in ('missing-direction', 'unfilled-rendition'):
+            with self.subTest(defect=defect):
+                choices = copy.deepcopy(complete)
+                if defect == 'missing-direction':
+                    choices['decisions'] = [item for item in choices['decisions'] if item['operation'] != 'direction']
+                else:
+                    submit = next(item for item in choices['decisions'] if item['operation'] == 'submit')
+                    submit['request_decision']['rendition_review']['assessments'][0].update(conclusion=None, reason='')
+                self.write(path, choices)
+                with self.assertRaises(ValueError):
+                    execution.execute(self.root, run, decisions_file=path)
+                self.assertEqual(w.load_run(self.root, run)[3], [])
+                self.assertEqual(life.all_states(self.root, run=run), [])
 
     def test_external_claim_protects_unknown_result_records_and_logs(self):
         import operation_context as ops
@@ -454,41 +566,130 @@ class LifecycleTests(unittest.TestCase):
         import execution_lifecycle as life
         from production_execution import status
         run, token, claim = self.external_case()
-        self.write('external.png', png()); w.capture(self.root, run, 'external.png', 'Synthetic received image.')
-        self.assertEqual(status(self.root, run)['runs'][0]['next_action']['command'], 'settle-external')
-        self.external_receipt(run, claim)
-        first = w.settle_external(self.root, run, 'external-receipt.json')
-        second = w.settle_external(self.root, run, 'external-receipt.json')
+        self.write('external.png', png())
+        self.external_response()
+        first = self.receive(run, artifacts=['external.png'])
+        second = self.receive(run, artifacts=['external.png'])
         self.assertTrue(first['recorded']); self.assertTrue(first['execution_completed'])
         self.assertEqual(first['receipt']['sha256'], second['receipt']['sha256'])
         self.assertFalse(ops._run_has_unresolved_external_effect(self.root, run))
         state = life.by_authorization(w.load_run(self.root, run)[3], w.load_run(self.root, run)[1], run, token)
         self.assertEqual(state['submissions'], 1); self.assertEqual(state['captured_outputs'], 1)
         self.assertEqual(status(self.root, run)['runs'][0]['capture'], 'complete')
+        rows = w.load_run(self.root, run)[3]
+        self.assertLess(next(i for i, row in enumerate(rows) if row['event'] == 'candidate'),
+                        next(i for i, row in enumerate(rows) if row['event'] == 'execution-result'))
+        self.assertFalse(any(row['event'] in {'review', 'selection', 'adoption-result'} for row in rows))
 
     def test_external_completion_does_not_require_reported_price(self):
         import operation_context as ops
         import execution_lifecycle as life
         run, token, claim = self.external_case()
         self.write('external.png', png())
-        w.capture(self.root, run, 'external.png', 'Synthetic received image.')
-        self.external_receipt(run, claim, amount=None, filename='external-receipt.json')
-        result = w.settle_external(self.root, run, 'external-receipt.json')
+        self.external_response(amount=None)
+        result = self.receive(run, artifacts=['external.png'])
         self.assertTrue(result['recorded'])
         self.assertTrue(result['execution_completed'])
         self.assertFalse(ops._run_has_unresolved_external_effect(self.root, run))
         self.assertFalse(life.summary(self.root, run=run)['usage_complete'])
 
-
-    def test_external_receipt_rejects_different_actor_count_or_response(self):
+    def test_external_receipt_derives_claim_actor_count_and_hashes(self):
         run, token, claim = self.external_case()
-        self.write('external.png', png()); w.capture(self.root, run, 'external.png', 'Synthetic received image.')
-        good = self.external_receipt(run, claim)
-        for key, value in [('actor', 'different executor'), ('outputs', 0), ('response', {**good['response'], 'sha256': '0'*64})]:
-            with self.subTest(field=key):
-                self.write('bad-receipt.json', {**good, key:value})
-                with self.assertRaises(ValueError): w.settle_external(self.root, run, 'bad-receipt.json')
-        self.assertFalse(any(row['event'] == 'execution-result' for row in w.load_run(self.root, run)[3]))
+        self.external_response(inline=True)
+        result = self.receive(run, image_pointers=[['result', 'image']])
+        receipt = c.load(self.root / result['receipt_file'])
+        self.assertEqual((receipt['claim'], receipt['actor'], receipt['outputs']),
+                         (claim['sha256'], fixture.ACTOR, 1))
+        self.assertEqual(receipt['response']['sha256'], c.sha256_file(self.root / 'host-response.json'))
+        candidate = w.find(w.load_run(self.root, run)[3], 'candidate', result['candidates'][0])
+        self.assertEqual(candidate['data']['files'][0]['sha256'], c.digest(png()))
+        self.assertEqual((candidate['data']['media']['width'], candidate['data']['media']['height']), (24, 16))
+
+    def test_external_receive_recovers_partial_capture_without_sending(self):
+        import execution_lifecycle as life
+        run, token, claim = self.external_case(count=2)
+        self.external_response()
+        self.write('first.png', png())
+        self.write('second.png', b'incomplete image')
+        with self.assertRaises(ValueError):
+            self.receive(run, artifacts=['first.png', 'second.png'])
+        rows = w.load_run(self.root, run)[3]
+        self.assertEqual(len([row for row in rows if row['event'] == 'candidate']), 1)
+        self.assertFalse(any(row['event'] == 'execution-result' for row in rows))
+        self.write('second.png', png(128))
+        result = self.receive(run, artifacts=['first.png', 'second.png'])
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual(len(result['candidates']), 2)
+        self.assertEqual(life.summary(self.root, run=run)['submissions'], 1)
+
+    def test_external_receive_recovers_failed_settlement_from_saved_results(self):
+        import production_external
+        import execution_lifecycle as life
+        run, token, claim = self.external_case()
+        self.external_response(inline=True)
+        with patch.object(production_external.lifecycle, 'record_result', side_effect=OSError('Synthetic interrupted result write')):
+            with self.assertRaises(OSError):
+                self.receive(run, image_pointers=[['result', 'image']])
+        (self.root / 'brief.md').unlink()
+        (self.root / 'fixture-authority-basis.txt').unlink()
+        result = self.receive(run, image_pointers=[['result', 'image']])
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual(len(result['candidates']), 1)
+        self.assertEqual(life.summary(self.root, run=run)['submissions'], 1)
+
+    def test_external_inline_selector_decodes_actual_images_only(self):
+        run, token, claim = self.external_case()
+        for value in ('https://example.invalid/result.png', 'data:text/plain;base64,SGVsbG8=',
+                      base64.b64encode(b'not an image').decode('ascii')):
+            with self.subTest(value=value):
+                self.write('host-response.json', {'result': value, 'cost': None})
+                with self.assertRaises(ValueError):
+                    self.receive(run, image_pointers=[['result']])
+        self.assertFalse(any(row['event'] == 'candidate' for row in w.load_run(self.root, run)[3]))
+
+    def test_external_pending_response_can_be_completed_with_actual_result(self):
+        run, token, claim = self.external_case()
+        self.external_response(amount=None)
+        pending = self.receive(run, final=False)
+        self.assertFalse(pending['recorded'])
+        self.assertFalse(pending['execution_completed'])
+        self.external_response(amount=None, inline=True)
+        final = self.receive(run, image_pointers=[['result', 'image']])
+        self.assertTrue(final['execution_completed'])
+
+    def test_external_receive_compares_actual_call_without_discarding_pixels(self):
+        run, token, claim = self.external_case()
+        self.external_response(amount=None)
+        self.write('external.png', png())
+        input_plan = c.load(self.root / self.task['image_input'])
+        request_file = input_plan['external_request']['file']
+        arguments = c.load(self.root / request_file)
+        self.write('host-call.json', {'synthetic': True, 'arguments': {**arguments, 'prompt': 'different input'}})
+        options = {'response_file': 'host-response.json', 'artifacts': ['external.png'],
+                   'final': True, 'reason': 'Synthetic recorded host call and locally received image.'}
+        with self.assertRaisesRegex(ValueError, 'recorded external call differs'):
+            w.receive_external(self.root, run, **options, submission_file='host-call.json', request_pointer=['arguments'])
+        rows = w.load_run(self.root, run)[3]
+        self.assertEqual(len([row for row in rows if row['event'] == 'candidate']), 1)
+        self.assertFalse(any(row['event'] == 'execution-result' for row in rows))
+        with self.assertRaisesRegex(ValueError, 'prepared request is not evidence'):
+            w.receive_external(self.root, run, **options, submission_file=request_file, request_pointer=[])
+        self.write('host-call.json', {'synthetic': True, 'arguments': arguments})
+        result = w.receive_external(self.root, run, **options,
+            submission_file='host-call.json', request_pointer=['arguments'])
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual(result['request_evidence']['status'], 'matched-recorded-call')
+
+    def test_external_receive_requires_prior_claim(self):
+        self.task['execution'] = 'external'
+        fixture.external_image_input(self.root, self.task)
+        self.write('task.json', self.task)
+        run = self.prepare()
+        fixture.handoff(self.root, run, 'synthetic host', 'manual')
+        self.external_response(inline=True)
+        with self.assertRaisesRegex(ValueError, 'missing external-claim'):
+            self.receive(run, image_pointers=[['result', 'image']])
+        self.assertFalse(any(row['event'] == 'candidate' for row in w.load_run(self.root, run)[3]))
 
     def test_external_outputs_are_capped(self):
         self.task['execution']='external'

@@ -818,167 +818,21 @@ def gallery_index(root: Path) -> dict[str, Any]:
     return build_index(root)
 
 
-def _escape(value: Any) -> str:
-    text = "" if value is None else str(value)
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-
-
-def _fact(label: str, value: Any, missing: str | None = "not recorded") -> str:
-    """One labelled fact; an unknown value says so, or is left out when `missing` is None."""
-    if value is None or value == "":
-        return "" if missing is None else f"<b>{label}</b> {missing}"
-    return f"<b>{label}</b> {_escape(value)}"
-
-
-def _text_block(entry: dict[str, Any]) -> str:
-    if not entry.get("request_recorded"):
-        return "<p><b>request</b> not recorded</p>"
-    if not entry.get("prompt_fields_known"):
-        return "<p><b>request</b> every field as sent is listed below; the record does not say which field held the prompt</p>"
-    parts = []
-    for label, key in (("prompt", "prompt"), ("negative", "negative_prompt")):
-        if entry.get(key) is None:
-            parts.append(f"<p><b>{label}</b> none sent</p>")
-        else:
-            parts.append(f"<p><b>{label}</b></p><pre>{_escape(entry[key])}</pre>")
-    return "\n    ".join(parts)
-
-
-def _history(entry: dict[str, Any]) -> str:
-    parts = [f"received / published {_escape(entry.get('at'))}"]
-    for acceptance in entry.get("acceptances") or []:
-        replaced = acceptance.get("supersedes") if isinstance(acceptance, dict) else None
-        parts.append(f"accepted {_escape((acceptance or {}).get('at'))}" + (f" in place of {_escape(replaced)}" if replaced else ""))
-    if entry.get("superseded_by"):
-        parts.append(f"superseded by {_escape(entry['superseded_by'])}")
-    return "; ".join(parts)
-
-
-# The label of a reason, by the decision it explains.
-DECISION_LABELS = {"selection": "selection reason", "disposition": "disposition reason", "rejection": "rejection reason"}
-
-
-def render_gallery(index: dict[str, Any], *, base_href: str = "./") -> str:
-    """Self-contained paged gallery; ordering and filters survive automatic refresh."""
-    from studio_gallery import CONTROLS, SCRIPT, utc_day
-    rows = []
-    for entry in index["entries"]:
-        settings = "".join(
-            f"<tr><th>{_escape(key)}</th><td>{_escape(json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value)}</td></tr>"
-            for key, value in sorted((entry.get("settings") or {}).items())
-        )
-        media = "".join(
-            f"<tr><th>{_escape(key)}</th><td>{_escape(json.dumps(value, ensure_ascii=False))}</td></tr>"
-            for key, value in sorted((entry.get("media") or {}).items())
-        )
-        service = entry.get("service") or {}
-        image = (f'<a href="{_escape(entry["result"])}"><img loading="lazy" decoding="async" src="{_escape(entry["result"])}" alt="{_escape(entry["iteration_id"])}"></a>'
-                 if entry.get("result") else "<div class=\"none\">no result file</div>")
-        origin = " ".join(fact for fact in (
-            _fact("model", service.get("model_identifier")),
-            _fact("service", service.get("id"), None),
-            _fact("parameter schema dated", service.get("observed_at"), None),
-        ) if fact)
-        record = " ".join(fact for fact in (
-            _fact("model record", entry.get("model_record")),
-            _fact("family", entry.get("dialect"), None),
-            _fact("seed", entry.get("seed")),
-        ) if fact)
-        judged = " ".join(fact for fact in (
-            _fact("evaluation", entry.get("evaluation"), None),
-            _fact("disposition", entry.get("disposition"), None),
-            _fact("unassessed", ", ".join(entry.get("unassessed_criteria") or []), None),
-        ) if fact)
-        diagnostics = "".join(
-            f'<p class="diagnostic">{_escape(item.get("code"))}: {_escape(item.get("message"))}</p>'
-            for item in [entry.get("production_diagnostic"), *(entry.get("selection_diagnostics") or []), *(entry.get("diagnostics") or [])] if item)
-        reason = (f'<p class="note">{_escape(DECISION_LABELS.get(entry.get("decision_kind"), "reason"))}: '
-                  f'{_escape(entry.get("reason"))}</p>') if entry.get("reason") else ""
-        rows.append(f"""
-<section class="iteration {_escape(entry.get('status'))}" data-state="{_escape(entry.get('status'))}" data-disposition="{_escape(entry.get('disposition'))}" data-availability="{_escape(entry.get('availability'))}" data-day="{_escape(utc_day(entry.get('at')))}" data-entry="{_escape(entry.get('entry_id'))}">
-  <div class="image">{image}</div>
-  <div class="facts">
-    <h2>{_escape(entry.get('character'))} / {_escape(entry.get('slot'))} / {_escape(entry.get('iteration_id'))} <span class="status">{_escape(entry.get('status'))}</span></h2>
-    <p class="when">{_history(entry)}</p>
-    <p>{origin}</p>
-    <p>{record}</p>
-    {('<p>' + judged + '</p>') if judged else ''}
-    {diagnostics}
-    {_text_block(entry)}
-    <table>{settings}{media}</table>
-    {('<p class="note">' + _escape(entry.get('note')) + '</p>') if entry.get('note') else ''}
-    {reason}
-    <p class="hash">{_escape(entry.get('result_sha256'))}</p>
-  </div>
-</section>""")
-    count = len(index["entries"])
-    return f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="cpb-gallery-revision" content="{_escape(index.get('revision'))}"><base href="{_escape(base_href)}"><title>{_escape(index.get('title'))}</title>
-<style>
-[hidden] {{ display: none !important; }}
-.gallery-controls {{ display:flex; flex-wrap:wrap; gap:.8rem; align-items:center; position:sticky; top:0; padding:.8rem; background:#fafafa; z-index:2; border-bottom:1px solid #bbb; }}
-.gallery-controls input, .gallery-controls select, .gallery-controls button {{ padding:.4rem; }}
-body {{ font-family: system-ui, sans-serif; margin: 1.5rem; color: #222; background: #fafafa; }}
-h1 {{ font-size: 1.4rem; }} h2 {{ font-size: 1rem; margin: 0 0 .25rem; }}
-.iteration {{ display: grid; grid-template-columns: 320px 1fr; gap: 1rem; padding: 1rem; margin: 0 0 1rem; background: #fff; border: 1px solid #ddd; }}
-.iteration.accepted {{ border-color: #2a7; }} .iteration.rejected {{ opacity: .6; }} .iteration.superseded {{ border-style: dashed; }}
-.iteration.unavailable {{ border-color: #c55; }} .diagnostic {{ color: #a33; }}
-.image img {{ max-width: 320px; max-height: 320px; display: block; }} .none {{ color: #999; }}
-.status {{ font-weight: normal; color: #666; }} .when, .hash {{ color: #777; font-size: .85rem; }}
-pre {{ white-space: pre-wrap; background: #f4f4f4; padding: .5rem; margin: 0 0 .5rem; }}
-table {{ border-collapse: collapse; font-size: .9rem; }} th {{ text-align: left; padding: .1rem .6rem .1rem 0; color: #555; }} td {{ padding: .1rem 0; }}
-.note {{ font-style: italic; }}
-</style></head>
-<body data-studio="{_escape(index.get('studio_id'))}"><h1>{_escape(index.get('title'))} ({_escape(index.get('studio_id'))}): {count} {'image' if count == 1 else 'images'}</h1>
-<p>Newest received or published artwork first. Acceptance does not change its creation order. Display rebuilt at {_escape(index.get('generated_at'))}.</p>
-<p><a href="work/activity/timeline.md">Activity log</a> | <a href="work/activity/timeline.jsonl">Machine-readable log</a></p>
-{('<pre class="diagnostic">'+_escape(json.dumps(index.get('diagnostics'),ensure_ascii=False,indent=2))+'</pre>') if index.get('diagnostics') else ''}
-{CONTROLS}<main id="gallery-entries">{''.join(rows)}</main>{SCRIPT}
-</body></html>
-"""
-
-
 def gallery_stale(root: Path) -> str | None:
-    """Why the gallery on disk is not the one the records would produce, or None."""
-    json_path = root / "gallery.json"
-    if not json_path.is_file() or not (root / "gallery.html").is_file():
-        return "gallery.json or gallery.html is missing"
-    try:
-        held = read_json(json_path)
-    except (ValueError, json.JSONDecodeError) as exc:
-        return f"gallery.json: {exc}"
-    try:
-        expected = gallery_index(root)
-    except (ValueError, OSError) as exc:
-        return f"the records cannot be read into a gallery: {exc}"
-    if (not isinstance(held, dict) or held.get("entries") != expected['entries']
-            or held.get('revision') != expected['revision']):
-        return "gallery.json does not list what the artwork records hold"
-    try:
-        page = (root / 'gallery.html').read_text(encoding='utf-8')
-    except (ValueError, OSError) as exc:
-        return f"gallery.html: {exc}"
-    marker = '<meta name="cpb-gallery-revision" content="' + expected['revision'] + '">'
-    if marker not in page:
-        return 'gallery.html does not match the recorded gallery revision; run studio.py sync'
-    return None
+    """Why the complete gallery projection differs from recorded artwork, or None."""
+    from studio_gallery import stale
+    return stale(root)
 
 
 def write_gallery(root: Path, out: Path | None = None) -> tuple[Path, Path]:
-    """Write gallery.json and gallery.html in the studio root, or the HTML where asked with its JSON beside it.
+    """Refresh the complete inventory and offline browser view from recorded artwork.
 
-    Every command that records something calls this, so the gallery is current
-    without anyone asking for it; the command exists for a record edited by hand.
+    The gallery owner publishes only changed generated bytes. An explicit output
+    has an independent companion directory and rebased links to this Studio.
     """
+    from studio_gallery import publish
     with recording_lock(root):
-        index = gallery_index(root)
-        html_path = (out or (root / "gallery.html")).resolve()
-        json_path = html_path.with_suffix(".json")
-        write_json(json_path, index)
-        from urllib.parse import quote
-        base_href = quote(os.path.relpath(root, html_path.parent).replace(os.sep, '/').rstrip('/') + '/', safe='/')
-        execution_contract.atomic(html_path, render_gallery(index, base_href=base_href).encode("utf-8"), replace=True)
-    return html_path, json_path
+        return publish(root, gallery_index(root), out)
 
 
 # What a session reads first.

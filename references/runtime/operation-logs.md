@@ -135,7 +135,7 @@ A synthetic dry run, trimmed; the protected operation is the cleanup itself:
 ```
 
 Cleanup never removes formal requests, responses, candidates, reviews or other Production evidence.
-Confirm an external host's actual result with `settle-external`; unknown billing is never treated as zero.
+Receive an external host's actual response and files with `receive-external`; unknown billing is never treated as zero.
 
 
 ## Automatic operator timeline

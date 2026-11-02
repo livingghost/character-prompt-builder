@@ -271,14 +271,14 @@ def fill_decisions(root:Path,run:str,path:str)->str:
     import production_execution as execution
     import production_store as store
     import production_workflow as workflow
-    from production_request import assessment_source
     value=execution.draft_execution(root,run,'fixture-grant')
     authority=store.authority(root,workflow.load_run(root,run)[1]['task']['task_id'])
-    for request in value['authorizations']:
+    for request in value['decisions']:
         request['reason']='Explicit synthetic fixture decision. Not user consent.'
         if request['operation']=='submit':
-            request['request_decision']['principal_approval']=assessment_source(root,request['payload'],
-                principal=authority['issuer'],path=authority['evidence']['path'],locator='whole')
+            if 'principal_approval' in request['request_decision']:
+                request['request_decision']['principal_approval'] = {
+                    'path': authority['evidence']['path'], 'locator': authority['evidence']['locator']}
             from production_fixtures import assess_rendition
             assess_rendition(request['request_decision']['rendition_review'])
     write(root/path,value)

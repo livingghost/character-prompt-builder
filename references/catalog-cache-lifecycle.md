@@ -2,7 +2,7 @@
 
 ## Authority
 
-Pack source files and `pack-state.json` are authoritative. The SQLite catalog cache is derived and disposable. It must never be edited as source data or distributed as the authored contents of a pack.
+Pack source files and `pack-state.json` are authoritative. The SQLite search cache and the enabled-runtime browser catalog are derived and disposable. It must never be edited as source data or distributed as the authored contents of a pack.
 
 `pack-state.json` is the sole user-controlled activation state. It contains:
 
@@ -25,19 +25,17 @@ Every authored `search_terms` row retains its phrase, facet, weight, and source 
 
 ## Freshness snapshot
 
-Every catalog entry point performs a lightweight comparison before using the cache. The source fingerprint covers:
+Every catalog request boundary selects one content fingerprint before using the search cache. It covers:
 
-- core release
-- enabled pack UUIDs from state
-- resolved root of each available enabled pack
-- available enabled packs and releases
-- SHA-256 of each `pack.json`
-- SHA-256 of each available `pack.lock.json`
-- relative path, byte size, and nanosecond modification time for every pack file
-- discovery diagnostics, including missing enabled packs
-- hashes of the cache builder, `pack_manager.py`, `search_discovery.py`, `state_protocol.py`, and current pack schemas
+- enabled pack UUIDs and explicit `pack_order`;
+- resolved roots of available enabled packs;
+- SHA-256 of every pack file, including its manifest and lock when present;
+- discovery diagnostics, including missing enabled packs;
+- the cache builder and the modules and schemas that determine its contents.
 
-The tree inventory detects additions and deletions. Size and modification time identify files that require full validation during a rebuild. Manifest and lock hashes are always included. A released pack's lock supplies the authoritative content hashes.
+Additions, changes and deletions therefore affect freshness through actual bytes. File timestamps and sizes do not substitute for content. A release label is already covered by its manifest bytes; a product version alone does not invalidate the cache.
+
+`refresh_runtime_catalog` selects and hydrates the same immutable cache once. A caller publishing a derived view receives that exact resolved catalog instead of rediscovering packs or constructing an inspection cache.
 
 ## Rebuild triggers
 
@@ -80,11 +78,17 @@ Each named resource resolves to the file of the highest-ranked active pack that 
 
 ## Atomic construction
 
-One process obtains a cache lock. Other processes wait briefly for the same result instead of starting duplicate rebuilds. A well-formed lock is recovered only when its recorded owner process no longer exists; elapsed time alone never steals a legitimate long rebuild. A malformed lock is allowed one lock-timeout interval to finish being written, then is treated as ownerless and recovered. A live, well-formed owner always wins over elapsed time.
+A writer holds the cache's operating-system lock while constructing one new fingerprint-named SQLite file. It commits the data, checks database integrity, closes the file and publishes it whole. Published caches are immutable, so an open reader does not block a subsequent generation. A cache removed between selection and opening is selected again from current inputs; readers close their handles explicitly.
 
-The writer creates a separate SQLite file, commits all records and indexes, runs an integrity check, closes every database handle, and then atomically replaces the current cache. A failed temporary build never replaces the current file.
+## Browser projection
 
-Windows requires every reader connection to close before replacement. Runtime loaders therefore close SQLite handles explicitly rather than relying on garbage collection.
+`ready` and successful public pack-changing operations maintain the browser projection using their already loaded runtime. Lock publication, installation, update and removal update the display only when state has already been selected; an absent state remains absent, and the operation reports an unselected browser view. Its output is `CACHE/browser-catalog/CONTEXT/`, where the context hashes the selected state-file path, explicit discovery-root selection and managed root. Independent runtimes sharing a search-cache directory cannot overwrite each other's browser view.
+
+The browser manifest records the resolved source fingerprint, renderer fingerprint, display settings and generated-file inventory. Matching inputs and complete files reuse the site without writes; changed inputs or missing pages trigger one transactional directory replacement. The site shows resolved active records, retains declared evidence links and uses pack-owned thumbnails. It does not copy the source corpus or write into a pack.
+
+An empty active set publishes an empty current site. Invalid packs are omitted with their runtime diagnostics. A rendering or output failure marks the managed landing page unavailable and reports a display warning; it does not undo activation, alter authored data or become an additional readiness gate. A later readiness or maintenance boundary retries the view. Ordinary search requests, image operations and SessionStart do not rebuild the HTML site.
+
+Explicit `catalog_html.py --pack-tree` exports and full-release catalogs retain their separately selected inspection or distribution scope. See [Catalog export](maintenance/catalog-export.md).
 
 ## Status and repair
 
@@ -94,6 +98,6 @@ python scripts/pack_cli.py cache-refresh
 python scripts/pack_cli.py cache-refresh --force
 ```
 
-`cache-status` compares source and cached fingerprints without rebuilding. `cache-refresh` rebuilds only when stale. `--force` performs a complete cache reconstruction from the enabled state.
+`cache-status` compares source and cached fingerprints without rebuilding and reports the managed browser view's freshness and entry point. `cache-refresh` rebuilds only when stale and maintains the browser view from the resulting catalog. `--force` performs a complete cache reconstruction from the enabled state.
 
 Deleting the cache is safe, but normal users should prefer `cache-refresh --force` so locking and validation remain active.

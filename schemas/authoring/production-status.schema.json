@@ -117,20 +117,37 @@
         {
           "type": "object",
           "properties": {
-            "source": {"const": "api_key"},
-            "service": {"$ref": "#/$defs/authentication_identifier"}
+            "source": {
+              "const": "api_key"
+            },
+            "service": {
+              "$ref": "#/$defs/authentication_identifier"
+            }
           },
-          "required": ["source", "service"],
+          "required": [
+            "source",
+            "service"
+          ],
           "additionalProperties": false
         },
         {
           "type": "object",
           "properties": {
-            "source": {"const": "api_key_env"},
-            "service": {"$ref": "#/$defs/authentication_identifier"},
-            "variable": {"$ref": "#/$defs/authentication_variable"}
+            "source": {
+              "const": "api_key_env"
+            },
+            "service": {
+              "$ref": "#/$defs/authentication_identifier"
+            },
+            "variable": {
+              "$ref": "#/$defs/authentication_variable"
+            }
           },
-          "required": ["source", "service", "variable"],
+          "required": [
+            "source",
+            "service",
+            "variable"
+          ],
           "additionalProperties": false
         }
       ]
@@ -143,16 +160,35 @@
         {
           "type": "object",
           "properties": {
-            "required": {"type": "boolean"},
-            "available": {"type": ["boolean", "null"]},
-            "selection": {"$ref": "#/$defs/authentication_selection"},
+            "required": {
+              "type": "boolean"
+            },
+            "available": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "selection": {
+              "$ref": "#/$defs/authentication_selection"
+            },
             "diagnostics": {
               "type": "array",
-              "items": {"$ref": "#/$defs/diagnostic"}
+              "items": {
+                "$ref": "#/$defs/diagnostic"
+              }
             },
-            "remote_validation": {"const": "not-performed"}
+            "remote_validation": {
+              "const": "not-performed"
+            }
           },
-          "required": ["required", "available", "selection", "diagnostics", "remote_validation"],
+          "required": [
+            "required",
+            "available",
+            "selection",
+            "diagnostics",
+            "remote_validation"
+          ],
           "additionalProperties": false
         }
       ]
@@ -278,6 +314,12 @@
             },
             "input": {
               "$ref": "#/$defs/authentication_input"
+            },
+            "read_context": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/next_action"
+              }
             }
           },
           "required": [
@@ -287,13 +329,19 @@
           ],
           "additionalProperties": false,
           "if": {
-            "required": ["input"]
+            "required": [
+              "input"
+            ]
           },
           "then": {
             "properties": {
-              "requires_author_input": {"const": true}
+              "requires_author_input": {
+                "const": true
+              }
             },
-            "required": ["requires_author_input"]
+            "required": [
+              "requires_author_input"
+            ]
           }
         }
       ]

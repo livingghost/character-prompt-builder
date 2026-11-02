@@ -1,81 +1,57 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Production input choices draft",
+  "title": "Authored production input choices",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "state",
-    "choices",
-    "unresolved",
-    "derived_from",
-    "external_effect"
+    "reading",
+    "visual",
+    "validation",
+    "task_changes",
+    "external"
   ],
   "properties": {
-    "state": {
-      "const": "draft"
+    "reading": {
+      "type": [
+        "object",
+        "null"
+      ]
     },
-    "external_effect": {
-      "const": false
+    "visual": {
+      "type": [
+        "object",
+        "null"
+      ]
     },
-    "derived_from": {
-      "type": "object"
+    "validation": {
+      "type": [
+        "object",
+        "null"
+      ]
     },
-    "unresolved": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "field",
-          "code"
-        ],
-        "properties": {
-          "field": {
-            "type": "string",
-            "minLength": 1
-          },
-          "code": {
-            "type": "string",
-            "minLength": 1
+    "task_changes": {
+      "type": "object",
+      "description": "Explicitly changed authored task fields. The selected task or run owns task identity and authority."
+    },
+    "external": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "image_input"
+          ],
+          "properties": {
+            "image_input": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         }
-      }
-    },
-    "choices": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "reading",
-        "visual",
-        "validation",
-        "source_run"
-      ],
-      "properties": {
-        "reading": {
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "visual": {
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "validation": {
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "source_run": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      }
+      ]
     }
   }
 }

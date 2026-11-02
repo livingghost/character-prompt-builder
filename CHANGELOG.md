@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026.11.02.6
+
+- Assemble inputs from a saved run or an authored task without copying a second task. Compact choices select the meaning and sources; the builders materialize exact external requests and bind their generated file paths.
+- Use one compact execution decision document for dispatcher and external image work. Independent direction and submission records retain their own grants and judgments; exact payloads, actors and hashes are derived from the prepared run.
+- Receive actual external responses, local images or explicitly selected encoded images in one operation. Capture precedes generated receipt settlement, and recovery never sends another request.
+- Read full input, decision, candidate-only observation and review contexts from the current run. Review drafts contain unanswered observations and judgments; prepared reference evidence is resolved automatically into the formal review.
+- Follow status actions with their relevant context views and existing editing drafts. Generated instructions remain distinct from evidence of an actual host call.
+- Browse a compact Studio gallery with bounded active cards, separate complete entry pages and on-demand history search. Unchanged displays reuse their files while the complete recorded inventory remains available.
+- Maintain the active runtime's browser catalog at readiness and pack-change boundaries. Separate runtime contexts keep separate views, unchanged content is reused, and display failures do not undo committed pack decisions.
+
 ## 2026.11.02.5
 
 - Resolve both sides of the check runner's temporary-source path comparison before

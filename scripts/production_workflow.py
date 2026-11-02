@@ -983,50 +983,16 @@ def capture(root: Path, run: str, artifact: str, note: str) -> dict:
                              {'handoff': hand['sha256'], 'files': [item], 'media': measured, 'note': note})
 
 
-def settle_external(root: Path, run: str, receipt_file: str) -> dict:
-    """Record a host's evidenced result and actual bill, never a price estimate.
-
-    This is recovery only, with no host invocation. Billing evidence is optional.
-    The response and signed-by-actor declaration are saved as immutable evidence.
-    """
-    import production_store as store
-    with store.transaction(root):
-        directory, prepared, consumer, rows = load_run(root, run)
-        if prepared['task']['execution'] != 'external':
-            raise ProductionError('INPUT_CONSISTENCY_ERROR', 'This run does not delegate execution to an external host.', phase='settlement', run=run)
-        receipt = c.load(c.local(root, receipt_file))
-        schema_check(receipt, 'external-receipt')
-        claim = find(rows, 'external-claim', receipt['claim'])
-        authorization = claim['data']['authorizations'][0]
-        request = find(rows, 'authorization', authorization)['data']['request']
-        if receipt['actor'] != request['actor']:
-            raise ProductionError('AUTHORIZATION_MISMATCH', 'External receipt actor differs from the delegated executor.', phase='settlement', run=run)
-        acquired = [row for row in rows if row['event'] == 'candidate']
-        if receipt['outputs'] != len(acquired):
-            raise ProductionError('INPUT_CONSISTENCY_ERROR', 'External receipt output count differs from the saved candidates.', phase='settlement', run=run,
-                                  expected=len(acquired), actual=receipt['outputs'])
-        response = file_record(root, directory, receipt['response']['path'])
-        if response['sha256'] != receipt['response']['sha256']:
-            raise ProductionError('EVIDENCE_SNAPSHOT_CORRUPT', 'External response does not match the declared digest.', phase='settlement', run=run,
-                                  expected=receipt['response']['sha256'], actual=response['sha256'])
-        evidence = [file_record(root, directory, receipt_file), response]
-        import image_input
-        submission = receipt.get('submission')
-        submission_record = None
-        if submission is not None:
-            submission_record = file_record(root, directory, submission['path'])
-            evidence.append(submission_record)
-        request_evidence = image_input.submission_evidence(consumer.get('image_input'), submission,
-            lambda path: c.object_read(directory, submission_record['sha256']))
-        if receipt['final']:
-            lifecycle.record_effect(root, run, authorization, claim=claim['sha256'], step='external-send',
-                usage={**receipt['cost'], 'final': True} if receipt['cost'] is not None else None, evidence=evidence)
-        row = lifecycle.record_result(root, run, authorization, outputs=receipt['outputs'], cost=receipt['cost'],
-                               final=receipt['final'], evidence=evidence)
-        return {'recorded': receipt['final'],
-                'execution_completed': receipt['final'] and receipt['outputs'] == claim['data']['count'],
-                'request_evidence': request_evidence,
-                'receipt': row, 'external_effect': False, 'execution_records': lifecycle.summary(root, run=run)}
+def receive_external(root: Path, run: str, *, response_file: str, artifacts: list[str] | None = None,
+                     image_pointers: list[list[str | int]] | None = None, final: bool, reason: str,
+                     submission_file: str | None = None, request_pointer: list[str | int] | None = None,
+                     model_identity_pointer: list[str | int] | None = None,
+                     cost_pointer: list[str | int] | None = None) -> dict:
+    """Receive actual host results; derive hashes, counts and the result receipt."""
+    from production_external import receive_external as receive
+    return receive(root, run, response_file=response_file, artifacts=artifacts, image_pointers=image_pointers,
+                   final=final, reason=reason, submission_file=submission_file, request_pointer=request_pointer,
+                   model_identity_pointer=model_identity_pointer, cost_pointer=cost_pointer)
 
 
 def _review_delivered_reference_evidence(directory: Path, run: str, binding: dict | None = None) -> list[dict]:
@@ -1111,40 +1077,40 @@ def _review_reference_evidence(directory: Path, run: str, consumer: dict) -> lis
     return evidence
 
 
-def _review_question(task: dict, criterion: dict, craft_questions: list[str]) -> str:
-    """Keep the commission and the authored means distinguishable in a review question."""
-    lines = ['Prepared artifact purpose: ' + task['direction']['purpose'],
-             'Intended effect: ' + task['direction']['intended_effect'],
-             'Recorded criterion: ' + criterion['text'],
-             'Judge the depicted result against the request and applicable sources. '
-             'The authored realization is a means to assess, not independent authority for this criterion.',
-             'Assess using ' + criterion['evidence'] + ' evidence; record observations, interpretation and limits.']
+def _review_criterion(task: dict, criterion: dict, craft_questions: list[str]) -> dict:
+    """Expose the prepared criterion and its chosen means without authoring a verdict."""
+    realizations = []
     for decision in task['direction']['decisions']:
         if criterion['id'] not in decision['criteria']:
             continue
         selected = next(option for option in decision['options'] if option['id'] == decision['selected'])
-        lines.extend(['Selected expression (' + decision['id'] + '): ' + selected['expression'],
-                      'Selected realization: ' + selected['realization']['instructions']])
-        if decision['basis']:
-            lines.append('Applied sources in the prepared task: ' + ', '.join(decision['basis']))
-        for variation in decision.get('accepted_variations', []):
-            if criterion['id'] in variation['criteria']:
-                lines.append('Accepted variation: ' + variation['allowance'])
-                if variation['limits']:
-                    lines.append('Variation scope: ' + '; '.join(variation['limits']))
-    lines.extend(craft_questions)
-    return '\n'.join(lines)
+        realizations.append({'decision': decision['id'], 'expression': selected['expression'],
+            'instructions': selected['realization']['instructions'], 'basis': decision['basis'],
+            'accepted_variations': [variation for variation in decision.get('accepted_variations', [])
+                                    if criterion['id'] in variation['criteria']]})
+    return {**criterion, 'realizations': realizations, 'craft_questions': craft_questions}
+
+
+def review_basis(root: Path, run: str, candidate: str | None = None) -> dict:
+    """Read frozen assessment context separately from the reviewer's editable answers."""
+    directory, prepared, consumer, rows = load_run(root, run)
+    if candidate is not None:
+        find(rows, 'candidate', candidate)
+    from craft_consultation import review_questions
+    questions = review_questions(root, prepared['task'], directory=directory, dependencies=prepared['dependencies'])
+    task = prepared['task']
+    return {'purpose': task['direction']['purpose'], 'intended_effect': task['direction']['intended_effect'],
+            'criteria': [_review_criterion(task, item, questions.get(item['id'], [])) for item in task['criteria']],
+            'evidence': _review_reference_evidence(directory, run, consumer)}
 
 
 def draft_review(root: Path, run: str, candidate: str) -> dict:
-    directory, prepared, consumer, rows = load_run(root, run)
+    _, prepared, _, rows = load_run(root, run)
     find(rows, 'candidate', candidate)
-    from craft_consultation import review_questions
-    questions = review_questions(root, prepared['task'], directory=directory, dependencies=prepared['dependencies'])
     return {'input_sha256': prepared['input_sha256'], 'candidate': candidate, 'reviewer': '',
-            'evidence': _review_reference_evidence(directory, run, consumer), 'observations': [],
+            'evidence': [], 'observations': [],
             'checks': [{'criterion': x['id'], 'verdict': 'not-assessed', 'observation_indices': [],
-                        'reason': _review_question(prepared['task'], x, questions.get(x['id'], []))}
+                        'reason': ''}
                        for x in prepared['task']['criteria']],
             'repairs': [], 'unresolved': [], 'conclusion': ''}
 
@@ -1196,11 +1162,12 @@ def validate_review(data: Any, prepared: dict, candidate: dict, raw: bytes,
 
 def review(root: Path, run: str, review_file: str) -> dict:
     with store.transaction(root):
-        directory, prepared, _, rows = load_run(root, run)
+        directory, prepared, consumer, rows = load_run(root, run)
         item = file_record(root, directory, review_file)
         data = c.decode(c.object_read(directory, item['sha256']))
         schema_check(data, 'review')
         candidate = find(rows, 'candidate', data['candidate'])
+        data['evidence'] = _review_reference_evidence(directory, run, consumer) + data['evidence']
         supplemental: dict[str, tuple[bytes, dict]] = {}
         records = []
         for spec in data['evidence']:
@@ -1986,7 +1953,7 @@ COMMAND_HELP = {
     'check': 'Check a task and show its request preview and execution plan without creating a run.',
     'prepare': 'Check a task and publish it as a prepared run with its exact request and execution plan.',
     'draft-execution': 'Write the unanswered execution decision file for every operation of a prepared run.',
-    'execute': 'Authorize, claim, send and record the one request a prepared run owns.',
+    'execute': 'Apply the separate execution decisions, then dispatch or hand the exact request to its external host once.',
     'resume': 'Recover the same execution without sending it again where a send has started.',
     'draft-outcome': "Write the statement to fill when the provider's records hold no task for a started send.",
     'status': 'Report each run by preparation, readiness, submission, capture, review and disposition.',
@@ -2000,11 +1967,12 @@ COMMAND_HELP = {
     'handoff': 'Record a conversation or manual handoff that happened under an exact direction authorization.',
     'external-intent': 'Show the exact submission operation that an external host call needs authorized.',
     'claim-external': 'Commit the boundary before an external host invokes its tool under an exact authorization.',
-    'settle-external': "Record an external host's evidenced result and actual charge.",
+    'receive-external': 'Receive actual response files and images, derive their receipt and settle the existing host call.',
+    'workspace': 'Read the exact input, decision basis, candidate observation or review context without editing records.',
     'draft-authorization': 'Write an unanswered authorization request for one exact operation intent.',
     'authorize': 'Record a completed authorization request for one exact operation of a run.',
     'capture': 'Record a received result file as a candidate of the run.',
-    'draft-review': 'Write the review form of one candidate with a question for each criterion.',
+    'draft-review': 'Write the compact unanswered review form of one candidate.',
     'review': 'Record a completed review of one candidate.',
     'draft-disposition': 'Write the form that records a candidate as not selected.',
     'disposition': 'Record an explicit decision that a candidate is not selected.',
@@ -2069,14 +2037,13 @@ OPTION_HELP = {
     ('select', 'file'): 'Completed selection file from draft-selection, or - for stdin.',
     ('selection-intent', 'file'): 'Completed selection file from draft-selection, or - for stdin.',
     ('disposition', 'file'): 'Completed disposition file from draft-disposition, or - for stdin.',
-    ('settle-external', 'file'): 'Evidenced external receipt file, or - for stdin.',
     ('revise', 'task'): 'Studio-relative revised task JSON file; a file only, not stdin.',
     ('revision-intent', 'task'): 'Studio-relative revised task JSON file; a file only, not stdin.',
 }
 # Arguments that name one JSON input file and accept - for stdin.
 STDIN_INPUTS = ('decisions_file', 'file', 'request', 'intent', 'approval', 'outcome_file', 'registration_record', 'changes_file')
 # Arguments that name a studio file.
-FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'artifact')
+FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'artifact', 'response_file', 'submission_file')
 
 
 def build_parser():
@@ -2137,11 +2104,26 @@ def build_parser():
             p.add_argument('--count', type=int, required=True)
         if name in {'draft-review', 'draft-selection', 'draft-disposition', 'candidate-status', 'revision-intent', 'revise', 'adopt', 'adoption-intent'}:
             p.add_argument('--candidate', required=True)
-        if name in {'authorize', 'review', 'select', 'selection-intent', 'disposition', 'settle-external'}:
+        if name in {'authorize', 'review', 'select', 'selection-intent', 'disposition'}:
             p.add_argument('--file', required=True)
         if name == 'capture':
             p.add_argument('--artifact', required=True)
             p.add_argument('--note', required=True)
+        if name == 'workspace':
+            p.add_argument('--phase', required=True, choices=['input', 'decision', 'observe', 'review'],
+                           help='The context to read; observe exposes candidate evidence before the assessment basis.')
+            p.add_argument('--candidate', help='Candidate event ID for observe or review.')
+        if name == 'receive-external':
+            p.add_argument('--response', dest='response_file', required=True, help='Actual saved host response file.')
+            p.add_argument('--artifact', dest='artifacts', action='append', default=[], help='Received file; repeat for several files.')
+            p.add_argument('--image-pointer', dest='image_pointers', action='append', type=json.loads, default=[],
+                           help='JSON array of keys/indices selecting a base64 image or image data URL in the response; repeat as needed.')
+            p.add_argument('--call', dest='submission_file', help='Actual saved host call, when available.')
+            p.add_argument('--request-pointer', type=json.loads, help='JSON key/index array selecting the request in --call; [] selects its root.')
+            p.add_argument('--model-identity-pointer', type=json.loads, help='JSON key/index array selecting observed model identity in --call.')
+            p.add_argument('--cost-pointer', type=json.loads, help='JSON key/index array selecting actual {currency, amount} in the response.')
+            p.add_argument('--pending', action='store_true', help='The host has not delivered its final outcome yet.')
+            p.add_argument('--reason', required=True, help='Executor explanation of the observed final or pending outcome.')
         if name == 'draft-authorization':
             p.add_argument('--intent', required=True)
         if name in {'revision-intent', 'revise'}:
@@ -2300,8 +2282,17 @@ def main() -> int:
             _write_new(root, args.out, result)
         elif name == 'authorize':
             result = authorize(root, args.run, args.file)
-        elif name == 'settle-external':
-            result = settle_external(root, args.run, args.file)
+        elif name == 'receive-external':
+            from production_binding import studio_file
+            artifacts = [studio_file(root, path, option='--artifact').relative_to(root).as_posix()
+                         for path in args.artifacts]
+            result = receive_external(root, args.run, response_file=args.response_file, artifacts=artifacts,
+                image_pointers=args.image_pointers, final=not args.pending, reason=args.reason,
+                submission_file=args.submission_file, request_pointer=args.request_pointer,
+                model_identity_pointer=args.model_identity_pointer, cost_pointer=args.cost_pointer)
+        elif name == 'workspace':
+            from production_workspace import workspace
+            result = workspace(root, args.run, phase=args.phase, candidate=args.candidate)
         elif name == 'capture':
             result = capture(root, args.run, args.artifact, args.note)
         elif name in {'draft-review', 'draft-selection'}:

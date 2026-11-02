@@ -58,7 +58,8 @@
         ],
         "additionalProperties": false
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "The editable draft contains additional reviewer evidence. Recording also resolves prepared references and delivery carriers from the run."
     },
     "observations": {
       "type": "array",
@@ -247,7 +248,7 @@
           },
           "reason": {
             "type": "string",
-            "minLength": 1
+            "minLength": 0
           }
         },
         "required": [
@@ -256,7 +257,30 @@
           "observation_indices",
           "reason"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "verdict": {
+                  "not": {
+                    "const": "not-assessed"
+                  }
+                }
+              },
+              "required": [
+                "verdict"
+              ]
+            },
+            "then": {
+              "properties": {
+                "reason": {
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        ]
       },
       "minItems": 0
     },

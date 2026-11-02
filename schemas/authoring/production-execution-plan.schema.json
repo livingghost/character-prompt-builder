@@ -82,7 +82,8 @@
         },
         "method": {
           "enum": [
-            "dispatcher"
+            "dispatcher",
+            "manual"
           ]
         },
         "consumer_sha256": {
@@ -217,7 +218,8 @@
         "prepared_request_sha256",
         "model_identity",
         "validation",
-        "review_requirements"
+        "review_requirements",
+        "handoff"
       ]
     }
   },

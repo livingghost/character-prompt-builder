@@ -64,7 +64,7 @@ The host's session hook uses this same uv environment. An agent working from a S
 
 ## First commands
 
-Settle the content-pack state, then ask the catalog for options around a real brief. These commands read local resources only and generate nothing:
+Settle the content-pack state, then ask the catalog for options around a real brief. `ready` maintains the active packs' browser catalog and prints its entry point. These commands prepare and inspect local resources:
 
 ```sh
 python scripts/pack_cli.py ready

@@ -463,18 +463,30 @@ class SemanticEditPlanTests(unittest.TestCase):
     def test_external_preview_does_not_relax_dispatcher_plan_requirements(self):
         from state_protocol import validate_against_schema
         from model_rendition import review_requirements
+        from production_request import external_intent
         schema = c.load(edits.ROOT / 'schemas/authoring/production-execution-plan.schema.json')
+        binding = self.validate()
+        external = binding['external_request']
+        consumer = {'instructions': PROMPT, 'image_input': binding}
+        handoff = {'recipient': TARGET['service'], 'method': 'manual',
+                   'consumer_sha256': c.content_id(consumer), 'targets': ['delivery']}
+        operations = [{'operation': 'direction', 'targets': handoff['targets'],
+                       'payload': {key: handoff[key] for key in ('recipient', 'method', 'consumer_sha256')}},
+                      external_intent(consumer, handoff['recipient'])]
         value = {'run': None, 'execution': 'external', 'input_sha256': '0' * 64,
-                 'request_sha256': None, 'operations': [], 'external_effects': [],
+                 'request_sha256': binding['binding_sha256'], 'operations': operations,
+                 'external_effects': [{'operation': 'send', 'count': 1, 'outputs': 1}],
+                 'handoff': handoff,
                  'readiness': {'state': 'authorization_required', 'executable': False, 'diagnostics': []},
-                 'request': c.load(self.root / 'request.json'), 'service': TARGET['service'],
+                 'request': external['request'], 'service': TARGET['service'],
                  'model': TARGET['model_identifier'], 'quantities': {'submissions': 1, 'outputs': 1},
-                 'prepared_request_sha256': c.sha256_file(self.root / 'request.json'),
-                 'model_identity': None, 'validation': {'mode': 'bounded-probe', 'unmeasured': ['schema-unavailable']},
+                 'prepared_request_sha256': external['sha256'],
+                 'model_identity': external.get('model_identity'), 'validation': external['schema_validation'],
                  'review_requirements': review_requirements()}
         self.assertEqual(validate_against_schema(value, schema), [])
         value['execution'] = 'dispatcher'
         value.pop('validation')
+        value.pop('handoff')
         errors = validate_against_schema(value, schema)
         for field in ('recording', 'transport', 'handoff', 'validation', 'mutable_fields'):
             self.assertTrue(any('requires ' + repr(field) in error for error in errors), errors)
@@ -1012,13 +1024,14 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
             'reference_id': row['id'], 'resolved_path': str(self.root / row['file'])}}
             for row in self.plan['references']]
 
-    def assert_review_sources_and_carriers(self, draft, references, directory):
+    def assert_review_sources_and_carriers(self, draft, references, directory, evidence):
         selected = references['selected_references']
-        original = [item for item in draft['evidence'] if item['id'].startswith('input-reference:')]
-        delivered = [item for item in draft['evidence'] if item not in original]
+        original = [item for item in evidence if item['id'].startswith('input-reference:')]
+        delivered = [item for item in evidence if item not in original]
         self.assertEqual(len(original), len(selected))
         self.assertEqual(len(delivered), len(selected))
         self.assertEqual(draft['observations'], [])
+        self.assertEqual(draft['evidence'], [])
         self.assertTrue(all(row['verdict'] == 'not-assessed' for row in draft['checks']))
         for index, (source_item, delivered_item, reference) in enumerate(zip(original, delivered, selected, strict=True)):
             self.assertEqual(source_item['kind'], 'image')
@@ -1105,7 +1118,8 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         candidate = workflow.capture(self.root, run, 'external-result.png', 'Synthetic local result for reference comparison.')
         directory, _, _, _ = workflow.load_run(self.root, run)
         draft = workflow.draft_review(self.root, run, candidate['sha256'])
-        delivered = self.assert_review_sources_and_carriers(draft, references, directory)
+        basis = workflow.review_basis(self.root, run, candidate['sha256'])
+        delivered = self.assert_review_sources_and_carriers(draft, references, directory, basis['evidence'])
         for index, item in enumerate(delivered):
             scope = json.loads(item['relation'].split(': ', 1)[1])['delivery']
             self.assertEqual(scope['request_field'], ['images', 0 if mode == 'single-board' else index])
@@ -1114,13 +1128,13 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         authored['observations'] = [{'evidence': item['id'], 'locator': {'kind': 'whole'},
             'observation': 'The saved synthetic reference is a readable image.',
             'interpretation': 'Its bytes remain available within the assigned reference scope.',
-            'limitations': ['Candidate quality is unassessed.']} for item in authored['evidence']]
+            'limitations': ['Candidate quality is unassessed.']} for item in basis['evidence']]
         authored['conclusion'] = 'Source and prepared carrier observations are recorded separately.'
         write(self.root, 'external-review.json', authored)
         recorded = workflow.review(self.root, run, 'external-review.json')
-        self.assertEqual(recorded['data']['review']['evidence'], authored['evidence'])
+        self.assertEqual(recorded['data']['review']['evidence'], basis['evidence'])
         self.assertEqual([row['sha256'] for row in recorded['data']['evidence']],
-                         [c.sha256_file(self.root / item['path']) for item in authored['evidence']])
+                         [c.sha256_file(self.root / item['path']) for item in basis['evidence']])
         # The historical review owns its pixels after the prepared live paths change.
         for carrier in carriers:
             path = Path(carrier['resolved_path'])
@@ -1284,11 +1298,8 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         write(self.root, 'external-result.png', png((80, 120, 40)))
         workflow.capture(self.root, run, 'external-result.png', 'Synthetic recovered external result.')
         write(self.root, 'external-response.json', {'synthetic': True, 'status': 'received'})
-        receipt = {'claim': claim['sha256'], 'actor': fixture.ACTOR, 'outputs': 1, 'cost': None, 'final': True,
-            'response': {'path': 'external-response.json', 'sha256': c.sha256_file(self.root / 'external-response.json'),
-                         'locator': 'whole'}, 'reason': 'Synthetic result after the live adoption changed.'}
-        write(self.root, 'external-receipt.json', receipt)
-        settled = workflow.settle_external(self.root, run, 'external-receipt.json')
+        settled = workflow.receive_external(self.root, run, response_file='external-response.json',
+            artifacts=['external-result.png'], final=True, reason='Synthetic result after the live adoption changed.')
         self.assertTrue(settled['execution_completed'])
         self.assertEqual(settled['request_evidence']['status'], 'not-provided')
         execution.resume(self.root, run)
@@ -1540,7 +1551,8 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
             (self.root / name).unlink()
         candidate = result['runs'][0]['candidates'][0]
         draft = workflow.draft_review(self.root, run, candidate)
-        self.assert_review_sources_and_carriers(draft, references, directory)
+        basis = workflow.review_basis(self.root, run, candidate)
+        self.assert_review_sources_and_carriers(draft, references, directory, basis['evidence'])
 
     def test_alias_declared_target_still_seals_the_request(self):
         import production_workflow as workflow
@@ -1631,7 +1643,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         write(self.root, 'output.png', png((90, 110, 130)))
         candidate = workflow.capture(self.root, run, 'output.png', 'Synthetic shared-source scope test.')
         review = workflow.draft_review(self.root, run, candidate['sha256'])
-        source_evidence = review['evidence']
+        source_evidence = workflow.review_basis(self.root, run, candidate['sha256'])['evidence']
         self.assertEqual([item['id'] for item in source_evidence], ['input-reference:scene', 'input-reference:design'])
         self.assertEqual(source_evidence[0]['path'], source_evidence[1]['path'])
         scopes = [json.loads(item['relation'].split(': ', 1)[1]) for item in source_evidence]
@@ -1737,13 +1749,9 @@ class SemanticEditProductionTests(unittest.TestCase):
         workflow.capture(self.root, run, 'output.png', 'Synthetic local image for exact-call verification.')
         write(self.root, 'host-response.json', {'synthetic': True, 'status': 'received'})
         write(self.root, 'host-call.json', {'synthetic': True, 'call_id': 'synthetic-text-call', 'arguments': request})
-        receipt = {'claim': claim['sha256'], 'actor': self.fixture.ACTOR, 'outputs': 1, 'cost': None, 'final': True,
-            'response': {'path': 'host-response.json', 'sha256': c.sha256_file(self.root / 'host-response.json'), 'locator': 'whole'},
-            'submission': {'path': 'host-call.json', 'sha256': c.sha256_file(self.root / 'host-call.json'),
-                'locator': 'synthetic actual call', 'request_pointer': ['arguments'], 'model_identity_pointer': None},
-            'reason': 'Synthetic host-call and result records.'}
-        write(self.root, 'receipt.json', receipt)
-        result = workflow.settle_external(self.root, run, 'receipt.json')
+        result = workflow.receive_external(self.root, run, response_file='host-response.json', artifacts=['output.png'],
+            submission_file='host-call.json', request_pointer=['arguments'],
+            final=True, reason='Synthetic host-call and result records.')
         self.assertTrue(result['execution_completed'])
         self.assertEqual(result['request_evidence']['status'], 'matched-recorded-call')
 
@@ -1876,13 +1884,9 @@ class SemanticEditProductionTests(unittest.TestCase):
         write(self.root, 'host-response.json', {'synthetic': True, 'status': 'received'})
         write(self.root, 'host-call.json', {'synthetic': True, 'call_id': 'synthetic-call-1',
             'arguments': c.load(self.root / 'request.json')})
-        receipt = {'claim': claim['sha256'], 'actor': self.fixture.ACTOR, 'outputs': 1, 'cost': None, 'final': True,
-            'response': {'path': 'host-response.json', 'sha256': c.sha256_file(self.root / 'host-response.json'), 'locator': 'whole'},
-            'submission': {'path': 'host-call.json', 'sha256': c.sha256_file(self.root / 'host-call.json'),
-                'locator': 'synthetic actual call', 'request_pointer': ['arguments'], 'model_identity_pointer': None},
-            'reason': 'Synthetic host-call and result records.'}
-        write(self.root, 'receipt.json', receipt)
-        result = workflow.settle_external(self.root, run, 'receipt.json')
+        result = workflow.receive_external(self.root, run, response_file='host-response.json', artifacts=['output.png'],
+            submission_file='host-call.json', request_pointer=['arguments'],
+            final=True, reason='Synthetic host-call and result records.')
         self.assertTrue(result['execution_completed'])
         self.assertEqual(result['request_evidence']['status'], 'matched-recorded-call')
 
@@ -1914,10 +1918,13 @@ class SemanticEditProductionTests(unittest.TestCase):
 
     def test_external_readiness_requires_exact_current_submission_authority(self):
         import production_workflow as workflow
+        import production_execution as execution
         import execution_lifecycle as lifecycle
+        from production_diagnostics import ProductionError
         run = workflow.prepare(self.root, 'task.json')['run']
-        directory = workflow.load_run(self.root, run)[0]
-        self.assertEqual(c.load(directory / 'execution-plan.json')['readiness']['state'], 'authorization_required')
+        directory, prepared, _, _ = workflow.load_run(self.root, run)
+        plan = c.load(directory / 'execution-plan.json')
+        self.assertEqual(plan['readiness']['state'], 'authorization_required')
 
         def status_without_events():
             before = workflow.load_run(self.root, run)[3]
@@ -1929,13 +1936,23 @@ class SemanticEditProductionTests(unittest.TestCase):
 
         initial = status_without_events()
         self.assertEqual(initial['readiness'], 'authorization_required')
-        self.assertEqual(initial['next_action']['command'], 'handoff')
-        self.fixture.handoff(self.root, run, 'synthetic-host', 'manual')
-        handed = status_without_events()
-        self.assertEqual(handed['readiness'], 'authorization_required')
-        self.assertEqual(handed['next_action']['command'], 'claim-external')
-        self.fixture.grant(self.root, run, workflow.external_intent(self.root, run, 1))
-        self.assertEqual(status_without_events()['readiness'], 'ready')
+        self.assertEqual(initial['next_action']['command'], 'draft-execution')
+        choices = execution.draft_execution(self.root, run, 'fixture-grant')
+        self.assertEqual([item['operation'] for item in choices['decisions']], ['direction', 'submit'])
+        self.fixture.grant(self.root, run, plan['operations'][0])
+        directed = status_without_events()
+        self.assertEqual(directed['readiness'], 'authorization_required')
+        self.assertEqual(directed['next_action']['command'], 'draft-execution')
+        for choice in choices['decisions']:
+            choice['reason'] = 'Explicit synthetic fixture execution decision, not user consent.'
+            if choice['operation'] == 'submit':
+                self.fixture.assess_rendition(choice['request_decision']['rendition_review'])
+        write(self.root, 'execution-decisions.json', choices)
+        execution.authorize_decisions(self.root, run, 'execution-decisions.json', prepared, plan)
+        ready = status_without_events()
+        self.assertEqual(ready['readiness'], 'ready')
+        self.assertEqual(ready['next_action']['command'], 'execute')
+        self.assertFalse({'handoff', 'external-claim'} & {row['event'] for row in workflow.load_run(self.root, run)[3]})
 
         authority = c.load(self.root / self.task['authority'])
         authority['grants'][0]['submission_validation_modes'] = ['target-schema']
@@ -1943,6 +1960,9 @@ class SemanticEditProductionTests(unittest.TestCase):
         narrowed = status_without_events()
         self.assertEqual(narrowed['readiness'], 'authorization_required')
         self.assertIn('GRANT_SCOPE_EXCEEDED', {item['code'] for item in narrowed['readiness_diagnostics']})
+        with self.assertRaises(ProductionError) as caught:
+            execution.execute(self.root, run)
+        self.assertEqual(caught.exception.diagnostic.code, 'GRANT_SCOPE_EXCEEDED')
         self.assertEqual(lifecycle.summary(self.root)['submissions'], 0)
 
     def test_bounded_probe_uses_actual_validation_mode_authority(self):
@@ -2020,13 +2040,11 @@ class SemanticEditProductionTests(unittest.TestCase):
         (self.root / 'scene.png').unlink()
         candidate = workflow.capture(self.root, run, 'output.png', 'Synthetic returned pixels; no model-quality claim.')
         self.assertEqual(workflow.capture(self.root, run, 'output.png', 'Repeated synthetic receipt.')['sha256'], candidate['sha256'])
-        write(self.root, 'host-response.json', {'synthetic': True, 'output_sha256': c.digest(output), 'cost': '0'})
-        receipt = {'claim': claim['sha256'], 'actor': self.fixture.ACTOR, 'outputs': 1,
-                   'response': {'path': 'host-response.json', 'sha256': c.sha256_file(self.root / 'host-response.json'), 'locator': 'whole'},
-                   'cost': {'currency': 'USD', 'amount': '0'}, 'final': True,
-                   'reason': 'Synthetic external host receipt of one local PNG.'}
-        write(self.root, 'receipt.json', receipt)
-        self.assertTrue(workflow.settle_external(self.root, run, 'receipt.json')['execution_completed'])
+        write(self.root, 'host-response.json', {'synthetic': True, 'output_sha256': c.digest(output),
+            'cost': {'currency': 'USD', 'amount': '0'}})
+        self.assertTrue(workflow.receive_external(self.root, run, response_file='host-response.json',
+            artifacts=['output.png'], cost_pointer=['cost'], final=True,
+            reason='Synthetic external host receipt of one local PNG.')['execution_completed'])
         before = lifecycle.summary(self.root)
         execution.resume(self.root, run)
         self.assertEqual(lifecycle.summary(self.root), before)
@@ -2034,8 +2052,10 @@ class SemanticEditProductionTests(unittest.TestCase):
         review = workflow.draft_review(self.root, run, candidate['sha256'])
         self.assertTrue(all(x['verdict'] == 'not-assessed' for x in review['checks']))
         self.assertEqual(review['observations'], [])
-        self.assertEqual([item['id'] for item in review['evidence']], ['input-reference:scene', 'input-reference:design'])
-        for item, reference in zip(review['evidence'], bound['references']):
+        evidence = workflow.review_basis(self.root, run, candidate['sha256'])['evidence']
+        self.assertEqual([item['id'] for item in evidence], ['input-reference:scene', 'input-reference:design'])
+        self.assertEqual(review['evidence'], [])
+        for item, reference in zip(evidence, bound['references']):
             self.assertEqual(c.sha256_file(self.root / item['path']), reference['sha256'])
             for value in reference['use_for'] + reference['do_not_transfer']:
                 self.assertIn(value, item['relation'])
@@ -2047,7 +2067,7 @@ class SemanticEditProductionTests(unittest.TestCase):
             'observation': 'The archived input is a readable synthetic PNG.',
             'interpretation': 'This verifies access to prepared source bytes.',
             'limitations': ['Synthetic source access only.']
-        } for item in review['evidence']]
+        } for item in evidence]
         review['conclusion'] = 'Source observations recorded; candidate criteria remain unassessed.'
         write(self.root, 'review.json', review)
         recorded = workflow.review(self.root, run, 'review.json')

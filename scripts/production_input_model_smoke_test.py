@@ -39,7 +39,7 @@ class ModelInputTests(unittest.TestCase):
                             'target': self.target, 'service_profiles': 'services.json',
                             'contract': validation['contract']['path'], 'evidence': validation['evidence']['path'],
                             'execution_policy': validation['execution_policy']['path']},
-                        'source_run': None}
+                        'task_changes': {}, 'external': None}
         self.write('choices.json', self.choices)
 
     def write(self, path, value):
@@ -131,8 +131,9 @@ class ModelInputTests(unittest.TestCase):
         self.assertEqual(action['args']['root'], str(self.root))
         for key, value in context.items():
             self.assertEqual(action['args'][key], value)
-        self.assertIn("Name built/visual-continuity.json as the task's generation.visual_continuity.", action['requires'])
-        self.assertIn("Name built/request-validation.json as the task's generation.request_validation.", action['requires'])
+        built_task = c.load(self.root / result['inputs']['production-task']['path'])
+        self.assertEqual(built_task['generation']['visual_continuity'], 'built/visual-continuity.json')
+        self.assertEqual(built_task['generation']['request_validation'], 'built/request-validation.json')
         saved = c.load(self.root / 'built/input-report.json')
         self.assertEqual(saved['next_actions'], result['next_actions'])
         self.assertFalse(result['execution_ready'])
@@ -192,7 +193,7 @@ class ObservedPackInputTests(unittest.TestCase):
         policy = c.load(self.root / 'validation.json')['execution_policy']['path']
         self.choices = {'reading': {'snapshot_id': None, 'reading_key': reading['reading_key'],
                                    'applied': reading['applied'], 'resource_applied': reading['resource_applied']},
-                        'visual': None, 'source_run': None,
+                        'visual': None, 'task_changes': {}, 'external': None,
                         'validation': {'mode': 'target-schema', 'model': cases.MODEL_ID, 'target': self.target,
                             'service_profiles': None, 'contract': self.selector, 'evidence': self.selector,
                             'execution_policy': policy}}

@@ -74,9 +74,9 @@ Binding IDs retain their exact delivery order. An external image submission's
 `request_decision` contains only this `rendition_review`; its ordinary outer
 authorization grants the exact operation.
 
-`draft-execution` derives identifiers but never fills judgments. Inspect its
-complete request, references, controls and `execution_plan.prompt_check` before
-approving. Draft assessments have null conclusions and empty reasons. Structural
+`draft-execution` produces one compact editing document for dispatcher and external image execution. Its `decisions` keep direction and submission separate. Select grants and write each operation's reason, stop assessments and request judgments; exact payloads, actors, counts and review hashes are derived from the prepared input when execution records the separate authorizations. For a dispatcher principal approval, select only its actual evidence `path` and `locator`; the runtime measures the bytes and binds the current issuer and exact request. Scope assessment entries contain criterion, conclusion and reason. The editing `rendition_review` contains its assessments; the runtime supplies the exact input and reference identities in the formal record.
+
+Use the input workspace before the decision workspace to reconstruct the actual request, then compare it with the source commission and authority. Inspect the complete references, controls and `execution_plan.prompt_check` before approving. Draft assessments have null conclusions and empty reasons. Structural
 checks and dictionary evidence cannot fill them. An unscoped dispatcher request
 needs principal approval; a scoped delegation needs satisfied assessments.
 `GRANT_SCOPE_EXCEEDED` names

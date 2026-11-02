@@ -196,7 +196,10 @@ class ConsultationTests(unittest.TestCase):
         candidate = workflow.capture(self.root, run, 'result.txt', 'Synthetic local text, not a model image.')
         draft = workflow.draft_review(self.root, run, candidate['sha256'])
         check = next(row for row in draft['checks'] if row['criterion'] == 'lamp')
-        self.assertIn('shadow side', check['reason'])
+        basis = workflow.review_basis(self.root, run, candidate['sha256'])
+        criterion = next(row for row in basis['criteria'] if row['id'] == 'lamp')
+        self.assertIn('shadow side', ' '.join(criterion['craft_questions']))
+        self.assertEqual(check['reason'], '')
         self.assertEqual(check['verdict'], 'not-assessed')
         self.assertEqual(check['observation_indices'], [])
         self.assertEqual(draft['conclusion'], '')
@@ -230,14 +233,14 @@ class ConsultationTests(unittest.TestCase):
         app = c.load(self.root / result['application'])
         app['applications'][0]['review_question'] = 'Changed after preparation.'
         self.write(result['application'], app)
-        review = workflow.draft_review(self.root, run, candidate['sha256'])
-        self.assertIn('shadow side', review['checks'][0]['reason'])
-        self.assertNotIn('Changed after', review['checks'][0]['reason'])
+        basis = workflow.review_basis(self.root, run, candidate['sha256'])
+        self.assertIn('shadow side', ' '.join(basis['criteria'][0]['craft_questions']))
+        self.assertNotIn('Changed after', ' '.join(basis['criteria'][0]['craft_questions']))
         with self.assertRaises(ValueError):
             workflow.assert_current(self.root, run)
         # Historical review reads the same immutable application, without claiming
         # the changed live source is ready for a new external execution.
-        self.assertEqual(review, workflow.draft_review(self.root, run, candidate['sha256']))
+        self.assertEqual(basis, workflow.review_basis(self.root, run, candidate['sha256']))
 
     def test_recipe_dependencies_are_opened_not_selected(self):
         recipe = {'id': 'synthetic-recipe', 'base_scene_id': 'synthetic-scene', 'render_profile_id': 'synthetic-profile'}

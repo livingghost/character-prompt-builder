@@ -62,7 +62,7 @@ Construction questions may be empty; tag renditions need a searched vocabulary s
 
 ## Mandatory runtime activation gate
 
-Before prompt, reference, sheet, generation or visual-state series work (not persona or story drafting), run `python scripts/pack_cli.py ready`. For an explicit runtime, supply `--state-file`, `--cache-dir` and `--managed-root` together before `ready`; repeated `--pack-root` options add discovery roots for that invocation. It creates the state on first use, keeps every existing choice, and prints the packs retrieval will use.
+Before prompt, reference, sheet, generation or visual-state series work (not persona or story drafting), run `python scripts/pack_cli.py ready`. For an explicit runtime, supply `--state-file`, `--cache-dir` and `--managed-root` together before `ready`; repeated `--pack-root` options add discovery roots for that invocation. It initializes state once, preserves existing choices, lists active packs and maintains their browser catalog.
 
 - Exit 0: retrieval can proceed. Tell the user each `warning:` line.
 - Exit 1: each `decide:` line is the author's decision and names the command that settles it. Put new or unusable packs to the user before continuing; never continue on bundled commons alone while a discovered pack awaits that decision. Run the command the author chooses, then `ready` again. A pack the author disabled stays disabled and is not asked about again.
@@ -121,7 +121,7 @@ After story revisions, update Studio sources and run `studio.py sync` for the au
 
 ## Common runtime sequence
 
-Read [Common runtime sequence](references/runtime/production-workflow.md) for every image deliverable and apply the steps required by its scope.
+Read [Common runtime sequence](references/runtime/production-workflow.md) for every image deliverable. Use `next_action` and its phase context. Edit choices and judgments; scripts derive repeated values, paths and receipts. A context view or earlier reading supplies no new judgment.
 
 ## Identity and scene-state authority
 

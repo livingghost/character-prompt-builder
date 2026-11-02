@@ -109,11 +109,13 @@ accepted host. Local key availability and submission authority are separate
 checks.
 
 External host tools use the same `check`, `prepare`, review and capture owners.
-Follow Production Execution's handoff, exact authorization, `claim-external`,
-host call and `settle-external` branch. `task.image_input` binds original images,
+Follow Production Execution's compact `draft-execution` and `execute` decisions,
+then invoke the returned host request once. `receive-external` takes the actual
+response and images, derives their records and settles that call. `task.image_input` binds original images,
 their uses and the exact provider request. `task.semantic_edit` owns requested
 changes, preservation and review of an existing image.
-Each further external trial gets its own task, request and preparation.
+For a further external trial, derive inputs with `draft-inputs --from-run` and
+`build-inputs`, edit only changed choices, then prepare the emitted task.
 Use `status` or `resume` after interruption and recover the existing host result.
 
 ## What the Skill conforms to

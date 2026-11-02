@@ -30,17 +30,20 @@ The reader preserves all source bytes across pages and issues the reading key af
 
 The route read writes a reading record at the path it prints, with the route, the key and every hash filled.
 The author decides which of the read documents apply to this task, and lists only those.
-Each entry in `applied` names the document's `path`, a `quote` of twelve or more words from one paragraph of it, and `why` it applies.
+When using `draft-inputs` and `build-inputs`, author the applications once in `choices.reading`, with the issued `reading_key`. The builder resolves the issued document hashes and writes the completed reading record into the generated task. A draft from a saved Run already supplies its previous key and applications for current assessment.
+When authoring a task directly, fill the applications in the emitted reading record instead and name that file as the task's `route_reading`.
+In either editing location, each entry in `applied` names the document's `path`, a `quote` of twelve or more words from one paragraph of it, and `why` it applies.
 Each entry in `resource_applied` names `"resource": "prompt-writing-guide"`, a `pointer` such as `/sections/2/rules/0`, that rule's exact text as `quote`, and `why`.
-Name the completed file as the task's `route_reading`.
 
 - `inspect-inputs` shows declared sources, recorded candidates, and required choices.
-- `draft-inputs` creates an unanswered choices document in a new directory.
-- `build-inputs` resolves those choices through the existing contract builders. It derives image hashes, adoption selectors, and reference positions from recorded evidence.
+- `draft-inputs` creates a compact `choices.json` to edit and a separate `context.json` to read. Choices contain reading applications, selected visual and validation evidence, explicit task changes, and an optional external image-input plan.
+- `build-inputs` resolves those choices through the owning contract builders. It derives image hashes, adoption selectors and reference positions, and binds generated continuity and validation paths directly into the resulting task.
 
 [Model request evidence](model-evidence.md#the-request-validation-record) states when a task needs an authored request validation record.
 An incomplete selection returns named unresolved fields and publishes nothing; the task and its sources stay unchanged.
-Use `--from-run` to name a saved run from the same work task; copied reading applications need assessment for the current work.
+Select either `--task FILE` or `--from-run RUN`. A saved run supplies its captured task and exact delivery, so the operator does not copy a task into another editing document. Copied reading applications still need assessment for the current work. Explicit `task_changes` select changed source, depiction, route or review fields; authority and task identity retain their owners.
+
+For external image work, select `external: {"image_input": "inputs/selected-plan.json"}`. The builder materializes the prompt from the single delivery source and the target, count and media values from that plan's acquired field mappings. Other native controls retain their declared values. It writes the exact request and image-input plan, measures evidence hashes, validates the resulting input and shows its substantive changes. A supplied hash remains a commitment to the selected evidence. This creates inputs, never grants or satisfied judgments.
 The [synthetic input assembly example](../../examples/input-assembly/README.md) contains complete commands, choice fields, and actual output.
 
 ## Prepare one complete input
@@ -72,7 +75,7 @@ Each call may name `-` for one of these JSON options, which then reads standard 
 
 - `--decisions-file` of `execute` and `--outcome-file` of `resume`;
 - `--changes-file` of `variant` and `--intent` of `draft-authorization`;
-- `--file` of `authorize`, `review`, `disposition`, `selection-intent`, `select`, `settle-external` and `authority-import`;
+- `--file` of `authorize`, `review`, `disposition`, `selection-intent`, `select` and `authority-import`;
 - `--approval` and `--registration-record` of `adoption-intent` and `adopt`.
 
 Except for `--changes-file`, the bytes read are kept as `production/runs/RUN/objects/SHA256`, and that path is the recorded evidence.
@@ -183,8 +186,9 @@ python scripts/production_workflow.py execute --root STUDIO --run RUN --decision
 ```
 
 The draft follows `schemas/authoring/production-execution-decisions.schema.json`.
-It contains the run, input digest, request digest and every required authorization.
-Complete its reasons, stop-condition assessments and final-request assessment from actual evidence.
+It contains the generated run and input identities, with one compact entry in `decisions` for each required operation. Each entry selects its grant and contains only its reason, stop-condition assessments and applicable request judgments. Direction and submission remain separate entries and formal events. The full request, exact targets, payloads, actor identities and output counts are derived from the prepared run when execution records those decisions.
+
+Use the `workspace --phase input` view to read the complete model-facing input without the assessment basis, then `workspace --phase decision` to compare that reading with the commission, source roles, current authority and request-review requirements. These views gather material already needed for the decision; they add no approval or read-completion event. Read only context that is missing from the active session. Complete the reasons, stop-condition assessments and final-request assessment from actual evidence.
 [Production permissions](production-permissions.md#authorization-and-execution-records) describes each authorization and its `request_decision`.
 For the `rendition_review`, first reconstruct the artifact and depicted
 situation from the sealed prompt fields, supported controls and actual supplied
@@ -199,11 +203,11 @@ A draft has unanswered judgments and grants no permission.
 A supplied decision file must cover the complete operation set; altering targets does not narrow the prepared requirement.
 With valid exact receipts already recorded, `execute --root STUDIO --run RUN` needs no decision file.
 
-The run owns one sealed package, request and execution plan, with its handoff recipient and method.
+The run owns one complete model input and execution plan, including its handoff recipient and method. Dispatcher work also owns its sealed Generation Package.
 A different parameter, count, model, service, media binding or recipient requires a newly prepared input.
 A receipt for another request cannot replace that contract, and a mismatch names the field before an execution claim is committed.
 
-`execute` performs these steps in order:
+For a dispatcher, `execute` performs these steps in order:
 
 1. It loads the sealed package and exact request.
 2. It rechecks the recording destination: the Studio character, the slot, the sheet-panel condition and the subject mapping.
@@ -216,7 +220,9 @@ Missing scope or approval rolls back step 4 before any upload or send.
 Each start boundary checks the current grant and the live packs again, whatever an earlier check cached.
 Revocation after a start boundary cannot undo the started request.
 The send boundary records the management identifiers sent with the request.
-Low-level `authorize` and the dispatcher share the same permission and execution-claim implementation.
+For an external image task, the same `draft-execution` and `execute` commands validate the two decisions, record their separate authorizations, hand the input to its declared service and claim one host call. `execute` returns an `external-execution-instruction` with `host_request` with the exact request, target and supplied-media bindings. The host invokes its named tool once with that input, then receives the actual result as described below. The local command itself does not invoke an external host tool. A claimed external run cannot be executed again; recover that call after interruption.
+
+Low-level `authorize` and both execution branches share the same permission and execution-claim implementation.
 A request has one claim even when it returns several images.
 Use `resume` for recovery, `variant` for changed input, and `repeat` for an intentional additional request.
 
@@ -727,22 +733,20 @@ The external claim pins those arguments and grants one call under the ordinary
 handoff and authorization lifecycle. Keep the actual response and saved call
 record when the host exposes it.
 
-An external receipt can include this synthetic selector:
+Supply the actual call record directly when receiving its result. This synthetic example selects the recorded arguments and tool identity without authoring a receipt:
 
-```json
-{"submission": {"path": "evidence/host-call.json", "sha256": "...",
- "locator": "recorded call arguments and tool name",
- "request_pointer": ["arguments"], "model_identity_pointer": ["tool"]}}
+```sh
+python scripts/production_workflow.py receive-external --root STUDIO --run RUN --response evidence/response.json --artifact result.png --call evidence/host-call.json --request-pointer '["arguments"]' --model-identity-pointer '["tool"]' --reason "The host returned its final response and image."
 ```
 
 `request_pointer` selects the actual recorded argument object. For endpoint or
 tool identity, `model_identity_pointer` selects its exact recorded value; use
 null when identity lives in the request's model field. The saved call must
 match the prepared request and declared endpoint/tool. Using the prepared JSON
-itself, or another file with the same bytes, fails as call evidence.
+itself, another file with the same bytes, or the runtime's generated execution instruction fails as call evidence.
 
 Settlement returns `request_evidence.status: matched-recorded-call` when the
-actor's recorded call matches. Without `submission`, it returns `not-provided`;
+actor's recorded call matches. Without `--call`, it returns `not-provided`;
 result capture and accounting still work. The receipt and supplied call record
 remain immutable evidence. A mismatch fails comparison without deleting already
 captured results. A matching actor-attested record does not establish provider
@@ -751,41 +755,23 @@ claims need their own response and image review evidence.
 
 ## Authored and manually executed work
 
-Authored text uses the same immutable sources and formal event store, without a model package.
-`handoff-intent`, `draft-authorization`, `authorize` and `handoff` describe an actual conversation or manual handoff.
-For an external tool, authorize its `external-intent`, then `claim-external` before the host runs it.
-For image input and exact request binding, set the task's `image_input` as described below. Existing-scene edits also activate `semantic-instruction-edit` and declare `semantic_edit`. Preparation exposes `request-preview.json`; the external claim rechecks pinned inputs before submission. Use that request unchanged in the named host tool.
-The submit grant must allow the binding's validation mode and have `request_scope: null`.
-These external requests use exact-operation authorization; dispatcher scope cases require a different request contract.
-Existing explicit authority may supply that grant without a repeated confirmation.
-The claim commits execution ownership and the external-send boundary together before control returns to the host.
-A repeated lookup of that claim is not permission to call the host tool twice.
-Capture returned files with `capture`; identical bytes are idempotent, and a reused filename cannot exceed the approved count.
-Receiving an already delegated result uses saved evidence, even when the original creative files or grant evidence were removed.
+Authored text uses the same immutable sources and formal event store, without a model package. `handoff-intent`, `draft-authorization`, `authorize` and `handoff` describe an actual conversation or manual handoff. External non-image work uses these operations and its separately authorized `external-intent` and `claim-external` boundary.
 
-Record the actual host response and billing with:
+External image work uses the shared `draft-execution` and `execute` flow above. Set the task's `image_input`; existing-scene edits also activate `semantic-instruction-edit` and declare `semantic_edit`. Preparation exposes the complete exact request. The submit grant must allow the binding's validation mode and have `request_scope: null`; dispatcher scope cases use their own request contract. Existing explicit authority may supply that grant without another confirmation. The claim commits execution ownership and the external-send boundary before returning the request to the host. Reading a claim again does not permit a second call.
+
+Receive the actual host response and returned files in one operation:
 
 ```sh
-python scripts/production_workflow.py settle-external --root STUDIO --run RUN --file external-receipt.json
+python scripts/production_workflow.py receive-external --root STUDIO --run RUN --response evidence/response.json --artifact result.png --reason "The host returned its final response and image."
 ```
 
-The receipt follows `schemas/authoring/production-external-receipt.schema.json`:
+Repeat `--artifact` for several local files. For an image encoded inside the actual response, use `--image-pointer '["result", "image"]'`; repeat it for several fields. The selected value must be a base64 string or an image data URL. Downloaded remote files use `--artifact`. The command decodes and measures each image, stores its bytes and captures it before recording settlement. It performs no provider call, image review, selection or adoption.
 
-- `claim` identifies the external claim, and `actor` is the authorized executor.
-- `outputs` equals the saved candidate count.
-- `response` holds the real response's studio-relative `path`, exact `sha256` and `locator`.
-- Optional `submission` selects the actual recorded host call for comparison with a prepared exact request. It is separate from the response and from the prepared JSON file.
-- `cost` is the actual `{"currency": "USD", "amount": "0.01"}`, or `null` when unknown; an estimate is never copied as an actual.
-- `final` states whether the host response is final, and `reason` records the executor's conclusion from evidence.
+The runtime derives the claim, authorized executor, output count, hashes and content-addressed receipt path from the run and actual files. The generated receipt follows `schemas/production-external-receipt.schema.json`. The executor supplies the observed outcome reason and `--pending` when the host has not finished. An optional `--cost-pointer` selects an actual response object containing `currency` and a decimal-string `amount`; without such evidence, usage stays unknown. Native provider responses remain saved in full. No estimate or absent charge becomes zero.
 
-This command records evidence and never invokes the host.
-Reported provider usage is retained exactly. Unknown billing remains unknown without blocking result capture or completion.
-Final billing closes accounting, not artistic review, and an identical receipt does not settle twice.
-`production_direction_smoke_test.py` exercises this workflow with synthetic local files and no provider call.
+Optional `--call`, `--request-pointer` and `--model-identity-pointer` select real host-call evidence for comparison with the prepared request. A mismatch retains already captured images and prevents a false matching receipt. Every capture commits before settlement, so an interrupted operation can be repeated with the same actual response and files to finish acquisition and recording. It reuses identical image bytes and never sends again. Recovery uses saved production evidence even when original creative sources or grant evidence have moved. Final accounting does not complete artistic review.
 
-An additional external trial starts from a separately authored task and exact request, followed by `check` and `prepare`.
-Keep relevant earlier runs and reviews as ordinary comparison sources.
-The dispatcher's `draft-execution`, `execute`, `variant`, `repeat` and `retarget` commands do not apply to external tasks.
+For a further external trial, use `draft-inputs --from-run RUN`, edit only changed choices and `build-inputs --from-run RUN`, then prepare the emitted task. The source run and its earlier candidates remain intact. A changed target requires its explicit model/interface evidence and applicable route reading; a changed depiction still requires its own input review. Dispatcher `variant`, `repeat` and `retarget` use their existing compiler. `production_direction_smoke_test.py` exercises external decisions and reception with synthetic local files and no provider call.
 
 ## Capture the actual result
 
@@ -817,7 +803,7 @@ python scripts/production_workflow.py candidate-status --root STUDIO --run RUN -
 
 A review names the actual reviewer, observations, the criteria assessed so far, optional supplemental `evidence`, repairs, unresolved matters and a conclusion.
 Each observation names its `evidence` (`candidate` or a supplemental evidence ID), a locator, the observed fact, its interpretation and limitations.
-Supplemental entries record path, kind, relation and limitations; their bytes are measured and pinned, not trusted from filenames.
+Additional evidence entries record path, kind, relation and limitations; their bytes are measured and pinned, not trusted from filenames.
 
 ### Observe before interpreting
 
@@ -826,8 +812,7 @@ establishes, with locators and limits. When a separate reviewer context is
 available, give it the candidate and only the technical information needed to
 access the relevant file, page, region or stream. Withhold the brief, prompt,
 expected portrayal, earlier failures and production history until that first
-observation is recorded. A review draft already contains purpose and criterion
-context; do not give it to this first observer.
+observation is recorded. `workspace --phase observe --candidate CANDIDATE` supplies only the saved candidate bytes, their access paths and measured media information. Give that view alone to the first observer. The later `workspace --phase review --candidate CANDIDATE` supplies the assessment basis. Even the compact editing draft contains criterion identifiers, so keep it out of the first observer's input.
 
 Then compare the observed depiction with the commissioned result and applicable
 source or reference evidence. Use the prepared criteria and allowed variation
@@ -858,8 +843,7 @@ composition may pass when it preserves the same anchors and allowed variation.
 
 ### Apply the prepared review basis
 
-For image inputs, the draft includes the original source images and each
-prepared delivery carrier available in the run. Carrier evidence retains
+For image inputs, the review workspace includes the original source images and each prepared delivery carrier available in the run. Carrier evidence retains
 the source assignment, transformation, attachment position and board region;
 external inputs also retain the exact request field. Several logical
 references may share one saved carrier while keeping their individual
@@ -869,9 +853,7 @@ the preparation preserved. Missing or changed saved bytes fail integrity
 validation. The submission evidence separately establishes whether those
 prepared inputs were sent.
 
-The draft carries the prepared artifact purpose and intended effect with each
-criterion, its evidence kind, applicable selected realization and accepted
-variations. Source records establish what was commissioned; observations
+The review workspace presents the prepared purpose and intended effect once, followed by each criterion's evidence kind, applicable selected realization, craft questions and accepted variations. The editing draft contains unanswered observations and verdicts, with empty reasons. Write the actual judgment there. Its `evidence` list is for additional authored sources; the runtime resolves prepared source and carrier evidence automatically, using the stable IDs shown in the workspace. The formal review retains all effective evidence and its saved bytes. Source records establish what was commissioned; observations
 establish what the candidate supplies. The chosen realization is itself open
 to judgment against that commission. A renderer can obey a prompt whose
 choices miss the request. Do not infer success solely from agreement with
@@ -893,7 +875,7 @@ Each criterion gets one verdict:
 - `pass` cites observations that support the criterion's declared evidence kind;
 - `fail` records a decisive failure, which may come before other criteria are assessed;
 - `indeterminate` means the reviewer observed the criterion and could not decide; it cites observations like `pass` and `fail`;
-- `not-assessed` leaves the criterion unassessed, and `not-applicable` excludes it.
+- `not-assessed` leaves the criterion unassessed and permits an empty reason; every judged verdict needs a reason. `not-applicable` excludes the criterion with its explanation.
 
 The candidate's latest review sets its evaluation, by the first row that applies:
 
@@ -1143,6 +1125,8 @@ A passing test is evidence of its checked contract, not a visual quality judgmen
 ## Managed next-action drafts during repeated work
 
 `status` names a draft under `production/decisions/RUN/KIND/BASIS_DIGEST.json`, scoped to the exact run, candidate and decision basis. When that draft exists, the next action points to inspection/completion and the appropriate apply command instead of repeating a failing `--out` write. A completed draft is not evidence of approval until the usual validator accepts its actual author evidence. A new review basis gets a different draft; no existing decision file is overwritten.
+
+When a decision needs context, `next_action.read_context` names complete `workspace` commands in reading order. `input` precedes `decision`; candidate-only `observe` precedes `review`. These are read views, not additional gates or evidence of understanding. The views retain full actual inputs and relevant source material while keeping generated facts out of editing fields. They show applicable Skill paths for a reader whose active context lacks those instructions. A prior reading record does not establish that a new reader knows them. Execute returned `argv` as given, and reuse an existing draft instead of creating parallel copies.
 
 The Production run registry resolves the prior run in the **same task and production series at the saved registration boundary**. It does not open every unrelated historical run merely to find that owner. The selected required predecessor is fully verified; a damaged required series run stops protected-criteria use with `PREDECESSOR_UNAVAILABLE`, rather than silently skipping the comparison.
 

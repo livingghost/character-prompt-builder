@@ -265,6 +265,198 @@ class PackSelectorTests(unittest.TestCase):
         self.assertIn(self.manifest["pack_id"], diagnostic["discovered"])
 
 
+class BrowserCatalogTests(unittest.TestCase):
+    """The selected pack runtime maintains a complete, disposable browser view."""
+
+    def setUp(self) -> None:
+        import browser_catalog
+        from pack_manager import PackSettings, atomic_write_json
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.managed = self.root / "managed"
+        self.pack = self.managed / "first"
+        shutil.copytree(ROOT / "examples" / "pack-authoring" / "minimal-pack", self.pack)
+        self.pack_id = json.loads((self.pack / "pack.json").read_text(encoding="utf-8"))["pack_id"]
+        self.settings = PackSettings(
+            roots=(self.managed,), state_file=self.root / "state.json",
+            cache_dir=self.root / "cache", managed_root=self.managed,
+            quarantine_root=self.root / "quarantine",
+        )
+        atomic_write_json(self.settings.state_file, {
+            "pack_roots": [], "enabled_packs": [self.pack_id], "disabled_packs": [],
+        })
+        self.output = browser_catalog.output_directory(self.settings)
+
+    def call(self, *arguments: str, settings=None) -> tuple[int, str]:
+        from pack_runtime_cli import PackRuntimeContext
+        output = io.StringIO()
+        context = PackRuntimeContext(settings or self.settings, ())
+        with mock.patch("pack_cli.resolve_pack_runtime", return_value=context), \
+                contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+            code = pack_cli_main(list(arguments))
+        return code, output.getvalue()
+
+    def manifest(self, output: Path | None = None) -> dict:
+        return json.loads(((output or self.output) / "catalog-manifest.json").read_text(encoding="utf-8"))
+
+    def second_pack(self) -> str:
+        from pack_manager import atomic_write_json
+        second = self.managed / "second"
+        shutil.copytree(self.pack, second)
+        manifest = json.loads((second / "pack.json").read_text(encoding="utf-8"))
+        manifest["pack_id"] = generate_uuid7()
+        manifest["name"] = "Second browser fixture"
+        atomic_write_json(second / "pack.json", manifest)
+        record_path = second / "records" / "lighting.json"
+        records = json.loads(record_path.read_text(encoding="utf-8"))
+        records["records"][0]["id"] = "fixture-broad-bounce"
+        records["records"][0]["label"] = "broad bounce"
+        atomic_write_json(record_path, records)
+        return manifest["pack_id"]
+
+    def test_ready_creates_reuses_updates_and_repairs_complete_view(self) -> None:
+        import pack_cache
+        from pack_manager import atomic_write_json
+        from validate_catalog_site import run as validate_site
+        with mock.patch.object(pack_cache, "active_snapshot", wraps=pack_cache.active_snapshot) as snapshots:
+            code, text = self.call("ready")
+        self.assertEqual(code, 0, text)
+        self.assertIn(f"catalog: {self.output / 'index.html'}", text)
+        self.assertEqual(snapshots.call_count, 1)
+        manifest = self.manifest()
+        self.assertEqual((manifest["pack_count"], manifest["record_count"]), (1, 1))
+        self.assertTrue(validate_site(self.output)["ok"])
+        mtimes = {name: (self.output / name).stat().st_mtime_ns for name in manifest["generated_files"]}
+        with mock.patch("catalog_html.write_catalog_directory", side_effect=AssertionError("unchanged view was rebuilt")):
+            code, text = self.call("ready")
+        self.assertEqual(code, 0, text)
+        self.assertEqual(mtimes, {name: (self.output / name).stat().st_mtime_ns for name in mtimes})
+        record_file = self.pack / "records" / "lighting.json"
+        records = json.loads(record_file.read_text(encoding="utf-8"))
+        records["records"][0]["prompt"] = "a broad diffused wall reflection"
+        atomic_write_json(record_file, records)
+        code, text = self.call("ready")
+        self.assertEqual(code, 0, text)
+        updated = self.manifest()
+        self.assertNotEqual(manifest["runtime_projection"], updated["runtime_projection"])
+        detail = next((self.output / "records").rglob("*.html"))
+        self.assertIn("a broad diffused wall reflection", detail.read_text(encoding="utf-8"))
+        detail.unlink()
+        code, text = self.call("ready")
+        self.assertEqual(code, 0, text)
+        self.assertTrue(detail.is_file())
+        self.assertEqual(updated["runtime_projection"], self.manifest()["runtime_projection"])
+        self.assertTrue(validate_site(self.output)["ok"])
+
+    def test_activation_and_invalid_source_replace_previous_active_records(self) -> None:
+        import pack_cache
+        second_id = self.second_pack()
+        self.call("ready")
+        with mock.patch.object(pack_cache, "active_snapshot", wraps=pack_cache.active_snapshot) as snapshots:
+            code, text = self.call("enable", second_id)
+        self.assertEqual(code, 0, text)
+        self.assertEqual(snapshots.call_count, 1)
+        self.assertEqual(self.manifest()["record_count"], 2)
+        code, text = self.call("disable", self.pack_id)
+        self.assertEqual(code, 0, text)
+        self.assertEqual(self.manifest()["record_count"], 1)
+        self.assertFalse((self.output / "records" / self.pack_id).exists())
+        (self.managed / "second" / "records" / "lighting.json").write_text("{ invalid record", encoding="utf-8")
+        code, text = self.call("ready")
+        self.assertEqual(code, 1, text)
+        self.assertEqual(self.manifest()["record_count"], 0)
+        self.assertEqual(self.manifest()["pack_count"], 0)
+        self.assertEqual(list((self.output / "records").rglob("*.html")), [])
+        self.assertIn("No active pack is available", (self.output / "index.html").read_text(encoding="utf-8"))
+        self.assertIn("catalog:", text)
+
+    def test_shared_cache_keeps_state_and_root_contexts_separate(self) -> None:
+        import browser_catalog
+        from dataclasses import replace
+        from pack_manager import atomic_write_json
+        self.call("ready")
+        first_mtime = (self.output / "index.html").stat().st_mtime_ns
+        second_settings = replace(self.settings, state_file=self.root / "another-state.json")
+        atomic_write_json(second_settings.state_file, json.loads(self.settings.state_file.read_text(encoding="utf-8")))
+        code, text = self.call("ready", settings=second_settings)
+        self.assertEqual(code, 0, text)
+        second_output = browser_catalog.output_directory(second_settings)
+        self.assertNotEqual(self.output, second_output)
+        self.assertEqual(self.manifest()["runtime_projection"]["source_fingerprint"],
+                         self.manifest(second_output)["runtime_projection"]["source_fingerprint"])
+        alternate_roots = replace(self.settings, roots=(*self.settings.roots, self.root / "additional-root"))
+        code, text = self.call("ready", settings=alternate_roots)
+        self.assertEqual(code, 0, text)
+        third_output = browser_catalog.output_directory(alternate_roots)
+        self.assertEqual(len({self.output, second_output, third_output}), 3)
+        self.assertTrue((third_output / "index.html").is_file())
+        self.assertEqual(first_mtime, (self.output / "index.html").stat().st_mtime_ns)
+
+    def test_failed_view_keeps_activation_and_does_not_become_a_ready_gate(self) -> None:
+        second_id = self.second_pack()
+        self.call("ready")
+        with mock.patch("catalog_html.write_catalog_directory", side_effect=OSError("fixture display storage failure")):
+            code, text = self.call("enable", second_id)
+            payload = json.loads(text)
+            self.assertEqual(code, 0, text)
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["visual_catalog"]["ok"])
+            self.assertIn(second_id, json.loads(self.settings.state_file.read_text(encoding="utf-8"))["enabled_packs"])
+            self.assertIn("Pack catalog unavailable", (self.output / "index.html").read_text(encoding="utf-8"))
+            self.assertEqual(self.manifest()["runtime_projection"]["status"], "unavailable")
+            code, text = self.call("ready")
+            self.assertEqual(code, 0, text)
+            self.assertIn("warning: browser catalog unavailable:", text)
+            self.assertNotIn("decide:", text)
+        code, text = self.call("ready")
+        self.assertEqual(code, 0, text)
+        self.assertEqual(self.manifest()["record_count"], 2)
+        self.assertEqual(self.manifest()["runtime_projection"]["status"], "ready")
+
+    def test_lock_publication_preserves_unselected_runtime_and_updates_selected_view(self) -> None:
+        from pack_manager import atomic_write_json
+        self.settings.state_file.unlink()
+        with mock.patch("pack_cli.refresh_runtime_catalog", side_effect=AssertionError("lock publication selected a runtime")):
+            code, text = self.call("build-lock", "--directory", str(self.pack))
+        self.assertEqual(code, 0, text)
+        self.assertEqual(json.loads(text)["visual_catalog"]["status"], "unselected")
+        self.assertFalse(self.settings.state_file.exists())
+        self.assertFalse(self.settings.cache_dir.exists())
+        self.assertTrue((self.pack / "pack.lock.json").is_file())
+
+        code, text = self.call("ready", "--only", self.pack_id)
+        self.assertEqual(code, 0, text)
+        selected_state = self.settings.state_file.read_bytes()
+        previous = self.manifest()["runtime_projection"]["source_fingerprint"]
+        manifest = json.loads((self.pack / "pack.json").read_text(encoding="utf-8"))
+        manifest["release"] = "2026.08.15.2"
+        atomic_write_json(self.pack / "pack.json", manifest)
+        record_file = self.pack / "records" / "lighting.json"
+        records = json.loads(record_file.read_text(encoding="utf-8"))
+        records["records"][0]["prompt"] = "a broad overcast fill"
+        atomic_write_json(record_file, records)
+        code, text = self.call("build-lock", "--directory", str(self.pack))
+        self.assertEqual(code, 0, text)
+        self.assertTrue(json.loads(text)["visual_catalog"]["fresh"])
+        self.assertEqual(selected_state, self.settings.state_file.read_bytes())
+        self.assertNotEqual(previous, self.manifest()["runtime_projection"]["source_fingerprint"])
+        detail = next((self.output / "records").rglob("*.html"))
+        self.assertIn("a broad overcast fill", detail.read_text(encoding="utf-8"))
+
+    def test_empty_enabled_set_publishes_current_empty_view(self) -> None:
+        self.call("ready")
+        code, text = self.call("disable", self.pack_id)
+        self.assertEqual(code, 0, text)
+        self.assertEqual(self.manifest()["record_count"], 0)
+        self.assertEqual(self.manifest()["pack_count"], 0)
+        self.assertEqual(list((self.output / "records").rglob("*.html")), [])
+        self.assertIn("No active pack is available", (self.output / "index.html").read_text(encoding="utf-8"))
+        code, text = self.call("cache-status")
+        self.assertEqual(code, 0, text)
+        self.assertTrue(json.loads(text)["visual_catalog"]["fresh"])
+
+
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()

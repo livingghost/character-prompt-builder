@@ -20,11 +20,19 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import execution_contract  # noqa: E402
 import studio  # noqa: E402
+import studio_gallery  # noqa: E402
 import validate_studio  # noqa: E402
 import work_ledger  # noqa: E402
 from build_generation_payload import validate_generation_package_carrier_paths  # noqa: E402
 
 EXPECTED_CHECKS = 75
+
+
+def gallery_details(root: Path) -> str:
+    """Read every independently linked detail for assertions on recorded content."""
+    index = json.loads((root / "gallery.json").read_text(encoding="utf-8"))
+    return "\n".join(studio_gallery.detail_file(root / "gallery.html", entry["entry_id"]).read_text(encoding="utf-8")
+                     for entry in index["entries"])
 
 
 def refused(fn, text: str) -> bool:
@@ -191,7 +199,7 @@ def regressions(tmp: Path, source: Path, check) -> None:
     studio.accept(again, "C10", "it-0002")
     rows = {row["iteration_id"]: row for row in studio.read_iterations(again_home)}
     history = {key: [item.get("supersedes") for item in row.get("acceptances") or []] for key, row in rows.items()}
-    page = (again / "gallery.html").read_text(encoding="utf-8")
+    page = gallery_details(again)
     check("every acceptance stays in the slot's history with what it replaced",
           history == {"it-0001": [None, "it-0002"], "it-0002": ["it-0001", "it-0003"], "it-0003": ["it-0001"]}
           and "in place of it-0003" in page and validate_studio.validate(again) == [],
@@ -278,7 +286,7 @@ def regressions(tmp: Path, source: Path, check) -> None:
     recorded(shown, "C11", "b.png", request=source / "upscale-request.json", layout=layout(None, media=[["inputImage"]]))
     recorded(shown, "C11", "c.png", package=source / "acme-package.json", request=source / "hand-request.json")
     entries = sorted(json.loads((shown / "gallery.json").read_text(encoding="utf-8"))["entries"], key=lambda e:e["iteration_id"])
-    page = (shown / "gallery.html").read_text(encoding="utf-8")
+    page = gallery_details(shown)
     check("the gallery reads prompt, negative, settings and media through the recorded fields",
           entries[0]["prompt"] == "a heron" and entries[0]["negative_prompt"] == "blur"
           and entries[0]["settings"] == {"steps": 20, "seed": 5} and entries[0]["media"] == {"input.images.0": "media-1"}
@@ -395,10 +403,10 @@ def main() -> int:
             and index["entries"][2]["seed"] == 7,
             index["entries"][2],
         )
-        page = html_path.read_text(encoding="utf-8")
+        page = gallery_details(root)
         check(
-            "the gallery page shows each image with its prompt and marks the accepted one",
-            'src="characters/C01/iterations/it-0002/result.png"' in page and "a wolf" in page and 'class="iteration accepted"' in page and "it-0003" in page,
+            "each gallery detail shows its image, actual prompt and acceptance",
+            'src="./characters/C01/iterations/it-0002/result.png"' in page and "a wolf" in page and 'class="iteration accepted"' in page and "it-0003" in page,
         )
         sections = {entry: page[page.index(f"/ {entry} <span"):] for entry in ("it-0001", "it-0002", "it-0003")}
         check(

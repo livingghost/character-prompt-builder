@@ -988,20 +988,32 @@ def run() -> dict[str, Any]:
                 str(root / "first-use" / "managed"),
                 "ready",
             ]
-            with patch.object(pack_manager_module, "ROOT", first_use_project):
+            first_use_state_path = root / "first-use" / "pack-state.json"
+            with patch.object(pack_manager_module, "ROOT", first_use_project), patch.object(
+                pack_manager_module, "save_state", wraps=pack_manager_module.save_state,
+            ) as save_ready_state:
                 first_ready, first_ready_exit, first_ready_progress = _run_ready(first_use_argv)
                 second_ready, second_ready_exit, _ = _run_ready(first_use_argv)
-            persisted_ready = json.loads(
-                (root / "first-use" / "pack-state.json").read_text(encoding="utf-8")
-            )
+            persisted_ready = json.loads(first_use_state_path.read_text(encoding="utf-8"))
+            state_writes = [
+                call for call in save_ready_state.call_args_list
+                if Path(call.args[0]).resolve() == first_use_state_path.resolve()
+            ]
+            state_line = f"state: {first_use_state_path}"
+            first_state_lines = [line for line in first_ready if line.startswith("state: ")]
+            second_state_lines = [line for line in second_ready if line.startswith("state: ")]
             if first_ready_exit != 0 or second_ready_exit != 0:
                 errors.append(
                     f"ready exited nonzero: {first_ready_exit}/{second_ready_exit}: {first_ready}"
                 )
             elif first_ready[0] != "ready: retrieval can use 2 pack(s)":
                 errors.append(f"ready did not open with its verdict: {first_ready}")
-            elif not first_ready[-1].endswith("(created now)") or second_ready[-1].endswith("(created now)"):
-                errors.append("ready did not create the state file exactly once")
+            elif (
+                len(state_writes) != 1
+                or first_state_lines != [state_line + " (created now)"]
+                or second_state_lines != [state_line]
+            ):
+                errors.append("ready did not create the selected state file exactly once")
             elif persisted_ready["enabled_packs"] != sorted(set(shipped_initial["enabled_packs"]) | {first_use_extra["pack_id"]}):
                 errors.append("ready did not enable the core and discovered extra pack")
             elif sum(line.startswith("in use: ") for line in first_ready) != 2:

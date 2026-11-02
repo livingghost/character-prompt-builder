@@ -1105,32 +1105,45 @@ def load_runtime_catalog(
     *,
     quiet: bool = False,
 ) -> RuntimePackCatalog:
-    """Load the catalog of the enabled packs, and warn once about each pack left out.
+    """Load the current enabled-pack catalog through one freshness boundary."""
+    return refresh_runtime_catalog(settings, quiet=quiet)[1]
 
-    Each warning goes to standard error once per process; `quiet` leaves the
-    printing to a caller that reports the same lines itself.
+
+def refresh_runtime_catalog(
+    settings: PackSettings | None = None,
+    *,
+    force: bool = False,
+    quiet: bool = False,
+) -> tuple[dict[str, Any], RuntimePackCatalog]:
+    """Refresh once and hydrate that exact cache for callers publishing its views.
+
+    Published caches are immutable. A cache removed between refresh and open
+    is retried from fresh inputs; an already opened cache needs no reader lock.
+    The report and catalog always describe the same successful selection.
     """
     resolved_settings = settings or default_settings()
-    # No lock is taken. A published cache is never rewritten, so once this holds
-    # a handle nothing can disturb it, and holding it disturbs no build. The one
-    # gap is between naming the file and opening it, where a build for other
-    # inputs may discard it; a read-only open makes that an error rather than an
-    # empty catalog, and the second attempt names the file from inputs read
-    # after that discard, so it cannot be the one that was discarded.
-    connection: sqlite3.Connection | None = None
     for final_attempt in (False, True):
-        path = Path(refresh_cache(resolved_settings)["cache_path"])
+        report = refresh_cache(resolved_settings, force=force)
         try:
-            connection = _connect_readonly(path)
-            break
+            connection = _connect_readonly(Path(report["cache_path"]))
         except sqlite3.Error:
             if final_attempt:
                 raise PackError(
-                    f"{path} went away while it was being opened, twice over. "
+                    f"{report['cache_path']} went away while it was being opened, twice over. "
                     "Something outside this runtime is removing the catalog cache."
                 ) from None
-    if connection is None:  # pragma: no cover - the loop either breaks or raises
-        raise PackError("the catalog cache could not be opened")
+            continue
+        return report, _read_runtime_catalog(connection, resolved_settings, quiet=quiet)
+    raise PackError("the catalog cache could not be opened")  # pragma: no cover
+
+
+def _read_runtime_catalog(
+    connection: sqlite3.Connection,
+    resolved_settings: PackSettings,
+    *,
+    quiet: bool,
+) -> RuntimePackCatalog:
+    """Read and close the cache handle selected by the freshness owner."""
     try:
         meta = {
             str(key): str(value)

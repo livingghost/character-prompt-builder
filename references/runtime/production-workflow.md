@@ -36,7 +36,7 @@ when diagnostics are needed; it is not an obligatory duplicate preparation.
 Review the actual request and operation targets. Transport changes that affect
 the depiction return to the same judgment in Production direction.
 
-Dispatcher work uses `draft-execution`, actual decisions and `execute`.
+Prepared model work uses one compact `draft-execution` document, actual independent decisions and `execute`. Use the current run's `status.next_action` and its context views when needed; complete the existing draft rather than copying records or managing filenames yourself.
 [Studio authentication](studio-authentication.md) owns the selected service
 and the owner's chosen source. Prepare its `api_key` field for saved input or
 its `api_key_env` reference for a named environment variable. For saved input,
@@ -45,9 +45,7 @@ the owner supplies and saves the value. Check that service and the run's
 authentication selection and readiness before continuing. Each service has one
 source; the owner supplies its value through that method.
 
-External work follows handoff, exact authorization, `claim-external`, the host
-call, `capture` and `settle-external`. After interruption, `resume` recovers the
-existing execution instead of sending another request. Production Execution
+For external image work, `execute` records the separate direction and submission authorizations, handoff and one claim, then returns the exact input for the host to invoke once. `receive-external` consumes the actual response and images, derives hashes and receipt fields, captures each file and settles that call. After interruption, recover the existing host result instead of invoking the tool again. Dispatcher `resume` recovers its existing execution. Production Execution
 owns the commands and their scope; all operate under `--root STUDIO`.
 
 ## Returned work and completion
@@ -59,8 +57,7 @@ Keep prompt choice, rendition adherence and observed result distinguishable.
 Use existing review fields for the supported conclusion, meaningful findings,
 input boundary and evidence limits. Inconclusive evidence is `indeterminate`.
 An authorized repair addresses the responsible construction or local defect.
-Dispatcher trials use `variant`, `repeat` or `retarget`; external trials use
-new tasks with exact input binding. Edits need semantic plans. Preserve earlier
+Dispatcher trials use `variant`, `repeat` or `retarget`; external trials use `draft-inputs --from-run` and `build-inputs` to materialize changed choices into a new task with exact input binding. Edits need semantic plans. Preserve earlier
 candidates and reviews.
 
 `status` reports runs, next commands and execution records. Inspect the

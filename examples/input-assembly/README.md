@@ -27,16 +27,18 @@ python scripts/production_workflow.py draft-inputs --root STUDIO --task task.jso
 python scripts/production_workflow.py build-inputs --root STUDIO --task task.json --choices work/input-draft/choices.json --out-dir work/inputs
 ```
 
-Edit the `choices` member of the draft before calling `build-inputs`.
-Retain the draft envelope; the builder recalculates its `unresolved` entries.
+Edit `choices.json` before calling `build-inputs`. It contains only authored
+choices. `context.json` supplies the source task, provenance and unanswered
+fields for reading; the builder derives its own current diagnostics.
 Use a new output directory for each construction.
 A failed build preserves existing output directories and the authored task.
 
 ## Reading choices
 
-Copy `reading_key`, `applied`, and `resource_applied` from the reading record the route read wrote, after listing the documents and guide rules the task applies.
+Use the `reading_key` issued by the completed route read. Write the selected document applications in `choices.reading.applied` and the guide-rule applications in `choices.reading.resource_applied`, with their exact quotations and reasons. These choices are their editing source; `build-inputs` writes the completed reading record and binds its path into the generated task.
+A draft from `--from-run` supplies the earlier key and applications for current assessment. Replace them only when the present work needs a different completed reading or application.
 `snapshot_id` can be null when the issued record remains valid without the delivery snapshot.
-The builder resolves the document hashes from the issued record.
+The builder resolves the document hashes from the issued record. A directly authored task instead uses the completed record as its `route_reading`, as described in [Production execution](../../references/runtime/production-execution.md#apply-the-completed-reading).
 
 ## Input choices
 
@@ -107,5 +109,60 @@ A null required field inside a supplied choice is an unanswered question.
 `next_actions` supplies operation arguments and their effects.
 `execution_ready` remains false: model requests still need rendering, review, and authorization.
 
-The generated task points to the new reading record.
-The builder action lists its remaining arguments in `required_args`, `continuity` among them when no visual record was built.
+The generated task points to the new reading record and any generated
+continuity and request-validation records. There is no path transfer to perform.
+The next action prepares this derived task.
+
+## Continue from a saved Run
+
+A saved Run supplies its own task and captured prompt. Select it instead of a
+task file; the original task and prompt files need not be copied or reopened:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --out-dir work/send-draft
+python scripts/production_workflow.py build-inputs --root STUDIO --from-run RUN --choices work/send-draft/choices.json --out-dir work/send-inputs
+```
+
+The author reassesses copied reading applications for the present work. A fresh
+operator reads the applicable instructions; a saved key supplies provenance,
+not understanding. Change `reading` when the selected route, features or model
+family needs another completed reading.
+
+`task_changes` holds only fields intentionally changed for this deliverable,
+such as `route`, `features`, `sources`, `criteria`, `direction` or `delivery`.
+Unmentioned task fields retain their saved values. The task identity and
+existing authority selector remain owned by the source. A changed source still
+selected by the task must be resolved explicitly. No grant or authorization is
+created by input assembly.
+
+To turn an authored prompt into an external image input, select the existing
+model/interface and reference-use plan once:
+
+```json
+{
+  "external": {"image_input": "inputs/selected-interface.json"},
+  "task_changes": {"route": "generation", "features": ["unlisted-interface"]}
+}
+```
+
+This is the external/task portion of `choices.json`; retain its reading,
+visual and validation choices. The plan follows the ordinary image-input
+contract. Its `external_request.file` supplies native controls, negative text
+when used, and the interface's actual container shape. The builder writes the
+prompt from `delivery`, and model, operation, count and media values from the
+plan through the explicitly declared field selectors. It preserves every other
+request field. Array positions must already exist in the selected container.
+No provider field names or transport are assumed.
+
+Evidence hashes may be omitted in this selected authoring plan. The builder
+measures them from actual files. A supplied hash remains a commitment and must
+match; it is never silently refreshed. The resulting ordinary image-input plan
+contains the derived hashes, exact request and preserved reference scope.
+Tag-based input still needs its actual dictionary-search record and grammar
+contract, and its exact materialized text is checked before publication.
+
+The read-only input report shows the full materialized request, selected model,
+references, field changes and grammar/schema results. The derived task keeps
+its criteria and authority unless a permitted authored task field was explicitly
+changed. Inspect that complete input and prepare it. Input construction performs
+no handoff, authorization, submission, image review or canonical adoption.

@@ -1,4 +1,4 @@
-"""Execute and recover the one sealed request owned by a prepared run.
+"""Execute and recover the prepared request, with authored judgments kept separately.
 
 The production transaction owns permission and execution claims. Network I/O
 starts only after that transaction commits. Recovery reads durable answers; it
@@ -78,28 +78,14 @@ def compiled(root: Path, run: str, *, fresh: bool = False) -> tuple:
 
 @_public_call
 def draft_execution(root: Path, run: str, grant: str) -> dict:
-    """Derive exact operation fields, leaving all human assessments unanswered."""
-    import production_workflow as workflow
-    directory, prepared, _, _, _, _, plan, _, _ = compiled(root, run, fresh=True)
-    authorizations = [workflow.draft_authorization(root, run, grant, intent) for intent in plan['operations']]
-    return {'run': run, 'input_sha256': prepared['input_sha256'],
-            'request_sha256': plan['request_sha256'], 'authorizations': authorizations}
+    """Draft the independent judgments of the prepared operations in one editing document."""
+    import production_decisions
+    return production_decisions.draft(root, run, grant)
 
 
 def authorize_decisions(root: Path, run: str, path: str, prepared: dict, plan: dict) -> None:
-    import production_workflow as workflow
-    raw = store.stable_bytes(root, path)
-    decisions = c.decode(raw)
-    workflow.schema_check(decisions, 'execution-decisions')
-    compare_exact({'run': run, 'input_sha256': prepared['input_sha256'], 'request_sha256': plan['request_sha256']},
-                  {key: decisions[key] for key in ('run', 'input_sha256', 'request_sha256')})
-    requests = decisions['authorizations']
-    if len(requests) != len(plan['operations']):
-        raise ProductionError('AUTHORIZATION_MISMATCH', 'Supply every prepared operation exactly once.', phase='authorization', pointer='$.authorizations')
-    for intent, request in zip(plan['operations'], requests):
-        compare_exact(intent, {key: request[key] for key in ('operation', 'targets', 'payload')})
-    for request in requests:
-        workflow.authorize_value(root, run, request, evidence_files=[path], expected_source=(path, c.digest(raw)))
+    import production_decisions
+    production_decisions.authorize(root, run, path, prepared, plan)
 
 
 def receipts(root: Path, prepared: dict, rows: list[dict], plan: dict, *,
@@ -228,12 +214,44 @@ def _journal(root: Path, run: str, data: tuple):
     return journal, saved
 
 
+def _execute_external(root: Path, run: str, *, decisions_file: str | None) -> dict:
+    """Hand the exact input to the host once after both independent decisions pass."""
+    import production_decisions
+    import production_workflow as workflow
+    with store.transaction(root):
+        _, prepared, consumer, rows, plan = production_decisions.context(root, run)
+        if any(row['event'] == 'external-claim' for row in rows):
+            raise ProductionError('DISPATCH_ALREADY_CLAIMED', 'This run already handed its request to the host.',
+                phase='execution', run=run,
+                required_action='Recover that host call and receive its actual result. A new call needs a newly prepared run.')
+        if decisions_file is not None:
+            authorize_decisions(root, run, decisions_file, prepared, plan)
+        _, prepared, consumer, rows = workflow.assert_current(root, run)
+        tokens = receipts(root, prepared, rows, plan)
+        hand = plan['handoff']
+        workflow.handoff(root, run, hand['recipient'], hand['method'], tokens['direction'])
+        claim = workflow.claim_external(root, run, plan['quantities']['outputs'], tokens['submit'])
+    binding = consumer['image_input']
+    return {'artifact_type': 'external-execution-instruction',
+            'run': run, 'state': 'host-call-required', 'external_effect': False,
+            'host_request': {'claim': claim['sha256'], 'target': binding['model']['target'],
+                          'request': copy.deepcopy(binding['external_request']['request']),
+                          'references': copy.deepcopy(binding['references']),
+                          'prepared_reference_set': copy.deepcopy(binding.get('prepared_reference_set')),
+                          'model_identity': copy.deepcopy(binding['external_request'].get('model_identity'))},
+            'instruction': 'Invoke this exact host request once. Save the actual response and returned media, '
+                           'then use receive-external. After interruption, recover the same call; do not invoke it again.'}
+
+
 @_public_call
 def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
     import production_workflow as workflow
     import studio
     from verify_generation_payload import verify
     import runtime_snapshot
+
+    if workflow.load_run(root, run)[1]['task']['execution'] == 'external':
+        return _execute_external(root, run, decisions_file=decisions_file)
 
     with stage('execution-preflight'):
         data = compiled(root, run, fresh=True)
@@ -989,9 +1007,13 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
         if report['submission'] == 'outcome_unknown':
             return _unknown_outcome_action(root, run, rows)
         return None
-    if mode == 'external' and report['capture'] == 'complete' and report['settlement_open']:
-        return _action('settle-external', root, ['--run', run, '--file', 'external-receipt.json'],
-            "Record the host's evidenced result and actual charge.")
+    if mode == 'external' and 'external-claim' in events and report['settlement_open']:
+        return {**_action('receive-external', root,
+            ['--run', run, '--response', '<actual-response-file>', '--artifact', '<received-file>',
+             '--reason', '<observed-outcome>'],
+            'Recover the existing host call and receive its actual response and files. Use --image-pointer for inline images, '
+            '--pending while the response is incomplete, and --call with --request-pointer for recorded host-call evidence. '
+            'This operation never sends another request.'), 'requires_author_input': True}
     if report['selection_ready']:
         return _action('complete', root, ['--run', run], 'The current selection satisfies the hard criteria; complete the task.')
     captured = [row['data'] for row in rows if row['event'] == 'capture-status']
@@ -1023,6 +1045,13 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
             return _action('status', root, ['--run', run], diagnostic['required_action'])
         # Nothing was handed over yet, so a changed source is prepared again instead of passed on.
         return _action('prepare', root, ['--task', prepared['task_path']], diagnostic['required_action'])
+    if mode == 'external' and prepared['task'].get('image_input') and 'external-claim' not in events:
+        if report['readiness'] == 'authorization_required':
+            grants = [item['id'] for item in (authority or {}).get('grants', []) if not item.get('revoked_at')]
+            grant = grants[0] if len(grants) == 1 else '<grant-id>'
+            return _draft_action(root, run, 'execution', grant=grant, basis=c.content_id(authority or {}))
+        return _action('execute', root, ['--run', run],
+            'Hand the exact request to the host once under the current separate direction and submission authorizations.')
     if mode == 'dispatcher':
         submission = report['submission']
         if submission == 'unclaimed':
@@ -1137,14 +1166,9 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
             readiness_diagnostics.append(from_exception(exc, phase='readiness'))
     if not external_claims and mode == 'external' and consumer.get('image_input') and readiness != 'blocked' and task_disposition == 'open':
         try:
-            if 'handoff' not in events:
-                raise ProductionError('AUTHORIZATION_REQUIRED', 'The external handoff and exact submission need current authorization.',
-                    phase='authorization', run=identifier,
-                    required_action='Use handoff-intent and authorize under the actual direction grant, record the handoff, then authorize external-intent.')
-            count = consumer['image_input']['external_request']['count']
-            intent = workflow.external_intent(root, identifier, count)
-            receipts(root, prepared, rows, {'operations': [intent]},
-                required_action='Authorize the exact external-intent under the actual submission grant, then claim-external.')
+            plan = c.load(directory / 'execution-plan.json')
+            receipts(root, prepared, rows, plan,
+                required_action='Complete the separate decisions in draft-execution, then execute hands the exact input to the host once.')
         except INSPECTION_ERRORS as exc:
             readiness = 'authorization_required'
             readiness_diagnostics.append(from_exception(exc, phase='readiness'))
@@ -1163,6 +1187,21 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         'journal': claims[-1]['data']['journal'] if claims else None,
         'logs': logs.get(identifier, [])}
     report['next_action'] = _next_action(root, report, prepared, rows, execution_state=execution_state, authority=authority)
+    action = report['next_action']
+    if action and action['command'] in {'draft-execution', 'execute', 'draft-review', 'review'}:
+        candidate = None
+        if action['command'] in {'draft-review', 'review'}:
+            if '--candidate' in action['argv']:
+                candidate = action['argv'][action['argv'].index('--candidate') + 1]
+            elif action.get('draft'):
+                candidate = c.load(c.local(root, action['draft'])).get('candidate')
+            phases = ['observe', 'review']
+        else:
+            phases = ['input', 'decision']
+        action['read_context'] = [_action('workspace', root,
+            ['--run', identifier, '--phase', phase] + (['--candidate', candidate] if candidate else []),
+            'Read this context when needed, in the listed order; existing knowledge does not require another read record.')
+            for phase in phases]
     authentication = _run_authentication(root, directory, prepared, claims, report, execution_state)
     report['authentication'] = authentication
     if authentication and authentication['required'] and not authentication['available']:

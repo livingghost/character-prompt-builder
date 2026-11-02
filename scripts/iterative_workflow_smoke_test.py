@@ -20,6 +20,7 @@ import sheet_edits
 import sheet_inventory
 import sheet_review
 import studio
+import studio_gallery
 import studio_activity as activity
 import work_ledger as work
 from sheet_artifacts_smoke_test import make_sheet, make_artifact, accepted, decision
@@ -277,5 +278,8 @@ class StudioIterationTests(unittest.TestCase):
         path, _ = studio.write_gallery(self.root, self.root/'views/browser/gallery.html')
         page = path.read_text(encoding='utf-8')
         self.assertIn('<base href="../../">', page)
-        self.assertIn('loading="lazy"',page)
+        entry = c.load(path.with_suffix('.json'))['entries'][0]
+        detail = studio_gallery.detail_file(path, entry['entry_id']).read_text(encoding='utf-8')
+        self.assertIn('loading="lazy"', detail)
+        self.assertIn('views/browser/gallery.assets/index.js', page)
         self.assertIn('work/activity/timeline.md',page)

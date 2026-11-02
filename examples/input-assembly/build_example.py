@@ -50,7 +50,7 @@ def build():
         if (root / 'missing').exists():
             raise ValueError('Unanswered choices published formal files.')
         authored = c.load(root / draft['choices_file'])
-        choices = authored['choices']
+        choices = authored
         choices['reading']['reading_key'] = reading['reading_key']
         choices['reading']['applied'] = reading['applied']
         choices['reading']['resource_applied'] = reading['resource_applied']

@@ -11,8 +11,10 @@ import production_case_fixtures as fixtures
 import production_execution as execution
 import production_fixtures as fixture
 import production_workflow as workflow
+import production_workspace as workspace
 import production_store as store
 import studio
+import studio_gallery
 import validate_studio
 from production_diagnostics import ProductionError
 from test_production_execution import decisions
@@ -85,31 +87,169 @@ class ReviewCase(unittest.TestCase):
 
 
 class ReviewTests(ReviewCase):
-    def test_draft_carries_prepared_requirements_and_selected_realization(self):
+    def test_compact_answers_use_the_complete_prepared_review_basis(self):
         draft = workflow.draft_review(self.root, self.run, self.candidate)
+        basis = workflow.review_basis(self.root, self.run, self.candidate)
         task = c.load(self.root / 'task.json')
         checks = {row['criterion']: row for row in draft['checks']}
+        criteria = {row['id']: row for row in basis['criteria']}
         decision = task['direction']['decisions'][0]
         selected = next(option for option in decision['options'] if option['id'] == decision['selected'])
+        self.assertEqual(basis['purpose'], task['direction']['purpose'])
+        self.assertEqual(basis['intended_effect'], task['direction']['intended_effect'])
         for criterion in task['criteria']:
-            self.assertIn(task['direction']['purpose'], checks[criterion['id']]['reason'])
-            self.assertIn(task['direction']['intended_effect'], checks[criterion['id']]['reason'])
-            self.assertIn(criterion['text'], checks[criterion['id']]['reason'])
+            self.assertEqual(criteria[criterion['id']]['text'], criterion['text'])
+            self.assertEqual(criteria[criterion['id']]['evidence'], criterion['evidence'])
+            self.assertEqual(checks[criterion['id']]['reason'], '')
             self.assertEqual(checks[criterion['id']]['verdict'], 'not-assessed')
             self.assertEqual(checks[criterion['id']]['observation_indices'], [])
-        self.assertIn(selected['expression'], checks['output']['reason'])
-        self.assertIn(selected['realization']['instructions'], checks['output']['reason'])
-        self.assertNotIn(selected['realization']['instructions'], checks['palette']['reason'])
+        self.assertEqual(criteria['output']['realizations'][0]['expression'], selected['expression'])
+        self.assertEqual(criteria['output']['realizations'][0]['instructions'], selected['realization']['instructions'])
+        self.assertEqual(criteria['palette']['realizations'], [])
         for option in decision['options']:
             if option['id'] != decision['selected']:
-                self.assertNotIn(option['realization']['instructions'], checks['output']['reason'])
-        self.assertEqual((draft['observations'], draft['conclusion']), ([], ''))
+                self.assertNotIn(option['realization']['instructions'], json.dumps(criteria['output']))
+        self.assertEqual((draft['observations'], draft['evidence'], draft['conclusion']), ([], [], ''))
         task['direction']['purpose'] = 'A later live task serves another artifact.'
         task['direction']['intended_effect'] = 'A later intended effect is outside this prepared run.'
         task['criteria'][0]['text'] = 'A later live task has a different criterion.'
         task['direction']['decisions'][0]['options'][0]['expression'] = 'Changed after preparation.'
         fixtures.write(self.root / 'task.json', task)
         self.assertEqual(workflow.draft_review(self.root, self.run, self.candidate), draft)
+        self.assertEqual(workflow.review_basis(self.root, self.run, self.candidate), basis)
+
+    def test_input_workspace_supplies_the_whole_request_before_assessment_context(self):
+        before = store.event_rows(self.root, self.run)
+        view = workspace.workspace(self.root, self.run, phase='input')
+        directory, prepared, _, _ = workflow.load_run(self.root, self.run)
+        rendered = c.load(directory / 'request-contract.json')
+        self.assertEqual(view['prepared_input']['request'], rendered['request'])
+        self.assertEqual(view['prepared_input']['target'], rendered['sealed']['target'])
+        self.assertEqual(view['prepared_input']['request_sha256'], rendered['request_sha256'])
+        self.assertEqual(view['input_sha256'], prepared['input_sha256'])
+        self.assertEqual(set(view), {'phase', 'run', 'input_sha256', 'reading', 'prepared_input', 'instruction'})
+        self.assertTrue(view['reading']['documents'])
+        self.assertTrue(all(Path(item['path']).is_file() for item in view['reading']['documents']))
+        self.assertEqual(store.event_rows(self.root, self.run), before)
+
+    def test_input_workspace_preserves_prepared_carriers_and_every_request_mapping(self):
+        import shutil
+        import production_variation as variation
+        from prepare_generation_references import prepare_references
+        svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="16" viewBox="0 0 32 16">'
+               '<rect width="32" height="16" fill="#5078a0"/></svg>').encode('utf-8')
+        for mode in ('multi-image', 'single-board'):
+            with self.subTest(mode=mode):
+                folder = self.root / 'workspace-media' / mode
+                source = folder / 'source.svg'
+                c.atomic(source, svg)
+                selections = [{'role': role,
+                    'source': {'kind': 'supplied-file', 'reference_id': mode + '-' + role,
+                               'resolved_path': str(source)},
+                    'subject_uses': [{'subject_id': 'robot', 'use': use, 'priority': 0}]}
+                    for role, use in (('palette', 'local-color'), ('finish', 'surface-finish'))]
+                references = prepare_references(selections, model=fixtures.MODEL_ID,
+                    output_dir=folder / 'prepared', max_side=64, transport_mode=mode)
+                fixtures.write(folder / 'references.json', references)
+                fixtures.write(self.root / 'workspace-changes.json', {
+                    'changes': {'references': {'path': (folder / 'references.json').relative_to(self.root).as_posix()},
+                                'execution-mode': 'reference-guided'},
+                    'reason': 'Inspect the exact prepared synthetic media in the input workspace.'})
+                run = variation.derive(self.root, self.run, changes_file='workspace-changes.json', prepare=True)['run']
+                directory, _, _, _ = workflow.load_run(self.root, run)
+                rendered = c.load(directory / 'request-contract.json')
+                self.assertEqual(len(rendered['sealed']['bindings']), 2)
+                self.assertEqual({item['attachment_number'] for item in rendered['sealed']['bindings']}, {1})
+                shutil.rmtree(folder)
+                before = store.event_rows(self.root, run)
+                view = workspace.workspace(self.root, run, phase='input')['prepared_input']
+                self.assertEqual(view['request'], rendered['request'])
+                self.assertEqual(len(view['media']), len(rendered['media']))
+                for index, (shown, pinned) in enumerate(zip(view['media'], rendered['media'], strict=True)):
+                    self.assertEqual(shown['request_fields'], [row['field'] for row in rendered['layout']['media']
+                                                             if row['index'] == index])
+                    self.assertEqual(shown['sha256'], pinned['sha256'])
+                    self.assertNotEqual(shown['sha256'], c.digest(svg))
+                    path = Path(shown['path'])
+                    path.relative_to(directory)
+                    self.assertEqual(c.digest(path.read_bytes()), pinned['sha256'])
+                    self.assertEqual(shown['media']['format'], 'PNG')
+                    self.assertEqual((shown['media']['width'], shown['media']['height']),
+                                     (pinned['dimensions']['width'], pinned['dimensions']['height']))
+                self.assertEqual(store.event_rows(self.root, run), before)
+
+    def test_observation_workspace_has_only_saved_candidate_and_technical_context(self):
+        before = store.event_rows(self.root, self.run)
+        view = workspace.workspace(self.root, self.run, phase='observe', candidate=self.candidate)
+        self.assertEqual(set(view), {'phase', 'run', 'candidate', 'instruction'})
+        actual = view['candidate']
+        self.assertEqual(set(actual), {'id', 'files', 'media'})
+        self.assertEqual(actual['id'], self.candidate)
+        self.assertEqual((actual['media']['width'], actual['media']['height']), (32, 32))
+        for item in actual['files']:
+            raw = Path(item['path']).read_bytes()
+            self.assertEqual(c.digest(raw), item['sha256'])
+            self.assertEqual(len(raw), item['size'])
+        self.assertEqual(store.event_rows(self.root, self.run), before)
+
+    def test_assessment_workspace_uses_frozen_sources_and_distinct_answers(self):
+        view = workspace.workspace(self.root, self.run, phase='review', candidate=self.candidate)
+        self.assertEqual(view['basis'], workflow.review_basis(self.root, self.run, self.candidate))
+        self.assertTrue(view['sources'])
+        original = view['sources'][0]
+        Path(self.root / original['path']).write_text('Later source content.', encoding='utf-8')
+        again = workspace.workspace(self.root, self.run, phase='review', candidate=self.candidate)
+        self.assertEqual(again['sources'], view['sources'])
+        self.assertEqual(c.digest(Path(original['saved_path']).read_bytes()), original['sha256'])
+        draft = workflow.draft_review(self.root, self.run, self.candidate)
+        self.assertTrue(all(item['reason'] == '' and item['verdict'] == 'not-assessed' for item in draft['checks']))
+
+    def test_reused_run_source_is_available_in_decision_and_review_workspaces(self):
+        import production_variation as variation
+        prepared = workflow.load_run(self.root, self.run)[1]
+        sources = [*prepared['task']['sources'],
+            {'id': 'native-settings', 'path': prepared['task']['generation']['parameters'],
+             'role': 'model-controls', 'disposition': 'applied', 'locator': 'whole',
+             'reason': 'The synthetic source records the selected native dimensions and settings.'}]
+        fixtures.write(self.root / 'workspace-source-changes.json', {
+            'changes': {'source-materials': sources, 'parameter:steps': 22},
+            'reason': 'Prepare revised native settings as a retained source of this synthetic image.'})
+        changed = variation.derive(self.root, self.run,
+            changes_file='workspace-source-changes.json', prepare=True)['run']
+        run = variation.derive(self.root, changed, prepare=True)['run']
+        _, reused, _, _ = workflow.load_run(self.root, run)
+        source = next(item for item in reused['task']['sources'] if item['id'] == 'native-settings')
+        self.assertTrue(source['path'].startswith('production/runs/' + changed + '/inputs/'))
+        dependency = next(item for item in reused['dependencies']
+                          if item['space'] == 'task-source' and item['path'] == source['path'])
+        expected = (self.root / source['path']).read_bytes()
+        self.assertEqual(c.decode(expected)['steps'], 22)
+        before = store.event_rows(self.root, run)
+        decision = workspace.workspace(self.root, run, phase='decision')
+        self.assertEqual(store.event_rows(self.root, run), before)
+        result = execution.execute(self.root, run, decisions_file=decisions(self.root, run))
+        self.assertTrue(result['execution_completed'])
+        candidate = result['runs'][0]['candidates'][0]
+        before = store.event_rows(self.root, run)
+        review = workspace.workspace(self.root, run, phase='review', candidate=candidate)
+        self.assertEqual(store.event_rows(self.root, run), before)
+        for view in (decision, review):
+            shown = next(item for item in view['sources'] if item['id'] == source['id'])
+            self.assertEqual(shown['path'], source['path'])
+            self.assertEqual(shown['sha256'], dependency['sha256'])
+            self.assertEqual(shown['text'], expected.decode('utf-8'))
+            self.assertEqual(Path(shown['saved_path']).read_bytes(), expected)
+
+    def test_unassessed_check_needs_no_authored_reason_but_judgment_does(self):
+        value = self.review_data([('output', 'pass'), ('palette', 'not-assessed')])
+        value['checks'][1]['reason'] = ''
+        fixtures.write(self.root / 'review.json', value)
+        recorded = workflow.review(self.root, self.run, 'review.json')
+        self.assertEqual(recorded['data']['review']['checks'][1]['verdict'], 'not-assessed')
+        value['checks'][0]['reason'] = ''
+        fixtures.write(self.root / 'review.json', value)
+        with self.assertRaises(ValueError):
+            workflow.review(self.root, self.run, 'review.json')
 
     def test_unreviewed_rejection_is_not_quality_failure(self):
         before = (self.home / 'iterations.jsonl').read_bytes()
@@ -190,14 +330,15 @@ class ReviewTests(ReviewCase):
         entry = c.load(self.root/'gallery.json')['entries'][0]
         self.assertEqual((entry['evaluation'], entry['disposition'], entry['decision_kind']),
                          ('partially_reviewed', 'not_selected', 'disposition'))
-        self.assertIn('disposition reason: Another synthetic candidate is preferred.', (self.root/'gallery.html').read_text(encoding='utf-8'))
+        self.assertIn('disposition reason: Another synthetic candidate is preferred.', studio_gallery.detail_file(self.root/'gallery.html', entry['entry_id']).read_text(encoding='utf-8'))
 
     def test_accepted_image_keeps_its_selection(self):
         self.record_review([('output','pass'),('palette','pass')])
         self.assertCode('SELECTION_REQUIRED', lambda: studio.accept(self.root, 'robot', self.iteration))
         self.select()
         self.assertEqual(validate_studio.validate(self.root), [])
-        html = (self.root/'gallery.html').read_text(encoding='utf-8')
+        entry = c.load(self.root/'gallery.json')['entries'][0]
+        html = studio_gallery.detail_file(self.root/'gallery.html', entry['entry_id']).read_text(encoding='utf-8')
         self.assertNotIn('rejected:', html)
         self.assertIn('selection reason: Synthetic fixture delivery selection.', html)
         self.assertIn('<b>evaluation</b> conforming', html)
