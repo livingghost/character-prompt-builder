@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026.11.02.7
+
+- Resolve gallery output paths before rebasing links, preserving correct relative
+  URLs when Windows short aliases and long paths mix.
+- Compare the normalized first-use state path in pack readiness tests, matching
+  actual state creation while supporting short Windows temporary aliases.
+
 ## 2026.11.02.6
 
 - Assemble inputs from a saved run or an authored task without copying a second task. Compact choices select the meaning and sources; the builders materialize exact external requests and bind their generated file paths.

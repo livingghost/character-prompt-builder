@@ -417,7 +417,7 @@
     "scripts/structure_contract.py": "6805798e2b01c619d2b0668028bb4acf2fcefa11275e171fe9e5298c2b051500",
     "scripts/studio.py": "989d11a55ffc97fc3a4c4780fdf1b10af988e2ef36e40799c189248c61b54760",
     "scripts/studio_activity.py": "61a3fe1518ea7f3aae43e22d0b84e19a6a3cba0737e65e97f56d702b034b70e6",
-    "scripts/studio_gallery.py": "68911d903a528589be4c88145b9fed831dfaae21821c8cff0bdad268ccf6a148",
+    "scripts/studio_gallery.py": "57a48ea8891fcfcdc8ac08f45905132bce410f347a8b75d32a0070009e546850",
     "scripts/studio_reference.py": "a28ed6a59b0d2ef5ccc4f212acdb0f049e65cf454f33957daee703bd5e4af84e",
     "scripts/temporal_state.py": "529b36d7eb8aff9edaee0092174811835e369a084c2de2659d6573885e422c0d",
     "scripts/transport_contract.py": "8f6d782ebcc5ba6cfccd9e1e688d48419ab24f2cf5a51a075b561e6a05faacf6",

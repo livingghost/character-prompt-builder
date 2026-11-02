@@ -378,7 +378,7 @@ def publish(root: Path, index: dict, out: Path | None = None) -> tuple[Path, Pat
     assets, so another view's update never changes a saved snapshot.
     """
     root = c._root(root)
-    html_path = Path(out or root / 'gallery.html').absolute()
+    html_path = Path(out or root / 'gallery.html').absolute().resolve()
     c._root(html_path.parent)
     json_path, assets = html_path.with_suffix('.json'), asset_dir(html_path)
     if json_path == html_path:

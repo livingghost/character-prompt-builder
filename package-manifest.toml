@@ -1,6 +1,6 @@
 [package]
 name = "character-prompt-builder"
-version = "2026.11.02.6"
+version = "2026.11.02.7"
 version_scheme = "YYYY.MM.DD.N"
 release_timezone = "UTC"
 license = "GPL-3.0-only"
@@ -19,7 +19,7 @@ license_file = "LICENSE"
 changelog = "CHANGELOG.md"
 
 [release]
-output = "dist/character-prompt-builder-2026.11.02.6.zip"
+output = "dist/character-prompt-builder-2026.11.02.7.zip"
 include = [
   ".agents",
   ".claude-plugin",

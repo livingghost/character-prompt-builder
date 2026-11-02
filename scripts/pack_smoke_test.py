@@ -999,7 +999,7 @@ def run() -> dict[str, Any]:
                 call for call in save_ready_state.call_args_list
                 if Path(call.args[0]).resolve() == first_use_state_path.resolve()
             ]
-            state_line = f"state: {first_use_state_path}"
+            state_line = f"state: {first_use_state_path.resolve()}"
             first_state_lines = [line for line in first_ready if line.startswith("state: ")]
             second_state_lines = [line for line in second_ready if line.startswith("state: ")]
             if first_ready_exit != 0 or second_ready_exit != 0:
