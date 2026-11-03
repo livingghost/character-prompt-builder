@@ -6,6 +6,7 @@ import io
 import mimetypes
 from pathlib import Path
 from typing import Any, Iterable
+from urllib.parse import urlparse
 
 import execution_contract as c
 
@@ -227,6 +228,7 @@ def media_metadata(path: Path, *, role: str, binding_ids: list[str] | None = Non
         'role': role,
         'binding_ids': list(binding_ids or []),
         'dimensions': None,
+        'upload_source': {'kind': 'bytes'},
     }
     if media_type.split('/', 1)[0] == 'image':
         from PIL import Image
@@ -238,6 +240,78 @@ def media_metadata(path: Path, *, role: str, binding_ids: list[str] | None = Non
             if actual is not None and actual != media_type:
                 raise ValueError('media bytes differ from their declared file format')
     return result
+
+
+def validate_upload_source(source: Any) -> None:
+    """Validate the selected upload input without fetching or publishing media."""
+    if not isinstance(source, dict) or source.get('kind') not in {'bytes', 'url'}:
+        raise ValueError('upload source must name bytes or url')
+    if source['kind'] == 'bytes':
+        c.exact(source, {'kind'}, 'byte upload source')
+        return
+    c.exact(source, {'kind', 'url'}, 'URL upload source')
+    url = c.text(source['url'], 'upload source URL')
+    from transport_contract import address
+    address(url)
+    parsed = urlparse(url)
+    if (parsed.username is not None or parsed.password is not None or '#' in url
+            or any(char.isspace() for char in url)):
+        raise ValueError('upload source URL must have no credentials, fragment or whitespace')
+    # Reading port also rejects malformed or out-of-range port declarations.
+    parsed.port
+
+
+def bind_upload_sources(media: list[dict], selections: list, kind: str) -> list[dict]:
+    """Bind authored source URLs to actual carrier indices before authorization."""
+    from production_diagnostics import ProductionError
+
+    if kind not in {'bytes', 'url'}:
+        raise ValueError('transport must declare its upload source as bytes or url')
+    if not isinstance(selections, list):
+        raise ValueError('upload_sources must be an array')
+    selected = {}
+    for position, row in enumerate(selections):
+        c.exact(row, {'index', 'url'}, 'upload source selection')
+        index = row['index']
+        if type(index) is not int or not 0 <= index < len(media):
+            raise ProductionError('UPLOAD_SOURCE_INVALID',
+                'The upload source index selects no prepared media carrier.',
+                phase='request-compilation', pointer=f'$.upload_sources[{position}].index',
+                selected_index=index,
+                carriers=[{'index': i, 'path': item['path'], 'role': item['role']}
+                          for i, item in enumerate(media)])
+        carrier = {'index': index, 'path': media[index]['path'], 'role': media[index]['role']}
+        if index in selected:
+            raise ProductionError('UPLOAD_SOURCE_INVALID',
+                'The prepared media carrier has more than one upload source.',
+                phase='request-compilation', pointer=f'$.upload_sources[{position}].index',
+                carrier=carrier)
+        source = {'kind': 'url', 'url': row['url']}
+        try:
+            validate_upload_source(source)
+        except ValueError as exc:
+            raise ProductionError('UPLOAD_SOURCE_INVALID', str(exc),
+                phase='request-compilation', pointer=f'$.upload_sources[{position}].url',
+                carrier=carrier) from exc
+        selected[index] = source
+    if kind == 'bytes' and selected:
+        raise ProductionError('UPLOAD_SOURCE_INVALID',
+            'This transport uploads the verified carrier bytes directly; URL sources do not apply.',
+            phase='request-compilation', pointer='$.upload_sources',
+            carriers=[{'index': index, 'path': media[index]['path'], 'role': media[index]['role']}
+                      for index in sorted(selected)])
+    missing = [index for index in range(len(media)) if index not in selected] if kind == 'url' else []
+    if missing:
+        raise ProductionError('UPLOAD_SOURCE_REQUIRED',
+            'Provide a service-readable URL for each prepared media carrier.',
+            phase='request-compilation', pointer='$.upload_sources',
+            required_action='Select URLs for the listed exact carrier files through upload_sources. '
+                            'URL content is checked against the sealed carrier when execution begins.',
+            carriers=[{'index': index, 'path': media[index]['path'], 'role': media[index]['role']}
+                      for index in missing])
+    return [{**copy.deepcopy(item),
+             'upload_source': copy.deepcopy(selected[index]) if kind == 'url' else {'kind': 'bytes'}}
+            for index, item in enumerate(media)]
 
 
 def output_count(request: dict, layout: dict) -> int:
@@ -325,6 +399,7 @@ def _profile(sealed: dict, layout: dict) -> dict:
         item.pop('sha256')
         item.pop('size')
         item.pop('binding_ids')
+        item['upload_source'] = {'kind': item['upload_source']['kind']}
     profile['bindings'] = [
         {key: value for key, value in binding.items() if key in PROFILE_BINDING_FIELDS}
         for binding in profile['bindings']
@@ -372,6 +447,8 @@ def seal(request: dict, layout: dict, media: list[dict], expected_target: dict, 
          trace: list[dict], bindings: list[dict] | None = None, context: dict | None = None) -> dict:
     """Seal the request and build a profile without generalizing parameter values."""
     target(expected_target)
+    for item in media:
+        validate_upload_source(item['upload_source'])
     validate_layout(request, layout, media, expected_target)
     wire = copy.deepcopy(request)
     normal = copy.deepcopy(request)

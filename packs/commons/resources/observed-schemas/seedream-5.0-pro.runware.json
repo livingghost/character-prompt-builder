@@ -1,10 +1,14 @@
 {
-  "artifact_type": "observed-parameter-schema",
+  "artifact_type": "supported-parameter-schema",
   "model_id": "seedream-5.0-pro",
   "service": "runware",
   "model_identifier": "bytedance:seedream@5.0-pro",
   "observed_at": "2026-10-12",
-  "source": "Runware.model_schema (MCP), 2026-10-12. Normalized JSON copy: non-validating titles/descriptions omitted; validation keywords and provider defaults retained. Not a raw HTTP response. https://runware.ai/docs/models/bytedance-seedream-5-0-pro",
+  "source": "Runware.model_schema (MCP), 2026-10-12. Source catalog copy normalized non-validating titles/descriptions and retained provider defaults. Not a raw HTTP response. https://runware.ai/docs/models/bytedance-seedream-5-0-pro",
+  "selection": {
+    "source_schema_sha256": "ec7c26dad9b387da5a57597f663726cdb2b1e8c87a9eea6a4abf1012d7b7111d",
+    "statement": "Authored supported subset of the recorded source schema. Image inputs use UUIDs issued by a completed file upload; image results use URL delivery. The source attribution retains its original target and observation limits."
+  },
   "schema": {
     "type": "object",
     "x-constraints": [
@@ -54,20 +58,7 @@
             "maxItems": 10,
             "items": {
               "type": "string",
-              "anyOf": [
-                {
-                  "format": "uuid"
-                },
-                {
-                  "format": "uri"
-                },
-                {
-                  "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
-                },
-                {
-                  "pattern": "^[a-zA-Z0-9+/=]+$"
-                }
-              ]
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             }
           }
         },
@@ -140,9 +131,7 @@
       "outputType": {
         "type": "string",
         "enum": [
-          "URL",
-          "base64Data",
-          "dataURI"
+          "URL"
         ],
         "default": "URL"
       },
@@ -183,20 +172,7 @@
               },
               "image": {
                 "type": "string",
-                "anyOf": [
-                  {
-                    "format": "uuid"
-                  },
-                  {
-                    "format": "uri"
-                  },
-                  {
-                    "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
-                  },
-                  {
-                    "pattern": "^[a-zA-Z0-9+/=]+$"
-                  }
-                ]
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
               },
               "displayPosition": {
                 "type": "string",

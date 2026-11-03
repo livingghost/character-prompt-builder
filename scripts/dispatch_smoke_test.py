@@ -34,7 +34,7 @@ import transport_contract  # noqa: E402
 import transport_runware  # noqa: E402
 from request_contract import MANAGEMENT_VALUE
 
-EXPECTED_CHECKS = 67
+EXPECTED_CHECKS = 66
 
 SERVICE = {"endpoint": {"base_url": "https://example.invalid/v1", "method": "POST"}, "operations": {"imageInference": {}}, "auth": {"scheme": "bearer", "header": "Authorization"}}
 TEXT_KEYS = {"model": ["model"], "prompt": ["positivePrompt"], "negative prompt": ["negativePrompt"]}
@@ -58,6 +58,7 @@ ADDED_SCHEMA = {
         "height": {"type": "integer"},
         "settings": {"type": "object"},
         "numberResults": {"type": "integer", "minimum": 1, "maximum": 4},
+        "outputType": {"const": "URL"},
     },
     "required": ["model", "positivePrompt"],
     "additionalProperties": False,
@@ -377,15 +378,6 @@ def main() -> int:
             return 200, json.dumps(body).encode("utf-8")
         return fake
 
-    refusal_seen = None
-    with patch.object(transport_runware, "post", side_effect=answering({"errors": [{"code": "invalidImage"}]})):
-        try:
-            transport_runware.upload_bytes(PNG, "image/png", runware, "KEY")
-        except transport_contract.Refused as exc:
-            refusal_seen = exc
-    check("a refused upload raises the contract's Refused, a ValueError that keeps the service's answer",
-          isinstance(refusal_seen, ValueError) and refusal_seen.answer == {"errors": [{"code": "invalidImage"}]}
-          and refusal_seen.evidence()["outcome"] == "rejected", refusal_seen and refusal_seen.evidence())
     check("Runware usage is the cost every returned task entry reports, and unknown when an entry reports none",
           transport_runware.usage({"data": [{"cost": 0.0013}, {"cost": "0.0013"}]}) == {"currency": "USD", "amount": "0.0026", "final": True}
           and transport_runware.usage({"data": [{"cost": 0.0013}, {"imageURL": "https://im.runware.ai/a.png"}]}) is None
@@ -521,7 +513,7 @@ def main() -> int:
         lacking = refusal(lambda: transport_contract.load("partial_fixture"))
     check("a transport that lacks or mistypes contract names is refused in one line naming each",
           all(f"{name} is missing" in lacking for name in ("compile_request", "compile_upscale", "added_parameters",
-                                                           "upload_bytes", "send", "rejections", "results", "observation_outcome"))
+                                                           "upload_media", "send", "rejections", "results", "observation_outcome"))
           and "RESULT_HOSTS is not a set of host names" in lacking and "CREDENTIAL_FREE is not a boolean" in lacking
           and "lookup" not in lacking and "endpoint" not in lacking
           and "OPERATIONS" not in lacking and len(lacking.splitlines()) == 1, lacking)

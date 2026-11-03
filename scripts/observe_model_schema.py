@@ -84,7 +84,7 @@ def publish(args) -> dict:
                 chosen['schema_acquisition']=result['evidence']
                 chosen['observed_at']=wrapper['observed_at']
                 expected,model_key=model_contract.offering_expectation(args.model,chosen)
-                issues=model_contract.observed_schema_issues(wrapper,expected,model_key=model_key)
+                issues=model_contract.parameter_schema_issues(wrapper,expected,model_key=model_key)
                 if issues:raise ValueError('observed schema does not meet its contract: '+'; '.join(issues))
                 c.atomic(staging/prefix/'observed-schema.json',c.encoded(wrapper))
             else:chosen.setdefault('reference_schemas',[]).append(result['contract'])

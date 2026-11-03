@@ -221,8 +221,9 @@ def validate(root:Path=ROOT)->dict[str,Any]:
             errors.append(f'invalid schema JSON {path.name}: {exc}'); continue
 
         props=data.get('properties',{})
-        kind=(props.get('artifact_type') or {}).get('const') if isinstance(props,dict) else None
-        if kind:
+        declared=(props.get('artifact_type') or {}) if isinstance(props,dict) else {}
+        kinds=[declared['const']] if 'const' in declared else declared.get('enum',[])
+        for kind in kinds:
             if kind in artifact_map: errors.append(f'duplicate artifact_type schema: {kind}')
             artifact_map[kind]=path.name
     missing=sorted(REQUIRED_ARTIFACT_TYPES-set(artifact_map))

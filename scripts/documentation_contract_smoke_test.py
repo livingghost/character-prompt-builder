@@ -484,7 +484,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         workflow = (ROOT / owner).read_text(encoding="utf-8")
         self.assertIn("Conversation-only text needs no generation workflow.", workflow)
         handoff = workflow.partition("## Authoring and handoff\n")[2].partition("\n## ")[0].strip()
-        self.assertTrue(handoff.startswith("Establish the Studio and read the applicable route for saved work."))
+        self.assertTrue(handoff.startswith("Establish the Studio, open its work task and read the applicable route for saved work."))
 
     def test_paged_reading_guidance_matches_the_continuation_cli(self) -> None:
         document = (ROOT / "references/runtime/production-execution.md").read_text(encoding="utf-8")

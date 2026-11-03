@@ -154,6 +154,63 @@ python scripts/reference_delivery.py --image-input-plan image-input.json --studi
 
 This reads an existing prepared origin when the plan names one. Each binding records its exact request field, such as `["images",0,"uri"]`, for transport verification. A prepared origin also supplies the actual attachment number and board region for each logical reference. Different sources may share one external field when they use the same verified carrier and uploaded value; their individual roles and scopes remain recorded. Author the reference instructions using the image positions and controls the target actually receives. Preparation verifies the exact request, image mapping and source bytes; the agent reviews whether the received prompt and media convey the assigned uses.
 
+### Upload the selected media for one generation
+
+For dispatcher work, `production_workflow.py execute` owns the upload. It reads
+and verifies the sealed carrier bytes, invokes the selected service's declared
+HTTP upload interface, and records the actual provider response and returned
+media identifier before sending the generation request. The service definition
+and transport own the upload fields and response shape.
+
+A transport declares whether its HTTP interface receives file bytes or imports
+an existing media URL. For a URL-import interface, `task.upload_sources` binds
+each actual carrier index to its remotely readable URL. This synthetic excerpt
+selects the source URL for the first carrier:
+
+```json
+{
+  "upload_sources": [
+    {
+      "index": 0,
+      "url": "https://assets.example.org/reference.png"
+    }
+  ]
+}
+```
+
+The index is zero-based in the prepared request's media list. A shared board is
+one carrier even when it supplies several logical references. Select the exact
+prepared image's URL from the owner's existing storage or an available host
+interface. A local path is not a remotely readable URL, and the adapter does
+not publish local files to create one. `build-inputs` carries this selection
+through `task_changes.upload_sources`; preparation records the carrier's path
+and seals the URL with its hash, size and media type. The URL-import transport verifies
+the provider's stored bytes against that carrier before accepting its issued
+identifier. Byte-upload interfaces receive the sealed content directly.
+
+Each generation owns fresh uploads. Recovery of the same unfinished execution
+can continue from its completed uploads; a new generation uploads again.
+After the generation reaches a known terminal result and its returned images
+are captured, execution deletes its uploaded input media through the selected
+transport's declared deletion operation. A pending or failed cleanup remains
+explicit and cannot cause another generation request. Each uploaded input gets
+one deletion request. A deletion error, including a missing target, is recorded
+without retrying that deletion; the saved images remain available for review.
+An uncertain outcome can be queried by the original deletion request's
+identifier without resending it. Saved source bytes,
+upload responses and deletion records remain available for review after the
+provider's temporary input is removed. An upload without its saved response
+stays unknown.
+
+External host interfaces follow their actual upload and deletion contracts.
+Pass a local file only when the available host interface explicitly accepts
+one; otherwise use a documented input it supports. Bind the identifier returned
+for this generation and its upload evidence in the image-input plan's
+`external_request.reference_fields`, then record the actual deletion result
+after capturing the output. A provider response and an arbitrary local image
+do not establish which bytes were uploaded. A host that lacks a required
+operation needs an explicitly available interface; do not assume one exists.
+
 Production preparation preserves the original source images and the actual
 prepared carriers in the run. The review draft exposes both, with their
 source assignments and transformations, so later review can inspect the same

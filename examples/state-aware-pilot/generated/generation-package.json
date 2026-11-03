@@ -32,7 +32,7 @@
         "basis": {
           "kind": "provider-documentation",
           "limitations": [
-            "The stored schema is dated interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
+            "The supported schema derives from interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
             "This profile declares geometry, settings, output, count and media controls. Sampling controls (steps, guidance, scheduler, seed) are backend-managed: the schema exposes none of them."
           ],
           "source": "resources/observed-schemas/gpt-image-2-5-flare.runware.json"
@@ -358,7 +358,7 @@
       },
       "note": "Recommendations are starting points. Interface validity and observed image quality are separate evidence."
     },
-    "profile_sha256": "12fadbf95031dd5e27ae78af7af7618dedd24c420296ff73c6e4de5758c7e1d7",
+    "profile_sha256": "d269c80b32e312d7a009758a0d12afe5ed28a1f1d3aaac0a259fde79afc942ef",
     "authored_parameters": {
       "width": 1024,
       "height": 1024,
@@ -9437,7 +9437,7 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
   "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-  "generation_input_sha256": "6a19091c51b956fe78558d99808a7fce039c5ee18501c91cbd03addfbf8c4427",
+  "generation_input_sha256": "0798577d41373014bfd1771400870998c8e160b058dc21bd19e8c5702b054ca3",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -9588,12 +9588,12 @@
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "state_graphs_sha256": "9639bdbd5f1cb2b3b33f5515b7cbb9c47ac6ee26f7726360e6948c0b75a1d231",
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-    "generation_input_sha256": "6a19091c51b956fe78558d99808a7fce039c5ee18501c91cbd03addfbf8c4427",
+    "generation_input_sha256": "0798577d41373014bfd1771400870998c8e160b058dc21bd19e8c5702b054ca3",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "5418654c2b4018a121e1e4c98d7c1aa05957683ca263df6593e53e61dfbf2f94",
-    "request_validation_sha256": "f4f8ee2e3f218ff7eac347cd9346c4080907991f8d268005cc4ea454705dc49c",
-    "input_snapshots_sha256": "bf0a28fc2388f3be4568b55b66d532e8a1f6e5acc5d7615dbbd063cf47be6e5c"
+    "route_reading_sha256": "618bce2f4ab5b343046c06820d0e4ffedc6e122eade745140daf43165898bfd1",
+    "request_validation_sha256": "9698eec9378218b94ac21766b6b8ad4b2c98f72e42bc1ae2b3d3a66762454cbe",
+    "input_snapshots_sha256": "3a408864e133c3403cdf3e1832424557fd732e3a2b2826bd4cc5f2721536581b"
   },
   "visual_continuity": {
     "purpose": "image",
@@ -9616,7 +9616,7 @@
     "documents": [
       {
         "path": "references/runtime/production-workflow.md",
-        "sha256": "3831fbc31f80db617be618cfabd56d6caf9ab6680d5a5562b8bfc3c9c3a37f88"
+        "sha256": "21f4df4b242de773b9dbba60eee8fe799b3e71c1f077d93594226c222c797545"
       },
       {
         "path": "references/runtime/production-direction.md",
@@ -9624,11 +9624,11 @@
       },
       {
         "path": "references/runtime/production-permissions.md",
-        "sha256": "60cf1ad26d119b27c989f5cf794210dfac350f95014f5aa845ff006a67a20dbc"
+        "sha256": "2cb2e88f70661a3f62fe36f54d3e2c9f70de9e17320ef3547379c2e7aef160df"
       },
       {
         "path": "references/runtime/production-execution.md",
-        "sha256": "0949a2621152f3029669ca9f3ae8ff2719bd39b49871f661e1bb0a5fbc3c7fcf"
+        "sha256": "dbfcea4e177203e0d22feb35e90f1bc158fa03424afcf42216a74c85792008b8"
       },
       {
         "path": "references/runtime/state-aware-series.md",
@@ -9652,7 +9652,7 @@
       },
       {
         "path": "references/runtime/reference-delivery.md",
-        "sha256": "9415908f4f632b1269cbe29ba67365e7131ccdf205224583581e7cfc07fe2dd2"
+        "sha256": "5068e7e7c1bf3bb21bed63872f37ea2ad1c5e2d7c2b615052749938542a52933"
       },
       {
         "path": "references/runtime/render-contract.md",
@@ -9691,7 +9691,7 @@
       }
     },
     "route": "state-series",
-    "reading_key": "09229043ca89a38ea1934bcd2cb87d16",
+    "reading_key": "e4b7297ced7dda028883b4e984591ab9",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
@@ -9718,7 +9718,7 @@
       }
     ]
   },
-  "route_reading_sha256": "5418654c2b4018a121e1e4c98d7c1aa05957683ca263df6593e53e61dfbf2f94",
+  "route_reading_sha256": "618bce2f4ab5b343046c06820d0e4ffedc6e122eade745140daf43165898bfd1",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",
@@ -9727,54 +9727,54 @@
       "model_identifier": "openai:gpt-image@2.5-flare",
       "operation": "generate"
     },
-    "service_execution_sha256": "08829db9df2aa81c366d84165680f81a49c84656c05d2430013637fdcff3f9ff",
-    "offering_contract_sha256": "1f20981624b5a5e167c193687d55a964c51255c2afb7b7f709ffa6fed4b551ef",
-    "transport_sha256": "cf5b6e38c3da1c98c492c991155fec171bdc197140b130b6792f246d060d5fbc",
+    "service_execution_sha256": "e84c5ca1c8101f481e6d4446c4132d8db661ff81fd8280f1c65b71789d109259",
+    "offering_contract_sha256": "9bf7f4978a62fd04f64d237c8412978924abaf4c780f3fa77c3232d7c73b4ce1",
+    "transport_sha256": "05179a591ea899f99ab9f0095a0da71b7746c92f16396b0370a1c3949f681486",
     "contract": {
-      "path": "synthetic-validation/7ddc0ed27f8047e5/contract.json",
+      "path": "synthetic-validation/49f93f4a199bed7a/contract.json",
       "sha256": "cdd7df03e86e1987057c723ddd339a0cf6e6399f23d1a4e09c0b82f66e07c2b4"
     },
     "evidence": {
-      "path": "synthetic-validation/7ddc0ed27f8047e5/acquisition.json",
-      "sha256": "b31749297b16adf2528329246b52171cd8ff6d1450093d8737f563611d1ebe47"
+      "path": "synthetic-validation/49f93f4a199bed7a/acquisition.json",
+      "sha256": "1512255d63ecf88f6f8e60778cc06eacf15fa5b05fe99ad97aa0797f302d476b"
     },
     "execution_policy": {
-      "path": "synthetic-validation/7ddc0ed27f8047e5/policy.json",
-      "sha256": "36464f4c5ea241e9c2e4ce9ecbe6b17332b31f6c04fb458cc566053a4144fecb"
+      "path": "synthetic-validation/49f93f4a199bed7a/policy.json",
+      "sha256": "3e3c86d9e14551a29f7fe363a4d9b55f64406074f221637f3838363af28bd134"
     },
     "unmeasured": []
   },
-  "request_validation_sha256": "f4f8ee2e3f218ff7eac347cd9346c4080907991f8d268005cc4ea454705dc49c",
+  "request_validation_sha256": "9698eec9378218b94ac21766b6b8ad4b2c98f72e42bc1ae2b3d3a66762454cbe",
   "input_snapshots": {
-    "synthetic-validation/7ddc0ed27f8047e5/contract.json": {
+    "synthetic-validation/49f93f4a199bed7a/contract.json": {
       "sha256": "cdd7df03e86e1987057c723ddd339a0cf6e6399f23d1a4e09c0b82f66e07c2b4",
       "size": 304,
       "base64": "eyJhcnRpZmFjdF90eXBlIjoibW9kZWwtc2NoZW1hLWNvbnRyYWN0IiwibG9jYWxfb3ZlcmxheSI6bnVsbCwicmVzcG9uc2VfcG9pbnRlciI6Ii9zY2hlbWEiLCJzY2hlbWEiOnsidHlwZSI6Im9iamVjdCJ9LCJzY2hlbWFfc2hhMjU2IjoiOTA5MWE4MTY0Zjk3ZWFjYTE4MmIzZDA2ZDBlNWE1OWU5MjNjODgwZWJjMDE0ODA1NmM0NTNjNjUxZjViNDZjYiIsInRhcmdldCI6eyJtb2RlbF9pZGVudGlmaWVyIjoib3BlbmFpOmdwdC1pbWFnZUAyLjUtZmxhcmUiLCJvcGVyYXRpb24iOiJnZW5lcmF0ZSIsInNlcnZpY2UiOiJydW53YXJlIn19Cg=="
     },
-    "synthetic-validation/7ddc0ed27f8047e5/acquisition.json": {
-      "sha256": "b31749297b16adf2528329246b52171cd8ff6d1450093d8737f563611d1ebe47",
+    "synthetic-validation/49f93f4a199bed7a/acquisition.json": {
+      "sha256": "1512255d63ecf88f6f8e60778cc06eacf15fa5b05fe99ad97aa0797f302d476b",
       "size": 474,
-      "base64": "eyJhY3F1aXJlZF9hdCI6IjIwMDAtMDEtMDFUMDA6MDA6MDBaIiwiYXJ0aWZhY3RfdHlwZSI6InNjaGVtYS1hY3F1aXNpdGlvbiIsInJlc3BvbnNlIjp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi83ZGRjMGVkMjdmODA0N2U1L2ludGVyZmFjZS5qc29uIiwic2hhMjU2IjoiN2I1MGYzMGMwOTE5MTJhYTU4YjIxYWJiNDE4YjYzNTJhODE2NGZjNWQxMmQyNzUwN2FiN2IyODE3NGJjY2FlOCJ9LCJzb3VyY2UiOnsiaWRlbnRpZmllciI6IlN5bnRoZXRpYyBpbnRlcmZhY2UgZml4dHVyZSIsImtpbmQiOiJkb2N1bWVudCIsImxvY2F0b3IiOiJzY2hlbWEgbWVtYmVyIn0sInN0YXR1cyI6eyJkb2N1bWVudF9zdGF0dXMiOiJzY2hlbWEtcHJvdmlkZWQifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJvcGVuYWk6Z3B0LWltYWdlQDIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRlIiwic2VydmljZSI6InJ1bndhcmUifX0K"
+      "base64": "eyJhY3F1aXJlZF9hdCI6IjIwMDAtMDEtMDFUMDA6MDA6MDBaIiwiYXJ0aWZhY3RfdHlwZSI6InNjaGVtYS1hY3F1aXNpdGlvbiIsInJlc3BvbnNlIjp7InBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi80OWY5M2Y0YTE5OWJlZDdhL2ludGVyZmFjZS5qc29uIiwic2hhMjU2IjoiN2I1MGYzMGMwOTE5MTJhYTU4YjIxYWJiNDE4YjYzNTJhODE2NGZjNWQxMmQyNzUwN2FiN2IyODE3NGJjY2FlOCJ9LCJzb3VyY2UiOnsiaWRlbnRpZmllciI6IlN5bnRoZXRpYyBpbnRlcmZhY2UgZml4dHVyZSIsImtpbmQiOiJkb2N1bWVudCIsImxvY2F0b3IiOiJzY2hlbWEgbWVtYmVyIn0sInN0YXR1cyI6eyJkb2N1bWVudF9zdGF0dXMiOiJzY2hlbWEtcHJvdmlkZWQifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJvcGVuYWk6Z3B0LWltYWdlQDIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRlIiwic2VydmljZSI6InJ1bndhcmUifX0K"
     },
-    "synthetic-validation/7ddc0ed27f8047e5/policy.json": {
-      "sha256": "36464f4c5ea241e9c2e4ce9ecbe6b17332b31f6c04fb458cc566053a4144fecb",
+    "synthetic-validation/49f93f4a199bed7a/policy.json": {
+      "sha256": "3e3c86d9e14551a29f7fe363a4d9b55f64406074f221637f3838363af28bd134",
       "size": 549,
-      "base64": "eyJhcnRpZmFjdF90eXBlIjoiZXhlY3V0aW9uLXBvbGljeSIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi83ZGRjMGVkMjdmODA0N2U1L2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwicmVmZXJlbmNlX2luc3RydWN0aW9uX3RyYW5zcG9ydCI6eyJjb250cmFjdCI6eyJwYXRoIjoic3ludGhldGljLXZhbGlkYXRpb24vN2RkYzBlZDI3ZjgwNDdlNS9yZWZlcmVuY2VzLmpzb24iLCJzaGEyNTYiOiJhMDljY2UyOTAwYzMwZjcwMmE0OTk0ZjNlMjFjMTJhNTFmYjU0OThmNzc2ZjFlNzRlYjU4ZTUxNDIwMzNmYmFkIn0sIm1vZGUiOiJhdXRob3JlZC1yZW5kaXRpb24ifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJvcGVuYWk6Z3B0LWltYWdlQDIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRlIiwic2VydmljZSI6InJ1bndhcmUifSwidGV4dF9kaWFsZWN0Ijoic3ludGhldGljLXByb3NlIn0K"
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoiZXhlY3V0aW9uLXBvbGljeSIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi80OWY5M2Y0YTE5OWJlZDdhL2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwicmVmZXJlbmNlX2luc3RydWN0aW9uX3RyYW5zcG9ydCI6eyJjb250cmFjdCI6eyJwYXRoIjoic3ludGhldGljLXZhbGlkYXRpb24vNDlmOTNmNGExOTliZWQ3YS9yZWZlcmVuY2VzLmpzb24iLCJzaGEyNTYiOiI5NzFkNjIzZWUxMzA4YTEzMjk5NjdkMmI3NDljMTk3YzY4NjdlY2YyMDhkMjY0OWJmMGJiZDY4NzMwZjM3NmRhIn0sIm1vZGUiOiJhdXRob3JlZC1yZW5kaXRpb24ifSwidGFyZ2V0Ijp7Im1vZGVsX2lkZW50aWZpZXIiOiJvcGVuYWk6Z3B0LWltYWdlQDIuNS1mbGFyZSIsIm9wZXJhdGlvbiI6ImdlbmVyYXRlIiwic2VydmljZSI6InJ1bndhcmUifSwidGV4dF9kaWFsZWN0Ijoic3ludGhldGljLXByb3NlIn0K"
     },
-    "synthetic-validation/7ddc0ed27f8047e5/interface.json": {
+    "synthetic-validation/49f93f4a199bed7a/interface.json": {
       "sha256": "7b50f30c091912aa58b21abb418b6352a8164fc5d12d27507ab7b28174bccae8",
       "size": 46,
       "base64": "eyJzY2hlbWEiOnsidHlwZSI6Im9iamVjdCJ9LCJzeW50aGV0aWMiOnRydWV9Cg=="
     },
-    "synthetic-validation/7ddc0ed27f8047e5/basis.txt": {
+    "synthetic-validation/49f93f4a199bed7a/basis.txt": {
       "sha256": "424db1c13f6c398026a9d9ae39d4e8f294e1274d4e2d1dec1ab501e7d61e06c5",
       "size": 60,
       "base64": "U3ludGhldGljIGludGVyZmFjZSBkZWNsYXJhdGlvbi4gTm8gcHJvdmlkZXIgd2FzIGNvbnRhY3RlZC4K"
     },
-    "synthetic-validation/7ddc0ed27f8047e5/references.json": {
-      "sha256": "a09cce2900c30f702a4994f3e21c12a51fb5498f776f1e74eb58e5142033fbad",
+    "synthetic-validation/49f93f4a199bed7a/references.json": {
+      "sha256": "971d623ee1308a1329967d2b749c197c6867ecf208d2649bf0bbd68730f376da",
       "size": 380,
-      "base64": "eyJhcnRpZmFjdF90eXBlIjoicmVmZXJlbmNlLXJlbmRlci1jb250cmFjdCIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi83ZGRjMGVkMjdmODA0N2U1L2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwiZGlhbGVjdHMiOlsic3ludGhldGljLXByb3NlIl0sImZpZWxkcyI6W10sIm1vZGUiOiJhdXRob3JlZC1yZW5kaXRpb24iLCJ0YXJnZXQiOnsibW9kZWxfaWRlbnRpZmllciI6Im9wZW5haTpncHQtaW1hZ2VAMi41LWZsYXJlIiwib3BlcmF0aW9uIjoiZ2VuZXJhdGUiLCJzZXJ2aWNlIjoicnVud2FyZSJ9fQo="
+      "base64": "eyJhcnRpZmFjdF90eXBlIjoicmVmZXJlbmNlLXJlbmRlci1jb250cmFjdCIsImJhc2lzIjp7ImxvY2F0b3IiOiJ3aG9sZSIsInBhdGgiOiJzeW50aGV0aWMtdmFsaWRhdGlvbi80OWY5M2Y0YTE5OWJlZDdhL2Jhc2lzLnR4dCIsInNoYTI1NiI6IjQyNGRiMWMxM2Y2YzM5ODAyNmE5ZDlhZTM5ZDRlOGYyOTRlMTI3NGQ0ZTJkMWRlYzFhYjUwMWU3ZDYxZTA2YzUifSwiZGlhbGVjdHMiOlsic3ludGhldGljLXByb3NlIl0sImZpZWxkcyI6W10sIm1vZGUiOiJhdXRob3JlZC1yZW5kaXRpb24iLCJ0YXJnZXQiOnsibW9kZWxfaWRlbnRpZmllciI6Im9wZW5haTpncHQtaW1hZ2VAMi41LWZsYXJlIiwib3BlcmF0aW9uIjoiZ2VuZXJhdGUiLCJzZXJ2aWNlIjoicnVud2FyZSJ9fQo="
     },
     "fixture-visual-basis.txt": {
       "sha256": "8214731768861c3035f864cd014f4f7256ab4f8cfdf94d186935321a01e4d683",
@@ -9782,5 +9782,5 @@
       "base64": "U3ludGhldGljIHZpc3VhbCBkZWNpc2lvbnMgZm9yIG9uZSBkZWNsYXJlZCB0ZXN0IGlucHV0LiBOb3QgYW4gYXV0aG9yIGFwcHJvdmFsLgo="
     }
   },
-  "input_snapshots_sha256": "bf0a28fc2388f3be4568b55b66d532e8a1f6e5acc5d7615dbbd063cf47be6e5c"
+  "input_snapshots_sha256": "3a408864e133c3403cdf3e1832424557fd732e3a2b2826bd4cc5f2721536581b"
 }

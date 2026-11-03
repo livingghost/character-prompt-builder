@@ -108,7 +108,12 @@ These are retrospective records, not quotas or permission. The same records can
 be filtered to a run without rewriting Studio history.
 
 `resume` reuses the same claim. It recovers saved answers and missing outputs,
-reuses completed uploads, or checks the provider's recorded outcome. It never
+reuses completed uploads within that execution, checks the provider's recorded
+outcome, or completes deletion of that execution's uploaded inputs. The exact
+submission scope includes those deletions when the selected transport supports
+them. Cleanup uses the owned upload receipts after a terminal result and output
+capture; it does not reopen submission or require a new generation approval.
+Every new generation uploads its inputs anew. Recovery never
 resends a started request. A timeout, disconnect or missing image is not evidence
 that the provider did nothing. `draft-outcome` leaves an evidenced `not_executed`
 statement for an authorized actor when the provider's own records establish that

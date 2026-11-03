@@ -366,9 +366,11 @@ def _transmit(root: Path, run: str, journal, rendered: dict, claim: dict, author
                 if not started:
                     accounting.begin_step(root, run, authorization, claim=claim['sha256'], step=step, operation='upload')
                     try:
-                        uploaded=transport.upload_bytes(raw,item['media_type'],target['service'],key)
+                        source=item['upload_source']
+                        uploaded=transport.upload_media(raw,item['media_type'],target['service'],key,
+                            source_url=source['url'] if source['kind']=='url' else None)
                     except transport_contract.Refused as refusal:
-                        return _refused_upload(root, run, journal, claim, authorization, index, refusal)
+                        return _refused_upload(root, run, journal, claim, authorization, index, refusal.evidence())
                     c.exact(uploaded,{'provider_id','response','usage'},'transport upload result')
                     journal.write(f'upload-{index + 1:03d}.json', {'index': index, 'source': item['path'],
                         'source_sha256': item['sha256'], **uploaded})
@@ -436,17 +438,24 @@ def _unfinished(root: Path, run: str, journal, claim: dict, transport: Any, answ
     return result
 
 
-def _refused_upload(root: Path, run: str, journal, claim: dict, authorization: str, index: int, refusal) -> dict:
+def _refused_upload(root: Path, run: str, journal, claim: dict, authorization: str, index: int, refusal: dict) -> dict:
     """Keep the service's refusal of an upload; nothing was made, so the request is never sent."""
+    c.exact(refusal, {'outcome', 'reason', 'answer'}, 'upload refusal')
+    if refusal['outcome'] != 'rejected':
+        raise ValueError('an upload refusal needs the actual rejected provider response')
     name = f'upload-{index + 1:03d}-refused.json'
-    journal.write(name, refusal.evidence())
+    if (journal.path / f'upload-{index + 1:03d}.json').is_file():
+        raise ProductionError('ARTIFACT_CORRUPT', 'An upload has conflicting saved outcomes.',
+                              phase='result-capture', run=run)
+    journal.write(name, refusal)
     journal.update(status='upload-refused')
     evidence = _evidence(root, run, journal, [name])
     _record_no_effect(root, run, authorization, claim, f'upload:{index}', 'rejected', evidence)
     _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'claimed',
         'code': 'PROVIDER_REJECTION', 'step': f'upload:{index}', 'evidence': evidence})
-    result = status(root, run)
-    result.update(ok=False, execution_completed=False, external_effect=False)
+    _, _, _, _, _, _, _, target, transport = compiled(root, run)
+    result = _cleanup_report(root, run, journal, claim, target, transport)
+    result.update(ok=False, execution_completed=False)
     return result
 
 
@@ -592,7 +601,9 @@ def _finish_captured(root: Path, run: str, journal, transport: Any, *, answer_na
         if provider_complete:
             accounting.record_effect(root,run,authorization,claim=claim['sha256'],step='send',usage=usage,evidence=[response_ref])
         state=accounting.require_active(store.event_rows(root,run),prepared,run,authorization)
-        actual_cost,_=accounting.effect_total(state)
+        # The generation result is immutable. Later input deletion keeps its
+        # own billed receipts in aggregate accounting, not a rewritten result.
+        actual_cost,_=accounting.effect_total(state, operations={'upload', 'send'})
         accounting.record_result(root, run, authorization, outputs=len(acquisition['acquired']),
             cost=actual_cost if provider_complete else None, final=provider_complete and not acquisition['failed'], evidence=[response_ref])
         _append(root, run, 'capture-status', {'claim': claim['sha256'], 'capture': 'complete' if result['data']['complete'] else 'partial',
@@ -627,9 +638,30 @@ def _finish_captured(root: Path, run: str, journal, transport: Any, *, answer_na
             warnings.append(from_exception(exc, phase='studio-projection', code='STUDIO_PROJECTION_FAILED'))
             # The candidates are registered; only their Studio projection is missing.
             journal.update(status='projection-missing')
-    report = status(root, run)
+    images_complete = provider_complete and result['data']['complete'] and not warnings
+    if provider_complete and not acquisition['failed']:
+        _, _, _, _, _, _, _, target, _ = compiled(root, run)
+        report = _cleanup_report(root, run, journal, claim, target, transport)
+        warnings.extend(report.get('warnings', []))
+    else:
+        report = status(root, run)
     report['warnings'] = warnings
-    report['execution_completed'] = provider_complete and result['data']['complete'] and not warnings
+    cleanup = report['runs'][0]['cleanup']['state']
+    report['execution_completed'] = images_complete and cleanup in {'not-needed', 'complete', 'failed', 'unsupported'}
+    report['ok'] = report['ok'] and report['execution_completed']
+    return report
+
+
+def _cleanup_report(root: Path, run: str, journal, claim: dict, target: dict, transport: Any) -> dict:
+    """Complete only owned-input cleanup, keeping captured images immediately usable."""
+    import production_cleanup
+    cleanup = production_cleanup.perform(root, run, journal, claim, target, transport)
+    report = status(root, run)
+    item = report['runs'][0]
+    report['warnings'] = cleanup['warnings']
+    report['external_effect'] = cleanup['external_effect']
+    report['execution_completed'] = (item['capture'] == 'complete' and item['registration'] == 'registered'
+        and item['cleanup']['state'] in {'not-needed', 'complete', 'failed', 'unsupported'} and not item['capture_diagnostics'])
     report['ok'] = report['ok'] and report['execution_completed']
     return report
 
@@ -746,8 +778,13 @@ def _record_not_executed(root: Path, run: str, journal, claim: dict, execution_s
         _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'not_executed',
                                                  'actor': statement['actor'], 'evidence': files})
     journal.update(status='not-executed')
+    _, _, _, _, _, _, _, target, transport = compiled(root, run)
+    import production_cleanup
+    cleanup = production_cleanup.perform(root, run, journal, claim, target, transport)
     result = status(root, run)
-    result.update(execution_completed=False, external_effect=False)
+    # Recording a proven non-execution is successful settlement. It does not
+    # claim an image was generated, even when owned inputs also need cleanup.
+    result.update(execution_completed=False, external_effect=cleanup['external_effect'], warnings=cleanup['warnings'])
     return result
 
 
@@ -776,6 +813,24 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
     if outcome_file is not None:
         return _record_not_executed(root, run, journal, claim, execution_state, outcome_file)
     send = next((step for step in execution_state['steps'] if step['operation'] == 'send'), None)
+    if send is None:
+        for step in execution_state['steps']:
+            if step['operation'] != 'upload':
+                continue
+            index = int(step['step'].split(':', 1)[1])
+            refusal = journal.path / f'upload-{index + 1:03d}-refused.json'
+            if refusal.is_file():
+                # The response may be durable before its event is committed.
+                # Recover it before deciding whether earlier uploads can be deleted.
+                return _refused_upload(root, run, journal, claim, execution_state['authorization_sha256'],
+                                       index, c.load(refusal))
+    import production_cleanup
+    cleanup = production_cleanup.inspect(data[0], c.load(journal.path / 'request-contract.json'), execution_state, transport)
+    if cleanup['eligible'] and (cleanup['state'] in {'pending', 'outcome_unknown'}
+            or (cleanup['state'] in {'failed', 'unsupported'} and _registration(root, prepared, rows) == 'registered')):
+        # Provider completion and captured output facts are already durable.
+        # Cleanup recovery never uploads, generates, or reacquires the image.
+        return _cleanup_report(root, run, journal, claim, target, transport)
     observations = _response_observations(journal.path)
     if observations and send is not None:
         observation = observations[-1]
@@ -897,8 +952,10 @@ def _current_task(root: Path) -> dict | None:
                 'diagnostics': [from_exception(exc, phase='status', file='work/current.json')]}
     if task is None:
         return None
+    import production_authoring_state
     return {'task_id': task.get('task_id'), 'goal': task.get('goal'), 'next': task.get('next'),
-            'production_run': task.get('production_run')}
+            'production_run': task.get('production_run'),
+            'authoring': production_authoring_state.inspect(root, task)}
 
 
 def _logs_by_run(root: Path) -> dict[str, list[str]]:
@@ -1002,6 +1059,12 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
             'The provider accepted this task and is still processing. Resume retrieves the same task without sending again.')
     if mode == 'dispatcher' and report['submission'] == 'outcome_unknown':
         return _unknown_outcome_action(root, run, rows)
+    cleanup = report['cleanup']
+    if mode == 'dispatcher' and cleanup['eligible'] and cleanup['state'] in {'pending', 'outcome_unknown'}:
+        reason = ('Recover the original deletion requests by their recorded identifiers; their unknown outcomes never cause a new generation.'
+                  if cleanup['state'] == 'outcome_unknown' else
+                  'Delete only this run\'s retained uploaded inputs. Captured images stay saved; resume never uploads or generates them again.')
+        return _action('resume', root, ['--run', run], reason)
     if report['task_disposition'] == 'completed':
         return None
     if report['task_disposition'] == 'abandoned':
@@ -1137,7 +1200,9 @@ def _run_authentication(root: Path, directory: Path, prepared: dict, claims: lis
             observations = _response_observations(journal)
             saved_answer = ((journal / 'answer.json').is_file() or bool(observations and
                 transport_contract.complete(transport, c.load(observations[-1]))))
-            if not saved_answer and report['submission'] in {'pending', 'outcome_unknown'}:
+            if report['cleanup']['eligible'] and report['cleanup']['state'] in {'pending', 'outcome_unknown'}:
+                required = True
+            elif not saved_answer and report['submission'] in {'pending', 'outcome_unknown'}:
                 required = callable(getattr(transport, 'lookup', None))
             elif not saved_answer and report['submission'] == 'claimed' and report['readiness'] != 'blocked':
                 steps = execution_state['steps'] if execution_state else []
@@ -1222,6 +1287,15 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         'execution': None if execution_state is None else {'execution_id': execution_state['execution_id'], 'status': execution_state['status']},
         'journal': claims[-1]['data']['journal'] if claims else None,
         'logs': logs.get(identifier, [])}
+    import production_cleanup
+    report['cleanup'] = {'state': 'not-needed', 'eligible': False, 'uploaded': 0, 'deleted': 0, 'retained': 0, 'items': []}
+    if mode == 'dispatcher':
+        import transport_contract
+        target = c.load(directory / 'execution-target.json')
+        transport = transport_contract.load(target['service']['transport'])
+        media_directory = c.local(root, claims[-1]['data']['journal']) if claims else directory
+        rendered = c.load(media_directory / 'request-contract.json')
+        report['cleanup'] = production_cleanup.inspect(directory, rendered, execution_state, transport)
     report['next_action'] = _next_action(root, report, prepared, rows, execution_state=execution_state, authority=authority)
     action = report['next_action']
     if action and action['command'] in {'draft-execution', 'execute', 'draft-review', 'review', 'draft-acceptance', 'accept'}:

@@ -59,10 +59,10 @@ class StudioExecutionTests(unittest.TestCase):
         self.assertFalse(any(row['event']=='external-step' for row in store.event_rows(self.root,self.run)))
 
     def test_identity_change_during_upload_stops_the_send_boundary(self):
-        approved=decisions(self.root,self.run); original=transport.upload_bytes
+        approved=decisions(self.root,self.run); original=transport.upload_media
         def upload(*args,**kwargs):
             result=original(*args,**kwargs); self.withdraw(); return result
-        with patch.object(transport,'upload_bytes',side_effect=upload), patch.object(transport,'send',side_effect=AssertionError('Boundary must recheck Studio adoption')) as send:
+        with patch.object(transport,'upload_media',side_effect=upload), patch.object(transport,'send',side_effect=AssertionError('Boundary must recheck Studio adoption')) as send:
             with self.assertRaisesRegex(ValueError,'STUDIO_REFERENCE_CHANGED'):
                 execution.execute(self.root,self.run,decisions_file=approved)
         self.assertEqual(send.call_count,0)

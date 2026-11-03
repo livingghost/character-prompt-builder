@@ -58,6 +58,20 @@ class FoundationTests(unittest.TestCase):
         self.assertEqual(caught.exception.diagnostic.pointer,'$.handoff.targets')
         self.assertEqual(caught.exception.diagnostic.code,'AUTHORIZATION_MISMATCH')
 
+    def test_guidance_names_only_an_explicitly_declared_owner(self):
+        from production_diagnostics import Diagnostic, from_exception
+        error = ProductionError('PACK_DIRECTORY_NOT_ABSOLUTE', 'The pack directory must be absolute.',
+                                phase='pack-selection')
+        self.assertNotIn('guidance', from_exception(error, phase='cli'))
+        mapped = Diagnostic('INPUT_SCHEMA_INVALID', 'The task has an invalid field.', phase='task-schema').as_dict()
+        self.assertEqual(mapped['guidance'], {
+            'document_path': 'references/runtime/production-workflow.md#authoring-and-handoff',
+            'schema': 'schemas/authoring/production-task.schema.json'})
+        declared = {'document_path': 'references/runtime/reference-delivery.md#bind-the-actual-transport'}
+        explicit = Diagnostic('INPUT_CONSISTENCY_ERROR', 'A selected transport differs.',
+                              phase='selected-transport', guidance=declared).as_dict()
+        self.assertEqual(explicit['guidance'], declared)
+
     def test_split_secret(self):
         output=io.StringIO(); secret='this-is-a-long-synthetic-secret-only'
         writer=ops.RedactingWriter(output.write,(secret,))

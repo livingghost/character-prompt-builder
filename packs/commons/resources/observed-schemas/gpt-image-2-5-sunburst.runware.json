@@ -1,10 +1,14 @@
 {
-  "artifact_type": "observed-parameter-schema",
+  "artifact_type": "supported-parameter-schema",
   "model_id": "gpt-image-2.5-sunburst",
   "service": "runware",
   "model_identifier": "openai:gpt-image@2.5-sunburst",
   "observed_at": "2026-10-06",
   "source": "service schema endpoint response for openai:gpt-image@2.5-flare, observed live 2026-10-06; taskType and taskUUID removed from required because the transport adds them",
+  "selection": {
+    "source_schema_sha256": "ff2557827218b8c2eadba2146bbade989089171abcc9f6f0ecc6b4353d87988f",
+    "statement": "Authored supported subset of the recorded source schema. Image inputs use UUIDs issued by a completed file upload; image results use URL delivery. The source attribution retains its original target and observation limits."
+  },
   "schema": {
     "type": "object",
     "x-constraints": [
@@ -41,46 +45,20 @@
         "properties": {
           "maskImage": {
             "title": "Mask Image",
-            "description": "Image used to specify which areas of the input image should be edited (UUID, URL, Data URI, or Base64). White marks the area to edit, black is preserved. The model treats the mask as guidance rather than a hard boundary, so edits can extend past its shape. With several reference images the mask applies to the first.",
+            "description": "Image used to specify which areas of the input image should be edited (issued upload UUID). White marks the area to edit, black is preserved. The model treats the mask as guidance rather than a hard boundary, so edits can extend past its shape. With several reference images the mask applies to the first.",
             "type": "string",
-            "anyOf": [
-              {
-                "format": "uuid"
-              },
-              {
-                "format": "uri"
-              },
-              {
-                "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
-              },
-              {
-                "pattern": "^[a-zA-Z0-9+/=]+$"
-              }
-            ]
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "referenceImages": {
             "title": "Reference Images",
-            "description": "List of reference images (UUID, URL, Data URI, or Base64).",
+            "description": "List of reference images (issued upload UUIDs).",
             "type": "array",
             "minItems": 1,
             "items": {
               "title": "Image",
-              "description": "Image input (UUID, URL, Data URI, or Base64).",
+              "description": "Image input (issued upload UUID).",
               "type": "string",
-              "anyOf": [
-                {
-                  "format": "uuid"
-                },
-                {
-                  "format": "uri"
-                },
-                {
-                  "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
-                },
-                {
-                  "pattern": "^[a-zA-Z0-9+/=]+$"
-                }
-              ]
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             },
             "maxItems": 16
           }
@@ -195,12 +173,10 @@
       },
       "outputType": {
         "title": "Output Type",
-        "description": "Image output type.",
+        "description": "Image output is delivered by URL.",
         "type": "string",
         "enum": [
-          "URL",
-          "base64Data",
-          "dataURI"
+          "URL"
         ],
         "default": "URL"
       },
@@ -255,22 +231,9 @@
               },
               "image": {
                 "title": "Watermark Image",
-                "description": "Watermark image (UUID, URL, Data URI, or Base64).",
+                "description": "Watermark image (issued upload UUID).",
                 "type": "string",
-                "anyOf": [
-                  {
-                    "format": "uuid"
-                  },
-                  {
-                    "format": "uri"
-                  },
-                  {
-                    "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
-                  },
-                  {
-                    "pattern": "^[a-zA-Z0-9+/=]+$"
-                  }
-                ]
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
               },
               "displayPosition": {
                 "title": "Display Position",

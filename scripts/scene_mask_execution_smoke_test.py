@@ -40,15 +40,16 @@ class ProductionMaskTests(unittest.TestCase):
         self.assertEqual([r['role'] for r in contract['media']],['composition','mask image','reference images'])
         expected=[c.digest(c.read(Path(r['path']))) for r in contract['media']]
         self.assertEqual(expected,[r['sha256'] for r in contract['media']])
-        with patch.object(transport,'send',wraps=transport.send) as sender, patch.object(transport,'upload_bytes',wraps=transport.upload_bytes) as upload:
+        with patch.object(transport,'send',wraps=transport.send) as sender, patch.object(transport,'upload_media',wraps=transport.upload_media) as upload:
             self.execute(run)
         self.assertEqual(upload.call_count,3);self.assertEqual(sender.call_count,1)
         self.assertEqual([c.digest(row.args[0]) for row in upload.call_args_list],expected)
         wire=sender.call_args.args[0]
-        self.assertTrue(wire['seed_image'].startswith('synthetic:'+expected[0]+':'))
-        self.assertTrue(wire['mask_image'].startswith('synthetic:'+expected[1]+':'))
-        self.assertTrue(wire['inputs']['references'][0].startswith('synthetic:'+expected[2]+':'))
         journals=list((self.root/'runs').glob('*/request-contract.json'));self.assertEqual(len(journals),1)
+        receipts=[c.load(journals[0].parent/f'upload-{index+1:03d}.json') for index in range(3)]
+        self.assertEqual([row['source_sha256'] for row in receipts],expected)
+        self.assertEqual([wire['seed_image'],wire['mask_image'],wire['inputs']['references'][0]],
+                         [row['provider_id'] for row in receipts])
         journal=c.load(journals[0]);self.assertEqual(len(journal['media']),3)
         for row in journal['media']:
             self.assertEqual(c.digest(c.read(Path(row['path']))),row['sha256'])
@@ -106,7 +107,7 @@ class ProductionMaskTests(unittest.TestCase):
         self.assertIn('no native mask image',str(result))
     def test_resume_uses_existing_result_without_sending_again(self):
         run=self.prepare();self.execute(run)
-        with patch.object(transport,'send',side_effect=AssertionError('duplicate send')) as sender, patch.object(transport,'upload_bytes',side_effect=AssertionError('duplicate upload')) as upload:
+        with patch.object(transport,'send',side_effect=AssertionError('duplicate send')) as sender, patch.object(transport,'upload_media',side_effect=AssertionError('duplicate upload')) as upload:
             w.resume(self.root,run)
         sender.assert_not_called();upload.assert_not_called()
     def test_bundle_mask_change_is_detected_during_check(self):

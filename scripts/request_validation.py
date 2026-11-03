@@ -116,8 +116,8 @@ def schema_contract(contract:Any,evidence:Any,reader:InputEvidence,expected:dict
     return {'schema':actual,'overlay':overlay,'source':found['metadata']}
 
 
-def observed_schema(record:dict,snapshot:Any,expected:dict)->dict:
-    """Read the parameter schema an active pack records as observed for one offering.
+def offering_parameter_schema(record:dict,snapshot:Any,expected:dict)->dict:
+    """Read an active pack's acquired or authored supported parameter contract.
 
     The pack file is both contract and evidence. The record pins its bytes, and
     `from_offering` checked them against the model record and offering when it
@@ -125,17 +125,17 @@ def observed_schema(record:dict,snapshot:Any,expected:dict)->dict:
     The schema describes the model's parameters, so the fields a transport's
     layout declares as its envelope are checked by that layout, not by this schema.
     """
-    if record['contract']!=record['evidence']:raise ValueError('an observed parameter schema is its own evidence')
-    if not record['contract']['path'].startswith('@pack/'):raise ValueError('an observed parameter schema is read from an active pack')
-    from model_contract import observed_schema_issues
-    issues=observed_schema_issues(snapshot,{k:expected[k] for k in ('service','model_identifier')})
-    if issues:raise ValueError('observed parameter schema '+record['contract']['path']+': '+'; '.join(issues))
+    if record['contract']!=record['evidence']:raise ValueError('an attributed parameter schema is its own evidence')
+    if not record['contract']['path'].startswith('@pack/'):raise ValueError('an attributed parameter schema is read from an active pack')
+    from model_contract import parameter_schema_issues
+    issues=parameter_schema_issues(snapshot,{k:expected[k] for k in ('service','model_identifier')})
+    if issues:raise ValueError('parameter schema '+record['contract']['path']+': '+'; '.join(issues))
     _schema_shape(snapshot['schema'])
     return {'schema':snapshot['schema'],'overlay':None,'source':snapshot,'transport_envelope':True}
 
 
 def from_offering(model_id:str,model:dict,offering:dict,service:dict,transport,reader:InputEvidence)->dict:
-    """Build a target-schema record from the observed schema an active pack's offering names.
+    """Build a target-schema record from an active pack's attributed offering schema.
 
     The record names that pack file and its hash as contract and evidence. It
     carries no execution policy; reference delivery requires an explicitly
@@ -145,14 +145,14 @@ def from_offering(model_id:str,model:dict,offering:dict,service:dict,transport,r
         if key in offering:
             raise ValueError(f"the offering on {offering['service']!r} registers {key}; supply a request validation record with its execution policy")
     relative=offering.get('schema_snapshot')
-    if not relative:raise ValueError(f"the offering on {offering['service']!r} names no observed schema; supply a request validation record")
+    if not relative:raise ValueError(f"the offering on {offering['service']!r} names no parameter schema; supply a request validation record")
     import runtime_evidence
     path=runtime_evidence.model_space(model_id)+'/'+relative
     snapshot=reader.json(reader.select(path))
-    from model_contract import observed_schema_issues, offering_expectation
+    from model_contract import parameter_schema_issues, offering_expectation
     expected,model_key=offering_expectation(model_id,offering)
-    issues=observed_schema_issues(snapshot,expected,model_key=model_key)
-    if issues:raise ValueError('observed schema '+path+' does not record this offering: '+'; '.join(issues))
+    issues=parameter_schema_issues(snapshot,expected,model_key=model_key)
+    if issues:raise ValueError('parameter schema '+path+' does not record this offering: '+'; '.join(issues))
     operations=getattr(transport,'OPERATIONS',None)
     if not isinstance(operations,dict):raise ValueError('the transport declares no OPERATIONS')
     target={'service':offering['service'],'model_identifier':offering['model_identifier'],
@@ -241,10 +241,16 @@ def analyze(record:dict,reader:InputEvidence,*,rendered:dict|None=None,envelope_
         if policy.get('target')!=expected:raise ValueError('execution policy belongs to a different target')
     unknown=[];checked=[]
     if record['mode']=='target-schema':
-        if isinstance(contract,dict) and contract.get('artifact_type')=='observed-parameter-schema':
-            found=observed_schema(record,contract,expected)
-            unknown=[{'id':'observed-schema-source','scope':'schema-source','statement':'The schema is the observed parameter schema '
-                      +record['contract']['path']+' in an active pack; no original service response is kept beside it.'}]
+        from model_contract import PARAMETER_SCHEMA_KINDS
+        if isinstance(contract,dict) and contract.get('artifact_type') in PARAMETER_SCHEMA_KINDS:
+            found=offering_parameter_schema(record,contract,expected)
+            selected = contract['artifact_type']=='supported-parameter-schema'
+            statement = ('The schema is the pack author\'s supported parameter contract ' if selected else
+                         'The schema is an attributed acquired parameter schema ')
+            unknown=[{'id':'parameter-schema-source','scope':'schema-source','statement':statement
+                      +record['contract']['path']+'; no original service response is kept beside it.'}]
+            if selected:
+                unknown[0]['statement'] += ' Authored scope: ' + contract['selection']['statement']
         else:
             found=schema_contract(contract,evidence,contract_reader,expected,evidence_reader=evidence_reader)
         unknown+=[{'id':'schema-keyword:'+x,'scope':x,'statement':'This schema keyword is not enforced by the local checker.'}

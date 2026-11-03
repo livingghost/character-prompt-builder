@@ -399,13 +399,13 @@ def declared_record_ids(root: Path, manifest: Mapping[str, Any]) -> set[str]:
 
 
 def _snapshot_issues(root: Path, offering: dict[str, Any], model_id: str) -> list[str]:
-    """What is wrong with the observed parameter schema an offering of model record `model_id` points at.
+    """What is wrong with the attributed parameter schema an offering of model record `model_id` points at.
 
     The file must stay in the pack and meet the one observed-schema contract
     that request building and request validation also apply.
     """
 
-    from model_contract import observed_schema_issues, offering_expectation
+    from model_contract import parameter_schema_issues, offering_expectation
 
     where = f"offering on {offering.get('service')!r}: schema_snapshot {str(offering.get('schema_snapshot'))!r}"
     path = (root / str(offering.get("schema_snapshot"))).resolve()
@@ -418,7 +418,7 @@ def _snapshot_issues(root: Path, offering: dict[str, Any], model_id: str) -> lis
     except (OSError, json.JSONDecodeError) as exc:
         return [f"{where} did not load: {exc}"]
     expected, model_key = offering_expectation(model_id, offering)
-    return [f"{where}: {issue}" for issue in observed_schema_issues(snapshot, expected, model_key=model_key)]
+    return [f"{where}: {issue}" for issue in parameter_schema_issues(snapshot, expected, model_key=model_key)]
 
 
 def _all_pack_files(root: Path) -> tuple[list[Path], list[PackIssue]]:
@@ -1167,7 +1167,7 @@ def validate_pack(
                             relative,
                         )
                     )
-                # An offering that points at an observed parameter schema points at
+                # An offering that points at an attributed parameter schema points at
                 # a file in this pack, and that file names the same model.
                 for offering in record.get("offerings") or []:
                     if not isinstance(offering, dict) or not offering.get("schema_snapshot"):
@@ -1177,7 +1177,7 @@ def validate_pack(
                             PackIssue("error", "observed-schema", message, relative)
                         )
                     # A recommendation the offering maps to a request key must be one
-                    # the observed schema accepts there.
+                    # the selected parameter schema accepts there.
                     for message in recommended_parameter_issues(record, offering, root):
                         report.issues.append(
                             PackIssue("error", "recommended-parameters", message, relative)

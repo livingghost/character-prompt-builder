@@ -275,7 +275,8 @@
         "operation": {
           "enum": [
             "upload",
-            "send"
+            "send",
+            "delete"
           ]
         },
         "count": {

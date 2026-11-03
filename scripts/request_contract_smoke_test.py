@@ -24,7 +24,7 @@ class RequestContractTests(unittest.TestCase):
         self.request={'model':'synthetic:model','operation':'generate','prompt':'Authored text','negative':'Authored exclusion',
             'count':1,'seed':3,'images':['placeholder'],'task_id':'ephemeral'}
         self.media=[{'path':'/synthetic/input.png','sha256':'b'*64,'size':30,'media_type':'image/png','role':'reference',
-            'dimensions':{'width':2,'height':2},'binding_ids':['reference:1']}]
+            'dimensions':{'width':2,'height':2},'binding_ids':['reference:1'], 'upload_source': {'kind': 'bytes'}}]
     def tearDown(self):self.temp.cleanup()
     def seal(self):return rc.seal(self.request,self.layout,self.media,self.target,self.execution,[],[],{'output_kind':'image'})
     def save(self,name,value):

@@ -108,8 +108,8 @@ class ValidationTests(unittest.TestCase):
         plan=self.probe();plan['fixed_request_profile']['output_count']=True;self.save('probe.json',plan)
         with self.assertRaises(ValueError):self.build()
 
-class ObservedSchemaTests(unittest.TestCase):
-    """An active pack's observed schema for one offering is its own evidence."""
+class OfferingSchemaTests(unittest.TestCase):
+    """An active pack's attributed offering schema carries its own scope."""
     def setUp(self):
         fixture.RequestContractTests.setUp(self);self.pack=self.root/'pack';self.pack.mkdir()
         self.reader=InputEvidence(self.root,named_roots={'@pack/p':self.pack})
@@ -140,7 +140,18 @@ class ObservedSchemaTests(unittest.TestCase):
             return rv.from_offering('synthetic-model',self.model,self.offering,{'id':'synthetic'},transport,self.reader)
     def test_01_transport_envelope_is_checked_by_its_layout(self):
         record=self.build();self.assertEqual(self.check(record)['checked'],['target-schema'])
-        self.assertTrue(any(x['id']=='observed-schema-source' and '@pack/p/schema.json' in x['statement'] for x in record['unmeasured']))
+        self.assertTrue(any(x['id']=='parameter-schema-source' and '@pack/p/schema.json' in x['statement'] for x in record['unmeasured']))
+    def test_supported_scope_is_retained_in_request_evidence(self):
+        self.snapshot['artifact_type'] = 'supported-parameter-schema'
+        self.snapshot['selection'] = {'source_schema_sha256': c.content_id(self.schema),
+            'statement': 'Synthetic supported scope: a single output with explicitly selected references.'}
+        self.write()
+        self.execution=rc.execution_hashes({'id':'synthetic'},self.offering,self.root/'transport.py',model=self.model,policy=None)
+        record = self.derive()
+        checked = self.check(record)
+        self.assertEqual(checked['checked'], ['target-schema'])
+        self.assertTrue(any(self.snapshot['selection']['statement'] in row['statement']
+                            for row in record['unmeasured']))
     def test_02_undeclared_envelope_is_refused(self):
         self.envelope=[]
         with self.assertRaisesRegex(ValueError,'refuses the built request'):self.check()

@@ -107,8 +107,7 @@ SOURCE_EXCERPTS = {'references/adapters/instruction-edit.md': {'Stable Diffusion
  'references/runtime/studio-authentication.md': {
      "For a Runware offering, inspect its service selection and prepare the private input file:": 1,
      'python scripts/studio.py credentials status runware --studio STUDIO': 1,
-     'python scripts/studio.py credentials prepare runware --studio STUDIO': 1,
-     'The included Runware transport implements image generation and image upscaling.': 1},
+     'python scripts/studio.py credentials prepare runware --studio STUDIO': 1},
  'references/runtime/model-evidence.md': {'Provider interfaces expose different signals. OpenAI documents `error.code = moderation_blocked` in its [image-generation guide](https://developers.openai.com/api/docs/guides/image-generation).': 1,
                                           "Google's [Interactions safety guide](https://ai.google.dev/gemini-api/docs/safety-settings) documents structured error codes for blocked requests.": 1,
                                           "xAI's [image guide](https://docs.x.ai/developers/model-capabilities/images/generation) documents the `respect_moderation` response field.": 1,

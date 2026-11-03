@@ -11,6 +11,10 @@ Discussion without an artifact does not require a run.
 ## Assemble authored choices
 
 Use [Craft consultation](craft-consultation.md) while deciding what to write or revise.
+Open the work task before reading or drafting its inputs, using
+`work_ledger.py begin --studio STUDIO --goal TEXT --step TEXT`. Reuse its task ID
+through input authoring and preparation. The input builders and route reader
+save their progress under that task automatically.
 
 ### Read the route to completion
 
@@ -33,7 +37,9 @@ The author decides which of the read documents apply to this task, and lists onl
 When using `draft-inputs` and `build-inputs`, author the applications once in `choices.reading`, with the issued `reading_key`. The builder resolves the issued document hashes and writes the completed reading record into the generated task. A draft from a saved Run already supplies its previous key and applications for current assessment.
 When authoring a task directly, fill the applications in the emitted reading record instead and name that file as the task's `route_reading`.
 In either editing location, each entry in `applied` names the document's `path`, a `quote` of twelve or more words from one paragraph of it, and `why` it applies.
+Copy the raw Markdown spelling, including link destinations such as `[reference delivery](reference-delivery.md)`, backticks and emphasis markers. The match normalizes whitespace and line wrapping only; rendered link text or rewritten prose is a different quotation.
 Each entry in `resource_applied` names `"resource": "prompt-writing-guide"`, a `pointer` such as `/sections/2/rules/0`, that rule's exact text as `quote`, and `why`.
+The reading key binds the declared route and features. If either selection changes, issue a reading for the new selection and reassess the applications that still apply.
 
 - `inspect-inputs` shows declared sources, recorded candidates, and required choices.
 - `draft-inputs` creates a compact `choices.json` to edit and a separate `context.json` to read. Choices contain reading applications, selected visual and validation evidence, explicit task changes, and an optional external image-input plan.
@@ -41,15 +47,45 @@ Each entry in `resource_applied` names `"resource": "prompt-writing-guide"`, a `
 
 [Model request evidence](model-evidence.md#the-request-validation-record) states when a task needs an authored request validation record.
 An incomplete selection returns named unresolved fields and publishes nothing; the task and its sources stay unchanged.
-Select either `--task FILE` or `--from-run RUN`. A saved run supplies its captured task and exact delivery, so the operator does not copy a task into another editing document. Copied reading applications still need assessment for the current work. Explicit `task_changes` select changed source, depiction, route or review fields; authority and task identity retain their owners.
+For drafting or building, select either `--task FILE` or `--from-run RUN`. A saved run supplies its captured task and exact delivery, so the operator does not copy a task into another editing document. Copied reading applications still need assessment for the current work. Explicit `task_changes` select changed source, depiction, route or review fields; authority and task identity retain their owners.
 
 For external image work, select `external: {"image_input": "inputs/selected-plan.json"}`. The builder materializes the prompt from the single delivery source and the target, count and media values from that plan's acquired field mappings. Other native controls retain their declared values. It writes the exact request and image-input plan, measures evidence hashes, validates the resulting input and shows its substantive changes. A supplied hash remains a commitment to the selected evidence. This creates inputs, never grants or satisfied judgments.
 The [synthetic input assembly example](../../examples/input-assembly/README.md) contains complete commands, choice fields, and actual output.
 
+### Resume input authoring
+
+Interruption can occur before a run exists. Inspect the open work task with:
+
+```bash
+python scripts/production_workflow.py inspect-inputs --root STUDIO
+python scripts/production_workflow.py status --root STUDIO
+```
+
+`inspect-inputs` without a source selector reads the task's saved authoring
+state. `status.current_task.authoring` exposes the same information, and session
+entry shows its paths and continuation commands. The report names existing
+`choices.json`, its context, published input tasks and reports, partial route
+reading, completed reading applications, and the last recorded check when one
+exists. Continue those files and actions after compaction. A source selector
+still performs the ordinary inspection of that task or saved run.
+
+The builders register each output location before publication. Recovery can
+therefore find a directory that was published before its caller returned.
+The reader records committed page ranges and the saved cursor. Recovery offers
+the existing continuation or replay action and reuses completed application
+records. It does not issue another key or mark an authored application complete.
+Unanswered choices remain unanswered, and a saved check is diagnostic history;
+preparation and execution still evaluate their actual current inputs and authority.
+
+`scripts/production_authoring_state.py` owns these discovery pointers under
+`work/tasks/TASK/authoring/`. They identify work owned by that ledger task and
+do not replace its inputs, reading receipts, run records or author decisions.
+Inspection reads the existing files without regenerating them or loading a
+catalog merely to discover a saved path.
+
 ## Prepare one complete input
 
-Begin the work task with `work_ledger.py --studio STUDIO begin --goal TEXT --step TEXT`.
-Use its task ID in a task that follows `schemas/authoring/production-task.schema.json`.
+Use the open work task's ID in a task that follows `schemas/authoring/production-task.schema.json`.
 The task declares its route, direction, full source selectors, criteria and execution kind.
 For dispatcher generation it also declares `generation` and `recording`.
 The prompt file named by `delivery.path` is the single authored prompt.
@@ -215,11 +251,13 @@ For a dispatcher, `execute` performs these steps in order:
 4. In one transaction, it records the dispatcher handoff, records execution ownership with the nonsecret credential selection and claims the run.
 5. The transaction commits before network I/O; each upload and the send then gets its own durable start boundary.
 6. It saves the provider answer, downloads every returned image and registers each one as a candidate.
+7. Once the provider result is terminal and all returned images are saved, it deletes the inputs uploaded by this execution through the selected transport's deletion capability. Source files, generated images and response records remain saved.
 
 Missing scope or approval rolls back step 4 before any upload or send.
-Each start boundary checks the current grant and the live packs again, whatever an earlier check cached.
+Each upload or send boundary checks the current grant and the live packs again, whatever an earlier check cached.
 Revocation after a start boundary cannot undo the started request.
 The send boundary records the management identifiers sent with the request.
+The prepared submit scope includes deletion of its own uploaded inputs where the transport supports it. Deletion uses the immutable upload receipts and a separately saved request, so cleanup needs no new submission decision. A new generation always uploads again; only recovery within the same execution reuses its completed uploads.
 For an external image task, the same `draft-execution` and `execute` commands validate the two decisions, record their separate authorizations, hand the input to its declared service and claim one host call. `execute` returns an `external-execution-instruction` with `host_request` with the exact request, target and supplied-media bindings. The host invokes its named tool once with that input, then receives the actual result as described below. The local command itself does not invoke an external host tool. A claimed external run cannot be executed again; recover that call after interruption.
 
 Low-level `authorize` and both execution branches share the same permission and execution-claim implementation.
@@ -288,6 +326,7 @@ Each run reports these state axes:
 | `readiness` | `ready`, `authorization_required`, `configuration_required`, `blocked` |
 | `submission` | `unclaimed`, `claimed`, `send_started`, `pending`, `acknowledged`, `outcome_unknown`, `not_executed` |
 | `capture` | `none`, `partial`, `complete` |
+| `cleanup.state` | `not-needed`, `waiting`, `pending`, `failed`, `outcome_unknown`, `complete`, `unsupported` |
 | `registration` | `unregistered`, `registered`, `projection-missing` |
 | `review` | `unreviewed`, `partial`, `complete` |
 | `task_disposition` | `open`, `completed`, `abandoned` |
@@ -304,7 +343,7 @@ A complete review is not necessarily a passing one.
 Each run also lists its candidates with their states, freshness and selection diagnostics, its execution record, its journal and its logs.
 
 `next_action` is the one command that moves the run forward, as `{command, argv, reason}`.
-It is null when nothing is left: a completed run, or an abandoned run with no unknown outcome.
+It is null when nothing is left: a completed or abandoned run with no unresolved provider outcome or supported input cleanup.
 A step that needs an authored file names its draft command, and the reason names the command that consumes the file.
 A run whose live sources changed before anything was handed over points to `prepare`.
 A synthetic prepared run that waits for authority shows (trimmed, the studio path shortened):
@@ -319,7 +358,7 @@ A synthetic prepared run that waits for authority shows (trimmed, the studio pat
 `resume` recovers the same execution from saved evidence and never sends its request again:
 
 - A completed provider answer is registered again without sending. Repeated recovery creates no second candidate, Studio iteration or settlement.
-- Recovery from a complete saved answer needs no API key. Recovery that asks the provider or continues before the first send resolves the claim's pinned credential selection.
+- Capturing a complete saved answer needs no API key. Recovery that asks the provider, continues before the first send, or deletes uploaded inputs resolves the claim's pinned credential selection.
 - Every acquired output is kept, including partial or unexpected output counts.
 - A processing response keeps the execution open. Its available outputs become candidates while `resume` asks for the same provider task.
 - The first response stays in `send-observation.json`; each lookup keeps its own receipt and response. Only a completed response becomes `answer.json`.
@@ -333,6 +372,25 @@ A synthetic prepared run that waits for authority shows (trimmed, the studio pat
 - When acceptance remains unknown and lookup finds no answer, `draft-outcome` writes the statement form.
   The actor fills it with evidence that the provider's records hold no such task.
 - `resume --outcome-file` records that statement as `not_executed`; the actor must be one of the execution's recorded outcome actors.
+
+Cleanup is reported separately from image capture and artistic review. It waits
+while generation is pending, its outcome is unknown, or a returned image has
+not been saved. A proven generation refusal also permits cleanup of completed
+uploads. Only identifiers in this execution's actual upload receipts are targets;
+the caller's source URL and local originals are not deleted.
+
+For untouched inputs or unresolved cleanup, `next_action` selects `resume`.
+Each owned input receives one deletion request. An actual deletion error,
+including a missing target, is recorded as `failed` and is never sent again.
+Other untouched inputs still receive their own deletion requests. Once all
+targets have a settled result, cleanup failures remain explicit warnings and
+the saved images can proceed to review. An unanswered deletion is looked up by
+its original saved request; recovery never sends another deletion. A saved deletion response can be recorded after
+an interruption without another provider call. Cleanup recovery does not require
+the live source file and cannot start an upload, regenerate an image or replace
+captured result evidence. Its receipts and any reported charge remain separate
+external-effect records. `unsupported` identifies a transport without deletion
+capability and retains the uploaded IDs explicitly; it does not claim deletion.
 
 A synthetic send whose answer was lost makes `resume` exit 4 after the lookup, with this run state (trimmed):
 
@@ -411,7 +469,9 @@ Neither cleanup deletes a formal request, result, review or authorization.
 ## Diagnostic codes
 
 Every failure after argument parsing prints a JSON object with `ok: false` and `diagnostics`.
-Each diagnostic has `code`, `severity`, `phase`, `file`, `pointer`, `message`, `required_action` and `blocked_checks`.
+Each diagnostic has `code`, `severity`, `phase`, `file`, `pointer`, `message`, `required_action` and `blocked_checks`. A phase or producing contract with a declared owner also supplies `guidance`; unmapped phases omit it.
+When present, `guidance.document_path` identifies that owning document and section. `guidance.schema` names the schema when the check declares one; specification diagnostics include an optional `guidance.validation` action with executable `argv`, quoted `command` and `reason`. The action runs the same validator on the named specification alone. It is available for a focused correction, and is not an additional prerequisite for `check` or `prepare`.
+The compiler reports each structural defect of every declared external specification in one result, including when a separate request binding fails. Only checks that depend on an invalid source wait for its correction. Each specification diagnostic names that source file and its field, rather than the enclosing task file.
 Some add `run`, `expected`, `actual` or other details.
 Exit 2 applies unless a row says otherwise.
 
@@ -423,6 +483,7 @@ Exit 2 applies unless a row says otherwise.
 | `INPUT_SCHEMA_INVALID` | A JSON input breaks its schema. |
 | `INPUT_UNREADABLE` | A declared input or the task cannot be read; adds `file`, `pointer` and `cause`. |
 | `INPUT_CONSISTENCY_ERROR` | Inputs contradict each other or a contract they must satisfy. |
+| `PROMPT_DELIVERY_MISMATCH` | The exact external prompt text differs from its delivery source. Reports both files, the request field, newline counts and whether line endings alone differ. Use `build-inputs` to derive both from the delivery; manual UTF-8 byte writes preserve LF across platforms. |
 | `CHECK_NOT_PERFORMED` | A check did not run because a prerequisite failed; `blocked_by` names it. |
 | `SOURCE_CHANGED` | A source differs from the bytes read or pinned earlier. |
 | `TASK_CHANGED` | The open work task changed during preparation. |

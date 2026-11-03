@@ -6,7 +6,7 @@ Character Prompt Builder uses one Python environment for the agent's runtime com
 
 | File | Responsibility |
 | --- | --- |
-| [`pyproject.toml`](pyproject.toml) | supported Python minimum and exact versions of packages imported by project code |
+| [`pyproject.toml`](pyproject.toml) | supported Python minimum, exact direct package versions and their import names in `tool.character-prompt-builder.imports` |
 | [`.python-version`](.python-version) | default interpreter selection for uv |
 | [`uv.lock`](uv.lock) | uv's generated resolution of the complete package dependency graph, including exact versions and distribution hashes |
 | [`requirements.txt`](requirements.txt) | uv's generated pip export of the same lock, including transitive packages and hashes |

@@ -1156,7 +1156,7 @@ def add_production_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--production-run", help="Prepared run; the open work task's current run when omitted")
     parser.add_argument("--request-validation-file",
                         help="Request check with its own evidence and execution policy; when omitted, the builder "
-                        "derives it from the observed schema the active pack's offering names")
+                        "derives it from the selected parameter schema the active pack's offering names")
     parser.add_argument("--visual-continuity-file",
                         help="Complete visual continuity record; when omitted, --continuity states the decisions")
     parser.add_argument("--continuity", action="append", default=[], metavar="SUBJECT=DECISION",

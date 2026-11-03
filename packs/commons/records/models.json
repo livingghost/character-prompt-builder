@@ -131,7 +131,7 @@
               "max": 20
             },
             "inputs_envelope": "media keys sit inside an inputs object (inputs.referenceImages, inputs.maskImage)",
-            "output": "outputType URL/base64Data/dataURI; outputFormat JPG/PNG/WEBP; outputQuality 20 to 99; ttl from 60; includeCost boolean"
+            "output": "outputType URL; outputFormat JPG/PNG/WEBP; outputQuality 20 to 99; ttl from 60; includeCost boolean"
           },
           "observed_at": "2026-10-06",
           "schema_snapshot": "resources/observed-schemas/gpt-image-2-5-flare.runware.json",
@@ -141,7 +141,7 @@
               "kind": "provider-documentation",
               "source": "resources/observed-schemas/gpt-image-2-5-flare.runware.json",
               "limitations": [
-                "The stored schema is dated interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
+                "The supported schema derives from interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
                 "This profile declares geometry, settings, output, count and media controls. Sampling controls (steps, guidance, scheduler, seed) are backend-managed: the schema exposes none of them."
               ]
             },
@@ -821,7 +821,7 @@
             },
             "inputs_envelope": "References are carried in inputs.referenceImages in their declared order.",
             "mask_image": "The observed schema exposes no mask input; use semantic editing and inspect surrounding content.",
-            "output": "URL, base64Data or dataURI; JPG, PNG or WEBP; outputQuality 20 to 99."
+            "output": "URL delivery; JPG, PNG or WEBP; outputQuality 20 to 99."
           },
           "observed_at": "2026-10-16",
           "schema_snapshot": "resources/observed-schemas/grok-imagine-image-2.0.runware.json",
@@ -918,16 +918,14 @@
                     "binding": "package",
                     "schema": {
                       "title": "Output Type",
-                      "description": "Image output type.",
+                      "description": "Image output is delivered by URL.",
                       "type": "string",
                       "enum": [
-                        "URL",
-                        "base64Data",
-                        "dataURI"
+                        "URL"
                       ]
                     },
                     "recommendation": null,
-                    "reason": "Optional control from the observed provider schema; omission retains provider behavior."
+                    "reason": "The supported request surface selects URL delivery; omission retains the documented URL default."
                   },
                   "outputFormat": {
                     "status": "optional",
@@ -1470,16 +1468,14 @@
                     "binding": "package",
                     "schema": {
                       "title": "Output Type",
-                      "description": "Image output type.",
+                      "description": "Image output is delivered by URL.",
                       "type": "string",
                       "enum": [
-                        "URL",
-                        "base64Data",
-                        "dataURI"
+                        "URL"
                       ]
                     },
                     "recommendation": null,
-                    "reason": "Optional control from the observed provider schema; omission retains provider behavior."
+                    "reason": "The supported request surface selects URL delivery; omission retains the documented URL default."
                   },
                   "outputFormat": {
                     "status": "optional",
@@ -2016,16 +2012,14 @@
                     "binding": "package",
                     "schema": {
                       "title": "Output Type",
-                      "description": "Image output type.",
+                      "description": "Image output is delivered by URL.",
                       "type": "string",
                       "enum": [
-                        "URL",
-                        "base64Data",
-                        "dataURI"
+                        "URL"
                       ]
                     },
                     "recommendation": null,
-                    "reason": "Optional control from the observed provider schema; omission retains provider behavior."
+                    "reason": "The supported request surface selects URL delivery; omission retains the documented URL default."
                   },
                   "outputFormat": {
                     "status": "optional",
@@ -2630,7 +2624,7 @@
               "max": 20
             },
             "inputs_envelope": "media keys sit inside an inputs object (inputs.referenceImages, inputs.maskImage)",
-            "output": "outputType URL/base64Data/dataURI; outputFormat JPG/PNG/WEBP; outputQuality 20 to 99; ttl from 60; includeCost boolean"
+            "output": "outputType URL; outputFormat JPG/PNG/WEBP; outputQuality 20 to 99; ttl from 60; includeCost boolean"
           },
           "observed_at": "2026-10-06",
           "schema_snapshot": "resources/observed-schemas/gpt-image-2-5-sunburst.runware.json",
@@ -2640,7 +2634,7 @@
               "kind": "provider-documentation",
               "source": "resources/observed-schemas/gpt-image-2-5-sunburst.runware.json",
               "limitations": [
-                "The stored schema is dated interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
+                "The supported schema derives from interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
                 "This profile declares geometry, settings, output, count and media controls. Sampling controls (steps, guidance, scheduler, seed) are backend-managed: the schema exposes none of them."
               ]
             },
@@ -3944,7 +3938,7 @@
             },
             "inputs_envelope": "References are carried in inputs.referenceImages in their declared order.",
             "mask_image": "The observed schema exposes no mask input; use semantic editing and inspect surrounding content.",
-            "output": "URL, base64Data or dataURI; JPG, PNG or WEBP; outputQuality 20 to 99."
+            "output": "URL delivery; JPG, PNG or WEBP; outputQuality 20 to 99."
           },
           "observed_at": "2026-10-16",
           "schema_snapshot": "resources/observed-schemas/qwen-image-2.1-pro.runware.json",
@@ -4039,16 +4033,14 @@
                     "binding": "package",
                     "schema": {
                       "title": "Output Type",
-                      "description": "Image output type.",
+                      "description": "Image output is delivered by URL.",
                       "type": "string",
                       "enum": [
-                        "URL",
-                        "base64Data",
-                        "dataURI"
+                        "URL"
                       ]
                     },
                     "recommendation": null,
-                    "reason": "Optional control from the observed provider schema; omission retains provider behavior."
+                    "reason": "The supported request surface selects URL delivery; omission retains the documented URL default."
                   },
                   "outputFormat": {
                     "status": "optional",
@@ -4304,16 +4296,14 @@
                     "binding": "package",
                     "schema": {
                       "title": "Output Type",
-                      "description": "Image output type.",
+                      "description": "Image output is delivered by URL.",
                       "type": "string",
                       "enum": [
-                        "URL",
-                        "base64Data",
-                        "dataURI"
+                        "URL"
                       ]
                     },
                     "recommendation": null,
-                    "reason": "Optional control from the observed provider schema; omission retains provider behavior."
+                    "reason": "The supported request surface selects URL delivery; omission retains the documented URL default."
                   },
                   "outputFormat": {
                     "status": "optional",
@@ -4569,16 +4559,14 @@
                     "binding": "package",
                     "schema": {
                       "title": "Output Type",
-                      "description": "Image output type.",
+                      "description": "Image output is delivered by URL.",
                       "type": "string",
                       "enum": [
-                        "URL",
-                        "base64Data",
-                        "dataURI"
+                        "URL"
                       ]
                     },
                     "recommendation": null,
-                    "reason": "Optional control from the observed provider schema; omission retains provider behavior."
+                    "reason": "The supported request surface selects URL delivery; omission retains the documented URL default."
                   },
                   "outputFormat": {
                     "status": "optional",

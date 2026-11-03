@@ -142,7 +142,7 @@ class UpscaleIntegration(unittest.TestCase):
         self.request=c.load(self.root/'upscale/input.json');self.source=self.root/'upscale/source.png'
         self.model=cases.UPSCALE_MODEL_ID;self.transport=transport_synthetic
         self.execution=execution;self.decision_file=decisions(self.root,self.run)
-        self.upload=self.enterContext(patch.object(transport_synthetic,'upload_bytes',wraps=transport_synthetic.upload_bytes))
+        self.upload=self.enterContext(patch.object(transport_synthetic,'upload_media',wraps=transport_synthetic.upload_media))
         self.send=self.enterContext(patch.object(transport_synthetic,'send',wraps=transport_synthetic.send))
         self.validation_file=self.root/'upscale/validation.json';self.validation_file.write_bytes(c.encoded(self.request['request_validation']))
         self.intent_file=self.root/'upscale/render-intent.json';self.intent_file.write_bytes(c.encoded(self.request['render_intent']))

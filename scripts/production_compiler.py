@@ -21,7 +21,7 @@ from production_diagnostics import CompilationError, Diagnostic, ProductionError
 from operation_context import current, stage
 from pack_manager import generate_uuid7
 from publication_artifacts import ArtifactSet
-from cli_invocation import shown
+from cli_invocation import python_argv, shown
 
 ROOT=Path(__file__).resolve().parents[1]
 GENERATION_FILES=('parameters','production_spec','plot','retrieval_record','creative_intent','negative',
@@ -157,10 +157,29 @@ def _status_code(status: Any) -> str | None:
     return PROBLEM_CODES.get(status)
 
 
+def specification_guidance(root: Path, file: str | None, pointer: str | None = None) -> dict:
+    """Resolve specification help from structural field names and the selected file."""
+    # These are schema field selectors, not words inferred from an error message.
+    fields = (pointer or '$').replace('[', '.').replace(']', '').split('.')
+    section = next((anchor for field, anchor in (
+        ('camera', 'camera-framing-contract'), ('performance', 'performance-language'),
+        ('layout', 'layout-and-local-views'), ('render_intent', 'rendering-intent'),
+        ('state_context', 'state-modes'), ('subjects', 'subject-record')) if field in fields), 'ownership-boundary')
+    result = {'document_path': 'references/production-specification.md#' + section,
+              'schema': 'protocols/shared-state/schemas/production-spec.schema.json'}
+    if file is not None:
+        argv = python_argv(ROOT / 'scripts' / 'production_spec.py', 'validate',
+                           str(root / file), '--require-content')
+        result['validation'] = {'argv': argv, 'command': shown(argv),
+                                'reason': 'Inspect this specification on its own; check and prepare already run the same validator.'}
+    return result
+
+
 class InputChecks:
     """Track individual validator results and their actual prerequisites."""
-    def __init__(self, diagnostics: list[dict]):
+    def __init__(self, diagnostics: list[dict], *, root: Path):
         self.diagnostics = diagnostics
+        self.root = root
         self.states: dict[str, str] = {}
         self.values: dict[str, Any] = {}
         self.rows: list[dict] = []
@@ -170,7 +189,8 @@ class InputChecks:
         self.states[name] = state
         self.rows.append({'phase': name, 'state': state, 'requires': list(requires)})
 
-    def check(self, name: str, action, *, requires=(), file=None, pointer=None, code=None):
+    def check(self, name: str, action, *, requires=(), file=None, pointer=None, code=None,
+              guidance=None, required_action=None):
         """Run one check unless a prerequisite failed; `code` names a failure that has no code of its own."""
         blocked = [key for key in requires if self.states.get(key) != 'passed']
         if blocked:
@@ -178,7 +198,7 @@ class InputChecks:
             self.diagnostics.append(Diagnostic('CHECK_NOT_PERFORMED',
                 'Required inputs or checks are unavailable: ' + ', '.join(blocked),
                 phase=name, file=file, pointer=pointer, blocked_checks=[name],
-                details={'blocked_by': blocked}).as_dict())
+                guidance=guidance, details={'blocked_by': blocked}).as_dict())
             return None
         try:
             with stage(name):
@@ -195,15 +215,25 @@ class InputChecks:
             else:
                 selected = _status_code(getattr(exc, 'status', None)) or code
                 diagnostic = from_exception(exc, phase=name, file=file, pointer=pointer,
+                                            guidance=guidance, required_action=required_action,
                                             **({'code': selected} if selected and not isinstance(exc, ProductionError) else {}))
             if diagnostic.get('file') is None: diagnostic['file'] = file
             if diagnostic.get('pointer') is None: diagnostic['pointer'] = pointer
             from render_contract_lib import ParameterErrors
+            from production_spec import SpecificationError
             if isinstance(exc, ParameterErrors):
                 for item in exc.problems:
                     problem = {**diagnostic, 'message': item['message'], 'pointer': '$.' + item['parameter']}
                     problem['code'] = _status_code(item.get('status')) or diagnostic['code']
                     self.diagnostics.append(problem)
+            elif isinstance(exc, SpecificationError):
+                for message in exc.errors:
+                    detail = message.removeprefix('production specification: ')
+                    at = detail.split(':', 1)[0].split()[0] if detail.startswith('$') else pointer
+                    self.diagnostics.append({**diagnostic, 'code': 'INPUT_SCHEMA_INVALID',
+                        'message': detail, 'pointer': at,
+                        'required_action': 'Correct the reported fields in this specification, then continue check or prepare.',
+                        'guidance': specification_guidance(self.root, file, at)})
             else:
                 self.diagnostics.append(diagnostic)
             return None
@@ -231,7 +261,8 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         if path not in captured:
             captured[path] = read_input(root, path, pointer=pointer)
         return captured[path]
-    checks.check('task-contract', lambda: workflow.validate_task(task), requires=whole, file=task_path)
+    checks.check('task-contract', lambda: workflow.validate_task(task), requires=whole, file=task_path,
+                 required_action='Correct the declared task fields. If the route or features change, issue a reading for that selection and reuse only applications that still apply.')
     selected = task.get('generation') if isinstance(task.get('generation'), dict) else None
     upscale = task.get('upscale') if isinstance(task.get('upscale'), dict) else None
     files = dict(_file_inputs(task))
@@ -268,7 +299,8 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
     checks.check('route-reading', lambda: route_reading.require_route_reading(
         c.decode(captured[task['route_reading']]), studio=root, routes={task['route']}, features=task['features']),
         requires=[dependency('$.route_reading'),'task-contract'] + (['runtime-resolution'] if dispatcher else []),
-        file=files.get('$.route_reading'), pointer='$.route_reading')
+        file=files.get('$.route_reading'), pointer='$.route_reading',
+        required_action='Use the issued reading for this route and its exact features. Copy quotations from raw Markdown, including links and inline markup; whitespace wrapping may differ.')
     # Bounded views and scene material: each is checked against its own scope
     # here, and the bytes read are kept for the immutable capture.
     def bounded(function):
@@ -294,10 +326,35 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                      file=task['semantic_edit'], pointer='$.semantic_edit')
     if task.get('execution') == 'external':
         import image_input
+        from render_contract_lib import validate_intent
+        documents = []
+        document_checks = []
+        for index, source in enumerate(image_input.external_document_sources(task)):
+            path, role = source['path'], source['role']
+            source_pointer = next(pointer for pointer, value in files.items() if value == path)
+            name = 'external-document:' + str(index)
+            owner = (specification_guidance(root, path) if role == 'production-spec' else
+                     {'document_path': 'references/runtime/render-contract.md#external-image-work',
+                      'schema': 'schemas/render-intent.schema.json'})
+            def document(path=path, role=role):
+                value = c.decode(cached(path))
+                image_input.validate_external_document(value, role)
+                return value
+            value = checks.check(name, document, requires=[dependency(source_pointer)],
+                                 file=path, guidance=owner)
+            intent_name = 'external-render-intent:' + str(index)
+            def intent(value=value, role=role):
+                return validate_intent(value['render_intent'] if role == 'production-spec' else value,
+                                       prompt=text('prompt'))
+            checks.check(intent_name, intent, requires=[name, 'delivery-content'], file=path,
+                         pointer='$.render_intent' if role == 'production-spec' else '$',
+                         guidance={'document_path': 'references/runtime/render-contract.md#external-image-work'})
+            document_checks.extend((name, intent_name))
+            documents.append({**source, 'value': value})
         checks.check('external-image-contract', lambda: bounded(lambda base, value, add:
             image_input.external_documents(base, value, add,
-                inputs=checks.values.get('image-input', (None, {}))[0])),
-            requires=['task-contract', 'delivery-content'] + (['image-input'] if task.get('image_input') else []),
+                inputs=checks.values.get('image-input', (None, {}))[0], documents=documents)),
+            requires=['task-contract', 'delivery-content', *document_checks] + (['image-input'] if task.get('image_input') else []),
             file=task_path)
     if task.get('authority'):
         def authority():
@@ -370,7 +427,8 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
     specpath=selected.get('production_spec')
     from production_spec import require as require_spec
     checks.check('specification',lambda:require_spec(doc('production_spec')),
-                 requires=[dependency('$.generation.production_spec')],file=specpath)
+                 requires=[dependency('$.generation.production_spec')],file=specpath,
+                 guidance=specification_guidance(root, specpath))
     from prompt_plot import validate_prompt_plot
     def plot():
         result=validate_prompt_plot(doc('plot'))
@@ -578,19 +636,17 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
             import scene_mask_planner
             scene_mask_planner.stage_media(verified, inspected.values['scene-mask-binding'], offering, directory, artifacts=artifacts)
         check_request(verified,model_record,offering,model_id,transport,selected['seed'],selected['count'])
-        rendered=request_renderer.generation(package,verified,model_record,offering,service,transport,seed=selected['seed'],count=selected['count'])
+        rendered=request_renderer.generation(package,verified,model_record,offering,service,transport,
+            seed=selected['seed'],count=selected['count'],upload_sources=task.get('upload_sources', []))
         request_renderer.check_final(validation,runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots'])),rendered)
     return _execution_plan(root,task,prepared,package,rendered,directory,identity,model_id,model_record,offering,service,transport,
                            seed=selected['seed'],count=selected['count'],
                            fields=mutable_fields(package,rendered),artifacts=artifacts)
 
 
-def _external_effects(rendered: dict, count: int) -> list[dict]:
-    effects = []
-    if rendered['media']:
-        effects.append({'operation': 'upload', 'count': len(rendered['media'])})
-    effects.append({'operation': 'send', 'count': 1, 'outputs': count})
-    return effects
+def _external_effects(rendered: dict, count: int, transport) -> list[dict]:
+    from production_request import external_effects
+    return external_effects(rendered, count, transport)
 
 
 def _external_reference_evidence(prepared: dict, consumer: dict, directory: Path, blobs: dict,
@@ -642,7 +698,7 @@ def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict
                     fields:dict,artifacts:ArtifactSet)->tuple:
     import production_workflow as workflow
     from model_rendition import review_requirements
-    effects = _external_effects(rendered, count)
+    effects = _external_effects(rendered, count, transport)
     from check_tag_prompt import require_request
     from prompt_weighting import from_contract
     prompt_check = require_request(rendered, model_record,
@@ -731,7 +787,8 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
     issued=copy_issuance(prepared['route_reading'],directory/'reads.jsonl',ledgers=ledger_candidates(studio=root))
     artifacts.add('reads.jsonl',c.encoded(issued))
     with stage('request-compilation'):
-        rendered=request_renderer.upscale(package,model,offering,service,transport,carrier,settings,root=root)
+        rendered=request_renderer.upscale(package,model,offering,service,transport,carrier,settings,
+            root=root,upload_sources=task.get('upload_sources', []))
         dispatch.check_upscale(rendered,offering,model_id)
         request_renderer.check_final(package['request_validation'],runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots'])),rendered)
     task_schema=c.load(ROOT/'schemas/authoring/production-task.schema.json')
@@ -887,7 +944,7 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
             diagnostics.extend(found)
             if task is None:
                 raise CompilationError(report)
-            checks=InputChecks(diagnostics)
+            checks=InputChecks(diagnostics, root=root)
             report['checks']=checks.rows
             checks.record('task-schema','failed' if any(d['phase']=='task-schema' for d in found) else 'passed')
             if directory is None:

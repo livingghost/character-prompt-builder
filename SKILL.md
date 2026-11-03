@@ -70,7 +70,7 @@ Before prompt, reference, sheet, generation or visual-state series work (not per
 
 ## Artifact-bearing production gate
 
-For saved deliverables, run `python scripts/execution_routes.py read ROUTE --root STUDIO` with applicable `--feature NAME` options. Add `--feature prompt-dialect` with `--model MODEL` for a catalog target or `--dialect ID` for an evidenced family; omit selectors for an unknown target. It prints [Production Execution](references/runtime/production-execution.md), required documents and a reading record. Use `--page-bytes N` for long reads. Execute the complete `continue` action printed in `reading-actions` until `reading-record` appears; `replay` reads a page again. Complete the route; use `status` or `resume` after interruption.
+For saved deliverables, run `python scripts/execution_routes.py read ROUTE --root STUDIO` with applicable `--feature NAME` options. Add `--feature prompt-dialect` with `--model MODEL` for a catalog target or `--dialect ID` for an evidenced family; omit selectors for an unknown target. It prints [Production Execution](references/runtime/production-execution.md), required documents and a reading record. Use `--page-bytes N` for long reads. Execute the complete `continue` action printed in `reading-actions` until `reading-record` appears; `replay` reads a page again. Complete the route; `status` locates saved input drafts and run actions after interruption.
 
 ## Choose a runtime path
 

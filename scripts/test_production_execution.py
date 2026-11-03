@@ -306,7 +306,7 @@ class ExternalEffectAccountingTests(unittest.TestCase):
         self.task_path=fixtures.upscale_task(self.root)
         self.run=workflow.prepare(self.root,self.task_path)['run']
         self.decision=decisions(self.root,self.run)
-        self.original_upload=transport_synthetic.upload_bytes
+        self.original_upload=transport_synthetic.upload_media
         self.original_send=transport_synthetic.send
 
     def uploader(self,amount='0.1'):
@@ -328,19 +328,19 @@ class ExternalEffectAccountingTests(unittest.TestCase):
         return accounting.summary(self.root)
 
     def test_upload_and_send_actuals_are_added_once(self):
-        with patch.object(transport_synthetic,'upload_bytes',side_effect=self.uploader()),patch.object(transport_synthetic,'send',side_effect=self.sender()):
+        with patch.object(transport_synthetic,'upload_media',side_effect=self.uploader()),patch.object(transport_synthetic,'send',side_effect=self.sender()):
             execution.execute(self.root,self.run,decisions_file=self.decision)
         group=self.recorded()
         self.assertEqual(group['reported_cost'],{'USD':'0.4'})
         self.assertTrue(group['usage_complete'])
         self.assertEqual(group['submissions'],1)
-        self.assertEqual(len(group['executions'][0]['effect_results']),2)
-        with patch.object(transport_synthetic,'send',side_effect=AssertionError('No repeat send')),patch.object(transport_synthetic,'upload_bytes',side_effect=AssertionError('No repeat upload')):
+        self.assertEqual(len(group['executions'][0]['effect_results']),3)
+        with patch.object(transport_synthetic,'send',side_effect=AssertionError('No repeat send')),patch.object(transport_synthetic,'upload_media',side_effect=AssertionError('No repeat upload')):
             execution.resume(self.root,self.run)
         self.assertEqual(self.recorded()['reported_cost'],group['reported_cost'])
 
     def test_unknown_upload_charge_is_not_zero_when_send_cost_is_known(self):
-        with patch.object(transport_synthetic,'upload_bytes',side_effect=self.uploader(None)),patch.object(transport_synthetic,'send',side_effect=self.sender()):
+        with patch.object(transport_synthetic,'upload_media',side_effect=self.uploader(None)),patch.object(transport_synthetic,'send',side_effect=self.sender()):
             execution.execute(self.root,self.run,decisions_file=self.decision)
         group=self.recorded()
         self.assertEqual(group['reported_cost'],{'USD':'0.3'})
@@ -349,14 +349,14 @@ class ExternalEffectAccountingTests(unittest.TestCase):
         self.assertEqual(group['captured_outputs'],1)
 
     def test_known_upload_fee_survives_send_timeout(self):
-        with patch.object(transport_synthetic,'upload_bytes',side_effect=self.uploader()),patch.object(transport_synthetic,'send',side_effect=TimeoutError('Synthetic send timeout')):
+        with patch.object(transport_synthetic,'upload_media',side_effect=self.uploader()),patch.object(transport_synthetic,'send',side_effect=TimeoutError('Synthetic send timeout')):
             result=execution.execute(self.root,self.run,decisions_file=self.decision)
         self.assertEqual(result['runs'][0]['submission'],'outcome_unknown')
         group=self.recorded()
         self.assertEqual(group['reported_cost'],{'USD':'0.1'})
         self.assertFalse(group['usage_complete'])
         self.assertEqual(group['submissions'],1)
-        with patch.object(transport_synthetic,'send',side_effect=AssertionError('No repeat send')),patch.object(transport_synthetic,'upload_bytes',side_effect=AssertionError('No repeat upload')):
+        with patch.object(transport_synthetic,'send',side_effect=AssertionError('No repeat send')),patch.object(transport_synthetic,'upload_media',side_effect=AssertionError('No repeat upload')):
             execution.resume(self.root,self.run)
 
 
@@ -366,14 +366,14 @@ class ExternalEffectAccountingTests(unittest.TestCase):
             if kwargs['step']=='send':
                 raise OSError('Synthetic interruption before the durable send boundary')
             return begin(*args,**kwargs)
-        with patch.object(transport_synthetic,'upload_bytes',side_effect=self.uploader()) as upload,patch.object(accounting,'begin_step',side_effect=interrupt):
+        with patch.object(transport_synthetic,'upload_media',side_effect=self.uploader()) as upload,patch.object(accounting,'begin_step',side_effect=interrupt):
             with self.assertRaises(OSError):
                 execution.execute(self.root,self.run,decisions_file=self.decision)
         self.assertEqual(upload.call_count,1)
         item=execution.status(self.root,self.run)['runs'][0]
         self.assertEqual(item['submission'],'claimed')
         self.assertEqual(item['effects'],[{'step':'upload:0','operation':'upload','result':'executed'}])
-        with patch.object(transport_synthetic,'upload_bytes',side_effect=AssertionError('Do not upload twice')),patch.object(transport_synthetic,'send',side_effect=self.sender()) as send:
+        with patch.object(transport_synthetic,'upload_media',side_effect=AssertionError('Do not upload twice')),patch.object(transport_synthetic,'send',side_effect=self.sender()) as send:
             result=execution.resume(self.root,self.run)
         self.assertEqual(send.call_count,1)
         self.assertTrue(result['execution_completed'])
@@ -382,7 +382,7 @@ class ExternalEffectAccountingTests(unittest.TestCase):
     def test_refused_upload_is_recorded_and_requires_new_approval(self):
         import transport_contract
         refusal=transport_contract.Refused('Synthetic refusal of the upload',{'errors':[{'code':'synthetic-upload-refused'}]})
-        with patch.object(transport_synthetic,'upload_bytes',side_effect=refusal),patch.object(transport_synthetic,'send') as send:
+        with patch.object(transport_synthetic,'upload_media',side_effect=refusal),patch.object(transport_synthetic,'send') as send:
             result=execution.execute(self.root,self.run,decisions_file=self.decision)
             send.assert_not_called()
         self.assertFalse(result['execution_completed'])
@@ -397,10 +397,10 @@ class ExternalEffectAccountingTests(unittest.TestCase):
         self.assertEqual(self.recorded()['reported_cost'],{})
 
     def test_unanswered_upload_is_not_reissued_by_resume(self):
-        with patch.object(transport_synthetic,'upload_bytes',side_effect=TimeoutError('Synthetic upload timeout')):
+        with patch.object(transport_synthetic,'upload_media',side_effect=TimeoutError('Synthetic upload timeout')):
             with self.assertRaises(TimeoutError):
                 execution.execute(self.root,self.run,decisions_file=self.decision)
-        with patch.object(transport_synthetic,'upload_bytes',side_effect=AssertionError('No repeated upload')),patch.object(transport_synthetic,'send',side_effect=AssertionError('No send after unknown upload')):
+        with patch.object(transport_synthetic,'upload_media',side_effect=AssertionError('No repeated upload')),patch.object(transport_synthetic,'send',side_effect=AssertionError('No send after unknown upload')):
             result=execution.resume(self.root,self.run)
         self.assertFalse(result['execution_completed'])
         self.assertEqual(self.recorded()['executions'][0]['status'],'started')

@@ -782,11 +782,12 @@ def run() -> dict[str, Any]:
     registry_errors = []
     for kind, filename in ARTIFACT_SCHEMA_FILES.items():
         path = ROOT / "schemas" / filename
-        if not path.is_file() or load_json(path).get("properties", {}).get("artifact_type", {}).get("const") != kind:
+        declared = load_json(path).get("properties", {}).get("artifact_type", {}) if path.is_file() else {}
+        kinds = [declared["const"]] if "const" in declared else declared.get("enum", [])
+        if kind not in kinds:
             registry_errors.append({"artifact_type": kind, "schema": filename})
     check("artifact schema registry is explicit and populated",
           bool(ARTIFACT_SCHEMA_FILES)
-          and len(set(ARTIFACT_SCHEMA_FILES.values())) == len(ARTIFACT_SCHEMA_FILES)
           and not registry_errors,
           {"registered": len(ARTIFACT_SCHEMA_FILES), "errors": registry_errors})
     unsupported_nested_schema = {

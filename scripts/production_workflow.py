@@ -31,7 +31,7 @@ EVENTS = {'authorization', 'handoff', 'external-claim', 'dispatch-claim',
           'dispatch-results', 'candidate', 'review', 'selection', 'edit',
           'adoption-claim', 'adoption-result', 'image-edit-claim', 'image-edit-output', 'completion',
           'disposition', 'handoff-ready', 'capture-status', 'execution-outcome', 'abandoned',
-          'slot-acceptance'} | lifecycle.EVENTS
+          'slot-acceptance', 'cleanup-observation'} | lifecycle.EVENTS
 
 
 def run_identifier(run: Any) -> str:
@@ -93,7 +93,12 @@ def validate_task(task: Any) -> dict:
         raise ValueError('selected route requires a compiled world view')
     moments = task.get('moment_views', [])
     if bool(moments) != ('story-context' in route['features']):
-        raise ValueError('story-context requires selected moment views and vice versa')
+        raise ProductionError('INPUT_CONSISTENCY_ERROR',
+            'story-context requires selected moment views and vice versa',
+            phase='task-contract', pointer='$.moment_views',
+            guidance={'document_path': 'references/runtime/story-context.md#use-the-moment-in-production'},
+            required_action='Select the verified moment views needed by this task and its matching features. '
+                            'When features change, issue the route reading for that selection and apply it to the task.')
     for entries in (task['world_views'], moments):
         keys = [c.content_id(x) for x in entries]
         if len(keys) != len(set(keys)):
@@ -707,7 +712,9 @@ def require_mutable(records: list[dict]) -> None:
 def append_record(directory: Path, prepared: dict, records: list[dict], event: str, data: dict) -> dict:
     for row in reversed(records):
         if row['event']==event and row['data']==data:return row
-    if event not in {'external-effect-result','execution-result'}:require_mutable(records)
+    if (event not in {'external-effect-result','execution-result','cleanup-observation'}
+            and not (event == 'external-step' and data.get('operation') == 'delete')):
+        require_mutable(records)
     if event not in EVENTS:raise ValueError('unknown production event')
     root=directory.parents[2]
     previous=records[-1]['sha256'] if records else None

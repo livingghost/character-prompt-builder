@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "character-prompt-builder"
-version = "2026.11.3.1"
+version = "2026.11.3.3"
 description = "Art-direction-first prompt construction, visual-state, and reference-evidence tools."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -26,3 +26,11 @@ packages = []
 
 [tool.uv]
 package = false
+
+[tool.character-prompt-builder.imports]
+resvg-py = "resvg_py"
+numpy = "numpy"
+Pillow = "PIL"
+rasterio = "rasterio"
+opencv-python-headless = "cv2"
+scikit-image = "skimage"

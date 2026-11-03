@@ -3,8 +3,8 @@
     "runware": {
       "label": "Runware",
       "documentation": "https://runware.ai/docs",
-      "observed_at": "2026-09-07",
-      "source": "the service's API documentation and parameter schemas",
+      "observed_at": "2026-11-03",
+      "source": "Runware Models API documentation: https://runware.ai/docs/models-api/media-storage for media upload and deletion; https://runware.ai/docs/models-api/authentication for HTTP requests and authentication. Other operation knowledge is attributed to the service's API documentation and parameter schemas.",
       "transport": "runware",
       "endpoint": {
         "base_url": "https://api.runware.ai/v1",
@@ -22,19 +22,13 @@
       "operations": {
         "imageInference": {
           "purpose": "still generation, including image-to-image",
-          "input": "model, positivePrompt, negativePrompt, width, height, steps, CFGScale, scheduler, seed, and optionally seedImage (an uploaded image id) with strength",
+          "input": "model, positivePrompt, negativePrompt, width, height, steps, CFGScale, scheduler, seed, and optionally seedImage (the mediaUUID issued for this run's uploaded image) with strength",
           "returns": "imageURL per task"
         },
         "videoInference": {
           "purpose": "clip generation",
-          "input": "model, positivePrompt, duration, width and height (or a resolution preset), and the input mode's media keys (frameImages, referenceImages) as uploaded image ids; deliveryMethod async",
+          "input": "model, positivePrompt, duration, width and height (or a resolution preset), and the input mode's media keys (frameImages, referenceImages) as uploaded mediaUUIDs; deliveryMethod async",
           "returns": "videoURL per task once finished"
-        },
-        "imageUpload": {
-          "purpose": "register a local image for use as a seed image, frame image, or reference",
-          "input": "image as a data URI (base64) with its MIME type",
-          "returns": "imageUUID (also seen as mediaUUID)",
-          "note": "Uploads can be cached locally by content hash; the same bytes need not be uploaded twice."
         },
         "getResponse": {
           "purpose": "poll an asynchronous task",
@@ -42,14 +36,14 @@
           "returns": "the task's data entry when finished, with videoURL or imageURL; a status of processing otherwise"
         },
         "mediaStorage": {
-          "purpose": "store media of any kind (video, audio, image) for later use as a reference video or audio",
-          "input": "operation upload with media as a data URI; operation delete with the media id",
-          "returns": "mediaUUID",
-          "note": "imageUpload is the image-only path; a video sent through it is not an upload route. The task type list the service returns on an invalid taskType is the authoritative inventory of operations."
+          "purpose": "upload or delete image, video, audio, and 3D media used as model inputs",
+          "input": "an HTTP JSON task with taskType mediaStorage and taskUUID; operation upload with media set to a provider-readable URL, or operation delete with media set to this run's owned mediaUUID",
+          "returns": "upload returns the actual mediaUUID and mediaURL; delete returns the deleted mediaUUID, with taskType, operation, and the request taskUUID",
+          "note": "The source URL must deliver the exact prepared carrier bytes. Each run records its own upload response and uses that mediaUUID for generation. After generated outputs are captured, delete only the uploaded mediaUUIDs owned by that run. Keep local sources and generated outputs."
         },
         "imageUpscale": {
           "purpose": "enlarge one image with an upscaler model",
-          "input": "model, inputs.image (an uploaded image id, URL, or data URI), upscaleFactor, and the model's settings; outputType, outputFormat, and outputQuality as for imageInference",
+          "input": "model, inputs.image (the mediaUUID issued for this run's uploaded source), upscaleFactor, and the model's settings; outputType URL, outputFormat, and outputQuality as for imageInference",
           "returns": "imageURL per task"
         }
       },

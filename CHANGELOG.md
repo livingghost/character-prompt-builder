@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026.11.03.3
+
+- Keep the common environment independent of service SDKs. The HTTP adapters
+  use the standard library; dependency installation and reference processing
+  require only the shared image-processing packages.
+- Import reference media through the documented HTTP storage operation. Bind
+  each authored source URL to its actual prepared carrier, verify the stored
+  bytes, and use the returned media UUID in the generation request.
+- Give each generation its own uploaded inputs. Delete those provider media
+  after a known terminal result and output capture, retaining local sources,
+  generated images and the actual upload and deletion responses.
+- Send one deletion per uploaded input. Record a missing target or other
+  deletion error without repeating deletion or image generation.
+- Resume cleanup independently of generation. Keep the original deletion
+  request after interruption, reconcile an unknown response, and preserve
+  captured outputs while cleanup remains pending.
+
+## 2026.11.03.2
+
+- Recover the open task's input drafts, built files and partial route reading
+  from saved authoring state. Session entry and status show the existing paths,
+  unresolved choices and continuation action before a run has been prepared.
+- Report independent input defects together, with the actual source file,
+  field, owning specification and applicable repair command. Preserve exact
+  Markdown quotation spelling and diagnose prompt newline differences at the
+  delivery boundary.
+- Reuse verified upload receipts when assembling external reference fields.
+  Derive image identifiers and evidence from the saved upload and its committed
+  carrier instead of copying them into another request by hand.
+- Upload Runware reference files through its official file client, retain the
+  actual returned UUID and response, and retrieve generated images by URL.
+  Apply the existing timeout and single-send rules to the file client.
+- Distinguish acquired parameter schemas from the pack author's supported
+  scope. Keep source attribution while the current Runware definitions select
+  uploaded image UUIDs and URL outputs.
+
 ## 2026.11.03.1
 
 - Accept an existing reviewed Production image for its Studio slot through one

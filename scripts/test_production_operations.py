@@ -141,6 +141,8 @@ class OperationTests(unittest.TestCase):
         result = json.loads(stdout)
         self.assertEqual(result['diagnostics'][0]['code'], 'CONTROL_NOT_AVAILABLE')
         self.assertEqual(result['diagnostics'][0]['phase'], 'request-compilation')
+        self.assertEqual(result['diagnostics'][0]['guidance']['document_path'],
+                         'references/runtime/render-contract.md#resolve-and-inspect-the-exact-input')
         _, folder, events = self.records()
         self.assertEqual(json.loads((folder/'stdout.log').read_text(encoding='utf-8')), result)
         self.assertEqual(events[-1]['diagnostic']['code'], 'CONTROL_NOT_AVAILABLE')

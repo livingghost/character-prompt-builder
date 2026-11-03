@@ -62,7 +62,8 @@ def derive(records: list[dict], prepared: dict, run: str) -> dict[str, dict]:
             states[identifier] = {**data, 'run': run, 'created_event': row['sha256'],
                 'status': 'claimed', 'start': None, 'effect': None, 'steps': [],
                 'effect_results': {}, 'result': None, 'actual_cost': None,
-                'captured_outputs': 0, 'submissions': 0}
+                'captured_outputs': 0, 'submissions': 0,
+                'authorized_effects': request['payload'].get('external_effects', [])}
         elif event in EVENTS - {'operation-start'}:
             state = states.get(data.get('execution_id'))
             if state is None:
@@ -72,10 +73,27 @@ def derive(records: list[dict], prepared: dict, run: str) -> dict[str, dict]:
                     invalid('Execution was started twice.')
                 state.update(status='started', start=row['sha256'], effect=data['effect'], claim=data.get('claim'))
             elif event == 'external-step':
-                if state['status'] != 'started' or any(s['step'] == data['step'] for s in state['steps']):
+                cleanup = data['operation'] == 'delete'
+                if ((not cleanup and state['status'] != 'started')
+                        or (cleanup and not cleanup_ready(state))
+                        or any(s['step'] == data['step'] for s in state['steps'])):
                     invalid('An external step is repeated or outside its active execution.')
                 if data['request_sha256'] != state['request_sha256']:
                     invalid('External step belongs to a different request.')
+                if cleanup:
+                    limit = next((item['count'] for item in state['authorized_effects']
+                                  if item['operation'] == 'delete'), 0)
+                    index = data.get('upload_index')
+                    if type(index) is not int or not 0 <= index < limit:
+                        invalid('Cleanup names an input outside its exact submission authorization.')
+                    source = state['effect_results'].get(f'upload:{index}')
+                    if (source is None or 'outcome' in source or not any(
+                            item['sha256'] == data.get('upload_receipt_sha256') for item in source['evidence'])):
+                        invalid('Cleanup has no owned upload receipt.')
+                    if data['step'] != f'delete:{index}' or any(
+                            item['operation'] == 'delete' and item['upload_index'] == index
+                            for item in state['steps']):
+                        invalid('An uploaded input has only one deletion boundary.')
                 state['steps'].append(data)
                 if data['operation'] == 'send':
                     state['submissions'] += 1
@@ -106,6 +124,17 @@ def derive(records: list[dict], prepared: dict, run: str) -> dict[str, dict]:
                 state.update(result=row['sha256'], captured_outputs=data['outputs'], actual_cost=data['cost'],
                              status='complete' if data['final'] else 'captured')
     return states
+
+
+def cleanup_ready(state: dict) -> bool:
+    """Deletion waits for captured terminal outputs or a proven no-generation outcome."""
+    send = next((item for item in state['steps'] if item['operation'] == 'send'), None)
+    if send is not None:
+        return (state['status'] == 'complete'
+                or state['effect_results'].get(send['step'], {}).get('outcome') in NO_EFFECT_OUTCOMES)
+    return any(item['operation'] == 'upload' and
+               state['effect_results'].get(item['step'], {}).get('outcome') in NO_EFFECT_OUTCOMES
+               for item in state['steps'])
 
 
 def by_authorization(records: list[dict], prepared: dict, run: str, authorization: str) -> dict | None:
@@ -234,6 +263,59 @@ def record_effect(root: Path, run: str, authorization: str, *, claim: str,
         return w.append_record(directory, prepared, rows, 'external-effect-result', data)
 
 
+def begin_cleanup_step(root: Path, run: str, authorization: str, *, claim: str,
+                       upload_index: int, provider_id: str, request: dict) -> dict:
+    """Delete a run-owned upload under its saved submit scope, without reopening generation.
+
+    The original permission includes this lifecycle operation. Source-file
+    freshness and a new submission approval cannot alter that recorded scope.
+    The exact delete request and upload response are durable before I/O.
+    """
+    import production_workflow as w
+    import production_request
+    from operation_context import current
+    with store.transaction(root):
+        c.recheck_roots()
+        directory, prepared, _, rows = w.load_run(root, run)
+        authorization_row = w.find(rows, 'authorization', authorization)
+        authorized = authorization_row['data']['request']
+        production_request.validate_payload(authorized['payload'])
+        state = require_active(rows, prepared, run, authorization)
+        if (authorized['operation'] != 'submit' or not cleanup_ready(state)
+                or not any(row['sha256'] == claim and claim_owns(row, authorization) for row in rows)):
+            raise ProductionError('CLEANUP_NOT_READY', 'Cleanup needs its exact owned execution and a known terminal result.',
+                                  phase='input-cleanup', run=run)
+        limit = next((item['count'] for item in authorized['payload']['external_effects']
+                      if item['operation'] == 'delete'), 0)
+        if type(upload_index) is not int or not 0 <= upload_index < limit:
+            raise ProductionError('AUTHORIZATION_MISMATCH', 'No delete scope covers this uploaded input.', phase='input-cleanup', run=run)
+        upload = state['effect_results'].get(f'upload:{upload_index}')
+        if upload is None or 'outcome' in upload or len(upload['evidence']) != 1:
+            raise ProductionError('CLEANUP_OWNERSHIP_REQUIRED', 'A successful upload receipt from this run is required.',
+                                  phase='input-cleanup', run=run)
+        receipt_ref = upload['evidence'][0]
+        receipt = c.decode(c.object_read(directory, receipt_ref['sha256']))
+        if receipt['index'] != upload_index or receipt['provider_id'] != provider_id:
+            raise ProductionError('CLEANUP_OWNERSHIP_REQUIRED', 'The delete target differs from this run\'s upload response.',
+                                  phase='input-cleanup', run=run)
+        c.exact(request, {'path', 'sha256', 'size'}, 'delete request evidence')
+        raw = c.object_read(directory, request['sha256'])
+        if len(raw) != request['size'] or not isinstance(c.decode(raw), dict):
+            raise ValueError('delete request evidence is not the saved request object')
+        step = f'delete:{upload_index}'
+        data = {'execution_id': state['execution_id'], 'claim': claim, 'step': step, 'operation': 'delete',
+                'request_sha256': state['request_sha256'], 'started_at': c.now(),
+                'upload_index': upload_index, 'provider_id': provider_id,
+                'upload_receipt_sha256': receipt_ref['sha256'], 'delete_request_sha256': request['sha256'],
+                'evidence': [request]}
+        # Each owned input has one deletion request. A definitive failure is
+        # terminal; an unknown outcome is looked up by that original request.
+        derive([*rows, {'event': 'external-step', 'data': data}], prepared, run)
+        if current():
+            current().durable()
+        return w.append_record(directory, prepared, rows, 'external-step', data)
+
+
 def record_result(root: Path, run: str, authorization: str, *, outputs: int, cost: dict | None,
                   final: bool, evidence: list[dict]) -> dict:
     """Capture outputs monotonically; completion depends on results, not billing."""
@@ -273,8 +355,13 @@ def known_effect_costs(state: dict) -> list[dict]:
             for item in state['effect_results'].values() if item['usage'] is not None and item['usage']['final']]
 
 
-def effect_total(state: dict) -> tuple[dict | None, bool]:
+def effect_total(state: dict, *, operations: set[str] | None = None) -> tuple[dict | None, bool]:
     """A retrospective total exists only for complete, same-currency usage evidence."""
+    if operations is not None:
+        steps = [item for item in state['steps'] if item['operation'] in operations]
+        names = {item['step'] for item in steps}
+        state = {**state, 'steps': steps,
+                 'effect_results': {name: result for name, result in state['effect_results'].items() if name in names}}
     costs = known_effect_costs(state)
     if not state['steps'] or len(costs) != len(state['steps']):
         return None, False
@@ -323,9 +410,11 @@ def completion_tail(records: list[dict], prepared: dict, run: str) -> None:
     completions = [row for row in records if row['event'] == 'completion']
     if len(completions) > 1:
         raise ProductionError('EVENT_CHAIN_CORRUPT', 'The run has more than one completion.', phase='integrity')
-    if completions and any(row['event'] not in {'execution-result', 'external-effect-result'}
+    if completions and any(not (
+            row['event'] in {'execution-result', 'external-effect-result', 'cleanup-observation'}
+            or (row['event'] == 'external-step' and row['data']['operation'] == 'delete'))
             for row in records if row['sequence'] > completions[0]['sequence']):
-        raise ProductionError('EVENT_CHAIN_CORRUPT', 'Only received result evidence may follow completion.', phase='integrity')
+        raise ProductionError('EVENT_CHAIN_CORRUPT', 'Only result evidence and cleanup of owned uploads may follow completion.', phase='integrity')
 
 
 def commit_effect(root: Path, run: str, event: str, data: dict, tokens: list[str], *, effect: str) -> dict:

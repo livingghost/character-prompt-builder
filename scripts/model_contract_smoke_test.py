@@ -25,7 +25,7 @@ from model_prompt_input_fixtures import prompt_input
 
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_CHECKS = 65
+EXPECTED_CHECKS = 67
 
 
 def load_core_models() -> tuple[dict[str, dict[str, Any]], list[str]]:
@@ -439,6 +439,18 @@ def main() -> int:
         check("an observed schema whose model constant names another model is refused",
               expect_error(stored_as(schema={**stored["schema"], "properties": {**stored["schema"]["properties"], "model": {"const": "vendor:other@1"}}}),
                            "fixes 'model'"))
+        from execution_contract import content_id
+        from model_contract import offering_schema
+        selection = {"source_schema_sha256": content_id(stored["schema"]),
+                     "statement": "Synthetic supported scope: one reference image and square dimensions."}
+        supported = {**stored, "artifact_type": "supported-parameter-schema", "selection": selection}
+        snapshot.write_text(json.dumps(supported), encoding="utf-8")
+        resolved = offering_schema(checked["offerings"][0], pack, checked["id"])
+        check("an authored supported schema retains its explicit scope and source identity",
+              resolved["artifact_type"] == "supported-parameter-schema" and resolved["selection"] == selection)
+        check("a request in an attributed supported schema uses the ordinary offering validation",
+              (validate_generation_parameters(checked, {"width": 1024, "height": 1024}, pack_root=pack,
+                  prompt="a geometric figure", media_counts={"reference images": 1}) or {}).get("service") == "svc")
 
     report = {
         "ok": len(results) == EXPECTED_CHECKS and all(row["passed"] for row in results),

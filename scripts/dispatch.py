@@ -217,7 +217,7 @@ def endpoint(service: dict[str, Any], transport: Any) -> str:
 
 def check_request(verified: dict[str, Any], record: dict[str, Any], offering: dict[str, Any], model_id: str,
                   transport: Any, seed: int | None, count: int) -> None:
-    """Put what would be sent to the model record and the service's observed schema.
+    """Put what would be sent to the model record and the offering's parameter contract.
 
     The package was checked when it was built, but a dispatch adds a seed and a
     result count that were never in it. The transport names them, so they are
@@ -247,7 +247,7 @@ def check_request(verified: dict[str, Any], record: dict[str, Any], offering: di
 
 
 def check_upscale(rendered: dict[str, Any], offering: dict[str, Any], model_id: str) -> None:
-    """Put the built upscale request to the service's observed schema before anything is uploaded.
+    """Put the built upscale request to the offering's parameter contract before anything is uploaded.
 
     The fields that only address the operation or name this one run are left
     out, because the schema describes the model's own parameters.

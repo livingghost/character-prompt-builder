@@ -311,7 +311,7 @@
         },
         "schema_snapshot": {
           "$ref": "#/$defs/non-empty-string",
-          "description": "Path, relative to the pack root, of the service's parameter schema for this model as observed."
+          "description": "Pack-relative path to this offering's attributed parameter contract, with its observed or authored supported scope."
         },
         "schema_contract": {
           "type": "object",

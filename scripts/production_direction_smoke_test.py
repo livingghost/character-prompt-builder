@@ -411,6 +411,88 @@ class LifecycleTests(unittest.TestCase):
         self.write('task.json', self.task)
         return self.prepare()
 
+    def test_external_specification_peers_report_every_defect_with_their_owner(self):
+        import production_spec
+        import subprocess
+        from production_compiler import check_task, validate_document, REPORT_SCHEMA
+        from render_contract_fixtures import intent
+        self.task['execution'] = 'external'
+        fixture.external_image_input(self.root, self.task)
+        valid = production_spec.draft(model='synthetic-external-image',
+            brief='Synthetic specification for local compiler diagnostics.', subject='subject-1', kind='robot',
+            render_intent=intent('Keep the sparse field.'))
+        first, second = copy.deepcopy(valid), copy.deepcopy(valid)
+        first['camera'] = {}
+        first['subjects'][0]['performance'] = {}
+        second.pop('scene')
+        second['constraints'] = []
+        broken = {'first-spec.json': first, 'second-spec.json': second}
+        expected = {path: set(production_spec.validate(value, require_content=True)['errors'])
+                    for path, value in broken.items()}
+        for index, (path, value) in enumerate(broken.items()):
+            self.write(path, value)
+            self.task['sources'].append({'id': 'spec-' + str(index), 'path': path, 'role': 'production-spec',
+                'disposition': 'applied', 'locator': 'whole', 'reason': 'Synthetic independent source contract.'})
+        plan = c.load(self.root / self.task['image_input'])
+        request_path = plan['external_request']['file']
+        request = c.load(self.root / request_path)
+        request['prompt'] = 'A different synthetic delivery.'
+        self.write(request_path, request)
+        self.write('task.json', self.task)
+        report = check_task(self.root, 'task.json')
+        validate_document(report, REPORT_SCHEMA, 'compilation report')
+        self.assertFalse(report['publishable'])
+        self.assertIn('PROMPT_DELIVERY_MISMATCH', {row['code'] for row in report['diagnostics']})
+        for path, messages in expected.items():
+            errors = [row for row in report['diagnostics'] if row['file'] == path and row['code'] == 'INPUT_SCHEMA_INVALID']
+            self.assertEqual({row['message'] for row in errors}, messages)
+            self.assertEqual(len(errors), len(messages))
+            for row in errors:
+                self.assertTrue(row['pointer'].startswith('$'))
+                self.assertEqual(row['guidance']['schema'], 'protocols/shared-state/schemas/production-spec.schema.json')
+                action = row['guidance']['validation']
+                self.assertIn(str(self.root / path), action['argv'])
+                self.assertEqual(action['argv'][-1], '--require-content')
+        camera = next(row for row in report['diagnostics'] if row['file'] == 'first-spec.json'
+                      and row['pointer'] == '$.camera' and row['code'] == 'INPUT_SCHEMA_INVALID')
+        self.assertTrue(camera['guidance']['document_path'].endswith('#camera-framing-contract'))
+        standalone = subprocess.run(camera['guidance']['validation']['argv'], cwd=self.root,
+                                    capture_output=True, text=True, encoding='utf-8')
+        self.assertEqual(standalone.returncode, 1, standalone.stderr)
+        self.assertEqual(set(json.loads(standalone.stdout)['errors']), expected['first-spec.json'])
+
+        for path in broken:
+            self.write(path, valid)
+        request['prompt'] = (self.root / self.task['delivery']['path']).read_bytes().decode('utf-8')
+        self.write(request_path, request)
+        with patch.object(production_spec, 'require', wraps=production_spec.require) as require:
+            corrected = check_task(self.root, 'task.json')
+        self.assertTrue(corrected['publishable'], corrected['diagnostics'])
+        self.assertEqual(require.call_count, len(broken))
+        self.assertFalse(corrected['formal_run_created'])
+
+    def test_prompt_newline_diagnostic_names_both_files_and_keeps_exact_comparison(self):
+        from production_compiler import check_task
+        prompt = 'Keep the sparse field near the caf\u00e9.\n'
+        self.write('delivery.txt', prompt.encode('utf-8'))
+        self.task['execution'] = 'external'
+        fixture.external_image_input(self.root, self.task)
+        self.write('task.json', self.task)
+        self.write('delivery.txt', prompt.replace('\n', '\r\n').encode('utf-8'))
+        report = check_task(self.root, 'task.json')
+        error = next(row for row in report['diagnostics'] if row['code'] == 'PROMPT_DELIVERY_MISMATCH')
+        plan = c.load(self.root / self.task['image_input'])
+        self.assertEqual((error['file'], error['pointer'], error['delivery_file']),
+                         (plan['external_request']['file'], '$["prompt"]', 'delivery.txt'))
+        self.assertEqual(error['request_newlines'], {'crlf': 0, 'lf': 1, 'cr': 0})
+        self.assertEqual(error['delivery_newlines'], {'crlf': 1, 'lf': 0, 'cr': 0})
+        self.assertTrue(error['newline_only_difference'])
+        self.assertIn('build-inputs', error['required_action'])
+        self.assertIn('CRLF', error['required_action'])
+        self.write('delivery.txt', prompt.encode('utf-8'))
+        corrected = check_task(self.root, 'task.json')
+        self.assertTrue(corrected['publishable'], corrected['diagnostics'])
+
     def test_unified_external_execution_receives_and_reviews_one_claimed_request(self):
         import execution_lifecycle as life
         import production_case_fixtures as cases

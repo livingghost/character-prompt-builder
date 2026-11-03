@@ -79,6 +79,9 @@ def _sources(root: Path, task: dict, reader: InputEvidence) -> list[dict]:
 
 def inspect_inputs(root: Path, task_path: str | None = None, *, from_run: str | None = None) -> dict:
     """Read declarations and saved records without issuing keys or permissions."""
+    if task_path is None and from_run is None:
+        import production_authoring_state
+        return production_authoring_state.inspect(root)
     reader = InputEvidence(root)
     task, route, ref, saved = _task(root, task_path, reader, from_run=from_run)
     sources = _sources(root, task, reader)
@@ -198,7 +201,8 @@ def _publish(root: Path, out_dir: str, files: dict[str, bytes], *,
             shutil.rmtree(stage)
 
 
-def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: str | None = None) -> dict:
+def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: str | None = None,
+                 runtime_arguments: dict | None = None) -> dict:
     reader = InputEvidence(root)
     task, _, task_ref, saved = _task(root, task_path, reader, from_run=from_run)
     choices = draft_choices(task)
@@ -215,6 +219,10 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
     _validate_choices(choices)
     context = {key: value for key, value in result.items() if key != 'choices'}
     context['task_content'] = task
+    _destination(root, out_dir)
+    import production_authoring_state
+    production_authoring_state.remember_inputs(root, task, 'draft-inputs', out_dir,
+        task_path=task_path, from_run=from_run, runtime_arguments=runtime_arguments)
     _publish(root, out_dir, {'choices.json': c.encoded(choices),
                             'context.json': c.encoded(context)}, reader=reader)
     return {**result, 'choices_file': (Path(out_dir) / 'choices.json').as_posix(),
@@ -235,7 +243,8 @@ def read_choices(value: Any) -> dict:
 
 
 TASK_CHOICES = frozenset({'route', 'features', 'sources', 'criteria', 'direction', 'delivery',
-                          'world_views', 'moment_views', 'scene_materials', 'semantic_edit', 'generation'})
+                          'world_views', 'moment_views', 'scene_materials', 'semantic_edit', 'generation',
+                          'upload_sources'})
 
 
 def _chosen_task(task: dict, choices: dict) -> dict:
@@ -291,6 +300,10 @@ def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: 
     choices_ref = reader.select(choices_path)
     choices = read_choices(reader.json(choices_ref))
     task = _chosen_task(base_task, choices)
+    _destination(root, out_dir)
+    import production_authoring_state
+    production_authoring_state.remember_inputs(root, task, 'build-inputs', out_dir,
+        task_path=task_path, from_run=from_run, choices_path=choices_path, runtime_arguments=runtime_arguments)
     missing = _unresolved(choices, task)
     if missing:
         return {'state': 'draft', 'ok': False, 'inputs': {}, 'unresolved': missing,
@@ -302,7 +315,6 @@ def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: 
         original = reader
         reader = runtime_evidence.reader(root, snapshots=original.snapshots)
         reader.read_paths = original.read_paths
-    _destination(root, out_dir)
     _retained_sources(root, saved, task, reader)
     reading = _reading(choices['reading'], root=root, task=task)
     visual, visual_context = adapters.build_visual(choices['visual'], task, reader, root)
@@ -385,7 +397,7 @@ def add_arguments(subparsers) -> None:
             'draft-inputs': 'Create an unanswered choices document in a new directory.',
             'build-inputs': 'Resolve authored choices into complete inputs without running production.'}[name])
         parser.add_argument('--root', type=Path, required=True)
-        source = parser.add_mutually_exclusive_group(required=True)
+        source = parser.add_mutually_exclusive_group(required=name != 'inspect-inputs')
         source.add_argument('--task', help='Studio-relative authored production task JSON.')
         source.add_argument('--from-run', help='Use the saved task and delivery of this existing run.')
         if name != 'inspect-inputs':
@@ -396,13 +408,16 @@ def add_arguments(subparsers) -> None:
 
 
 def command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
-    runtime_arguments = adapters.configure_runtime(args, parser)
     root = args.root.resolve(strict=True)
+    if args.command == 'inspect-inputs' and args.task is None and args.from_run is None:
+        return inspect_inputs(root)
+    runtime_arguments = adapters.configure_runtime(args, parser)
     if args.command == 'inspect-inputs':
         result = inspect_inputs(root, args.task, from_run=args.from_run)
         for action in result['craft_lookup']['next_actions']:
             action['args'].update(runtime_arguments or {})
         return result
     if args.command == 'draft-inputs':
-        return draft_inputs(root, args.task, args.out_dir, from_run=args.from_run)
+        return draft_inputs(root, args.task, args.out_dir, from_run=args.from_run,
+                            runtime_arguments=runtime_arguments)
     return build_inputs(root, args.task, args.choices, args.out_dir, from_run=args.from_run, runtime_arguments=runtime_arguments)

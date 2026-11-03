@@ -472,6 +472,8 @@ class InputToolsTests(unittest.TestCase):
 
     def test_external_promotion_materializes_input_without_changing_sources_or_grants(self):
         import production_workflow as workflow
+        delivery = 'Synthetic line one.\r\nReference note: caf\u00e9.\r\n'.encode('utf-8')
+        (self.root / self.task['delivery']['path']).write_bytes(delivery)
         run, draft, plan_path, plan = self.external_choice(with_reference=True)
         source_plan = (self.root / plan_path).read_bytes()
         source_request = (self.root / plan['external_request']['file']).read_bytes()
@@ -479,7 +481,8 @@ class InputToolsTests(unittest.TestCase):
         built = tool.build_inputs(self.root, None, draft['choices_file'], 'external-built', from_run=run)
         task = c.load(self.root / built['inputs']['production-task']['path'])
         request = c.load(self.root / built['inputs']['external-request']['path'])
-        self.assertEqual(request['prompt'].encode('utf-8'), (self.root / task['delivery']['path']).read_bytes())
+        self.assertEqual(request['prompt'].encode('utf-8'), delivery)
+        self.assertEqual((self.root / task['delivery']['path']).read_bytes(), delivery)
         self.assertEqual(request['model'], plan['model']['target']['model_identifier'])
         self.assertEqual(request['count'], 1)
         self.assertEqual(request['controls'], {'quality': 'fine', 'seed': 37})
@@ -535,6 +538,221 @@ class InputToolsTests(unittest.TestCase):
         self.assertEqual(json.loads(run.stdout)['state'], 'built')
         actual = c.load(self.root / 'cli-built/route-reading.json')
         self.assertEqual(actual['applied'], self.choices['reading']['applied'])
+
+
+class AuthoringRecoveryTests(unittest.TestCase):
+    """A new session discovers committed local work for the current ledger task."""
+
+    save_choices = InputToolsTests.save_choices
+
+    def setUp(self):
+        InputToolsTests.setUp(self)
+        import work_ledger
+        self.work = work_ledger.begin(self.root, 'Continue the synthetic authored inputs.', ['Inspect the saved inputs.'])
+        self.task['task_id'] = self.work['task_id']
+        (self.root / 'task.json').write_bytes(c.encoded(self.task))
+
+    def inspect(self):
+        with patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('catalog read')):
+            return tool.inspect_inputs(self.root)
+
+    def test_saved_choices_are_current_read_only_and_scoped_to_the_open_task(self):
+        import work_ledger
+        import session_entry_points
+        result = tool.draft_inputs(self.root, 'task.json', 'draft')
+        path = self.root / result['choices_file']
+        choices = c.load(path)
+        choices['reading'] = copy.deepcopy(self.choices['reading'])
+        path.write_bytes(c.encoded(choices))
+        before = path.read_bytes()
+        current = self.inspect()
+        self.assertEqual(current['inputs'][0]['choices'], 'draft/choices.json')
+        self.assertEqual(current['inputs'][0]['unresolved'], [])
+        self.assertEqual(path.read_bytes(), before)
+        with patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('catalog read')):
+            lines = session_entry_points.authoring_lines(self.root)
+        self.assertIn(str(path), '\n'.join(lines))
+        work_ledger.suspend(self.root, reason='Synthetic task switch.')
+        work_ledger.begin(self.root, 'A different synthetic task.', ['Inspect its own inputs.'])
+        self.assertEqual(self.inspect()['inputs'], [])
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_published_build_is_found_when_its_caller_did_not_receive_the_result(self):
+        original = tool._publish
+        def interrupted(*args, **kwargs):
+            original(*args, **kwargs)
+            raise OSError('Synthetic interruption after directory publication.')
+        with patch.object(tool, '_publish', side_effect=interrupted):
+            with self.assertRaisesRegex(OSError, 'after directory publication'):
+                tool.build_inputs(self.root, 'task.json', 'choices.json', 'built')
+        before = (self.root / 'built/production-task.json').read_bytes()
+        current = self.inspect()
+        built = current['inputs'][0]
+        self.assertEqual((built['state'], built['task'], built['report']),
+                         ('built', 'built/production-task.json', 'built/input-report.json'))
+        self.assertIn('--task', built['next_actions'][0]['argv'])
+        self.assertEqual((self.root / 'built/production-task.json').read_bytes(), before)
+
+    def test_partial_reading_is_discovered_in_a_fresh_process_without_issuing_a_key(self):
+        class InterruptedStream(io.StringIO):
+            def write(self, value):
+                if value.startswith('--- '):
+                    raise OSError('Synthetic interruption before page delivery.')
+                return super().write(value)
+        before = self.ledger.read_bytes()
+        with self.assertRaisesRegex(OSError, 'before page delivery'):
+            reading.read_page(route='development', studio=self.root, ledger=self.ledger,
+                              page_bytes=128, stream=InterruptedStream())
+        program = ('import json,sys;from pathlib import Path;from unittest.mock import patch;'
+                   'import production_inputs as p;'
+                   '\nwith patch("catalog_retrieval.runtime.load_pack_catalog",side_effect=AssertionError("catalog read")):'
+                   '\n print(json.dumps(p.inspect_inputs(Path(sys.argv[1]))))')
+        run = subprocess.run([sys.executable, '-c', program, str(self.root)],
+            env={**os.environ, 'PYTHONPATH': str(tool.ROOT / 'scripts')},
+            capture_output=True, text=True, encoding='utf-8', check=False)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        state = json.loads(run.stdout)['readings'][0]
+        self.assertEqual((state['state'], state['delivered_bytes']), ('partial', 0))
+        self.assertGreater(state['remaining_bytes'], 0)
+        self.assertIn(state['cursor'], state['actions']['continue']['argv'])
+        self.assertEqual(self.ledger.read_bytes(), before)
+        resumed = reading.read_page(cursor=state['cursor'], studio=self.root, ledger=self.ledger,
+                                    page_bytes=128, stream=io.StringIO())
+        self.assertEqual(resumed['snapshot'], state['snapshot'])
+        self.assertEqual(self.ledger.read_bytes(), before)
+
+    def test_completed_reading_reuses_its_saved_application_record(self):
+        page = reading.read_page(route='development', studio=self.root, ledger=self.ledger,
+                                 page_bytes=10_000_000, stream=io.StringIO())
+        path = reading.write_draft(page['issued'], self.ledger, studio=self.root, snapshot=page['snapshot'])
+        before = self.ledger.read_bytes()
+        report = self.inspect()['readings'][0]
+        self.assertEqual((report['state'], report['records']), ('recorded', [str(path)]))
+        self.assertEqual(report['next_actions'], [])
+        self.assertEqual(self.ledger.read_bytes(), before)
+
+    def test_check_history_remains_a_saved_diagnostic(self):
+        import uuid
+        identifier = str(uuid.uuid4())
+        folder = self.root / 'logs/operations/2000-01-01' / identifier
+        c.atomic(folder / 'operation.json', c.encoded({'operation_id': identifier,
+            'command': 'production_workflow.py', 'context': {}, 'created_at': '2000-01-01T00:00:00Z',
+            'arguments': {'command': 'check', 'task': 'task.json'}}))
+        c.atomic(folder / 'events.jsonl', c.encoded({'event': 'completed', 'exit_code': 1, 'complete': True}))
+        saved = self.inspect()['last_check']
+        self.assertEqual((saved['task'], saved['exit_code'], saved['freshness']),
+                         ('task.json', 1, 'not-rechecked'))
+        self.assertNotIn('execution_ready', saved)
+
+    def test_complete_choices_emit_build_and_prepare_with_the_saved_runtime(self):
+        runtime = {'state-file': str(self.root / 'runtime/state.json'),
+                   'cache-dir': str(self.root / 'runtime/cache'),
+                   'managed-root': str(self.root / 'runtime/managed'), 'pack-root': []}
+        draft = tool.draft_inputs(self.root, 'task.json', 'draft', runtime_arguments=runtime)
+        (self.root / draft['choices_file']).write_bytes(c.encoded(self.choices))
+        action = self.inspect()['next_actions'][0]
+        self.assertEqual(action['command'], 'build-inputs')
+        for key in ('state-file', 'cache-dir', 'managed-root'):
+            self.assertEqual(action['argv'][action['argv'].index('--' + key) + 1], runtime[key])
+        run = subprocess.run(action['argv'], env={**os.environ, 'CPB_HOME': str(self.root / 'runtime/home')},
+                             capture_output=True, text=True, encoding='utf-8', check=False)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        state = self.inspect()
+        self.assertTrue(state['inputs'][0]['assembled_task'].endswith('/production-task.json'))
+        prepare = state['next_actions'][0]
+        self.assertEqual(prepare['command'], 'prepare')
+        for key in ('state-file', 'cache-dir', 'managed-root'):
+            self.assertEqual(prepare['argv'][prepare['argv'].index('--' + key) + 1], runtime[key])
+
+    def test_unpublished_attempt_accepts_corrected_choices_and_preserves_existing_outputs(self):
+        incomplete = self.root / 'incomplete.json'
+        incomplete.write_bytes(c.encoded(tool.draft_choices(self.task)))
+        first = tool.build_inputs(self.root, 'task.json', incomplete.name, 'built')
+        self.assertFalse(first['ok'])
+        built = tool.build_inputs(self.root, 'task.json', 'choices.json', 'built')
+        self.assertTrue(built['ok'])
+        self.assertEqual(self.inspect()['inputs'][0]['choices'], 'choices.json')
+        (self.root / 'prior').mkdir()
+        marker = self.root / 'prior/marker.txt'
+        marker.write_text('Existing local output.', encoding='utf-8')
+        with self.assertRaises(FileExistsError):
+            tool.draft_inputs(self.root, 'task.json', 'prior')
+        self.assertEqual(marker.read_text(encoding='utf-8'), 'Existing local output.')
+        self.assertNotIn('prior', [row['directory'] for row in self.inspect()['inputs']])
+
+    def test_reading_before_any_page_has_an_exact_restart_action(self):
+        before = self.ledger.read_bytes()
+        atomic = c.atomic
+        def interrupted(path, *args, **kwargs):
+            if Path(path).name == 'snapshot.json':
+                raise OSError('Synthetic interruption before snapshot publication.')
+            return atomic(path, *args, **kwargs)
+        with patch.object(c, 'atomic', side_effect=interrupted):
+            with self.assertRaisesRegex(OSError, 'before snapshot publication'):
+                reading.read_page(route='development', studio=self.root, ledger=self.ledger,
+                                  page_bytes=128, stream=io.StringIO())
+        with patch.object(c, 'object_store', side_effect=OSError('Synthetic interruption before page receipt.')):
+            with self.assertRaisesRegex(OSError, 'before page receipt'):
+                reading.read_page(route='development', studio=self.root, ledger=self.ledger,
+                                  page_bytes=128, stream=io.StringIO())
+        report = self.inspect()
+        self.assertEqual(len(report['readings']), 2)
+        for saved in report['readings']:
+            self.assertEqual(saved['state'], 'unpublished')
+            self.assertNotIn('cursor', saved)
+            self.assertIn('development', saved['actions']['restart']['argv'])
+            self.assertNotIn('--continue', saved['actions']['restart']['argv'])
+        self.assertEqual(self.ledger.read_bytes(), before)
+
+    def test_reading_actions_follow_the_explicit_task_features(self):
+        tool.draft_inputs(self.root, 'task.json', 'draft')
+        selected = reading.read_page(route='development', studio=self.root, ledger=self.ledger,
+                                      page_bytes=128, stream=io.StringIO())
+        other = reading.read_page(route='development', features=['studio'], studio=self.root,
+                                 ledger=self.ledger, page_bytes=128, stream=io.StringIO())
+        state = self.inspect()
+        current = [row for row in state['readings'] if row['current']]
+        self.assertEqual([row['snapshot'] for row in current], [selected['snapshot']])
+        historical = next(row for row in state['readings'] if row['snapshot'] == other['snapshot'])
+        self.assertEqual(historical['applicability'], 'historical')
+        self.assertNotIn(other['cursor'], json.dumps(state['next_actions']))
+
+    def test_status_contract_and_source_free_inspection_accept_saved_authoring(self):
+        import production_execution
+        from state_protocol import validate_against_schema
+        tool.draft_inputs(self.root, 'task.json', 'draft')
+        schema = c.load(tool.ROOT / 'schemas/authoring/production-status.schema.json')
+        current = production_execution._current_task(self.root)
+        self.assertEqual(validate_against_schema(current, {'$ref': '#/$defs/current_task', '$defs': schema['$defs']}), [])
+        run = subprocess.run([sys.executable, str(tool.ROOT / 'scripts/production_workflow.py'),
+                              'inspect-inputs', '--root', str(self.root)],
+                             env={**os.environ, 'CPB_HOME': str(self.root / 'runtime/home')},
+                             capture_output=True, text=True, encoding='utf-8', check=False)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertEqual(json.loads(run.stdout)['task_id'], self.work['task_id'])
+
+    def test_unpublished_draft_resumes_from_its_saved_source_without_inventing_choices(self):
+        before = self.ledger.read_bytes()
+        with patch.object(tool, '_publish', side_effect=OSError('Synthetic interruption before draft publication.')):
+            with self.assertRaisesRegex(OSError, 'before draft publication'):
+                tool.draft_inputs(self.root, 'task.json', 'draft')
+        state = self.inspect()
+        self.assertFalse((self.root / 'draft').exists())
+        action = state['next_actions'][0]
+        self.assertEqual(action['command'], 'draft-inputs')
+        self.assertEqual(action['argv'][action['argv'].index('--task') + 1], 'task.json')
+        self.assertEqual(action['argv'][action['argv'].index('--out-dir') + 1], 'draft')
+        restored = tool.draft_inputs(self.root, 'task.json', 'draft')
+        self.assertIsNone(c.load(self.root / restored['choices_file'])['reading']['reading_key'])
+        self.assertEqual(self.ledger.read_bytes(), before)
+        incomplete = self.root / 'incomplete.json'
+        incomplete.write_bytes(c.encoded(tool.draft_choices(self.task)))
+        tool.build_inputs(self.root, 'task.json', incomplete.name, 'built')
+        incomplete.unlink()
+        missing = next(row for row in self.inspect()['inputs'] if row['kind'] == 'build-inputs')
+        self.assertEqual(missing['unresolved'], [{'field': 'choices', 'code': 'authored-input-missing',
+                                                 'path': 'incomplete.json'}])
+        self.assertEqual(missing['next_actions'], [])
 
 
 if __name__ == '__main__':

@@ -127,7 +127,8 @@ def _matching_media_paths(value: Any, pattern: tuple, prefix: tuple = ()):
         yield from _matching_media_paths(value[pattern[0]], pattern[1:], prefix + (pattern[0],))
 
 
-def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = None) -> None:
+def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = None,
+             delivery_file: str | None = None) -> None:
     if not isinstance(request, dict):
         raise ValueError('external request must be one JSON object')
     target = plan['model']['target']
@@ -148,7 +149,24 @@ def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = N
     if 'prompt_syntax' in external:
         prompt_weighting.selected(request, external['prompt_syntax'])
     if prompt is not None and actual_prompt != prompt:
-        raise ValueError('external request prompt differs from the production delivery')
+        from production_diagnostics import ProductionError
+        def newlines(value):
+            pairs = value.count('\r\n')
+            return {'crlf': pairs, 'lf': value.count('\n') - pairs, 'cr': value.count('\r') - pairs}
+        def lf(value):
+            return value.replace('\r\n', '\n').replace('\r', '\n')
+        raise ProductionError('PROMPT_DELIVERY_MISMATCH',
+            'external request prompt differs from the production delivery', phase='image-input',
+            file=external['file'],
+            pointer='$' + ''.join('[' + json.dumps(part, ensure_ascii=False) + ']' for part in external['prompt_field']),
+            delivery_file=delivery_file, comparison='exact-utf8-text',
+            request_newlines=newlines(actual_prompt), delivery_newlines=newlines(prompt),
+            newline_only_difference=lf(actual_prompt) == lf(prompt),
+            guidance={'document_path': 'references/runtime/production-execution.md#assemble-authored-choices',
+                      'schema': 'schemas/authoring/image-input-plan.schema.json'},
+            required_action='Use build-inputs to derive the request from the single delivery source. '
+                            'Exact text includes every newline; write manual delivery bytes as UTF-8 with LF, '
+                            'because Windows text-mode writes may introduce CRLF.')
     if external['count_field'] is not None:
         actual_count = rc.get(request, external['count_field'])
         if type(actual_count) is not int or actual_count != external['count']:
@@ -496,13 +514,41 @@ def task_binding(root: Path, task: dict, add) -> dict | None:
         if external is None:
             raise ValueError('external image input requires its exact request binding')
         prompt = add(root, task['delivery']['path']).decode('utf-8')
-        _request(result, external, external['request'], prompt=prompt)
+        _request(result, external, external['request'], prompt=prompt, delivery_file=task['delivery']['path'])
     elif external is not None:
         raise ValueError('dispatcher image input uses its compiled request, not an external request')
     return result
 
 
-def external_documents(root: Path, task: dict, add, *, inputs: dict | None = None) -> dict:
+def external_document_sources(task: dict) -> list[dict]:
+    """Select document owners from declared roles, including independently checkable inputs."""
+    if task.get('execution') != 'external' or task.get('artifact') != 'image':
+        return []
+    sources = task.get('sources')
+    sources = sources if isinstance(sources, list) else []
+    selected = {row['path']: row['role'] for row in sources
+                if isinstance(row, dict) and isinstance(row.get('path'), str)
+                and row.get('disposition') == 'applied' and row.get('role') in ('production-spec', 'render-intent')}
+    generation = task.get('generation')
+    if isinstance(generation, dict) and isinstance(generation.get('production_spec'), str):
+        selected[generation['production_spec']] = 'production-spec'
+    return [{'path': path, 'role': role} for path, role in selected.items()]
+
+
+def validate_external_document(value: Any, role: str) -> None:
+    """Validate one complete source without depending on the other sources or request."""
+    if role == 'production-spec':
+        from production_spec import require
+        require(value)
+    elif role == 'render-intent':
+        from render_contract_lib import validate_intent
+        validate_intent(value)
+    else:
+        raise ValueError('external document role must be production-spec or render-intent')
+
+
+def external_documents(root: Path, task: dict, add, *, inputs: dict | None = None,
+                       documents: list[dict] | None = None) -> dict:
     """Apply the same authored specification and render intent checks externally.
 
     Source roles select contracts explicitly. An external image request uses its
@@ -510,22 +556,31 @@ def external_documents(root: Path, task: dict, add, *, inputs: dict | None = Non
     """
     if task['execution'] != 'external' or task['artifact'] != 'image':
         return {}
-    import production_spec
     from render_contract_lib import validate_intent
     from reference_delivery import validate_reference_subjects, validate_reference_selection_subjects
     prompt = add(root, task['delivery']['path']).decode('utf-8')
-    selected = {row['path']: row['role'] for row in task['sources']
-                if row['disposition'] == 'applied' and row['role'] in {'production-spec', 'render-intent'}}
-    if (task.get('generation') or {}).get('production_spec'):
-        selected[task['generation']['production_spec']] = 'production-spec'
+    selected = external_document_sources(task)
+    if documents is None:
+        documents = []
+        for source in selected:
+            value = c.decode(add(root, source['path']))
+            validate_external_document(value, source['role'])
+            validate_intent(value['render_intent'] if source['role'] == 'production-spec' else value,
+                            prompt=prompt)
+            documents.append({**source, 'value': value})
+    elif [{'path': row['path'], 'role': row['role']} for row in documents] != selected:
+        raise ValueError('validated external documents differ from the selected source owners')
+    else:
+        # The compiler already checked each document and its prompt projection.
+        # Retain their exact captured bytes in this contract's source evidence.
+        for source in selected:
+            add(root, source['path'])
     graph_path = (task.get('generation') or {}).get('state_graphs')
     graphs = c.decode(add(root, graph_path)) if graph_path is not None else None
     specs, intents = [], []
-    for path, role in selected.items():
-        value = c.decode(add(root, path))
+    for document in documents:
+        role, value = document['role'], document['value']
         if role == 'production-spec':
-            production_spec.require(value)
-            validate_intent(value['render_intent'], prompt=prompt)
             if inputs is not None:
                 model = inputs['model']
                 if value['target_model'] not in {model['requested'], model['catalog_model'], model['target']['model_identifier']}:
@@ -539,7 +594,6 @@ def external_documents(root: Path, task: dict, add, *, inputs: dict | None = Non
                     reference_selection=prepared['reference_selection'] if prepared is not None else None)
             specs.append(value)
         else:
-            validate_intent(value, prompt=prompt)
             intents.append(value)
     if specs and any(value != specs[0] for value in specs[1:]):
         raise ValueError('external image task has conflicting applied Production Specifications')

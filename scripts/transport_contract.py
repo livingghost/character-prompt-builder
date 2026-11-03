@@ -18,6 +18,10 @@ gives one the wrong type, naming each such name in one error:
         A set of the hosts a returned image URL may name; the image is fetched
         over https.
 
+    UPLOAD_SOURCE
+        "bytes" when the upload endpoint receives the verified file content, or
+        "url" when it imports an authored, remotely readable source URL.
+
     endpoint(service) -> str
         The service record's endpoint, refused unless the credential may go there.
 
@@ -36,13 +40,18 @@ gives one the wrong type, naming each such name in one error:
     added_parameters(offering, seed, count) -> dict
         The seed and the count the dispatch adds, on this service's keys.
 
-    upload_bytes(data, media_type, service, key) -> dict
-        Register one image through post() and return exactly provider_id,
+    upload_media(data, media_type, service, key, *, source_url) -> dict
+        Register the verified image through the service's HTTP interface,
+        applying the network rules below, and return exactly provider_id,
         response (the actual provider JSON), and usage (null or a currency,
         decimal-string amount and final boolean). Missing billing evidence is
         unknown, never zero; a quoted ceiling is not an actual charge. A
         service that answers and refuses the upload raises Refused with that
-        answer.
+        answer. source_url is the sealed URL for a URL-import interface and
+        None for a byte-upload interface. The URL is an existing host/storage
+        locator; an adapter does not publish a local file to obtain one. A URL
+        importer verifies the stored content against data before accepting the
+        issued identifier. The original provider response remains unmodified.
 
     usage(answer) -> dict | None
         The independently reported send charge, not an upload-plus-send total.
@@ -64,6 +73,23 @@ gives one the wrong type, naming each such name in one error:
 
 A transport may also define these names; check() refuses one with the wrong type:
 
+    prepare_delete(provider_id, service) -> dict
+        Build the exact request to delete an input registered by this execution.
+        Its operation identifier is stable once the request is journaled.
+
+    send_delete(request, service, key, *, provider_id) -> dict
+        Send the recorded deletion once. Return exactly response (the actual
+        provider JSON) and usage. Outputs are captured before cleanup begins;
+        a cleanup failure cannot start a new upload or generation. Verify the
+        request's target against provider_id from the owned upload receipt.
+        A definitive deletion error is recorded without sending it again.
+
+    lookup_delete(request, service, key, *, provider_id) -> dict | None
+        Ask for the outcome of that recorded deletion. Return the same result
+        as send_delete, or None when the provider has no definitive answer.
+        An unknown deletion is reconciled without sending it again. These
+        three methods form one complete optional cleanup capability.
+
     lookup(request, service, key) -> dict | None
         Ask the service for the answer to a request that was sent and whose
         answer was lost or remains unfinished, by its original identifiers. It
@@ -83,7 +109,7 @@ Every send has one of three outcomes:
 - rejected: the service answered and refused the request, so nothing was made.
 - indeterminate: the service may or may not have carried out the request.
 
-post() applies the network rules, so a transport that sends through it keeps them:
+post() applies these network rules to each adapter's HTTP request:
 
 - the address is https, or http on a loopback address for a local test service;
 - a redirect is never followed, because it would carry the credential elsewhere;
@@ -127,11 +153,12 @@ def _hosts(value: Any) -> bool:
 NAMES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "OPERATIONS": (_operations, "a dict of operation names"),
     "RESULT_HOSTS": (_hosts, "a set of host names"),
+    "UPLOAD_SOURCE": (lambda value: value in ("bytes", "url"), "bytes or url"),
     "endpoint": (callable, "a function"),
     "compile_request": (callable, "a function"),
     "compile_upscale": (callable, "a function"),
     "added_parameters": (callable, "a function"),
-    "upload_bytes": (callable, "a function"),
+    "upload_media": (callable, "a function"),
     "usage": (callable, "a function"),
     "send": (callable, "a function"),
     "rejections": (callable, "a function"),
@@ -141,6 +168,9 @@ NAMES: dict[str, tuple[Callable[[Any], bool], str]] = {
 
 # Names a transport may define, with the same test and words.
 OPTIONAL: dict[str, tuple[Callable[[Any], bool], str]] = {
+    "prepare_delete": (callable, "a function"),
+    "send_delete": (callable, "a function"),
+    "lookup_delete": (callable, "a function"),
     "lookup": (callable, "a function"),
     "CREDENTIAL_FREE": (lambda value: type(value) is bool, "a boolean"),
 }
@@ -161,6 +191,10 @@ def check(module: Any) -> Any:
     for name, (passes, kind) in OPTIONAL.items():
         if hasattr(module, name) and not passes(getattr(module, name)):
             problems.append(f"{name} is not {kind}")
+    cleanup = ('prepare_delete', 'send_delete', 'lookup_delete')
+    if any(hasattr(module, name) for name in cleanup):
+        problems.extend(name + ' is missing from the cleanup capability'
+                        for name in cleanup if not hasattr(module, name))
     if problems:
         label = getattr(module, "__name__", "the transport")
         raise ValueError(f"{label} does not meet the transport contract in scripts/transport_contract.py: "

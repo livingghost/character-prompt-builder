@@ -18,13 +18,13 @@
     "artifact_type": "execution-policy",
     "basis": {
       "locator": "whole",
-      "path": "synthetic-validation/7ddc0ed27f8047e5/basis.txt",
+      "path": "synthetic-validation/49f93f4a199bed7a/basis.txt",
       "sha256": "424db1c13f6c398026a9d9ae39d4e8f294e1274d4e2d1dec1ab501e7d61e06c5"
     },
     "reference_instruction_transport": {
       "contract": {
-        "path": "synthetic-validation/7ddc0ed27f8047e5/references.json",
-        "sha256": "a09cce2900c30f702a4994f3e21c12a51fb5498f776f1e74eb58e5142033fbad"
+        "path": "synthetic-validation/49f93f4a199bed7a/references.json",
+        "sha256": "971d623ee1308a1329967d2b749c197c6867ecf208d2649bf0bbd68730f376da"
       },
       "mode": "authored-rendition"
     },
@@ -77,7 +77,7 @@
         "basis": {
           "kind": "provider-documentation",
           "limitations": [
-            "The stored schema is dated interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
+            "The supported schema derives from interface evidence observed live from the service schema endpoint on 2026-10-06. It is not a quality benchmark or a current network verification.",
             "This profile declares geometry, settings, output, count and media controls. Sampling controls (steps, guidance, scheduler, seed) are backend-managed: the schema exposes none of them."
           ],
           "source": "resources/observed-schemas/gpt-image-2-5-flare.runware.json"
@@ -403,7 +403,7 @@
       },
       "note": "Recommendations are starting points. Interface validity and observed image quality are separate evidence."
     },
-    "profile_sha256": "12fadbf95031dd5e27ae78af7af7618dedd24c420296ff73c6e4de5758c7e1d7",
+    "profile_sha256": "d269c80b32e312d7a009758a0d12afe5ed28a1f1d3aaac0a259fde79afc942ef",
     "authored_parameters": {
       "width": 1024,
       "height": 1024,
@@ -3195,7 +3195,7 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
   "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-  "generation_input_sha256": "6a19091c51b956fe78558d99808a7fce039c5ee18501c91cbd03addfbf8c4427",
+  "generation_input_sha256": "0798577d41373014bfd1771400870998c8e160b058dc21bd19e8c5702b054ca3",
   "parameters": {
     "height": 1024,
     "safety": {
@@ -3245,7 +3245,7 @@
     "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
     "effective_prompt_sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121",
     "selected_references": [],
-    "generation_input_sha256": "6a19091c51b956fe78558d99808a7fce039c5ee18501c91cbd03addfbf8c4427",
+    "generation_input_sha256": "0798577d41373014bfd1771400870998c8e160b058dc21bd19e8c5702b054ca3",
     "prompt_trace": [
       {
         "source_kind": "authored",

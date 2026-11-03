@@ -74,7 +74,7 @@ class ModelCapabilityTests(unittest.TestCase):
         for target in ("urllib.request.urlopen", "socket.create_connection"):
             self.blocked.append(self.enterContext(patch(target, side_effect=AssertionError("unexpected network call"))))
         for transport in self.transports.values():
-            for name in ("send", "upload_bytes"):
+            for name in ("send", "upload_media"):
                 self.blocked.append(self.enterContext(patch.object(
                     transport, name, side_effect=AssertionError("unexpected provider operation"))))
 

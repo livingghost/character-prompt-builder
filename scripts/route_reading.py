@@ -459,7 +459,8 @@ def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path]
     for item in record['applied']:
         quote = _normalized(item['quote'])
         if len(quote.split()) < 12 or not any(quote in block for block in prose_blocks(available[item['path']])):
-            raise ValueError('quote must contain at least twelve words of paragraph text: ' + item['path'])
+            raise ValueError('quote must contain at least twelve words of paragraph text, preserving raw Markdown '
+                             'spelling including links and inline markup; whitespace wrapping may differ: ' + item['path'])
     _require_resource_applications(record, bodies, dialect)
     return row
 
@@ -561,14 +562,19 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         raise ValueError('page-bytes must be an integer of at least four')
     stream = sys.stdout if stream is None else stream
     ledger = ledger if ledger is not None else ledger_candidates(studio=studio)[0]
+    authoring_studio = studio or _studio(ledger.parent)
     with c.lock(ledger.parent):
         if cursor is None:
             if route is None:
                 raise ValueError('a route is required to start reading')
             manifest, bodies = capture(route, features, root=root, dialect=dialect)
+            import production_authoring_state
+            task_id = production_authoring_state.active_task_id(authoring_studio)
             snapshot = {'manifest': manifest, 'root': str(root.absolute()), 'runtime': runtime,
+                        'task_id': task_id,
                         'nonce': secrets.token_hex(16), 'bodies': [dict(meta, size=len(raw)) for meta, raw in bodies]}
             sid = c.content_id(snapshot)
+            production_authoring_state.remember_reading(authoring_studio, ledger, sid, snapshot, page_bytes)
             folder = c.local(ledger.parent, 'reading-snapshots/' + sid, exists=False)
             folder.mkdir(parents=True)
             c.atomic(folder / 'snapshot.json', c.encoded(snapshot))
@@ -657,11 +663,17 @@ def draft_record(issued: dict) -> dict:
             'documents': row['documents'], 'resources': row['resources'], 'applied': [], 'resource_applied': []}
 
 
-def write_draft(issued: dict, ledger: Path) -> Path:
+def write_draft(issued: dict, ledger: Path, *, studio: Path | None = None,
+                snapshot: str | None = None) -> Path:
     """Write the draft beside the ledger once; an existing file keeps what the author wrote."""
     row = issued['row']
     path = ledger.parent / 'readings' / (row['route'] + '-' + row['key_sha256'][:16] + '.json')
     raw = (json.dumps(draft_record(issued), ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+    import production_authoring_state
+    task_id = (c.load(_snapshot_dir(ledger, snapshot) / 'snapshot.json').get('task_id')
+               if snapshot is not None else None)
+    production_authoring_state.remember_reading_record(studio or _studio(ledger.parent), ledger, path,
+                                                       snapshot=snapshot, task_id=task_id)
     try:
         c.atomic(path, raw)
     except FileExistsError:
@@ -750,7 +762,7 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
         cursor = args.cursor if args.cursor is not None else args.replay
         result = read_page(route=args.route, features=args.feature, cursor=cursor,
                            replay=args.replay is not None, page_bytes=page_bytes,
-                           ledger=ledger, runtime=runtime, dialect=dialect)
+                           ledger=ledger, studio=studio, runtime=runtime, dialect=dialect)
         issued = result.get('issued')
         result['actions'] = _reading_actions(result, ledger=ledger, studio=studio, page_bytes=page_bytes)
         print('reading-actions: ' + json.dumps(result['actions'], ensure_ascii=False), flush=True)
@@ -759,7 +771,7 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
     else:
         result = issued = issue(args.route, args.feature, ledger=ledger, dialect=dialect)
     if issued is not None:
-        path = write_draft(issued, ledger)
+        path = write_draft(issued, ledger, studio=studio, snapshot=result.get('snapshot'))
         record_studio = args.root.absolute() if args.root is not None else None
         record_location = (path.relative_to(record_studio).as_posix()
                            if record_studio is not None and path.is_relative_to(record_studio) else str(path))

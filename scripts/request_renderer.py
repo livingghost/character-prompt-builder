@@ -41,7 +41,8 @@ def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,
         'execution_policy':policy,'input_snapshots':reader.snapshots}
 
 
-def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,transport,*,seed:int|None,count:int)->dict:
+def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,transport,*,seed:int|None,count:int,
+               upload_sources:list|None=None)->dict:
     if not hasattr(transport,'compile_request'):raise ValueError('transport must compile the complete request with a declared field layout')
     import render_contract_lib as rendering
     contract = package['render_contract']
@@ -65,6 +66,7 @@ def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,
             binding_ids=['reference:'+str(r['reference_number']) for r in rows if r['attachment_number']==i+1]);media.append(item)
     for item in verified['host_forwarding'].get('technical_media', []):
         media.append(rc.media_metadata(Path(item['resolved_path']), role=item['role']))
+    media=rc.bind_upload_sources(media, [] if upload_sources is None else upload_sources, transport.UPLOAD_SOURCE)
     expected=package['request_validation']['target']
     execution=rc.execution_hashes(service,offering,Path(transport.__file__),model=model,policy=verified['execution_policy'])
     value=package['visual_continuity'];context={'subjects':value['subjects'],'purpose':value['purpose'],'output_kind':'image'}
@@ -82,7 +84,8 @@ def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,
     return rc.seal(compiled['request'],compiled['layout'],media,expected,execution,compiled['request_trace'],rows,context)
 
 
-def upscale(declaration:dict,model:dict,offering:dict,service:dict,transport,source:Path,settings:dict,*,root:Path)->dict:
+def upscale(declaration:dict,model:dict,offering:dict,service:dict,transport,source:Path,settings:dict,*,root:Path,
+            upload_sources:list|None=None)->dict:
     reader=runtime_evidence.reader(root,snapshots=copy.deepcopy(declaration['input_snapshots']))
     policy,_=load_policy(declaration['request_validation'],reader,declaration['request_validation']['target'])
     import render_contract_lib as rendering
@@ -105,7 +108,9 @@ def upscale(declaration:dict,model:dict,offering:dict,service:dict,transport,sou
         offering,service,{},declaration['guidance_prompt'])
     rendering.check_wire(plan, compiled['request'], compiled['layout'], seed=None, count=1)
     execution=rc.execution_hashes(service,offering,Path(transport.__file__),model=model,policy=policy)
-    return rc.seal(compiled['request'],compiled['layout'],[rc.media_metadata(source,role='source-image')],
+    media=rc.bind_upload_sources([rc.media_metadata(source,role='source-image')],
+        [] if upload_sources is None else upload_sources, transport.UPLOAD_SOURCE)
+    return rc.seal(compiled['request'],compiled['layout'],media,
         declaration['request_validation']['target'],execution,compiled['request_trace'],[],
         {'output_kind':'image','render_contract':plan})
 

@@ -88,9 +88,9 @@ claims the execution, performs the declared handoff and records every returned
 image. `resume` recovers the same execution, and `status` shows each
 run's next command and actual submission and image records. `variant` prepares changed
 input, and `repeat` prepares another run of the same input. A request is
-checked against the service's own parameter schema, stored in the pack as
-observed, before anything is sent. The offering's service ID selects its Studio
-authentication configuration. [Studio authentication](references/runtime/studio-authentication.md)
+checked against the offering's attributed parameter contract before anything is
+sent. The pack identifies an acquired schema or an authored supported scope.
+The offering's service ID selects its Studio authentication configuration. [Studio authentication](references/runtime/studio-authentication.md)
 owns one entry per service in the Studio's private `credentials.json`:
 `api_key` holds its saved value, or `api_key_env` names its runtime environment
 variable. Follow the existing source and the owner's choice. Prepare the service
@@ -117,6 +117,9 @@ changes, preservation and review of an existing image.
 For a further external trial, derive inputs with `draft-inputs --from-run` and
 `build-inputs`, edit only changed choices, then prepare the emitted task.
 Use `status` or `resume` after interruption and recover the existing host result.
+Before preparation, `inspect-inputs --root STUDIO` locates the open work task's
+saved choices, published inputs and partial route reading. Continue those files
+and returned actions; the discovery record supplies no judgment or permission.
 
 ## What the Skill conforms to
 

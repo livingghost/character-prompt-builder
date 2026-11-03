@@ -33,14 +33,8 @@ PYPROJECT = ROOT / "pyproject.toml"
 REQUIREMENT_RE = re.compile(
     r"^([A-Za-z0-9_.-]+)==([0-9]+(?:\.[0-9]+)*)$"
 )
-IMPORT_NAMES = {
-    "resvg-py": "resvg_py",
-    "numpy": "numpy",
-    "Pillow": "PIL",
-    "rasterio": "rasterio",
-    "opencv-python-headless": "cv2",
-    "scikit-image": "skimage",
-}
+with PYPROJECT.open("rb") as _project_stream:
+    IMPORT_NAMES = tomllib.load(_project_stream)["tool"]["character-prompt-builder"]["imports"]
 FFPROBE_ENABLES = "measured audio and video streams in temporal production evidence"
 REPORT_FIELDS = ("ok", "python", "definition", "dependencies", "errors")
 HAS_PIP = "import importlib.util, sys; sys.exit(importlib.util.find_spec('pip') is None)"

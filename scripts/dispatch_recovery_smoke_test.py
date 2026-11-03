@@ -65,7 +65,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.enterContext(patch.dict(transport_synthetic._ANSWERED,clear=True))
         self.actual_send=transport_synthetic.send
         self.send=self.enterContext(patch.object(transport_synthetic,'send',wraps=self.actual_send))
-        self.upload=self.enterContext(patch.object(transport_synthetic,'upload_bytes',wraps=transport_synthetic.upload_bytes))
+        self.upload=self.enterContext(patch.object(transport_synthetic,'upload_media',wraps=transport_synthetic.upload_media))
         self.key=self.enterContext(patch.object(service_auth,'resolve',side_effect=AssertionError('No real credentials in synthetic execution')))
 
     def call(self):return execution.execute(self.root,self.run,decisions_file=self.decision_file)
@@ -383,61 +383,57 @@ class DispatchRecoveryTests(unittest.TestCase):
                                  {'currency':'USD','amount':'0.24' if cumulative else '0.13','final':cumulative})
                 self.assertEqual(accounting.effect_total(state)[1],cumulative)
 
-    def test_runware_output_formats_are_captured_directly_and_after_lookup(self):
-        import base64
+    def test_runware_urls_are_captured_directly_and_after_lookup(self):
         import transport_runware
         from production_diagnostics import ProductionError
-        for output_type in ('URL','base64Data','dataURI'):
-            for recovery in (False,True):
-                with self.subTest(output_type=output_type,recovery=recovery):
-                    self.root=cases.copy_studio(self.origin,self.base/f'{output_type}-{recovery}')
-                    self.send.reset_mock();raw_images={};answer=None
-                    def provider(*args):
-                        nonlocal answer
-                        generated=self.actual_send(*args)
-                        entries=[]
-                        for item in generated['data']:
-                            raw=base64.b64decode(item['data']);url='https://im.runware.ai/'+item['id']+'.png'
-                            raw_images[url]=raw
-                            fields={'URL':{'imageURL':url},'base64Data':{'imageBase64Data':item['data']},
-                                    'dataURI':{'imageDataURI':'data:image/png;base64,'+item['data']}}[output_type]
-                            entries.append({'taskUUID':args[0]['request_id'],'imageUUID':item['id'],'cost':'0',**fields})
-                        answer={'data':entries}
-                        if recovery:raise TimeoutError('Synthetic response loss')
-                        return answer
-                    def retrieve(request,service,key):
-                        unrelated={'taskUUID':'another-task','imageURL':'https://im.runware.ai/unrelated.png'}
-                        with patch.object(transport_runware,'_post',return_value={'data':[*answer['data'],unrelated]}) as post:
-                            found=transport_runware.lookup({'taskUUID':request['request_id']},service,key)
-                        self.assertEqual(post.call_args.args[0],[{'taskType':'getResponse','taskUUID':request['request_id']}])
-                        return found
-                    def download(url,path,hosts):
-                        self.assertIn('im.runware.ai',hosts)
-                        c.atomic(path,raw_images[url],replace=True)
-                        return c.digest(raw_images[url])
-                    self.send.side_effect=provider
-                    with patch.object(transport_synthetic,'results',side_effect=transport_runware.results), \
-                            patch.object(transport_synthetic,'observation_outcome',side_effect=transport_runware.observation_outcome), \
-                            patch.object(transport_synthetic,'usage',side_effect=transport_runware.usage), \
-                            patch.object(transport_synthetic,'RESULT_HOSTS',transport_runware.RESULT_HOSTS), \
-                            patch.object(transport_synthetic,'lookup',side_effect=retrieve) as lookup, \
-                            patch.object(dispatch,'save',side_effect=download) as save:
-                        result=self.call()
-                        if recovery:result=execution.resume(self.root,self.run)
-                        self.assertTrue(result['execution_completed'])
-                        self.assertEqual((self.send.call_count,lookup.call_count),(1,int(recovery)))
-                        self.assertEqual(len(self.candidates()),2)
-                        self.assertEqual({item['data']['files'][0]['sha256'] for item in self.candidates()},
-                                         {c.digest(raw) for raw in raw_images.values()})
-                        execution.resume(self.root,self.run)
-                        self.assertEqual(len(self.candidates()),2)
-                        self.assertEqual(save.call_count,2 if output_type=='URL' else 0)
-                        before=self.candidates()
-                        (self.journal().path/'result-1.png').write_bytes(transport_synthetic._png(32,32,b'\x08\x10\x18'))
-                        with self.assertRaises(ProductionError) as caught:execution.resume(self.root,self.run)
-                        self.assertEqual(caught.exception.diagnostic.code,'PROVIDER_OUTPUT_CHANGED')
-                        self.assertEqual(self.candidates(),before)
-                        self.assertEqual(self.send.call_count,1)
+        for recovery in (False,True):
+            with self.subTest(recovery=recovery):
+                self.root=cases.copy_studio(self.origin,self.base/f'URL-{recovery}')
+                self.send.reset_mock();raw_images={};answer=None
+                def provider(*args):
+                    nonlocal answer
+                    request=args[0];entries=[]
+                    for index in range(request['count']):
+                        raw=transport_synthetic._png(request['width'],request['height'],bytes((32+index,64,128)))
+                        identifier=c.digest(raw);url='https://im.runware.ai/'+identifier+'.png'
+                        raw_images[url]=raw
+                        entries.append({'taskUUID':request['request_id'],'imageUUID':identifier,'cost':'0','imageURL':url})
+                    answer={'data':entries}
+                    if recovery:raise TimeoutError('Synthetic response loss')
+                    return answer
+                def retrieve(request,service,key):
+                    unrelated={'taskUUID':'another-task','imageURL':'https://im.runware.ai/unrelated.png'}
+                    with patch.object(transport_runware,'_post',return_value={'data':[*answer['data'],unrelated]}) as post:
+                        found=transport_runware.lookup({'taskUUID':request['request_id']},service,key)
+                    self.assertEqual(post.call_args.args[0],[{'taskType':'getResponse','taskUUID':request['request_id']}])
+                    return found
+                def download(url,path,hosts):
+                    self.assertIn('im.runware.ai',hosts)
+                    c.atomic(path,raw_images[url],replace=True)
+                    return c.digest(raw_images[url])
+                self.send.side_effect=provider
+                with patch.object(transport_synthetic,'results',side_effect=transport_runware.results), \
+                        patch.object(transport_synthetic,'observation_outcome',side_effect=transport_runware.observation_outcome), \
+                        patch.object(transport_synthetic,'usage',side_effect=transport_runware.usage), \
+                        patch.object(transport_synthetic,'RESULT_HOSTS',transport_runware.RESULT_HOSTS), \
+                        patch.object(transport_synthetic,'lookup',side_effect=retrieve) as lookup, \
+                        patch.object(dispatch,'save',side_effect=download) as save:
+                    result=self.call()
+                    if recovery:result=execution.resume(self.root,self.run)
+                    self.assertTrue(result['execution_completed'])
+                    self.assertEqual((self.send.call_count,lookup.call_count),(1,int(recovery)))
+                    self.assertEqual(len(self.candidates()),2)
+                    self.assertEqual({item['data']['files'][0]['sha256'] for item in self.candidates()},
+                                     {c.digest(raw) for raw in raw_images.values()})
+                    execution.resume(self.root,self.run)
+                    self.assertEqual(len(self.candidates()),2)
+                    self.assertEqual(save.call_count,2)
+                    before=self.candidates()
+                    (self.journal().path/'result-1.png').write_bytes(transport_synthetic._png(32,32,b'\x08\x10\x18'))
+                    with self.assertRaises(ProductionError) as caught:execution.resume(self.root,self.run)
+                    self.assertEqual(caught.exception.diagnostic.code,'PROVIDER_OUTPUT_CHANGED')
+                    self.assertEqual(self.candidates(),before)
+                    self.assertEqual(self.send.call_count,1)
 
     def test_partial_count_keeps_real_candidate(self):
         def answer(*args):
@@ -544,7 +540,7 @@ class ResumeOffersDownload(unittest.TestCase):
                 self.assertTrue(execution.resume(root,run)['execution_completed'])
 
 
-SECOND_TRANSPORT = '"""A synthetic second service for the dispatch tests; it reaches only the test\'s loopback service."""\nimport json\n\nfrom model_contract import NEGATIVE_ROLE, PROMPT_ROLE, required_request_key\nfrom request_contract import RequestWriter, path_parts\nfrom transport_contract import address, post\n\nOPERATIONS = {"generation": "text-to-image"}\nRESULT_HOSTS = frozenset()\n\n\ndef endpoint(service):\n    return address(service["endpoint"]["base_url"])\n\n\ndef compile_request(verified, offering, service, media_ids=None, seed=None, count=1):\n    forwarding = verified["host_forwarding"]\n    writer = RequestWriter()\n    source = [{"kind": "offering", "service": offering["service"], "model_identifier": offering["model_identifier"]}]\n\n    def write(path, value, kind, transform):\n        writer.write(path, value, source_kind=kind, source_refs=source, transform_id=transform)\n\n    prompt = path_parts(required_request_key(offering, PROMPT_ROLE))\n    write(prompt, forwarding["effective_prompt"], "authored", "selected-rendition")\n    layout = {"model": None, "operation": None, "primary_text": prompt, "negative_text": None,\n              "output_count": ["num_images"], "fixed_output_count": None, "seed": None, "media": [],\n              "management": [], "content": [{"id": "prompt", "field": prompt}],\n              "fields": [{"id": "prompt", "field": prompt, "kind": "content"},\n                         {"id": "count", "field": ["num_images"], "kind": "parameter"}]}\n    selected = forwarding["selected_transport"]\n    negative = selected["rendition"].get("negative") or ""\n    if selected["mode"] in {"separate-field", "native-subset"} and negative:\n        field = path_parts(required_request_key(offering, NEGATIVE_ROLE))\n        write(field, negative, "authored", "selected-negative-channel")\n        layout["negative_text"] = field\n        layout["content"].append({"id": "negative", "field": field})\n        layout["fields"].append({"id": "negative", "field": field, "kind": "content"})\n    for name, value in sorted((forwarding.get("parameters") or {}).items()):\n        write(path_parts(name), value, "model-setting", "selected-parameter")\n        layout["fields"].append({"id": "parameter:" + name, "field": path_parts(name), "kind": "parameter"})\n    write(["num_images"], count, "model-setting", "explicit-output-count")\n    if seed is not None:\n        write(["seed"], seed, "model-setting", "explicit-seed")\n        layout["seed"] = ["seed"]\n        layout["fields"].append({"id": "seed", "field": ["seed"], "kind": "parameter"})\n    return {"request": writer.request, "layout": layout, "request_trace": writer.trace}\n\n\ndef added_parameters(offering, seed=None, count=1):\n    return {"num_images": count, **({"seed": seed} if seed is not None else {})}\n\n\ndef upload_bytes(data, media_type, service, key):\n    raise ValueError("the fixture service takes no media")\n\n\ndef send(request, service, key):\n    status, body = post(endpoint(service), json.dumps(request).encode("utf-8"),\n                        {"Content-Type": "application/json", "Authorization": "Key " + key})\n    answer = json.loads(body.decode("utf-8"))\n    return answer if status == 200 else {"errors": [{"status": status, **answer}]}\n\n\ndef rejections(answer):\n    return list(answer.get("errors") or [])\n\n\ndef results(answer):\n    return [{"data": item["b64"], "seed": item.get("seed"), "id": item.get("id")} for item in answer.get("images") or []]\n\n\ndef observation_outcome(answer):\n    return "rejected" if rejections(answer) else "accepted" if results(answer) else "indeterminate"\n\n\ndef usage(answer):\n    return None\n'
+SECOND_TRANSPORT = '"""A synthetic second service for the dispatch tests; it reaches only the test\'s loopback service."""\nimport json\n\nfrom model_contract import NEGATIVE_ROLE, PROMPT_ROLE, required_request_key\nfrom request_contract import RequestWriter, path_parts\nfrom transport_contract import address, post\n\nOPERATIONS = {"generation": "text-to-image"}\nRESULT_HOSTS = frozenset()\nUPLOAD_SOURCE = "bytes"\n\n\ndef endpoint(service):\n    return address(service["endpoint"]["base_url"])\n\n\ndef compile_request(verified, offering, service, media_ids=None, seed=None, count=1):\n    forwarding = verified["host_forwarding"]\n    writer = RequestWriter()\n    source = [{"kind": "offering", "service": offering["service"], "model_identifier": offering["model_identifier"]}]\n\n    def write(path, value, kind, transform):\n        writer.write(path, value, source_kind=kind, source_refs=source, transform_id=transform)\n\n    prompt = path_parts(required_request_key(offering, PROMPT_ROLE))\n    write(prompt, forwarding["effective_prompt"], "authored", "selected-rendition")\n    layout = {"model": None, "operation": None, "primary_text": prompt, "negative_text": None,\n              "output_count": ["num_images"], "fixed_output_count": None, "seed": None, "media": [],\n              "management": [], "content": [{"id": "prompt", "field": prompt}],\n              "fields": [{"id": "prompt", "field": prompt, "kind": "content"},\n                         {"id": "count", "field": ["num_images"], "kind": "parameter"}]}\n    selected = forwarding["selected_transport"]\n    negative = selected["rendition"].get("negative") or ""\n    if selected["mode"] in {"separate-field", "native-subset"} and negative:\n        field = path_parts(required_request_key(offering, NEGATIVE_ROLE))\n        write(field, negative, "authored", "selected-negative-channel")\n        layout["negative_text"] = field\n        layout["content"].append({"id": "negative", "field": field})\n        layout["fields"].append({"id": "negative", "field": field, "kind": "content"})\n    for name, value in sorted((forwarding.get("parameters") or {}).items()):\n        write(path_parts(name), value, "model-setting", "selected-parameter")\n        layout["fields"].append({"id": "parameter:" + name, "field": path_parts(name), "kind": "parameter"})\n    write(["num_images"], count, "model-setting", "explicit-output-count")\n    if seed is not None:\n        write(["seed"], seed, "model-setting", "explicit-seed")\n        layout["seed"] = ["seed"]\n        layout["fields"].append({"id": "seed", "field": ["seed"], "kind": "parameter"})\n    return {"request": writer.request, "layout": layout, "request_trace": writer.trace}\n\n\ndef added_parameters(offering, seed=None, count=1):\n    return {"num_images": count, **({"seed": seed} if seed is not None else {})}\n\n\ndef upload_media(data, media_type, service, key, *, source_url):\n    raise ValueError("the fixture service takes no media")\n\n\ndef send(request, service, key):\n    status, body = post(endpoint(service), json.dumps(request).encode("utf-8"),\n                        {"Content-Type": "application/json", "Authorization": "Key " + key})\n    answer = json.loads(body.decode("utf-8"))\n    return answer if status == 200 else {"errors": [{"status": status, **answer}]}\n\n\ndef rejections(answer):\n    return list(answer.get("errors") or [])\n\n\ndef results(answer):\n    return [{"data": item["b64"], "seed": item.get("seed"), "id": item.get("id")} for item in answer.get("images") or []]\n\n\ndef observation_outcome(answer):\n    return "rejected" if rejections(answer) else "accepted" if results(answer) else "indeterminate"\n\n\ndef usage(answer):\n    return None\n'
 
 
 class SecondServiceTests(unittest.TestCase):

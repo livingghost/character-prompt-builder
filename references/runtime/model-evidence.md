@@ -80,7 +80,7 @@ The builder and the compiler derive a `target-schema` record when all of these h
 
 - the request uses the authored rendition, with no selected references;
 - the operation is not an upscale;
-- the model's offering names an observed schema in an active pack.
+- the model's offering names an attributed parameter schema in an active pack.
 
 That record names the pack file as both contract and evidence and has no execution policy.
 Every other request takes an authored record.
@@ -88,7 +88,7 @@ Every other request takes an authored record.
 The tools derive `unmeasured` from the evidence and refuse a record whose list was edited.
 
 Input choices select `contract` and `evidence` with strings; the built record
-adds their byte hashes. An active observed schema uses the same
+adds their byte hashes. An active offering schema uses the same
 `@pack/<source_pack>/<offering.schema_snapshot>` selector in both fields.
 The [typed input-choice example](../../examples/input-assembly/README.md#validation-choices)
 shows how to derive that selector from catalog inspection. A Studio copy of an
@@ -181,9 +181,20 @@ The pack owner activates the new pack through the ordinary runtime commands.
 
 The importer writes the observed schema the offering's `schema_snapshot` names, and the offering's `schema_contract` and `schema_acquisition` witnesses.
 It takes `model_id`, `service`, `model_identifier`, `observed_at` and `source` from the selected record and the acquisition.
-`schemas/observed-parameter-schema.schema.json` is that file's contract.
+`schemas/parameter-schema.schema.json` is that file's contract.
 One check applies it, with the model record and offering, in pack validation, request building, request validation and the importer.
 A file with another top-level key, artifact type, model ID, service, identifier or date fails when its pack is validated.
+
+An offering can instead select a `supported-parameter-schema`. Its `schema`
+defines the input surface the pack supports, and `selection.statement` explains
+that authored scope. `selection.source_schema_sha256` identifies the acquired
+schema through the SHA-256 of `execution_contract.encoded(schema)`. `source`
+and `observed_at` retain the acquisition attribution. This is an authored
+contract; its digest identifies the source and does not establish that the
+service returned the selected scope. Request construction and validation use
+the selected contract. An `observed-parameter-schema` preserves the acquired
+schema exactly and carries no authored selection. Importing an acquisition
+therefore continues to produce the observed kind.
 
 The [model evidence example](../../examples/model-evidence/README.md) runs the import through the CLI. Its synthetic report:
 

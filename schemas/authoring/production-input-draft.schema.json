@@ -31,7 +31,12 @@
     },
     "task_changes": {
       "type": "object",
-      "description": "Explicitly changed authored task fields. The selected task or run owns task identity and authority."
+      "description": "Explicitly changed authored task fields. The selected task or run owns task identity and authority.",
+      "properties": {
+        "upload_sources": {
+          "$ref": "authoring/production-task.schema.json#/properties/upload_sources"
+        }
+      }
     },
     "external": {
       "anyOf": [

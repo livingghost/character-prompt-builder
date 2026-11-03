@@ -36,8 +36,8 @@ MODEL_RECORD_KEYS = frozenset(
 )
 # An offering is how one service exposes the model: its identifier there, the
 # request key each input occupies, the limits that service enforces, and when
-# that was observed. schema_snapshot points at the service's own parameter
-# schema for the model, stored in the pack as observed.
+# that was observed. schema_snapshot points at the offering's attributed
+# parameter contract, preserving either acquired or authored supported scope.
 OFFERING_KEYS = frozenset(
     {"service", "model_identifier", "request_keys", "constraints", "observed_at", "schema_snapshot", "setting_keys", "parameter_keys", "schema_contract", "schema_acquisition", "parameter_observations", "reference_schemas", "reference_instruction_transport", "size_format", "execution_profile", "use_case_guidance"}
 )
@@ -610,18 +610,19 @@ def select_offering(record: Mapping[str, Any], service: str | None) -> dict[str,
     )
 
 
-# The formal contract of a stored observed parameter schema.
-OBSERVED_SCHEMA_CONTRACT = Path(__file__).resolve().parents[1] / "schemas" / "observed-parameter-schema.schema.json"
+# The formal contract of an offering's attributed parameter schema.
+PARAMETER_SCHEMA_CONTRACT = Path(__file__).resolve().parents[1] / "schemas" / "parameter-schema.schema.json"
+PARAMETER_SCHEMA_KINDS = frozenset({"observed-parameter-schema", "supported-parameter-schema"})
 
 
-def observed_schema_issues(
+def parameter_schema_issues(
     snapshot: Any, expected: Mapping[str, Any], *, model_key: str | None = None
 ) -> list[str]:
-    """What keeps a stored observed parameter schema from being the one its reader expects.
+    """What keeps an attributed parameter schema from being the one its reader expects.
 
     Pack validation, request building, request validation and the importer all
     use this one check. The file must match
-    schemas/observed-parameter-schema.schema.json. Each field in `expected` must
+    schemas/parameter-schema.schema.json. Each field in `expected` must
     equal the file's: the model record's id as `model_id`, and the offering's
     `service`, `model_identifier` and `observed_at`. A constant the schema
     declares at the offering's model request key must be the model identifier.
@@ -629,7 +630,7 @@ def observed_schema_issues(
 
     from state_protocol import validate_against_schema
 
-    contract = json.loads(OBSERVED_SCHEMA_CONTRACT.read_text(encoding="utf-8"))
+    contract = json.loads(PARAMETER_SCHEMA_CONTRACT.read_text(encoding="utf-8"))
     issues = list(dict.fromkeys(validate_against_schema(snapshot, contract)))
     if issues:
         return issues
@@ -645,31 +646,32 @@ def observed_schema_issues(
 
 
 def offering_expectation(model_id: str, offering: Mapping[str, Any]) -> tuple[dict[str, Any], str | None]:
-    """What the observed schema an offering names must repeat, and the request key that carries the model."""
+    """What an offering's schema repeats, and the request key that carries the model."""
 
     expected = {"model_id": model_id, **{name: offering.get(name) for name in ("service", "model_identifier", "observed_at")}}
     return expected, request_key(offering, MODEL_ROLE)
 
 
 def offering_schema(offering: Mapping[str, Any], pack_root: Path | None, model_id: str) -> dict[str, Any] | None:
-    """The observed parameter schema an offering of model record `model_id` points at, read from its pack."""
+    """The attributed parameter schema an offering names, read from its pack."""
 
     relative = offering.get("schema_snapshot")
     if not relative:
         return None
     if pack_root is None:
         raise ValueError(
-            "the pack holding the model record is unknown, so its observed parameter schema cannot be read"
+            "the pack holding the model record is unknown, so its parameter schema cannot be read"
         )
     path = Path(pack_root) / str(relative)
     if not path.is_file():
-        raise ValueError(f"observed parameter schema {relative!r} is not in the pack")
+        raise ValueError(f"parameter schema {relative!r} is not in the pack")
     snapshot = json.loads(path.read_text(encoding="utf-8"))
     expected, model_key = offering_expectation(model_id, offering)
-    issues = observed_schema_issues(snapshot, expected, model_key=model_key)
+    issues = parameter_schema_issues(snapshot, expected, model_key=model_key)
     if issues:
-        raise ValueError(f"observed parameter schema {relative!r}: " + "; ".join(issues))
-    return {"schema": snapshot["schema"], "observed_at": snapshot["observed_at"]}
+        raise ValueError(f"parameter schema {relative!r}: " + "; ".join(issues))
+    return {key: snapshot[key] for key in ("schema", "observed_at", "artifact_type", "source", "selection")
+            if key in snapshot}
 
 
 def place(instance: dict[str, Any], key_path: str, value: Any) -> None:
@@ -845,7 +847,7 @@ def property_schemas(schema: Mapping[str, Any], key_path: str) -> list[Mapping[s
 def recommended_parameter_issues(
     record: Mapping[str, Any], offering: Mapping[str, Any], pack_root: Path | None
 ) -> list[str]:
-    """What the service's observed schema refuses among the record's recommendations on this offering."""
+    """What the offering's parameter contract refuses among the record's recommendations on this offering."""
 
     keys = offering.get("parameter_keys") or {}
     if not keys:
@@ -866,11 +868,11 @@ def recommended_parameter_issues(
             continue
         nodes = property_schemas(found["schema"], str(key))
         if not nodes:
-            issues.append(f"offering on {service!r}: the observed schema has no request key {key!r} for the recommended {name}")
+            issues.append(f"offering on {service!r}: the selected parameter schema has no request key {key!r} for the recommended {name}")
             continue
         for candidate in (value if isinstance(value, list) else [value]):
             if all(validate_against_schema(candidate, dict(node)) for node in nodes):
-                issues.append(f"offering on {service!r}: the observed schema refuses {candidate!r} at {key!r} for the recommended {name}")
+                issues.append(f"offering on {service!r}: the selected parameter schema refuses {candidate!r} at {key!r} for the recommended {name}")
     return issues
 
 
@@ -885,12 +887,12 @@ def validate_generation_parameters(
     media_counts: Mapping[str, int] | None = None,
     output_count: int | None = None,
 ) -> dict[str, Any] | None:
-    """Refuse parameters the record or the service's observed schema refuses.
+    """Refuse parameters the record or the offering's parameter contract refuses.
 
     The record's own limits are checked first, the output count among them when
     the caller knows it. Then the offering the request goes through is selected,
     the request is built as the service would see it, and when the offering
-    points at an observed parameter schema it is evaluated against that schema.
+    points at an attributed parameter schema it is evaluated against that schema.
     Returns the offering, or None when the record is exposed on no service here.
     """
 
@@ -913,7 +915,7 @@ def validate_generation_parameters(
 def validate_request_instance(
     offering: Mapping[str, Any], instance: Mapping[str, Any], pack_root: Path | None, model_id: str
 ) -> None:
-    """Refuse a request the offering's observed parameter schema refuses; an offering without one refuses nothing."""
+    """Refuse a request the offering's attributed parameter schema refuses; an offering without one refuses nothing."""
 
     found = offering_schema(offering, pack_root, model_id)
     if found is None:

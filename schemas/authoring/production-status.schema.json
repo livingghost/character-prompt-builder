@@ -211,6 +211,34 @@
         "complete"
       ]
     },
+    "cleanup": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": ["not-needed", "waiting", "pending", "failed", "outcome_unknown", "complete", "unsupported"]
+        },
+        "eligible": {"type": "boolean"},
+        "uploaded": {"type": "integer", "minimum": 0},
+        "deleted": {"type": "integer", "minimum": 0},
+        "retained": {"type": "integer", "minimum": 0},
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "upload_index": {"type": "integer", "minimum": 0},
+              "provider_id": {"type": "string", "minLength": 1},
+              "upload_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "state": {"enum": ["pending", "failed", "outcome_unknown", "deleted"]}
+            },
+            "required": ["upload_index", "provider_id", "upload_receipt_sha256", "state"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["state", "eligible", "uploaded", "deleted", "retained", "items"],
+      "additionalProperties": false
+    },
     "registration": {
       "enum": [
         "unregistered",
@@ -241,6 +269,9 @@
         },
         "message": {
           "type": "string"
+        },
+        "guidance": {
+          "$ref": "authoring/production-compilation-report.schema.json#/$defs/guidance"
         }
       },
       "required": [
@@ -362,6 +393,9 @@
           ]
         },
         "next": {},
+        "authoring": {
+          "$ref": "#/$defs/authoring_state"
+        },
         "production_run": {
           "type": [
             "string",
@@ -381,6 +415,21 @@
         "next",
         "production_run"
       ],
+      "additionalProperties": false
+    },
+    "authoring_state": {
+      "type": "object",
+      "properties": {
+        "state": {"const": "authoring-state"},
+        "task_id": {"type": ["string", "null"]},
+        "inputs": {"type": "array", "items": {"type": "object"}},
+        "readings": {"type": "array", "items": {"type": "object"}},
+        "last_check": {"type": ["object", "null"]},
+        "diagnostics": {"type": "array", "items": {"type": "object"}},
+        "next_actions": {"type": "array", "items": {"type": "object"}},
+        "external_effect": {"const": false}
+      },
+      "required": ["state", "task_id", "inputs", "readings", "last_check", "diagnostics", "next_actions", "external_effect"],
       "additionalProperties": false
     },
     "effect": {
@@ -459,6 +508,9 @@
           "items": {
             "$ref": "#/$defs/diagnostic"
           }
+        },
+        "cleanup": {
+          "$ref": "#/$defs/cleanup"
         },
         "registration": {
           "$ref": "#/$defs/registration"
@@ -554,6 +606,7 @@
         "effects",
         "capture",
         "capture_diagnostics",
+        "cleanup",
         "registration",
         "review",
         "task_disposition",

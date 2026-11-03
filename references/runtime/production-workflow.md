@@ -7,7 +7,7 @@ The operations below apply only to the deliverable being made.
 
 ## Authoring and handoff
 
-Establish the Studio and read the applicable route for saved work. Construct
+Establish the Studio, open its work task and read the applicable route for saved work. Construct
 the depiction through Production direction, consulting composition, source,
 performance and other knowledge for the questions it raises. Preserve actual
 requirements and source roles. For character reuse, resolve reference coverage
@@ -37,6 +37,10 @@ Review the actual request and operation targets. Transport changes that affect
 the depiction return to the same judgment in Production direction.
 
 Prepared model work uses one compact `draft-execution` document, actual independent decisions and `execute`. Use the current run's `status.next_action` and its context views when needed; complete the existing draft rather than copying records or managing filenames yourself.
+Before a run exists, `inspect-inputs --root STUDIO` and
+`status.current_task.authoring` locate the open task's saved choices, input
+files and reading progress. Follow [Resume input authoring](production-execution.md#resume-input-authoring)
+after interruption, then continue preparation from those inputs.
 [Studio authentication](studio-authentication.md) owns the selected service
 and the owner's chosen source. Prepare its `api_key` field for saved input or
 its `api_key_env` reference for a named environment variable. For saved input,

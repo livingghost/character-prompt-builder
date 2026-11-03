@@ -7,9 +7,10 @@ its operation in `taskType` and carries a fresh `taskUUID`, which is the run's
 own identifier; the model sits in `model`, the count in `numberResults`, and the
 seed in `seed`. The prompt, the negative and the media go on the keys the
 offering gives them. An upscale asks for `upscaleFactor` and a PNG
-`outputFormat`. An image is registered with `imageUpload` as a data URI and
-travels by the id it returns. Finished images arrive as `imageURL` on
-im.runware.ai, `imageBase64Data`, or `imageDataURI`. An unreadable successful
+`outputFormat`. A mediaStorage upload imports an authored source URL; generation
+and upscaling receive the mediaUUID in the actual upload response. The stored
+media is read back and must match the sealed local image bytes.
+Finished images arrive as `imageURL` on im.runware.ai. An unreadable successful
 response stays indeterminate and retains its HTTP status and body.
 
 A task entry carries its charge in `cost`, in US dollars, when the request
@@ -19,20 +20,23 @@ returned images for that task count as its answer.
 """
 from __future__ import annotations
 
-import base64
 import json
+import urllib.request
 import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from urllib.parse import urlparse
 
+from io_budget import environment_seconds
 from model_contract import NEGATIVE_ROLE, PROMPT_ROLE, generation_media_counts, required_request_key
-from transport_contract import Indeterminate, Refused, post
+from transport_contract import TIMEOUT, Indeterminate, Refused, post
 
 SERVICE = "runware"
 API_HOST = "api.runware.ai"
 OPERATIONS = {"generation": "imageInference", "upscale": "imageUpscale"}
 RESULT_HOSTS = frozenset({"im.runware.ai"})
+UPLOAD_SOURCE = "url"
+STORAGE_HOSTS = frozenset({"mm.runware.ai"})
 
 
 def endpoint(service: dict[str, Any]) -> str:
@@ -243,22 +247,131 @@ def compile_upscale(model_identifier: str, source_path: str, scale: float, setti
     return {'request': writer.request, 'layout': layout, 'request_trace': writer.trace}
 
 
-def upload_bytes(data: bytes, media_type: str, service: dict[str, Any], key: str) -> dict:
-    """Upload the exact bytes already verified and claimed by the dispatcher."""
-    if not isinstance(data, bytes) or not isinstance(media_type, str) or not media_type:
+class _StoredRedirect(urllib.request.HTTPRedirectHandler):
+    """Keep storage verification on the address returned by the API."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _stored_url(value: Any) -> str:
+    parsed = urlparse(value) if isinstance(value, str) else None
+    if (parsed is None or parsed.scheme != 'https' or parsed.hostname not in STORAGE_HOSTS
+            or parsed.username or parsed.password or parsed.port not in (None, 443) or parsed.fragment):
+        raise ValueError('the upload response must name the declared media storage host')
+    return value
+
+
+def _verify_stored_media(url: str, data: bytes) -> None:
+    """Read only the stored image, without an API credential or a redirect."""
+    request = urllib.request.Request(_stored_url(url), method='GET')
+    opener = urllib.request.build_opener(_StoredRedirect())
+    with opener.open(request, timeout=environment_seconds(TIMEOUT)) as response:
+        raw = response.read(len(data) + 1)
+        declared = response.headers.get('Content-Length')
+        if response.status != 200 or (declared is not None and declared != str(len(data))) or raw != data:
+            raise ValueError('the stored upload differs from the sealed media bytes')
+
+
+def _storage_response(request: dict, status: int, body: bytes) -> tuple[dict, dict]:
+    """One matching storage result, retaining the complete actual response."""
+    task_uuid = request['taskUUID']
+    operation = request['operation']
+    try:
+        answer = json.loads(body.decode('utf-8'))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        answer = None
+    if not isinstance(answer, dict):
+        raise Indeterminate('the storage request returned no JSON object', status=status, body=body)
+    entries = answer.get('data')
+    matching = [entry for entry in entries if isinstance(entry, dict) and entry.get('taskUUID') == task_uuid] \
+        if isinstance(entries, list) else []
+    errors = answer.get('errors') or answer.get('error')
+    error_rows = errors if isinstance(errors, list) else [errors] if isinstance(errors, dict) else []
+    task_errors = [error for error in error_rows
+                   if isinstance(error, dict) and error.get('taskUUID') in (None, task_uuid)]
+    if 400 <= status < 500 or (task_errors and not matching):
+        raise Refused('the service refused the media storage ' + operation, answer)
+    if not 200 <= status < 300 or errors or len(matching) != 1:
+        raise Indeterminate('the storage response has no single matching result', status=status, body=body)
+    entry = matching[0]
+    identifier = entry.get('mediaUUID')
+    try:
+        valid_id = isinstance(identifier, str) and uuid.UUID(identifier).version == 4
+    except ValueError:
+        valid_id = False
+    if (not valid_id or entry.get('taskType') != 'mediaStorage' or entry.get('operation') != operation
+            or (operation == 'delete' and identifier != request['media'])):
+        raise Indeterminate('the storage response does not identify the requested operation', status=status, body=body)
+    return answer, entry
+
+
+def _storage_post(request: dict, service: dict, key: str) -> tuple[dict, dict, int, bytes]:
+    if not isinstance(key, str) or not key:
+        raise ValueError('storage requires the selected service credential')
+    status, body = post(endpoint(service), json.dumps([request]).encode('utf-8'),
+                        {'Content-Type': 'application/json', 'Authorization': f'Bearer {key}'})
+    answer, entry = _storage_response(request, status, body)
+    return answer, entry, status, body
+
+
+def upload_media(data: bytes, media_type: str, service: dict[str, Any], key: str,
+                 *, source_url: str | None) -> dict:
+    """Import the selected URL once and verify the actual stored media before use."""
+    from request_contract import validate_upload_source
+
+    if not isinstance(data, bytes) or not data or not isinstance(media_type, str) or not media_type:
         raise ValueError('upload requires verified bytes and their declared media type')
-    payload = f"data:{media_type};base64," + base64.b64encode(data).decode("ascii")
-    answer = _post([{"taskType": "imageUpload", "taskUUID": str(uuid.uuid4()), "image": payload}], service, key)
-    refused = rejections(answer)
-    if refused:
-        raise Refused("the service refused the upload", answer)
-    entry = (answer.get("data") or [{}])[0]
-    entry = entry if isinstance(entry, dict) else {}
-    identifier = entry.get("imageUUID") or entry.get("mediaUUID") or entry.get("mediaId")
-    if not identifier:
-        # An accepted answer without an id may still have kept the image, so this is not a refusal.
-        raise ValueError("the service answered the upload without an image id")
-    return {'provider_id': str(identifier), 'response': answer, 'usage': _charge([entry])}
+    validate_upload_source({'kind': 'url', 'url': source_url})
+    request = {'taskType': 'mediaStorage', 'taskUUID': str(uuid.uuid4()),
+               'operation': 'upload', 'media': source_url}
+    answer, entry, status, body = _storage_post(request, service, key)
+    try:
+        _verify_stored_media(entry.get('mediaURL'), data)
+    except (OSError, ValueError) as exc:
+        raise Indeterminate('the upload returned an identifier but stored content verification failed ('
+                            + type(exc).__name__ + ')', status=status, body=body) from None
+    return {'provider_id': entry['mediaUUID'], 'response': answer, 'usage': _charge([entry])}
+
+
+def prepare_delete(provider_id: str, service: dict) -> dict:
+    """Name one execution-owned stored image and one durable deletion task."""
+    endpoint(service)
+    if not isinstance(provider_id, str) or uuid.UUID(provider_id).version != 4:
+        raise ValueError('media deletion requires the actual issued UUID')
+    return {'taskType': 'mediaStorage', 'taskUUID': str(uuid.uuid4()),
+            'operation': 'delete', 'media': provider_id}
+
+
+def _delete_request(request: dict, provider_id: str) -> dict:
+    if (not isinstance(request, dict) or set(request) != {'taskType', 'taskUUID', 'operation', 'media'}
+            or request['taskType'] != 'mediaStorage' or request['operation'] != 'delete'):
+        raise ValueError('invalid media storage deletion request')
+    for name in ('taskUUID', 'media'):
+        if not isinstance(request[name], str) or uuid.UUID(request[name]).version != 4:
+            raise ValueError('media storage deletion requires actual UUIDs')
+    if request['media'] != provider_id:
+        raise ValueError('the deletion request differs from its owned upload identifier')
+    return request
+
+
+def send_delete(request: dict, service: dict, key: str, *, provider_id: str) -> dict:
+    """Send the recorded deletion request and preserve its actual response."""
+    answer, entry, _, _ = _storage_post(_delete_request(request, provider_id), service, key)
+    return {'response': answer, 'usage': _charge([entry])}
+
+
+def lookup_delete(request: dict, service: dict, key: str, *, provider_id: str) -> dict | None:
+    """Reconcile the original task; an absent answer does not authorize a resend."""
+    _delete_request(request, provider_id)
+    answer = lookup(request, service, key)
+    if answer is None:
+        return None
+    entries = answer.get('data') or []
+    if entries and all(isinstance(entry, dict) and entry.get('status') == 'processing' for entry in entries):
+        return None
+    answer, entry = _storage_response(request, 200, json.dumps(answer).encode('utf-8'))
+    return {'response': answer, 'usage': _charge([entry])}
 
 
 def send(request: dict[str, Any], service: dict[str, Any], key: str) -> dict[str, Any]:
@@ -295,20 +408,8 @@ def results(answer: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(entry, dict):
             continue
         identifier = entry.get('imageUUID')
-        data = entry.get('imageBase64Data')
-        if entry.get('imageDataURI'):
-            uri = entry['imageDataURI']
-            if not isinstance(uri, str) or ',' not in uri:
-                raise ValueError('the returned image data URI is malformed')
-            header, data = uri.split(',', 1)
-            if header.lower() not in {'data:image/png;base64', 'data:image/jpeg;base64', 'data:image/webp;base64'}:
-                raise ValueError('the returned image data URI must declare a base64 PNG, JPEG or WebP image')
-            # The shared acquisition owner validates the decoded image bytes.
         image = {'url': entry.get('imageURL'), 'seed': entry.get('seed'), 'id': identifier}
-        if data is not None:
-            image['data'] = data
-        if entry.get('status') == 'processing' or (not image.get('url') and not image.get('data')
-                                                   and entry.get('status') != 'error'):
+        if entry.get('status') == 'processing' or (not image.get('url') and entry.get('status') != 'error'):
             image['pending'] = True
             image['id'] = identifier or entry.get('taskUUID')
         found.append(image)

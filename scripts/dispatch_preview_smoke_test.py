@@ -30,7 +30,7 @@ class PreviewTests(unittest.TestCase):
         finally:
             self.assertEqual(workflow.load_run(self.root, self.run)[3], before)
             self.transport.send.assert_not_called()
-            self.transport.upload_bytes.assert_not_called()
+            self.transport.upload_media.assert_not_called()
 
     def refused(self, **changes) -> str:
         with self.assertRaises(ValueError) as caught:

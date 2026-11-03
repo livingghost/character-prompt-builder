@@ -25,10 +25,12 @@ import execution_contract as c
 
 OPERATIONS={'generation':'generate','upscale':'upscale'}
 RESULT_HOSTS=frozenset()
+UPLOAD_SOURCE='bytes'
 CREDENTIAL_FREE=True
 ENDPOINT='http://localhost/cpb-synthetic-no-network'
 ROLES={'seed-image':'seed image','references':'reference images','input-image':'input image'}
 _ANSWERED:dict[str,dict]={}
+_DELETIONS:dict[str,dict]={}
 
 
 def endpoint(service:dict)->str:
@@ -158,13 +160,37 @@ def compile_upscale(model_identifier:str,source_path:str,scale:float,settings:di
     return {'request':writer.request,'layout':layout,'request_trace':writer.trace}
 
 
-def upload_bytes(data:bytes,media_type:str,service:dict,key:str)->dict:
+def upload_media(data:bytes,media_type:str,service:dict,key:str,*,source_url:str|None)->dict:
     endpoint(service)
+    if source_url is not None:raise ValueError('Synthetic upload uses local bytes.')
     if not data:raise ValueError('Synthetic input must contain actual bytes.')
     dimensions=struct.unpack('>II',data[16:24]) if data.startswith(b'\x89PNG\r\n\x1a\n') and len(data)>=24 else (32,32)
-    identifier='synthetic:'+hashlib.sha256(data).hexdigest()+':'+':'.join(str(n) for n in dimensions)
+    identifier='synthetic:'+str(uuid.uuid4())+':'+hashlib.sha256(data).hexdigest()+':'+':'.join(str(n) for n in dimensions)
     return {'provider_id':identifier,'response':{'synthetic':True,'media_id':identifier},
             'usage':{'currency':'USD','amount':'0','final':True}}
+
+
+def prepare_delete(provider_id:str,service:dict)->dict:
+    endpoint(service)
+    c.text(provider_id,'synthetic uploaded media identifier')
+    return {'operation':'delete-input','request_id':str(uuid.uuid4()),'media_id':provider_id}
+
+
+def send_delete(request:dict,service:dict,key:str,*,provider_id:str)->dict:
+    endpoint(service)
+    c.exact(request,{'operation','request_id','media_id'},'synthetic deletion request')
+    if request['operation']!='delete-input':raise ValueError('Synthetic deletion operation differs.')
+    if request['media_id']!=provider_id:raise ValueError('Synthetic deletion target differs from its owned upload.')
+    answer={'response':{'synthetic':True,'request_id':request['request_id'],'deleted_media_id':request['media_id']},
+            'usage':{'currency':'USD','amount':'0','final':True}}
+    _DELETIONS[request['request_id']]=copy.deepcopy(answer)
+    return answer
+
+
+def lookup_delete(request:dict,service:dict,key:str,*,provider_id:str)->dict|None:
+    endpoint(service)
+    if request['media_id']!=provider_id:raise ValueError('Synthetic deletion target differs from its owned upload.')
+    return copy.deepcopy(_DELETIONS.get(request['request_id']))
 
 
 def _png(width:int,height:int,colour:bytes)->bytes:

@@ -30,6 +30,65 @@ EXECUTION_CODES = frozenset({
 EXIT_CODES = {**{code: EXIT_WAITING for code in WAITING_CODES}, **{code: EXIT_EXECUTION for code in EXECUTION_CODES},
               'INTERNAL_ERROR': EXIT_INTERNAL, 'OPERATION_INTERRUPTED': EXIT_INTERRUPTED}
 
+DEFAULT_ACTION = 'Correct the declared input and retry the operation.'
+# Phase owners are declared here; diagnostic prose never selects its own help.
+PHASE_DOCUMENTS = {
+    'task-read': 'references/runtime/production-workflow.md#authoring-and-handoff',
+    'task-schema': 'references/runtime/production-workflow.md#authoring-and-handoff',
+    'task-contract': 'references/runtime/production-workflow.md#authoring-and-handoff',
+    'source-read': 'references/runtime/production-execution.md#prepare-one-complete-input',
+    'source-validation': 'references/runtime/production-execution.md#prepare-one-complete-input',
+    'delivery-content': 'references/runtime/production-execution.md#assemble-authored-choices',
+    'route-reading': 'references/runtime/production-execution.md#apply-the-completed-reading',
+    'world-views': 'references/runtime/world-realization.md#local-realization-plan-and-cli',
+    'moment-views': 'references/runtime/story-context.md#use-the-moment-in-production',
+    'scene-materials': 'references/runtime/story-context.md#prepared-scene-persona-material',
+    'image-input': 'references/runtime/production-execution.md#image-input-and-exact-external-requests',
+    'semantic-edit': 'references/runtime/semantic-instruction-edit.md#author-and-bind-the-task',
+    'scene-mask-binding': 'references/runtime/scene-mask-planning.md#use-the-existing-production-pipeline',
+    'authority-evidence': 'references/runtime/production-permissions.md#authorization-and-execution-records',
+    'external-image-contract': 'references/production-specification.md#ownership-boundary',
+    'specification': 'references/production-specification.md#ownership-boundary',
+    'plot': 'references/runtime/prompt-composition.md#scene-specification',
+    'creative-intent': 'references/runtime/prompt-composition.md#revision-contract',
+    'negative-provenance': 'references/runtime/prompt-composition.md#negative-output',
+    'negative-transport': 'references/runtime/image-generation.md#model-and-negative-transport',
+    'retrieval': 'references/runtime/prompt-composition.md#catalog-retrieval-and-inspection',
+    'render-intent': 'references/runtime/render-contract.md#choose-the-finish',
+    'target-contract': 'references/runtime/render-contract.md#read-the-models-guidance',
+    'execution-profile': 'references/runtime/render-contract.md#declare-controls-by-operation',
+    'execution-controls': 'references/runtime/render-contract.md#declare-controls-by-operation',
+    'execution-quantity': 'references/runtime/render-contract.md#declare-controls-by-operation',
+    'request-validation-evidence': 'references/runtime/model-evidence.md#the-request-validation-record',
+    'reference-preparation': 'references/runtime/reference-delivery.md#bind-the-actual-transport',
+    'dependency-preflight': 'DEPENDENCIES.md#environment-check-and-installation',
+    'runtime-resolution': 'references/runtime/production-execution.md#prepare-one-complete-input',
+    'recording-validation': 'references/runtime/studio.md#production-owned-candidates',
+    'package-compilation': 'references/runtime/production-execution.md#prepare-one-complete-input',
+    'request-compilation': 'references/runtime/render-contract.md#resolve-and-inspect-the-exact-input',
+    'execution-plan': 'references/runtime/production-execution.md#execute-the-prepared-request',
+    'publication': 'references/runtime/production-execution.md#unpublished-staging-and-interrupted-publication',
+    'authorization': 'references/runtime/production-permissions.md#authorization-and-execution-records',
+    'readiness': 'references/runtime/production-execution.md#execute-the-prepared-request',
+    'resume': 'references/runtime/production-execution.md#status-and-resume',
+}
+PHASE_SCHEMAS = {
+    'task-schema': 'schemas/authoring/production-task.schema.json',
+    'task-contract': 'schemas/authoring/production-task.schema.json',
+    'image-input': 'schemas/authoring/image-input-plan.schema.json',
+    'specification': 'protocols/shared-state/schemas/production-spec.schema.json',
+    'render-intent': 'schemas/render-intent.schema.json',
+}
+
+
+def guidance(phase: str) -> dict[str, str] | None:
+    """Return only the owner explicitly declared for this phase."""
+    document = PHASE_DOCUMENTS.get(phase)
+    if document is None:
+        return None
+    return {'document_path': document,
+            **({'schema': PHASE_SCHEMAS[phase]} if phase in PHASE_SCHEMAS else {})}
+
 
 def exit_code(code: str | None) -> int:
     """The exit status for one diagnostic code: 0 without one, 2 for an input defect."""
@@ -62,22 +121,25 @@ class Diagnostic:
     phase: str = 'validation'
     file: str | None = None
     pointer: str | None = None
-    required_action: str = 'Correct the declared input and retry the operation.'
+    required_action: str = DEFAULT_ACTION
     blocked_checks: list[str] = field(default_factory=list)
     details: dict[str, Any] = field(default_factory=dict)
+    guidance: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
+        owner = self.guidance or guidance(self.phase)
         return {**{name: getattr(self, name) for name in
                 ('code', 'severity', 'phase', 'file', 'pointer', 'message',
-                 'required_action', 'blocked_checks')}, **self.details}
+                 'required_action', 'blocked_checks')},
+                **({'guidance': owner} if owner is not None else {}), **self.details}
 
 class ProductionError(ValueError):
     def __init__(self, code: str, message: str, *, phase: str = 'validation',
                  file: str | None = None, pointer: str | None = None,
-                 required_action: str = 'Correct the declared input and retry the operation.',
+                 required_action: str = DEFAULT_ACTION, guidance: dict[str, Any] | None = None,
                  **details: Any):
         self.diagnostic = Diagnostic(code, message, phase=phase, file=file, pointer=pointer,
-                                     required_action=required_action, details=details)
+                                     required_action=required_action, details=details, guidance=guidance)
         super().__init__(f'{code}: {message}')
 
 class CompilationError(ProductionError):
@@ -88,14 +150,21 @@ class CompilationError(ProductionError):
 
 
 def from_exception(error: BaseException, *, phase: str, file: str | None = None,
-                   pointer: str | None = None, code: str = 'INPUT_CONSISTENCY_ERROR') -> dict:
+                   pointer: str | None = None, code: str = 'INPUT_CONSISTENCY_ERROR',
+                   guidance: dict[str, Any] | None = None, required_action: str | None = None) -> dict:
     if isinstance(error, ProductionError):
-        return error.diagnostic.as_dict()
+        result = error.diagnostic.as_dict()
+        if error.diagnostic.guidance is None and guidance is not None:
+            result['guidance'] = guidance
+        if result['required_action'] == DEFAULT_ACTION and required_action is not None:
+            result['required_action'] = required_action
+        return result
     if isinstance(error, FileExistsError):
         code = 'OUTPUT_ALREADY_EXISTS'
     elif isinstance(error, OSError):
         code = 'ARTIFACT_PUBLISH_FAILED' if phase in {'publication', 'storage'} else 'INPUT_UNREADABLE'
-    return Diagnostic(code, str(error), phase=phase, file=file, pointer=pointer).as_dict()
+    return Diagnostic(code, str(error), phase=phase, file=file, pointer=pointer,
+                      guidance=guidance, required_action=required_action or DEFAULT_ACTION).as_dict()
 
 
 def same_json(expected: Any, actual: Any) -> bool:

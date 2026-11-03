@@ -81,7 +81,9 @@ def authoring_lines(cwd: Path) -> list[str]:
         command = python_argv(ROOT / "scripts/production_workflow.py", "resume", "--root", str(root), "--run", run)
         lines.append("Production status: " + shown(command))
     elif active:
-        lines.append("No prepared run for the open task. Follow Production Execution to prepare exact inputs before delivery.")
+        import production_authoring_state
+        saved = production_authoring_state.session_lines(root, active)
+        lines.extend(saved or ["No prepared run or saved input choices for the open task. Follow Production Execution to prepare exact inputs before delivery."])
     return lines
 
 

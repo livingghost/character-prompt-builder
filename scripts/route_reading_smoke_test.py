@@ -112,7 +112,7 @@ class ReadingTests(unittest.TestCase):
         record['applied'].append({'path':'notes/extra.md','quote':PARAGRAPH,'why':'Synthetic application of one read document.'})
         self.verify(record)
         record['applied'][0]['quote']='The operator preserves the selected source.'
-        with self.assertRaisesRegex(ValueError,'twelve words of paragraph text: notes/extra.md'):self.verify(record)
+        with self.assertRaisesRegex(ValueError,'twelve words of paragraph text.*: notes/extra.md'):self.verify(record)
     def test_draft_is_written_once(self):
         issued=self.issued()
         path=r.write_draft(issued,self.ledger)
@@ -230,7 +230,8 @@ class ReadingTests(unittest.TestCase):
         snapshot_path = ledger.parent / 'reading-snapshots' / cursor.split(':')[0] / 'snapshot.json'
         snapshot_bytes = snapshot_path.read_bytes()
         snapshot = json.loads(snapshot_bytes)
-        self.assertEqual(set(snapshot), {'manifest', 'root', 'runtime', 'nonce', 'bodies'})
+        self.assertEqual(set(snapshot), {'manifest', 'root', 'runtime', 'task_id', 'nonce', 'bodies'})
+        self.assertIsNone(snapshot['task_id'])
         self.assertEqual(snapshot['runtime'], {
             'state_file': runtime['--state-file'], 'cache_dir': runtime['--cache-dir'],
             'managed_root': runtime['--managed-root'], 'extra_roots': [str(path) for path in roots]})
@@ -482,6 +483,19 @@ class ReadingTests(unittest.TestCase):
         record=r.build_record(issued,apps,root=self.root,ledgers=[self.ledger])
         self.assertEqual(record['applied'][0]['quote'],quote)
         self.verify(record)
+    def test_raw_markdown_links_and_emphasis_survive_application_building(self):
+        paragraph = ('The operator preserves the [selected source](source.md) and records the '
+                     '**explicit decision** before performing the requested operation.')
+        (self.root/'notes/work.md').write_bytes(('# Work\n\n' + paragraph + '\n').encode('utf-8'))
+        issued = self.issued()
+        apps = {'applied': [{'path': 'notes/work.md', 'quote': paragraph,
+                            'why': 'Use the selected source and its explicit decision.'}], 'resource_applied': []}
+        record = r.build_record(issued, apps, root=self.root, ledgers=[self.ledger])
+        self.assertEqual(record['applied'][0]['quote'], paragraph)
+        self.verify(record)
+        record['applied'][0]['quote'] = paragraph.replace('[selected source](source.md)', 'selected source')
+        with self.assertRaisesRegex(ValueError, 'preserving raw Markdown'):
+            self.verify(record)
     def test_short_quote(self):
         record=self.record();record['applied'][0]['quote']='The operator'
         with self.assertRaisesRegex(ValueError,'twelve'): self.verify(record)

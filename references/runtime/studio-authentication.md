@@ -211,7 +211,7 @@ A whole Studio folder copy includes `credentials.json` and its saved keys. Those
 {"service":"example-service","source":"api_key_env","variable":"LOCAL_API_TOKEN"}
 ```
 
-The included Runware transport implements image generation and image upscaling. `dispatch.py` displays the exact sealed request; the Production execute command performs the upload and send.
+The selected service record names its transport and supported operations. `dispatch.py` displays the exact sealed request; the Production execute command performs the declared upload and send, then removes that generation's uploaded inputs through the service's declared deletion capability after capturing its outputs. Cleanup that contacts the provider uses the execution's pinned credential selection. A transport without deletion capability reports retained inputs explicitly. The transport receives only the credential selected for that service.
 
 For an unclaimed run, readiness checks the service's current entry. Once claimed, pre-send continuation or provider lookup requires the recorded source. Changing from `api_key` to `api_key_env`, changing back, or changing the recorded variable name produces a source-difference diagnostic. Its explicit restoration action has `requires_author_input: true`; resolve the intended source from the user's direction or the owner's decision before restoring it. Recovery retains the original request identifiers and submission evidence.
 

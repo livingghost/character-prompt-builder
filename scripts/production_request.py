@@ -27,9 +27,21 @@ def input_hashes(snapshots: dict) -> dict[str, str]:
     return {path: item['sha256'] for path, item in snapshots.items()}
 
 
+def external_effects(rendered: dict, count: int, transport) -> list[dict]:
+    """The generation's inputs belong to this execution through their cleanup."""
+    effects = []
+    if rendered['media']:
+        effects.append({'operation': 'upload', 'count': len(rendered['media'])})
+    effects.append({'operation': 'send', 'count': 1, 'outputs': count})
+    if rendered['media'] and callable(getattr(transport, 'prepare_delete', None)):
+        effects.append({'operation': 'delete', 'count': len(rendered['media'])})
+    return effects
+
+
 def intent(package: dict, rendered: dict, *, seed: int | None, count: int,
            offering: dict, service: dict) -> dict:
     """Describe an exact operation without granting permission or reserving a use."""
+    import transport_contract
     payload = {
         'package_sha256': c.content_id(package),
         'seed': seed,
@@ -42,8 +54,7 @@ def intent(package: dict, rendered: dict, *, seed: int | None, count: int,
         'request_contract': rc.receipt_projection(rendered),
         'request_validation': copy.deepcopy(package['request_validation']),
         'validation_inputs': input_hashes(package['input_snapshots']),
-        'external_effects': ([{'operation': 'upload', 'count': len(rendered['media'])}] if rendered['media'] else [])
-                            + [{'operation': 'send', 'count': 1, 'outputs': count}],
+        'external_effects': external_effects(rendered, count, transport_contract.load(service['transport'])),
     }
     validate_payload(payload, snapshots=package['input_snapshots'])
     return {'operation': 'submit', 'targets': ['delivery'], 'payload': payload}
@@ -70,6 +81,10 @@ def validate_payload(payload: Any, *, snapshots: dict | None = None) -> None:
                         if payload['request_contract']['media'] else []) + [
                             {'operation': 'send', 'count': 1, 'outputs': payload['count']}
                         ]
+    if any(isinstance(item, dict) and item.get('operation') == 'delete' for item in effects):
+        if not payload['request_contract']['media']:
+            raise ValueError('only this execution\'s uploaded inputs can be deleted')
+        expected_effects.append({'operation': 'delete', 'count': len(payload['request_contract']['media'])})
     if effects != expected_effects:
         raise ValueError('model submission external_effects differ from the sealed request transport steps')
     rendered = payload['request_contract']
