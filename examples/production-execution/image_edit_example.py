@@ -55,7 +55,7 @@ def run(out: Path) -> dict:
     write('edited-review.json',reviewed);w.review(out,rid,'edited-review.json')
     choice=w.draft_selection(out,rid,edited['sha256']);choice['reason']='Select the observed synthetic output.';fixture.selection(out,rid,choice)
     write('selection.json',choice);w.select(out,rid,'selection.json');done=w.complete(out,rid)
-    work_ledger.step_done(out,1);work_ledger.finish(out)
+    work_ledger.step_done(out,1);work_ledger.finish(out,rid)
     result={'ok':True,'run':rid,'source_candidate':initial['sha256'],'edited_candidate':edited['sha256'],'completion':done['sha256'],
             'measurements':{'width':6,'height':4,'pixel':[20,40,60,255]},'limits':['Synthetic processing only; not consent or artwork quality.']}
     write('result.json',result);return result

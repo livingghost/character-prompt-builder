@@ -289,8 +289,8 @@ instructions reaches the consumer, sensitive content included.
 
 ## Preserve accepted variation at its declared scope
 
-An author's allowance belongs in an optional decision `accepted_variations`
-list. Each entry names its `id`, applied approval `source`, source `locator`,
+An author's allowed range for the depiction belongs in an optional decision
+`accepted_variations` list. Each entry names its `id`, applied approval `source`, source `locator`,
 `author`, `scope`, `allowance`, `limits`, and affected `criteria`. Include the
 approval source in the decision's `basis`. Criteria must belong to that
 decision; their existing hard/advisory status remains in force.
@@ -328,6 +328,12 @@ or promote a candidate to canon.
 Keep changed expression, pose, natural crop and approved wardrobe variation
 separate from identity drift. Assess unwanted old clothing, source-state
 leakage, broken contacts and anatomy against their own declared criteria.
+
+An owner's decision to use a particular reviewed candidate despite a recorded
+departure or uncertainty belongs in the selection's `owner_acceptance`, under
+[Production execution](production-execution.md#select-optionally-adopt-and-finish).
+It leaves the criteria and observed verdicts intact. It neither establishes a
+new allowed range for future work nor changes canonical identity.
 
 ## An image of an action is not the action
 
@@ -440,8 +446,11 @@ a textual weakness, an optional improvement and a model-specific hypothesis.
 A prompt may direct an effect without proving rendered success or fidelity to
 an unseen source. Unexamined qualities remain `not-assessed`; inspected but
 inconclusive evidence is `indeterminate`. Neither is a pass or proof of a defect.
-Formal candidate selection needs supported passes for hard criteria, using the
-appropriate evidence kind: `artifact`, `text`, `image`, `motion` or `audio`.
+Assess hard criteria using their appropriate evidence kind: `artifact`, `text`,
+`image`, `motion` or `audio`. Selection requires supported passes or the owner's
+explicit acceptance of the particular assessed departures and uncertainties.
+An unassessed hard criterion still needs review. Acceptance records a decision
+to use the candidate; it supplies no missing observation or passing verdict.
 A sufficient textual review can complete a text-only request without generation.
 
 For recorded repairs, retain the observation, affected decision IDs, operation,
@@ -459,9 +468,10 @@ transfer. Preserve candidates and evidence. State and source drift follow
 For a recorded failed check, provide a concrete repair with its observation and
 target links, or state the unresolved issue. Keep the check's hard/advisory
 strength: an optional improvement can remain a proposed repair while required
-work completes. Put an issue in `unresolved` when it must be settled before
-selection; that field blocks selection. Do not turn an optional suggestion into
-unfinished required work to satisfy the record format.
+work completes. Put an issue in `unresolved` when it needs resolution or the
+owner's explicit acceptance before selection. Keep the issue in the review when
+the owner accepts it. Do not turn an optional suggestion into unfinished required
+work to satisfy the record format.
 
 A proposed repair is not an execution commitment or an observation of success.
 An authorized pixel operation uses the actual image-edit executor; a change to

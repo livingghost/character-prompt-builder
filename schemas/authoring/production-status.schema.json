@@ -479,7 +479,7 @@
         "candidate_states": {
           "type": "array",
           "items": {
-            "type": "object"
+            "$ref": "#/$defs/candidate_state"
           }
         },
         "freshness_diagnostics": {
@@ -603,6 +603,180 @@
         "diagnostics",
         "logs",
         "next_action"
+      ],
+      "additionalProperties": false
+    },
+    "selection_requirements": {
+      "type": "object",
+      "properties": {
+        "unassessed_hard_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "nonpassing_hard_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "unresolved_indices": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "unassessed_hard_criteria",
+        "nonpassing_hard_criteria",
+        "unresolved_indices"
+      ],
+      "additionalProperties": false
+    },
+    "candidate_state": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string",
+          "minLength": 1
+        },
+        "candidate": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "candidate_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "evaluation": {
+          "enum": [
+            "unreviewed",
+            "nonconforming",
+            "indeterminate",
+            "partially_reviewed",
+            "conforming"
+          ]
+        },
+        "disposition": {
+          "enum": [
+            "pending",
+            "not_selected",
+            "selected"
+          ]
+        },
+        "unassessed_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "review": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decision_detail": {
+          "anyOf": [
+            {
+              "$ref": "authoring/production-selection.schema.json"
+            },
+            {
+              "$ref": "authoring/production-disposition.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reviewed_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decided_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selection_basis": {
+          "enum": [
+            null,
+            "review-pass",
+            "owner-allowance"
+          ]
+        },
+        "owner_acceptance": {
+          "anyOf": [
+            {
+              "$ref": "authoring/production-selection.schema.json#/$defs/owner_acceptance"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selection_requirements": {
+          "$ref": "#/$defs/selection_requirements"
+        },
+        "selection_current": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "selection_diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        }
+      },
+      "required": [
+        "run",
+        "candidate",
+        "candidate_sha256",
+        "evaluation",
+        "disposition",
+        "unassessed_criteria",
+        "review",
+        "decision",
+        "decision_detail",
+        "reviewed_at",
+        "decided_at",
+        "selection_basis",
+        "owner_acceptance",
+        "selection_requirements",
+        "selection_current",
+        "selection_diagnostics"
       ],
       "additionalProperties": false
     }

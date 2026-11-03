@@ -189,41 +189,97 @@ def require_production_claim(root: Path, character: str, row: dict[str, Any], ap
         raise ValueError("the Production adoption claim does not name this candidate, iteration and approval")
 
 
+def preflight(root: Path, character: str, iteration: str, approval: Any, *,
+              expected_production: dict[str, str] | None = None, expected_image: str | None = None,
+              registration_record: dict[str, Any] | None = None, pack_dir: Path | None = None,
+              settings: Any = None, production_claim: str | None = None,
+              require_claim: bool = False) -> tuple[dict, dict]:
+    """Read canonical eligibility before an authorization, claim or Studio mutation.
+
+    Production supplies its exact origin at intent time. The mutating owner
+    additionally requires its recorded claim and catalog runtime. Imported rows
+    keep their own ordinary adoption path even when their image bytes match a
+    Production candidate.
+    """
+    from production_diagnostics import ProductionError
+    root = studio.require_studio(root).resolve()
+    home = studio.character_home(root, character)
+    row = studio._find(studio.read_iterations(home), iteration)
+    origin = row.get('production')
+    if expected_production is not None and origin != expected_production:
+        action = ('Use studio.py accept for slot acceptance or adoption_workflow.py adopt for sheet/catalog adoption.'
+                  if origin is None else 'Use the Production run and candidate recorded by this exact iteration.')
+        raise ProductionError('ADOPTION_OWNER_MISMATCH',
+            'Canonical Production adoption requires this iteration to belong to the exact run and candidate.',
+            phase='adoption', expected=expected_production, actual=origin, required_action=action)
+    if row['status'] in {'rejected', 'superseded'}:
+        raise ValueError('record a new candidate before adopting a rejected or superseded iteration')
+    if not row.get('result'):
+        raise ValueError('iteration has no result')
+    if expected_image is not None and row['result']['sha256'] != expected_image:
+        raise ValueError('adoption targets a different candidate')
+    studio.validate_recording_target(root, character, row['slot'])
+    if origin is not None:
+        import production_workflow as workflow
+        _, prepared, _, rows = workflow.load_run(root, origin['run'])
+        workflow.require_selected(prepared, rows, origin['candidate'], run=origin['run'])
+        if require_claim:
+            require_production_claim(root, character, row, approval, production_claim)
+    elif production_claim is not None:
+        raise ValueError(f'{iteration} is an external import; a Production adoption claim does not apply')
+    confirmed = validate_approval(approval, character, row)
+    safe_file(root, row['result']['path'], row['result']['sha256'])
+    if not row.get('package'):
+        raise ValueError('sheet adoption needs the recorded generation package')
+    safe_file(root, row['package']['path'], row['package']['sha256'])
+    if confirmed['influence'] == 'identity':
+        from visual_continuity import adoption_subject
+        adoption_subject(root, character, row, confirmed)
+    if confirmed['scope'] == 'catalog':
+        if not isinstance(registration_record, dict) or pack_dir is None or (require_claim and settings is None):
+            raise ValueError('catalog adoption requires --registration-record, --pack-dir and a resolved pack runtime')
+        from pack_manager import _schema_issues, PACK_RECORD_SCHEMA_PATH
+        issues = _schema_issues({'kind': 'module', 'category': registration_record.get('category'),
+                                 'records': [registration_record]}, PACK_RECORD_SCHEMA_PATH, Path('registration-record.json'))
+        if issues:
+            raise ValueError('registration record is not a valid canonical module: ' + '; '.join(i.message for i in issues))
+        if confirmed.get('registration_record_sha256') != digest(registration_record):
+            raise ValueError('catalog approval must bind registration_record_sha256')
+    elif registration_record is not None or pack_dir is not None:
+        raise ValueError('registration arguments require catalog scope')
+    path = _journal_path(home, iteration)
+    if path.exists():
+        journal = studio.read_json(path)
+        prior = journal['approval']
+        promotion = (prior['scope'] == 'sheet' and confirmed['scope'] == 'catalog'
+                     and all(prior[key] == confirmed[key]
+                             for key in ('character', 'iteration_id', 'slot', 'image_sha256', 'influence')))
+        if prior != confirmed and not promotion:
+            raise ValueError('resume approval differs from the recorded adoption')
+        if confirmed['scope'] == 'catalog' and journal.get('registration_target') not in {None, str(pack_dir.resolve())}:
+            raise ValueError('resume registration target differs from the recorded adoption')
+        decision = journal.get('sheet_decision')
+        if decision is not None:
+            import execution_contract as contract
+            slot = studio.read_json(home / 'sheet' / 'sheet-data.json')['slots'][row['slot']]
+            current = slot['current']
+            current_id = current['artifact']['artifact_id'] if current else None
+            applied = current is not None and current['approval']['decision_sha256'] == contract.content_id(decision)
+            if not applied and current_id != decision['expected_current']:
+                raise ValueError('current artwork changed after the adoption decision was drafted')
+    return row, confirmed
+
+
 def adopt(root: Path, character: str, iteration: str, approval: Any, *,
           registration_record: dict[str, Any] | None = None, pack_dir: Path | None = None,
           settings: Any = None, production_claim: str | None = None) -> dict[str, Any]:
     root = studio.require_studio(root).resolve()
     with studio.recording_lock(root):
         home = studio.character_dir(root, character)
-        row = studio._find(studio.read_iterations(home), iteration)
+        row, confirmed = preflight(root, character, iteration, approval,
+            registration_record=registration_record, pack_dir=pack_dir, settings=settings,
+            production_claim=production_claim, require_claim=True)
         studio.validate_recording_target(root, character, row["slot"], writable=True)
-        if row["status"] in {"rejected", "superseded"}:
-            raise ValueError("record a new candidate before adopting a rejected or superseded iteration")
-        if not row.get("result"):
-            raise ValueError("iteration has no result")
-        if row.get("production") is not None:
-            require_production_claim(root, character, row, approval, production_claim)
-        elif production_claim is not None:
-            raise ValueError(f"{iteration} is an external import; a Production adoption claim does not apply")
-        confirmed = validate_approval(approval, character, row)
-        safe_file(root, row["result"]["path"], row["result"]["sha256"])
-        if not row.get("package"):
-            raise ValueError("sheet adoption needs the recorded generation package")
-        safe_file(root, row["package"]["path"], row["package"]["sha256"])
-        if confirmed['influence'] == 'identity':
-            from visual_continuity import adoption_subject
-            adoption_subject(root, character, row, confirmed)
-        if confirmed["scope"] == "catalog":
-            if not isinstance(registration_record, dict) or pack_dir is None or settings is None:
-                raise ValueError("catalog adoption requires --registration-record, --pack-dir and a resolved pack runtime")
-            from pack_manager import _schema_issues, PACK_RECORD_SCHEMA_PATH
-            issues = _schema_issues({"kind": "module", "category": registration_record.get("category"), "records": [registration_record]}, PACK_RECORD_SCHEMA_PATH, Path("registration-record.json"))
-            if issues:
-                raise ValueError("registration record is not a valid canonical module: " + "; ".join(i.message for i in issues))
-            if confirmed.get("registration_record_sha256") != digest(registration_record):
-                raise ValueError("catalog approval must bind registration_record_sha256")
-        elif registration_record is not None or pack_dir is not None:
-            raise ValueError("registration arguments require catalog scope")
         path = _journal_path(home, iteration)
         journal = studio.read_json(path) if path.exists() else {
             "artifact_type": "studio-adoption", "approval": confirmed, "status": "pending",

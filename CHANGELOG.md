@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026.11.03.1
+
+- Accept an existing reviewed Production image for its Studio slot through one
+  compact decision. Derive selection and authorization records from the original
+  run, then record slot acceptance and completion without another task, capture
+  or iteration.
+- Keep assessed departures and uncertainties in their original review. Bind an
+  explicit owner allowance to the exact candidate, review and destination, with
+  saved instruction evidence. Show that selection basis separately in Studio
+  and artifact reports.
+- Resume committed slot acceptance without duplicating effects or replacing a
+  later decision. Close the exact owning work task with `finish --run`, including
+  a completed earlier run in that task, without changing an unrelated active task.
+- Resolve canonical adoption ownership before recording a claim. Keep slot
+  acceptance and reusable sheet or catalog adoption as distinct operations.
+- Base saved-result selection on retained evidence and current decision
+  authority. Preserve live-input checks for new production. Diagnose source
+  interpretation against the actual delivered input and observed result, and
+  inspect image detail at the scale its judgment requires.
+
 ## 2026.11.02.7
 
 - Resolve gallery output paths before rebasing links, preserving correct relative

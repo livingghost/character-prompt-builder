@@ -121,7 +121,7 @@ def run(out: Path) -> dict:
     workflow(child, 'complete')
     for index in (1, 2):
         command('work_ledger.py', '--studio', out, 'step', index, parse=False)
-    command('work_ledger.py', '--studio', out, 'finish', parse=False)
+    command('work_ledger.py', '--studio', out, 'finish', '--run', child, parse=False)
     resumed = workflow(child, 'resume')
     result = {'ok': resumed['ok'] and resumed['runs'][0]['task_disposition'] == 'completed' and resumed['runs'][0]['next_action'] is None, 'parent': first, 'run': child,
               'commands': len(log), 'fixture_only': True, 'network_calls': 0}

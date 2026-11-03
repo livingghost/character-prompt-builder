@@ -60,6 +60,19 @@ An authorized repair addresses the responsible construction or local defect.
 Dispatcher trials use `variant`, `repeat` or `retarget`; external trials use `draft-inputs --from-run` and `build-inputs` to materialize changed choices into a new task with exact input binding. Edits need semantic plans. Preserve earlier
 candidates and reviews.
 
+When the owner chooses an existing reviewed Production image for its Studio
+slot, use `draft-acceptance --run RUN --candidate CANDIDATE --grant GRANT --out
+acceptance.json` and `accept --run RUN --file acceptance.json`. Author only the
+actual decision, its scope and any explicitly accepted review findings. The
+runtime reuses the original run, candidate and iteration, preserving every
+review verdict. It records selection, slot acceptance and completion without
+another generation or capture. Resume a committed acceptance with `accept
+--run RUN`. [Production execution](production-execution.md#accept-an-existing-candidate-for-its-studio-slot)
+owns the complete procedure. Close the owning work task with `work_ledger.py
+finish --studio STUDIO --run RUN` after its actual steps and questions are
+resolved. When the requested result includes sheet or catalog reuse, choose its
+separate adoption procedure before completing the run.
+
 `status` reports runs, next commands and execution records. Inspect the
 specific run's readiness and next action; top-level `ok` reports only successful
 status inspection. After a key-entry handoff, continue the original task from

@@ -70,6 +70,15 @@ Three things stay distinct:
 - the reviewer reason, which interprets that observation;
 - a cause hypothesis, which is a further proposal that still needs testing.
 
+Compare the authoritative request and assigned source evidence, the complete
+delivered input, and the observed result. A result may follow the input while
+the input carries a mistaken interpretation of the source. Correct that
+construction and its dependent wording, reference assignments or review basis
+before treating the result as a realization failure. When the input communicates
+the intended construction but the result does not establish it, choose a repair
+for that observed gap. Unresolved source meaning remains a limitation of the
+diagnosis.
+
 ## Author a repair hypothesis
 
 After reading the evidence, an agent or reviewer can prepare a `hypotheses.json` object with a `hypotheses` array. Each item contains the following fields.
@@ -94,6 +103,11 @@ python scripts/repair_analysis.py --root STUDIO --run RUN_ID --out analysis/prop
 Every hypothesis must cite a real failure group, and its status remains `hypothesis-not-established`. The readable report keeps evidence groups, explanation, alternatives, proposed change, protected requirements, acceptance check and scope as separate sections, so each survives a compressed summary.
 
 An empty alternative list leaves the existence of alternatives open, and an empty protected-requirement list leaves the original task's requirements in force.
+
+Choose the next change for the uncertainty it resolves or the improvement it can
+establish. An isolated study, another reference, changed presentation, local
+editing and a revised prompt are possible methods, not consequences of an
+attempt count.
 
 ## Apply an accepted repair through the production workflow
 

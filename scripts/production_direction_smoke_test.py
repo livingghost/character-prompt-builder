@@ -345,7 +345,7 @@ class LifecycleTests(unittest.TestCase):
         w.select(self.root, run, 'selection.json'); done = w.complete(self.root, run)
         self.assertEqual(done['data']['scope'], 'delivery-only')
         for number in (1,2): ledger.step_done(self.root, number)
-        ledger.finish(self.root)
+        ledger.finish(self.root, run)
         self.assertEqual(w.status(self.root, run)['runs'][0]['task_disposition'], 'completed')
         self.assertIsNone(ledger.read_current(self.root))
     def test_selected_instructions_reach_generation_binding(self):
@@ -731,7 +731,7 @@ class LifecycleTests(unittest.TestCase):
         failed=self.review_data(run,ca,'fail');failed['unresolved']=['The new observed defect needs a correction decision.']
         self.write('second-review.json',failed);w.review(self.root,run,'second-review.json')
         with self.assertRaises(ValueError):w.complete(self.root,run)
-        self.assertEqual(w.status(self.root,run)['runs'][0]['next_action']['command'],'draft-review')
+        self.assertEqual(w.status(self.root,run)['runs'][0]['next_action']['command'],'draft-selection')
     def test_changed_source_reports_declared_impact(self):
         run=self.prepare();(self.root/'brief.md').write_text('Changed purpose.', encoding='utf-8')
         result=w.impact(self.root,run)

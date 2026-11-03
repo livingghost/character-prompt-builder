@@ -127,8 +127,25 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
                                         'evidence': [_object_file(directory, f, files, preview_chars)
                                                      for f in r['data'].get('evidence', [])]}
                                        for r in reviews]})
-    selections = [{'receipt': row['sha256'], **row['data']['selection']}
-                  for row in rows if row['event'] == 'selection']
+    selections = []
+    by_receipt = {row['sha256']: row for row in rows}
+    for row in rows:
+        if row['event'] != 'selection':
+            continue
+        selection = row['data']['selection']
+        evidence = []
+        if selection.get('owner_acceptance'):
+            approval = by_receipt[selection['authorization']]
+            witness = selection['owner_acceptance']['evidence']
+            captured = [item for item in approval['data'].get('files', [])
+                        if item.get('purpose') == 'owner-acceptance'
+                        and all(item.get(key) == witness[key] for key in ('path', 'sha256', 'locator'))]
+            if len(captured) != 1:
+                raise ValueError('selection has no exact saved owner-acceptance evidence')
+            evidence = [{**_object_file(directory, item, files, preview_chars),
+                         'locator': item['locator'], 'captured_at': item['captured_at']}
+                        for item in captured]
+        selections.append({'receipt': row['sha256'], **selection, 'evidence': evidence})
     report = {'preview_characters': preview_chars, 'run': run, 'input_sha256': prepared['input_sha256'],
               'receipt_head': rows[-1]['sha256'] if rows else None,
               'current': not changes, 'changed_dependencies': changes,
@@ -199,8 +216,13 @@ def render(report: dict) -> str:
             body.extend(_file_view(f) for f in review['evidence'])
             body.append('</details>')
         body.append('</section>')
-    body += ['<h2>Recorded selection</h2><pre>' + _json(report['selections']) + '</pre>',
-             '<p>Completion receipt: ' + ('present' if report['completion_recorded'] else 'not present') + '</p>',
+    body.append('<h2>Recorded selection</h2>')
+    for selection in report['selections']:
+        body.append('<pre>' + _json({key: value for key, value in selection.items() if key != 'evidence'}) + '</pre>')
+        if selection.get('owner_acceptance'):
+            body.append('<p>Owner allowance applies to this exact selection. The recorded review remains unchanged.</p>')
+        body.extend(_file_view(item) for item in selection['evidence'])
+    body += ['<p>Completion receipt: ' + ('present' if report['completion_recorded'] else 'not present') + '</p>',
              '<details><summary>Receipt timeline</summary><pre>' + _json(report['timeline']) + '</pre></details>',
              '<h2>Limits</h2><pre>' + _json(report['limits']) + '</pre>']
     return '''<!doctype html><html lang="en"><head><meta charset="utf-8">

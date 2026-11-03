@@ -24,6 +24,7 @@
     "scope": {
       "enum": [
         "delivery-only",
+        "studio-slot",
         "studio-adoption"
       ]
     },
@@ -60,6 +61,46 @@
     "authorization": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "owner_acceptance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/owner_acceptance"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "slot": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "character": {
+              "type": "string",
+              "minLength": 1
+            },
+            "iteration_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "slot": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "character",
+            "iteration_id",
+            "slot"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -70,7 +111,138 @@
     "reason",
     "scope",
     "adoption",
-    "authorization"
+    "authorization",
+    "owner_acceptance",
+    "slot"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "owner_acceptance": {
+      "type": "object",
+      "properties": {
+        "principal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "locator"
+          ],
+          "additionalProperties": false
+        },
+        "criteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "unresolved_indices": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uniqueItems": true
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "principal",
+        "evidence",
+        "criteria",
+        "unresolved_indices",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "properties": {
+            "criteria": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "unresolved_indices": {
+              "minItems": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "studio-slot"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "slot": {
+            "type": "object"
+          },
+          "adoption": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "slot": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "studio-adoption"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "adoption": {
+            "type": "object"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "adoption": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
 }

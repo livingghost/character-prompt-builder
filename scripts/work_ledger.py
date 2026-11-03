@@ -10,7 +10,7 @@ finished ones and asks what to do.
 
 Use the task ledger to plan and continue multi-step Production work, including
 the drafts and decisions that lead to its run. Mark each step as it is done.
-Finish requires all steps and the current run's verified production completion.
+Finish names the exact run and requires all steps and its verified production completion.
 Otherwise block or abandon it with the reason. Studio administration records
 its results through the commands' operation records. A planned step that is
 not written down is a step the next session does again or skips.
@@ -23,7 +23,7 @@ not written down is a step the next session does again or skips.
     python scripts/work_ledger.py reopen --studio DIR --from-step 1 --reason "..." --actor "..."
     python scripts/work_ledger.py suspend --studio DIR --reason "..."
     python scripts/work_ledger.py resume-task --studio DIR --task-id ID
-    python scripts/work_ledger.py finish --studio DIR
+    python scripts/work_ledger.py finish --studio DIR --run RUN
     python scripts/work_ledger.py abandon --studio DIR --reason "..." [--actor "..."]
     python scripts/work_ledger.py show --studio DIR
 """
@@ -335,35 +335,47 @@ def suspended_tasks(root: Path) -> list[dict]:
     return sorted(rows, key=lambda row: row['suspended_at'], reverse=True)
 
 
-def finish(root: Path) -> dict[str, Any]:
+def finish(root: Path, run: str) -> dict[str, Any]:
+    """Close the run's owning task, preserving any unrelated active task.
+
+    The explicit run identifies a completed task even after its current pointer
+    was removed. A suspended task can finish on its own verified completion;
+    another task's completion and progress flags never substitute for it.
+    """
     from execution_contract import lock
     with lock(root):
-        return _finish_verified(root)
+        return _finish_verified(root, run)
 
 
-def _finish_verified(root: Path) -> dict[str, Any]:
-    task = read_current(root)
-    if task is None:
-        # Completion is durable before its active pointer is removed. A crash at
-        # that boundary must be recoverable without reopening the closed task.
-        pointer = work_dir(root) / CURRENT
-        if pointer.is_file():
-            held = json.loads(pointer.read_text(encoding='utf-8'))
-            saved = task_path(root, held['task_id'])
-            closed = json.loads(saved.read_text(encoding='utf-8'))
-            if closed.get('work_state') == 'completed':
-                from production_workflow import verify_completion
-                run = closed.get('production_run')
-                completion = verify_completion(root, run, closed['task_id'])
-                matching = [entry for entry in read_ledger(root) if entry.get('event') == 'finished'
-                            and entry.get('task_id') == closed['task_id']]
-                if (len(matching) != 1 or matching[0].get('production_run') != run
-                        or matching[0].get('completion_sha256') != completion['sha256']):
-                    raise ValueError('closed task completion journal conflicts with the verified evidence')
-                write_current(root, None)
-                return closed
-        raise ValueError(f"no task is open; open one with: {begin_command(root)}")
-    if task.get("blocked_on"):
+def _clear_finished_pointer(root: Path, task_id: str) -> None:
+    pointer = work_dir(root) / CURRENT
+    if pointer.is_file():
+        held = json.loads(pointer.read_text(encoding='utf-8'))
+        if held.get('task_id') == task_id:
+            write_current(root, None)
+
+
+def _finish_verified(root: Path, run: str) -> dict[str, Any]:
+    from production_workflow import load_run, verify_completion
+    from execution_contract import load
+    task_id = load_run(root, run)[1]['task']['task_id']
+    task = load(task_path(root, task_id))
+    if task.get('task_id') != task_id:
+        raise ValueError('the saved task differs from the run owner')
+    completion = verify_completion(root, run, task_id)
+    matching = [entry for entry in read_ledger(root) if entry.get('event') == 'finished'
+                and entry.get('task_id') == task_id]
+    if matching and (len(matching) != 1 or matching[0].get('production_run') != run
+                     or matching[0].get('completion_sha256') != completion['sha256']):
+        raise ValueError('task completion journal conflicts with the exact run evidence')
+    if task.get('work_state') == 'completed':
+        if not matching or task.get('production_run') != run:
+            raise ValueError('closed task completion journal conflicts with its saved completion')
+        _clear_finished_pointer(root, task_id)
+        return task
+    if task.get('work_state') not in {'active', 'suspended'}:
+        raise ValueError('only active or suspended work can finish on its own production completion')
+    if task.get("blocked_on") or any(question['state'] == 'open' for question in task.get('questions', [])):
         raise ValueError("resolve the open author questions before finishing")
     left = [step for step in task.get("steps") or [] if not step.get("done_at")]
     if left:
@@ -371,21 +383,15 @@ def _finish_verified(root: Path) -> dict[str, Any]:
             f"{len(left)} step(s) are not done: " + "; ".join(f"{s['n']} {s['text']}" for s in left)
             + ". Mark them done, or abandon the task with the reason."
         )
-    from production_workflow import verify_completion
-    run = task.get("production_run")
-    if not run:
-        raise ValueError("finish requires actual production completion, not step flags")
-    completion = verify_completion(root, run, task["task_id"])
-    matching = [entry for entry in read_ledger(root) if entry.get("event") == "finished" and entry.get("task_id") == task["task_id"]]
-    if matching:
-        if len(matching) != 1 or matching[0].get("production_run") != run or matching[0].get("completion_sha256") != completion["sha256"]:
-            raise ValueError("task completion journal conflicts with the current evidence")
+    if not matching:
+        finished = {"at": now(), "task_id": task_id, "event": "finished", "text": task["goal"],
+                    "production_run": run, "completion_sha256": completion['sha256']}
+        append(root, finished)
     else:
-        append(root, {"at": now(), "task_id": task["task_id"], "event": "finished", "text": task["goal"],
-                      "production_run": run, "completion_sha256": completion["sha256"]})
-    task.update(work_state='completed', closed_at=now())
+        finished = matching[0]
+    task.update(work_state='completed', closed_at=finished['at'], production_run=run)
     save_task(root, task)
-    write_current(root, None)
+    _clear_finished_pointer(root, task_id)
     return task
 
 
@@ -521,7 +527,8 @@ def main(argv: list[str] | None = None) -> int:
     suspend_parser.add_argument('--reason', required=True)
     resume_parser = commands.add_parser('resume-task', help='restore a suspended task with its questions and exact next step', parents=[after])
     resume_parser.add_argument('--task-id', required=True)
-    commands.add_parser("finish", help="close a task with completed steps and verified Production completion", parents=[after])
+    finish_parser = commands.add_parser("finish", help="close the exact run's owning task with completed steps and verified completion", parents=[after])
+    finish_parser.add_argument('--run', required=True, help='The completed run whose own work task is being finished')
     abandon_parser = commands.add_parser("abandon", help="close the open task without finishing it", parents=[after])
     abandon_parser.add_argument("--reason", required=True)
     abandon_parser.add_argument("--actor", help="Who abandons the task; required once it has a prepared production run")
@@ -546,7 +553,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == 'resume-task':
             resume_task(root, args.task_id)
         elif args.command == "finish":
-            finish(root)
+            finish(root, args.run)
         elif args.command == "abandon":
             abandon(root, args.reason, actor=args.actor)
     except ValueError as exc:

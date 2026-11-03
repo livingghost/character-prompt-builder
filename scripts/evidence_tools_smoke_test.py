@@ -125,6 +125,36 @@ class EvidenceToolsTests(unittest.TestCase):
         for name, entry in inventory.items():
             self.assertEqual(c.digest((Path(result['output']) / name).read_bytes()), entry['sha256'])
 
+    def test_owner_allowance_exports_saved_witness_and_original_failed_review(self):
+        import production_fixtures
+        run, candidate = self.captured()
+        review = self.fixture.review_data(run, candidate)
+        review['checks'][0].update(verdict='fail', reason='The synthetic candidate differs from the declared condition.')
+        review['unresolved'] = ['The declared difference needs a use decision.']
+        self.fixture.record_review(run, candidate, review)
+        evidence_path = 'owner-selection.txt'
+        raw = b'Synthetic owner instruction: select this candidate and accept its declared difference.\n'
+        self.fixture.write(evidence_path, raw)
+        selection = w.draft_selection(self.root, run, candidate['sha256'])
+        selection.update(reason='The synthetic owner accepts this one assessed exception.',
+                         owner_acceptance={'principal': w.load_run(self.root, run)[1]['authority']['issuer'],
+                                           'evidence': {'path': evidence_path, 'sha256': c.digest(raw), 'locator': 'whole'},
+                                           'criteria': [review['checks'][0]['criterion']], 'unresolved_indices': [0],
+                                           'reason': 'Explicit synthetic instruction accepts this candidate difference.'})
+        production_fixtures.selection(self.root, run, selection)
+        self.fixture.write('selection.json', selection)
+        w.select(self.root, run, 'selection.json')
+        self.fixture.write(evidence_path, 'Changed live file after the selection.\n')
+        report, files = ar.build(self.root, run)
+        witness = report['selections'][0]['evidence'][0]
+        self.assertEqual(files[witness['download']], raw)
+        self.assertEqual(witness['locator'], 'whole')
+        self.assertEqual(report['candidates'][0]['reviews'][0]['review']['checks'][0]['verdict'], 'fail')
+        self.assertEqual(report['selections'][0]['owner_acceptance'], selection['owner_acceptance'])
+        rendered = ar.render(report)
+        self.assertIn('The recorded review remains unchanged.', rendered)
+        self.assertIn(raw.decode().strip(), rendered)
+
     def test_export_never_overwrites_existing_output(self):
         run, _ = self.captured()
         ar.export(self.root, run, 'reviews/snapshot')

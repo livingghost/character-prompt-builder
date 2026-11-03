@@ -75,7 +75,7 @@ Each call may name `-` for one of these JSON options, which then reads standard 
 
 - `--decisions-file` of `execute` and `--outcome-file` of `resume`;
 - `--changes-file` of `variant` and `--intent` of `draft-authorization`;
-- `--file` of `authorize`, `review`, `disposition`, `selection-intent`, `select` and `authority-import`;
+- `--file` of `authorize`, `review`, `disposition`, `selection-intent`, `select`, `accept` and `authority-import`;
 - `--approval` and `--registration-record` of `adoption-intent` and `adopt`.
 
 Except for `--changes-file`, the bytes read are kept as `production/runs/RUN/objects/SHA256`, and that path is the recorded evidence.
@@ -526,13 +526,20 @@ A drift diagnostic adds `affected_runs` and `actions`.
 
 | Code | Reports |
 |---|---|
-| `REVIEW_INCOMPLETE` | A hard criterion has no supported `pass`, so the candidate cannot be selected. |
+| `REVIEW_INCOMPLETE` | A hard criterion is missing or unassessed, so review is needed before selection. |
+| `OWNER_ACCEPTANCE_REQUIRED` | A nonpass hard criterion or unresolved matter lacks the owner's explicit acceptance. |
 | `REVIEW_MISMATCH` | A disposition cites a review that is not the candidate's latest. |
 | `SELECTION_CONFLICT` | Another candidate holds the run's current selection. |
 | `SELECTION_REQUIRED` | The candidate is not the current selection of its run. |
 | `SELECTION_REVIEW_CHANGED` | A newer review of the selected candidate ended its selection. |
 | `SELECTION_REPLACED` | A later selection of another candidate replaced this one. |
 | `SELECTED_CANDIDATE` | The Studio holds the selected candidate as its accepted image. |
+| `SLOT_ACCEPTANCE_NOT_APPLICABLE` | The run is not an image with a Studio recording destination; use its ordinary selection scope. |
+| `STUDIO_CANDIDATE_REQUIRED` | The exact Production candidate lacks its one recorded iteration; recover that run's recording. |
+| `SLOT_SELECTION_REQUIRED` | Acceptance needs a current `studio-slot` selection; complete the actual acceptance decision. |
+| `SLOT_ACCEPTANCE_REQUIRED` | The selected slot lacks its matching acceptance receipt or result; resume the same acceptance. |
+| `SLOT_ACCEPTANCE_MISMATCH` | The recorded image or destination differs from the exact selected candidate. |
+| `SLOT_ACCEPTANCE_CONFLICT` | The slot changed after the inspected or committed decision; inspect the newer acceptance before deciding again. |
 | `ADOPTION_RESULT_MISSING` | The run records no completed adoption of the cited Studio iteration. |
 | `ADOPTION_RECORD_CORRUPT` | The canonical adoption record is malformed or differs from its artifact. |
 
@@ -824,6 +831,15 @@ unsupported or uninspected scope in `limitations`. Record the actual reviewer
 input boundary and reading order in the review's `conclusion` and relevant
 observation limitations. These existing fields require no new record format.
 
+Inspect at the scale the judgment requires. A whole-image view can establish
+composition while leaving a small connection, boundary or count unresolved.
+When that detail decides a criterion, inspect the available original pixels or
+an appropriate region while retaining enough surrounding context to understand
+the relationship. A crop or enlargement helps only when it reveals relevant
+evidence; it cannot establish detail absent from the source. Record a supported
+verdict when the evidence resolves the claim, and retain `indeterminate` when it
+does not.
+
 If the same context produced and reviewed the work, state that this is author
 self-review and not independent. Describe the artifact before applying the
 expected reading, while retaining the limitation that the intent is already
@@ -891,7 +907,9 @@ These labels summarize all recorded criteria, including advisory ones. They
 do not decide selection eligibility. An advisory failure or an inconclusive
 advisory observation can coexist with supported passes on every hard criterion.
 Keep the limitation and any optional repair visible rather than changing its
-verdict to obtain a preferred aggregate label.
+verdict to obtain a preferred aggregate label. The owner's explicit acceptance
+can permit selection of assessed departures or uncertainties under the rules
+below; the candidate keeps its actual evaluation.
 
 Disposition is a separate axis: `pending`, `not_selected`, or `selected`, from the candidate's latest decision event.
 A disposition file allows `pending` and `not_selected`; only `select` establishes `selected`.
@@ -912,6 +930,11 @@ A synthetic candidate rejected on one failed criterion, with the other left unas
 `selection_current` is true or false for a selected candidate and null otherwise.
 `selection_diagnostics` names `SELECTION_REVIEW_CHANGED` or `SELECTION_REPLACED` when a selection is not current.
 `status` reports the same states for every candidate.
+`selection_basis` distinguishes `review-pass` from `owner-allowance`, and
+`owner_acceptance` exposes the recorded allowance. `selection_requirements`
+retains the latest review's `unassessed_hard_criteria`,
+`nonpassing_hard_criteria` and `unresolved_indices`; acceptance does not erase
+those findings.
 
 ### Select, optionally adopt, and finish
 
@@ -925,25 +948,117 @@ python scripts/production_workflow.py complete --root STUDIO --run RUN
 Fill the selector and reason, then authorize the printed `select` intent as [Production permissions](production-permissions.md) describes.
 Put the authorization event digest in `selection.authorization` before `select`.
 A selection binds the candidate, its latest review and every selection field.
-Every hard criterion needs a supported `pass` first, and `unresolved` must be
-empty. Advisory criteria may remain unassessed, indeterminate or failed with
-their actual evidence and reasons. A recorded failure still needs a repair or
-an unresolved issue; retain a nonblocking improvement as a proposed repair,
-without making its execution a condition of selection. Use the run's actual
-eligibility and next action, not an all-criteria aggregate label, to determine
-whether required work is complete.
-A `delivery-only` selection does not change canon.
+Every hard criterion needs an assessed verdict. A supported `pass` satisfies it;
+`fail`, `indeterminate` or `not-applicable` requires the owner's explicit
+acceptance of that criterion. A missing or `not-assessed` hard criterion still
+needs review and cannot be accepted in place of inspection. Advisory criteria
+may remain unassessed, indeterminate or failed with their actual reasons.
+Every entry in the selected review's `unresolved` list needs resolution through
+a new review or explicit owner acceptance. Retain a nonblocking improvement as
+a proposed repair without making its execution a condition of selection.
 
-Adoption follows this order:
+The required `owner_acceptance` field is null when there are no explicitly
+accepted review findings. A nonnull value contains:
 
-1. `select` the candidate with `scope: delivery-only`.
+| Field | Decision it records |
+|---|---|
+| `principal` | The current authority issuer whose instruction accepts the candidate. |
+| `evidence` | The instruction's exact `path`, `sha256` and `locator`. |
+| `criteria` | Unique IDs of assessed nonpass criteria the owner accepts. |
+| `unresolved_indices` | Unique zero-based indices into this exact review's `unresolved` list. |
+| `reason` | Why the instruction covers those findings for this candidate. |
+
+The acceptance names at least one criterion or unresolved entry. Its coverage
+must include every nonpass hard criterion and every unresolved entry; it may
+also identify assessed nonpass advisory criteria. Read the actual instruction
+and preserve its scope. Recording acceptance leaves the criteria, observations,
+verdicts and evaluation unchanged. It authorizes use of this candidate under
+this review, without changing a requirement for future work or claiming a
+successful repair. The exact `select` authorization binds this decision and its
+evidence. [Production permissions](production-permissions.md#current-authority-and-adoption)
+owns its current-authority checks. The
+[synthetic review cases](../../examples/production-execution/evidence-review-cases.md)
+show acceptance beside an unchanged failed review.
+
+Choose the selection scope for the result being recorded:
+
+| `scope` | Required destination evidence |
+|---|---|
+| `delivery-only` | `slot` and `adoption` are null; the artifact is selected for delivery. |
+| `studio-slot` | `slot` names the exact `character`, `iteration_id` and `slot`; `adoption` is null. Completion also requires the matching Studio acceptance receipt. |
+| `studio-adoption` | `adoption` names the completed sheet or catalog adoption; `slot` is null. |
+
+A new selection of a captured candidate checks current authority against the
+retained preparation, review and artifact evidence. Completion verifies that
+saved selection, its authorization and required destination evidence. Live
+creative sources can move or change without making the retained result
+unavailable for this decision. Corrupt or missing retained bytes still block it.
+A new preparation or execution keeps its live-source requirements.
+
+#### Accept an existing candidate for its Studio slot
+
+Use the original Production run and candidate when the owner chooses an existing
+reviewed image for its slot:
+
+```sh
+python scripts/production_workflow.py draft-acceptance --root STUDIO --run RUN --candidate CANDIDATE --grant GRANT --out acceptance.json
+python scripts/production_workflow.py accept --root STUDIO --run RUN --file acceptance.json
+python scripts/work_ledger.py finish --studio STUDIO --run RUN
+```
+
+The compact draft follows the
+[acceptance decision schema](../../schemas/authoring/production-acceptance.schema.json)
+and pins the run, input, candidate, review and current slot state.
+Fill its reason, stop-condition assessments and any `owner_acceptance` from the
+actual instruction. In this editing document, the acceptance selects its evidence
+path and locator, criterion IDs, unresolved indices and reason. The runtime
+derives the principal, evidence hash, selector and exact Studio destination from
+the current authority and existing records. It checks the decision before
+recording an exact select authorization, selection, Studio acceptance receipt
+and run completion. The original candidate bytes, iteration, review and work
+task remain the owners; acceptance needs no new generation, import, capture or
+criteria definition.
+
+The result identifies the selection, slot-acceptance and completion receipts,
+the exact slot and owning task, and a `finish_command` for that run. A separate
+`studio-slot` selection made through the granular selection commands uses the
+same acceptance and completion path.
+
+After selection commits, resume an interrupted acceptance with:
+
+```sh
+python scripts/production_workflow.py accept --root STUDIO --run RUN
+```
+
+Recovery uses that saved decision and its evidence. Before a selection has been
+recorded, supply the completed decision file. Repeating `accept --run RUN` does
+not create another iteration or supersede a different slot decision made since
+it was authorized. Inspect a reported conflict before continuing.
+
+Acceptance completes the run, then `finish --run RUN` closes its exact owning
+work task after the ordinary checks on actual steps, answered questions and
+completion evidence. It can close a suspended owning task while leaving another
+active task unchanged. It does not mark steps done or answer questions. Use the
+owning task's normal workflow when such work remains.
+
+#### Adopt the selected image as a reusable reference
+
+Choose this procedure while the run is still open when the requested result
+includes sheet or catalog reuse. It has its own approval and authorization. The
+compact `accept` operation completes slot acceptance; a completed run cannot
+append a later canonical adoption.
+
+1. Select the candidate with `scope: delivery-only`.
 2. Run `adoption-intent`, then `adopt` under its own `adopt` authorization; the Studio accepts the iteration in this step. `adopt` refuses a candidate that is not the run's current selection (`SELECTION_REQUIRED`).
-3. Optionally, `select` the same candidate again with `scope: studio-adoption`, citing the adoption record. It needs the run's own adoption result (`ADOPTION_RESULT_MISSING` otherwise).
-4. `complete`.
+3. Optionally, select the same candidate with `scope: studio-adoption`, citing the adoption record and retaining any applicable owner acceptance. It needs the run's own adoption result (`ADOPTION_RESULT_MISSING` otherwise).
+4. Complete the selected scope.
 
 `adoption-intent` and `adopt` take `--candidate`, `--character`, `--iteration` and `--approval`.
 `adopt` also takes `--authorization`, the event digest of its adopt authorization.
 A catalog adoption adds `--registration-record`, `--pack-dir` and the same explicit pack runtime arguments as the owner.
+An imported iteration belongs to `studio.py accept` for slot acceptance and
+`adoption_workflow.py adopt` for sheet or catalog adoption. Production
+`adoption-intent` identifies that ownership before creating an adoption claim.
 
 A run has at most one current selection:
 
@@ -952,11 +1067,12 @@ A run has at most one current selection:
 - Both refuse the withdrawal while the Studio holds that candidate as the slot's accepted image (`SELECTED_CANDIDATE`). Accepting another image for the slot first lifts the refusal.
 - A newer review of the selected candidate also ends its selection, without a disposition.
 
-`complete` verifies the current selection.
-Work-ledger finish checks the current production completion.
+`complete` verifies the current selection and its required destination evidence.
+`work_ledger.py finish --studio STUDIO --run RUN` checks the named run's
+completion and its owning task's actual steps and questions.
 Preparations, generated images, draft reviews or a task with no selected artifact are not finished production.
 
-`review`, `disposition`, `select`, `complete` and `adopt` rewrite the Studio gallery; [Studio Runtime](studio.md#every-image-with-what-produced-it) covers a failed rewrite.
+`review`, `disposition`, `select`, `accept`, `complete` and `adopt` update the Studio gallery; [Studio Runtime](studio.md#every-image-with-what-produced-it) covers a failed rewrite.
 
 ## Review, repair and a new run
 
@@ -1126,7 +1242,15 @@ A passing test is evidence of its checked contract, not a visual quality judgmen
 
 `status` names a draft under `production/decisions/RUN/KIND/BASIS_DIGEST.json`, scoped to the exact run, candidate and decision basis. When that draft exists, the next action points to inspection/completion and the appropriate apply command instead of repeating a failing `--out` write. A completed draft is not evidence of approval until the usual validator accepts its actual author evidence. A new review basis gets a different draft; no existing decision file is overwritten.
 
-When a decision needs context, `next_action.read_context` names complete `workspace` commands in reading order. `input` precedes `decision`; candidate-only `observe` precedes `review`. These are read views, not additional gates or evidence of understanding. The views retain full actual inputs and relevant source material while keeping generated facts out of editing fields. They show applicable Skill paths for a reader whose active context lacks those instructions. A prior reading record does not establish that a new reader knows them. Execute returned `argv` as given, and reuse an existing draft instead of creating parallel copies.
+When a decision needs context, `next_action.read_context` names complete
+`workspace` commands in reading order. `input` precedes `decision`; candidate-only
+`observe` precedes `review`. Acceptance uses the existing review's context and
+findings. These are read views, not additional gates or evidence of understanding.
+The views retain full actual inputs and relevant source material while keeping
+generated facts out of editing fields. They show applicable Skill paths for a
+reader whose active context lacks those instructions. A prior reading record
+does not establish that a new reader knows them. Execute returned `argv` as given,
+and reuse an existing draft instead of creating parallel copies.
 
 The Production run registry resolves the prior run in the **same task and production series at the saved registration boundary**. It does not open every unrelated historical run merely to find that owner. The selected required predecessor is fully verified; a damaged required series run stops protected-criteria use with `PREDECESSOR_UNAVAILABLE`, rather than silently skipping the comparison.
 

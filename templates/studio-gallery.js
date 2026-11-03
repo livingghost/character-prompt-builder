@@ -141,7 +141,7 @@
     facts.appendChild(title);
     facts.appendChild(element(document, 'p', 'Received / published ' + (card.at || 'not recorded'), 'when'));
     facts.appendChild(element(document, 'p', 'Model: ' + (card.model || 'not recorded') + '; seed: ' + (card.seed === null || card.seed === undefined ? 'not recorded' : card.seed)));
-    const judgment = [card.evaluation && 'Evaluation: ' + card.evaluation, card.disposition && 'Disposition: ' + card.disposition].filter(Boolean).join('; ');
+    const judgment = [card.evaluation && 'Evaluation: ' + card.evaluation, card.disposition && 'Disposition: ' + card.disposition, card.selection_basis && 'Selection basis: ' + card.selection_basis].filter(Boolean).join('; ');
     if (judgment) facts.appendChild(element(document, 'p', judgment));
     if (card.availability === 'unavailable' || card.diagnostic_count) {
       facts.appendChild(element(document, 'p', 'Recorded diagnostic: open the complete details.', 'diagnostic'));

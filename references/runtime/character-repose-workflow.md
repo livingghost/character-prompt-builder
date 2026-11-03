@@ -249,7 +249,9 @@ criterion and `observation_indices`. Use `pass` for supported fulfillment,
 resolve the criterion. Use `not-assessed` for an uninspected criterion and
 `not-applicable` with the reason when it genuinely falls outside this candidate's
 applicable requirements. The existing hard/advisory strengths continue to govern
-selection: a required criterion needs an observed pass. These review values
+selection through the shared [selection policy](production-execution.md): a
+required criterion needs an observed pass or an explicit owner allowance for
+that assessed exception on the exact candidate and review. These review values
 record visual judgment; preparation, hashes and schema checks establish the
 input and evidence relationships.
 

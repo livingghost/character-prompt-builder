@@ -172,7 +172,7 @@ def regressions(tmp: Path, source: Path, check) -> None:
     (swap / jpg["result"]["path"]).unlink()
     message = failure(lambda: studio.accept(swap, "C09", jpg["iteration_id"]))
     check("a failed acceptance leaves the slot's accepted image in place",
-          "is missing" in message and (swap_home / "accepted" / "base.png").read_bytes() == b"\x89PNG-a"
+          "missing file: " + jpg["result"]["path"] in message and (swap_home / "accepted" / "base.png").read_bytes() == b"\x89PNG-a"
           and studio.read_iterations(swap_home)[0]["status"] == "accepted",
           message)
     (swap / jpg["result"]["path"]).write_bytes(b"\xff\xd8JPEG-d")
@@ -325,7 +325,6 @@ def main() -> int:
         task = work_ledger.begin(root, "C01 base front", ["generate candidates", "present and record the choice", "accept one"])
         check("a task opens with its first step next", task["next"] == "generate candidates" and uuid.UUID(task["task_id"]).version == 7)
         check("a second task cannot open while one is open", refused(lambda: work_ledger.begin(root, "other", ["x"]), "already open"))
-        check("finishing with steps left is refused", refused(lambda: work_ledger.finish(root), "not done"))
         work_ledger.step_done(root, 1, "it-0001 to it-0003")
         shown = work_ledger.show(root)
         check("show names the next step after one is done", "next: present and record the choice" in shown and "[done] 1." in shown, shown)
@@ -432,8 +431,6 @@ def main() -> int:
 
         question = work_ledger.read_current(root)['questions'][-1]
         work_ledger.respond(root, question['question_id'], 'Use the second synthetic image.', actor='Synthetic test author')
-        work_ledger.step_done(root, 2)
-        work_ledger.step_done(root, 3)
         # This test's explicit synthetic review binds the delivered real fixture
         # bytes. Studio acceptance above remains a separate operation.
         import execution_contract as evidence
@@ -461,7 +458,10 @@ def main() -> int:
         (root / "production-selection.json").write_bytes(evidence.encoded(selection))
         production.select(root, run, "production-selection.json")
         production.complete(root, run)
-        work_ledger.finish(root)
+        check("finishing with steps left is refused", refused(lambda: work_ledger.finish(root, run), "not done"))
+        work_ledger.step_done(root, 2)
+        work_ledger.step_done(root, 3)
+        work_ledger.finish(root, run)
         check("a finished task leaves no open task and stays in the ledger", work_ledger.read_current(root) is None and any(e["event"] == "finished" for e in work_ledger.read_ledger(root)))
         shown = work_ledger.show(root)
         check("show reports the trail when nothing is open, and the command that opens the next task",

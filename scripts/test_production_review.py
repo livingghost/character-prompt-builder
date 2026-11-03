@@ -311,7 +311,7 @@ class ReviewTests(ReviewCase):
     def test_hard_indeterminate_prevents_selection(self):
         self.record_review([('output','pass'),('palette','indeterminate')])
         self.assertEqual(self.state()['evaluation'], 'indeterminate')
-        self.assertCode('REVIEW_INCOMPLETE', self.select)
+        self.assertCode('OWNER_ACCEPTANCE_REQUIRED', self.select)
         state = self.state()
         self.assertEqual((state['evaluation'], state['disposition']), ('indeterminate', 'pending'))
         self.assertFalse(any(row['event'] == 'selection' for row in store.event_rows(self.root, self.run)))

@@ -927,6 +927,7 @@ def _draft_action(root: Path, run: str, kind: str, *, candidate: str | None = No
     relative = f'production/decisions/{run}/{kind}/{identity}.json'
     path = c.local(root, relative, exists=False)
     apply_name, option = {'review':('review','--file'), 'selection':('select','--file'),
+                          'acceptance':('accept','--file'),
                           'execution':('execute','--decisions-file'), 'outcome':('resume','--outcome-file')}[kind]
     apply_args = ['--run', run, option, relative]
     if path.exists():
@@ -1015,7 +1016,23 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
             '--pending while the response is incomplete, and --call with --request-pointer for recorded host-call evidence. '
             'This operation never sends another request.'), 'requires_author_input': True}
     if report['selection_ready']:
-        return _action('complete', root, ['--run', run], 'The current selection satisfies the hard criteria; complete the task.')
+        return _action('complete', root, ['--run', run],
+            'The current selection has a verified review and decision basis; complete the task.')
+    if 'selection' in events:
+        try:
+            _, selected, _ = workflow.current_selection(prepared, rows)
+        except (ValueError, KeyError):
+            pass
+        else:
+            if selected['scope'] == 'studio-slot':
+                conflicts = [item for item in report['selection_diagnostics'] if item['code'] == 'SLOT_ACCEPTANCE_CONFLICT']
+                blocked = [item for item in report['selection_diagnostics']
+                           if item['code'] not in {'SLOT_ACCEPTANCE_REQUIRED', 'SLOT_ACCEPTANCE_CONFLICT'}]
+                if blocked:
+                    return _action('status', root, ['--run', run], blocked[0]['required_action'])
+                if not conflicts:
+                    return _action('accept', root, ['--run', run],
+                        'Resume the recorded slot acceptance and completion using the same selected candidate and saved owner decision.')
     captured = [row['data'] for row in rows if row['event'] == 'capture-status']
     if mode == 'dispatcher' and report['candidates'] and report['registration'] == 'unregistered':
         recording = prepared['task']['recording']
@@ -1029,11 +1046,27 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
             'The saved provider answer is not fully registered or shown; resume registers it without sending again.')
     if report['candidates']:
         for candidate in report['candidate_states']:
-            try:
-                workflow.eligible(prepared, workflow.latest_review(rows, candidate['candidate']))
-            except (ValueError, KeyError):
+            if candidate['review'] is None or candidate['selection_requirements']['unassessed_hard_criteria']:
                 continue
             if candidate.get('disposition') != 'not_selected':
+                if prepared['task']['artifact'] == 'image' and prepared['task'].get('recording'):
+                    import production_permissions
+                    import production_acceptance
+                    try:
+                        target, _ = production_acceptance._target(root, run, candidate['candidate'],
+                                                                 loaded=(None, prepared, None, rows))
+                        expected_slot = production_acceptance.slot_state(root, target['character'], target['slot'])
+                    except INSPECTION_ERRORS as exc:
+                        diagnostic = from_exception(exc, phase='acceptance')
+                        command = 'resume' if diagnostic['code'] == 'STUDIO_CANDIDATE_REQUIRED' else 'status'
+                        return _action(command, root, ['--run', run], diagnostic['required_action'])
+                    grants = [item['grant'] for item in production_permissions.target_coverage(authority or {'grants': []},
+                                                                                              'select', ['delivery'])
+                              if not item['missing']]
+                    grant = grants[0] if len(grants) == 1 else '<grant-id>'
+                    return _draft_action(root, run, 'acceptance', candidate=candidate['candidate'], grant=grant,
+                                         basis={'review': candidate['review'], 'authority': c.content_id(authority or {}),
+                                                'expected_slot': expected_slot})
                 return _draft_action(root, run, 'selection', candidate=candidate['candidate'], basis=candidate.get('review'))
         unreviewed = [row['candidate'] for row in report['candidate_states'] if row['review'] is None] or report['candidates']
         previous = next((row.get('review') for row in report['candidate_states'] if row['candidate'] == unreviewed[0]), None)
@@ -1141,7 +1174,10 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
     selection_diagnostics = []
     if 'selection' in events:
         try:
-            workflow.current_selection(prepared, rows)
+            selection, chosen, _ = workflow.current_selection(prepared, rows)
+            if chosen['scope'] == 'studio-slot':
+                from production_acceptance import verify_slot
+                verify_slot(root, identifier, selection, rows=rows, require_current='completion' not in events)
             selection_ready = True
         except ValueError as exc:
             selection_diagnostics.append(from_exception(exc, phase='selection'))
@@ -1188,14 +1224,19 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         'logs': logs.get(identifier, [])}
     report['next_action'] = _next_action(root, report, prepared, rows, execution_state=execution_state, authority=authority)
     action = report['next_action']
-    if action and action['command'] in {'draft-execution', 'execute', 'draft-review', 'review'}:
+    if action and action['command'] in {'draft-execution', 'execute', 'draft-review', 'review', 'draft-acceptance', 'accept'}:
         candidate = None
-        if action['command'] in {'draft-review', 'review'}:
+        if action['command'] in {'draft-review', 'review', 'draft-acceptance', 'accept'}:
             if '--candidate' in action['argv']:
                 candidate = action['argv'][action['argv'].index('--candidate') + 1]
             elif action.get('draft'):
                 candidate = c.load(c.local(root, action['draft'])).get('candidate')
-            phases = ['observe', 'review']
+            if candidate is None and action['command'] == 'accept':
+                try:
+                    candidate = workflow.current_selection(prepared, rows)[1]['candidate']
+                except (ValueError, KeyError):
+                    pass
+            phases = ['review'] if action['command'] in {'draft-acceptance', 'accept'} else ['observe', 'review']
         else:
             phases = ['input', 'decision']
         action['read_context'] = [_action('workspace', root,

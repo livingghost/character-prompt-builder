@@ -30,7 +30,8 @@ ROOT = Path(__file__).resolve().parents[1]
 EVENTS = {'authorization', 'handoff', 'external-claim', 'dispatch-claim',
           'dispatch-results', 'candidate', 'review', 'selection', 'edit',
           'adoption-claim', 'adoption-result', 'image-edit-claim', 'image-edit-output', 'completion',
-          'disposition', 'handoff-ready', 'capture-status', 'execution-outcome', 'abandoned'} | lifecycle.EVENTS
+          'disposition', 'handoff-ready', 'capture-status', 'execution-outcome', 'abandoned',
+          'slot-acceptance'} | lifecycle.EVENTS
 
 
 def run_identifier(run: Any) -> str:
@@ -553,6 +554,10 @@ def validate_run_content(run: str, prepared: dict, consumer: dict, rows: list[di
                                            file=item['path'], run=run, event=row['sha256'], expected=item['sha256'],
                                            actual=c.digest(raw), kind=row['event'], artifact='objects/' + item['sha256'])
             known[item['sha256']] = len(raw)
+    for row in rows:
+        if row['event'] == 'selection':
+            reviewed = find(rows, 'review', row['data']['selection']['review'])
+            _recorded_selection_basis(prepared, rows, row, reviewed)
     lifecycle.completion_tail(rows, prepared, run)
 
 
@@ -742,7 +747,7 @@ def assert_authority_current(root: Path, prepared: dict) -> None:
 
 
 def authorization_context(root: Path, run: str, operation: str) -> tuple:
-    loaded = load_run(root, run) if operation == 'edit' else assert_current(root, run)
+    loaded = load_run(root, run) if operation in {'edit', 'select', 'adopt'} else assert_current(root, run)
     assert_authority_current(root, loaded[1])
     return loaded
 
@@ -808,7 +813,19 @@ def authorize_value(root: Path, run: str, request: dict, *, evidence_files: list
             check_external_authorization(consumer, request, grant)
         elif request.get('request_decision') is not None:
             raise ValueError('only a model image submission carries a model request decision')
+        if request['operation'] == 'select':
+            selection = {**request['payload'], 'authorization': '0' * 64}
+            schema_check(selection, 'selection')
+            if selection['selector'] != request['actor']:
+                raise ValueError('selector differs from the authorized actor')
+            acceptance = selection['owner_acceptance']
+            if acceptance is not None:
+                for witness in _owner_acceptance_witnesses(root, prepared, acceptance):
+                    files.append(store.capture_evidence(root, directory, witness['path'], locator=witness['locator'],
+                        purpose='owner-acceptance', raw=witness['raw'], rows=rows))
+        authority = store.authority_record(root, prepared['task']['task_id'])
         data = {'files': files, 'request': request,
+                'authority': {'event': authority['sha256'], 'issuer': prepared['authority']['issuer']},
                 'protected_criteria': protected_criteria_record(prepared, request['grant'])}
         for row in rows:
             if row['event'] == 'authorization' and row['data'] == data:
@@ -843,6 +860,11 @@ def _permission(root: Path, prepared: dict, rows: list[dict], identifier: str,
         from production_request import check_external_authorization
         consumer = load_run(root, prepared['run'])[2]
         check_external_authorization(consumer, request, grant)
+    elif operation == 'select' and request['payload']['owner_acceptance'] is not None:
+        acceptance = request['payload']['owner_acceptance']
+        if acceptance['principal'] != prepared['authority']['issuer']:
+            raise ValueError('owner acceptance does not name the current authority issuer')
+        _require_owner_witness(acceptance, row)
     return request
 
 
@@ -1142,8 +1164,8 @@ def validate_review(data: Any, prepared: dict, candidate: dict, raw: bytes,
         requirement = expected[check['criterion']]['evidence']
         if check['verdict'] == 'pass' and not any(requirement in supported[i] for i in indices):
             raise ValueError('evidence medium or range cannot support the claimed pass')
-    # Omitted criteria remain unassessed. Selection separately requires every
-    # hard criterion to have an actual supported pass.
+    # Omitted criteria remain unassessed. Selection separately requires a
+    # supported pass or an explicit owner allowance for each assessed nonpass.
     decisions = {d['id'] for d in prepared['task']['direction']['decisions']}
     repairs = set()
     for repair in data['repairs']:
@@ -1194,15 +1216,104 @@ def review(root: Path, run: str, review_file: str) -> dict:
     return _refresh_studio_projection(root, row)
 
 
-def eligible(prepared: dict, reviewed: dict) -> None:
+def selection_requirements(prepared: dict, reviewed: dict) -> dict:
+    """Derive remaining decisions without changing the recorded assessment."""
     data = reviewed['data']['review']
-    if data['unresolved']:
-        raise ValueError('review has unresolved issues')
-    hard = {x['id'] for x in prepared['task']['criteria'] if x['strength'] == 'hard'}
-    passed = {x['criterion'] for x in data['checks'] if x['verdict'] == 'pass'}
-    if hard - passed:
-        raise ProductionError('REVIEW_INCOMPLETE', 'Required criteria have not passed: ' + ', '.join(sorted(hard - passed)),
-                              phase='selection', required_action='Observe and review each required criterion before selection.')
+    hard = {item['id'] for item in prepared['task']['criteria'] if item['strength'] == 'hard'}
+    checks = {item['criterion']: item['verdict'] for item in data['checks']}
+    return {
+        'unassessed_hard_criteria': sorted(key for key in hard if checks.get(key, 'not-assessed') == 'not-assessed'),
+        'nonpassing_hard_criteria': sorted(key for key in hard if checks.get(key) in {'fail', 'indeterminate', 'not-applicable'}),
+        'unresolved_indices': list(range(len(data['unresolved']))),
+    }
+
+
+def eligible(prepared: dict, reviewed: dict, owner_acceptance: dict | None = None) -> str:
+    """Check the exact selection basis; an allowance never changes a verdict."""
+    needed = selection_requirements(prepared, reviewed)
+    if needed['unassessed_hard_criteria']:
+        raise ProductionError('REVIEW_INCOMPLETE', 'Required criteria have not been assessed: ' +
+                              ', '.join(needed['unassessed_hard_criteria']), phase='selection',
+                              required_action='Observe and review each unassessed required criterion before selection.')
+    accepted_criteria, accepted_issues = set(), set()
+    if owner_acceptance is not None:
+        # The formal selection schema owns the complete shape. This check also
+        # serves callers deriving eligibility directly from an authored basis.
+        acceptance_schema = c.load(ROOT / 'schemas/authoring/production-selection.schema.json')['$defs']['owner_acceptance']
+        from state_protocol import validate_against_schema
+        errors = validate_against_schema(owner_acceptance, acceptance_schema)
+        if errors:
+            raise ValueError('owner acceptance: ' + '; '.join(errors))
+        accepted_criteria = set(owner_acceptance['criteria'])
+        accepted_issues = set(owner_acceptance['unresolved_indices'])
+        checks = {item['criterion']: item['verdict'] for item in reviewed['data']['review']['checks']}
+        if any(checks.get(key) not in {'fail', 'indeterminate', 'not-applicable'} for key in accepted_criteria):
+            raise ValueError('owner acceptance must name explicitly assessed nonpassing criteria')
+        if accepted_issues - set(needed['unresolved_indices']):
+            raise ValueError('owner acceptance names an unknown unresolved issue')
+        if not accepted_criteria and not accepted_issues:
+            raise ValueError('owner acceptance must identify an assessed exception or unresolved issue')
+    missing = sorted(set(needed['nonpassing_hard_criteria']) - accepted_criteria)
+    unresolved = sorted(set(needed['unresolved_indices']) - accepted_issues)
+    if missing or unresolved:
+        raise ProductionError('OWNER_ACCEPTANCE_REQUIRED',
+                              'Selection needs explicit owner acceptance of the recorded exceptions.',
+                              phase='selection', criteria=missing, unresolved_indices=unresolved,
+                              required_action='Record the owner\'s explicit allowance for these reviewed exceptions, '
+                                              'or continue the authorized work; do not rewrite their verdicts as passes.')
+    return 'owner-allowance' if owner_acceptance is not None else 'review-pass'
+
+
+def _owner_acceptance_witnesses(root: Path, prepared: dict, acceptance: dict) -> list[dict]:
+    """Capture an explicitly cited owner instruction; do not infer its meaning."""
+    if acceptance['principal'] != prepared['authority']['issuer']:
+        raise ValueError('owner acceptance does not name the current authority issuer')
+    from production_request import EvidenceWitnesses
+    items = [(item['path'], item['raw']) for item in store.captured_authority_inputs(root, prepared['task']['task_id'])]
+    reader = EvidenceWitnesses(root, items, live=True, run=prepared['run'])
+    ref = acceptance['evidence']
+    raw = reader.basis(ref)
+    return [{**ref, 'raw': raw}]
+
+
+def _require_owner_witness(acceptance: dict, authorization: dict) -> dict:
+    """The authorizing event must retain the exact cited reading as evidence."""
+    ref = acceptance['evidence']
+    matches = [item for item in authorization['data']['files']
+               if item.get('purpose') == 'owner-acceptance'
+               and all(item.get(key) == ref[key] for key in ('path', 'sha256', 'locator'))]
+    if not matches:
+        raise store.evidence_error('EVIDENCE_SNAPSHOT_MISSING',
+                                  'The selection authorization holds no saved owner-acceptance witness.',
+                                  file=ref['path'], expected=ref['sha256'], event=authorization['sha256'])
+    return matches[0]
+
+
+def _recorded_selection_basis(prepared: dict, rows: list[dict], selection: dict, reviewed: dict) -> str:
+    """Validate a saved effect without renewing the grant that already authorized it.
+
+    load_run verifies every saved evidence object's bytes. This verifies the
+    exact authorization link and witness attribution within that verified log.
+    """
+    chosen = selection['data']['selection']
+    schema_check(chosen, 'selection')
+    if chosen['input_sha256'] != prepared['input_sha256'] or reviewed['sha256'] != chosen['review'] \
+            or reviewed['data']['candidate'] != chosen['candidate']:
+        raise ValueError('selection belongs to another input, candidate or review')
+    authorization = find(rows, 'authorization', chosen['authorization'])
+    request = authorization['data']['request']
+    compare_exact(selection_intent(chosen), {key: request[key] for key in ('operation', 'targets', 'payload')},
+                  phase='selection')
+    if request['actor'] != chosen['selector']:
+        raise ValueError('selector differs from the recorded authorized actor')
+    if authorization['sequence'] >= selection['sequence'] or reviewed['sequence'] >= selection['sequence']:
+        raise ValueError('selection must follow its recorded review and authorization')
+    acceptance = chosen['owner_acceptance']
+    if acceptance is not None:
+        if acceptance['principal'] != authorization['data']['authority']['issuer']:
+            raise ValueError('owner acceptance does not name the recorded authority issuer')
+        _require_owner_witness(acceptance, authorization)
+    return eligible(prepared, reviewed, acceptance)
 
 
 def latest_review(rows: list[dict], candidate: str) -> dict:
@@ -1257,10 +1368,19 @@ def candidate_state(root: Path, run: str, candidate: str, *, loaded: tuple | Non
             disposition_value = 'selected'
     decision_data = decision['data'].get('disposition', decision['data'].get('selection')) if decision else None
     diagnostics = []
+    selection_basis = None
+    owner_acceptance = None
     if disposition_value == 'selected':
         from production_diagnostics import from_exception
+        owner_acceptance = decision_data['owner_acceptance']
+        selection_basis = 'owner-allowance' if owner_acceptance is not None else 'review-pass'
         if latest is None or decision_data['review'] != latest['sha256']:
             diagnostics.append(from_exception(_selection_review_changed(run), phase='selection'))
+        else:
+            try:
+                _recorded_selection_basis(prepared, rows, decision, latest)
+            except (ValueError, KeyError, TypeError) as exc:
+                diagnostics.append(from_exception(exc, phase='selection'))
         if any(row['event'] == 'selection' for row in rows[position + 1:]):
             diagnostics.append(from_exception(ProductionError(
                 'SELECTION_REPLACED', 'A later selection of another candidate replaced this selection.',
@@ -1271,6 +1391,10 @@ def candidate_state(root: Path, run: str, candidate: str, *, loaded: tuple | Non
             'decision': decision['sha256'] if decision else None, 'decision_detail': decision_data,
             'reviewed_at': latest['created_at'] if latest else None,
             'decided_at': decision['created_at'] if decision else None,
+            'selection_basis': selection_basis, 'owner_acceptance': owner_acceptance,
+            'selection_requirements': selection_requirements(prepared, latest) if latest else {
+                'unassessed_hard_criteria': sorted(item['id'] for item in prepared['task']['criteria'] if item['strength'] == 'hard'),
+                'nonpassing_hard_criteria': [], 'unresolved_indices': []},
             'selection_current': not diagnostics if disposition_value == 'selected' else None,
             'selection_diagnostics': diagnostics}
 
@@ -1350,11 +1474,12 @@ def _refresh_studio_projection(root: Path, receipt: dict) -> dict:
 
 
 def draft_selection(root: Path, run: str, candidate: str) -> dict:
-    _, prepared, _, rows = assert_current(root, run)
+    _, prepared, _, rows = load_run(root, run)
     find(rows, 'candidate', candidate)
     reviewed = latest_review(rows, candidate)
     return {'input_sha256': prepared['input_sha256'], 'candidate': candidate, 'review': reviewed['sha256'],
-            'selector': '', 'reason': '', 'scope': 'delivery-only', 'adoption': None, 'authorization': ''}
+            'selector': '', 'reason': '', 'scope': 'delivery-only', 'adoption': None, 'slot': None,
+            'owner_acceptance': None, 'authorization': ''}
 
 
 def selection_intent(selection: dict) -> dict:
@@ -1365,34 +1490,65 @@ def selection_intent(selection: dict) -> dict:
 
 
 def select(root: Path, run: str, selection_file: str) -> dict:
-    with c.lock(root):
-        directory, prepared, _, rows = assert_current(root, run)
+    with store.transaction(root):
+        directory, _, _, _ = load_run(root, run)
         item = file_record(root, directory, selection_file)
         data = c.decode(c.object_read(directory, item['sha256']))
+        return select_value(root, run, data, files=[item])
+
+
+def select_value(root: Path, run: str, data: dict, *, files: list[dict] | None = None) -> dict:
+    """Select an exact reviewed result through either a file or a compact owner decision.
+
+    Existing captured results use their saved input and review. Source freshness
+    remains a boundary for new creative execution, not a reason to regenerate
+    pixels merely to record their selection.
+    """
+    with store.transaction(root):
+        directory, prepared, _, rows = load_run(root, run)
+        data = c.decode(c.encoded(data))
         schema_check(data, 'selection')
         if data['input_sha256'] != prepared['input_sha256']:
             raise ValueError('selection belongs to another input')
         candidate = find(rows, 'candidate', data['candidate'])
         reviewed = latest_review(rows, data['candidate'])
         if reviewed['sha256'] != data['review']:
-            raise ValueError('selection must use the latest review of this candidate')
-        eligible(prepared, reviewed)
+            raise _selection_review_changed(run)
+        eligible(prepared, reviewed, data['owner_acceptance'])
+        previous = [row for row in rows if row['event'] == 'selection' and row['data']['selection'] == data]
+        if previous:
+            selected, _, _ = current_selection(prepared, rows)
+            if selected['sha256'] != previous[-1]['sha256']:
+                raise ProductionError('SELECTION_REPLACED', 'The recorded selection is no longer the current decision.',
+                                      phase='selection', run=run,
+                                      required_action='Record a new exact selection decision before changing the selected result.')
+            return _refresh_studio_projection(root, selected)
         _require_no_other_selection(rows, data['candidate'], run)
         request = _permission(root, prepared, rows, data['authorization'], **selection_intent(data))
         if request['actor'] != data['selector']:
             raise ValueError('selector differs from the authorized actor')
-        files = [item]
+        if files is None:
+            raw = c.encoded(data)
+            key = c.object_store(directory, raw)
+            files = [{'path': f'production/runs/{run}/objects/{key}', 'sha256': key, 'size': len(raw)}]
+        else:
+            files = list(files)
+        effect = {'files': files, 'selection': data, 'authorizations': [data['authorization']]}
         if data['scope'] == 'delivery-only':
             if data['adoption'] is not None:
                 raise ValueError('delivery-only selection cannot claim canonical adoption')
+        elif data['scope'] == 'studio-slot':
+            import production_acceptance
+            production_acceptance.validate_slot(root, run, data['candidate'], data['slot'],
+                                                loaded=(directory, prepared, None, rows))
+            effect['slot_state'] = production_acceptance.slot_state(root, data['slot']['character'], data['slot']['slot'])
         else:
             if data['adoption'] is None:
                 raise ValueError('Studio adoption requires its owned receipt')
             for path in confirm_studio_adoption(root, data['adoption'], candidate['data']['files'][0]['sha256'], rows):
                 files.append(file_record(root, directory, path.relative_to(root).as_posix()))
-        row = lifecycle.commit_effect(root,run,'selection',
-            {'files':files,'selection':data,'authorizations':[data['authorization']]},
-            [data['authorization']],effect='local-action')
+        row = lifecycle.commit_effect(root, run, 'selection', effect,
+                                      [data['authorization']], effect='local-action')
     return _refresh_studio_projection(root, row)
 
 
@@ -1428,7 +1584,11 @@ def current_selection(prepared: dict, rows: list[dict]) -> tuple[dict, dict, dic
     reviewed = latest_review(rows, chosen['candidate'])
     if reviewed['sha256'] != chosen['review']:
         raise _selection_review_changed()
-    eligible(prepared, reviewed)
+    if any(row['event'] == 'disposition' and row['sequence'] > selection['sequence']
+           and row['data']['disposition']['candidate'] == chosen['candidate'] for row in rows):
+        raise ProductionError('SELECTION_WITHDRAWN', 'A later disposition withdrew this selection.', phase='selection',
+                              required_action='Record a new exact selection decision before accepting or completing this result.')
+    _recorded_selection_basis(prepared, rows, selection, reviewed)
     return selection, chosen, reviewed
 
 
@@ -1449,11 +1609,15 @@ def require_selected(prepared: dict, rows: list[dict], candidate: str, *, run: s
 
 def complete(root: Path, run: str) -> dict:
     with c.lock(root):
-        directory, prepared, _, rows = assert_current(root, run)
+        directory, prepared, _, rows = load_run(root, run)
         selection, chosen, reviewed = current_selection(prepared, rows)
         if chosen['scope'] == 'studio-adoption':
             candidate = find(rows, 'candidate', chosen['candidate'])
             confirm_studio_adoption(root, chosen['adoption'], candidate['data']['files'][0]['sha256'], rows)
+        elif chosen['scope'] == 'studio-slot':
+            from production_acceptance import verify_slot
+            verify_slot(root, run, selection, rows=rows,
+                        require_current=not any(row['event'] == 'completion' for row in rows))
         row = append_record(directory, prepared, rows, 'completion',
                             {'selection': selection['sha256'], 'candidate': chosen['candidate'],
                              'scope': chosen['scope'], 'task_id': prepared['task']['task_id'], 'run': run,
@@ -1462,17 +1626,20 @@ def complete(root: Path, run: str) -> dict:
 
 
 def verify_completion(root: Path, run: str, task_id: str) -> dict:
-    _, prepared, _, rows = assert_current(root, run)
+    _, prepared, _, rows = load_run(root, run)
     done = find(rows, 'completion')
     if prepared['task']['task_id'] != task_id or done['data']['task_id'] != task_id or done['data']['run'] != run:
         raise ValueError('completion belongs to another task')
     lifecycle.completion_tail(rows,prepared,run)
     if done['data']['selection'] != find(rows, 'selection')['sha256']:
         raise ValueError('completion is not the terminal selected state')
-    _, selected, reviewed = current_selection(prepared, rows)
+    selection, selected, reviewed = current_selection(prepared, rows)
     if selected['scope'] == 'studio-adoption':
         candidate = find(rows, 'candidate', selected['candidate'])
         confirm_studio_adoption(root, selected['adoption'], candidate['data']['files'][0]['sha256'], rows)
+    elif selected['scope'] == 'studio-slot':
+        from production_acceptance import verify_slot
+        verify_slot(root, run, selection, rows=rows)
     return done
 
 
@@ -1862,15 +2029,13 @@ def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str, ro
 def adoption_intent(root: Path, run: str, candidate: str, character: str, iteration: str,
                     approval: dict, *, registration_record: dict | None = None,
                     pack_dir: Path | None = None) -> dict:
-    _, _, _, rows = assert_current(root, run)
+    _, _, _, rows = load_run(root, run)
     chosen = find(rows, 'candidate', candidate)
     reviewed = latest_review(rows, candidate)
-    from adoption_workflow import validate_approval
-    import studio
-    row = studio._find(studio.read_iterations(studio.character_dir(root, character)), iteration)
-    validate_approval(approval, character, row)
-    if row['result']['sha256'] != chosen['data']['files'][0]['sha256']:
-        raise ValueError('adoption targets a different candidate')
+    from adoption_workflow import preflight
+    preflight(root, character, iteration, approval, expected_production={'run': run, 'candidate': candidate},
+              expected_image=chosen['data']['files'][0]['sha256'],
+              registration_record=registration_record, pack_dir=pack_dir)
     return {'operation': 'adopt', 'targets': ['canon:' + approval['scope']],
             'payload': {'candidate': candidate, 'review': reviewed['sha256'],
                         'character': character, 'iteration': iteration,
@@ -1890,13 +2055,11 @@ def adopt(root: Path, run: str, candidate: str, character: str, iteration: str,
     the claim this operation records before it changes the Studio.
     """
     with c.lock(root):
-        directory, prepared, _, rows = assert_current(root, run)
+        directory, prepared, _, rows = load_run(root, run)
         item = file_record(root, directory, approval_file)
         approval = c.decode(c.object_read(directory, item['sha256']))
         intent = adoption_intent(root, run, candidate, character, iteration, approval,
                                  registration_record=registration_record, pack_dir=pack_dir)
-        reviewed = latest_review(rows, candidate)
-        eligible(prepared, reviewed)
         require_selected(prepared, rows, candidate, run=run)
         request = _permission(root, prepared, rows, authorization, **intent)
         if request['actor'] != approval['by']:
@@ -1978,6 +2141,8 @@ COMMAND_HELP = {
     'disposition': 'Record an explicit decision that a candidate is not selected.',
     'candidate-status': "Show one candidate's evaluation and disposition.",
     'draft-selection': 'Write the selection form of one reviewed candidate.',
+    'draft-acceptance': 'Write a compact owner decision for an existing reviewed image and its Studio slot.',
+    'accept': 'Record or resume the exact owner decision, Studio slot acceptance and completion.',
     'selection-intent': 'Show the exact selection operation that a selection file needs authorized.',
     'select': 'Record an authorized selection of a reviewed candidate.',
     'revision-intent': 'Show the exact edit operation that a reviewed repair needs authorized.',
@@ -2035,6 +2200,7 @@ OPTION_HELP = {
     ('authorize', 'file'): 'Completed authorization request file, or - for stdin.',
     ('review', 'file'): 'Completed review file from draft-review, or - for stdin.',
     ('select', 'file'): 'Completed selection file from draft-selection, or - for stdin.',
+    ('accept', 'file'): 'Completed owner decision from draft-acceptance, or - for stdin; omit to resume the recorded selection.',
     ('selection-intent', 'file'): 'Completed selection file from draft-selection, or - for stdin.',
     ('disposition', 'file'): 'Completed disposition file from draft-disposition, or - for stdin.',
     ('revise', 'task'): 'Studio-relative revised task JSON file; a file only, not stdin.',
@@ -2070,9 +2236,9 @@ def build_parser():
         if name == 'resume':
             p.add_argument('--outcome-file')
         if name in {'draft-outcome', 'draft-execution', 'logs-export', 'draft-review', 'draft-selection',
-                    'draft-authorization', 'draft-disposition'}:
+                    'draft-authorization', 'draft-disposition', 'draft-acceptance'}:
             p.add_argument('--out', required=True)
-        if name in {'draft-execution', 'draft-authorization'}:
+        if name in {'draft-execution', 'draft-authorization', 'draft-acceptance'}:
             p.add_argument('--grant', required=True)
         if name == 'authority-import':
             p.add_argument('--file', required=True)
@@ -2102,10 +2268,12 @@ def build_parser():
             p.add_argument('--authorization', required=True)
         if name in {'external-intent', 'claim-external'}:
             p.add_argument('--count', type=int, required=True)
-        if name in {'draft-review', 'draft-selection', 'draft-disposition', 'candidate-status', 'revision-intent', 'revise', 'adopt', 'adoption-intent'}:
+        if name in {'draft-review', 'draft-selection', 'draft-acceptance', 'draft-disposition', 'candidate-status', 'revision-intent', 'revise', 'adopt', 'adoption-intent'}:
             p.add_argument('--candidate', required=True)
         if name in {'authorize', 'review', 'select', 'selection-intent', 'disposition'}:
             p.add_argument('--file', required=True)
+        if name == 'accept':
+            p.add_argument('--file')
         if name == 'capture':
             p.add_argument('--artifact', required=True)
             p.add_argument('--note', required=True)
@@ -2305,6 +2473,13 @@ def main() -> int:
             result = selection_intent(c.load(c.local(root, args.file)))
         elif name == 'select':
             result = select(root, args.run, args.file)
+        elif name == 'draft-acceptance':
+            from production_acceptance import draft
+            result = draft(root, args.run, args.candidate, args.grant)
+            _write_new(root, args.out, result)
+        elif name == 'accept':
+            from production_acceptance import accept
+            result = accept(root, args.run, decision_file=args.file)
         elif name == 'revision-intent':
             result = revision_intent(root, args.run, args.task, args.candidate, args.repair)
         elif name == 'revise':

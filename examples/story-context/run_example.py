@@ -135,7 +135,7 @@ def run(out: Path):
     selection['authorization']=authorize(workflow('selection-intent','--file','selection.json'))
     write(out,'selection.json',selection);workflow('select','--file','selection.json');workflow('complete')
     for i in (1,2):work_ledger.step_done(out,i)
-    work_ledger.finish(out)
+    work_ledger.finish(out,rid)
     result=workflow('resume');write(out,'result.json',result)
     return {'ok':result['ok'] and result['runs'][0]['task_disposition']=='completed' and result['runs'][0]['next_action'] is None,'run':rid,'commands':len(log),'fixture_only':True}
 

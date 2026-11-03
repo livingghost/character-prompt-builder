@@ -78,7 +78,7 @@ STATUSES = ("candidate", "accepted", "rejected", "superseded")
 PRODUCTION_STATUSES = ("candidate", "accepted", "superseded", "unavailable")
 # Fields read from the run's records for a Production candidate; they are never stored.
 PRODUCTION_PROJECTION = ("evaluation", "disposition", "unassessed_criteria", "selection_diagnostics", "review_ref",
-                         "decision_kind", "reason", "production_diagnostic")
+                         "decision_kind", "reason", "selection_basis", "owner_acceptance", "production_diagnostic")
 INIT_ARGUMENTS = ("init", "--out", "<dir>", "--studio-id", "<id>", "--title", "<title>")
 
 README = {
@@ -299,6 +299,9 @@ def project_iterations(home: Path, rows: list[dict[str, Any]]) -> list[dict[str,
             row["decision_kind"] = None if decision is None else (
                 "selection" if projected["disposition"] == "selected" else "disposition")
             row["reason"] = decision.get("reason") if decision else None
+            row["selection_basis"] = projected.get("selection_basis")
+            row["owner_acceptance"] = (decision.get("owner_acceptance")
+                                       if decision and projected["disposition"] == "selected" else None)
         except (ValueError, OSError, KeyError, TypeError) as exc:
             # A broken candidate is visible, not reinterpreted as an imported image.
             from production_diagnostics import from_exception
@@ -585,33 +588,98 @@ def _find(rows: list[dict[str, Any]], iteration_id: str) -> dict[str, Any]:
     return found
 
 
-def accept(root: Path, character: str, iteration_id: str) -> dict[str, Any]:
+def accept(root: Path, character: str, iteration_id: str, *, production_selection: str | None = None) -> dict[str, Any]:
+    """Accept an explicitly chosen iteration, or recover one exact Production effect."""
     with recording_lock(root):
-        return _record_accept(root, character, iteration_id)
+        return _record_accept(root, character, iteration_id, production_selection=production_selection)
 
 
-def _record_accept(root: Path, character: str, iteration_id: str) -> dict[str, Any]:
+def acceptance_state(root: Path, character: str, slot: str) -> dict[str, Any] | None:
+    """Identify the recorded current acceptance, independently of an interrupted file copy.
+
+    The receipt guards a replacement. Its retained image and the accepted copy
+    are verified when the effect is applied or confirmed. Reading the ledger
+    here permits recovery after the copy succeeded but its ledger save did not.
+    """
+    rows = read_iterations(character_home(root, character), project=False)
+    accepted = [row for row in rows if row.get('slot') == slot
+                and (row.get('adoption_status') if row.get('production') is not None else row.get('status')) == 'accepted']
+    if len(accepted) > 1:
+        raise ValueError('the Studio records more than one current acceptance for this slot')
+    if not accepted:
+        return None
+    row = accepted[0]
+    if not row.get('result') or not row.get('acceptances'):
+        raise ValueError('the accepted iteration has no retained image or acceptance receipt')
+    return {'iteration_id': row['iteration_id'], 'image_sha256': row['result']['sha256'],
+            'acceptance_sha256': execution_contract.content_id(row['acceptances'][-1])}
+
+
+def verify_accepted_file(root: Path, row: dict[str, Any]) -> None:
+    """Verify that this accepted copy and retained image still have their recorded bytes."""
+    result = row.get('result')
+    if not result or not row.get('accepted_path'):
+        raise ValueError('the accepted iteration has no retained image or accepted path')
+    for relative in (result['path'], row['accepted_path']):
+        actual = sha256_file(execution_contract.local(root, relative))
+        if actual != result['sha256']:
+            raise ValueError('the accepted image differs from its recorded bytes: ' + relative)
+
+
+def _record_accept(root: Path, character: str, iteration_id: str, *,
+                   production_selection: str | None = None) -> dict[str, Any]:
     home = character_home(root, character)
     rows = read_iterations(home)
     row = _find(rows, iteration_id)
     if row.get("production_diagnostic"):
         raise ValueError("The Production candidate cannot be verified; repair its evidence before adoption")
+    selection = None
     if row.get("production") is not None:
         # The Studio accepts the candidate its run currently selects; a selected
         # candidate keeps its selection while the Studio holds it as accepted.
         import production_workflow as workflow
         origin = row["production"]
         _, prepared, _, records = workflow.load_run(root, origin["run"])
-        workflow.require_selected(prepared, records, origin["candidate"], run=origin["run"])
+        selection = workflow.require_selected(prepared, records, origin["candidate"], run=origin["run"])
+    if production_selection is not None:
+        from production_diagnostics import ProductionError
+        if selection is None or selection['sha256'] != production_selection:
+            raise ProductionError('SLOT_ACCEPTANCE_MISMATCH', 'The slot effect differs from the candidate\'s current exact selection.',
+                                  phase='acceptance', expected=production_selection,
+                                  actual=selection['sha256'] if selection else None)
+        saved = [entry for entry in row.get('acceptances', [])
+                 if entry.get('production_selection') == selection['sha256']]
+        if saved:
+            from production_diagnostics import ProductionError
+            expected = {'iteration_id': iteration_id, 'image_sha256': row['result']['sha256'],
+                        'acceptance_sha256': execution_contract.content_id(saved[0])}
+            if len(saved) != 1 or acceptance_state(root, character, row['slot']) != expected:
+                raise ProductionError('SLOT_ACCEPTANCE_CONFLICT', 'A later acceptance replaced this operation.',
+                    phase='acceptance', run=origin['run'],
+                    required_action='Inspect the newer acceptance; retry does not restore an older slot decision.')
+            verify_accepted_file(root, row)
+            return row
+        if selection['data']['selection']['scope'] == 'studio-slot':
+            from production_acceptance import validate_slot
+            from production_diagnostics import ProductionError
+            validate_slot(root, origin['run'], origin['candidate'], selection['data']['selection']['slot'])
+            current = acceptance_state(root, character, row['slot'])
+            if 'slot_state' not in selection['data'] or current != selection['data']['slot_state']:
+                raise ProductionError('SLOT_ACCEPTANCE_CONFLICT', 'The slot changed after this exact selection.',
+                    phase='acceptance', run=origin['run'], expected=selection['data'].get('slot_state'), actual=current,
+                    required_action='Inspect the current slot and record a new explicit selection if replacement is still intended.')
     if row.get("status") == "accepted":
-        raise ValueError(f"{iteration_id} is already accepted")
+        verify_accepted_file(root, row)
+        if production_selection is None:
+            return row
     if row.get("status") == "rejected":
         raise ValueError(f"{iteration_id} was rejected; record a new iteration instead")
     if not row.get("result"):
         raise ValueError(f"{iteration_id} has no result file to accept")
-    source = root / row["result"]["path"]
-    if not source.is_file():
-        raise ValueError(f"the result file of {iteration_id} is missing: {row['result']['path']}")
+    source = execution_contract.local(root, row['result']['path'])
+    image = execution_contract.read(source)
+    if execution_contract.digest(image) != row['result']['sha256']:
+        raise ValueError(f"the result file of {iteration_id} differs from its recorded bytes")
     replaced = None
     for other in rows:
         if other is not row and other.get("slot") == row["slot"] and other.get("status") == "accepted":
@@ -626,11 +694,14 @@ def _record_accept(root: Path, character: str, iteration_id: str) -> dict[str, A
     # its list with what it replaced, so the slot's history is never rewritten.
     row["status"] = "accepted"
     row.pop("superseded_by", None)
-    row["acceptances"] = [*(row.get("acceptances") or []), {"at": now(), "supersedes": replaced}]
+    receipt = {"at": now(), "supersedes": replaced}
+    if production_selection is not None:
+        receipt['production_selection'] = production_selection
+    row["acceptances"] = [*(row.get("acceptances") or []), receipt]
     target = home / "accepted" / f"{row['slot']}{source.suffix}"
     # The new copy is in place before a stale one is removed, so the slot is
     # never without an accepted image.
-    execution_contract.atomic(target, source.read_bytes(), replace=True)
+    execution_contract.atomic(target, image, replace=True)
     # Only the copies of this slot: with slots 'base' and 'base.front' side by
     # side, 'base.front.png' has the stem 'base.front' and is not 'base' output.
     for stale in (home / "accepted").glob(f"{row['slot']}.*"):

@@ -283,17 +283,18 @@ class ProductionTests(unittest.TestCase):
         run,_=self.finish(); self.write('other.txt','Different')
         with self.assertRaises(ValueError): w.capture(self.root,run,'other.txt','new')
     def test_work_flags_alone_not_completion(self):
+        run=self.prepare()
         ledger.step_done(self.root,1); ledger.step_done(self.root,2)
-        with self.assertRaises(ValueError): ledger.finish(self.root)
+        with self.assertRaises(ValueError): ledger.finish(self.root,run)
     def test_complete_then_ledger_close_and_resume(self):
-        run,done=self.finish(); ledger.step_done(self.root,1); ledger.step_done(self.root,2); ledger.finish(self.root)
+        run,done=self.finish(); ledger.step_done(self.root,1); ledger.step_done(self.root,2); ledger.finish(self.root,run)
         self.assertIsNone(ledger.read_current(self.root)); self.assertIsNone(w.status(self.root,run)['runs'][0]['next_action'])
     def test_wrong_task_completion(self):
         run,done=self.finish()
         with self.assertRaises(ValueError): w.verify_completion(self.root,run,'not-the-task')
     def test_unfinished_steps_still_block_finish(self):
-        self.finish()
-        with self.assertRaises(ValueError): ledger.finish(self.root)
+        run,_=self.finish()
+        with self.assertRaises(ValueError): ledger.finish(self.root,run)
     def test_unpublished_staging_has_no_phase_authority(self):
         run=self.prepare()
         pending=self.root/'production/staging/incomplete-operation'
@@ -445,8 +446,8 @@ class ProductionTests(unittest.TestCase):
             if value is None: raise OSError('Synthetic crash before current removal')
             return original(root,value)
         with patch.object(ledger,'write_current',side_effect=crash):
-            with self.assertRaises(OSError): ledger.finish(self.root)
-        ledger.finish(self.root)
+            with self.assertRaises(OSError): ledger.finish(self.root,run)
+        ledger.finish(self.root,run)
         self.assertEqual(len([e for e in ledger.read_ledger(self.root) if e['event']=='finished']),1)
     def test_concurrent_begin_has_one_owner(self):
         ledger.abandon(self.root,'Replace the fixture task.')

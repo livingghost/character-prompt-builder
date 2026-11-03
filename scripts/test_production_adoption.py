@@ -68,10 +68,43 @@ class AdoptionTests(unittest.TestCase):
         self.assertFalse((studio.character_home(self.root,'robot')/'adoptions').exists())
 
     def test_adoption_starts_from_the_current_selection(self):
-        token=self.authorize_adoption()
-        with self.assertRaises(ProductionError) as caught:self.adopt(token)
+        with self.assertRaises(ProductionError) as caught:self.authorize_adoption()
         self.assertEqual(caught.exception.diagnostic.code,'SELECTION_REQUIRED')
         self.assertFalse(any(r['event']=='adoption-claim' for r in store.event_rows(self.root,self.run)))
+
+    def test_owner_accepted_failure_can_be_adopted_under_its_separate_authority(self):
+        review=c.load(self.root/'review.json')
+        review['checks'][0].update(verdict='fail',reason='The synthetic shape differs from the commissioned shape.')
+        review['unresolved']=['The owner must decide whether to use this observed synthetic shape.']
+        f.write(self.root/'failed-review.json',review)
+        recorded=workflow.review(self.root,self.run,'failed-review.json')
+        acceptance={'principal':store.authority(self.root,self.task['task_id'])['issuer'],
+            'evidence':{'path':'adoption-basis.txt','sha256':c.sha256_file(self.root/'adoption-basis.txt'),'locator':'whole'},
+            'criteria':['output'],'unresolved_indices':[0],
+            'reason':'The synthetic owner accepts this reviewed shape for the explicitly approved reference.'}
+        self.select(owner_acceptance=acceptance)
+        token=self.authorize_adoption()
+        self.assertEqual(self.adopt(token)['event'],'adoption-result')
+        self.select(scope='studio-adoption',owner_acceptance=acceptance,
+            adoption={'character':'robot','iteration_id':self.row['iteration_id'],'scope':'sheet'})
+        workflow.complete(self.root,self.run)
+        state=workflow.candidate_state(self.root,self.run,self.candidate)
+        self.assertEqual((state['evaluation'],state['selection_basis']),('nonconforming','owner-allowance'))
+        self.assertEqual(workflow.latest_review(store.event_rows(self.root,self.run),self.candidate),recorded)
+
+    def test_imported_copy_is_diagnosed_before_an_adoption_claim(self):
+        self.select()
+        imported=studio.iterate(self.root,'robot','base.front',self.root/self.row['result']['path'],
+            package=None,request=None,response=None,
+            note='Synthetic external import with identical pixels and distinct ownership.')
+        self.assertIsNone(imported.get('production'))
+        self.assertNotEqual(imported['iteration_id'], self.row['iteration_id'])
+        approval={**self.approval,'iteration_id':imported['iteration_id']}
+        before=store.event_rows(self.root,self.run)
+        with self.assertRaises(ProductionError) as caught:
+            workflow.adoption_intent(self.root,self.run,self.candidate,'robot',imported['iteration_id'],approval)
+        self.assertEqual(caught.exception.diagnostic.code,'ADOPTION_OWNER_MISMATCH')
+        self.assertEqual(store.event_rows(self.root,self.run),before)
 
     def test_separate_authorized_adoption_and_completion(self):
         self.select()

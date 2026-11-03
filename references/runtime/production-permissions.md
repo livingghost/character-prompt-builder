@@ -134,6 +134,32 @@ A review repair binds its changed creative scopes and revised input hash. An
 authority-only update is separate from a creative variant, and a revoked grant
 stops consumption of an edit receipt as `GRANT_REVOKED`.
 
+A new selection of a captured candidate uses its retained preparation, review
+and artifact evidence together with current authority. Completion and recovery
+verify that saved selection, its authorization and required destination evidence.
+They do not renew an already recorded decision or require live creative sources
+to remain at their original paths. Missing or corrupt retained evidence still
+blocks them. New preparation and execution retain their live-source checks.
+
+The selection's nullable `owner_acceptance` records an explicit decision by the
+current authority issuer to use the candidate despite identified assessed
+departures or unresolved matters. Its evidence path, hash and locator identify
+the actual instruction. The host checks that instruction and its scope; an
+agent-filled acceptance form establishes no consent. Every nonpass hard
+criterion and unresolved entry must be covered, and an unassessed hard criterion
+cannot be accepted in place of review. The authorization pins the evidence bytes
+and the complete selection payload, including its candidate, exact review,
+acceptance and destination. Later changes to the live evidence file cannot
+rewrite that saved decision.
+
+A `studio-slot` selection uses the `select` operation and `delivery` target to
+authorize acceptance of the exact recorded iteration for its slot. Its compact
+`draft-acceptance` and `accept` operations derive the formal identifiers and
+record the selection, Studio acceptance and completion separately. The criterion
+definitions remain unchanged, so accepting an assessed departure needs no
+criterion-target amendment. The authority to change criteria or submit another
+request remains separate.
+
 Canonical adoption requires the owner's explicit approval plus its own `adopt`
 authorization. It does not submit an image request. Follow selection, adoption and
 completion in [Production execution](production-execution.md#select-optionally-adopt-and-finish).

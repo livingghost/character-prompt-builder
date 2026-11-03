@@ -67,6 +67,7 @@ def build_index(root: Path) -> dict:
                      'model_record': model, 'dialect': service.get('dialect'), 'at': row.get('at'),
                      'time_basis': 'output-received-or-imported', 'slot': row.get('slot'), 'status': row.get('status'),
                      'production': row.get('production'), 'evaluation': row.get('evaluation'), 'disposition': row.get('disposition'),
+                     'selection_basis': row.get('selection_basis'), 'owner_acceptance': row.get('owner_acceptance'),
                      'unassessed_criteria': row.get('unassessed_criteria'), 'production_diagnostic': row.get('production_diagnostic'),
                      'selection_diagnostics': row.get('selection_diagnostics') or [], 'acceptances': row.get('acceptances') or [],
                      'superseded_by': row.get('superseded_by'), 'service': row.get('service'), 'seed': row.get('seed'),
@@ -103,7 +104,8 @@ def build_index(root: Path) -> dict:
                      'at': item['recorded_at'], 'time_basis': 'artifact-published', 'slot': item['slot'],
                      'status': {'current':'accepted', 'candidate':'candidate', 'history':'superseded'}[item['state']],
                      'sheet_state': item['state'], 'production': origin if origin.get('kind') == 'production' else None,
-                     'evaluation': None, 'disposition': None, 'unassessed_criteria': [], 'selection_diagnostics': [],
+                     'evaluation': None, 'disposition': None, 'selection_basis': None, 'owner_acceptance': None,
+                     'unassessed_criteria': [], 'selection_diagnostics': [],
                      'acceptances': [], 'superseded_by': None, 'service': None, 'model_record': (item.get('recipe') or {}).get('model'),
                      'dialect': None, 'seed': None, 'request_recorded': False, 'prompt_fields_known': False,
                      'settings': item.get('recipe') or {}, 'media': {}, 'result': result,
@@ -214,6 +216,7 @@ def render_entry(entry: dict) -> str:
     judged = " ".join(fact for fact in (
         _fact("evaluation", entry.get("evaluation"), None),
         _fact("disposition", entry.get("disposition"), None),
+        _fact("selection basis", entry.get("selection_basis"), None),
         _fact("unassessed", ", ".join(entry.get("unassessed_criteria") or []), None),
     ) if fact)
     diagnostics = "".join(
@@ -221,6 +224,11 @@ def render_entry(entry: dict) -> str:
         for item in [entry.get("production_diagnostic"), *(entry.get("selection_diagnostics") or []), *(entry.get("diagnostics") or [])] if item)
     reason = (f'<p class="note">{_escape(DECISION_LABELS.get(entry.get("decision_kind"), "reason"))}: '
               f'{_escape(entry.get("reason"))}</p>') if entry.get("reason") else ""
+    allowance = entry.get('owner_acceptance')
+    allowance_detail = ('<details><summary>Owner allowance for this selection</summary>'
+                        '<p>The recorded review remains unchanged.</p><pre>'
+                        + _escape(json.dumps(allowance, ensure_ascii=False, indent=2))
+                        + '</pre></details>') if allowance else ''
     links = []
     for label, key in (('Recorded request', 'request'), ('Recorded response', 'response'),
                        ('Generation package', 'package'), ('Artifact provenance', 'provenance')):
@@ -240,6 +248,7 @@ def render_entry(entry: dict) -> str:
     <table>{settings}{media}</table>
     {('<p class="note">' + _escape(entry.get('note')) + '</p>') if entry.get('note') else ''}
     {reason}
+    {allowance_detail}
     <p class="hash">{_escape(entry.get('result_sha256'))}</p>
     <nav class="evidence">{' | '.join(links)}</nav>
   </div>
@@ -363,7 +372,7 @@ def _card(entry: dict, root: Path, html_path: Path) -> dict:
     service = entry.get('service') or {}
     return {
         'key': key, 'revision': c.content_id(entry), 'entry_id': entry['entry_id'],
-        **{field: entry.get(field) for field in ('character', 'iteration_id', 'slot', 'at', 'status', 'disposition', 'availability', 'evaluation', 'seed')},
+        **{field: entry.get(field) for field in ('character', 'iteration_id', 'slot', 'at', 'status', 'disposition', 'availability', 'evaluation', 'selection_basis', 'seed')},
         'day': utc_day(entry.get('at')), 'model': service.get('model_identifier') or entry.get('model_record'),
         'result': _recorded_href(entry.get('result')), 'detail': prefix + '.html', 'search': prefix + '.search.js',
         'diagnostic_count': len(entry.get('diagnostics') or []) + len(entry.get('selection_diagnostics') or []) + bool(entry.get('production_diagnostic')),

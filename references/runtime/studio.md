@@ -72,11 +72,12 @@ python scripts/studio.py credentials prepare SERVICE --environment LOCAL_API_TOK
 
 Execution reads that variable from its own process when it needs authentication. The JSON records only the name. The Agent checks the same service and target run once the value is available. `set --from-env` instead copies the variable's current value into the service's saved `api_key` field.
 
-For a Runware offering, inspect its service selection and prepare the private input file:
+For a saved-value source, use the offering's selected service ID to inspect the
+configuration and prepare the private input file:
 
 ```bash
-python scripts/studio.py credentials status runware --studio STUDIO
-python scripts/studio.py credentials prepare runware --studio STUDIO
+python scripts/studio.py credentials status SERVICE --studio STUDIO
+python scripts/studio.py credentials prepare SERVICE --studio STUDIO
 ```
 
 The Agent prepares the required service entries before handing the JSON to the owner and pauses its own edits until saving is complete. Give the returned `input.path`, the service name and `input.json_pointer`. The owner fills `api_key` directly under that service name and saves valid JSON. An empty string reports input pending; repeated preparation preserves existing values and environment sources. Saving completes the owner's input step.
@@ -103,11 +104,36 @@ python scripts/work_ledger.py block --studio <dir> "which of the three, or anoth
 python scripts/work_ledger.py show --studio <dir>
 ```
 
-Mark each step as it is done, not at the end. A step that is not written down is a step the next session does again or skips. `finish` refuses while a step is not done, an author question is unresolved, or the current Production run lacks verified completion. `abandon --reason` closes a task that will not be finished; once the task has a prepared production run, it also requires `--actor`. `block` records the question the task waits on, so a session that resumes asks it instead of guessing. `show` prints where the task stands; `studio.py status` prints the same beside every character's slots and candidates, and the scene materials a persona change reaches.
+Mark each step as it is done, not at the end. A step that is not written down is
+a step the next session does again or skips. Close the task by naming its actual
+completed run:
+
+```bash
+python scripts/work_ledger.py finish --studio STUDIO --run RUN
+```
+
+`finish` requires the run explicitly and identifies its owning task. It refuses
+while that task has an unfinished step, an unanswered author question or lacks
+verified completion for the named run. It can close the suspended owning task
+while leaving another active task in place. It marks no unfinished step as done
+and supplies no missing answer. Repeating an already recorded closure returns
+that closure. If work remains, resolve it through the owning task's ordinary
+workflow.
+
+`abandon --reason` closes a task that will not be finished; once the task has a
+prepared production run, it also requires `--actor`. `block` records the question
+the task waits on, so a resumed session asks it instead of guessing. `show`
+prints where the task stands; `studio.py status` prints the same beside every
+character's slots and candidates, and the scene materials a persona change
+reaches.
 
 ### Answers, returning to an earlier step, and temporary task switches
 
-`block` returns a unique `question_id`. Read the actual answer, then record its resolution explicitly; an ordinary `note` is not a resolution. A new question records a revised choice rather than rewriting the first answer.
+`block` returns a unique `question_id`. Read the actual answer and record it with
+`respond` before taking the next action that depends on it. Keep the question,
+answer, speaker and applicable candidate identities together; an ordinary `note`
+does not resolve the question. A revised choice uses a new question rather than
+rewriting the earlier answer.
 
 ```bash
 python scripts/work_ledger.py respond --studio STUDIO --question-id QUESTION_ID --answer "Actual answer" --actor "Actual speaker"
@@ -119,6 +145,14 @@ python scripts/work_ledger.py resume-task --studio STUDIO --task-id PREVIOUS_TAS
 ```
 
 `respond` may additionally bind `--evidence STUDIO_RELATIVE_FILE` and repeated `--candidate ID` values. It records an answer, not generation or adoption approval. `reopen` snapshots the previous revision, including completed steps and linked run, before resetting the chosen and later steps. It neither deletes results nor changes any accepted artwork. `suspend` preserves questions, notes and the next step; only one task is active, and `resume-task` does not implicitly suspend a different task. `show` includes suspended task IDs and open question IDs so the next session need not reconstruct these from chat. Terminal tasks cannot be resumed as active work.
+
+The ledger's `at` records when the entry was written. If an answer is recovered
+later, append its record at the current time and bind the original instruction
+with `--evidence`. Identify the original message or passage, including its source
+timestamp when available, in the answer. Preserve uncertainty when the decision
+time is unavailable; do not backdate the ledger or infer the answer time from a
+later action. The recovered answer remains distinct from any required generation
+or adoption approval.
 
 The prior run in the same explicit production series is still a protected-criteria dependency. Neither reopening a work step nor switching tasks is a means to discard that authority history.
 
@@ -299,7 +333,9 @@ After the synthetic partial-review scenario of `examples/generation/build_exampl
 
 On a Production row, `studio.py reject --actor ACTUAL_DECISION_MAKER --reason REASON` records `not_selected` through the run's disposition.
 It follows the same rules as `production_workflow.py disposition` and writes no rejected flag of its own.
-`studio.py accept` requires the candidate to be its run's current selection, which needs every hard criterion reviewed and passed:
+`studio.py accept` requires the candidate to be its run's current selection.
+Every hard criterion must have a supported pass or an explicit owner acceptance
+of its assessed nonpass; an unassessed hard criterion still needs review:
 
 ```text
 Error: SELECTION_REQUIRED: The candidate is not the current selection of its run.
@@ -318,12 +354,32 @@ A missing or corrupt run marks a candidate row `unavailable` and adds `productio
 
 ### Selection, adoption and withdrawal
 
-A Production candidate becomes the slot's adopted image through `select`, `adoption-intent`, `adopt` and `complete`; the Studio accepts the iteration at `adopt`.
-[Production execution](production-execution.md#select-optionally-adopt-and-finish) gives each step and the rules that withdraw a selection.
+Use Production `draft-acceptance` and `accept` when the owner chooses an existing
+reviewed candidate for its Studio slot. The operation reuses the original run,
+candidate and iteration, records the exact slot decision and completes the run.
+Its `studio-slot` selection and Studio acceptance receipt identify the same
+candidate and destination. Accepted departures remain visible in the review and
+evaluation. No image is imported again, and no new work task is needed.
+
+When the requested result includes sheet or catalog reuse, use Production
+`adoption-intent` and `adopt` under separate approval and authorization before
+completing the run. For imported iterations, the Studio
+owns plain slot acceptance and [Adoption Workflow](adoption-workflow.md) owns
+sheet or catalog binding.
+[Production execution](production-execution.md#select-optionally-adopt-and-finish)
+gives the procedures and the rules that withdraw a selection.
 
 ## Artifact evidence and completion
 
-For a saved deliverable, continue through [Production Execution](production-execution.md). Preserve this document's own interpretation, retrieval, approval and adoption boundaries. Prepare the exact inputs, capture the real output, bind review and selection to it, then complete and close the work task. `scripts/production_workflow.py status`, `impact` and `resume` recheck dependencies and artifact bytes. A progress checkbox, a search hit or a newly created image is not production completion or canonical adoption.
+For a saved deliverable, continue through [Production Execution](production-execution.md).
+New production prepares the exact inputs and captures the real output; choosing
+an existing candidate retains that evidence and follows its acceptance scope.
+Bind review and selection to the candidate, complete the run and close its
+owning work task. `status`, `impact` and `resume` report current dependencies and
+artifact integrity. Selection and completion of retained output use its saved
+evidence. A new selection checks current authority; completion verifies the saved
+decision and its required destination. A progress checkbox, a search hit or a
+newly created image establishes neither completion nor canonical adoption.
 
 
 ## Iteration infrastructure

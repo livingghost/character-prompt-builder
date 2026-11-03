@@ -1,0 +1,67 @@
+{
+  "title": "Existing image acceptance decisions",
+  "description": "Authored selection choices for one retained candidate and review. Actor identities, authority payloads, destination, evidence digests and completion records are derived.",
+  "type": "object",
+  "properties": {
+    "run": {"type": "string", "minLength": 1},
+    "input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "candidate": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "review": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "expected_slot": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "properties": {
+            "iteration_id": {"type": "string", "minLength": 1},
+            "image_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "acceptance_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          },
+          "required": ["iteration_id", "image_sha256", "acceptance_sha256"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "grant": {"type": "string", "minLength": 1},
+    "reason": {"type": "string"},
+    "stop_assessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "clear": {"type": "boolean"},
+          "evidence": {"type": "string"}
+        },
+        "required": ["id", "clear", "evidence"],
+        "additionalProperties": false
+      }
+    },
+    "owner_acceptance": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "properties": {
+            "evidence": {
+              "type": "object",
+              "properties": {
+                "path": {"type": "string", "minLength": 1},
+                "locator": {"type": "string", "minLength": 1}
+              },
+              "required": ["path", "locator"],
+              "additionalProperties": false
+            },
+            "criteria": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+            "unresolved_indices": {"type": "array", "items": {"type": "integer", "minimum": 0}, "uniqueItems": true},
+            "reason": {"type": "string", "minLength": 1}
+          },
+          "required": ["evidence", "criteria", "unresolved_indices", "reason"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "required": ["run", "input_sha256", "candidate", "review", "expected_slot", "grant", "reason", "stop_assessments", "owner_acceptance"],
+  "additionalProperties": false
+}

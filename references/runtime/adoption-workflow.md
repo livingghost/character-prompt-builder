@@ -1,6 +1,15 @@
 # Adoption Workflow
 
-Activate this route when acceptance means "use this as the next reference" or "register this reference for reuse". Plain `studio.py accept` accepts an iteration for its slot and leaves the sheet, catalog and canonical state contracts unchanged. The operator records actual owner consent; the CLI cannot check whether it is truthful.
+Activate this route when acceptance means "use this as the next reference" or
+"register this reference for reuse". Acceptance for a Studio slot leaves the
+sheet, catalog and canonical state contracts unchanged. When the request is
+only to choose an existing Production candidate for its slot, use
+[the compact acceptance operation](production-execution.md#accept-an-existing-candidate-for-its-studio-slot).
+For an externally imported iteration, `studio.py accept` owns that slot decision.
+When the requested result includes sheet or catalog reuse of a Production
+candidate, use its canonical adoption procedure below before completing the run.
+The operator records actual owner consent; the CLI cannot check whether it is
+truthful.
 
 ## Input and scope
 
@@ -9,6 +18,12 @@ Use `python scripts/adoption_workflow.py --help` and `adopt --help`. `adoption_w
 ```json
 {"ok": false, "errors": ["it-0001 is a Production candidate; adopt it with production_workflow.py adopt under its own adopt authorization"]}
 ```
+
+An externally imported iteration uses this workflow for sheet or catalog
+adoption. Production `adoption-intent` diagnoses that ownership before recording
+an adoption claim. Inspect the iteration's actual provenance and choose its
+owner; a Production candidate retains its original run and iteration through
+acceptance and adoption.
 
 Inputs are an existing Studio character, an iteration recorded with its source image and committed Generation Package, and a JSON approval. Record a missing package before adoption; file presence is not provenance. The approval contains exactly these required fields:
 
@@ -120,4 +135,10 @@ Run `python scripts/feature_workflow_smoke_test.py`. It covers:
 
 ## Artifact evidence and completion
 
-For a saved deliverable, continue through [Production Execution](production-execution.md), preserving this document's interpretation, retrieval, approval and adoption boundaries. Prepare the exact inputs, capture the real output, bind review and selection to it, then complete and close the work task. `scripts/production_workflow.py status`, `impact` and `resume` recheck dependencies and artifact bytes. A progress checkbox, a search hit or a newly created image is not production completion or canonical adoption.
+Production candidates retain their original run, capture and review through
+acceptance and adoption. Complete the selected scope through
+[Production Execution](production-execution.md), then close that run's owning
+work task. An imported iteration retains its imported provenance and follows
+this workflow's durable adoption journal. Preserve the interpretation, approval
+and scope boundaries above. A progress checkbox, a search hit or the presence of
+an image establishes neither completed adoption nor approval to reuse it.

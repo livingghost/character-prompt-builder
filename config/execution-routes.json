@@ -748,7 +748,9 @@
     "scripts/pack_selector_smoke_test.py",
     "scripts/state_ledger_smoke_test.py",
     "scripts/story_timeline_smoke_test.py",
-    "scripts/story_flow_smoke_test.py"
+    "scripts/story_flow_smoke_test.py",
+    "scripts/test_production_owner_acceptance.py",
+    "scripts/test_production_acceptance.py"
   ],
   "operations": {
     "authorize": {
@@ -956,6 +958,16 @@
       "owner": "scripts/state_protocol.py:main",
       "command": "python scripts/state_protocol.py validate-ledger --help",
       "effect": "validate cross-record references and temporal replay without writing canonical state"
+    },
+    "draft-acceptance": {
+      "owner": "scripts/production_acceptance.py:draft",
+      "command": "python scripts/production_workflow.py draft-acceptance --help",
+      "effect": "write compact choices pinned to an existing candidate, review and Studio slot state without deciding acceptance"
+    },
+    "accept": {
+      "owner": "scripts/production_acceptance.py:accept",
+      "command": "python scripts/production_workflow.py accept --help",
+      "effect": "record or recover exact selection, Studio slot acceptance and completion of the original run from authored choices"
     }
   }
 }

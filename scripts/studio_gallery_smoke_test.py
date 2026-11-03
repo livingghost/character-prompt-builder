@@ -135,6 +135,28 @@ class GalleryProjectionTests(unittest.TestCase):
         self.assertEqual(snapshot(self.all_projection_files()), before)
         self.assertEqual(c.load(self.html.with_suffix('.json'))['generated_at'], index['generated_at'])
 
+    def test_owner_allowance_keeps_assessment_visible_without_expanding_the_index(self):
+        allowance = {'principal': 'Synthetic owner',
+                     'evidence': {'path': 'owner-note.txt', 'sha256': 'b' * 64, 'locator': 'whole'},
+                     'criteria': ['surface-color'], 'unresolved_indices': [],
+                     'reason': 'The owner accepts the visible color variation <only here>.'}
+        entry = self.entry(1, status='accepted', disposition='selected', evaluation='nonconforming',
+                           selection_basis='owner-allowance', owner_acceptance=allowance)
+        gallery.publish(self.root, projected([entry]))
+        page = gallery.detail_file(self.html, entry['entry_id']).read_text(encoding='utf-8')
+        self.assertIn('<b>evaluation</b> nonconforming', page)
+        self.assertIn('<b>selection basis</b> owner-allowance', page)
+        self.assertIn('The recorded review remains unchanged.', page)
+        self.assertIn('surface-color', page)
+        self.assertIn('&lt;only here&gt;', page)
+        cards = cards_from(self.assets / 'index.js')['cards']
+        self.assertEqual((cards[0]['evaluation'], cards[0]['selection_basis']),
+                         ('nonconforming', 'owner-allowance'))
+        self.assertNotIn('owner_acceptance', cards[0])
+        self.assertNotIn('surface-color', (self.assets / 'index.js').read_text(encoding='utf-8'))
+        searchable = search_document(gallery.detail_file(self.html, entry['entry_id']).with_suffix('.search.js'))[2]
+        self.assertIn(allowance['reason'], searchable)
+
     def test_status_updates_replace_only_the_changed_entry_and_do_not_accumulate_versions(self):
         entries = [self.entry(1), self.entry(2), self.entry(3)]
         gallery.publish(self.root, projected(entries))

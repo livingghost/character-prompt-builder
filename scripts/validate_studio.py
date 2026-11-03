@@ -84,23 +84,59 @@ def check_character_ids(listed: list[Any], on_disk: list[str], errors: list[str]
             errors.append(f"characters {other!r} and {character!r} differ only by case; Windows and macOS keep both in one directory")
 
 
-def check_history(rows: list[dict[str, Any]], character: str, errors: list[str]) -> None:
+def check_history(root: Path, rows: list[dict[str, Any]], character: str, errors: list[str]) -> None:
     """Each acceptance names what it replaced in the same slot; only a superseded row says what replaced it.
 
     Accepting an earlier image again supersedes a later one, so an acceptance
     may name any other iteration of the slot, not only an earlier one.
+    An exact Production receipt also names its saved selection. Its result
+    event may still be pending, and a later selection does not erase history.
     """
+    import execution_contract as contract
+    import production_workflow as workflow
     slots = {str(row.get("iteration_id")): row.get("slot") for row in rows}
+    runs: dict[str, tuple | BaseException] = {}
     for number, row in enumerate(rows, 1):
         label = f"characters/{character}/iterations.jsonl:{number}"
         acceptances = row.get("acceptances")
         if not isinstance(acceptances, list):
             errors.append(f"{label}: acceptances must be a list")
             continue
+        selections: set[str] = set()
         for acceptance in acceptances:
-            if not isinstance(acceptance, dict) or set(acceptance) != {"at", "supersedes"} or not isinstance(acceptance.get("at"), str):
-                errors.append(f"{label}: an acceptance must carry exactly at and supersedes")
+            if not isinstance(acceptance, dict) or set(acceptance) not in (
+                    {"at", "supersedes"}, {"at", "supersedes", "production_selection"}) \
+                    or not isinstance(acceptance.get("at"), str):
+                errors.append(f"{label}: an acceptance needs at and supersedes, with an optional exact production_selection")
                 continue
+            if 'production_selection' in acceptance:
+                try:
+                    selection_id = contract.sha(acceptance['production_selection'])
+                    origin = row.get('production')
+                    if not isinstance(origin, dict) or set(origin) != {'run', 'candidate'}:
+                        raise ValueError('production_selection requires the iteration\'s actual Production origin')
+                    if selection_id in selections:
+                        raise ValueError('the same Production selection has more than one acceptance receipt')
+                    selections.add(selection_id)
+                    if origin['run'] not in runs:
+                        try:
+                            runs[origin['run']] = workflow.load_run(root, origin['run'])
+                        except (ValueError, OSError, KeyError, TypeError) as exc:
+                            runs[origin['run']] = exc
+                    loaded = runs[origin['run']]
+                    if isinstance(loaded, BaseException):
+                        raise loaded
+                    events = loaded[3]
+                    selected = workflow.find(events, 'selection', selection_id)['data']['selection']
+                    candidate = workflow.find(events, 'candidate', origin['candidate'])
+                    if selected['candidate'] != origin['candidate'] \
+                            or candidate['data']['files'][0]['sha256'] != row['result']['sha256']:
+                        raise ValueError('production_selection does not belong to this iteration\'s candidate and image')
+                    target = {'character': character, 'iteration_id': row['iteration_id'], 'slot': row['slot']}
+                    if selected['slot'] is not None and selected['slot'] != target:
+                        raise ValueError('production_selection names another Studio destination')
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    errors.append(f'{label}: invalid Production acceptance receipt: {exc}')
             replaced = acceptance["supersedes"]
             if replaced is not None and (replaced == row.get("iteration_id") or slots.get(str(replaced)) != row.get("slot")):
                 errors.append(f"{label}: supersedes {replaced!r}, which is not another iteration of slot {row.get('slot')!r}")
@@ -271,7 +307,7 @@ def validate(root: Path) -> list[str]:
                     errors.append(f"{label}: the copy under accepted/ differs from the result")
         if len(ids) != len(set(ids)):
             errors.append(f"characters/{character}/iterations.jsonl: an iteration id repeats")
-        check_history(rows, character, errors)
+        check_history(root, rows, character, errors)
     errors.extend(unshown_candidates(root, set(listed), shown))
     from adoption_workflow import reference_index
     for character in on_disk:

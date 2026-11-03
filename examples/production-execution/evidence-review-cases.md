@@ -264,6 +264,41 @@ case 8, the conflicting state is explicitly fixed here. A decision is necessary
 for this case; it does not create an approval requirement for ordinary camera
 or layout choices.
 
+## 11. Owner acceptance preserves an observed departure
+
+**Contract.** An instruction card requires exactly four nested border lines.
+The card's text, ink colors and border count are hard criteria.
+
+**Hypothetical review.** The actual image, inspected at a scale that resolves the
+border, has three separate lines. The text and color criteria have supported
+passes; `border-count` is `fail`. The review's sole unresolved entry asks whether
+the three-line border is acceptable for this card. Its evaluation is
+`nonconforming`.
+
+**Owner decision.** The owner explicitly chooses this candidate for the card's
+Studio slot, accepting the three-line border for this result. The operator
+locates that actual instruction and uses the existing run and recorded iteration.
+The compact acceptance's authored portion could be (synthetic excerpt; the
+named evidence file stands for the actual instruction in a real task):
+
+```json
+{
+  "evidence": {"path": "decisions/card-choice.txt", "locator": "owner's card selection"},
+  "criteria": ["border-count"],
+  "unresolved_indices": [0],
+  "reason": "The owner accepts this candidate's three-line border for the instruction card."
+}
+```
+
+**Supported outcome.** The formal selection binds that acceptance to the exact
+candidate, review and slot. The Studio accepts the existing iteration and the
+run completes. The review still says `fail`, and the evaluation still says
+`nonconforming`; acceptance records the owner's use decision. The four-line
+requirement remains unchanged for future work. If a hard criterion had not been
+inspected, the owner decision would not supply its missing review. If the
+instruction accepted only a color difference, it would not settle this border
+finding. An acceptance decision is not evidence of a repaired image.
+
 ## Apply the cases to an actual review
 
 For a competing-realization review, follow the
@@ -289,8 +324,10 @@ first reading. If one production context performs both roles, record author
 self-review and the limitation; do not call it independent or a blind study.
 
 Use `pass`, `fail`, `indeterminate`, `not-assessed` and `not-applicable` for
-their existing meanings. An inconclusive hard criterion cannot support
-selection. Link each failure to the responsible repair or an unresolved issue.
+their existing meanings. An inconclusive hard criterion supplies no pass; using
+that candidate requires the owner's explicit acceptance of the uncertainty.
+An unassessed hard criterion still needs review. Link each failure to the
+responsible repair or an unresolved issue.
 A repair addresses the requirement, construction, presentation, rendition,
 reference, realization or execution layer implicated by the evidence. Preserve
 the previous candidate and review, and follow ordinary task and authorization
