@@ -300,7 +300,8 @@ def _storage_response(request: dict, status: int, body: bytes) -> tuple[dict, di
         valid_id = isinstance(identifier, str) and uuid.UUID(identifier).version == 4
     except ValueError:
         valid_id = False
-    if (not valid_id or entry.get('taskType') != 'mediaStorage' or entry.get('operation') != operation
+    if (not valid_id or entry.get('taskType') != 'mediaStorage'
+            or (entry.get('operation') is not None and entry.get('operation') != operation)
             or (operation == 'delete' and identifier != request['media'])):
         raise Indeterminate('the storage response does not identify the requested operation', status=status, body=body)
     return answer, entry

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026.11.03.4
+
+- Accept Runware storage responses without an `operation` field when the task
+  UUID and media identity match. Stored-byte checks and deletion recovery stay
+  unchanged.
+
 ## 2026.11.03.3
 
 - Keep the common environment independent of service SDKs. The HTTP adapters

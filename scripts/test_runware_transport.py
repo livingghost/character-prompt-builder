@@ -133,6 +133,17 @@ class StorageHTTPTests(unittest.TestCase):
         self.response = lambda request: accepted(request, cost=None)
         self.assertIsNone(self.upload()['usage'])
 
+    def test_absent_operation_echo_remains_matched_by_task_uuid(self):
+        def without_echo(request):
+            entry = accepted(request)['data'][0]
+            del entry['operation']
+            return {'data': [entry]}
+        self.response = without_echo
+        self.assertEqual(self.upload()['provider_id'], MEDIA_UUID)
+        request = transport.prepare_delete(MEDIA_UUID, SERVICE)
+        result = transport.send_delete(request, SERVICE, 'synthetic-selected-key', provider_id=MEDIA_UUID)
+        self.assertEqual(result['response']['data'][0]['mediaUUID'], MEDIA_UUID)
+
     def test_provider_refusal_retains_complete_actual_answer(self):
         answer = {'errors': [{'code': 'invalidMedia', 'message': 'Synthetic refusal',
                               'details': {'preserve': 'provider fields'}}]}

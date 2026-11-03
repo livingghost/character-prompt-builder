@@ -1,6 +1,6 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.11.03.3",
+  "version": "2026.11.03.4",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
   "generated_at": "2026-11-03",
@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1029,
-  "total_bytes_excluding_manifest": 18170358,
+  "total_bytes_excluding_manifest": 18171183,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -97,12 +97,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "1953edc8c1ee4baedb95abaf7ebb75f4b8f38d7727f6a94dfc716f37a6ef1f0a"
+      "sha256": "cbb0511a7684229323bccf3de26e5a8c3af58a3019faac7bd0c7dd5b76bf0eae"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "22126b45c337a89163e3e6044aae99660b9dd7726738b203baddcaef2b1865d6"
+      "sha256": "6f2be315ca086536737adf3c80321b2ac40c08112df636b6a5573e1c45d22dcd"
     },
     {
       "path": ".python-version",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 70750,
-      "sha256": "ebb9a94513146abb440bb6e8b15ac4b507b430685abd3c207ed92783e9412a33"
+      "bytes": 70938,
+      "sha256": "d3b2c25f3a71dc5a17a0d01de43dc3fc3e53230b16526a30748370d96bd6f8db"
     },
     {
       "path": "CLAUDE.md",
@@ -1172,12 +1172,12 @@
     {
       "path": "examples/state-aware-pilot/generated/generation-package-verification.json",
       "bytes": 159290,
-      "sha256": "5e1e806b519eabb0ce43a830badabb3ba8a93d547cd1cac7f2ebec64d4081c63"
+      "sha256": "227da4813348841f35dc816b28bdfc7bbd51d3477a015c60c0ff3319774a7f66"
     },
     {
       "path": "examples/state-aware-pilot/generated/generation-package.json",
       "bytes": 447405,
-      "sha256": "98b9dad58d27779c02cefd36b62a06a615431a881109ae2d3972f239a97bdaf7"
+      "sha256": "cf8e3290f7bd9ab62a4c92025cadeb76cb64650b00b46b14c0e79ffb2fa45c28"
     },
     {
       "path": "examples/state-aware-pilot/generated/integrated-prompt.txt",
@@ -1247,7 +1247,7 @@
     {
       "path": "examples/state-aware-pilot/generated/request-validation.json",
       "bytes": 979,
-      "sha256": "c0320ca4cf0e23219e7a66aeb1ca23b612698d38aa0d69df2bed89173006bb3d"
+      "sha256": "f7dc5ad9bd537cd9493b91bac36b737844478c307922b22d3511cccfd0e5a9a2"
     },
     {
       "path": "examples/state-aware-pilot/generated/route-reading.json",
@@ -1275,34 +1275,34 @@
       "sha256": "f9faf83b7c6079161bb4fbc08238020787d7712a4a34e37c81fdc37991269a31"
     },
     {
-      "path": "examples/state-aware-pilot/generated/synthetic-validation/49f93f4a199bed7a/acquisition.json",
+      "path": "examples/state-aware-pilot/generated/synthetic-validation/82dd11f2fad14ba9/acquisition.json",
       "bytes": 474,
-      "sha256": "1512255d63ecf88f6f8e60778cc06eacf15fa5b05fe99ad97aa0797f302d476b"
+      "sha256": "e1ca875c0b042180d13338e619da83f5dd7ed58f4ca3fdef940e3811dfa903f5"
     },
     {
-      "path": "examples/state-aware-pilot/generated/synthetic-validation/49f93f4a199bed7a/basis.txt",
+      "path": "examples/state-aware-pilot/generated/synthetic-validation/82dd11f2fad14ba9/basis.txt",
       "bytes": 60,
       "sha256": "424db1c13f6c398026a9d9ae39d4e8f294e1274d4e2d1dec1ab501e7d61e06c5"
     },
     {
-      "path": "examples/state-aware-pilot/generated/synthetic-validation/49f93f4a199bed7a/contract.json",
+      "path": "examples/state-aware-pilot/generated/synthetic-validation/82dd11f2fad14ba9/contract.json",
       "bytes": 304,
       "sha256": "cdd7df03e86e1987057c723ddd339a0cf6e6399f23d1a4e09c0b82f66e07c2b4"
     },
     {
-      "path": "examples/state-aware-pilot/generated/synthetic-validation/49f93f4a199bed7a/interface.json",
+      "path": "examples/state-aware-pilot/generated/synthetic-validation/82dd11f2fad14ba9/interface.json",
       "bytes": 46,
       "sha256": "7b50f30c091912aa58b21abb418b6352a8164fc5d12d27507ab7b28174bccae8"
     },
     {
-      "path": "examples/state-aware-pilot/generated/synthetic-validation/49f93f4a199bed7a/policy.json",
+      "path": "examples/state-aware-pilot/generated/synthetic-validation/82dd11f2fad14ba9/policy.json",
       "bytes": 549,
-      "sha256": "3e3c86d9e14551a29f7fe363a4d9b55f64406074f221637f3838363af28bd134"
+      "sha256": "c553e0bf888dae838ed0e4d7a69c22bdc7fae25081bb53f7258cbcbfbb08e470"
     },
     {
-      "path": "examples/state-aware-pilot/generated/synthetic-validation/49f93f4a199bed7a/references.json",
+      "path": "examples/state-aware-pilot/generated/synthetic-validation/82dd11f2fad14ba9/references.json",
       "bytes": 380,
-      "sha256": "971d623ee1308a1329967d2b749c197c6867ecf208d2649bf0bbd68730f376da"
+      "sha256": "1407021d187a3e3a5a07ba68db57a1ee75cdfdad9de34bcda77b277b89b5b171"
     },
     {
       "path": "examples/state-aware-pilot/generated/visual-continuity.json",
@@ -1472,7 +1472,7 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2115,
-      "sha256": "a52ca76102bb9aee2fed9af9cddc67418cdc311f03bd6bf3ebc6078fe238d815"
+      "sha256": "1a9ca32ae7a92b17a1c914cc135bef0b954930f3b57e9c05a1ef72562e4dc837"
     },
     {
       "path": "packs/commons/pack.json",
@@ -2292,7 +2292,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 824,
-      "sha256": "4adefad23d5f018335425802dd387a018e3b049f78d619516a15e31a3918af58"
+      "sha256": "58b629f7df65dcdbf763a133e58f1e3241856abda2a9213a630617f5b1d455c7"
     },
     {
       "path": "references/adapters/gpt-image.md",
@@ -4776,8 +4776,8 @@
     },
     {
       "path": "scripts/test_runware_transport.py",
-      "bytes": 14262,
-      "sha256": "c2b9fbc435f155bc5436b1be0bdffae6d75e514145038f28d1d8e978a960d00d"
+      "bytes": 14846,
+      "sha256": "84c5caefbde272fe12e3e789efb1247b592b784d8ce613e3c4ea8d03b7b15fc9"
     },
     {
       "path": "scripts/test_upload_sources.py",
@@ -4801,8 +4801,8 @@
     },
     {
       "path": "scripts/transport_runware.py",
-      "bytes": 22472,
-      "sha256": "05179a591ea899f99ab9f0095a0da71b7746c92f16396b0370a1c3949f681486"
+      "bytes": 22525,
+      "sha256": "185bb484e109d7eaeb6cfe70d28c243dd00e328ed7549c1de3627dd290c486fb"
     },
     {
       "path": "scripts/transport_synthetic.py",
@@ -5227,7 +5227,7 @@
     {
       "path": "uv.lock",
       "bytes": 113757,
-      "sha256": "884b56477f4018887910a4ec99dac1a4430e71cd1952c36ca8818bdd1fc8475b"
+      "sha256": "b20171b11decc0de20442f954f0937ee80c5dc7a0a5aa56899c627178bb8ce12"
     }
   ]
 }
