@@ -362,7 +362,7 @@
     "scripts/prepare_generation_references.py": "aa499b3fcfed5d6122951c59030e56c1f6e169bb7de3ab2c0b5bc8afe3bfa9f5",
     "scripts/private_state.py": "1c9e0e8d9a38e58dfdb94bbaca6f986b641c79448cc03ee2a6faa7ab31151812",
     "scripts/production_acceptance.py": "7556d1c2137121dbd93d93e9def7473a0e1d0a835a3380520eaafcb0558ff3de",
-    "scripts/production_authoring_state.py": "96304c666509a083eee42aa716e9f8e8b32bd0f5a054b31906f95b3b5f69eb0c",
+    "scripts/production_authoring_state.py": "c662aeb02961f83e6febe6e6b66de71591866fca8c9da0f4a409239bd4fd8c7e",
     "scripts/production_binding.py": "0bc3b4c9f3970ffda3763bff1d3701d655c2f227d8380e501a1e0bdcfc034d9f",
     "scripts/production_cleanup.py": "abfd41eea6c60cc2384b333dd81c4f0cf0a2e529795a0d921baab0bac5a648b7",
     "scripts/production_compiler.py": "3a58e11beff1d265899720a6a9f5d786835c50e176f48828ed41503a27bd1e43",

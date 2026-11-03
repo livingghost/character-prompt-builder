@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1029,
-  "total_bytes_excluding_manifest": 18168925,
+  "total_bytes_excluding_manifest": 18170358,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -172,7 +172,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 29489,
-      "sha256": "bd4116dd23ed08891df588b466fc37b96e6ebd79f1b23ac9dbefd9541320c4f7"
+      "sha256": "2a8f9332c2267e2f3f88c11ecdccd8ff6f040d10fcd7dd63214077bb02906c02"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -3886,8 +3886,8 @@
     },
     {
       "path": "scripts/production_authoring_state.py",
-      "bytes": 23337,
-      "sha256": "96304c666509a083eee42aa716e9f8e8b32bd0f5a054b31906f95b3b5f69eb0c"
+      "bytes": 23783,
+      "sha256": "c662aeb02961f83e6febe6e6b66de71591866fca8c9da0f4a409239bd4fd8c7e"
     },
     {
       "path": "scripts/production_binding.py",
@@ -3921,8 +3921,8 @@
     },
     {
       "path": "scripts/production_direction_smoke_test.py",
-      "bytes": 63209,
-      "sha256": "ecf91d589ecb1d414d0cdab24678f44806291ffa5d10cf4f52d73a160a8ef565"
+      "bytes": 63221,
+      "sha256": "4e0185b940334dd85c4ec426751b129c5cd0c592efc04b7f0ffbcce32b3b2059"
     },
     {
       "path": "scripts/production_evidence.py",
@@ -3961,8 +3961,8 @@
     },
     {
       "path": "scripts/production_inputs_smoke_test.py",
-      "bytes": 43789,
-      "sha256": "8bc1db3e05d140f5c7769a409d7a1168e2c7af01a7ace78f83e7f02bc74db9e0"
+      "bytes": 44764,
+      "sha256": "54c72252790ea23f36e1b6a64d38e25236461cd348b2c780dbb4e6dec64fbb6f"
     },
     {
       "path": "scripts/production_permissions.py",

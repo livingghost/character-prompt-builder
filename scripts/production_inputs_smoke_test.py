@@ -644,6 +644,20 @@ class AuthoringRecoveryTests(unittest.TestCase):
                          ('task.json', 1, 'not-rechecked'))
         self.assertNotIn('execution_ready', saved)
 
+    def test_runtime_basis_uses_resolved_paths_without_changing_the_saved_selection(self):
+        from production_authoring_state import _runtime_basis
+        runtime = {'state-file': str(self.root / 'runtime/state.json'),
+                   'cache-dir': str(self.root / 'runtime/cache'),
+                   'managed-root': str(self.root / 'runtime/managed'),
+                   'pack-root': [str(self.root / 'runtime/pack')]}
+        self.assertEqual(_runtime_basis(runtime), {
+            'state-file': str((self.root / 'runtime/state.json').resolve()),
+            'cache-dir': str((self.root / 'runtime/cache').resolve()),
+            'managed-root': str((self.root / 'runtime/managed').resolve()),
+            'pack-root': [str((self.root / 'runtime/pack').resolve())]})
+        self.assertEqual(runtime['state-file'], str(self.root / 'runtime/state.json'))
+        self.assertIsNone(_runtime_basis(None))
+
     def test_complete_choices_emit_build_and_prepare_with_the_saved_runtime(self):
         runtime = {'state-file': str(self.root / 'runtime/state.json'),
                    'cache-dir': str(self.root / 'runtime/cache'),
@@ -662,7 +676,8 @@ class AuthoringRecoveryTests(unittest.TestCase):
         prepare = state['next_actions'][0]
         self.assertEqual(prepare['command'], 'prepare')
         for key in ('state-file', 'cache-dir', 'managed-root'):
-            self.assertEqual(prepare['argv'][prepare['argv'].index('--' + key) + 1], runtime[key])
+            self.assertEqual(Path(prepare['argv'][prepare['argv'].index('--' + key) + 1]).resolve(),
+                             Path(runtime[key]).resolve())
 
     def test_unpublished_attempt_accepts_corrected_choices_and_preserves_existing_outputs(self):
         incomplete = self.root / 'incomplete.json'

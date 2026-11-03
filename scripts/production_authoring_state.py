@@ -90,6 +90,19 @@ def _arguments(values: dict) -> list[str]:
             for part in ('--' + name, str(item))]
 
 
+def _runtime_basis(values: dict | None) -> dict | None:
+    if values is None:
+        return None
+    result = {}
+    for name, value in values.items():
+        if name in {'state-file', 'cache-dir', 'managed-root'}:
+            value = str(Path(value).resolve())
+        elif name == 'pack-root':
+            value = [str(Path(item).resolve()) for item in value]
+        result[name] = value
+    return result
+
+
 def _scope(task: dict) -> dict:
     import execution_routes
     resolved = execution_routes.resolve(task['route'], task['features'])
@@ -155,7 +168,7 @@ def _input(root: Path, row: dict) -> dict:
                       route_scope=_scope(task), task_sha256=c.content_id(task),
                       assembly_basis={'task': report['derived_from']['task'],
                                       'choices': report['derived_from']['choices'],
-                                      'runtime_arguments': details['runtime_arguments']},
+                                      'runtime_arguments': _runtime_basis(details['runtime_arguments'])},
                       assessment_required=report.get('assessment_required', []))
         selected = next((action for action in report['next_actions'] if action['operation'] == 'prepare'), None)
         if selected is None:
@@ -199,7 +212,7 @@ def _input(root: Path, row: dict) -> dict:
             result['route_scope'] = _scope(chosen)
         result['assembly_basis'] = {'task': task_basis,
             'choices': {'path': result['choices'], 'sha256': c.sha256_file(choices)},
-            'runtime_arguments': details['runtime_arguments']}
+            'runtime_arguments': _runtime_basis(details['runtime_arguments'])}
         result['next_actions'] = [{'command': 'edit-choices', 'path': str(choices),
                                   'reason': 'Continue the saved choices and assess their declared applications.'}]
         if not result['unresolved'] and result['source_available']:

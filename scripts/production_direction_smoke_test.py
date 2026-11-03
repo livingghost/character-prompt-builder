@@ -451,7 +451,7 @@ class LifecycleTests(unittest.TestCase):
                 self.assertTrue(row['pointer'].startswith('$'))
                 self.assertEqual(row['guidance']['schema'], 'protocols/shared-state/schemas/production-spec.schema.json')
                 action = row['guidance']['validation']
-                self.assertIn(str(self.root / path), action['argv'])
+                self.assertIn(str((self.root / path).resolve()), action['argv'])
                 self.assertEqual(action['argv'][-1], '--require-content')
         camera = next(row for row in report['diagnostics'] if row['file'] == 'first-spec.json'
                       and row['pointer'] == '$.camera' and row['code'] == 'INPUT_SCHEMA_INVALID')
