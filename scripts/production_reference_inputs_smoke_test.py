@@ -157,7 +157,7 @@ class ReferenceInputTests(unittest.TestCase):
         selected = edited['additional_references'][0]
         self.assertNotIn('sha256', selected['source'])
         self.assertNotIn('media_type', selected['source'])
-        self.assertEqual(edited['source_files'][str(self.root / 'image-0.png')]['sha256'],
+        self.assertEqual(edited['source_files'][str((self.root / 'image-0.png').resolve())]['sha256'],
                          original['selected_references'][0]['source']['sha256'])
         selected['source']['resolved_path'] = 'image-1.png'
         result = self.build(edited, 'replaced')

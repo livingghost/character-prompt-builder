@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1036,
-  "total_bytes_excluding_manifest": 18406623,
+  "total_bytes_excluding_manifest": 18406659,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -4006,8 +4006,8 @@
     },
     {
       "path": "scripts/production_reference_inputs_smoke_test.py",
-      "bytes": 29209,
-      "sha256": "56343f236ef554082ef6f89552d763a6798c5fa270edcd6fdd314127774f7e1b"
+      "bytes": 29221,
+      "sha256": "f479a40412c0c4f63d953515b5a4bf685a2cd69577377bed58d65fd0fc368ec4"
     },
     {
       "path": "scripts/production_request.py",
@@ -4016,8 +4016,8 @@
     },
     {
       "path": "scripts/production_resume_smoke_test.py",
-      "bytes": 30078,
-      "sha256": "e9190f68a5337fa9ae208f3ea40927a982233c08d212ce7033082f5779575a96"
+      "bytes": 30102,
+      "sha256": "b7bed1562dd109d0dc1efcf89bbc2b362b53a201e055e89e71507f498bb9cdca"
     },
     {
       "path": "scripts/production_series_smoke_test.py",

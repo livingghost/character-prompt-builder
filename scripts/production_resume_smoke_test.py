@@ -318,7 +318,7 @@ class AuthoringContinuationTests(unittest.TestCase):
         self.assertEqual(context['input']['choices'], self.choices)
         self.assertEqual(context['input']['task_content']['criteria'], self.task['criteria'])
         source = next(item for item in context['input']['sources'] if item['id'] == 'brief')
-        self.assertEqual(source['current_file'], str(self.root / 'brief.txt'))
+        self.assertEqual(source['current_file'], str((self.root / 'brief.txt').resolve()))
         self.assertTrue(source['current_available'])
 
     def test_reediting_built_choices_returns_to_authoring_and_keeps_the_prepared_run(self):
@@ -363,7 +363,7 @@ class AuthoringContinuationTests(unittest.TestCase):
         current = report['current_task']
         self.assertEqual(current['focus'], 'authoring')
         context = current['authoring']['context']['input']
-        self.assertEqual(context['choices_file'], str(self.root / drafted['choices_file']))
+        self.assertEqual(context['choices_file'], str((self.root / drafted['choices_file']).resolve()))
         source = next(item for item in context['sources'] if item['id'] == 'brief')
         self.assertEqual(source['source_run_file']['run'], self.run)
         self.assertTrue(Path(source['source_run_file']['path']).is_file())
