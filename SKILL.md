@@ -17,9 +17,9 @@ Resolve `<skill-root>` to the absolute directory containing this installed `SKIL
 uv run --project <skill-root> --locked python <skill-root>/scripts/check_dependencies.py
 ```
 
-The first invocation synchronizes all locked Python packages. The check also verifies FFmpeg and sheet-font coverage. Complete any reported environment requirement within the existing authority, then rerun the check; [Dependencies](DEPENDENCIES.md) owns the installation details.
+The first invocation synchronizes locked packages. The check also verifies FFmpeg and sheet-font coverage. Complete any reported environment requirement within the existing authority, then rerun the check; [Dependencies](DEPENDENCIES.md) owns the installation details.
 
-For every documented `python scripts/<name>.py ...` command, run `uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...`. Keep the Studio working directory: `--project` selects this skill's environment while script arguments retain their own path meanings. Execute runtime-provided `argv` as given; it retains the running interpreter and absolute script path. Use this same environment for every route, including prompt, narrative, image, sheet and release work.
+For every documented `python scripts/<name>.py ...` command, run `uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...`. Keep the Studio working directory: `--project` selects this skill's environment while script arguments retain their own path meanings. Execute runtime-provided `argv` as given; it retains the running interpreter and absolute script path. Use this same environment for every route, including release work.
 
 ## Core contract
 
@@ -70,7 +70,7 @@ Before prompt, reference, sheet, generation or visual-state series work (not per
 
 ## Artifact-bearing production gate
 
-For saved deliverables, run `python scripts/execution_routes.py read ROUTE --root STUDIO` with applicable `--feature NAME` options. Add `--feature prompt-dialect` with `--model MODEL` for a catalog target or `--dialect ID` for an evidenced family; omit selectors for an unknown target. It prints [Production Execution](references/runtime/production-execution.md), required documents and a reading record. Use `--page-bytes N` for long reads. Execute the complete `continue` action printed in `reading-actions` until `reading-record` appears; `replay` reads a page again. Complete the route; `status` locates saved input drafts and run actions after interruption.
+For saved deliverables, run `python scripts/execution_routes.py read ROUTE --root STUDIO` with applicable `--feature NAME`. For `prompt-dialect`, add `--model MODEL` for a catalog target or `--dialect ID` for an evidenced family; omit selectors for unknown targets. The read delivers complete [Production Execution](references/runtime/production-execution.md) and required documents, including prerequisites, permissions, constraints and exceptions. Pages default to 16,384 source bytes; `--page-bytes N` changes the budget. Execute `continue` in `reading-actions` until `reading-record` appears after all pages; `replay` rereads a page. Complete the route; `status` locates saved drafts and run actions after interruption.
 
 ## Choose a runtime path
 

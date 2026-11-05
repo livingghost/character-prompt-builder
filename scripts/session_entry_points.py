@@ -77,13 +77,20 @@ def authoring_lines(cwd: Path) -> list[str]:
     except Exception as exc:  # noqa: BLE001 - one damaged studio is reported, never raised
         check = shown(python_argv(ROOT / "scripts" / "validate_studio.py", str(root)))
         return [f"The studio at {root} cannot be read: {one_line(exc)}. Check it with: {check}"]
+    pending = False
+    if active:
+        import production_authoring_state
+        report = production_authoring_state.inspect(root, active)
+        pending = report['pending']
+        saved = production_authoring_state.session_lines(root, active, report=report)
+        if saved:
+            lines.extend(saved)
+        elif not run:
+            lines.append("No prepared run or saved input choices for the open task. Follow Production Execution to prepare exact inputs before delivery.")
     if run:
         command = python_argv(ROOT / "scripts/production_workflow.py", "resume", "--root", str(root), "--run", run)
-        lines.append("Production status: " + shown(command))
-    elif active:
-        import production_authoring_state
-        saved = production_authoring_state.session_lines(root, active)
-        lines.extend(saved or ["No prepared run or saved input choices for the open task. Follow Production Execution to prepare exact inputs before delivery."])
+        label = "Existing production run, using its saved inputs: " if pending else "Production status: "
+        lines.append(label + shown(command))
     return lines
 
 

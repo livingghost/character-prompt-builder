@@ -24,8 +24,23 @@ Judge the final text, applicable negatives, controls and delivered media under
 [Observe and repair](production-direction.md#observe-and-repair). Evaluate what
 their combined depiction provides for the commission. Agreement with chosen
 means alone is insufficient. Retain plot approval and settle retrieval against
-the exact wording for generation preparation. Save prompt, settings, evidence
-and destination in the task's declared inputs.
+the exact wording for generation preparation.
+
+Use `draft-inputs` for the editable production choices, including when starting
+new work. A saved task or run supplies its current content for further editing.
+Keep the prompt, selected direction, independent criteria, controls and
+reference-use choices at their authored locations in that draft. Use
+`build-inputs` to materialize the task and its related files, then prepare the
+task returned by the builder. The builder owns paths, hashes, attachment
+positions and repeated field bindings. Do not repair a generated file to make
+a normal authoring change.
+
+A change can require a new judgment without requiring every source document
+to change. Assess whether the current plot, criteria, investigated knowledge
+and authority still apply. Preserve independent criteria and valid evidence;
+change their owning choices only when their meaning or applicability changes.
+Detailed choices, invocation forms and unresolved fields are described in
+[Assemble authored choices](production-execution.md#assemble-authored-choices).
 
 ## Prepare and execute
 
@@ -37,9 +52,10 @@ Review the actual request and operation targets. Transport changes that affect
 the depiction return to the same judgment in Production direction.
 
 Prepared model work uses one compact `draft-execution` document, actual independent decisions and `execute`. Use the current run's `status.next_action` and its context views when needed; complete the existing draft rather than copying records or managing filenames yourself.
-Before a run exists, `inspect-inputs --root STUDIO` and
+During input authoring, `inspect-inputs --root STUDIO` and
 `status.current_task.authoring` locate the open task's saved choices, input
-files and reading progress. Follow [Resume input authoring](production-execution.md#resume-input-authoring)
+files and reading progress, including newer edits alongside an existing run.
+Follow [Resume input authoring](production-execution.md#resume-input-authoring)
 after interruption, then continue preparation from those inputs.
 [Studio authentication](studio-authentication.md) owns the selected service
 and the owner's chosen source. Prepare its `api_key` field for saved input or
@@ -61,7 +77,11 @@ Keep prompt choice, rendition adherence and observed result distinguishable.
 Use existing review fields for the supported conclusion, meaningful findings,
 input boundary and evidence limits. Inconclusive evidence is `indeterminate`.
 An authorized repair addresses the responsible construction or local defect.
-Dispatcher trials use `variant`, `repeat` or `retarget`; external trials use `draft-inputs --from-run` and `build-inputs` to materialize changed choices into a new task with exact input binding. Edits need semantic plans. Preserve earlier
+Use `draft-inputs --from-run` and `build-inputs` to revise authored content
+through the same editing surface used for its creation. Dispatcher trials also
+support `variant`, `repeat` or `retarget` for their declared operations. External
+trials materialize changed choices into a new task with exact input binding.
+Edits need semantic plans. Preserve earlier
 candidates and reviews.
 
 When the owner chooses an existing reviewed Production image for its Studio

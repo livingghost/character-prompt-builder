@@ -5,6 +5,7 @@ import copy
 import io
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -121,22 +122,70 @@ class ReadingTests(unittest.TestCase):
         path.write_text(json.dumps(filled), encoding="utf-8")
         self.assertEqual(r.write_draft(issued,self.ledger),path)
         self.assertEqual(c.load(path),filled)
-    def test_cli_read_prints_the_draft_path(self):
+    def test_cli_default_pages_complete_bodies_before_issuing_a_draft(self):
         env={k:v for k,v in os.environ.items() if k!='CPB_READS_LEDGER'}
         state=self.root/'runtime'
-        run=subprocess.run([sys.executable,str(r.ROOT/'scripts/execution_routes.py'),'read','development',
-                            '--root',str(self.root),'--state-file',str(state/'state.json'),
-                            '--cache-dir',str(state/'cache'),'--managed-root',str(state/'managed')],
-                           capture_output=True,text=True,encoding='utf-8',env=env,check=False)
-        self.assertEqual(run.returncode,0,run.stdout[-2000:]+run.stderr)
-        last=run.stdout.rstrip().splitlines()[-1]
+        argv=[sys.executable,str(r.ROOT/'scripts/execution_routes.py'),'read','development',
+              '--root',str(self.root),'--state-file',str(state/'state.json'),
+              '--cache-dir',str(state/'cache'),'--managed-root',str(state/'managed')]
+        ledger=self.root/'work/reads.jsonl'
+        delivered={}
+        for page_number in range(64):
+            output=self.cli_read(argv,cwd=self.root,environment=env)
+            page_bytes=0
+            for match in re.finditer(r'^--- (\{[^\n]+\}) ---\n',output,re.MULTILINE):
+                header=json.loads(match.group(1))
+                size=header['end']-header['start']
+                body=output[match.end():].encode('utf-8')[:size]
+                body.decode('utf-8')
+                key=(header['kind'],header['path'])
+                self.assertEqual(len(delivered.get(key,b'')),header['start'])
+                delivered[key]=delivered.get(key,b'')+body
+                page_bytes+=size
+            self.assertLessEqual(page_bytes,r.DEFAULT_PAGE_BYTES)
+            self.assertGreater(page_bytes,0)
+            actions=json.loads(next(line.split(': ',1)[1] for line in output.splitlines()
+                                    if line.startswith('reading-actions: ')))
+            if 'continue' not in actions:
+                break
+            self.assertNotIn('reading-key: ',output)
+            self.assertNotIn('reading-record: ',output)
+            self.assertFalse(ledger.exists())
+            self.assertFalse((self.root/'work/readings').exists())
+            argv=actions['continue']['argv']
+            self.assertEqual(argv[argv.index('--page-bytes')+1],str(r.DEFAULT_PAGE_BYTES))
+        else:
+            self.fail('Default continuation did not finish the route reading')
+        self.assertGreater(page_number,0)
+        last=output.rstrip().splitlines()[-1]
         self.assertTrue(last.startswith('reading-record: work/readings/development-'),last)
         draft=c.load(self.root/last.split(': ',1)[1])
         self.assertEqual((draft['route'],draft['applied'],draft['resource_applied']),('development',[],[]))
-        owner = 'references/runtime/production-workflow.md'
-        body = (r.ROOT / owner).read_bytes()
-        self.assertIn(body.decode('utf-8'), run.stdout)
-        self.assertIn({'path': owner, 'sha256': c.digest(body)}, draft['documents'])
+        for document in draft['documents']:
+            body=(r.ROOT/document['path']).read_bytes()
+            self.assertEqual(delivered[('document',document['path'])],body)
+            self.assertEqual(document['sha256'],c.digest(body))
+        r.require_route_reading(draft,root=r.ROOT,ledgers=[ledger])
+
+    def test_normal_routes_deliver_policy_and_complete_execution_bodies(self):
+        required={'references/runtime/production-workflow.md',
+                  'references/runtime/production-direction.md',
+                  'references/runtime/production-permissions.md',
+                  'references/runtime/production-execution.md'}
+        manifest=c.load(r.ROOT/r.execution_routes.MANIFEST)
+        self.assertTrue(required <= set(manifest['always_read']))
+        _,bodies=r.capture('prompt-only')
+        received={meta['path']:raw for meta,raw in bodies if meta['kind']=='document'}
+        for name in required:
+            self.assertEqual(received[name],(r.ROOT/name).read_bytes())
+        execution=received['references/runtime/production-execution.md'].decode('utf-8')
+        for heading,body in (
+                ('## Digests','Canonical JSON sorts object keys'),
+                ('## Exit codes','Warnings and `CHECK_NOT_PERFORMED` do not choose the status.'),
+                ('### Unpublished staging and interrupted publication','It keeps the current authority and imports no grant from the recovered input.'),
+                ('## Diagnostic codes','`GRANT_SCOPE_EXCEEDED`')):
+            self.assertIn(heading,execution)
+            self.assertIn(body,execution)
 
     def cli_read(self, argv, *, cwd, environment):
         run = subprocess.run(argv, cwd=cwd, env=environment, capture_output=True,
@@ -369,13 +418,19 @@ class ReadingTests(unittest.TestCase):
             r.require_route_reading(universal,root=self.root,ledgers=[self.ledger],dialect=None)
             with self.assertRaisesRegex(ValueError,'read the route again'):
                 r.require_route_reading(universal,root=self.root,ledgers=[self.ledger],dialect='family-a')
+    def read_command_to_completion(self,args,parser):
+        result=r.read_command(args,parser)
+        while 'issued' not in result:
+            args=parser.parse_args(result['actions']['continue']['argv'][3:])
+            result=r.read_command(args,parser)
+        return result
     def test_read_command_without_a_target_selects_neutral_guidance(self):
         import contextlib
         catalog,self.guide=self.family_catalog()
         out=io.StringIO()
         with catalog,patch.dict(os.environ),contextlib.redirect_stdout(out):
             os.environ.pop('CPB_READS_LEDGER',None)
-            r.read_command(*self.read_args('generation'))
+            self.read_command_to_completion(*self.read_args('generation'))
         draft=c.load(self.root/out.getvalue().rstrip().splitlines()[-1].split(': ',1)[1])
         self.assertEqual({x['dialect'] for x in draft['resources'].values()},{None})
         self.assertIn(self.guide['sections'][0]['rules'][0],out.getvalue())
@@ -406,7 +461,7 @@ class ReadingTests(unittest.TestCase):
         with (catalog,patch.object(prepare_generation_references,'resolve_model_record',return_value=record),
               patch.dict(os.environ),contextlib.redirect_stdout(out)):
             os.environ.pop('CPB_READS_LEDGER',None)
-            r.read_command(args,parser)
+            self.read_command_to_completion(args,parser)
         self.assertNotIn(self.guide['sections'][1]['rules'][0],out.getvalue())
         draft=c.load(self.root/out.getvalue().rstrip().splitlines()[-1].split(': ',1)[1])
         self.assertEqual({x['dialect'] for x in draft['resources'].values()},{'family-b'})
@@ -422,9 +477,9 @@ class ReadingTests(unittest.TestCase):
         out=io.StringIO()
         with catalog,patch.dict(os.environ),contextlib.redirect_stdout(out):
             os.environ.pop('CPB_READS_LEDGER',None)
-            r.read_command(*self.read_args('generation','--dialect','family-a'))
+            self.read_command_to_completion(*self.read_args('generation','--dialect','family-a'))
             with self.assertRaisesRegex(ValueError,"unknown dialect 'family-c'; the prompt-dialects resource carries: family-a, family-b"):
-                r.read_command(*self.read_args('generation','--dialect','family-c'))
+                self.read_command_to_completion(*self.read_args('generation','--dialect','family-c'))
         self.assertIn(self.guide['sections'][1]['rules'][0],out.getvalue())
         self.assertNotIn(self.guide['sections'][2]['rules'][0],out.getvalue())
         draft=c.load(self.root/out.getvalue().rstrip().splitlines()[-1].split(': ',1)[1])
@@ -533,6 +588,7 @@ class ReadingTests(unittest.TestCase):
         ranges=list(result['delivered'])
         while result['remaining_bytes']:
             self.assertNotIn('issued',result)
+            self.assertFalse(self.ledger.exists())
             result=r.read_page(cursor=result['cursor'],page_bytes=13,root=self.root,ledger=self.ledger,stream=stream)
             ranges.extend(result['delivered'])
         for name in ('notes/always.md','notes/work.md'):

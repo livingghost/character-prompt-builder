@@ -17,6 +17,7 @@ import execution_routes
 from cli_invocation import python_argv, shown
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_PAGE_BYTES = 16384
 _NO_MODEL = object()
 # A reading made without a model holds every family's guide sections.
 
@@ -553,7 +554,7 @@ def _position(snapshot: dict, offset: int) -> tuple[int, int]:
 
 
 def read_page(*, route: str | None = None, features: list[str] | None = None,
-              cursor: str | None = None, replay: bool = False, page_bytes: int = 16384,
+              cursor: str | None = None, replay: bool = False, page_bytes: int = DEFAULT_PAGE_BYTES,
               root: Path = ROOT, studio: Path | None = None, ledger: Path | None = None,
               stream: TextIO | None = None, runtime: dict | None = None,
               dialect: str | None = None) -> dict:
@@ -705,7 +706,8 @@ def add_read_arguments(parser: argparse.ArgumentParser) -> None:
     family.add_argument('--model', help="Read only the writing guide sections for this model's prompt family")
     family.add_argument('--dialect', metavar='ID',
                         help='Read only the writing guide sections for this prompt family, without a model record')
-    parser.add_argument('--page-bytes', type=int, help='Maximum source bytes delivered per page')
+    parser.add_argument('--page-bytes', type=int, default=DEFAULT_PAGE_BYTES,
+                        help=f'Maximum source bytes delivered per page (default: {DEFAULT_PAGE_BYTES})')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--continue', dest='cursor',
                        help='Continue the saved route, features and prompt family using the emitted action')
@@ -757,19 +759,16 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
         offers = selected_model.get('offerings') or []
         cards = [model_card(selected_model, row) for row in offers] if offers else [model_card(selected_model)]
         print('model-guidance: ' + json.dumps(cards, ensure_ascii=False, sort_keys=True), flush=True)
-    if continuation or args.page_bytes is not None:
-        page_bytes = 16384 if args.page_bytes is None else args.page_bytes
-        cursor = args.cursor if args.cursor is not None else args.replay
-        result = read_page(route=args.route, features=args.feature, cursor=cursor,
-                           replay=args.replay is not None, page_bytes=page_bytes,
-                           ledger=ledger, studio=studio, runtime=runtime, dialect=dialect)
-        issued = result.get('issued')
-        result['actions'] = _reading_actions(result, ledger=ledger, studio=studio, page_bytes=page_bytes)
-        print('reading-actions: ' + json.dumps(result['actions'], ensure_ascii=False), flush=True)
-    elif args.route is None:
+    if not continuation and args.route is None:
         raise ValueError('read requires a route or a continuation cursor')
-    else:
-        result = issued = issue(args.route, args.feature, ledger=ledger, dialect=dialect)
+    page_bytes = DEFAULT_PAGE_BYTES if args.page_bytes is None else args.page_bytes
+    cursor = args.cursor if args.cursor is not None else args.replay
+    result = read_page(route=args.route, features=args.feature, cursor=cursor,
+                       replay=args.replay is not None, page_bytes=page_bytes,
+                       ledger=ledger, studio=studio, runtime=runtime, dialect=dialect)
+    issued = result.get('issued')
+    result['actions'] = _reading_actions(result, ledger=ledger, studio=studio, page_bytes=page_bytes)
+    print('reading-actions: ' + json.dumps(result['actions'], ensure_ascii=False), flush=True)
     if issued is not None:
         path = write_draft(issued, ledger, studio=studio, snapshot=result.get('snapshot'))
         record_studio = args.root.absolute() if args.root is not None else None

@@ -842,14 +842,14 @@
       "description": "Studio-relative image-input-plan. Shared exact model, scoped references and optional external request for reference generation and editing."
     },
     "upload_sources": {
-      "description": "Service-readable URLs for the actual prepared media carriers, indexed in request order. The selected transport declares whether URL sources are required. Hashes are measured from the carrier files.",
+      "description": "Service-readable URLs selected by the Studio-relative file holding their exact prepared carrier bytes. Preparation measures each file and binds URLs by content, independently of attachment order. The selected transport declares whether URL sources are required.",
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["index", "url"],
+        "required": ["file", "url"],
         "properties": {
-          "index": {"type": "integer", "minimum": 0},
+          "file": {"type": "string", "minLength": 1},
           "url": {"type": "string", "minLength": 1}
         }
       }

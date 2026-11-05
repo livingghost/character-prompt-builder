@@ -18,7 +18,7 @@ save their progress under that task automatically.
 
 ### Read the route to completion
 
-Begin with the route, applicable features and the target's model or prompt family. A paged read uses a source-byte budget:
+Begin with the route, applicable features and the target's model or prompt family. Every route read is paged by default, with at most 16,384 source bytes per page. Use `--page-bytes N` to select another source-byte budget:
 
 ```bash
 python scripts/execution_routes.py read reference-artifacts --root STUDIO --feature sparse-retrieval --page-bytes 16384
@@ -28,7 +28,7 @@ Each page prints its source text and a `reading-actions: ` line containing JSON.
 
 The action retains the selected environment's Python, the installed script, the absolute reading ledger, the Studio when present, the page budget and the snapshot's exact pack runtime, including its additional discovery roots. The cursor supplies the saved route, features and prompt family. `--reading-ledger` locates that existing reading for continuation or replay. The initial read gives an explicit `CPB_READS_LEDGER` location priority; otherwise it uses the specified or current Studio's ledger, then the configured home ledger.
 
-The reader preserves all source bytes across pages and issues the reading key after their complete delivery. The final source check still verifies the snapshot's document and resource hashes. If the source edition changed during reading, begin a new route reading from that edition.
+The reader delivers the complete bodies of the selected route documents, including the common production workflow, direction, permissions and execution specifications. Their prerequisites, constraints, exceptions and recovery instructions arrive through this same reading; following their links is not a substitute for delivery. It preserves all source bytes across pages and issues neither a reading key nor a reading record until every source range has been delivered. The final source check still verifies the snapshot's document and resource hashes. If the source edition changed during reading, begin a new route reading from that edition.
 
 ### Apply the completed reading
 
@@ -41,20 +41,97 @@ Copy the raw Markdown spelling, including link destinations such as `[reference 
 Each entry in `resource_applied` names `"resource": "prompt-writing-guide"`, a `pointer` such as `/sections/2/rules/0`, that rule's exact text as `quote`, and `why`.
 The reading key binds the declared route and features. If either selection changes, issue a reading for the new selection and reassess the applications that still apply.
 
-- `inspect-inputs` shows declared sources, recorded candidates, and required choices.
-- `draft-inputs` creates a compact `choices.json` to edit and a separate `context.json` to read. Choices contain reading applications, selected visual and validation evidence, explicit task changes, and an optional external image-input plan.
-- `build-inputs` resolves those choices through the owning contract builders. It derives image hashes, adoption selectors and reference positions, and binds generated continuity and validation paths directly into the resulting task.
+- `inspect-inputs` gathers the current task, authored content, source roles, recorded candidates and unresolved choices.
+- `draft-inputs` creates `choices.json` as the editing source and a separate `context.json` for provenance and the selected starting point. `choices.authoring` contains the task's meaningful decisions, delivery text, selected document contents and reference selections. Reading applications and independently needed evidence choices retain their own fields.
+- `build-inputs` resolves those choices through the owning contract builders. It materializes the related files, derives their paths and hashes, rebuilds reference positions and boards, and binds them directly into the resulting task. Its report names the next preparation action.
+
+Start a new authored text task without first constructing a production-task file:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --route prompt-only --artifact text --execution authored --out-dir work/first-draft
+python scripts/production_workflow.py build-inputs --root STUDIO --choices work/first-draft/choices.json --out-dir work/first-inputs
+```
+
+Between those calls, author the commission's selected depiction, delivery,
+source roles, independent criteria and applicable reading choices. The open
+work task supplies its identity. Select the actual execution kind and route;
+new image work additionally needs its target, rendering and input evidence.
+Unresolved choices stay explicit and prevent an executable task from being
+published.
+
+To edit existing work, draft with `--task FILE` or `--from-run RUN` instead of
+the new-task selectors. Edit the same authored fields and build that draft.
+The saved context identifies its source, so the build can continue from the
+choices file without reconstructing the source command. Preserve the context
+beside its choices. Inspect the emitted request before preparing or sending it.
+
+| Authored area | Edit here | Builder responsibility |
+| --- | --- | --- |
+| `authoring.task` | Direction, criteria, declared source use and applicable task choices | Bind materialized inputs into the task |
+| `authoring.delivery.content` | Exact final prompt or authored text, with translation notes beside it | Write the delivery bytes and bind the single source |
+| `authoring.documents` | Selected specification, plot, parameters, retrieval and other owned document content | Write related files and derive their task references |
+| `authoring.sources` | Declared text or JSON source content by source ID | Preserve source roles and locators, write the selected body and update its path |
+| `authoring.generation` | Selected service, count, seed, continuity and applicable generation choices | Carry these choices into the declared generation input |
+| `authoring.references` | Ordered source selection, uses, exclusions, subject scope and transport choice | Rebuild the prepared set, attachment order, board placement and content hashes |
+| `authoring.upscale` | Selected source, model, scale, settings, guidance and applicable evidence | Build the upscale declaration and reuse its valid evidence |
+
+These are separate meanings within one editable source. Criteria remain based
+on the commission, and plot approval still requires its actual basis. A prompt
+wording edit does not by itself require rewriting the plot or criteria.
+The builder does not infer new approval, source authority or semantic agreement
+from successful file assembly. Existing grants remain subject to their actual
+scope; a new run does not inherit an exact execution authorization or claim.
 
 [Model request evidence](model-evidence.md#the-request-validation-record) states when a task needs an authored request validation record.
-An incomplete selection returns named unresolved fields and publishes nothing; the task and its sources stay unchanged.
-For drafting or building, select either `--task FILE` or `--from-run RUN`. A saved run supplies its captured task and exact delivery, so the operator does not copy a task into another editing document. Copied reading applications still need assessment for the current work. Explicit `task_changes` select changed source, depiction, route or review fields; authority and task identity retain their owners.
+An incomplete selection returns named unresolved fields and leaves the source
+task unchanged. When a canonical external reference needs an actual upload,
+the builder can publish its carriers and input report for that next action,
+without publishing an executable task or provider request.
+An explicit `--task FILE` or `--from-run RUN` can also select the build's source.
+A saved run supplies its captured task and exact delivery, so the operator does
+not copy a task into another editing document. Copied reading applications
+still need assessment for the current work. Explicit `task_changes` overlays
+select changed source, depiction, route or review fields; use the current
+`authoring` content for ordinary editing. Authority and task identity retain
+their owners.
 
-For external image work, select `external: {"image_input": "inputs/selected-plan.json"}`. The builder materializes the prompt from the single delivery source and the target, count and media values from that plan's acquired field mappings. Other native controls retain their declared values. It writes the exact request and image-input plan, measures evidence hashes, validates the resulting input and shows its substantive changes. A supplied hash remains a commitment to the selected evidence. This creates inputs, never grants or satisfied judgments.
+For external image work, a draft restores `external.image_input`, the native
+`external.request` object or array, and the recorded `external.media_slots`.
+The request holds independent provider controls. Each reference owns its
+intended uses and actual `transport.value` with evidence; add, remove or
+reorder those rows in the image-input choice. The builder derives media fields
+and attachment positions from the declared mapping, preserving unrelated text
+and controls. With one homogeneous media-array mapping, a new reference can
+omit its field position. Ambiguous mappings remain an explicit choice.
+
+An existing plan can also be selected as
+`external: {"image_input": "inputs/selected-plan.json"}`. The builder
+materializes the prompt from the single delivery source and the target, count
+and media values from the plan's acquired field mappings. It writes the exact
+request and image-input plan, measures evidence hashes, validates the input
+and shows its substantive changes. A supplied hash remains a commitment to
+the selected evidence. Input assembly invents no uploaded value, grant or
+satisfied judgment. The media-slot record and repeated request values are
+derived context rather than additional editing locations.
+When the source plan binds a canonical prepared set, edit its ordered source
+choices in `external.reference_delivery.choices`; its `target_model` retains
+the canonical preparation target. The image-input rows then retain only each
+reference ID and its actual transport evidence. The builder derives the full
+reference scope and source bindings from the canonical choices.
+
+A changed carrier cannot reuse an earlier upload merely by updating a hash.
+The input report names each generated carrier and the unresolved transport
+field. Upload the selected carrier through the service's actual operation,
+then select its saved evidence, returned value and `transport.uploaded_file`
+in the same draft. Build into a new output directory. The builder compares
+the uploaded file's bytes with the current carrier before materializing the
+request. It performs no upload or generation itself.
 The [synthetic input assembly example](../../examples/input-assembly/README.md) contains complete commands, choice fields, and actual output.
 
 ### Resume input authoring
 
-Interruption can occur before a run exists. Inspect the open work task with:
+Interruption can occur during authoring, including while an older run exists.
+Inspect the open work task with:
 
 ```bash
 python scripts/production_workflow.py inspect-inputs --root STUDIO
@@ -83,10 +160,23 @@ do not replace its inputs, reading receipts, run records or author decisions.
 Inspection reads the existing files without regenerating them or loading a
 catalog merely to discover a saved path.
 
+The report compares the saved build's source and choices with the editable
+content. A later edit remains pending even when its earlier build has already
+been prepared. Continue the reported working copy; do not treat the older
+run's request as the current draft. An incomplete edit remains visible with
+its diagnostic rather than selecting an older input silently.
+
+The authoring context gathers the work goal, current choices, unresolved
+fields, source roles and paths to original or saved source bytes. Inspect the
+actual documents and images needed for the next judgment. These views preserve
+existing evidence and grant no approval. The older run keeps its own execution
+and result-recovery actions, which remain available independently of editing.
+
 ## Prepare one complete input
 
-Use the open work task's ID in a task that follows `schemas/authoring/production-task.schema.json`.
-The task declares its route, direction, full source selectors, criteria and execution kind.
+Prepare the task emitted by `build-inputs`. The public task contract follows
+`schemas/authoring/production-task.schema.json` and uses the open work task's ID.
+It declares its route, direction, full source selectors, criteria and execution kind.
 For dispatcher generation it also declares `generation` and `recording`.
 The prompt file named by `delivery.path` is the single authored prompt.
 For image work, the agent establishes the selected artifact and present
@@ -116,7 +206,7 @@ Each call may name `-` for one of these JSON options, which then reads standard 
 
 Except for `--changes-file`, the bytes read are kept as `production/runs/RUN/objects/SHA256`, and that path is the recorded evidence.
 `authority-import` keeps them as `production/objects/SHA256`.
-`--task` and `--artifact` name files only.
+`--task` names a file. On `capture` and `receive-external`, `--artifact` also names a file; it does not read standard input. On `draft-inputs`, `--artifact` instead selects the new task's artifact kind, such as `text` or `image`.
 Every `--out` names a new file; an existing one gives `OUTPUT_ALREADY_EXISTS`.
 
 `check` returns a compilation report (`schemas/authoring/production-compilation-report.schema.json`) with `run: null`.
@@ -1145,7 +1235,8 @@ temporal phase or spatial relationship can require rebuilding the scene; an
 incidental facial or garment edit cannot establish an event the view cannot
 show. Use a local correction when the mismatch is local, and retain uncertainty
 when the evidence does not isolate a cause.
-Author a revised task or input files.
+Draft from the source run, edit the responsible authored choices and build
+the revised task. Preserve the earlier input and candidate evidence.
 `revision-intent` compares the whole prepared input, checks the reviewed scope, and returns an exact `edit` payload:
 
 ```text
@@ -1232,6 +1323,7 @@ Every field problem is collected before the variant stops, and no formal run is 
 `references: null` removes the selected reference set and reruns the required contracts.
 Replacing a named document also updates the task source role that points at it.
 A removed dependency stops being a freshness requirement, and unchanged dependencies stay checked.
+For URL-import transports, `upload-sources` selects the same `[{"file": "studio-relative-carrier.png", "url": "https://assets.example.org/carrier.png"}]` contract as `task.upload_sources`. Select the actual hosted carrier file; the compiler derives its hash and current media position.
 
 A prompt edit is checked again against retrieval and render intent.
 Supply an explicitly reassessed `retrieval-record` when the original record does not apply to the new wording.
@@ -1259,7 +1351,10 @@ The [complete synthetic example](../../examples/generation/README.md) shows prep
 ## Change the target explicitly
 
 `variant` keeps its model and service.
-To select a different target, supply a complete task with the reassessed specification, parameters, retrieval, route reading and request-validation evidence for that target.
+To select a different target, draft from the source run and reassess the
+specification, parameters, retrieval, route reading and request-validation
+evidence in the same authored input. Build the resulting task and pass it to
+`retarget` so the explicit target change retains its production lineage.
 Keep its work task ID and production series ID, and record why the target changes.
 
 ```text

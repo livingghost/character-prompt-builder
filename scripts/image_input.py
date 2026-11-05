@@ -109,8 +109,10 @@ def reference_bindings(plan: dict, *, base: Path | None = None) -> list[dict]:
         import production_store
         from prepare_generation_references import validate_prepared_reference_set
         base = Path(base)
-        c.local(base, plan['prepared_references'])
-        prepared = validate_prepared_reference_set(c.decode(production_store.stable_bytes(base, plan['prepared_references'])))
+        prepared_path = c.local(base, plan['prepared_references'])
+        prepared = validate_prepared_reference_set(
+            c.decode(production_store.stable_bytes(base, plan['prepared_references'])),
+            package_root=prepared_path.parent)
         _reference_rows(plan, prepared, require_hash=False)
     return _reference_bindings(plan, plan['external_request'], prepared=prepared)
 
@@ -129,8 +131,8 @@ def _matching_media_paths(value: Any, pattern: tuple, prefix: tuple = ()):
 
 def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = None,
              delivery_file: str | None = None) -> None:
-    if not isinstance(request, dict):
-        raise ValueError('external request must be one JSON object')
+    if not isinstance(request, (dict, list)):
+        raise ValueError('external request must be one JSON object or array')
     target = plan['model']['target']
     if external['model_field'] is not None and rc.get(request, external['model_field']) != target['model_identifier']:
         raise ValueError('external request substitutes the selected model identifier')
@@ -216,7 +218,7 @@ def _model_contract(model: dict) -> tuple[dict, dict | None]:
     return record, offering
 
 
-def _offering_text_fields(external: dict, request: dict, offering: dict | None) -> None:
+def _offering_text_fields(external: dict, request: Any, offering: dict | None) -> None:
     """Use declared provider role paths, not guesses based on field wording."""
     if offering is None:
         return
@@ -252,7 +254,7 @@ def _inspect_prompt(prompt: str, negative: str, syntax: str, constraints: dict,
     return report
 
 
-def _prompt_check(external: dict, request: dict, model_record: dict, file) -> dict:
+def _prompt_check(external: dict, request: Any, model_record: dict, file) -> dict:
     """Inspect actual external text; tag input also searches its vocabulary."""
     prompt = rc.get(request, external['prompt_field'])
     negative = rc.get(request, external['negative_field']) if external.get('negative_field') is not None else ''
@@ -278,7 +280,7 @@ def _prompt_check(external: dict, request: dict, model_record: dict, file) -> di
             'vocabulary': selection, **inspection}
 
 
-def _bound_prompt_check(plan: dict, external: dict, request: dict, report: Any) -> None:
+def _bound_prompt_check(plan: dict, external: dict, request: Any, report: Any) -> None:
     """Check a saved report against immutable inputs; live preparation re-searches."""
     from state_protocol import validate_against_schema
     model = plan['model']
@@ -418,9 +420,10 @@ def validate(plan: dict, base: Path, *, read=None) -> dict:
     # plans that supply hashes before the files have been read.
     _structure(result)
     if result.get('prepared_references') is not None:
-        from prepare_generation_references import validate_prepared_reference_set
+        from prepare_generation_references import resolve_prepared_reference_paths
         raw = file(result['prepared_references'])
-        prepared = validate_prepared_reference_set(c.decode(raw))
+        prepared_path = c.local(base, result['prepared_references'], exists=read is None)
+        prepared = resolve_prepared_reference_paths(c.decode(raw), package_root=prepared_path.parent)
         _reference_rows(result, prepared)
         result['prepared_reference_set'] = prepared
         result['prepared_references_sha256'] = c.digest(raw)

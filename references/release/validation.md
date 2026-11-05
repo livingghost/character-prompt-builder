@@ -2,6 +2,10 @@
 
 Use this document only for publishing a core release or a pack release. Ordinary prompt and prompt-artifact runtime must leave it unloaded. Release validation checks the environment and artifact contracts. Artistic quality requires separate observation and judgment.
 
+For changes to authoring, execution or recovery interfaces, apply
+[Agent workflow design](../maintenance/agent-workflow-design.md). Its criteria
+cover responsibilities and complete agent tasks across the changed workflows.
+
 ## Contents
 
 - [Core release environment](#core-release-environment)

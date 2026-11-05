@@ -2,6 +2,12 @@
 """Synthetic reference-order, board-region and influence-contract checks."""
 from __future__ import annotations
 import copy
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 import reference_delivery as d
 from prepare_generation_references import _validate_authority
@@ -172,6 +178,84 @@ class ReferenceDeliveryTests(unittest.TestCase):
         selection['subjects'].pop()
         with self.assertRaisesRegex(ValueError, 'exactly match'):
             d.validate_reference_selection_subjects(selection, spec)
+
+
+class ReferenceDeliveryCliTests(unittest.TestCase):
+    def setUp(self):
+        import catalog_cli
+        import pack_manager
+        from build_generation_payload import materialize_cli_reference_bundle
+        from prepare_generation_references import prepare_references
+        from production_case_fixtures import create_pack, MODEL_ID, PACK_ID, write
+        from production_fixtures import scratch_home
+        from reference_runtime_smoke_test import _fixture_png
+
+        temporary = tempfile.TemporaryDirectory(prefix='cpb-reference-delivery-cli-')
+        self.addCleanup(temporary.cleanup)
+        self.work = Path(temporary.name)
+        self.enterContext(scratch_home(self.work / 'home'))
+        self.addCleanup(catalog_cli.configure_pack_runtime, None)
+        self.skill = Path(__file__).resolve().parents[1]
+        pack = create_pack(self.work / 'synthetic-pack')
+        settings = pack_manager.PackSettings(roots=(pack,), state_file=self.work / 'state.json',
+            cache_dir=self.work / 'cache', managed_root=self.work / 'managed',
+            quarantine_root=self.work / 'managed/.quarantine')
+        pack_manager.save_state(settings.state_file, {'pack_roots': [str(pack)],
+            'enabled_packs': [PACK_ID], 'disabled_packs': [], 'pack_order': [PACK_ID]})
+        catalog_cli.configure_pack_runtime(settings)
+        self.runtime = pack_manager.pack_runtime_arguments(settings, pack_roots=[pack])
+        self.source = self.work / 'source.png'
+        self.source.write_bytes(_fixture_png())
+        prepared = prepare_references([{'role': 'scene', 'source': {
+            'kind': 'supplied-file', 'reference_id': 'scene', 'resolved_path': str(self.source)}}],
+            model=MODEL_ID, output_dir=self.work / 'materialized')
+        folder = self.work / 'nested/inputs'
+        folder.mkdir(parents=True)
+        self.prepared, _ = materialize_cli_reference_bundle(prepared, model=MODEL_ID,
+            source_root=self.work, staging_root=folder, companion_name='images')
+        self.prepared_file = folder / 'references.json'
+        write(self.prepared_file, self.prepared)
+
+    def command(self, *arguments):
+        return subprocess.run([sys.executable, str(self.skill / 'scripts/reference_delivery.py'),
+            *arguments], cwd=self.work, env=os.environ.copy(), text=True, encoding='utf-8',
+            capture_output=True, check=False)
+
+    def test_prepared_file_owns_relative_carriers_in_selected_runtime(self):
+        result = self.command('--prepared-set', str(self.prepared_file), *self.runtime)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report['bindings'][0]['attachment_number'], 1)
+        self.assertEqual(report['bindings'][0]['role'], 'scene')
+        self.assertFalse(Path(self.prepared['selected_references'][0]['transport']['resolved_path']).is_absolute())
+
+    def test_partial_runtime_selection_is_rejected(self):
+        result = self.command('--prepared-set', str(self.prepared_file), '--state-file', str(self.work / 'state.json'))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('must be supplied together', result.stderr)
+
+    def test_external_projection_uses_existing_prepared_file_location(self):
+        from execution_contract import encoded
+        from model_prompt_input_fixtures import prompt_input
+        row = self.prepared['selected_references'][0]
+        plan = {'artifact_type': 'image-input-plan', 'model': {
+            'requested': 'fixture', 'catalog_status': 'missing', 'catalog_model': None,
+            'prompt_input': prompt_input('descriptive'),
+            'target': {'service': 'synthetic', 'model_identifier': 'fixture', 'operation': 'generation'},
+            'evidence': {'path': 'provider.txt', 'sha256': 'a' * 64, 'locator': 'whole'}},
+            'prepared_references': self.prepared_file.relative_to(self.work).as_posix(),
+            'references': [{'id': 'scene', 'file': 'source.png', 'sha256': row['source']['sha256'],
+                'role': row['role'], 'use_for': row['authority']['controls'],
+                'do_not_transfer': row['authority']['must_not_control']}],
+            'external_request': {'file': 'request.json', 'model_field': ['model'], 'prompt_field': ['prompt'],
+                'count_field': ['count'], 'operation_field': None, 'count': 1, 'reference_fields': [
+                    {'reference': 'scene', 'field': ['images', 0], 'value': 'source.png',
+                     'evidence': {'path': 'provider.txt', 'sha256': 'a' * 64, 'locator': 'whole'}}]}}
+        plan_file = self.work / 'plan.json'
+        plan_file.write_bytes(encoded(plan))
+        result = self.command('--image-input-plan', str(plan_file), '--studio', str(self.work), *self.runtime)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['bindings'][0]['request_field'], ['images', 0])
 
 
 if __name__ == '__main__':

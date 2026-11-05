@@ -112,7 +112,10 @@
       }
     },
     "request": {
-      "type": "object"
+      "anyOf": [
+        {"type": "object"},
+        {"type": "array"}
+      ]
     },
     "validation": {
       "type": "object"

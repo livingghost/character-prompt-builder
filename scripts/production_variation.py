@@ -26,7 +26,8 @@ DOCUMENT_FIELDS = {
 TASK_FIELDS = {
     'direction': 'direction', 'criteria': 'criteria', 'source-materials': 'sources',
     'route-reading': 'route_reading', 'scene-materials': 'scene_materials',
-    'world-views': 'world_views', 'moment-views': 'moment_views', 'features': 'features'}
+    'world-views': 'world_views', 'moment-views': 'moment_views', 'features': 'features',
+    'upload-sources': 'upload_sources'}
 # A target is chosen by retargeting with a reassessed task, never by a field map.
 TARGET_KEYS = {'model', 'service', 'offering', 'target', 'target-model'}
 RETARGET = 'python scripts/production_workflow.py retarget --root {root} --from {run} --task TASK_FILE --reason REASON --prepare'
@@ -170,6 +171,8 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
                 replaced.add(task['route_reading'])
             elif field == 'source-materials':
                 replaced.update(source['path'] for source in task['sources'])
+            elif field == 'upload-sources':
+                replaced.update(source['file'] for source in task.get('upload_sources', []))
             task[name] = copy.deepcopy(value)
             return before
         if field == 'prompt':
@@ -274,16 +277,11 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
     identity = generate_uuid7()
     prefix = compiler.run_inputs(identity)
     derived: dict[str, bytes] = {}
+    from production_authoring import materialize_file
     for name, raw in replacements.items():
         file = f'{name}.txt' if name in {'prompt', 'negative'} else f'{name}.json'
-        derived[file] = raw
-        path = f'{prefix}/{file}'
-        if name in {'prompt','upscale-input'}:
-            _redirect_source(task, task['delivery']['path'], path)
-            task['delivery']['path'] = path
-        else:
-            _redirect_source(task, generation.get(name), path)
-            generation[name] = path
+        materialize_file(task, derived, prefix, field='delivery' if name in {'prompt', 'upscale-input'} else name,
+                         filename=file, raw=raw)
     task_path = prefix + '/task.json'
     derived['task.json'] = c.encoded(task)
     if changes_file is not None:

@@ -123,8 +123,10 @@ After rendering or copying the actual transports, the reference preparation runt
 The map is authoring input for the agent. Interpret its subject assignments, scopes and precedence into the selected depiction using [Prompt Composition](prompt-composition.md#prompt-assembly-and-review). Internal keys, numeric priorities and request field paths stay in the binding record. Identify delivered images by their actual order and use a panel location when necessary. A source panel identifies evidence; it does not prescribe the output layout.
 
 ```sh
-python scripts/reference_delivery.py --prepared-set prepared.json --package-root WORK
+python scripts/reference_delivery.py --prepared-set WORK/prepared.json
 ```
+
+Pass the complete prepared-set document, not the raw array of selected source rows. Relative carrier paths resolve from the prepared-set file's parent by default. Use `--package-root WORK` only when those paths intentionally use another base. The inspector accepts the same selected pack runtime as preparation: supply `--state-file STATE --cache-dir CACHE --managed-root MANAGED` together, with any applicable `--pack-root ROOT` values.
 
 This inspection validates the complete prepared set and returns `bindings` with attachment positions, scopes and subject assignments. It submits and mutates nothing. Normal preparation uses the same functions through `prepare_generation_references.py` and `reference_runtime.py`. Review the authored prompt against those bindings and the actual attachments before packaging.
 
@@ -164,29 +166,39 @@ and transport own the upload fields and response shape.
 
 A transport declares whether its HTTP interface receives file bytes or imports
 an existing media URL. For a URL-import interface, `task.upload_sources` binds
-each actual carrier index to its remotely readable URL. This synthetic excerpt
-selects the source URL for the first carrier:
+the actual prepared carrier file to its remotely readable URL. This synthetic
+excerpt selects the hosted bytes of one Studio-relative carrier:
 
 ```json
 {
   "upload_sources": [
     {
-      "index": 0,
+      "file": "work/reference-inputs/attachments/reference.png",
       "url": "https://assets.example.org/reference.png"
     }
   ]
 }
 ```
 
-The index is zero-based in the prepared request's media list. A shared board is
-one carrier even when it supplies several logical references. Select the exact
-prepared image's URL from the owner's existing storage or an available host
-interface. A local path is not a remotely readable URL, and the adapter does
-not publish local files to create one. `build-inputs` carries this selection
-through `task_changes.upload_sources`; preparation records the carrier's path
-and seals the URL with its hash, size and media type. The URL-import transport verifies
-the provider's stored bytes against that carrier before accepting its issued
-identifier. Byte-upload interfaces receive the sealed content directly.
+Select this file and URL in `authoring.task.upload_sources` in the common
+draft. The file is Studio-relative and must contain the exact carrier bytes
+hosted at the URL. The builder measures its content and binds the URL to the
+current prepared carrier by digest, so reordering references does not require
+editing media indices or hashes. A shared board is one carrier even when it
+supplies several logical references. Identical carrier bytes can share one URL;
+conflicting URLs for the same bytes are refused.
+
+Select the exact prepared image's URL from the owner's existing storage or an
+available host interface. A local path is not a remotely readable URL, and the
+adapter does not publish local files to create one. The generated authoring
+source-file record preserves the selected bytes as evidence. A later change to
+those saved file bytes is refused. When an edit removes or changes a carrier,
+`build-inputs` drops its inherited URL selection; select the newly hosted carrier
+file and actual URL when the changed input needs one. Preparation records the
+source dependency and seals the URL with the carrier's hash, size and media
+type. The URL-import transport verifies the provider's stored bytes against
+that carrier before accepting its issued identifier. Byte-upload interfaces
+receive the sealed content directly.
 
 Each generation owns fresh uploads. Recovery of the same unfinished execution
 can continue from its completed uploads; a new generation uploads again.

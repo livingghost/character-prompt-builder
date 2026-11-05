@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026.11.05.1
+
+- Create, revise and resume production content through one editable input
+  draft. Retain prompts, source documents, direction, criteria and settings;
+  derive their published files, paths and dependent records together.
+- Extract editable content from a saved run without inheriting its execution
+  decisions. Keep unchanged plot approvals and request validation; require
+  the actual new approval when approved plot content changes.
+- Rebuild reference selections, attachment order and board positions from
+  current choices while preserving each source's declared influence,
+  exclusions, subject scope and provenance. Resolve portable reference paths
+  from their owning file and use the selected pack runtime for layout reports.
+- Assemble external object and array requests from authored choices and actual
+  media evidence. Keep independent controls when references are added,
+  reordered or removed, and derive the bound prompt and request paths.
+- Resume edited or incomplete drafts beside prepared runs. Show the current
+  work, source context and continuation action without returning an author to
+  an older generation merely because it was prepared first.
+- Deliver the normal route's full instruction bodies, prerequisites and
+  constraints through paginated reading. Preserve the exact continuation and
+  issue a reading record only after every page has been delivered.
+- Bind upload source URLs to the selected local carrier files and derive their
+  hashes and request positions. Retain the files as input dependencies when
+  rebuilding or varying the request.
+- Resume initial drafts without requiring a pre-existing task file or run.
+  Preserve the current editing context and use the emitted continuation
+  command to publish the next immutable input set.
+- Share durable agent-workflow design criteria through the repository's two
+  generated host entry points.
+
 ## 2026.11.03.4
 
 - Accept Runware storage responses without an `operation` field when the task

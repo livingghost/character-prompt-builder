@@ -335,7 +335,7 @@ class InputToolsTests(unittest.TestCase):
     def test_edit_file_contains_choices_and_context_is_separate(self):
         draft = tool.draft_inputs(self.root, 'task.json', 'draft')
         document = c.load(self.root / draft['choices_file'])
-        self.assertEqual(set(document), {'reading', 'visual', 'validation', 'task_changes', 'external'})
+        self.assertEqual(set(document), {'reading', 'visual', 'validation', 'task_changes', 'external', 'authoring'})
         self.assertEqual(c.load(self.root / draft['context_file'])['task_content'], self.task)
         (self.root / draft['choices_file']).write_bytes(c.encoded(self.choices))
         self.assertTrue(tool.build_inputs(self.root, 'task.json', draft['choices_file'], 'built')['ok'])
@@ -350,11 +350,14 @@ class InputToolsTests(unittest.TestCase):
         (self.root / 'task.json').write_bytes(c.encoded(task))
         return task
 
-    def test_image_dispatcher_draft_asks_only_for_the_reading(self):
+    def test_incomplete_image_task_draft_names_missing_authored_documents(self):
         task = self.dispatcher_task()
         draft = tool.draft_inputs(self.root, 'task.json', 'draft')
         self.assertEqual((draft['choices']['visual'], draft['choices']['validation']), (None, None))
-        self.assertEqual([x['field'] for x in draft['unresolved']], ['reading.reading_key'])
+        fields = [x['field'] for x in draft['unresolved']]
+        self.assertIn('reading.reading_key', fields)
+        self.assertIn('authoring.documents.production_spec', fields)
+        self.assertNotIn('validation', fields)
         self.assertEqual(tool.inspect_inputs(self.root, 'task.json')['required_choices'], ['reading'])
         self.assertEqual(adapters.build_visual(None, task, InputEvidence(self.root), self.root), (None, {}))
         self.assertEqual(adapters.build_validation(None, task, InputEvidence(self.root), self.root), (None, {}))

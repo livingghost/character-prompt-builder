@@ -342,6 +342,8 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
         issuance = route_reading.require_route_reading(reading, studio=root, routes={task['route']}, features=task['features'])
     for source in task['sources']:
         add(root, source['path'])
+    for source in task.get('upload_sources', []):
+        add(root, source['file'])
     plan.validate_variation_bindings(task, {source['id']: c.digest(captured[source['path']]) for source in task['sources']})
     delivery = add(root, task['delivery']['path']).decode('utf-8')
     c.text(delivery, 'delivery')

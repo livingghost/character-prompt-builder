@@ -179,15 +179,23 @@ Dispatcher production compiles and publishes the package, request preview and ex
 python scripts/production_workflow.py prepare --root STUDIO --task task.json
 ```
 
-The task names its input files, all authored before `prepare`. `execute` sends only that fixed request; [Production execution](production-execution.md) describes the run from preparation to completion. A different request needs a new variant, repeat or explicitly reassessed task, never an extra send on the same run.
+Use `draft-inputs` and `build-inputs` to turn authored production choices into
+the task and its related files before `prepare`. The same editing source is
+used for new work and a draft from an existing task or run. `execute` sends
+only the prepared request; [Production execution](production-execution.md)
+describes authoring, preparation and completion. A different request needs a
+new prepared input, variant or intentional repeat, never an extra send on the
+same run.
 
 Before preparing:
 
-1. Save the final prompt and the approved plot as UTF-8 files, and draft the Production Specification with `python scripts/production_spec.py draft` as [Production Specification](../production-specification.md#stateless) shows. Add the portable negative and the image intent when they exist, and the negative provenance whenever a negative source is active. Stateless work names no state lineage.
+1. Author the final prompt, the plot with its actual approval, and the Production Specification in the draft's owned content. [Production Specification](../production-specification.md#stateless) defines its meaning and also supports a direct `production_spec.py draft` operation when needed. Include the portable negative and image intent when present, and negative provenance whenever a negative source is active. Stateless work names no state lineage. The input builder writes the corresponding UTF-8 files and binds their paths.
 2. Record investigated construction questions with `--record lookups.json --element NAME` and resolve their adopted, composed or unused outcome under [Prompt-only Core](prompt-only-core.md#saved-prompt-artifacts). For a tag-based target, run its mandatory vocabulary search on the actual prompt channels and resolve the returned wording choices in that same record. Settle with the selected `--model MODEL_ID`, prompt, negative when used, weighting parser and plot. Source-sufficient descriptive work may have no construction questions; missing tag-search evidence cannot use that path. Unavailable or unsettled required retrieval blocks packaging. Approval to prepare is not approval to send.
-3. Name the canonical prepared-reference-set in the task's `generation.references` when references are selected. Do not author another source list.
+3. Edit the ordered source choices and scope in `authoring.references` when references are selected. The builder creates the canonical prepared-reference-set and binds `generation.references`; attachment positions and board regions follow the selection. An existing prepared set can supply those choices. Preserve its source authority and state coverage, and do not author a second competing source list.
 
-Parameter objects are UTF-8 JSON files, for example `parameters.json` containing `{"width":832,"height":1248}`. Do not normalize prompt text as part of parameter loading.
+The authored parameter object can contain `{"width":832,"height":1248}`;
+the builder writes its JSON file. Existing direct file inputs remain valid
+public inputs. Parameter loading does not normalize prompt text.
 
 `scripts/build_generation_payload.py` builds the Generation Package of a prepared run again, to inspect or reconstruct it. It never changes the run's request:
 

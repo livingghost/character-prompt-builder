@@ -106,6 +106,8 @@ def _file_inputs(task: dict) -> list[tuple[str,str]]:
     if isinstance(task.get('semantic_edit'),str):items.append(('$.semantic_edit',task['semantic_edit']))
     for index,source in enumerate(task.get('sources',[]) if isinstance(task.get('sources'),list) else []):
         if isinstance(source,dict) and isinstance(source.get('path'),str):items.append((f'$.sources[{index}].path',source['path']))
+    for index,source in enumerate(task.get('upload_sources',[]) if isinstance(task.get('upload_sources'),list) else []):
+        if isinstance(source,dict) and isinstance(source.get('file'),str):items.append((f'$.upload_sources[{index}].file',source['file']))
     generation=task.get('generation')
     if isinstance(generation,dict):
         for name in GENERATION_FILES:
@@ -637,7 +639,8 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
             scene_mask_planner.stage_media(verified, inspected.values['scene-mask-binding'], offering, directory, artifacts=artifacts)
         check_request(verified,model_record,offering,model_id,transport,selected['seed'],selected['count'])
         rendered=request_renderer.generation(package,verified,model_record,offering,service,transport,
-            seed=selected['seed'],count=selected['count'],upload_sources=task.get('upload_sources', []))
+            seed=selected['seed'],count=selected['count'],upload_sources=task.get('upload_sources', []),
+            upload_source_read=lambda path:captured[path])
         request_renderer.check_final(validation,runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots'])),rendered)
     return _execution_plan(root,task,prepared,package,rendered,directory,identity,model_id,model_record,offering,service,transport,
                            seed=selected['seed'],count=selected['count'],
@@ -788,7 +791,7 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
     artifacts.add('reads.jsonl',c.encoded(issued))
     with stage('request-compilation'):
         rendered=request_renderer.upscale(package,model,offering,service,transport,carrier,settings,
-            root=root,upload_sources=task.get('upload_sources', []))
+            root=root,upload_sources=task.get('upload_sources', []),upload_source_read=lambda path:captured[path])
         dispatch.check_upscale(rendered,offering,model_id)
         request_renderer.check_final(package['request_validation'],runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots'])),rendered)
     task_schema=c.load(ROOT/'schemas/authoring/production-task.schema.json')
@@ -845,6 +848,7 @@ TASK_DECLARATIONS={
     'direction':(True,['task-contract','execution-plan'],'redefine'),
     'criteria':(True,['task-contract','execution-plan'],'redefine'),
     'source-materials':(True,['task-contract','source-validation'],'recheck'),
+    'upload-sources':(False,['task-contract','source-validation']+REQUEST,'recheck'),
     'scene-materials':(False,['task-contract','scene-materials','source-validation'],'recheck'),
     'world-views':(False,['task-contract','world-views','source-validation'],'recheck'),
     'moment-views':(False,['task-contract','moment-views','source-validation'],'recheck'),

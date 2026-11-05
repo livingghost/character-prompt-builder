@@ -66,6 +66,9 @@
         },
         {
           "type": "object"
+        },
+        {
+          "type": "array"
         }
       ]
     },

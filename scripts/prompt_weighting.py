@@ -54,11 +54,11 @@ def validate_declaration(value: Any) -> None:
         seen.add(identity)
 
 
-def selected(parameters: Mapping[str, Any], declaration: dict) -> str:
+def selected(parameters: Mapping[str, Any] | list, declaration: dict) -> str:
     """Resolve grammar from the interface declaration and actual control value."""
     import execution_contract as c
     import request_contract as rc
-    if not isinstance(parameters, Mapping):
+    if not isinstance(parameters, (Mapping, list)):
         raise ValueError('weighting selection requires resolved parameter values')
     validate_declaration(declaration)
     control = declaration['control']

@@ -953,9 +953,11 @@ def _current_task(root: Path) -> dict | None:
     if task is None:
         return None
     import production_authoring_state
+    authoring = production_authoring_state.inspect(root, task)
     return {'task_id': task.get('task_id'), 'goal': task.get('goal'), 'next': task.get('next'),
             'production_run': task.get('production_run'),
-            'authoring': production_authoring_state.inspect(root, task)}
+            'focus': 'authoring' if authoring['pending'] or not task.get('production_run') else 'execution',
+            'next_actions': authoring['next_actions'], 'authoring': authoring}
 
 
 def _logs_by_run(root: Path) -> dict[str, list[str]]:
@@ -1363,6 +1365,14 @@ def status(root: Path, run: str | None = None) -> dict:
             result['runs'].append(_run_status(root, item, logs, authorities))
         except INSPECTION_ERRORS as exc:
             result['runs'].append(_blocked_run(root, item['run_id'], exc, logs))
+    current = result['current_task']
+    if current is not None and current.get('focus') == 'execution':
+        selected = next((item for item in result['runs'] if item['run'] == current['production_run']), None)
+        if selected is None:
+            current['next_actions'] = [_action('status', root, ['--run', current['production_run']],
+                'Inspect the existing run for the current work task and follow its saved execution state.')]
+        else:
+            current['next_actions'] = [selected['next_action']] if selected['next_action'] else []
     authority_errors = [error for _, error in authorities.values() if error is not None]
     result['ok'] = (not result['diagnostics'] and not authority_errors
                     and all(row['integrity'] == 'intact' for row in result['runs']))

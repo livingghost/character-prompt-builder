@@ -23,15 +23,19 @@ class UploadSourceTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.media = []
-        for name, role, bindings in [('board', 'reference', ['reference:1', 'reference:2']),
-                                     ('mask', 'mask', [])]:
+        for name, role, bindings, color in [('board', 'reference', ['reference:1', 'reference:2'], 'white'),
+                                            ('mask', 'mask', [], 'black')]:
             path = self.root / (name + '.png')
-            Image.new('RGB', (4, 3), 'white').save(path)
+            Image.new('RGB', (4, 3), color).save(path)
             self.media.append(rc.media_metadata(path, role=role, binding_ids=bindings))
 
     def sources(self):
-        return [{'index': 1, 'url': 'https://files.example/mask.png?version=2'},
-                {'index': 0, 'url': 'https://files.example/board.png?version=4'}]
+        return [{'file': 'mask.png', 'url': 'https://files.example/mask.png?version=2'},
+                {'file': 'board.png', 'url': 'https://files.example/board.png?version=4'}]
+
+    def bind(self, selections, kind='url', *, media=None):
+        return rc.bind_upload_sources(self.media if media is None else media, selections, kind,
+            read=lambda path: c.read(c.local(self.root, path)))
 
     def seal(self, media):
         request = {'model': 'synthetic-model', 'operation': 'generate', 'prompt': 'Clear arrangement.',
@@ -50,7 +54,7 @@ class UploadSourceTests(unittest.TestCase):
     def test_urls_bind_actual_board_and_mask_without_network(self):
         before = copy.deepcopy(self.media)
         with patch('urllib.request.OpenerDirector.open', side_effect=AssertionError('unexpected network')):
-            bound = rc.bind_upload_sources(self.media, self.sources(), 'url')
+            bound = self.bind(self.sources())
             sealed = self.seal(bound)
         self.assertEqual(bound[0]['upload_source']['url'], self.sources()[1]['url'])
         self.assertEqual(bound[1]['upload_source']['url'], self.sources()[0]['url'])
@@ -61,7 +65,7 @@ class UploadSourceTests(unittest.TestCase):
 
     def test_each_missing_carrier_is_actionable_in_one_diagnostic(self):
         with self.assertRaises(ProductionError) as caught:
-            rc.bind_upload_sources(self.media, [], 'url')
+            self.bind([])
         diagnostic = caught.exception.diagnostic.as_dict()
         self.assertEqual(diagnostic['code'], 'UPLOAD_SOURCE_REQUIRED')
         self.assertEqual(diagnostic['pointer'], '$.upload_sources')
@@ -71,25 +75,26 @@ class UploadSourceTests(unittest.TestCase):
         ])
 
     def test_duplicate_and_absent_carriers_are_rejected_before_sealing(self):
+        Image.new('RGB', (4, 3), 'red').save(self.root / 'unused.png')
         cases = [self.sources() + [self.sources()[0]],
-                 [{'index': 2, 'url': 'https://files.example/unused.png'}],
-                 [{'index': True, 'url': 'https://files.example/unused.png'}]]
+                 [{'file': 'unused.png', 'url': 'https://files.example/unused.png'}],
+                 [{'file': 'missing.png', 'url': 'https://files.example/missing.png'}]]
         for selected in cases:
             with self.subTest(selected=selected), self.assertRaises(ProductionError):
-                rc.bind_upload_sources(self.media, selected, 'url')
+                self.bind(selected)
 
     def test_local_byte_transport_has_no_remote_input(self):
-        bound = rc.bind_upload_sources(self.media, [], 'bytes')
+        bound = self.bind([], 'bytes')
         self.assertEqual([row['upload_source'] for row in bound], [{'kind': 'bytes'}, {'kind': 'bytes'}])
         with self.assertRaises(ProductionError):
-            rc.bind_upload_sources(self.media, self.sources(), 'bytes')
+            self.bind(self.sources(), 'bytes')
         self.assertEqual(rc.bind_upload_sources([], [], 'url'), [])
 
     def test_source_url_change_changes_the_authorized_request(self):
-        first = self.seal(rc.bind_upload_sources(self.media, self.sources(), 'url'))
+        first = self.seal(self.bind(self.sources()))
         selections = self.sources()
         selections[0]['url'] = 'https://files.example/mask.png?version=3'
-        second = self.seal(rc.bind_upload_sources(self.media, selections, 'url'))
+        second = self.seal(self.bind(selections))
         self.assertNotEqual(first['request_sha256'], second['request_sha256'])
         self.assertEqual(first['media'][1]['sha256'], second['media'][1]['sha256'])
         self.assertEqual(first['profile'], second['profile'])
@@ -99,7 +104,7 @@ class UploadSourceTests(unittest.TestCase):
             rc.validate_seal(first)
 
     def test_only_actual_upload_results_enter_the_generation_fields(self):
-        sealed = self.seal(rc.bind_upload_sources(self.media, self.sources(), 'url'))
+        sealed = self.seal(self.bind(self.sources()))
         ids = {0: 'provider-board-uuid', 1: 'provider-mask-uuid'}
         wire = rc.materialize(sealed, ids)
         self.assertEqual(wire['images'], list(ids.values()))
@@ -129,9 +134,33 @@ class UploadSourceTests(unittest.TestCase):
         schema = c.load(production_inputs.ROOT / 'schemas/authoring/production-task.schema.json')
         self.assertEqual(validate_against_schema(changed['upload_sources'], schema['properties']['upload_sources']), [])
         malformed = copy.deepcopy(choices)
-        malformed['task_changes']['upload_sources'][0]['index'] = -1
+        malformed['task_changes']['upload_sources'][0]['file'] = ''
         with self.assertRaises(ValueError):
             production_inputs.read_choices(malformed)
+
+    def test_reference_reordering_and_relocation_keep_the_same_source_urls(self):
+        moved = self.root / 'new-carriers'
+        moved.mkdir()
+        rebound = []
+        for original in reversed(self.media):
+            destination = moved / Path(original['path']).name
+            destination.write_bytes(Path(original['path']).read_bytes())
+            rebound.append(rc.media_metadata(destination, role=original['role'], binding_ids=original['binding_ids']))
+        bound = self.bind(self.sources(), media=rebound)
+        self.assertEqual([row['upload_source']['url'] for row in bound],
+            [self.sources()[0]['url'], self.sources()[1]['url']])
+        self.assertEqual(bound[0]['path'], str(moved / 'mask.png'))
+
+    def test_identical_carriers_share_one_verified_url_and_conflicts_are_rejected(self):
+        same = copy.deepcopy(self.media[0])
+        same['binding_ids'] = ['reference:3']
+        sources = [self.sources()[1]]
+        bound = self.bind(sources, media=[self.media[0], same])
+        self.assertEqual([row['upload_source'] for row in bound], [bound[0]['upload_source']] * 2)
+        (self.root / 'same.png').write_bytes((self.root / 'board.png').read_bytes())
+        sources.append({'file': 'same.png', 'url': 'https://files.example/another-board.png'})
+        with self.assertRaisesRegex(ProductionError, 'conflicting source URLs'):
+            self.bind(sources, media=[self.media[0], same])
 
 
 if __name__ == '__main__':

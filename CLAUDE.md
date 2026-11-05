@@ -66,6 +66,8 @@ Preparation shows the complete request. Dispatcher packages seal resolved contro
 ```
 python scripts/studio.py init --out STUDIO --studio-id <id> --title "<title>"
 python scripts/studio.py character add <character-id> --studio STUDIO
+python scripts/production_workflow.py draft-inputs --root STUDIO --route <route> --artifact <artifact> --execution <execution> --out-dir work/draft
+python scripts/production_workflow.py build-inputs --root STUDIO --choices work/draft/choices.json --out-dir work/inputs
 python scripts/production_workflow.py check --root STUDIO --task <task.json>
 python scripts/production_workflow.py prepare --root STUDIO --task <task.json>
 python scripts/production_workflow.py draft-execution --root STUDIO --run <run-id> --grant <grant-id> --out <decisions.json>
@@ -80,7 +82,12 @@ candidates, and `references/runtime/production-execution.md` defines the run.
 belongs to and its open task first; when it reports none, `init` comes before
 any sheet or generation work.
 
-The task declares the character, slot and model inputs. `check` runs every check
+Open the work task before drafting. New authoring and a draft from an existing
+task or run use the same editable choices: task decisions, delivery text,
+selected documents, controls and reference uses. The input builder writes the
+related files and their bindings, preserving independent judgment and authority.
+Prepare the task it returns; do not hand-edit generated artifacts for a normal
+content change. The task declares the character, slot and model inputs. `check` runs every check
 of `prepare` and creates no run. Preparation publishes the verified Generation
 Package, exact request and execution plan together. The author fills the drafted
 decision file from the actual approval. Execution checks current authority,
@@ -117,8 +124,9 @@ changes, preservation and review of an existing image.
 For a further external trial, derive inputs with `draft-inputs --from-run` and
 `build-inputs`, edit only changed choices, then prepare the emitted task.
 Use `status` or `resume` after interruption and recover the existing host result.
-Before preparation, `inspect-inputs --root STUDIO` locates the open work task's
-saved choices, published inputs and partial route reading. Continue those files
+During authoring, `inspect-inputs --root STUDIO` locates the open work task's
+saved choices, published inputs and partial route reading, including new edits
+beside an existing run. Continue those files
 and returned actions; the discovery record supplies no judgment or permission.
 
 ## What the Skill conforms to
@@ -147,6 +155,10 @@ operations. Verify host support and actual delivery separately from these local
 checks.
 
 ## Source ownership and change discipline
+
+Apply [Agent workflow design](references/maintenance/agent-workflow-design.md)
+when changing authoring, execution or recovery. It owns the shared design
+criteria for agent judgment, derived inputs, phase context and task continuity.
 
 This repository owns its runtime, documentation, schemas, examples and tests.
 Data exchange follows explicit public artifact contracts.

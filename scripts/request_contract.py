@@ -261,57 +261,69 @@ def validate_upload_source(source: Any) -> None:
     parsed.port
 
 
-def bind_upload_sources(media: list[dict], selections: list, kind: str) -> list[dict]:
-    """Bind authored source URLs to actual carrier indices before authorization."""
+def bind_upload_sources(media: list[dict], selections: list, kind: str, *, read=None) -> list[dict]:
+    """Match source URLs to measured carrier contents before authorization.
+
+    The selected file names the exact bytes available at the URL. Positions
+    belong to the prepared request, so reordering references never reassigns
+    a URL to different media. The caller captures every selected source file.
+    """
     from production_diagnostics import ProductionError
 
     if kind not in {'bytes', 'url'}:
         raise ValueError('transport must declare its upload source as bytes or url')
     if not isinstance(selections, list):
         raise ValueError('upload_sources must be an array')
-    selected = {}
+    if kind == 'bytes' and selections:
+        raise ProductionError('UPLOAD_SOURCE_INVALID',
+                'This transport uploads the verified carrier bytes directly; URL sources do not apply.',
+                phase='request-compilation', pointer='$.upload_sources')
+    carriers = {item['sha256'] for item in media}
+    selected, files = {}, set()
     for position, row in enumerate(selections):
-        c.exact(row, {'index', 'url'}, 'upload source selection')
-        index = row['index']
-        if type(index) is not int or not 0 <= index < len(media):
+        try:
+            c.exact(row, {'file', 'url'}, 'upload source selection')
+            path = c.text(row['file'], 'upload source file')
+            if path in files:
+                raise ValueError('the upload source file is selected more than once')
+            if read is None:
+                raise ValueError('upload sources require the selected file reader')
+            digest = c.digest(read(path))
+        except (ValueError, OSError) as exc:
+            raise ProductionError('UPLOAD_SOURCE_INVALID', str(exc),
+                phase='request-compilation', pointer=f'$.upload_sources[{position}].file') from exc
+        if digest not in carriers:
             raise ProductionError('UPLOAD_SOURCE_INVALID',
-                'The upload source index selects no prepared media carrier.',
-                phase='request-compilation', pointer=f'$.upload_sources[{position}].index',
-                selected_index=index,
+                'The selected upload source file does not match any prepared carrier.',
+                phase='request-compilation', pointer=f'$.upload_sources[{position}].file',
+                file=path, sha256=digest,
                 carriers=[{'index': i, 'path': item['path'], 'role': item['role']}
                           for i, item in enumerate(media)])
-        carrier = {'index': index, 'path': media[index]['path'], 'role': media[index]['role']}
-        if index in selected:
-            raise ProductionError('UPLOAD_SOURCE_INVALID',
-                'The prepared media carrier has more than one upload source.',
-                phase='request-compilation', pointer=f'$.upload_sources[{position}].index',
-                carrier=carrier)
         source = {'kind': 'url', 'url': row['url']}
         try:
             validate_upload_source(source)
         except ValueError as exc:
             raise ProductionError('UPLOAD_SOURCE_INVALID', str(exc),
                 phase='request-compilation', pointer=f'$.upload_sources[{position}].url',
-                carrier=carrier) from exc
-        selected[index] = source
-    if kind == 'bytes' and selected:
-        raise ProductionError('UPLOAD_SOURCE_INVALID',
-            'This transport uploads the verified carrier bytes directly; URL sources do not apply.',
-            phase='request-compilation', pointer='$.upload_sources',
-            carriers=[{'index': index, 'path': media[index]['path'], 'role': media[index]['role']}
-                      for index in sorted(selected)])
-    missing = [index for index in range(len(media)) if index not in selected] if kind == 'url' else []
+                file=path) from exc
+        if digest in selected and selected[digest] != source:
+            raise ProductionError('UPLOAD_SOURCE_INVALID',
+                'The same prepared carrier contents have conflicting source URLs.',
+                phase='request-compilation', pointer=f'$.upload_sources[{position}].url', file=path)
+        selected[digest] = source
+        files.add(path)
+    missing = [index for index, item in enumerate(media) if item['sha256'] not in selected] if kind == 'url' else []
     if missing:
         raise ProductionError('UPLOAD_SOURCE_REQUIRED',
             'Provide a service-readable URL for each prepared media carrier.',
             phase='request-compilation', pointer='$.upload_sources',
-            required_action='Select URLs for the listed exact carrier files through upload_sources. '
+            required_action='Select each exact carrier file and its URL through upload_sources. '
                             'URL content is checked against the sealed carrier when execution begins.',
             carriers=[{'index': index, 'path': media[index]['path'], 'role': media[index]['role']}
                       for index in missing])
     return [{**copy.deepcopy(item),
-             'upload_source': copy.deepcopy(selected[index]) if kind == 'url' else {'kind': 'bytes'}}
-            for index, item in enumerate(media)]
+             'upload_source': copy.deepcopy(selected[item['sha256']]) if kind == 'url' else {'kind': 'bytes'}}
+            for item in media]
 
 
 def output_count(request: dict, layout: dict) -> int:

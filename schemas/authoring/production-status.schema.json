@@ -396,6 +396,13 @@
         "authoring": {
           "$ref": "#/$defs/authoring_state"
         },
+        "focus": {
+          "enum": ["authoring", "execution"]
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {"type": "object"}
+        },
         "production_run": {
           "type": [
             "string",
@@ -425,11 +432,13 @@
         "inputs": {"type": "array", "items": {"type": "object"}},
         "readings": {"type": "array", "items": {"type": "object"}},
         "last_check": {"type": ["object", "null"]},
+        "pending": {"type": "boolean"},
+        "context": {"type": ["object", "null"]},
         "diagnostics": {"type": "array", "items": {"type": "object"}},
         "next_actions": {"type": "array", "items": {"type": "object"}},
         "external_effect": {"const": false}
       },
-      "required": ["state", "task_id", "inputs", "readings", "last_check", "diagnostics", "next_actions", "external_effect"],
+      "required": ["state", "task_id", "inputs", "readings", "last_check", "pending", "context", "diagnostics", "next_actions", "external_effect"],
       "additionalProperties": false
     },
     "effect": {

@@ -50,7 +50,8 @@ def validation_required(task: dict) -> bool:
     Image preparation resolves observed schema evidence and requires a selected
     reference contract when images accompany the authored instructions.
     """
-    return task.get('execution') == 'dispatcher' and task.get('route') == 'upscale'
+    return (task.get('execution') == 'dispatcher' and task.get('route') == 'upscale'
+            and not task.get('_authoring_validation_retained'))
 
 
 
@@ -133,75 +134,9 @@ def cross_check(visual: dict, validation: dict) -> None:
 
 def build_external(selection: dict, task: dict, reader, root: Path, out_dir: str,
                    delivery: bytes) -> tuple[dict[str, bytes], dict]:
-    """Materialize declared fields from their owners and validate the exact input.
-
-    The selected plan supplies model, interface selectors, controls and media
-    uses. The delivery supplies the prompt. Evidence bytes supply their hashes.
-    No approval or rendition assessment is inferred from successful assembly.
-    """
-    import image_input
-    c.exact(selection, {'image_input'}, 'external input selection')
-    source_ref = reader.select(c.text(selection['image_input'], 'image input plan'))
-    plan = copy.deepcopy(reader.json(source_ref))
-    if not isinstance(plan, dict) or not isinstance(plan.get('external_request'), dict):
-        raise ValueError('select an image input plan with an external request')
-
-    def measured(row: dict, field: str = 'path') -> bytes:
-        ref = reader.select(c.text(row.get(field), 'external evidence path'))
-        if row.get('sha256') is not None and row['sha256'] != ref['sha256']:
-            raise ValueError('selected external evidence changed: ' + ref['path'])
-        row['sha256'] = ref['sha256']
-        return reader.read(ref)
-
-    measured(plan['model']['evidence'])
-    for row in plan['references']:
-        measured(row, 'file')
-    external = plan['external_request']
-    request = c.decode(measured(external, 'file'))
-    if not isinstance(request, dict):
-        raise ValueError('external request controls must be an object')
-    for row in external['reference_fields']:
-        measured(row['evidence'])
-    if external.get('model_identity') is not None:
-        measured(external['model_identity']['evidence'])
-    for field in ('schema', 'vocabulary_record'):
-        if external.get(field) is not None:
-            measured(external[field])
-    image_input._structure(plan)
-    changes = []
-
-    def bind(path, value, owner):
-        if path is None:
-            return
-        before = request_contract.get(request, path) if request_contract.present(request, path) else None
-        request_contract.put(request, path, value)
-        if c.encoded(before) != c.encoded(value):
-            changes.append({'field': path, 'owner': owner, 'before': before, 'after': value})
-
-    bind(external['prompt_field'], delivery.decode('utf-8'), 'delivery')
-    bind(external['model_field'], plan['model']['target']['model_identifier'], 'model.target')
-    bind(external['operation_field'], plan['model']['target']['operation'], 'model.target')
-    bind(external['count_field'], external['count'], 'external_request.count')
-    for row in external['reference_fields']:
-        bind(row['field'], row['value'], 'reference:' + row['reference'])
-    request_raw = c.encoded(request)
-    external['file'] = (Path(out_dir) / 'external-request.json').as_posix()
-    external['sha256'] = c.digest(request_raw)
-    generated = {external['file']: request_raw}
-
-    def read(path):
-        if path in generated:
-            return generated[path]
-        return reader.read(reader.select(path))
-
-    binding = image_input.validate(plan, root, read=read)
-    image_input._request(plan, external, request, prompt=delivery.decode('utf-8'))
-    files = {'external-request.json': request_raw, 'image-input.json': c.encoded(plan)}
-    return files, {'source': source_ref, 'request': request, 'model': binding['model'],
-        'references': binding['references'], 'changes': changes,
-        'prompt_check': binding['external_request']['prompt_check'],
-        'schema_validation': binding['external_request']['schema_validation'],
-        'dialect': plan['model'].get('prompt_dialect')}
+    """Delegate native request construction to its common editable input owner."""
+    import production_external_inputs
+    return production_external_inputs.build(selection, task, reader, root, out_dir, delivery)
 
 
 def next_actions(inputs: dict, task: dict, root: Path, *, runtime_arguments: dict | None = None) -> list[dict]:
@@ -218,7 +153,7 @@ def next_actions(inputs: dict, task: dict, root: Path, *, runtime_arguments: dic
                 'external_effect': False, 'requires': requires}]
     if task.get('execution') not in {'dispatcher', 'external'}:
         return actions
-    if task.get('route') == 'upscale':
+    if task.get('route') == 'upscale' and 'delivery' not in inputs:
         actions.insert(0, {'operation': 'build-upscale-request', 'script': 'scripts/production_binding.py',
             'args': {'root': str(root), 'request-validation-file': str(root / inputs['request-validation']['path'])},
             'requires': ['Select source, model, scale, settings, and render-intent.',

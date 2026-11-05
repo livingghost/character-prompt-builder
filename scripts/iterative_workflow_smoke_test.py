@@ -283,3 +283,9 @@ class StudioIterationTests(unittest.TestCase):
         self.assertIn('loading="lazy"', detail)
         self.assertIn('views/browser/gallery.assets/index.js', page)
         self.assertIn('work/activity/timeline.md',page)
+
+
+if __name__ == '__main__':
+    import stdio_utf8
+    stdio_utf8.configure()
+    unittest.main()

@@ -1514,6 +1514,49 @@ def finalize_prepared_reference_set(
     )
 
 
+def resolve_prepared_reference_paths(value: Mapping[str, Any], *, package_root: Path,
+                                    model: str | None = None) -> dict[str, Any]:
+    """Bind portable carriers to their owning file before embedding the set.
+
+    The raw input file retains its own byte commitment. An embedded input has
+    no independent file location, so its carriers use exact absolute paths.
+    Source provenance, source bytes and authored scope are unchanged.
+    """
+    original = validate_prepared_reference_set(value, model=model, package_root=package_root)
+
+    def resolved(current: dict) -> dict:
+        result = copy.deepcopy(current)
+        for index, row in enumerate(result['selected_references']):
+            _, path = _resolve_packaged_file(row['transport']['resolved_path'],
+                f'selected_references[{index}].transport.resolved_path', package_root=package_root)
+            row['transport']['resolved_path'] = str(path)
+        for index, row in enumerate(result['prompt_artifacts']):
+            _, path = _resolve_packaged_file(row['delivered_path'],
+                f'prompt_artifacts[{index}].delivered_path', package_root=package_root)
+            row['delivered_path'] = str(path)
+        if result['single_board'] is not None:
+            _, path = _resolve_packaged_file(result['single_board']['resolved_path'],
+                'single_board.resolved_path', package_root=package_root)
+            result['single_board']['resolved_path'] = str(path)
+        binding = result.get('image_input_binding')
+        if binding is not None and binding.get('prepared_reference_set') is not None:
+            origin = copy.deepcopy(binding['prepared_reference_set'])
+            for old, row in zip(origin['selected_references'], result['selected_references'], strict=True):
+                old['transport']['resolved_path'] = row['transport']['resolved_path']
+            for old, row in zip(origin['prompt_artifacts'], result['prompt_artifacts'], strict=True):
+                old['delivered_path'] = row['delivered_path']
+            if origin['single_board'] is not None:
+                origin['single_board']['resolved_path'] = result['single_board']['resolved_path']
+            binding['prepared_reference_set'] = resolved(origin)
+            from execution_contract import content_id
+            binding['binding_sha256'] = content_id({key: item for key, item in binding.items()
+                                                   if key != 'binding_sha256'})
+        result.pop('set_id', None)
+        return finalize_prepared_reference_set(result, model=model, package_root=package_root)
+
+    return resolved(original)
+
+
 def build_prepared_reference_set(
     *,
     transport_mode: str,

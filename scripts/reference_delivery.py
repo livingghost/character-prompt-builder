@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
+
 
 def validate_subject_uses(value: Any, *, subject_ids: set[str] | None = None,
                           allowed_uses: Sequence[str] | None = None) -> list[dict[str, Any]]:
@@ -118,6 +120,8 @@ def prepared_origin_projection(reference_set: Mapping[str, Any]) -> dict[str, An
         result.pop(field, None)
     for row in result.get('selected_references', []):
         row['transport'].pop('resolved_path', None)
+    for row in result.get('prompt_artifacts', []):
+        row.pop('delivered_path', None)
     if result.get('single_board') is not None:
         result['single_board'].pop('resolved_path', None)
     return result
@@ -182,7 +186,11 @@ def main() -> int:
     source.add_argument('--image-input-plan', type=Path)
     parser.add_argument('--package-root', type=Path)
     parser.add_argument('--studio', type=Path, help='Resolve an image input plan\'s existing prepared references')
+    add_pack_runtime_arguments(parser)
     args = parser.parse_args()
+    from catalog_retrieval.runtime import configure_pack_runtime
+    runtime = resolve_pack_runtime(parser, args)
+    configure_pack_runtime(runtime.settings)
     try:
         from execution_contract import load
         if args.image_input_plan is not None:
@@ -194,7 +202,9 @@ def main() -> int:
                 ensure_ascii=False, indent=2))
             return 0
         from prepare_generation_references import validate_prepared_reference_set
-        value = validate_prepared_reference_set(load(args.prepared_set), package_root=args.package_root)
+        source_path = args.prepared_set.resolve()
+        package_root = args.package_root if args.package_root is not None else source_path.parent
+        value = validate_prepared_reference_set(load(source_path), package_root=package_root)
         result = {'ok': True, 'bindings': bindings(value['transport_mode'], value['selected_references'], value['single_board']),
                   'limit': 'Byte and order verification does not establish visual suitability.'}
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -202,6 +212,8 @@ def main() -> int:
     except (ValueError, OSError, KeyError, TypeError, RuntimeError) as exc:
         print(json.dumps({'ok': False, 'error': str(exc)}, ensure_ascii=False))
         return 1
+    finally:
+        configure_pack_runtime(None)
 
 
 if __name__ == '__main__':

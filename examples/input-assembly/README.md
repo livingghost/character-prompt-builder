@@ -18,8 +18,18 @@ Real operators read the selected sources and write their own quotations and reas
 
 ## Run the input helpers
 
-Start with an authored production task in a studio.
-The following commands leave preparation, authorization, and sending as separate operations.
+Open a work task in the Studio and read its selected route. New work can start
+without a handwritten production task. The following commands leave
+preparation, authorization and sending as separate operations:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --route prompt-only --artifact text --execution authored --out-dir work/first-draft
+python scripts/production_workflow.py build-inputs --root STUDIO --choices work/first-draft/choices.json --out-dir work/first-inputs
+```
+
+Edit the choices between those calls. The open work task supplies the task ID.
+Select the route, artifact and execution appropriate to the requested work;
+the example above creates authored text. To reopen an existing task instead:
 
 ```bash
 python scripts/production_workflow.py inspect-inputs --root STUDIO --task task.json
@@ -28,8 +38,11 @@ python scripts/production_workflow.py build-inputs --root STUDIO --task task.jso
 ```
 
 Edit `choices.json` before calling `build-inputs`. It contains only authored
-choices. `context.json` supplies the source task, provenance and unanswered
-fields for reading; the builder derives its own current diagnostics.
+choices and their source-selection context. `context.json` supplies the source
+task, provenance and unanswered fields for reading; the builder derives its
+own current diagnostics. Keep that context beside its choices. A build with
+only `--choices` recovers the same starting point from it, including a source
+run; it does not reinterpret an existing draft as new unbound work.
 Use a new output directory for each construction.
 A failed build preserves existing output directories and the authored task.
 
@@ -42,9 +55,34 @@ The builder resolves the document hashes from the issued record. A directly auth
 
 ## Input choices
 
-`visual` and `validation` stay null unless this directory must hold their records.
-The Generation Package builder takes continuity as `--continuity SUBJECT=DECISION` and derives request validation from the active pack's observed schema.
-An upscale or a package with selected references needs a validation choice.
+`authoring` is the common editable content for initial work and later changes:
+
+| Field | Authored content |
+| --- | --- |
+| `task` | Direction, criteria, source roles and other applicable task choices |
+| `delivery` | Exact `content` and its `translation_notes` |
+| `documents` | The selected production specification, plot, parameters, retrieval record, negative text and other production document bodies |
+| `sources` | Text or JSON source bodies keyed by their declared source ID, with `content` and `format` |
+| `generation` | Service, count, seed, continuity decisions and other declared generation choices |
+| `references` | Ordered reference choices, source authority, uses and transport choice |
+| `upscale` | The selected source, model, scale, settings, guidance, rendering and request evidence, or null |
+
+Changing a declared source's body preserves its ID, role and locator while the
+builder creates the new file and updates its task reference. The original file
+stays intact. Binary source material keeps its existing selector. A source that
+is no longer selected is not copied into the new input.
+
+The builder writes repeated file references and measured hashes. It rebuilds
+reference attachment positions and board placement from the ordered choice.
+The agent still decides intended influence, prohibited transfer, subject scope,
+the depiction and its independent criteria. A plot change must carry its actual
+approval; unchanged plot content can retain its earlier approval.
+
+`visual` and `validation` stay null when their necessary evidence is already
+provided by the selected authored inputs or the ordinary model contract.
+An upscale draft retains its existing valid request validation. Choosing new
+evidence uses these fields; a new build does not require inventing another
+validation record merely because the draft was reopened.
 
 ### Validation choices
 
@@ -120,7 +158,7 @@ task file; the original task and prompt files need not be copied or reopened:
 
 ```bash
 python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --out-dir work/send-draft
-python scripts/production_workflow.py build-inputs --root STUDIO --from-run RUN --choices work/send-draft/choices.json --out-dir work/send-inputs
+python scripts/production_workflow.py build-inputs --root STUDIO --choices work/send-draft/choices.json --out-dir work/send-inputs
 ```
 
 The author reassesses copied reading applications for the present work. A fresh
@@ -128,15 +166,17 @@ operator reads the applicable instructions; a saved key supplies provenance,
 not understanding. Change `reading` when the selected route, features or model
 family needs another completed reading.
 
-`task_changes` holds only fields intentionally changed for this deliverable,
+Ordinary edits use the restored `authoring` content. `task_changes` is an
+explicit overlay for fields intentionally changed for this deliverable,
 such as `route`, `features`, `sources`, `criteria`, `direction` or `delivery`.
 Unmentioned task fields retain their saved values. The task identity and
 existing authority selector remain owned by the source. A changed source still
 selected by the task must be resolved explicitly. No grant or authorization is
 created by input assembly.
 
-To turn an authored prompt into an external image input, select the existing
-model/interface and reference-use plan once:
+To turn an authored prompt into an external image input, select acquired
+model/interface and reference evidence once. A direct existing-plan selector
+is also accepted:
 
 ```json
 {
@@ -145,18 +185,53 @@ model/interface and reference-use plan once:
 }
 ```
 
-This is the external/task portion of `choices.json`; retain its reading,
-visual and validation choices. The plan follows the ordinary image-input
-contract. Its `external_request.file` supplies native controls, negative text
-when used, and the interface's actual container shape. The builder writes the
-prompt from `delivery`, and model, operation, count and media values from the
-plan through the explicitly declared field selectors. It preserves every other
-request field. Array positions must already exist in the selected container.
-No provider field names or transport are assumed.
+This is the external/task portion of `choices.json`; retain its authoring,
+reading, visual and validation choices. The plan follows the ordinary
+image-input contract. Drafting an existing external task restores the editable
+plan and native request directly:
 
-Evidence hashes may be omitted in this selected authoring plan. The builder
-measures them from actual files. A supplied hash remains a commitment and must
-match; it is never silently refreshed. The resulting ordinary image-input plan
+```json
+{"external": {"image_input": {}, "request": {}, "media_slots": [], "reference_delivery": null, "source_files": {}}}
+```
+
+This excerpt shows only the container shape, not a complete input. The actual
+draft supplies the selected plan, request object or array, and recorded media
+slots. Edit independent native controls in `request`; the common delivery
+owns prompt text, the model plan owns target identity, and
+`image_input.external_request.count` owns the expected count. Their repeated
+request fields are generated values.
+
+Each reference keeps its file, role, `use_for`, `do_not_transfer`, subject use
+and actual `transport.value` with its evidence. Add, remove or reorder rows in
+`image_input.references`. For one declared homogeneous media array, a new row
+can omit `transport.field`: the builder assigns its position. More than one
+possible mapping needs an explicit selection. The draft's `media_slots` records
+the original mapping and is not a second reference list to edit. Building
+recreates the mapped media fields while preserving independent controls and
+text entries in mixed content arrays. No provider field names, upload values
+or permission are invented.
+
+For a plan bound to canonical prepared references, the draft instead puts
+source selection and authority in `external.reference_delivery.choices` and
+retains the preparation target beside those choices as `target_model`.
+Its `image_input.references` rows contain the matching IDs and actual transport
+evidence. Edit the canonical selection once; the builder derives the full
+image-input references, attachments and boards from it.
+
+When that changes the carrier bytes, the build publishes the new carrier and
+an input report with `request_state: "reference-upload-required"`. It publishes
+no executable task or provider request. Use the actual service upload, retain
+its response and select the returned value and evidence in `transport`. Set
+`transport.uploaded_file` to the file actually uploaded. Build again into a
+new output directory; the builder checks that file against its current
+carrier. Older upload evidence cannot establish that new bytes were uploaded.
+
+The draft's `source_files` holds the original file pins as derived context.
+Select a new evidence path when the evidence changes; the builder measures
+its hash. An original pinned path must still match its captured bytes.
+Evidence hashes may also be omitted in a directly selected authoring plan.
+A supplied hash remains a commitment and must match; it is never silently
+refreshed. The resulting ordinary image-input plan
 contains the derived hashes, exact request and preserved reference scope.
 Tag-based input still needs its actual dictionary-search record and grammar
 contract, and its exact materialized text is checked before publication.
