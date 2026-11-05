@@ -1,5 +1,6 @@
 """Review/Studio ownership tests. All decisions describe synthetic fixture PNGs."""
 from __future__ import annotations
+import copy
 import json
 from pathlib import Path
 import tempfile
@@ -33,6 +34,7 @@ class ReviewCase(unittest.TestCase):
         task = c.load(self.root / 'task.json')
         task['criteria'].append({'id': 'palette', 'strength': 'hard', 'text': 'The fixture palette is inspectable.', 'evidence': 'image'})
         task['generation']['count'] = self.count
+        self.configure_task(task)
         fixtures.write(self.root / 'task.json', task)
         self.run = workflow.prepare(self.root, 'task.json')['run']
         result = execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
@@ -41,6 +43,9 @@ class ReviewCase(unittest.TestCase):
         self.candidate = self.candidates[0]
         self.home = studio.character_home(self.root, 'robot')
         self.iteration = self.row(self.candidate)['iteration_id']
+
+    def configure_task(self, task):
+        """Let a synthetic case select its sources before preparation."""
 
     def row(self, candidate):
         return next(row for row in studio.read_iterations(self.home) if row['production']['candidate'] == candidate)
@@ -432,6 +437,280 @@ class ReviewTests(ReviewCase):
         self.assertEqual(answer.read_bytes(),changed)
         self.assertEqual(observation.read_bytes(),original)
         self.assertEqual(store.event_rows(self.root,self.run),before)
+
+
+class IdentityReviewCase(ReviewCase):
+    treatment = 'preserve'
+
+    def configure_task(self, task):
+        self.original_identity = {'identity': {
+            'unfamiliar': {'axis~rim/edge': 'The rim turns inward only when the two shell halves interlock.'},
+            'relation': ['The rear rim stays thicker than the front rim in the same plane.'],
+            'hidden': 'A shallow notch sits under the lower shell.'},
+            'editor_notes': 'These notes are outside the authored identity selection.'}
+        fixtures.write(self.root / 'identity.json', self.original_identity)
+        task['sources'].append({'id': 'adopted', 'path': 'identity.json', 'role': 'identity definition',
+            'disposition': 'applied', 'locator': '/identity',
+            'reason': 'A synthetic original with arbitrary conditional details and a relation.',
+            'identity': {'subject_ids': ['robot'], 'selectors': ['/identity']}})
+        task['criteria'].extend([
+            {'id': 'identity-scene', 'strength': 'hard', 'evidence': 'image',
+             'text': 'Assess the selected identity treatment against the original and the candidate.',
+             'identity_bindings': [{'source': 'adopted', 'subject_ids': ['robot'],
+                 'selectors': ['/identity'], 'treatment': self.treatment,
+                 'reason': 'Synthetic authored treatment; the fixture makes no claim of visual fidelity.',
+                 'carriers': [{'kind': 'text', 'surface': 'primary', 'quote': fixtures.PROMPT}],
+                 'variation': None}]},
+            {'id': 'identity-whole', 'strength': 'hard', 'evidence': 'image',
+             'text': 'Compare the whole subject with its original definitions and relations independently.',
+             'identity_review': ['robot']}])
+
+    def all_checks(self, **changes):
+        return [(key, changes.get(key, 'pass'))
+                for key in ('output', 'palette', 'identity-scene', 'identity-whole')]
+
+
+class IdentityReviewTests(IdentityReviewCase):
+    def test_original_identity_is_frozen_independent_context_only_after_blind_views(self):
+        directory, prepared, consumer, _ = workflow.load_run(self.root, self.run)
+        original = copy.deepcopy(prepared['identity_coverage'])
+        detail = self.original_identity['identity']['unfamiliar']['axis~rim/edge']
+        self.assertNotIn(detail, consumer['instructions'])
+        before = store.event_rows(self.root, self.run)
+        for phase in ('decision', 'review'):
+            view = workspace.workspace(self.root, self.run, phase=phase,
+                candidate=self.candidate if phase == 'review' else None)
+            self.assertEqual(view['identity_coverage'], original)
+            self.assertEqual(view['basis']['identity_coverage'], original)
+            self.assertIn(detail, json.dumps(view['basis'], ensure_ascii=False))
+        observation = workspace.workspace(self.root, self.run, phase='observe', candidate=self.candidate)
+        self.assertEqual(set(observation), {'phase', 'run', 'candidate', 'instruction'})
+        blind_input = workspace.workspace(self.root, self.run, phase='input')
+        self.assertEqual(set(blind_input), {'phase', 'run', 'input_sha256', 'reading', 'prepared_input', 'instruction'})
+        self.assertNotIn(detail, json.dumps(blind_input))
+        draft = workflow.draft_review(self.root, self.run, self.candidate)
+        self.assertTrue(all(row['verdict'] == 'not-assessed' and row['reason'] == '' for row in draft['checks']))
+        self.assertEqual((draft['observations'], draft['evidence'], draft['unresolved']), ([], [], []))
+        self.assertNotIn('identity_coverage', draft)
+        fixtures.write(self.root / 'identity.json', {'identity': 'Later unrelated live definition.'})
+        (self.root / 'prompt.txt').unlink()
+        again = workspace.workspace(self.root, self.run, phase='review', candidate=self.candidate)
+        self.assertEqual(again['identity_coverage'], original)
+        saved = next(row for row in again['sources'] if row['id'] == 'adopted')
+        self.assertEqual(c.decode(Path(saved['saved_path']).read_bytes()), self.original_identity)
+        self.assertEqual(c.digest(Path(saved['saved_path']).read_bytes()), original['sources'][0]['sha256'])
+        self.assertEqual(store.event_rows(self.root, self.run), before)
+
+    def test_original_identity_evidence_is_resolved_without_live_source_or_editable_copy(self):
+        value = self.review_data(self.all_checks())
+        value['observations'].append({'evidence': 'identity-source:adopted', 'locator': {'kind': 'whole'},
+            'observation': 'The saved JSON contains the synthetic original definition and relation.',
+            'interpretation': 'This original supplies an independent comparison basis, not output proof.',
+            'limitations': ['The candidate remains a protocol fixture; no visual fidelity is asserted.']})
+        value['checks'][-1]['observation_indices'].append(1)
+        fixtures.write(self.root / 'review.json', value)
+        (self.root / 'identity.json').unlink()
+        recorded = workflow.review(self.root, self.run, 'review.json')
+        source = next(row for row in recorded['data']['review']['evidence'] if row['id'] == 'identity-source:adopted')
+        self.assertEqual(source['kind'], 'json')
+        self.assertEqual(c.decode((self.root / source['path']).read_bytes()), self.original_identity)
+        self.assertIn('source_pointer', source['relation'])
+        self.assertEqual(c.load(self.root / 'review.json')['evidence'], [])
+
+    def test_omitted_or_unassessed_whole_identity_check_cannot_be_selected_or_waived(self):
+        prepared = workflow.load_run(self.root, self.run)[1]
+        for verdict in (None, 'not-assessed'):
+            with self.subTest(verdict=verdict):
+                checks = self.all_checks(**{'identity-whole': verdict})
+                reviewed = self.record_review([(key, item) for key, item in checks if item is not None])
+                needed = workflow.selection_requirements(prepared, reviewed)
+                self.assertEqual(needed['unassessed_hard_criteria'], ['identity-whole'])
+                self.assertCode('REVIEW_INCOMPLETE', lambda: workflow.eligible(prepared, reviewed,
+                    {'criteria': ['identity-whole']}))
+                self.assertCode('REVIEW_INCOMPLETE', self.select)
+        self.assertFalse(any(row['event'] == 'selection' for row in store.event_rows(self.root, self.run)))
+
+    def test_concern_outside_extracted_criteria_uses_existing_unresolved_selection_block(self):
+        concern = 'The original relationship may not be decidable at the fixture scale; it is not an extracted check.'
+        reviewed = self.record_review(self.all_checks(), unresolved=[concern])
+        self.assertEqual(reviewed['data']['review']['unresolved'], [concern])
+        self.assertEqual(self.state()['evaluation'], 'indeterminate')
+        self.assertCode('OWNER_ACCEPTANCE_REQUIRED', self.select)
+
+    def test_passing_identity_review_cannot_cite_only_reference_pixels(self):
+        value = self.review_data(self.all_checks())
+        image = self.row(self.candidate)['result']['path']
+        value['evidence'] = [{'id': 'reference-only', 'path': image, 'kind': 'image',
+            'relation': 'Synthetic supplementary image, not a candidate observation.', 'limitations': []}]
+        value['observations'][0]['evidence'] = 'reference-only'
+        fixtures.write(self.root / 'review.json', value)
+        with self.assertRaisesRegex(ValueError, 'actual candidate'):
+            workflow.review(self.root, self.run, 'review.json')
+
+
+class SharedIdentitySourceReviewTests(IdentityReviewCase):
+    def configure_task(self, task):
+        super().configure_task(task)
+        source = copy.deepcopy(task['sources'][-1])
+        source.update(id='adopted-condition', locator='/identity/unfamiliar')
+        source['identity']['selectors'] = ['/identity/unfamiliar']
+        task['sources'].append(source)
+        bindings = task['criteria'][-2]['identity_bindings']
+        bindings.append({**copy.deepcopy(bindings[0]), 'source': source['id'],
+                         'selectors': ['/identity/unfamiliar']})
+
+    def test_same_saved_original_is_inlined_once_while_both_identity_scopes_remain(self):
+        view = workspace.workspace(self.root, self.run, phase='review', candidate=self.candidate)
+        sources = {row['id']: row for row in view['sources'] if row['id'].startswith('adopted')}
+        self.assertEqual(set(sources), {'adopted', 'adopted-condition'})
+        self.assertEqual(sum('text' in row for row in sources.values()), 1)
+        self.assertEqual(c.decode(sources['adopted']['text'].encode('utf-8')), self.original_identity)
+        self.assertEqual(sources['adopted-condition']['content_ref'], 'adopted')
+        for source in sources.values():
+            self.assertEqual(c.decode(Path(source['saved_path']).read_bytes()), self.original_identity)
+        coverage = {row['id']: row for row in view['identity_coverage']['sources']}
+        self.assertEqual(coverage['adopted']['selectors'], ['/identity'])
+        self.assertEqual(coverage['adopted-condition']['selectors'], ['/identity/unfamiliar'])
+        self.assertEqual(sources['adopted-condition']['identity'],
+                         {'subject_ids': ['robot'], 'selectors': ['/identity/unfamiliar']})
+
+
+class UnresolvedIdentityReviewTests(IdentityReviewCase):
+    treatment = 'unresolved'
+
+    def test_unresolved_binding_blocks_its_criterion_and_whole_subject_pass(self):
+        for passing in ('identity-scene', 'identity-whole'):
+            with self.subTest(passing=passing):
+                changes = {'identity-scene': 'indeterminate', 'identity-whole': 'indeterminate', passing: 'pass'}
+                self.review_data(self.all_checks(**changes))
+                with self.assertRaisesRegex(ValueError, 'unresolved identity obligation'):
+                    workflow.review(self.root, self.run, 'review.json')
+        reviewed = self.record_review(self.all_checks(**{
+            'identity-scene': 'indeterminate', 'identity-whole': 'indeterminate'}))
+        self.assertEqual([row['verdict'] for row in reviewed['data']['review']['checks']][-2:],
+                         ['indeterminate', 'indeterminate'])
+        self.assertCode('OWNER_ACCEPTANCE_REQUIRED', self.select)
+
+    def test_narrower_resolved_and_not_exposed_treatments_replace_effective_unresolved_scope(self):
+        import identity_coverage
+        directory, prepared, _, rows = workflow.load_run(self.root, self.run)
+        revised = copy.deepcopy(prepared)
+        criterion = revised['task']['criteria'][-2]
+        base = criterion['identity_bindings'][0]
+        for selectors, treatment in [(['/identity/unfamiliar', '/identity/relation'], 'preserve'),
+                                     (['/identity/hidden'], 'not-exposed')]:
+            criterion['identity_bindings'].append({**copy.deepcopy(base), 'selectors': selectors,
+                'treatment': treatment, 'reason': 'Explicit narrower synthetic scene choice.',
+                'carriers': base['carriers'] if treatment == 'preserve' else []})
+        revised['identity_coverage'] = identity_coverage.compile(revised['task'],
+            lambda path: (self.root / path).read_bytes(), context={
+                'subject_ids': ['robot'], 'required_subject_ids': ['robot'],
+                'text': {'primary': {'text': fixtures.PROMPT, 'field': ['prompt'],
+                                    'sha256': c.digest(fixtures.PROMPT.encode('utf-8'))}}})
+        self.assertTrue(revised['identity_coverage']['unresolved'])
+        value = self.review_data(self.all_checks())
+        candidate = workflow.find(rows, 'candidate', self.candidate)
+        raw = c.object_read(directory, candidate['data']['files'][0]['sha256'])
+        workflow.validate_review(value, revised, candidate, raw)
+        hidden = next(row for row in revised['identity_coverage']['sources'][0]['terminals']
+                      if row['pointer'] == '/identity/hidden')
+        self.assertEqual(hidden['value'], self.original_identity['identity']['hidden'])
+        self.assertEqual(hidden['coverage'][0]['treatment'], 'not-exposed')
+
+
+class IdentityMediaReviewCase(ReviewCase):
+    image_format = 'SVG'
+    declare_source = False
+
+    def configure_task(self, task):
+        from prepare_generation_references import prepare_references
+        from production_identity import reference_id
+        extension = self.image_format.lower()
+        self.original = self.root.parent / ('original-identity.' + extension)
+        if self.image_format == 'SVG':
+            self.original.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="16">'
+                                     '<rect width="32" height="16" fill="#5078a0"/></svg>', encoding='utf-8')
+        else:
+            from PIL import Image
+            Image.new('RGB', (32, 16), '#5078a0').save(self.original, format=self.image_format)
+        self.original_bytes = self.original.read_bytes()
+        references = prepare_references([{'role': 'identity',
+            'source': {'kind': 'supplied-file', 'reference_id': 'original-identity',
+                       'resolved_path': str(self.original)},
+            'subject_uses': [{'subject_id': 'robot', 'use': 'identity', 'priority': 0}]}],
+            model=fixtures.MODEL_ID, output_dir=self.root / 'identity-media',
+            max_side=64, transport_mode='single-board')
+        fixtures.write(self.root / 'identity-references.json', references)
+        task['generation']['references'] = 'identity-references.json'
+        specification = c.load(self.root / 'spec.json')
+        specification['render_intent']['execution_mode'] = 'reference-guided'
+        fixtures.write(self.root / 'spec.json', specification)
+        reference = reference_id(references['selected_references'][0])
+        self.source_id = 'reference:' + reference
+        if self.declare_source:
+            self.source_id = 'adopted-pixels'
+            self.declared_path = 'identity-original.' + extension
+            c.atomic(self.root / self.declared_path, self.original_bytes)
+            task['sources'].append({'id': self.source_id, 'path': self.declared_path,
+                'role': 'identity definition', 'disposition': 'applied', 'locator': 'whole',
+                'reason': 'The task directly selects these original synthetic identity pixels.',
+                'identity': {'subject_ids': ['robot'], 'selectors': ['']}})
+        task['criteria'].append({'id': 'identity-media', 'strength': 'hard', 'evidence': 'image',
+            'text': 'Independently compare the complete synthetic original and its actual carrier.',
+            'identity_review': ['robot'], 'identity_bindings': [{
+                'source': self.source_id, 'subject_ids': ['robot'], 'selectors': [''],
+                'treatment': 'preserve', 'reason': 'A synthetic media scope and provenance test.',
+                'carriers': [{'kind': 'reference', 'reference': reference, 'use': 'identity'}],
+                'variation': None}]})
+
+
+class IdentityMediaReviewTests(IdentityMediaReviewCase):
+    def test_derived_original_and_actual_delivery_are_available_after_external_original_is_removed(self):
+        self.original.unlink()
+        view = workspace.workspace(self.root, self.run, phase='review', candidate=self.candidate)
+        source = next(row for row in view['sources'] if row['id'] == self.source_id)
+        self.assertEqual(Path(source['saved_path']).read_bytes(), self.original_bytes)
+        self.assertEqual(source['path'], str(self.original))
+        carrier = view['identity_coverage']['bindings'][0]['carriers'][0]
+        self.assertEqual(carrier['reference_source_sha256'], source['sha256'])
+        self.assertNotEqual(carrier['carrier_sha256'], source['sha256'])
+        evidence = view['basis']['evidence']
+        original = next(row for row in evidence if row['id'] == 'identity-source:' + self.source_id)
+        delivered = next(row for row in evidence if row['id'].startswith('delivered-reference:'))
+        self.assertEqual((self.root / original['path']).read_bytes(), self.original_bytes)
+        self.assertEqual(c.sha256_file(self.root / delivered['path']), carrier['carrier_sha256'])
+        recorded = self.record_review([('output', 'pass'), ('palette', 'pass'), ('identity-media', 'pass')])
+        self.assertEqual(recorded['data']['media'][original['id']]['format'], 'SVG')
+        self.assertEqual(recorded['data']['media'][delivered['id']]['format'], 'PNG')
+
+
+class IdentityDeclaredSvgReviewTests(IdentityMediaReviewCase):
+    declare_source = True
+
+    def test_direct_declared_image_remains_region_observable_at_saved_bytes(self):
+        prepared = workflow.load_run(self.root, self.run)[1]
+        sources = prepared['identity_coverage']['sources']
+        self.assertEqual([row['id'] for row in sources], [self.source_id])
+        self.assertFalse(sources[0]['derived'])
+        self.assertEqual(sources[0]['format'], 'text' if self.image_format == 'SVG' else 'media')
+        value = self.review_data([('output', 'pass'), ('palette', 'pass'), ('identity-media', 'pass')])
+        evidence_id = 'identity-source:' + self.source_id
+        value['observations'].append({'evidence': evidence_id,
+            'locator': {'kind': 'image-region', 'x': 0, 'y': 0, 'width': 0.5, 'height': 1},
+            'observation': 'The selected original region is a locally decoded synthetic image.',
+            'interpretation': 'This is source provenance and access evidence, not generated fidelity.',
+            'limitations': ['Only the declared synthetic region is inspected.']})
+        value['checks'][-1]['observation_indices'].append(1)
+        fixtures.write(self.root / 'review.json', value)
+        self.original.unlink()
+        (self.root / self.declared_path).unlink()
+        recorded = workflow.review(self.root, self.run, 'review.json')
+        self.assertEqual(recorded['data']['media'][evidence_id]['kind'], 'image')
+        self.assertEqual(recorded['data']['media'][evidence_id]['format'], self.image_format)
+
+
+class IdentityDeclaredPngReviewTests(IdentityDeclaredSvgReviewTests):
+    image_format = 'PNG'
 
 
 class StoredContentTests(ReviewCase):

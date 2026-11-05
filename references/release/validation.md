@@ -51,6 +51,10 @@ The declared dependency versions apply to every operation. Each of these blocks 
 
 ## Where each check runs
 
+[Maintenance testing](../maintenance/testing.md) owns runner operation and
+subsystem coverage. This document defines the publication sequence and acceptance
+conditions.
+
 Each test suite runs once per change, in one place:
 
 - `python scripts/run_checks.py` runs every test suite and check command once, in parallel, from a temporary copy of the declared product files. Source-owned CI and source-control settings are included when present. Independently authored packs are outside that tree. `CPB_HOME` points to one scratch configuration directory whose pack state enables the shipped packs alone. The runner exits 1 when any command fails. CI runs it once per operating system.

@@ -56,6 +56,7 @@ An external target absent from the catalog uses acquired provider evidence and t
 Existing-image edits also require an exact semantic edit binding.
 Shared image inputs bind each subject's reference uses and the exact external request.
 Interpret source records into a depiction that the model can resolve from its actual prompt and media.
+Develop what is present, what happens and how its parts relate. Use constraints to refine that intended construction.
 Keep internal identifiers, source paths and production commentary in their owning records.
 Apply scoped model use-case guidance and current author selection preferences.
 The Production Specification owns dispatcher `render_intent`; external tasks retain it as an applied source.
@@ -201,10 +202,9 @@ closure of the production modules, with the digest of each module. A
 preparation refuses an index whose modules changed since it was written. Edit
 the metadata and the templates, never the generated files.
 
-The required checks are in [CONTRIBUTING.md](CONTRIBUTING.md), and
-[Release Validation](references/release/validation.md) is the sole authority for
-publication. Neither is copied here, because a copy drifts from the document it
-claims to follow.
+Follow [Maintenance testing](references/maintenance/testing.md) for check execution
+and subsystem coverage. [Release Validation](references/release/validation.md)
+owns the publication sequence and acceptance conditions.
 
 ## Writing for a reader
 
@@ -240,6 +240,11 @@ the references, the templates, docstrings and commit messages.
   Consolidate only when those functions survive, the complete owning source is
   reachable, and the affected procedures and references remain usable. State the
   reason in the change review and verify the resulting behavior and meaning.
+- Teach the desired result and the actions that produce it. Keep constraints
+  scoped to the properties or operations they govern, and carry the selected
+  content into the deliverable. Ground requirements in the commission,
+  applicable adopted definitions and intended use. Treat the author's chosen
+  method as a means whose success is judged against those requirements.
 - State durable product facts, rules and evidence in records and artifacts.
   Keep task-specific work instructions, work reports, process notes, decision
   histories, session narratives and conversation quotations out of product artifacts.
@@ -247,8 +252,8 @@ the references, the templates, docstrings and commit messages.
   A measurement's evidence (when, what, the result) is a fact; the story of
   producing it is not.
 - ASCII punctuation, no em or en dashes, English throughout.
-- After changing README.md, run `python scripts/readme_smoke_test.py` and keep
-  the executable example blocks byte-identical unless the commands changed.
+- For README changes, follow [Documentation checks](references/maintenance/testing.md#documentation-checks),
+  including preservation of executable example blocks when their commands stay the same.
 
 ## Entry point
 

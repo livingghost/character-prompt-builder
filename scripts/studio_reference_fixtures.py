@@ -82,16 +82,33 @@ def scope(binding_id: str = 'BIND-STUDIO') -> dict:
 def reference_task(case) -> tuple[str, dict]:
     """Author one ordinary Production task using the exact newly supported source."""
     from prepare_generation_references import prepare_references
+    from production_identity import reference_id
     from request_validation_fixtures import fixture_validation
     root = case.root
     source = studio_reference.current_source(root, 'robot', case.row['slot'])
-    refs = prepare_references([{'role':'identity','source':source}], model=fixture.MODEL_ID, output_dir=root/'prepared-studio-refs')
+    work_id = case.approval['continuity_decision']['character_id']
+    refs = prepare_references([{'role':'identity','source':source,
+        'subject_uses':[{'subject_id':work_id,'use':'identity','priority':0}]}],
+        model=fixture.MODEL_ID, output_dir=root/'prepared-studio-refs')
     fixture.write(root/'studio-references.json', refs)
     task = copy.deepcopy(case.task)
-    task['recording'].update(slot='scene.result', sheet_panel=False)
+    reference = reference_id(refs['selected_references'][0])
+    task['criteria'].append({'id':'adopted-identity','strength':'hard','evidence':'image',
+        'text':'Compare the whole recurring subject with the complete adopted identity image, '
+               'including its visible definitions and relations within the scene evidence limits.',
+        'identity_review':[work_id],
+        'identity_bindings':[{'source':'reference:'+reference,'subject_ids':[work_id],'selectors':[''],
+            'treatment':'preserve',
+            'reason':'This synthetic trial uses the adopted image as its original identity source; '
+                     'the assigned reference scope still excludes current clothing.',
+            'carriers':[{'kind':'reference','reference':reference,'use':'identity'}],'variation':None}]})
+    task['recording'].update(slot='scene.result', sheet_panel=False, subject_map={work_id:'robot'})
     task['generation'].update(references='studio-references.json', production_spec='reference-spec.json',
-        request_validation='reference-validation.json', continuity={'robot':'recurring'})
+        request_validation='reference-validation.json', continuity={work_id:'recurring'})
     spec = c.load(root/'spec.json'); spec['render_intent']['execution_mode'] = 'reference-guided'
+    spec['subjects'][0]['id'] = work_id
+    spec['subjects'][0]['identity'] = [
+        'The synthetic recurring subject retains the complete adopted identity from its assigned source image.']
     fixture.write(root/'reference-spec.json', spec)
     fixture.write(root/'reference-validation.json', fixture_validation(root,fixture.MODEL_ID,reference_mode='authored-rendition',service='synthetic'))
     fixture.write(root/'reference-task.json', task)

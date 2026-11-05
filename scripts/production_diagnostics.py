@@ -44,6 +44,7 @@ PHASE_DOCUMENTS = {
     'moment-views': 'references/runtime/story-context.md#use-the-moment-in-production',
     'scene-materials': 'references/runtime/story-context.md#prepared-scene-persona-material',
     'image-input': 'references/runtime/production-execution.md#image-input-and-exact-external-requests',
+    'identity-coverage': 'references/character-identity-contract.md#source-to-input-and-review-coverage',
     'semantic-edit': 'references/runtime/semantic-instruction-edit.md#author-and-bind-the-task',
     'scene-mask-binding': 'references/runtime/scene-mask-planning.md#use-the-existing-production-pipeline',
     'authority-evidence': 'references/runtime/production-permissions.md#authorization-and-execution-records',
@@ -75,6 +76,7 @@ PHASE_DOCUMENTS = {
 PHASE_SCHEMAS = {
     'task-schema': 'schemas/authoring/production-task.schema.json',
     'task-contract': 'schemas/authoring/production-task.schema.json',
+    'identity-coverage': 'schemas/authoring/production-task.schema.json',
     'image-input': 'schemas/authoring/image-input-plan.schema.json',
     'specification': 'protocols/shared-state/schemas/production-spec.schema.json',
     'render-intent': 'schemas/render-intent.schema.json',

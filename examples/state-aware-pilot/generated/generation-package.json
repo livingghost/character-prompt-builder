@@ -9437,7 +9437,7 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
   "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-  "generation_input_sha256": "0201dcfa5af1508846df97b01f5d5e6fd85a07985294068b2f25e84d2f515f5d",
+  "generation_input_sha256": "53c635115d707f44d9985a5426ab64d10a00b6a3de4af1f867daf153b2185f93",
   "generation_payload": {
     "prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
     "negative_prompt": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
@@ -9588,10 +9588,10 @@
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "state_graphs_sha256": "9639bdbd5f1cb2b3b33f5515b7cbb9c47ac6ee26f7726360e6948c0b75a1d231",
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-    "generation_input_sha256": "0201dcfa5af1508846df97b01f5d5e6fd85a07985294068b2f25e84d2f515f5d",
+    "generation_input_sha256": "53c635115d707f44d9985a5426ab64d10a00b6a3de4af1f867daf153b2185f93",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "0959d3860981953d04738db911f53aeab5f5e42046e33ddd942c29c37aaf0ac2",
+    "route_reading_sha256": "ff1359e36f6e01497ec4619899282b091e5989cf1775155c7d2e74c428d0ad82",
     "request_validation_sha256": "46ac91e53df14679e706e8e270237386a0a823864d9432c43bf9dbb01bf68026",
     "input_snapshots_sha256": "56d21fbb6eaa885bb10f586330d43d25f1fd8adf7d2c10e005153acb7d4c5594"
   },
@@ -9620,7 +9620,7 @@
       },
       {
         "path": "references/runtime/production-direction.md",
-        "sha256": "8dde8a3c39856b44a4397dfb49c482a0bd2047f43b54dc7bffad566882f183f0"
+        "sha256": "5d69c369a98c9fc1a4a485bf0e049f448f1cee21d8374a4af6b4cd31eee6fdb4"
       },
       {
         "path": "references/runtime/production-permissions.md",
@@ -9628,7 +9628,7 @@
       },
       {
         "path": "references/runtime/production-execution.md",
-        "sha256": "d0b968ae546fbc16c57b3004f2759e48d60efb4c494ebaaf4801f5b697070006"
+        "sha256": "ac684e3d225a94ce6a733f31b5b02df29b6300f322b19db9a6f90082cc16024f"
       },
       {
         "path": "references/runtime/state-aware-series.md",
@@ -9644,7 +9644,7 @@
       },
       {
         "path": "references/runtime/prompt-writing-guide.md",
-        "sha256": "234e31e89d3d2077b9af13b5e66c4731dca6d95f9c5778de545f44a33a4d97ec"
+        "sha256": "938bc8f34e3eac9d9bd2041dc6635e986b9406093d706e6a841b3beb21ede9c2"
       },
       {
         "path": "references/runtime/prompt-weighting.md",
@@ -9691,7 +9691,7 @@
       }
     },
     "route": "state-series",
-    "reading_key": "029c1a4261b7c0de530cda3c542bc16b",
+    "reading_key": "7e9fd3b87f895f030675827792afc48f",
     "applied": [
       {
         "path": "references/runtime/state-aware-series.md",
@@ -9718,7 +9718,7 @@
       }
     ]
   },
-  "route_reading_sha256": "0959d3860981953d04738db911f53aeab5f5e42046e33ddd942c29c37aaf0ac2",
+  "route_reading_sha256": "ff1359e36f6e01497ec4619899282b091e5989cf1775155c7d2e74c428d0ad82",
   "production_binding": null,
   "request_validation": {
     "mode": "target-schema",

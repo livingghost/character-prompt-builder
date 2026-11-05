@@ -913,7 +913,7 @@ def _staging(root: Path, persist: bool) -> Path:
 
 
 # The compilation stages after the input checks, in order, and what each one blocks.
-STAGES=['source-validation','package-compilation','request-compilation','execution-plan']
+STAGES=['source-validation','package-compilation','request-compilation','execution-plan','identity-coverage']
 
 
 def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: str | None=None,
@@ -1032,7 +1032,33 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                     if external.get('prompt_check') is not None:
                         execution_plan['prompt_check'] = external['prompt_check']
                 validate_document(execution_plan,PLAN_SCHEMA,'execution plan')
+            active_phase='identity-coverage'
+            import identity_coverage
+            import production_identity
+            def identity_read(path):
+                if path not in captured:
+                    selected_path = Path(path)
+                    captured[path] = (store.stable_bytes(selected_path.parent, selected_path.name)
+                                      if selected_path.is_absolute() else read_input(root, path, pointer=None,
+                                                                                  phase='identity-coverage'))
+                raw = captured[path]
+                blobs[c.digest(raw)] = raw
+                return raw
+            identity_context = production_identity.context(task, identity_read,
+                package=package, rendered=rendered, inputs=consumer.get('image_input'))
+            if task['execution'] == 'authored':
+                text = consumer['instructions']
+                identity_context['text']['primary'] = {'text': text, 'field': ['delivery'],
+                                                       'sha256': c.digest(text.encode('utf-8'))}
+            coverage = identity_coverage.compile(task, identity_read, context=identity_context)
+            coverage['request_verified'] = task['execution'] != 'authored'
+            if coverage['sources']:
+                prepared['identity_coverage'] = coverage
+                report['identity_coverage'] = coverage
+            checks.record('identity-coverage', 'passed' if coverage['sources'] else 'not-applicable')
             for name in STAGES[1:]:
+                if name == 'identity-coverage':
+                    continue
                 checks.record(name,'passed' if package is not None or name=='execution-plan' else 'not-applicable')
             active_phase='publication-verification'
             artifacts.write('delivery.txt',consumer['instructions'].encode('utf-8'))

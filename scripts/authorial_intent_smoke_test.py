@@ -484,7 +484,7 @@ class CurrentAuthoringTests(unittest.TestCase):
     def test_script_is_routed_and_current_test_is_registered(self):
         text=(ROOT/'references/narrative-authoring.md').read_text(encoding='utf-8')
         self.assertIn('scripts/authorial_intent_audit.py',text)
-        self.assertIn('scripts/authorial_intent_smoke_test.py',(ROOT/'CONTRIBUTING.md').read_text(encoding='utf-8'))
+        self.assertIn('scripts/authorial_intent_smoke_test.py',(ROOT/'references/maintenance/testing.md').read_text(encoding='utf-8'))
 
 
 if __name__=='__main__':

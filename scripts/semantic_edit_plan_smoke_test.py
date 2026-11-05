@@ -1338,7 +1338,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         import production_workflow as workflow
         archive = self.base / 'review-objects'
         c.object_store(archive, (self.root / 'scene.png').read_bytes())
-        evidence = workflow._review_reference_evidence(archive, 'fixture', {'image_input': binding})
+        evidence = workflow._review_reference_evidence(archive, 'fixture', {'image_input': binding}, {})
         scope = json.loads(evidence[0]['relation'].split(': ', 1)[1])
         self.assertEqual(scope['subject_id'], 'C01')
         self.assertEqual(scope['subject_uses'], [])
@@ -1680,8 +1680,17 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.task['features'] = []
         self.task['sources'][0]['role'] = 'reference-images'
         for index, row in enumerate(self.plan['references']):
+            subject = 'a' if index == 0 else 'b'
             row['role'] = 'identity'
-            row['subject_uses'] = [{'subject_id': 'a' if index == 0 else 'b', 'use': 'identity', 'priority': 0}]
+            row['subject_uses'] = [{'subject_id': subject, 'use': 'identity', 'priority': 0}]
+            self.task['criteria'].append({'id': 'identity-' + subject, 'strength': 'hard', 'evidence': 'image',
+                'text': 'Compare the complete original reference for synthetic subject ' + subject + '.',
+                'identity_review': [subject],
+                'identity_bindings': [{'source': 'reference:' + row['id'], 'subject_ids': [subject],
+                    'selectors': [''], 'treatment': 'preserve',
+                    'reason': 'The synthetic fixture author retains this reference identity in the new scene.',
+                    'carriers': [{'kind': 'reference', 'reference': row['id'], 'use': 'identity'}],
+                    'variation': None}]})
         spec = production_spec.draft(model=self.plan['model']['requested'], brief='Synthetic scene using two source identities.',
             subject='a', kind='robot', render_intent=intent(PROMPT, 'reference-guided'))
         second = copy.deepcopy(spec['subjects'][0])

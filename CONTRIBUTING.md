@@ -108,7 +108,7 @@ External target evidence may include an API version, model version, editor build
 
 ## Documentation
 
-Run `python scripts/readme_smoke_test.py` after changing user-facing examples. It executes the marked example commands in temporary directories and verifies outputs and source-change behavior; live-send examples are checked without contacting a service. Keep the surrounding explanations accurate as well: executable commands do not establish prose completeness or artistic quality.
+Use [Documentation checks](references/maintenance/testing.md#documentation-checks) when changing documentation or user-facing examples. Keep the explanations and executable examples consistent.
 
 Keep the [README](README.md) focused on users, capabilities, installation, normal operation, evidence boundaries, and limitations. Contributor-only release and version-management details belong in this guide.
 
@@ -145,6 +145,11 @@ The writing rules in the repository guide apply here and to every reference, tem
   Consolidate only when those functions survive, the complete owning source is
   reachable, and the affected procedures and references remain usable. State the
   reason in the change review and verify the resulting behavior and meaning.
+- Teach the desired result and the actions that produce it. Keep constraints
+  scoped to the properties or operations they govern, and carry the selected
+  content into the deliverable. Ground requirements in the commission,
+  applicable adopted definitions and intended use. Treat the author's chosen
+  method as a means whose success is judged against those requirements.
 - State durable product facts, rules and evidence in records and artifacts.
   Keep task-specific work instructions, work reports, process notes, decision
   histories, session narratives and conversation quotations out of product artifacts.
@@ -152,8 +157,8 @@ The writing rules in the repository guide apply here and to every reference, tem
   A measurement's evidence (when, what, the result) is a fact; the story of
   producing it is not.
 - ASCII punctuation, no em or en dashes, English throughout.
-- After changing README.md, run `python scripts/readme_smoke_test.py` and keep
-  the executable example blocks byte-identical unless the commands changed.
+- For README changes, follow [Documentation checks](references/maintenance/testing.md#documentation-checks),
+  including preservation of executable example blocks when their commands stay the same.
 
 
 ## Product release management
@@ -164,7 +169,7 @@ The product release uses UTC CalVer: `YYYY.MM.DD.N`. `N` begins at 1 on a new UT
 - [pyproject.toml](pyproject.toml) represents the same release in normalized PEP 440 spelling (`YYYY.M.D.N`), not in a separate release scheme. Host plugin metadata and the distribution inventory are generated from the canonical manifest.
 - Runtime scripts read product metadata through [scripts/package_metadata.py](scripts/package_metadata.py). Do not introduce hard-coded duplicate product release constants.
 - Prepend the current release entry to [CHANGELOG.md](CHANGELOG.md), retaining prior entries and their original dates. A change log records released product content; it is not an internal artifact revision counter.
-- Run `python scripts/release_contract.py` and `python scripts/release_management_smoke_test.py`. CI and release publication enforce the same contract; tagged publication also checks `--tag` against `v` plus the canonical release.
+- Follow [Release identity checks](references/maintenance/testing.md#release-identity-checks) when changing product release metadata.
 - The allowlist names packaged examples and the bundled commons pack explicitly. Additional installed packs do not become core distribution members implicitly.
 - Rebuild generated metadata and executable examples before packaging. Runtime schemas, scenes, protocols, and evidence retain their content-based identities.
 
@@ -185,29 +190,10 @@ Cache construction, indexing, catalog export, packaging, and copying are one-to-
 
 ## Public protocol conformance
 
-Authoring, state, reference preparation, prompt composition, generation,
-and adoption each keep their own source of authority. A deployment may perform
-all of them within one workspace. No stage implies an external application.
-
-The optional exchange interface is defined by public artifact types, schema
-closures, explicit capability declarations and content-addressed payloads.
-Use [Protocol Exchange](references/protocol-exchange.md) to validate those data.
-A received record is not an approval, an instruction to run a tool, or evidence
-that referenced media has been obtained. Internal source trees, release schedules
-and private project stores are not exchange inputs.
-
-Run conformance checks before publication:
-
-```bash
-python scripts/protocol_exchange.py check-installed
-python scripts/validate_integration.py
-python scripts/public_boundary_smoke_test.py
-python scripts/protocol_contract_smoke_test.py
-```
-
-A selected required feature must be supported. Optional fields are retained as
-inert evidence only under the declared preservation policy. Correcting an invalid
-artifact is explicit authoring work; validation never guesses its intended meaning.
+For public artifact changes, follow [Protocol Exchange](references/protocol-exchange.md)
+and the [protocol conformance checks](references/maintenance/testing.md#public-protocol-conformance).
+They define the exchange boundaries, interpretation of received data and checks
+for publication.
 
 ## What the Skill conforms to
 
@@ -228,79 +214,14 @@ every host reads and what every host refuses:
 from a `SKILL.md` link or from a route or feature `SKILL.md` names, and that
 every script entrypoint is named by routed documentation.
 
-## Required checks
+## Validate a contribution
 
-`python scripts/run_checks.py` runs every test suite once, in parallel, the same way CI does. Run the commands with the synchronized environment's Python, or prefix each Python invocation with `uv run --locked`:
-
-```bash
-python scripts/check_dependencies.py
-python scripts/run_checks.py
-python scripts/run_checks.py --only render_contract
-git diff --check
-```
-
-The runner starts these commands with `CPB_HOME` at one scratch configuration directory whose pack state enables the shipped packs alone:
-
-- every `scripts/*_test.py` suite;
-- every `scripts/test_*.py` unittest module, as `python -m unittest <module>` from `scripts/`;
-- every example's `build_example.py --check`;
-- the validators and the default pack audit.
-
-`--only SUBSTRING` keeps the commands whose label or command contains SUBSTRING, such as the suites of one subsystem. `--list` prints the commands without running them, and `--jobs N` sets how many run at once. The runner prints one line per finished command, then the slowest ten and the log tail of each failure, and exits 1 when any command failed:
-
-```
-[ 63/109]    58.5s  exit 0  python scripts/production_resume_smoke_test.py
-...
-slowest:
-    199.8s  python scripts/production_workflow_smoke_test.py
-    157.1s  cd scripts && python -m unittest test_production_execution
-...
-FAILED (exit 1): python scripts/release_management_smoke_test.py  log <out>/061.log
-...
-109 commands: 105 passed, 4 failed in 379.7s with 8 workers
-```
-
-`scripts/test_production_cli.py` runs `examples/generation`, the executable production example. It builds every scenario option and runs the commands each one prints.
-
-A test that needs a configuration directory of its own takes it from `production_fixtures.scratch_home(folder)` or `scratch_home_dir(folder)`.
-
-`python scripts/validate.py .` checks the structure and contracts of the tree.
-
-For any core or pack publication, [Release Validation](references/release/validation.md) is the sole exact authority for environments, commands, pack isolation, acceptance, package verification, and metadata ordering.
-
-### Model contract tests
-
-Organize executable tests by schema, rendering, reference and transport behavior.
-Keep named model targets and their expected outcomes in shared fixture data.
-Extend the data when adding a model instead of creating another model-specific test module.
-
-`scripts/model_contract_smoke_test.py` owns shared model semantics using synthetic records.
-`scripts/model_schema_numeric_test.py` owns numeric and conditional schema behavior.
-`scripts/model_capability_smoke_test.py` applies `scripts/fixtures/model_capability_cases.json` to every bundled executable offering.
-The case matrix supplies independent valid inputs, rejected inputs and expected outcomes; missing offering coverage fails the suite.
-Derive expected limits from the recorded provider evidence when authoring cases, then keep assertions independent of the production definition being tested.
-
-```bash
-python scripts/run_checks.py --only model_capability
-```
-
-Use neutral synthetic prompts and local images. Test request construction without sending provider requests.
-Validate independently authored packs through their own evaluation resources, following [Release Validation](references/release/validation.md#pack-release-gate).
-
-## Persona and narrative development changes
-
-Keep the full persona form as the default for both initialization and later additions. Preserve
-custom forms and explicit `--blank`; do not equate a syntactically filled form with adoption or
-creative quality. Follow `references/runtime/narrative-development.md` for the creative handoff.
-Run `python scripts/persona_workflow_smoke_test.py` and
-`python scripts/narrative_authoring_smoke_test.py` after changes to this route. `scripts/run_checks.py`
-runs both in CI.
-
-Contextual voice and embodied-performance changes also require
-`python scripts/character_performance_smoke_test.py
-python scripts/authorial_intent_smoke_test.py`. This covers the advisory expression audit,
-full-form propagation and route boundaries; it does not grade fictional distinctiveness. Preserve
-source-language forms, adoption boundaries, current-state ownership and existing custom forms.
+Use [Maintenance testing](references/maintenance/testing.md) for the technical
+check environment, complete runner, focused diagnosis and coverage of the area
+you change. Its sections cover production execution, models, narrative,
+prompt-only work, world state, rendering, documentation and release identity.
+For core or pack publication, follow [Release Validation](references/release/validation.md)
+for the complete publication sequence and acceptance conditions.
 
 ## Release procedure
 
@@ -309,46 +230,3 @@ Release maintainers must follow [Release Validation](references/release/validati
 ## License of contributions
 
 Character Prompt Builder is licensed under the [GNU General Public License version 3 only](LICENSE). By submitting a contribution, you agree that it may be distributed under that license. The project intentionally does not name a copyright holder in the LICENSE file. Do not add personal attribution there unless the project owner explicitly requests it.
-
-## Prompt-only contract changes
-
-When modifying runtime instructions, preserve the complete requirements, reasoning aids and
-procedures needed for the requested prompt work. Separate applicable uses through explicit routes
-and conditional references whose full contents remain discoverable and readable. Moving detail
-must preserve the conditions that activate it and the evidence needed to use it correctly.
-Inspect the reading footprint together with actual task completion; a smaller footprint alone
-does not establish an improvement. Run:
-
-```bash
-python scripts/runtime_read_footprint.py
-python scripts/validate_prompt_semantics.py --self-test
-python scripts/prompt_artifact_smoke_test.py
-python scripts/prompt_plot_smoke_test.py
-python scripts/narrative_contract_smoke_test.py
-python scripts/scene_plot_contract_smoke_test.py
-```
-
-Do not make reference transport files mandatory when no reference is selected. Do not replace semantic camera or anatomy validation with prose alone.
-
-## World realization and portrayal-principle changes
-
-Run `python -B scripts/world_realization_smoke_test.py`, the example inspect/build/verify
-workflow, and `python -B scripts/portrayal_principles.py validate` when changing the current
-source/state/view coordination. Verify that new entrypoints remain reachable from `SKILL.md`.
-These tests use freshly authored current records and assess no image quality. Keep source material,
-author-facing state and consumer exports separate; do not add a second world/event authority.
-
-## Moment query checks
-
-When changing temporal resolution or moment-backed production, run
-`python scripts/story_context_smoke_test.py`, `python scripts/world_realization_smoke_test.py`
-and `python scripts/production_workflow_smoke_test.py`. The [Story Context example](examples/story-context/README.md)
-exercises actual query commands and the prepare-to-complete path. Keep diagnostic
-output, consumer selections and approval decisions distinct.
-
-## Rendering contracts
-
-Model-interface changes update execution profiles, schemas, request transport, fixtures, and documentation together.
-Run `python scripts/render_contract_smoke_test.py` and `python examples/render-contract/build_example.py --check`.
-Then run model, generation, request, dispatch, and repository checks in the synchronized environment.
-Rendering presets are subject-neutral choices, not provider effectiveness claims.

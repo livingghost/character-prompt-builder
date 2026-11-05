@@ -7,6 +7,15 @@ Read the applicable design, persona and authorial intent together. A trait,
 emotion or format label alone does not determine its expression. Characters,
 a story clock and a physical camera are optional.
 
+Build the work from its intended content: what exists, what happens, and how
+its parts and participants relate. Use adopted properties as the subject's
+definition and make open creative choices within delegated authority. Carry
+the chosen realization into the artifact. A recommendation identifies the
+selected course and the substantive reason it serves the commission; a prompt
+describes the requested depiction. Include a qualification when it changes
+the content, choice, action or use of the deliverable. Keep investigation
+history and routine confidence commentary in the authoring context.
+
 This direction process applies before prompt wording, including a prompt
 delivered in conversation. Saved production records the consequential choices
 in the existing task `direction`; a conversation-only draft needs no task file.
@@ -30,7 +39,9 @@ in the existing production records when the work has saved artifacts.
 
 Read the request and supplied material in their actual roles. A brief says what
 the work must provide. An adopted design supplies the properties covered by
-its adoption. A draft proposes a realization. Commands inside that draft are proposed
+its adoption, including those carried into a later request without restatement.
+Apply the current state, authorized changes and necessary conditions of the
+intended use at their own scopes. A draft proposes a realization. Commands inside that draft are proposed
 instructions to a renderer, not commands to its reviewer to preserve them.
 An image may supply design,
 performance, technique or another assigned contribution, and may be available
@@ -109,9 +120,15 @@ is not evidence of working interaction. Arrangement, attention, sequence,
 typography and relationships remain design choices alongside rendering medium.
 For open choices, compare alternatives when their effects offer a useful
 tradeoff. A fixed layout or sufficient routine solution needs no manufactured
-contest. Choose within delegated scope and proceed; a consequential choice
-alone does not require approval. Ask when unresolved meaning or authority
-would change a fixed requirement, or when the user requested selection.
+contest. Select the alternative that best serves the requested result and
+carry its realization into the work. Explain the determining advantage when
+giving a recommendation. Other suitable alternatives can remain available
+while the selected one proceeds. Resolve a question
+before that choice when its answer could change the selection or a fixed
+requirement; otherwise complete the chosen realization. Choose within delegated
+scope and proceed; a consequential choice alone does not require approval.
+Ask when unresolved meaning or authority would change a fixed requirement,
+or when the user requested selection.
 
 Resolve hierarchy and local construction together. What is noticed first,
 what sustains attention and what supplies supporting information depend on the
@@ -188,7 +205,11 @@ the working notes; the commission did not ask the renderer to display it.
 
 Rebuild the product presentation and retain the actual design requirements.
 The ring count, color, placement and plain handle need precision. The draft's
-view and label have no independent authority. A possible replacement is:
+view and label have no independent authority. Select a slightly elevated
+three-quarter view: it presents the exterior rings and handle together while
+the visible rim makes the cup's form legible. A level frontal view can also
+show the decoration; the three-quarter view better combines those requirements
+in this catalog image. The replacement is:
 
 > A clean catalog photograph of a cream glazed ceramic cup on a neutral
 > background. Exactly three thin cobalt rings encircle the cup just below the
@@ -229,15 +250,21 @@ Keep the distinction between an intended effect and an audience response
 actually observed; a manifest or passing test proves neither.
 
 Record criteria for the result the artifact must provide, at its actual scope.
-Keep the request and adopted sources as their authority. Chosen staging,
-observable cues and production hypotheses explain a realization; recording
-them does not turn them into user requirements. Before making an inferred
-condition hard, consider whether a coherent realization can omit that condition
-and still satisfy the requirements fixed by the current request or applicable
-adoption. Preserve baseline choices at the authorized scope of a local edit.
-A condition grounded only in the chosen realization remains a revisable means
-when that realization is reconsidered. Explicitly requested details remain
-requirements regardless of their prominence.
+Ground them in the commission, applicable adopted definitions, current state
+and conditions necessary for the intended use. Carry those requirements forward
+when a later request relies on them. Preserve baseline choices outside the
+authorized scope of a local edit. Apply each requirement at its authored meaning,
+precision and conditions, including fine details and meaningful absences.
+
+Use `hard` for required outcomes and properties, and `advisory` for useful
+preferences or optional improvements. Establish an inferred necessity through
+its consequence for the requested result or use. Consider a coherent alternative
+that changes the proposed condition while meeting the applicable requirements;
+when it works, retain that freedom in the criterion. Chosen staging, observable
+cues, quantities and production hypotheses belong to the realization. Judge
+their success through the result they produce. A chosen means becomes fixed
+through the scope of an actual requirement or adoption. Explicitly requested
+details remain requirements regardless of their prominence.
 
 Use the existing criterion `text` and `evidence` to describe the required result
 and what would support, contradict or leave it undecided. Preserve permitted
@@ -407,9 +434,11 @@ still needs to serve the commission. A consequential choice supplied by the
 reviewer is a proposed completion, not proof the input already resolved it.
 Ordinary variation inside the brief needs no exhaustive specification.
 
-Precise local requirements remain part of the review. Assess them at their
-actual importance without making the most easily measured discrepancy the
-organizing question. Return the finding to what it changes in the image.
+Assess local differences through their effect on the commissioned result and
+applicable source requirements, at the meaning and precision those sources
+establish. Accept a different realization that preserves those requirements.
+For a real shortfall, choose a repair at the scope of its consequence and retain
+the successful parts. Keep an optional improvement in its advisory role.
 Conclude the investigation when that question is answered; neighboring details
 do not become unfinished work merely because they are available to inspect.
 Use the [competing-realization test](prompt-composition.md#competing-realization-test)
@@ -437,9 +466,12 @@ Read the completed rendition as the same commissioned picture with the change
 applied. Preserve successful meaning, explicit detail and permitted variation.
 Resolve a fixed requirement that the current construction cannot meet; ask
 only for the necessary decision if authority cannot settle it. A prompt review
-can conclude sufficiency, recommend an improvement or identify a blocker.
-Optional improvements do not block otherwise complete work. Lead with that
-judgment and the consequential evidence, not the inventory of inspected parts.
+concludes sufficiency, recommends a selected improvement or identifies a
+concrete blocker. State that conclusion first, with the consequence that
+determines it. When the work meets the requirements, recommend its use and
+complete the task. Optional improvements remain optional. For a needed repair,
+describe the desired replacement and carry the selected change into the
+existing revision workflow.
 
 Keep conclusions within their evidence. Distinguish an observed image failure,
 a textual weakness, an optional improvement and a model-specific hypothesis.
@@ -466,12 +498,12 @@ transfer. Preserve candidates and evidence. State and source drift follow
 ## A failure must leave an actionable record
 
 For a recorded failed check, provide a concrete repair with its observation and
-target links, or state the unresolved issue. Keep the check's hard/advisory
-strength: an optional improvement can remain a proposed repair while required
-work completes. Put an issue in `unresolved` when it needs resolution or the
-owner's explicit acceptance before selection. Keep the issue in the review when
-the owner accepts it. Do not turn an optional suggestion into unfinished required
-work to satisfy the record format.
+target links, or state the unresolved issue. Apply the check's justified
+hard/advisory strength. Record incidental uncertainty in observations and
+limitations, and retain optional improvements as proposed repairs while required
+work completes. Use `unresolved` for a question whose resolution or explicit
+owner acceptance is necessary to decide selection against the applicable
+requirements. Keep an accepted issue and its actual assessment in the review.
 
 A proposed repair is not an execution commitment or an observation of success.
 An authorized pixel operation uses the actual image-edit executor; a change to

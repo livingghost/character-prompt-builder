@@ -100,7 +100,7 @@
         },
         "source_files": {
           "type": "object",
-          "description": "Recorded source-file measurements that bind retained upload URLs to their original carrier bytes. Drafting derives these witnesses; editing selects files and URLs.",
+          "description": "Recorded source-file measurements that bind retained upload URLs and selected identity sources to their original bytes. Drafting derives these witnesses; editing selects sources, files and URLs.",
           "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
         },
         "sources": {

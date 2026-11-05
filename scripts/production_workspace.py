@@ -26,10 +26,8 @@ def _reading(prepared: dict) -> dict:
     return {'entry': str(workflow.ROOT / 'SKILL.md'),
             'documents': [{'path': str(workflow.ROOT / item['path']), 'prepared_sha256': item['sha256']}
                           for item in prepared['route']['reads']],
-            'instruction': 'Read the applicable Skill instructions when they are absent from the active context. '
-                           'Use these paths to recover that context. A saved reading record records earlier '
-                           'delivery and application; it does not establish what this reader understands. '
-                           'This view does not issue or complete a reading record.'}
+            'instruction': 'Use these paths to recover any applicable Skill instructions missing from the '
+                           'active context, then apply them to this phase.'}
 
 
 def _external_media(directory: Path, binding: dict) -> list[dict]:
@@ -95,19 +93,34 @@ def _input(directory: Path, prepared: dict, consumer: dict) -> dict:
 def _sources(directory: Path, prepared: dict) -> list[dict]:
     from production_compiler import dependency_space
     sources = []
+    originals = {}
+
+    def append(source: dict, digest: str) -> None:
+        entry = {**source, 'saved_path': str(directory / 'objects' / digest), 'sha256': digest}
+        if digest in originals:
+            original = originals[digest]
+            entry.update(size=original['size'], content_ref=original['id'])
+        else:
+            raw = c.object_read(directory, digest)
+            entry['size'] = len(raw)
+            try:
+                entry['text'] = raw.decode('utf-8')
+            except UnicodeDecodeError:
+                pass
+            originals[digest] = entry
+        sources.append(entry)
+
     dependencies = {(item['space'], item['path']): item for item in prepared['dependencies']}
     for source in prepared['task']['sources']:
         item = dependencies.get((dependency_space(source['path']), source['path']))
         if item is None:
             raise ValueError('review source lacks a prepared dependency')
-        raw = c.object_read(directory, item['sha256'])
-        entry = {**source, 'saved_path': str(directory / 'objects' / item['sha256']),
-                 'sha256': item['sha256'], 'size': len(raw)}
-        try:
-            entry['text'] = raw.decode('utf-8')
-        except UnicodeDecodeError:
-            pass
-        sources.append(entry)
+        append(source, item['sha256'])
+    selected = {source['id'] for source in sources}
+    for source in prepared.get('identity_coverage', {}).get('sources', []):
+        if source['id'] in selected:
+            continue
+        append(source, source['sha256'])
     return sources
 
 
@@ -133,14 +146,17 @@ def workspace(root: Path, run: str, *, phase: str, candidate: str | None = None)
                   prepared_input=_input(directory, prepared, consumer))
     if phase == 'input':
         result['instruction'] = ('Read the complete prepared request and inspect its supplied media. '
-                                 'Reconstruct what their combined input asks the model to depict before '
-                                 'comparing it with the commission. These are prepared bytes; this view '
-                                 'does not establish that they were sent or that a result was accepted.')
+                                 'Describe the concrete result their combination calls for and how the '
+                                 'supplied media contribute. Preserve this reconstruction before comparing '
+                                 'it with the commission.')
         return result
     result.update(basis=workflow.review_basis(root, run, candidate), sources=_sources(directory, prepared),
                   source_context={key: consumer[key] for key in
                                   ('world_views', 'moment_views', 'authoring_materials', 'semantic_edit')
                                   if key in consumer})
+    if 'identity_coverage' in prepared:
+        result['identity_coverage'] = prepared['identity_coverage']
+        result['identity_instruction'] = result['basis']['identity_instruction']
     if phase == 'decision':
         import production_store
         plan = c.load(directory / 'execution-plan.json')
@@ -148,15 +164,38 @@ def workspace(root: Path, run: str, *, phase: str, candidate: str | None = None)
         result['operations'] = plan['operations']
         result['review_requirements'] = plan.get('review_requirements', [])
         result['prompt_check'] = plan.get('prompt_check')
-        result['instruction'] = ('After reconstructing the input, compare it with this commission and source scope. '
-                                 'Read the actual authority evidence and complete each separate operation decision. '
-                                 'The execution draft contains judgments; exact payloads, actor identities, counts '
-                                 'and hashes are derived from this prepared run when those judgments are recorded.')
+        result['instruction'] = ('Establish the intended result from the commission and applicable original '
+                                 'sources, including adopted definitions and current state, necessary '
+                                 'conditions of use, and authorized change and preservation scopes. Assess '
+                                 'their authored meaning, scope and importance. Compare the prepared hard '
+                                 'and advisory criteria with those requirements, including necessary '
+                                 'identity obligations, and compare the complete prepared input with the '
+                                 'intended result. Judge agent-selected staging, format and incidental '
+                                 'detail as means within the available freedom; coherent alternatives can '
+                                 'meet the same requirements. Complete each operation decision within the '
+                                 'recorded authority. Resolve a material mismatch through its owning '
+                                 'authoring choice. Keep provenance and payload details in their existing '
+                                 'records.')
         return result
-    result['instruction'] = ('After recording the candidate observation, assess it against the commission and '
-                             'applicable sources. The prepared criteria, selected realizations and craft questions '
-                             'supply the assessment basis. Judge the chosen means against the commission as well. '
-                             'Write the supported verdicts, reasons and limits in the compact review draft; '
-                             'reference evidence in this view is resolved automatically when that draft is recorded. '
-                             'Declare author self-review when the observing context already knew the intent.')
+    result['instruction'] = ('After recording the candidate observation, assess the result against the '
+                             'commission and applicable original sources, including adopted definitions '
+                             'and current state, necessary conditions of use, and preservation required '
+                             'by authorized local changes. Judge differences at their authored meaning, '
+                             'scope and importance. Check the prepared criteria against those requirements. '
+                             'Correct a criterion that incorrectly makes a chosen means mandatory through '
+                             'the existing authorized task revision path, then prepare and review the '
+                             'revised task before formal selection. Apply hard criteria for required '
+                             'outcomes and necessary source-based identity obligations at that scope; '
+                             'assess advisory criteria '
+                             'according to their authored purpose. Use selected '
+                             'realizations and craft questions to judge how the means contribute to the '
+                             'result; coherent alternatives can satisfy the same requirements. Record a '
+                             'pass when a criterion is met, describe shortfalls and evidence limits at '
+                             'their specific scope, and complete the conclusion. Place nonblocking '
+                             'uncertainty in observations, limitations or advisory checks, and offer '
+                             'useful optional repairs as proposals. Reserve review.unresolved for '
+                             'questions that need resolution or explicit acceptance to select the '
+                             'candidate against the required outcome. Use the evidence IDs in this view '
+                             'for source comparisons. Record author self-review in the review fields '
+                             'when the observing context already knew the intended result.')
     return result

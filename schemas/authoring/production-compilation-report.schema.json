@@ -75,6 +75,10 @@
     "execution_plan": {
       "$ref": "authoring/production-execution-plan.schema.json"
     },
+    "identity_coverage": {
+      "type": "object",
+      "description": "Derived correspondence from original identity sources to scene treatments, actual request carriers and independent criteria. Structural checks do not establish semantic completeness or visual fidelity."
+    },
     "staging": {
       "type": "string",
       "minLength": 1

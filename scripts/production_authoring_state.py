@@ -51,7 +51,7 @@ def _remember(root: Path, task_id: str | None, kind: str, identity: str, details
 
 def remember_inputs(root: Path, task: dict, kind: str, out_dir: str, *,
                     task_path: str | None, from_run: str | None, choices_path: str | None = None,
-                    runtime_arguments: dict | None = None) -> None:
+                    runtime_arguments: dict | None = None, context_sha256: str | None = None) -> None:
     if active_task_id(root) != task['task_id']:
         return
     if kind not in {'draft-inputs', 'build-inputs'}:
@@ -59,9 +59,31 @@ def remember_inputs(root: Path, task: dict, kind: str, out_dir: str, *,
     c.local(root, out_dir, exists=False)
     details = {'directory': out_dir, 'source_task': task_path, 'source_run': from_run,
                'choices': choices_path, 'runtime_arguments': runtime_arguments}
+    if context_sha256 is not None:
+        details['context_sha256'] = c.sha(context_sha256)
     if kind == 'draft-inputs' and task_path is None and from_run is None:
         details['initial_task'] = task
     _remember(root, task['task_id'], kind, out_dir, details)
+
+
+def require_input_context(root: Path, task_id: str, out_dir: str, raw: bytes, *, required: bool = True) -> None:
+    """Check a draft's derived source evidence against its existing publication pointer."""
+    try:
+        directory = _directory(root, task_id)
+    except ValueError:
+        # Production task IDs need not be work-ledger UUIDs. An optional check
+        # has no registered draft owner in that case; identity work requires one.
+        if not required:
+            return
+        raise
+    path = directory / ('draft-inputs-' + c.content_id(out_dir) + '.json')
+    if not path.is_file():
+        if not required:
+            return
+        raise ValueError('identity authoring needs the registered draft source context')
+    pointer = c.load(path)
+    if pointer['details'].get('context_sha256') != c.digest(raw):
+        raise ValueError('identity draft source context changed; draft current sources again')
 
 
 def remember_reading(root: Path | None, ledger: Path, snapshot_id: str, snapshot: dict,

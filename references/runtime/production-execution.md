@@ -128,6 +128,19 @@ the uploaded file's bytes with the current carrier before materializing the
 request. It performs no upload or generation itself.
 The [synthetic input assembly example](../../examples/input-assembly/README.md) contains complete commands, choice fields, and actual output.
 
+For identity-bearing work, construct the character's forms, details,
+relationships and performance in the chosen scene from its adopted definition.
+Choose the text and reference views that communicate that depiction through
+the same source and criterion choices. Follow
+[source to input and review coverage](../character-identity-contract.md#source-to-input-and-review-coverage)
+to bind that construction to original identity sources, their scene treatment,
+actual text or reference carriers and independent whole-subject review. The
+authoring context and input report expose the derived inventory, including
+identity references and state-contract owners already selected elsewhere.
+Complete uncovered definitions at those choices. Canonical identity sources
+stay at their owning paths while the authored rendition supplies this scene's
+depiction.
+
 ### Resume input authoring
 
 Interruption can occur during authoring, including while an older run exists.
@@ -184,10 +197,12 @@ situation, including the premises the renderer needs to understand its action,
 performance and reference use. Compose that complete input from the sources,
 then refine details and necessary exclusions under
 [Prompt Composition](prompt-composition.md#carry-scene-intent-into-depiction).
-Define criteria at the task's artifact scope and declared evidence medium;
-keep grading language and wider production or story decisions in their owning
-records. A task can use image, text, motion or other supported evidence as its
-requirements demand.
+Define criteria under [Production direction](production-direction.md#record-the-production-direction)
+from the commissioned result and applicable source requirements, including
+inherited identity and state. Use the task's artifact scope and declared evidence
+medium; keep grading language and wider production or story decisions in their
+owning records. A task can use image, text, motion or other supported evidence
+as its requirements demand.
 The compiler packages the rendition with the selected interface's declared controls.
 
 ```text
@@ -1021,15 +1036,54 @@ validation. The submission evidence separately establishes whether those
 prepared inputs were sent.
 
 The review workspace presents the prepared purpose and intended effect once, followed by each criterion's evidence kind, applicable selected realization, craft questions and accepted variations. The editing draft contains unanswered observations and verdicts, with empty reasons. Write the actual judgment there. Its `evidence` list is for additional authored sources; the runtime resolves prepared source and carrier evidence automatically, using the stable IDs shown in the workspace. The formal review retains all effective evidence and its saved bytes. Source records establish what was commissioned; observations
-establish what the candidate supplies. The chosen realization is itself open
-to judgment against that commission. A renderer can obey a prompt whose
-choices miss the request. Do not infer success solely from agreement with
-self-authored means, or silently treat those means as user requirements.
-Review the basis of a mistaken criterion in the same assessment and revise
-the responsible task through its existing authority before formal selection.
+establish what the candidate supplies. Assess the chosen realization and the
+returned result against the commission and applicable source requirements.
+Accept a suitable alternative that meets those requirements; assess the actual
+effect when a renderer follows choices that miss the request. Review the basis
+of a mistaken criterion in the same assessment and revise the responsible task
+through its existing authority before formal selection. Preserve inherited
+identity, necessary use conditions and the scope of any authorized local edit
+when correcting a criterion grounded only in the author's chosen means.
 Keep uncertainty about an unsupported judgment in the review's limitations.
 An intentionally ambiguous portrayal is itself assessable when the artifact
 requests it. Changes to a live task leave this prepared review basis unchanged.
+
+For adopted identity sources, the `decision` and `review` workspaces include
+the frozen `identity_coverage` report in their assessment basis. It preserves original
+values, grouped selections, subject scope, effective scene treatments and the
+exact text or media carriers bound to each criterion. Original source bytes
+remain available as `identity-source:SOURCE_ID` evidence, including sources
+derived from selected state or reference owners. The report is comparison
+context, not a verdict; the editing draft still begins unassessed. Neither the
+candidate-only `observe` view nor the blind `input` view includes this context.
+When source scopes share the same original bytes, the workspace includes that
+original text once. Later scopes name its first source ID in `content_ref`
+while keeping their own scope, pointer and saved access path.
+
+Use the applicable original definitions, conditions and relations to establish
+the character being depicted, including requirements inherited by this scene.
+Assess each required whole-subject criterion against that source independently
+of the prepared prompt and extracted checks. Record a supported pass when the
+candidate preserves the adopted construction within the commission's scope,
+including through a different suitable realization. Retain the original definition for
+`not-exposed` and `not-applicable` scopes, with the scene treatment and visibility
+limits in the existing observations and reasons. Assess discrepancies and
+uncertain details by their effect on the applicable identity requirements and
+selection. Keep nonblocking uncertainty in observations, reasons or limitations
+and optional improvements in proposed repairs. Use `unresolved` for issues that
+need resolution or explicit owner acceptance before selection, including
+findings beyond the extracted criteria. A necessary repair describes the
+construction or relationship the revised result should show at the affected scope.
+
+A passing identity criterion must cite the actual candidate in its required
+medium. An effective `unresolved` binding blocks a pass for its criterion and
+the affected subjects' whole-identity criteria; resolve its owning source or
+scene choice in a newly prepared input, or retain the actual nonpassing
+assessment. More specific authored treatments determine the effective scope.
+Omitting a required whole-subject check, or leaving it `not-assessed`, cannot
+permit selection or be waived as an assessed departure. A supported
+whole-subject pass remains limited to the depicted identity that this scene's
+evidence establishes.
 
 Locators are `whole`; `description` with text; one-based inclusive `lines` or `bytes`; `image-region` with normalized x, y, width and height; or `time`.
 A `time` locator names an integer stream index and decimal-string `start_seconds` and `end_seconds` within that measured stream.
@@ -1373,26 +1427,10 @@ The new run then records `{"field": "runtime", "before": ..., "after": ...}` in 
 Retargeting does not reactivate a disabled pack or restore the parent's provider.
 The [generation example](../../examples/generation/README.md) includes a second synthetic model with its own execution profile.
 
-## Regression coverage
+## Maintenance checks
 
-The synthetic generation example is the executable entry path.
-These developer checks exercise the same public contracts; an ordinary production call reads none of them.
-
-| Contract | Executable checks |
-|---|---|
-| Evidence, transactions and operation diagnostics | [test_production_foundation.py](../../scripts/test_production_foundation.py), [test_production_operations.py](../../scripts/test_production_operations.py) |
-| Fixed runtime snapshot reuse and irreversible-boundary checks | [test_runtime_snapshot.py](../../scripts/test_runtime_snapshot.py) |
-| Exact execution and handoff boundaries | [test_production_execution.py](../../scripts/test_production_execution.py), [test_production_boundaries.py](../../scripts/test_production_boundaries.py) |
-| Current grants, execution ownership and result records | [execution_lifecycle_smoke_test.py](../../scripts/execution_lifecycle_smoke_test.py) |
-| Input variants and explicit target changes | [test_production_variation.py](../../scripts/test_production_variation.py), [test_production_retarget.py](../../scripts/test_production_retarget.py) |
-| Public commands, JSON files and standard input | [test_production_cli.py](../../scripts/test_production_cli.py), [test_production_file_input.py](../../scripts/test_production_file_input.py) |
-| Candidate evaluation and canonical adoption | [test_production_review.py](../../scripts/test_production_review.py), [test_production_adoption.py](../../scripts/test_production_adoption.py) |
-| Model trials and observed schemas | [test_model_observation.py](../../scripts/test_model_observation.py) |
-
-Run them all from the installed source root with `python -m unittest discover -s scripts -p 'test_*.py' -v`.
-Tests use labeled synthetic approvals and local transports, never real credentials.
-A passing test is evidence of its checked contract, not a visual quality judgment or a release certification.
-
+When changing these public contracts, follow [Maintenance testing](../maintenance/testing.md#required-checks).
+Its [production execution coverage](../maintenance/testing.md#production-execution-checks) maps each contract to its regression suites.
 
 ## Managed next-action drafts during repeated work
 

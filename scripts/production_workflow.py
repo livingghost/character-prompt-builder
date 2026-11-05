@@ -104,6 +104,8 @@ def validate_task(task: Any) -> dict:
         if len(keys) != len(set(keys)):
             raise ValueError('duplicate bounded view selector')
     plan.validate(task['direction'], task['sources'], task['criteria'], task_id=task['task_id'])
+    import identity_coverage
+    identity_coverage.validate_task(task)
     return route
 
 
@@ -1077,13 +1079,40 @@ def _review_delivered_reference_evidence(directory: Path, run: str, binding: dic
     return evidence
 
 
-def _review_reference_evidence(directory: Path, run: str, consumer: dict) -> list[dict]:
-    """Make prepared image references available for comparison at their saved bytes."""
+def _review_identity_evidence(directory: Path, run: str, prepared: dict) -> list[dict]:
+    """Keep original identity owners available independently of their rendition."""
+    evidence = []
+    prefix = 'production/runs/' + run + '/objects/'
+    for source in prepared.get('identity_coverage', {}).get('sources', []):
+        raw = c.object_read(directory, source['sha256'])
+        kind = source['format'] if source['format'] in media.KINDS else 'binary'
+        if kind in {'text', 'binary'}:
+            try:
+                media.inspect(raw, 'image')
+            except ValueError:
+                pass
+            else:
+                kind = 'image'
+        scope = {key: source[key] for key in
+                 ('id', 'path', 'source_pointer', 'subject_ids', 'selectors')}
+        evidence.append({'id': 'identity-source:' + source['id'],
+            'path': prefix + source['sha256'],
+            'kind': kind,
+            'relation': 'Compare the original identity source in its authored scope: '
+                        + json.dumps(scope, ensure_ascii=False, sort_keys=True),
+            'limitations': ['The saved original defines the comparison basis. Its selected scene treatments '
+                            'and actual-input carriers are recorded in identity_coverage; neither establishes '
+                            'what the candidate visibly preserves.']})
+    return evidence
+
+
+def _review_reference_evidence(directory: Path, run: str, consumer: dict, prepared: dict) -> list[dict]:
+    """Make original identity and prepared image references available at saved bytes."""
+    evidence = _review_identity_evidence(directory, run, prepared)
     binding = consumer.get('image_input')
     if binding is None:
-        return _review_delivered_reference_evidence(directory, run)
+        return evidence + _review_delivered_reference_evidence(directory, run)
     from image_input import request_context
-    evidence = []
     prefix = 'production/runs/' + run + '/'
     for index, reference in enumerate(request_context(binding)['references']):
         c.object_read(directory, reference['sha256'])
@@ -1130,9 +1159,28 @@ def review_basis(root: Path, run: str, candidate: str | None = None) -> dict:
     from craft_consultation import review_questions
     questions = review_questions(root, prepared['task'], directory=directory, dependencies=prepared['dependencies'])
     task = prepared['task']
-    return {'purpose': task['direction']['purpose'], 'intended_effect': task['direction']['intended_effect'],
-            'criteria': [_review_criterion(task, item, questions.get(item['id'], [])) for item in task['criteria']],
-            'evidence': _review_reference_evidence(directory, run, consumer)}
+    result = {'purpose': task['direction']['purpose'], 'intended_effect': task['direction']['intended_effect'],
+              'criteria': [_review_criterion(task, item, questions.get(item['id'], [])) for item in task['criteria']],
+              'evidence': _review_reference_evidence(directory, run, consumer, prepared)}
+    if 'identity_coverage' in prepared:
+        result['identity_coverage'] = prepared['identity_coverage']
+        result['identity_instruction'] = (
+            'Use applicable adopted identity definitions, conditions and relations from the frozen '
+            'originals for every subject and scope they govern, including definitions carried into later '
+            'requests. Assess their authored meaning, scope and importance, keeping necessary identity '
+            'obligations strict. Compare each whole depicted subject with the frozen originals '
+            'independently of the prompt and extracted criteria. Use the coverage map to trace each '
+            'treatment into its actual text or reference carrier. Judge selected treatments by how they '
+            'realize the source requirements; coherent alternatives can satisfy the same criterion. '
+            'Record a pass when the candidate meets the criterion, and record shortfalls and uncertainty '
+            'at their affected scope, including findings beyond the extracted criteria. Retain original '
+            'definitions for not-exposed and not-applicable scopes, and describe the scene treatment and '
+            'visibility limits. Place nonblocking uncertainty in observations, limitations or advisory '
+            'checks, and offer useful optional repairs as proposals. Reserve review.unresolved for '
+            'questions that need resolution or explicit acceptance to select the candidate against the '
+            'required outcome. Resolve an authored unresolved binding at its owning source or scene '
+            'choice, then prepare the revised input.')
+    return result
 
 
 def draft_review(root: Path, run: str, candidate: str) -> dict:
@@ -1144,6 +1192,23 @@ def draft_review(root: Path, run: str, candidate: str) -> dict:
                         'reason': ''}
                        for x in prepared['task']['criteria']],
             'repairs': [], 'unresolved': [], 'conclusion': ''}
+
+
+def _unresolved_identity_criteria(prepared: dict) -> set[str]:
+    """Use effective source coverage, including narrower authored treatments."""
+    report = prepared.get('identity_coverage', {})
+    criteria, subjects = set(), set()
+    bindings = report.get('bindings', [])
+    for source in report.get('sources', []):
+        for terminal in source['terminals']:
+            for coverage in terminal['coverage']:
+                if coverage['treatment'] != 'unresolved':
+                    continue
+                subjects.add(coverage['subject_id'])
+                criteria.update(bindings[index]['criterion'] for index in coverage['bindings'])
+    criteria.update(row['criterion'] for row in report.get('whole_reviews', [])
+                    if subjects.intersection(row['subject_ids']))
+    return criteria
 
 
 def validate_review(data: Any, prepared: dict, candidate: dict, raw: bytes,
@@ -1160,6 +1225,7 @@ def validate_review(data: Any, prepared: dict, candidate: dict, raw: bytes,
         contents, measured = material[key]
         supported.append(media.locator(observation['locator'], measured, contents))
     expected = {x['id']: x for x in prepared['task']['criteria']}
+    unresolved_identity = _unresolved_identity_criteria(prepared)
     seen = set()
     for check in data['checks']:
         if check['criterion'] in seen or check['criterion'] not in expected:
@@ -1173,6 +1239,14 @@ def validate_review(data: Any, prepared: dict, candidate: dict, raw: bytes,
         requirement = expected[check['criterion']]['evidence']
         if check['verdict'] == 'pass' and not any(requirement in supported[i] for i in indices):
             raise ValueError('evidence medium or range cannot support the claimed pass')
+        if check['verdict'] == 'pass':
+            if check['criterion'] in unresolved_identity:
+                raise ValueError('an unresolved identity obligation cannot support a passing review criterion')
+            criterion = expected[check['criterion']]
+            if (criterion.get('identity_review') or criterion.get('identity_bindings')) and not any(
+                    data['observations'][i]['evidence'] == 'candidate' and requirement in supported[i]
+                    for i in indices):
+                raise ValueError('a passing identity review must cite the actual candidate in the required medium')
     # Omitted criteria remain unassessed. Selection separately requires a
     # supported pass or an explicit owner allowance for each assessed nonpass.
     decisions = {d['id'] for d in prepared['task']['direction']['decisions']}
@@ -1198,7 +1272,7 @@ def review(root: Path, run: str, review_file: str) -> dict:
         data = c.decode(c.object_read(directory, item['sha256']))
         schema_check(data, 'review')
         candidate = find(rows, 'candidate', data['candidate'])
-        data['evidence'] = _review_reference_evidence(directory, run, consumer) + data['evidence']
+        data['evidence'] = _review_reference_evidence(directory, run, consumer, prepared) + data['evidence']
         supplemental: dict[str, tuple[bytes, dict]] = {}
         records = []
         for spec in data['evidence']:

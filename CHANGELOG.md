@@ -1,5 +1,71 @@
 # Changelog
 
+## 2026.11.05.6
+
+- Own maintenance check execution, conditions and subsystem coverage in a
+  technical reference shared by runtime documentation and contributor entry points.
+- Route contributor, host and pull-request guides to that reference. Keep
+  publication sequencing and acceptance with Release Validation.
+- Keep technical prerequisites within their owning references and align the
+  existing authorial-intent documentation check with its current technical owner.
+
+## 2026.11.05.5
+
+- Use the contributor guide's complete test runner for production execution
+  maintenance, covering both standalone suites and unittest modules.
+- Keep the execution contract-to-test map and its evidence limits with the
+  maintainer checks, reached conditionally from the runtime instructions.
+
+## 2026.11.05.4
+
+- Ground authoring and review in the commissioned result, applicable adopted
+  identity and state, and necessary use conditions, including requirements
+  carried into a later request without restatement.
+- Assess chosen views, actions and other methods through the result they
+  produce. Accept suitable alternative realizations while preserving source
+  meaning, explicit detail and the scope of authorized local edits.
+- Classify uncertainty by its consequence for the required result and selection.
+  Keep nonblocking limitations and optional repairs in their existing roles,
+  and reserve unresolved issues for decisions needed before selection.
+- Apply the same requirement and method distinction in the shared repository
+  guide, generated agent entry points and workflow maintenance guidance.
+
+## 2026.11.05.3
+
+- Construct recurring-character renditions from adopted forms, details,
+  relationships and performance in the chosen scene. Use source coverage to
+  connect that wanted depiction to its actual text and reference inputs.
+- Lead authoring, input reconstruction and review guidance with the intended
+  content and successful result. Resolve meaningful choices into the work and
+  describe repairs through the construction they should produce.
+- Carry useful content into prompts and deliverables while keeping investigation
+  history and routine confidence commentary in their owning context.
+- Apply the same constructive instruction style in the shared repository guide,
+  generated agent entry points and maintenance guidance.
+
+## 2026.11.05.2
+
+- Carry complete selected identity definitions through the existing source and
+  criterion choices. Preserve arbitrary nested details, free text, conditions,
+  meaningful absences and relationships without a fixed feature checklist.
+- Discover identity reference sources and the selected state graph's identity,
+  morphology, Era, Form, Appearance and visual authority/evidence owners.
+  Report uncovered source values, missing subject assignments and independent
+  whole-subject reviews before publishing executable inputs.
+- Group definitions by their scene treatment, with more specific exceptions.
+  Keep preservation, indirect effects, visibility limits, inapplicable conditions,
+  approved variation and unresolved definitions distinct.
+- Bind identity carriers to exact rendered prompt text and delivered reference
+  fields, subject scopes, image bytes, board regions and transformations.
+  Preserve original source evidence separately from its rendition.
+- Preserve original identity source paths and draft evidence. Refuse stale
+  source reuse and edits that redefine adopted graph owners through generated
+  scene documents; allow independently owned scene state to change.
+- Expose the frozen source comparison in decision and review workspaces after
+  blind observation. Require actual candidate evidence for identity passes,
+  retain unresolved findings and owner allowances, and review whole characters
+  beyond the initially extracted criteria.
+
 ## 2026.11.05.1
 
 - Create, revise and resume production content through one editable input

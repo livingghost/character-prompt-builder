@@ -78,6 +78,62 @@ def _sources(root: Path, task: dict, reader: InputEvidence) -> list[dict]:
     return output
 
 
+def _identity_view(root: Path, task: dict, reader: InputEvidence, *, saved: dict | None = None,
+                   files: dict[str, bytes] | None = None, out_dir: str | None = None) -> dict | None:
+    """Expose original identity evidence beside choices, including saved runs.
+
+    Authoring can be incomplete. Return its precise gaps without certifying
+    actual delivery or blocking access to the editable choices themselves.
+    """
+    import production_identity
+    import production_store
+    from production_diagnostics import from_exception
+    captured = {}
+    stored = {}
+    directory = None
+    if saved is not None:
+        import production_workflow
+        directory, prepared, _, _ = production_workflow.load_run(root, saved['run'])
+        stored = {item['path']: item['sha256'] for item in prepared['dependencies']
+                  if item['space'] in authoring.AUTHORING_SPACES}
+        stored.update({item['path']: item['sha256']
+                       for item in (prepared.get('identity_coverage') or {}).get('sources', [])})
+    prefix = out_dir.rstrip('/') + '/' if out_dir is not None else None
+    def read(path):
+        if path in captured:
+            return captured[path]
+        if prefix and path.startswith(prefix) and path[len(prefix):] in (files or {}):
+            raw = files[path[len(prefix):]]
+        elif path in stored:
+            raw = c.object_read(directory, stored[path])
+        elif Path(path).is_absolute():
+            local = Path(path)
+            raw = production_store.stable_bytes(local.parent, local.name)
+        else:
+            raw = reader.read(reader.select(path))
+        captured[path] = raw
+        return raw
+    try:
+        value = production_identity.inspect(task, read)
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        return {'status': 'unresolved', 'request_verified': False,
+                'diagnostics': [from_exception(exc, phase='identity-coverage')]}
+    if (value['sources'] or value['required_subject_ids'] or value['requires_identity_source']
+            or value['whole_reviews']):
+        return value
+    return None
+
+
+def _identity_gaps(value: dict | None) -> list[dict]:
+    if value is None:
+        return []
+    keys = ('uncovered', 'missing_carriers', 'missing_subject_sources', 'missing_whole_reviews',
+            'unknown_subject_ids', 'requires_identity_source', 'diagnostics')
+    return [{'field': 'authoring.task.sources' if key in {'missing_subject_sources', 'requires_identity_source'}
+                     else 'authoring.task.criteria', 'code': 'identity-' + key.replace('_', '-'),
+             'details': value[key]} for key in keys if value.get(key)]
+
+
 def inspect_inputs(root: Path, task_path: str | None = None, *, from_run: str | None = None) -> dict:
     """Read declarations and saved records without issuing keys or permissions."""
     if task_path is None and from_run is None:
@@ -89,6 +145,7 @@ def inspect_inputs(root: Path, task_path: str | None = None, *, from_run: str | 
     import craft_consultation
     craft = (craft_consultation.navigation(root, task_path, include_scope=task.get('artifact') in {'image', 'video'})
              if task_path is not None else {'next_actions': [], 'source_run': from_run})
+    identity = _identity_view(root, task, reader, saved=saved)
     return {'state': 'inspection', 'task': ref,
             'route': {'id': task['route'], 'features': route['features'],
                       'reads': route['reads']},
@@ -99,7 +156,20 @@ def inspect_inputs(root: Path, task_path: str | None = None, *, from_run: str | 
             'required_choices': ['reading', *(['validation'] if adapters.validation_required(task) else [])],
             'choice_templates': {'visual': adapters.visual_template(task),
                                  'validation': adapters.validation_template(task)},
-            'judgments': 'Select the route applications, subjects and evidence. Existing choices require current assessment.',
+            **({'identity_coverage': identity} if identity is not None else {}),
+            'judgments': 'Establish the intended result from the requested outcome and applicable original '
+                         'sources, carrying adopted definitions and current state into later requests at '
+                         'their authored meaning, scope and importance. Include necessary conditions of '
+                         'use and the preservation required by authorized local changes. Set hard criteria '
+                         'for required outcomes, including necessary source-based identity obligations, '
+                         'and advisory criteria for nonblocking considerations and optional refinements. '
+                         'Describe the properties, '
+                         'relationships and actions to depict, and choose the subject, reference and '
+                         'production treatments that realize them. Keep agent-selected staging, format '
+                         'and incidental detail as choices within the available freedom, with coherent '
+                         'alternatives able to satisfy the same criteria. Complete route applications '
+                         'and required evidence, settle material gaps in their owning fields, and keep '
+                         'technical provenance in its existing records.',
             'external_effect': False}
 
 
@@ -261,18 +331,23 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         choices['reading']['applied'] = copy.deepcopy(previous['applied'])
         if route_reading.RECORD_RESOURCE_FIELDS:
             choices['reading']['resource_applied'] = copy.deepcopy(previous['resource_applied'])
-    result = {'state': 'draft', 'choices': choices, 'unresolved': _unresolved(choices, task),
+    identity = _identity_view(root, task, reader, saved=saved)
+    result = {'state': 'draft', 'choices': choices,
+              'unresolved': _unresolved(choices, task) + _identity_gaps(identity),
+              **({'identity_coverage': identity} if identity is not None else {}),
               'derived_from': {'task': task_ref, 'source_run': saved},
               'external_effect': False}
     _validate_choices(choices)
     context = {key: value for key, value in result.items() if key != 'choices'}
     context['task_content'] = task
+    context_raw = c.encoded(context)
     _destination(root, out_dir)
     import production_authoring_state
     production_authoring_state.remember_inputs(root, task, 'draft-inputs', out_dir,
-        task_path=task_path, from_run=from_run, runtime_arguments=runtime_arguments)
+        task_path=task_path, from_run=from_run, runtime_arguments=runtime_arguments,
+        context_sha256=c.digest(context_raw))
     _publish(root, out_dir, {'choices.json': c.encoded(choices),
-                            'context.json': c.encoded(context)}, reader=reader)
+                            'context.json': context_raw}, reader=reader)
     return {**result, 'choices_file': (Path(out_dir) / 'choices.json').as_posix(),
             'context_file': (Path(out_dir) / 'context.json').as_posix()}
 
@@ -344,6 +419,57 @@ def _retained_sources(root: Path, saved: dict | None, task: dict, reader: InputE
         reader.read({'path': path, 'sha256': previous[path]['sha256']})
 
 
+def _retained_identity_sources(root: Path, task: dict, choices_path: str, reader: InputEvidence,
+                               choices: dict) -> None:
+    """A mutable choices witness cannot erase a draft's original source evidence."""
+    folder = Path(choices_path).parent.as_posix()
+    path = (Path(folder) / 'context.json').as_posix()
+    import production_authoring_state
+    try:
+        current_identity = any(source.get('identity') for source in task.get('sources', []))
+        if not c.local(root, path, exists=False).is_file():
+            production_authoring_state.require_input_context(root, task['task_id'], folder, b'', required=current_identity)
+            return
+        raw = reader.read(reader.select(path))
+        value = c.decode(raw)
+        prior = (value.get('identity_coverage') or {}).get('sources', [])
+        production_authoring_state.require_input_context(root, task['task_id'], folder, raw,
+                                                         required=bool(prior) or current_identity)
+        selected = {source['path'] for source in task.get('sources', [])}
+        selected.update(item for item in (task.get('generation') or {}).values() if isinstance(item, str))
+        from production_reference_inputs import _authored_rows
+        reference_choices = (choices.get('authoring') or {}).get('references')
+        external = choices.get('external') or {}
+        for refs in (reference_choices, (external.get('reference_delivery') or {}).get('choices')):
+            if refs is not None:
+                for reference in _authored_rows(refs):
+                    original = reference.get('source') or {}
+                    if original.get('resolved_path'):
+                        selected.add(original['resolved_path'])
+                    if reference.get('file'):
+                        selected.add(reference['file'])
+        external_input = external.get('image_input')
+        if isinstance(external_input, dict):
+            selected.update(row['file'] for row in external_input.get('references', []) if row.get('file'))
+        for source in prior:
+            candidates = {source['path']}
+            original = (source.get('authority') or {}).get('source') or {}
+            if original.get('resolved_path'):
+                candidates.add(original['resolved_path'])
+            for selected_path in candidates & selected:
+                if Path(selected_path).is_absolute():
+                    import production_store
+                    local = Path(selected_path)
+                    if c.digest(production_store.stable_bytes(local.parent, local.name)) != source['sha256']:
+                        raise ValueError('retained identity source bytes differ: ' + selected_path)
+                else:
+                    reader.read({'path': selected_path, 'sha256': source['sha256']})
+    except (ValueError, OSError) as exc:
+        raise authoring.UnresolvedChoice('authoring.task.sources',
+            'Identity source evidence changed since this draft. Read the current owning sources '
+            'and draft their current application and criteria again. ' + str(exc)) from exc
+
+
 def _choice_source(root: Path, choices_path: str, reader: InputEvidence) -> tuple[dict, dict, dict | None, str | None, str | None]:
     """Recover the original input boundary; edited content never asserts origin."""
     path = (Path(choices_path).parent / 'context.json').as_posix()
@@ -407,6 +533,7 @@ def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: 
     if validation is not None:
         content['request-validation.json'] = validation
     try:
+        _retained_identity_sources(root, task, choices_path, reader, choices)
         copied_task, authored_files, authored_delivery = authoring.materialize(
             root, task, choices.get('authoring'), reader, out_dir, saved=saved, validation=validation)
     except authoring.UnresolvedChoice as exc:
@@ -445,8 +572,11 @@ def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: 
             features=copied_task['features'], dialect=external_context['dialect'])
     else:
         external_context = None
+    identity = _identity_view(root, copied_task, reader, files=encoded, out_dir=out_dir)
+    identity_gaps = _identity_gaps(identity)
     def recheck():
         _reading(choices['reading'], root=root, task=task)
+        _retained_identity_sources(root, task, choices_path, reader, choices)
         _retained_sources(root, saved, copied_task, reader)
         current_visual, _ = adapters.build_visual(choices['visual'], task, reader, root)
         current_validation, _ = adapters.build_validation(choices['validation'], validation_task, reader, root)
@@ -457,18 +587,20 @@ def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: 
                 choices['external'], copied_task, reader, root, out_dir, delivery)
             if current_files != external_files or current_context != external_context:
                 raise ValueError('selected external input changed during construction')
-    if external_context is not None and external_context.get('unresolved'):
+    if identity_gaps or (external_context is not None and external_context.get('unresolved')):
         # The canonical carriers are useful authored-work output. Their actual
         # upload is still missing, so publish them without an executable task.
         encoded['input-snapshots.json'] = c.encoded(reader.snapshots)
         result = {'state': 'draft', 'ok': False,
                   'inputs': {Path(name).stem: {'path': (Path(out_dir) / name).as_posix(),
                              'sha256': c.digest(raw)} for name, raw in encoded.items()},
-                  'unresolved': external_context['unresolved'], 'execution_ready': False,
-                  'request_state': external_context['state'],
+                  'unresolved': (external_context or {}).get('unresolved', []) + identity_gaps,
+                  'execution_ready': False,
+                  'request_state': (external_context or {}).get('state', 'identity-choices-required'),
                   'derived_from': {'task': task_ref, 'choices': choices_ref,
                                    'source_run': saved, 'sources': sorted(reader.read_paths)},
                   'external_input': external_context,
+                  **({'identity_coverage': identity} if identity is not None else {}),
                   'next_actions': [{'operation': 'edit-choices', 'args': {'path': choices_path},
                                     'external_effect': False}],
                   'external_effect': False}
@@ -489,6 +621,7 @@ def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: 
               'changes': [{'field': key, 'before': base_task.get(key), 'after': value}
                           for key, value in copied_task.items() if value != base_task.get(key)],
               'external_input': external_context,
+              **({'identity_coverage': identity} if identity is not None else {}),
               'assessment_required': ['Apply the selected quotations to the current rendition and settings.'],
               'next_actions': adapters.next_actions(inputs, copied_task, root, runtime_arguments=runtime_arguments),
               'external_effect': False}

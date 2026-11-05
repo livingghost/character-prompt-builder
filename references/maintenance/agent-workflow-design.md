@@ -26,7 +26,8 @@ generated files to make those responsibilities meet.
 
 | Information | Owner |
 | --- | --- |
-| Requirements, selected depiction, source authority, intended influence and exclusions | The author, with source evidence and scope |
+| Required result, source definitions and necessary use conditions | The commission and applicable source authority, interpreted by the author at their scope |
+| Selected depiction, intended influence and exclusions | The author, within those requirements and source scopes |
 | Prompt wording, supported controls, independent criteria and result assessment | The author, in their respective roles |
 | File placement, attachment positions, content hashes, repeated identifiers and request bindings | The owning builder, derived from selected inputs |
 | Submission, capture, cleanup and recovery state | The execution runtime, from actual effects and saved observations |
@@ -34,9 +35,11 @@ generated files to make those responsibilities meet.
 
 Independent responsibilities do not require independently retyping the same
 fact. Keep each meaningful choice at one editable location and derive or
-reference its other representations. Preserve a commission-based review basis
-independently of the prompt it judges. Do not generate that basis by treating
-the prompt as a successful answer to the commission.
+reference its other representations. Preserve a review basis grounded in the
+commission and applicable sources independently of the prompt it judges.
+Carry inherited identity and state requirements through later requests, while
+keeping selected methods open within the task's authority. Judge a rendition
+by the required result it provides and the source meaning it preserves.
 
 ## One editable source across a task
 
@@ -88,7 +91,12 @@ Skill's scope or installation requirements.
 
 At each phase, expose the commission, applicable source material, current
 choices, actual model input, unresolved questions and relevant execution state.
-Link to complete original documents and actual images from that view. Separate
+Link to complete original documents and actual images from that view. Present
+the applicable requirements and selected means in their distinct roles so the
+agent can assess alternative realizations and correct a mistaken criterion at
+its owning choice. Reserve selection-blocking issues for matters that need
+resolution or acceptance to decide the required result; expose nonblocking
+limitations and optional repairs in their existing roles. Separate
 the model-facing input from its assessment basis when an independent reading
 is needed, then make their relationship available for the decision.
 
@@ -116,7 +124,11 @@ discarded or broadened merely because the agent changed an input file.
 ## Instructions and knowledge
 
 Ordinary instructions teach what to understand and decide, which operation
-receives the decision, and how to act on its result. Keep ordinary operation specifications and their applicable prerequisites,
+receives the decision, and how to act on its result. Lead with the intended
+content or completed behavior and the actions that construct it. Constraints
+refine that positive procedure at their applicable scope. Carry useful choices
+into the work, with reasons or qualifications where they affect its use.
+Keep ordinary operation specifications and their applicable prerequisites,
 authority, constraints, exceptions and recovery instructions together in the
 complete documents delivered by the existing route read. Owning references
 retain their full bodies in that read. A link, search hit or available source
@@ -125,6 +137,12 @@ backward for a caller's restrictions. Page large reads without omitting sources,
 return an executable continuation and issue a reading record only after all
 pages have been delivered. Implementation-only maintenance details can remain
 in their owning maintenance references.
+
+Technical specifications and maintenance procedures keep their complete
+requirements in their owning references. Contributor and host entry guides
+route readers to those sources. Runtime and maintenance instructions obtain
+technical prerequisites from the technical references themselves, so their
+meaning remains independent of contributor-facing navigation.
 
 Retain specialized production knowledge at the specificity its uses require.
 Before moving or consolidating instructions, examine their dependent uses,

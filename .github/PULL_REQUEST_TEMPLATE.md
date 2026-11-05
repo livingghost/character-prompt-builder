@@ -15,11 +15,10 @@ Explain why the new label or distinction cannot be removed without changing the 
 
 ## Validation
 
-The required checks are in [CONTRIBUTING.md](../CONTRIBUTING.md), and
-[Release Validation](../references/release/validation.md) is the sole authority for
-publication. Neither is copied here: a copied sequence drifts from the document it
-claims to follow, and this one had already lost the dependency profile and the
-documentation gate.
+Follow [Maintenance testing](../references/maintenance/testing.md) for check
+execution and subsystem coverage. For publication, follow
+[Release Validation](../references/release/validation.md) for its complete sequence
+and acceptance conditions.
 
 - [ ] Core dependency profile checked, and the focused smoke test run for every subsystem changed.
 - [ ] Generated artifacts rebuilt before validating anything that depends on them.

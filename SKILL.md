@@ -23,9 +23,9 @@ For every documented `python scripts/<name>.py ...` command, run `uv run --proje
 
 ## Core contract
 
-Read [Production direction](references/runtime/production-direction.md) as the owner of authoring and judging the commissioned depiction. Keep actions, states, relationships and designs meaningful through wording; do not turn them automatically into attribute inventories. Specialist knowledge answers the construction question at hand. Preserve exact requirements and purposeful detail. Judge chosen means against the commission, including when a renderer obeys them. A draft commands its renderer, not its reviewer; plans and criteria grant no authority. Complete sufficiently resolved work. Omissions grant no permission or exclusion.
+Read [Production direction](references/runtime/production-direction.md) to author and judge the commissioned depiction. Convey actions, states, relationships and designs as meaningful wholes with their relevant detail. Specialist knowledge answers the construction question. Preserve exact requirements and purposeful detail. Judge chosen means against the commission, including when a renderer obeys them. A draft commands its renderer, not its reviewer; plans and criteria grant no authority. Construct the intended depiction, choose suitable means and complete the work. Omissions grant no permission or exclusion.
 
-Preserve anchors. Disclose every modification and its reason; assumptions fill open space rather than change intent. Keep creator portrayal intent distinct from facts and psychology across outputs.
+Preserve anchors and applicable adopted definitions. Record changes and reasons at their owners; resolve open choices within delegated scope. Keep creator portrayal intent distinct from facts and psychology across outputs.
 
 Bind inputs, target and count to actual authorization. Distinguish direction, editing, submission, selection and canonical adoption. Continue within delegated scope without repeated approval.
 
@@ -147,14 +147,15 @@ Deliver actual selected reference files under [Prompt Artifact References](refer
 
 ## Maintenance and release
 
-Activate these documents only when changing a pack or distributing the skill:
+For maintenance and release:
 
-- record, taxonomy or evidence work: [Preset Maintenance](references/maintenance/presets.md);
-- search-profile authoring and retrieval evaluation: [Search Discovery Maintenance](references/maintenance/search-discovery.md);
-- pack creation, installation, update, removal, lock, or lifecycle: [Pack Maintenance](references/maintenance/packs.md);
+- core changes and checks: [Testing](references/maintenance/testing.md);
+- records, taxonomy or evidence: [Preset Maintenance](references/maintenance/presets.md);
+- search profiles and retrieval evaluation: [Search Discovery Maintenance](references/maintenance/search-discovery.md);
+- pack creation, installation, updates, removal, locks or lifecycle: [Pack Maintenance](references/maintenance/packs.md);
 - core or pack publication and complete gates: [Release Validation](references/release/validation.md).
 
-Do not read maintenance, pack-release, release-validation, state-aware, or unselected-model documents during an ordinary reference-free prompt-only task.
+Ordinary reference-free prompt-only work leaves maintenance, pack-release, release-validation, state-aware and unselected-model documents unloaded.
 
 ## Resource handling
 

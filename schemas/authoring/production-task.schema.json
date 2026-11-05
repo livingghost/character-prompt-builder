@@ -47,6 +47,9 @@
           "reason": {
             "type": "string",
             "minLength": 1
+          },
+          "identity": {
+            "$ref": "#/$defs/identitySource"
           }
         },
         "required": [
@@ -106,6 +109,13 @@
               "motion",
               "audio"
             ]
+          },
+          "identity_bindings": {
+            "type": "array",
+            "items": {"$ref": "#/$defs/identityBinding"}
+          },
+          "identity_review": {
+            "$ref": "#/$defs/identitySubjects"
           }
         },
         "required": [
@@ -853,6 +863,80 @@
           "url": {"type": "string", "minLength": 1}
         }
       }
+    }
+  },
+  "$defs": {
+    "identitySubjects": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "identitySelectors": {
+      "description": "JSON Pointers relative to the original source or derived source node. An empty string selects the whole value. Subtrees include all terminal values, including empty collections.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^(?:/(?:[^~]|~[01])*)?$"}
+    },
+    "identitySource": {
+      "type": "object",
+      "properties": {
+        "subject_ids": {"$ref": "#/$defs/identitySubjects"},
+        "selectors": {"$ref": "#/$defs/identitySelectors"}
+      },
+      "required": ["subject_ids", "selectors"],
+      "additionalProperties": false
+    },
+    "identityCarrier": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "text"},
+            "surface": {"enum": ["primary", "negative"]},
+            "quote": {"type": "string", "minLength": 1}
+          },
+          "required": ["kind", "surface", "quote"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "reference"},
+            "reference": {"type": "string", "minLength": 1},
+            "use": {"type": "string", "minLength": 1}
+          },
+          "required": ["kind", "reference", "use"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "identityBinding": {
+      "description": "An independently authored criterion relates selected original identity material to its scene treatment and actual input carriers. This declares coverage; it does not certify semantic preservation.",
+      "type": "object",
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "subject_ids": {"$ref": "#/$defs/identitySubjects"},
+        "selectors": {"$ref": "#/$defs/identitySelectors"},
+        "treatment": {"enum": ["preserve", "indirect", "not-exposed", "not-applicable", "authorized-variation", "unresolved"]},
+        "reason": {"type": "string", "minLength": 1},
+        "carriers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/identityCarrier"}
+        },
+        "variation": {"type": ["string", "null"], "minLength": 1}
+      },
+      "required": ["source", "subject_ids", "selectors", "treatment", "reason", "carriers", "variation"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"treatment": {"const": "authorized-variation"}}, "required": ["treatment"]},
+          "then": {"properties": {"variation": {"type": "string", "minLength": 1}}},
+          "else": {"properties": {"variation": {"type": "null"}}}
+        }
+      ]
     }
   },
   "required": [

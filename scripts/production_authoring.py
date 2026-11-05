@@ -114,13 +114,16 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
     if not initial:
         for source in task.get('sources', []):
             path = source['path']
-            if path in owned_paths or Path(path).suffix.lower() not in TEXT_SOURCE_SUFFIXES:
+            if source.get('identity') or path in owned_paths or Path(path).suffix.lower() not in TEXT_SOURCE_SUFFIXES:
                 continue
             raw = source_bytes(root, path, reader, saved)
             format = 'json' if Path(path).suffix.lower() == '.json' else 'text'
             sources[source['id']] = {'format': format,
                 'content': c.decode(raw) if format == 'json' else raw.decode('utf-8')}
     source_files = {}
+    for source in task.get('sources', []):
+        if source.get('identity'):
+            source_files[source['path']] = c.digest(source_bytes(root, source['path'], reader, saved))
     for source in task.get('upload_sources', []):
         c.exact(source, {'file', 'url'}, 'upload source selection')
         source_files[source['file']] = c.digest(source_bytes(root, source['file'], reader, saved))
@@ -201,7 +204,7 @@ def unresolved(authored: dict | None, task: dict) -> list[dict]:
 def _redirect(task: dict, before: str | None, after: str) -> None:
     if before is not None:
         for source in task.get('sources', []):
-            if source.get('path') == before:
+            if source.get('path') == before and not source.get('identity'):
                 source['path'] = after
 
 
@@ -277,6 +280,23 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
     files = {}
     for index, source in enumerate(result.get('sources', []), 1):
         selected = authored['sources'].get(source['id'])
+        if source.get('identity'):
+            # An editable rendition is not the authority of an adopted source.
+            # Preserve the original source and the draft's exact byte witness.
+            raw = reader.read(reader.select(source['path']))
+            witness = authored['source_files'].get(source['path'])
+            if witness is not None and c.digest(raw) != witness:
+                raise UnresolvedChoice('authoring.task.sources',
+                    'Identity source changed since these choices were drafted: ' + source['path'] +
+                    '. Read the current owning source and draft its current scope and criteria again.')
+            if selected is not None:
+                same = (selected.get('content') == c.decode(raw) if selected.get('format') == 'json'
+                        else selected.get('content') == raw.decode('utf-8'))
+                if not same:
+                    raise UnresolvedChoice('authoring.sources.' + source['id'],
+                        'Revise identity in its owning source and authority workflow before selecting it; '
+                        'an editable production copy cannot redefine that source.')
+            continue
         if selected is None:
             continue
         c.exact(selected, {'format', 'content'}, 'authored source ' + source['id'])
@@ -294,6 +314,18 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
     documents = copy.deepcopy(authored['documents'])
     if set(documents) - DOCUMENTS:
         raise ValueError('authoring.documents names an unknown production document')
+    if documents.get('state_graphs') is not None and old_generation.get('state_graphs'):
+        from production_identity import IDENTITY_NODES
+        previous_graphs = c.decode(source_bytes(root, old_generation['state_graphs'], reader, saved))
+        previous = {graph['identity_contract']['character_id']: graph for graph in previous_graphs}
+        for graph in documents['state_graphs']:
+            subject = graph['identity_contract']['character_id']
+            before = previous.get(subject)
+            if before is not None and any(before.get(node) != graph.get(node) for node in IDENTITY_NODES):
+                raise UnresolvedChoice('authoring.documents.state_graphs',
+                    'An existing identity, morphology, Era, Form or Appearance owner changed inside an editable '
+                    'scene graph. Select the current approved graph from its owning workflow and draft again; '
+                    'scene authoring cannot adopt a replacement identity.')
     plot = documents.get('plot')
     if plot is not None:
         original = old_generation.get('plot')

@@ -114,6 +114,13 @@ A tag interface retains its evidenced hierarchy and conveys the same requirement
 through supported terms and channels. Preserve this connection through interface
 conversion rather than translating source notes into additional image tasks.
 
+Write the selected depiction as direct instructions. Adopted design properties
+state what the subject is; the chosen scene states what it is doing and how it
+appears here. Keep investigation history, selection commentary and routine
+confidence qualifiers in the authoring context. Include source roles, conditions
+or uncertainty in the delivered input when they change the intended depiction
+or how the receiving model should use its references.
+
 Use the direct name of an activity, state or relationship when it carries the
 intended meaning. Add wording for a meaningful distinction, an explicit fine
 requirement or an evidenced target weakness. Preserve the relationships through
